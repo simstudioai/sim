@@ -1,4 +1,9 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  setUploadsConfig,
+  uploadsConfigMock,
+  uploadsConfigMockFns,
+} from '@sim/testing/mocks/uploads-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUploadToS3, mockGetPresignedUrlWithConfig, mockDeleteFromS3 } = vi.hoisted(() => ({
@@ -7,12 +12,7 @@ const { mockUploadToS3, mockGetPresignedUrlWithConfig, mockDeleteFromS3 } = vi.h
   mockDeleteFromS3: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: true,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({ bucket: 'bucket', region: 'us-east-1' }),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   uploadToS3: mockUploadToS3,
@@ -22,6 +22,9 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 import { processExecutionFiles } from '@/lib/execution/files'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+
+setUploadsConfig({ USE_S3_STORAGE: true })
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({ bucket: 'bucket', region: 'us-east-1' })
 
 const context = {
   workspaceId: 'workspace-1',

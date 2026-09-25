@@ -5,6 +5,7 @@
  * reaper is the only writer that ever records that failure. These tests pin the
  * shape of the SQL it writes, which is the part no shape-agnostic mock can enforce.
  */
+
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -14,6 +15,11 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -24,28 +30,28 @@ import {
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
 
-const {
-  mockVerifyCronAuth,
-  mockDispatchSync,
-  mockResolveSystemBillingAttribution,
-  mockResolveSystemOrganizationBillingAttribution,
-} = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
+const { mockDispatchSync } = vi.hoisted(() => ({
   mockDispatchSync: vi.fn().mockResolvedValue(undefined),
-  mockResolveSystemBillingAttribution: vi.fn().mockResolvedValue({ workspaceId: 'ws-1' }),
-  mockResolveSystemOrganizationBillingAttribution: vi
-    .fn()
-    .mockResolvedValue({ workspaceId: null, organizationId: 'org-1' }),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-  resolveSystemOrganizationBillingAttribution: mockResolveSystemOrganizationBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 import { GET } from '@/app/api/knowledge/connectors/sync/route'
+
+const { mockVerifyCronAuth } = authInternalMockFns
+mockVerifyCronAuth.mockReturnValue(null)
+
+const mockResolveSystemBillingAttribution =
+  billingAttributionMockFns.mockResolveSystemBillingAttribution
+const mockResolveSystemOrganizationBillingAttribution =
+  billingAttributionMockFns.mockResolveSystemOrganizationBillingAttribution
+mockResolveSystemBillingAttribution.mockResolvedValue({ workspaceId: 'ws-1' })
+mockResolveSystemOrganizationBillingAttribution.mockResolvedValue({
+  workspaceId: null,
+  organizationId: 'org-1',
+})
 
 /** A drizzle `sql` fragment as the shared test mock renders it. */
 interface MockSqlFragment {

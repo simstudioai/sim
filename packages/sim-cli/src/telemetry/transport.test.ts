@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   type CaptureRequest,
   DEFAULT_INGEST_HOST,
@@ -19,10 +19,6 @@ function fakeSpawn() {
   const spawn = vi.fn<SpawnSender>(() => child)
   return { spawn, child }
 }
-
-afterEach(() => {
-  vi.unstubAllEnvs()
-})
 
 describe('sendCapture', () => {
   it('never hands the sender the API key', () => {

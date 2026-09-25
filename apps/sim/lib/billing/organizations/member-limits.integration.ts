@@ -1,5 +1,6 @@
 import { recordAudit } from '@sim/audit'
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -7,13 +8,8 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl, select, transaction } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Usage integration tests require a disposable local database')
-  }
-  return { databaseUrl, select: vi.fn(), transaction: vi.fn() }
-})
+const { select, transaction } = vi.hoisted(() => ({ select: vi.fn(), transaction: vi.fn() }))
+const databaseUrl = readTestDatabaseUrl()
 vi.mock('@/lib/core/config/env-flags', async () => (await import('@sim/testing')).envFlagsMock)
 vi.mock('@sim/db', () => ({ db: { select, transaction }, dbReplica: { select } }))
 vi.mock('@sim/audit', async (original) => ({
@@ -30,19 +26,16 @@ import { isOrgMemberUsageLimitTarget } from '@/lib/billing/organizations/member-
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 
 const schemaName = `member_limits_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 3,
-      prepare: false,
-      connection: { search_path: schemaName, application_name: schemaName },
-      onnotice: () => undefined,
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 3,
+  prepare: false,
+  connection: { search_path: schemaName, application_name: schemaName },
+  onnotice: () => undefined,
+})
 
-const database = connection ? drizzle(connection, { schema }) : undefined
+const database = drizzle(connection, { schema })
 
 beforeAll(async () => {
-  if (!connection) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text DEFAULT 'member');
@@ -68,14 +61,13 @@ beforeAll(async () => {
       ('p5', 'missing-workspace', 'workspace', 'missing'),
       ('p6', 'revoked', 'workspace', 'local');
   `)
-  select.mockImplementation((fields) => database!.select(fields))
-  transaction.mockImplementation((callback) => database!.transaction(callback))
+  select.mockImplementation((fields) => database.select(fields))
+  transaction.mockImplementation((callback) => database.transaction(callback))
   setEnvFlags({ isHosted: true })
 })
 
 afterAll(async () => {
   resetEnvFlagsMock()
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA "${schemaName}" CASCADE`)
   await connection.end()
 })
@@ -87,7 +79,7 @@ function limitInput(
 ): UpdateOrganizationMemberUsageLimitInput {
   return { organizationId: 'org', userId, creditLimit }
 }
-describe.skipIf(!databaseUrl)('organization credit-limit target SQL', () => {
+describe('organization credit-limit target SQL', () => {
   it.each([
     ['member', true],
     ['external', true],
@@ -104,12 +96,12 @@ describe.skipIf(!databaseUrl)('organization credit-limit target SQL', () => {
 
   it('requires a current relationship after external access is revoked', async () => {
     expect(await isOrgMemberUsageLimitTarget('org', 'revoked')).toBe(true)
-    await connection!`DELETE FROM permissions WHERE user_id = 'revoked'`
+    await connection`DELETE FROM permissions WHERE user_id = 'revoked'`
     expect(await isOrgMemberUsageLimitTarget('org', 'revoked')).toBe(false)
   })
 })
 
-describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => {
+describe('organization credit-limit mutation races', () => {
   it.each(['member', 'external', 'archived-external'])(
     'sets and clears a cap for the eligible target %s',
     async (userId) => {
@@ -121,7 +113,7 @@ describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => 
         })
       ).resolves.toEqual({ creditLimit: 400 })
       const [cap] =
-        await connection!`SELECT usage_limit, set_by FROM organization_member_usage_limit WHERE user_id = ${userId}`
+        await connection`SELECT usage_limit, set_by FROM organization_member_usage_limit WHERE user_id = ${userId}`
       expect(Number(cap.usage_limit)).toBe(2)
       expect(cap.set_by).toBe('actor')
       await expect(
@@ -131,7 +123,7 @@ describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => 
         })
       ).resolves.toEqual({ creditLimit: null })
       expect(
-        await connection!`SELECT id FROM organization_member_usage_limit WHERE user_id = ${userId}`
+        await connection`SELECT id FROM organization_member_usage_limit WHERE user_id = ${userId}`
       ).toHaveLength(0)
     }
   )
@@ -140,11 +132,11 @@ describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => 
     'rejects a target revoked by %s while the update waits',
     async (removalKind) => {
       const userId = `target-${removalKind}`
-      await connection!`INSERT INTO permissions VALUES (${userId}, ${userId}, 'workspace', 'local')`
+      await connection`INSERT INTO permissions VALUES (${userId}, ${userId}, 'workspace', 'local')`
       vi.mocked(recordAudit).mockClear()
       const ready = createDeferred<void>()
       const release = createDeferred<void>()
-      const removal = database!.transaction(async (tx) => {
+      const removal = database.transaction(async (tx) => {
         if (removalKind === 'organization-removal') {
           await acquireOrganizationUserMutationLocks(tx, { userId, organizationIds: ['org'] })
         }
@@ -165,7 +157,7 @@ describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => 
       try {
         await vi.waitFor(
           async () => {
-            const [waiting] = await connection!`SELECT count(*)::int AS count FROM pg_stat_activity
+            const [waiting] = await connection`SELECT count(*)::int AS count FROM pg_stat_activity
             WHERE application_name = ${schemaName} AND wait_event_type = 'Lock'`
             expect(waiting.count).toBeGreaterThan(0)
           },
@@ -177,7 +169,7 @@ describe.skipIf(!databaseUrl)('organization credit-limit mutation races', () => 
       }
       expect(await update).toMatchObject({ error: { code: 'not_found' } })
       const caps =
-        await connection!`SELECT id FROM organization_member_usage_limit WHERE user_id = ${userId}`
+        await connection`SELECT id FROM organization_member_usage_limit WHERE user_id = ${userId}`
       expect(caps).toHaveLength(0)
       expect(recordAudit).not.toHaveBeenCalled()
     }

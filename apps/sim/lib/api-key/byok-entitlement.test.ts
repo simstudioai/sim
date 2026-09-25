@@ -1,19 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveOrganizationPlan, mockIsHosted } = vi.hoisted(() => ({
-  mockResolveOrganizationPlan: vi.fn(),
-  mockIsHosted: { value: true },
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  resolveOrganizationPlan: mockResolveOrganizationPlan,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockIsHosted.value
-  },
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import {
   isOrganizationBYOKEntitled,
@@ -22,13 +14,17 @@ import {
 } from '@/lib/api-key/byok-entitlement'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 
+const mockResolveOrganizationPlan = billingSubscriptionMockFns.mockResolveOrganizationPlan
+
 const ORGANIZATION_ID = 'org-1'
+
+afterAll(resetEnvFlagsMock)
 
 describe('organization BYOK entitlement', () => {
   beforeEach(() => {
     resetOrganizationBYOKEntitlementCache()
     __resetCoalesceLocallyForTests()
-    mockIsHosted.value = true
+    setEnvFlags({ isHosted: true })
     mockResolveOrganizationPlan.mockResolvedValue(true)
   })
 
@@ -134,7 +130,7 @@ describe('organization BYOK entitlement', () => {
   })
 
   it('never consults billing off hosted, on either path', async () => {
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
 
     await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(false)
     await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)

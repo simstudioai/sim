@@ -1,4 +1,12 @@
 import { db } from '@sim/db'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -7,7 +15,6 @@ const m = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
-  membership: vi.fn(),
   sources: vi.fn(),
   persist: vi.fn(),
   dispatch: vi.fn(),
@@ -44,9 +51,7 @@ vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
     }
   },
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.membership,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
   getSlackSearchSourceStatus: { execute: m.sources },
 }))
@@ -72,7 +77,7 @@ import {
 } from '@/lib/slack-search/conversation'
 import type { SlackSearchMessage } from '@/lib/slack-search/types'
 
-const principal = { kind: 'session', userId: 'user1', sessionId: 'session1' } as const
+const principal = createSessionPrincipal({ userId: 'user1', sessionId: 'session1' })
 const job = {
   installationId: 'install1',
   revision: 'revision1',
@@ -137,7 +142,9 @@ beforeEach(() => {
   m.authorize.mockResolvedValue(context)
   m.sender.mockResolvedValue({ email: state.email })
   m.member.mockResolvedValue('user1')
-  m.membership.mockResolvedValue({ role: 'member' })
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
+    role: 'member',
+  })
   m.sources.mockResolvedValue({ hasSearchableDocuments: true })
   m.persist.mockResolvedValue('retry1')
   m.api.mockResolvedValue({ status: 200, data: { ok: true, permalink: state.slackUrl } })
@@ -147,7 +154,7 @@ describe('Slack onboarding authorization and retry', () => {
   it('rejects API keys before reading link state', async () => {
     await expect(
       getSlackSearchOnboarding.execute({
-        principal: { kind: 'personal_api_key', userId: 'user1', keyId: 'key1' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'user1', keyId: 'key1' }),
         input: { token: 'token' },
       })
     ).rejects.toThrow()
@@ -182,7 +189,9 @@ describe('Slack onboarding authorization and retry', () => {
   })
   it('rechecks current capability permissions instead of trusting the link', async () => {
     queueContext()
-    m.membership.mockRejectedValueOnce(new Error('knowledge access denied'))
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValueOnce(
+      new Error('knowledge access denied')
+    )
     await expect(retry()).rejects.toThrow('knowledge access denied')
     expect(m.persist).not.toHaveBeenCalled()
   })

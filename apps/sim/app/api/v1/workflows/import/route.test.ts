@@ -5,84 +5,49 @@
  * persisting the imported state fails.
  */
 
-import { createMockRequest } from '@sim/testing'
+import { workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockPerformCreateWorkflow,
-  mockSaveWorkflowToNormalizedTables,
   mockParseWorkflowJson,
-  mockAssertFolderMutable,
-  mockAssertFolderInWorkspace,
   mockExtractAndPersistCustomTools,
   mockPrepareWorkflowState,
-  mockDbDelete,
   mockDbUpdate,
-  mockWorkspaceRows,
-  mockNotifyWorkspaceWorkflowsChanged,
 } = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockPerformCreateWorkflow: vi.fn(),
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockParseWorkflowJson: vi.fn(),
-  mockAssertFolderMutable: vi.fn(),
-  mockAssertFolderInWorkspace: vi.fn(),
   mockExtractAndPersistCustomTools: vi.fn(),
   mockPrepareWorkflowState: vi.fn(),
-  mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
-  mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
-  mockNotifyWorkspaceWorkflowsChanged: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  /** Mirrors the real helper: only a personal key or session carries a governed subject. */
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performCreateWorkflow: mockPerformCreateWorkflow,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspaceWorkflowsChanged,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({
   parseWorkflowJson: mockParseWorkflowJson,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertFolderInWorkspace: mockAssertFolderInWorkspace,
-  assertFolderMutable: mockAssertFolderMutable,
-  FolderLockedError: class FolderLockedError extends Error {
-    status = 423
-  },
-  FolderNotFoundError: class FolderNotFoundError extends Error {
-    status = 400
-  },
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
 vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
   extractAndPersistCustomTools: mockExtractAndPersistCustomTools,
@@ -97,21 +62,26 @@ vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mockPrepareWorkflowState,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => mockWorkspaceRows.value),
-        })),
-      })),
-    })),
-    delete: mockDbDelete,
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ update: mockDbUpdate })),
-  },
+import { POST } from '@/app/api/v1/workflows/import/route'
+
+const { mockPerformCreateWorkflow } = workflowsOrchestrationMockFns
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCreateRateLimitResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
 }))
 
-import { POST } from '@/app/api/v1/workflows/import/route'
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+const mockNotifyWorkspaceWorkflowsChanged =
+  realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
+const mockAssertFolderMutable = workflowAuthzMockFns.mockAssertFolderMutable
+const mockAssertFolderInWorkspace = workflowAuthzMockFns.mockAssertFolderInWorkspace
+const mockDbDelete = dbChainMockFns.delete
 
 const WORKSPACE_ID = 'ws-1'
 const CREATED_AT = new Date('2026-07-01T00:00:00Z')
@@ -158,7 +128,11 @@ function validBody(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/v1/workflows/import', () => {
   beforeEach(() => {
-    mockWorkspaceRows.value = [{ id: WORKSPACE_ID }]
+    resetDbChainMock()
+    queueTableRows(workspace, [{ id: WORKSPACE_ID }])
+    dbChainMockFns.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) =>
+      fn({ update: mockDbUpdate })
+    )
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockAssertFolderMutable.mockResolvedValue(undefined)

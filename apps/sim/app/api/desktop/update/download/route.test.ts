@@ -1,6 +1,6 @@
 import { setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DESKTOP_PRERELEASE_REPOSITORY,
   DESKTOP_STABLE_RELEASE_REPOSITORY,
@@ -63,10 +63,6 @@ describe('desktop update download route', () => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
     setEnv({ APPCONFIG_ENVIRONMENT: undefined })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('redirects to the newest stable installer', async () => {

@@ -1,5 +1,37 @@
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -10,9 +42,6 @@ import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 import { extractIndexText } from '@/lib/workspace-files/search/extract'
 
 const {
-  mockAssertActiveWorkspaceAccess,
-  mockDownloadServableFileFromStorage,
-  mockDownloadFileFromStorage,
   mockDecompressArchiveBufferToWorkspaceFiles,
   mockEnsureWorkspaceFileFolderPath,
   mockListWorkspaceFileFolders,
@@ -20,26 +49,9 @@ const {
   mockUpdateWorkspaceFileFolder,
   mockDeleteWorkspaceFileFolder,
   mockRestoreWorkspaceFileFolder,
-  mockListWorkspaceFilesInFolderScope,
-  mockQueryWorkspaceFilePage,
-  mockFetchWorkspaceFileBuffer,
-  mockGetBoundWorkspaceFileSecretProvenance,
-  mockLoadActiveWorkspaceContext,
-  mockLoadActiveWorkspaceFileContext,
   mockMoveWorkspaceFileItems,
   mockEditWorkspaceFileContent,
-  mockResolveEffectiveWorkspacePermission,
-  mockGetFileMetadataByKey,
-  mockGetWorkspaceFileByName,
-  mockGetWorkspaceFile,
-  mockVerifyFileAccess,
-  mockResolveWorkspaceFileReference,
-  mockUpdateWorkspaceFileContent,
-  mockUploadWorkspaceFile,
 } = vi.hoisted(() => ({
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockDownloadServableFileFromStorage: vi.fn(),
-  mockDownloadFileFromStorage: vi.fn(),
   mockDecompressArchiveBufferToWorkspaceFiles: vi.fn(),
   mockEnsureWorkspaceFileFolderPath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
@@ -47,22 +59,8 @@ const {
   mockUpdateWorkspaceFileFolder: vi.fn(),
   mockDeleteWorkspaceFileFolder: vi.fn(),
   mockRestoreWorkspaceFileFolder: vi.fn(),
-  mockListWorkspaceFilesInFolderScope: vi.fn(),
-  mockQueryWorkspaceFilePage: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
-  mockLoadActiveWorkspaceContext: vi.fn(),
-  mockLoadActiveWorkspaceFileContext: vi.fn(),
   mockMoveWorkspaceFileItems: vi.fn(),
   mockEditWorkspaceFileContent: vi.fn(),
-  mockResolveEffectiveWorkspacePermission: vi.fn(),
-  mockGetFileMetadataByKey: vi.fn(),
-  mockGetWorkspaceFileByName: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockVerifyFileAccess: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockUpdateWorkspaceFileContent: vi.fn(),
-  mockUploadWorkspaceFile: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/archive', async (importOriginal) => {
@@ -74,98 +72,19 @@ vi.mock('@/lib/uploads/archive', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: vi.fn(() => false),
-  parseBuffer: vi.fn(),
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPLOADED: 'file_uploaded', FILE_UPDATED: 'file_updated' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceFilesChanged: vi.fn(async () => undefined),
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: vi.fn().mockResolvedValue(null),
-  getSharesForResources: vi.fn().mockResolvedValue(new Map()),
-  getWorkspaceSharesForResources: vi.fn().mockResolvedValue(new Map()),
-  ShareValidationError: class ShareValidationError extends Error {},
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' ||
-    permission === required ||
-    (permission === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
-    mockResolveEffectiveWorkspacePermission(...args),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  /** The versioned read is the same row plus the number the metadata surface reports. */
-  getWorkspaceFileWithCurrentVersion: async (...args: unknown[]) => {
-    const file = await mockGetWorkspaceFile(...args)
-    return file ? { ...file, currentVersion: 1 } : file
-  },
-  /** Folder rows are numbered from the same fixtures, keyed by the id the listing returned. */
-  getWorkspaceFileVersionsByKey: async (_workspaceId: string, fileIds: string[]) => {
-    const entries = await Promise.all(
-      fileIds.map(async (id) => {
-        const file = await mockGetWorkspaceFile(_workspaceId, id)
-        return file ? ([id, { key: file.key, currentVersion: 1 }] as const) : null
-      })
-    )
-    return new Map(entries.filter((entry) => entry !== null))
-  },
-  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
-  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-  normalizeWorkspaceFileItemName: (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed || trimmed === '.' || trimmed === '..' || /[/\\]/.test(trimmed)) {
-      throw new Error('Invalid file name')
-    }
-    return trimmed
-  },
-  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
-  uploadWorkspaceFile: (...args: unknown[]) => mockUploadWorkspaceFile(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  FileConflictError: class FileConflictError extends Error {},
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  /** The versioned read is the same row plus the number the metadata surface reports. */
-  getWorkspaceFileWithCurrentVersion: async (...args: unknown[]) => {
-    const file = await mockGetWorkspaceFile(...args)
-    return file ? { ...file, currentVersion: 1 } : file
-  },
-  /** Folder rows are numbered from the same fixtures, keyed by the id the listing returned. */
-  getWorkspaceFileVersionsByKey: async (_workspaceId: string, fileIds: string[]) => {
-    const entries = await Promise.all(
-      fileIds.map(async (id) => {
-        const file = await mockGetWorkspaceFile(_workspaceId, id)
-        return file ? ([id, { key: file.key, currentVersion: 1 }] as const) : null
-      })
-    )
-    return new Map(entries.filter((entry) => entry !== null))
-  },
-  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
-  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
-  uploadWorkspaceFile: (...args: unknown[]) => mockUploadWorkspaceFile(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
@@ -194,14 +113,7 @@ vi.mock('@/lib/workspace-files/application/edit-workspace-file-content', () => (
   },
 }))
 
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listWorkspaceFilesInFolderScope: {
-    execute: (...args: unknown[]) => mockListWorkspaceFilesInFolderScope(...args),
-  },
-  queryWorkspaceFilePage: {
-    execute: (...args: unknown[]) => mockQueryWorkspaceFilePage(...args),
-  },
-}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   moveWorkspaceFileItemsOperation: {
@@ -209,52 +121,59 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: vi.fn(async () => true),
-  releaseLock: vi.fn(async () => undefined),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
-  getBoundWorkspaceFileSecretProvenance: (...args: unknown[]) =>
-    mockGetBoundWorkspaceFileSecretProvenance(...args),
-  mergeWorkspaceFileSecretProvenance: (
-    ...provenances: Array<
-      | { status: 'exact'; entries: Array<{ name: string; encryptedValue: string }> }
-      | {
-          status: 'unknown'
-        }
-    >
-  ) =>
-    provenances.some((provenance) => provenance.status === 'unknown')
-      ? { status: 'unknown' }
-      : {
-          status: 'exact',
-          entries: provenances.flatMap((provenance) =>
-            provenance.status === 'exact' ? provenance.entries : []
-          ),
-        },
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: (...args: unknown[]) => mockGetFileMetadataByKey(...args),
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: (...args: unknown[]) => mockDownloadFileFromStorage(...args),
-  downloadServableFileFromStorage: (...args: unknown[]) =>
-    mockDownloadServableFileFromStorage(...args),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: (...args: unknown[]) => mockAssertActiveWorkspaceAccess(...args),
-  getUserEntityPermissions: vi.fn(),
-  isWorkspaceAccessDeniedError: vi.fn(() => false),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: (...args: unknown[]) => mockVerifyFileAccess(...args),
-}))
+const { mockAssertActiveWorkspaceAccess } = permissionsMockFns
+const { mockListWorkspaceFilesInFolderScope, mockQueryWorkspaceFilePage } =
+  workspaceFilesListMockFns
+
+fileParsersMockFns.mockIsSupportedFileType.mockImplementation(() => false)
+const { mockDownloadFileFromStorage, mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const {
+  mockFetchWorkspaceFileBuffer,
+  mockGetWorkspaceFile,
+  mockGetWorkspaceFileByName,
+  mockGetWorkspaceFileVersionsByKey,
+  mockGetWorkspaceFileWithCurrentVersion,
+  mockLoadActiveWorkspaceContext,
+  mockLoadActiveWorkspaceFileContext,
+  mockResolveWorkspaceFileReference,
+  mockUpdateWorkspaceFileContent,
+  mockUploadWorkspaceFile,
+} = workspaceFileManagerMockFns
+const { mockGetBoundWorkspaceFileSecretProvenance } = workspaceFileSecretProvenanceMockFns
+const { mockResolveEffectiveWorkspacePermission } = workspaceAuthzMockFns
+const { mockGetFileMetadataByKey } = uploadsMetadataMockFns
+const { mockVerifyFileAccess } = filesAuthorizationMockFns
+
+/** The versioned read is the same row plus the number the metadata surface reports. */
+mockGetWorkspaceFileWithCurrentVersion.mockImplementation(async (...args: unknown[]) => {
+  const file = await mockGetWorkspaceFile(...args)
+  return file ? { ...file, currentVersion: 1 } : file
+})
+/** Folder rows are numbered from the same fixtures, keyed by the id the listing returned. */
+mockGetWorkspaceFileVersionsByKey.mockImplementation(
+  async (workspaceId: string, fileIds: string[]) => {
+    const entries = await Promise.all(
+      fileIds.map(async (id) => {
+        const file = await mockGetWorkspaceFile(workspaceId, id)
+        return file ? ([id, { key: file.key, currentVersion: 1 }] as const) : null
+      })
+    )
+    return new Map(entries.filter((entry) => entry !== null))
+  }
+)
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
@@ -422,11 +341,7 @@ describe('file manage folder wiring', () => {
   })
 
   describe('direct callers through the File handler and existing application policies', () => {
-    const caller: PersonalApiKeyPrincipal = {
-      kind: 'personal_api_key',
-      userId: 'user-1',
-      keyId: 'key-1',
-    }
+    const caller = createPersonalApiKeyPrincipal()
 
     function directCall(
       toolId: string,

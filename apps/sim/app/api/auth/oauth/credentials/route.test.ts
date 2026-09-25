@@ -13,6 +13,10 @@ import {
   resetPermissionGroupScopeMock,
   workflowsUtilsMock,
 } from '@sim/testing'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,15 +24,7 @@ vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: vi.fn(),
 }))
 
-const { mockGetCredentialActorContext, mockCanUseCredential } = vi.hoisted(() => ({
-  mockGetCredentialActorContext: vi.fn(),
-  mockCanUseCredential: vi.fn(() => true),
-}))
-
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
-  canUseCredential: mockCanUseCredential,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -39,6 +35,9 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 import { getCanonicalScopesForProvider, getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/auth/oauth/credentials/route'
+
+const { mockCanUseCredential } = credentialsAccessMockFns
+mockCanUseCredential.mockImplementation(() => true)
 
 describe('OAuth Credentials API Route', () => {
   function createMockRequestWithQuery(method = 'GET', queryParams = ''): NextRequest {

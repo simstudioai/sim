@@ -1,40 +1,23 @@
 import { member, ssoDomain } from '@sim/db/schema'
+import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
-  createMockRequest,
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockIsEnterprise, mockRecordAudit, mockCheckDomainTxtRecord } = vi.hoisted(
-  () => ({
-    mockGetSession: vi.fn(),
-    mockIsEnterprise: vi.fn(),
-    mockRecordAudit: vi.fn(),
-    mockCheckDomainTxtRecord: vi.fn(),
-  })
-)
+const mockCheckDomainTxtRecord = vi.hoisted(() => vi.fn())
 
-vi.mock('@sim/db', () => dbChainMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsEnterprise,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: { ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/auth/sso/domain-verification', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/sso/domain-verification')>()),
@@ -43,9 +26,13 @@ vi.mock('@/lib/auth/sso/domain-verification', async (importOriginal) => ({
 
 import { POST } from '@/app/api/organizations/[id]/domains/[domainId]/verify/route'
 
+const mockGetSession = authMockFns.mockGetSession
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
 const ORG_ID = 'org-1'
 const DOMAIN_ID = 'd1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID, domainId: DOMAIN_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID, domainId: DOMAIN_ID })
 const PENDING_ROW = {
   id: DOMAIN_ID,
   domain: 'acme.com',
@@ -63,6 +50,7 @@ function queueAdminWithPendingRow() {
 describe('verify org domain route', () => {
   beforeEach(() => {
     resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
       session: { id: 'session-1' },

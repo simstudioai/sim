@@ -1,5 +1,23 @@
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { OrchestratorResult, ToolCallSummary } from '@/lib/mothership/request/types'
@@ -7,43 +25,31 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = vi.hoisted(() => ({
-  available: vi.fn(),
   inventory: vi.fn(),
-  billing: vi.fn(),
-  config: vi.fn(),
   lifecycle: vi.fn(),
-  persist: vi.fn(),
   explicitAbort: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
   loadCopilotSearchIntegrations: mocks.inventory,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: mocks.available,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveOrganizationBillingAttribution: mocks.billing,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle: mocks.lifecycle,
 }))
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  persistCopilotChatTurn: mocks.persist,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mocks.explicitAbort,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.example',
-  SITE_URL: 'https://sim.example',
 }))
 
 import { organizationSearchChat } from '@/lib/knowledge/application/chat'
 import { resolveSearchChatCitations } from '@/lib/knowledge/application/chat-citations'
+
+const persistTurn = mothershipChatMessagesMockFns.mockPersistCopilotChatTurn
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
 const principal: OAuthAccessTokenPrincipal = {
   kind: 'oauth_access_token',
@@ -84,17 +90,17 @@ beforeEach(() => {
   dbChainMockFns.limit.mockResolvedValue([{ role: 'member' }])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'private-chat' }])
   dbChainMockFns.for.mockResolvedValue([{ id: 'private-chat' }])
-  mocks.config.mockResolvedValue(null)
-  mocks.available.mockResolvedValue(undefined)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockResolvedValue(undefined)
   mocks.inventory.mockResolvedValue('{"connections":[],"available":[]}')
-  mocks.billing.mockResolvedValue({
+  billingAttributionMockFns.mockResolveOrganizationBillingAttribution.mockResolvedValue({
     actorUserId: 'member-1',
     organizationId: 'org-1',
     workspaceId: null,
     billedAccountUserId: 'different-billing-owner',
   })
   mocks.lifecycle.mockResolvedValue(createResult())
-  mocks.persist.mockResolvedValue(undefined)
+  persistTurn.mockResolvedValue(undefined)
   mocks.explicitAbort.mockResolvedValue(undefined)
 })
 
@@ -110,12 +116,14 @@ describe('organization Search Assistant chat', () => {
   it.each<Principal>([
     { ...principal, scopes: [] },
     { ...principal, expiresAt: new Date('2020-01-01') },
-    { kind: 'workspace_api_key', keyId: 'workspace-key', workspaceId: 'workspace-1' },
+    createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
   ])('rejects unauthorized credentials before protected work', async (caller) => {
     await expect(execute({}, caller)).rejects.toThrow()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(mocks.billing).not.toHaveBeenCalled()
+    expect(
+      billingAttributionMockFns.mockResolveOrganizationBillingAttribution
+    ).not.toHaveBeenCalled()
     expect(mocks.lifecycle).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
@@ -124,13 +132,18 @@ describe('organization Search Assistant chat', () => {
     dbChainMockFns.limit.mockResolvedValue([])
     await expect(execute()).rejects.toThrow('Organization not found')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.config).not.toHaveBeenCalled()
+    expect(
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+    ).not.toHaveBeenCalled()
   })
 
   it.each(['hideCopilot', 'disableOAuthAppAccess', 'disablePersonalApiKeys'] as const)(
     'enforces the organization %s policy',
     async (key) => {
-      mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, [key]: true })
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        [key]: true,
+      })
       await expect(execute()).rejects.toThrow()
       expect(mocks.lifecycle).not.toHaveBeenCalled()
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
@@ -138,10 +151,14 @@ describe('organization Search Assistant chat', () => {
   )
 
   it('checks the organization Search flag before creating or billing a conversation', async () => {
-    mocks.available.mockRejectedValue(new OrchestrationError('forbidden', 'Search is not enabled'))
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Search is not enabled')
+    )
     await expect(execute()).rejects.toThrow('Search is not enabled')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.billing).not.toHaveBeenCalled()
+    expect(
+      billingAttributionMockFns.mockResolveOrganizationBillingAttribution
+    ).not.toHaveBeenCalled()
   })
 
   it('fails closed when input provenance is incomplete', async () => {
@@ -155,29 +172,29 @@ describe('organization Search Assistant chat', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ role: 'member' }]).mockResolvedValueOnce([])
     await expect(execute()).rejects.toThrow('Organization not found')
     expect(mocks.lifecycle).toHaveBeenCalledOnce()
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(persistTurn).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('rechecks OAuth restrictions after the run', async () => {
     mocks.lifecycle.mockImplementationOnce(async () => {
-      mocks.config.mockResolvedValue({
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         disableOAuthAppAccess: true,
       })
       return createResult()
     })
     await expect(execute()).rejects.toThrow('OAuth app access')
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(persistTurn).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('withholds the answer when Search is disabled during execution', async () => {
-    mocks.available
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new OrchestrationError('forbidden', 'Search is not enabled'))
     await expect(execute()).rejects.toThrow('Search is not enabled')
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(persistTurn).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
@@ -188,7 +205,7 @@ describe('organization Search Assistant chat', () => {
   ])('does not expose failed, cancelled, or empty answers', async (overrides) => {
     mocks.lifecycle.mockResolvedValue(createResult(overrides))
     await expect(execute()).rejects.toThrow(/assistant/i)
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(persistTurn).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
@@ -199,7 +216,7 @@ describe('organization Search Assistant chat', () => {
       return createResult()
     })
     await expect(execute({ resultSecretRegistry: registry })).rejects.toThrow('safely')
-    expect(mocks.persist).not.toHaveBeenCalled()
+    expect(persistTurn).not.toHaveBeenCalled()
   })
 
   it('only archives its own newly created conversation when it has no persisted messages', async () => {
@@ -239,7 +256,9 @@ describe('organization Search Assistant chat', () => {
     await expect(execute({ signal: AbortSignal.abort() })).rejects.toMatchObject({
       name: 'AbortError',
     })
-    expect(mocks.billing).not.toHaveBeenCalled()
+    expect(
+      billingAttributionMockFns.mockResolveOrganizationBillingAttribution
+    ).not.toHaveBeenCalled()
     expect(mocks.lifecycle).not.toHaveBeenCalled()
   })
 })

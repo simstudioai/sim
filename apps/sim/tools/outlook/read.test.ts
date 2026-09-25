@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import { downloadAttachments, outlookReadTool } from '@/tools/outlook/read'
@@ -14,9 +14,6 @@ const attachment = {
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
-})
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('Outlook message attachment downloads', () => {

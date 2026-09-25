@@ -1,28 +1,28 @@
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(),
-  context: vi.fn(),
-  role: vi.fn(),
-  admin: vi.fn(),
-  enterprise: vi.fn(),
   group: vi.fn(),
 }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ isOrganizationAdminOrOwner: mocks.admin }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-  /** Permission resolution reads the governance axis; these tests drive both from one knob. */
-  isOrganizationGovernanceActive: mocks.enterprise,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/resolve.server')>()),
   resolveWorkspaceGroup: mocks.group,
@@ -32,7 +32,17 @@ import { readUserPermissionConfig } from '@/lib/permission-groups/application/re
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/permission-groups/user/route'
 
-const principal = { kind: 'session', userId: 'viewer', sessionId: 'session' } as const
+const mockGetSession = authMockFns.mockGetSession
+const mockResolveContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockResolveRole = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockIsOrgAdmin = permissionsMockFns.mockIsOrganizationAdminOrOwner
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+/** Permission resolution reads the governance axis; these tests drive both from one knob. */
+billingSubscriptionMockFns.mockIsOrganizationGovernanceActive.mockImplementation(
+  (...args: unknown[]) => mockIsEnterprise(...args)
+)
+
+const principal = createSessionPrincipal({ userId: 'viewer', sessionId: 'session' })
 const context = {
   workspaceId: 'workspace',
   workspaceOrganizationId: 'owning-org',
@@ -55,14 +65,14 @@ function get(query = '?workspaceId=workspace') {
 
 beforeEach(() => {
   setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
-  mocks.session.mockResolvedValue({
+  mockGetSession.mockResolvedValue({
     user: { id: 'viewer' },
     session: { id: 'session', activeOrganizationId: 'unrelated-org' },
   })
-  mocks.context.mockResolvedValue(context)
-  mocks.role.mockResolvedValue('read')
-  mocks.admin.mockResolvedValue(false)
-  mocks.enterprise.mockResolvedValue(true)
+  mockResolveContext.mockResolvedValue(context)
+  mockResolveRole.mockResolvedValue('read')
+  mockIsOrgAdmin.mockResolvedValue(false)
+  mockIsEnterprise.mockResolvedValue(true)
   mocks.group.mockResolvedValue(null)
 })
 
@@ -81,7 +91,7 @@ describe('user permission policy shared read', () => {
         isAccessControlEnabled: accessControl,
         isBillingEnabled: false,
       })
-      mocks.admin.mockResolvedValue(true)
+      mockIsOrgAdmin.mockResolvedValue(true)
       const group = {
         permissionGroupId: 'group',
         groupName: 'Restricted',
@@ -95,17 +105,17 @@ describe('user permission policy shared read', () => {
       ).toEqual(expected)
       if (!entitled) {
         expect(mocks.group).not.toHaveBeenCalled()
-        expect(mocks.enterprise).not.toHaveBeenCalled()
+        expect(mockIsEnterprise).not.toHaveBeenCalled()
       }
     }
   )
   it('refuses current nonmembers before loading their policy', async () => {
-    mocks.role.mockResolvedValue(null)
+    mockResolveRole.mockResolvedValue(null)
     const response = await get()
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ error: 'Not a member of this workspace' })
-    expect(mocks.admin).not.toHaveBeenCalled()
-    expect(mocks.enterprise).not.toHaveBeenCalled()
+    expect(mockIsOrgAdmin).not.toHaveBeenCalled()
+    expect(mockIsEnterprise).not.toHaveBeenCalled()
     expect(mocks.group).not.toHaveBeenCalled()
   })
   it('does not turn policy infrastructure failures into unrestricted access', async () => {
@@ -113,7 +123,7 @@ describe('user permission policy shared read', () => {
      * The governance reader has no lenient mode — answering `false` on a failed read would mean
      * "no permission group", which denies nothing — so a failure here is simply a rejection.
      */
-    mocks.enterprise.mockRejectedValue(new Error('unavailable'))
+    mockIsEnterprise.mockRejectedValue(new Error('unavailable'))
     expect((await get()).status).toBe(500)
     await expect(
       readUserPermissionConfig.execute({ principal, input: { workspaceId: 'workspace' } })
@@ -122,10 +132,10 @@ describe('user permission policy shared read', () => {
   it('rejects actorless workspace keys before canonical lookup on the shared server entry point', async () => {
     await expect(
       readUserPermissionConfig.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input: { workspaceId: 'workspace' },
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 })

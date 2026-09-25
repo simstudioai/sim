@@ -1,10 +1,9 @@
 import { embedding } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { knowledgeEmbeddingsMock } from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
 vi.mock('@/lib/knowledge/embedding-models', () => ({
   getEmbeddingModelInfo: vi.fn(),

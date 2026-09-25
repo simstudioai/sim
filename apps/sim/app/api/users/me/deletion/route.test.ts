@@ -1,21 +1,11 @@
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  defineInternalJsonRoute: vi.fn(() => vi.fn()),
-  signOut: vi.fn(),
-}))
-
-vi.mock('@/lib/api/server/routes', () => ({
-  defineInternalJsonRoute: mocks.defineInternalJsonRoute,
-  internalOrchestrationErrorPolicy: { project: vi.fn(), unhandled: vi.fn() },
-  internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
-  internalSessionAuth: { authenticate: vi.fn() },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { signOut: mocks.signOut } },
-  getSession: vi.fn(),
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
 vi.mock('@/lib/users/application/delete-account', () => ({
   deleteAccountUseCase: { execute: vi.fn() },
@@ -33,11 +23,13 @@ type RouteOptions = {
 }
 
 /** Captured at import time; the route registers itself once when the module loads. */
-const routeOptions = mocks.defineInternalJsonRoute.mock.calls.map((call) => call[0] as RouteOptions)
+const routeOptions = apiServerRoutesMockFns.mockDefineInternalJsonRoute.mock.calls.map(
+  (call) => call[0] as RouteOptions
+)
 
 describe('POST /api/users/me/deletion', () => {
   beforeEach(() => {
-    mocks.signOut.mockReset()
+    authMockFns.mockSignOut.mockReset()
   })
 
   /**
@@ -51,7 +43,7 @@ describe('POST /api/users/me/deletion', () => {
     expect(options?.finalizeResponse).toBeDefined()
 
     const cleared = new Headers([['set-cookie', 'better-auth.session_token=; Max-Age=0']])
-    mocks.signOut.mockResolvedValue({ headers: cleared, response: { success: true } })
+    authMockFns.mockSignOut.mockResolvedValue({ headers: cleared, response: { success: true } })
     const request = new Request('http://localhost/api/users/me/deletion', {
       method: 'POST',
       headers: { cookie: 'better-auth.session_token=abc' },
@@ -59,7 +51,10 @@ describe('POST /api/users/me/deletion', () => {
 
     const finalization = await options!.finalizeResponse!({ request })
 
-    expect(mocks.signOut).toHaveBeenCalledWith({ headers: request.headers, returnHeaders: true })
+    expect(authMockFns.mockSignOut).toHaveBeenCalledWith({
+      headers: request.headers,
+      returnHeaders: true,
+    })
     expect(finalization.headers).toBe(cleared)
   })
 
@@ -67,7 +62,7 @@ describe('POST /api/users/me/deletion', () => {
     const options = routeOptions.find(
       (candidate) => typeof candidate.finalizeResponse === 'function'
     )
-    mocks.signOut.mockRejectedValue(new Error('sign-out unavailable'))
+    authMockFns.mockSignOut.mockRejectedValue(new Error('sign-out unavailable'))
 
     await expect(
       options!.finalizeResponse!({

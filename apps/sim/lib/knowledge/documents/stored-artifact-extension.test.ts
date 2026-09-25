@@ -7,14 +7,18 @@
  * SharePoint PDFs with `Invalid PDF structure.` and silently double-wrapped
  * every spreadsheet, which "succeeded" because SheetJS accepts almost anything.
  */
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDownload } = vi.hoisted(() => ({ mockDownload: vi.fn() }))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { resolveStoredArtifactExtension } from '@/lib/knowledge/documents/parser-extension'
+
+const mockDownload = fileUtilsServerMockFns.mockDownloadFileFromUrl
 
 const CONNECTOR_PDF_URL =
   '/api/files/serve/s3/kb%2F1786986883507-abc-Report.pdf.txt?context=knowledge-base'

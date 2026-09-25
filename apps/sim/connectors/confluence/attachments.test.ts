@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { listConfluenceAttachments } from '@/connectors/confluence/attachments'
@@ -161,7 +161,6 @@ beforeEach(() => {
   secureDownload.mockReset().mockResolvedValue(new Response('binary bytes'))
   vi.stubGlobal('fetch', fetchMock)
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Confluence attachment listing', () => {
   it('resumes a bounded parent queue with a fresh runtime context', async () => {

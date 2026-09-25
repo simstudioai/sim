@@ -1,18 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockTaskContext } = vi.hoisted(() => ({
-  mockTaskContext: { isInsideTask: false },
-}))
-
-vi.mock('@trigger.dev/core/v3', () => ({
-  taskContext: mockTaskContext,
-}))
-
+import { taskContext } from '@trigger.dev/core/v3'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   isInsideTriggerRun,
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+
+/** The global `@trigger.dev/core/v3` mock's ambient context, mutated per test. */
+const mockTaskContext = taskContext as { isInsideTask: boolean }
 
 describe('trigger runtime detection', () => {
   beforeEach(() => {

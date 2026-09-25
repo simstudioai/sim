@@ -1,68 +1,37 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
-  configuration: vi.fn(),
-  list: vi.fn(),
-  verify: vi.fn(),
-  token: vi.fn(),
-  encrypt: vi.fn(),
-  audit: vi.fn(),
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CREDENTIAL_CREATED: 'credential.created',
-    CREDENTIAL_UPDATED: 'credential.updated',
-  },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: m.audit,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {
-    constructor(
-      message: string,
-      readonly status?: number,
-      readonly operation?: string
-    ) {
-      super(message)
-    }
-  },
-  getGitHubInstallationConfiguration: m.configuration,
-  listUserAdminGitHubInstallations: m.list,
-  verifyGitHubInstallationBinding: m.verify,
-}))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: m.token,
-  ManagedOAuthCredentialError: class extends Error {
-    constructor(
-      readonly code: string,
-      message: string,
-      readonly statusCode: number
-    ) {
-      super(message)
-    }
-  },
-}))
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => ({
-    getPolicy: async () => ({ authorizationAppId: 'current-app', scopeVersion: 1 }),
-  }),
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: m.encrypt }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import {
@@ -71,7 +40,18 @@ import {
 } from '@/lib/knowledge/application/github-installations'
 import { GitHubInstallationError } from '@/lib/oauth/github-installation'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
+const m = {
+  configuration: githubInstallationMockFns.mockGetGitHubInstallationConfiguration,
+  list: githubInstallationMockFns.mockListUserAdminGitHubInstallations,
+  verify: githubInstallationMockFns.mockVerifyGitHubInstallationBinding,
+  token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+}
+
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue({
+  getPolicy: async () => ({ authorizationAppId: 'current-app', scopeVersion: 1 }),
+})
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = { organizationId: 'org', installationId: '42' }
 const reader = { id: 'reader', authorizationAppId: 'current-app', groupId: 'group', subjectId: '9' }
 const binding = {
@@ -96,7 +76,9 @@ beforeEach(() => {
   m.list.mockResolvedValue([binding])
   m.token.mockResolvedValue({ accessToken: 'ghu_reader' })
   m.verify.mockResolvedValue(binding)
-  m.encrypt.mockResolvedValue({ encrypted: 'encrypted-installation-binding' })
+  encryptionMockFns.mockEncryptSecret.mockResolvedValue({
+    encrypted: 'encrypted-installation-binding',
+  })
 })
 afterAll(resetDbChainMock)
 
@@ -125,7 +107,7 @@ describe('GitHub Search installation application operations', () => {
   it('refuses API keys for installation setup', async () => {
     await expect(
       connectGitHubSearchInstallation.execute({
-        principal: { kind: 'personal_api_key', userId: 'admin', keyId: 'key' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'admin', keyId: 'key' }),
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -194,7 +176,7 @@ describe('GitHub Search installation application operations', () => {
     setupReader()
     m.verify.mockRejectedValue(new Error('GitHub administrator access required'))
     await expect(connect()).rejects.toThrow('GitHub administrator access required')
-    expect(m.encrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
     expect(db.transaction).not.toHaveBeenCalled()
   })
   it('refuses if Sim administrator access was removed during GitHub verification', async () => {

@@ -1,38 +1,47 @@
 import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAppendCopilotChatMessages,
-  mockPublishStatusChanged,
-  mockGetAccessibleChat,
-  mockReadEvents,
-} = vi.hoisted(() => ({
-  mockGetAccessibleChat: vi.fn(),
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
+const { mockReadEvents } = vi.hoisted(() => ({
   mockReadEvents: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: vi.fn().mockResolvedValue({ chatId: 'chat-1', status: 'cancelled' }),
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: mockAppendCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: mockPublishStatusChanged,
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { POST } from '@/app/api/copilot/chat/stop/route'
+
+const mockGetAccessibleChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
+const mockAppendCopilotChatMessages = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
+const mockPublishStatusChanged = mothershipChatStatusMockFns.mockPublishChatStatusChanged
+
+mothershipAsyncRunsMockFns.mockGetLatestRunForStream.mockResolvedValue({
+  chatId: 'chat-1',
+  status: 'cancelled',
+})
 
 const stopRequest = (request: NextRequest) => POST(request, undefined)
 

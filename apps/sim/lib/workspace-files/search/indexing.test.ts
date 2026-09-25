@@ -1,26 +1,29 @@
 import { createLogger } from '@sim/logger'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   begin: vi.fn(),
   append: vi.fn(),
   publish: vi.fn(),
   fail: vi.fn(),
-  file: vi.fn(),
   load: vi.fn(),
   extract: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/search/index-state', () => ({
-  beginFileSearchBuild: mocks.begin,
-  appendFileSearchChunks: mocks.append,
-  publishFileSearchBuild: mocks.publish,
-  failFileSearchRevision: mocks.fail,
+  beginFileSearchBuild: hoisted.begin,
+  appendFileSearchChunks: hoisted.append,
+  publishFileSearchBuild: hoisted.publish,
+  failFileSearchRevision: hoisted.fail,
 }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ getWorkspaceFile: mocks.file }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/search/extract', () => ({
-  loadIndexableBytes: mocks.load,
-  extractIndexText: mocks.extract,
+  loadIndexableBytes: hoisted.load,
+  extractIndexText: hoisted.extract,
 }))
 
 import {
@@ -36,6 +39,11 @@ import {
   getWorkspaceFileSearchRetry,
   indexWorkspaceFileForSearch,
 } from '@/lib/workspace-files/search/indexing'
+
+const mocks = {
+  ...hoisted,
+  file: workspaceUploadsMockFns.mockGetWorkspaceFile,
+}
 
 const logger = vi.mocked(createLogger).mock.results[
   vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkspaceFileSearchIndexer')

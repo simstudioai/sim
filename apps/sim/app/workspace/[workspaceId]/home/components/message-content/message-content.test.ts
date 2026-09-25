@@ -1,3 +1,4 @@
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -7,9 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
  * env). These tests only exercise pure parsing/model helpers, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'

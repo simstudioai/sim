@@ -1,4 +1,8 @@
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,23 +10,23 @@ const { mockGetEffectiveDecryptedEnv, mockGetExecutionEnvironment } = environmen
 
 afterAll(resetEnvironmentUtilsMock)
 
-const { mockGetProviderHandler, mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
+const { mockGetProviderHandler } = vi.hoisted(() => ({
   mockGetProviderHandler: vi.fn(),
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({
   getProviderHandler: mockGetProviderHandler,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+
+const mockGetWorkspaceBilledAccountUserId =
+  billingAttributionMockFns.mockGetWorkspaceBilledAccountUserId
 
 describe('createExternalWebhookSubscription', () => {
   beforeEach(() => {

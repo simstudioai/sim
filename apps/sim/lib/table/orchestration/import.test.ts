@@ -3,59 +3,45 @@
  * routes delegate to, so neither can drift on what an import actually does.
  */
 import { Readable } from 'node:stream'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockMarkTableJobRunning,
-  mockReleaseJobClaim,
-  mockImportAppendRows,
-  mockImportReplaceRows,
-  mockGetMaxRowsPerTable,
-  mockDispatchAfterBatchInsert,
-  mockSignalSchemaChanged,
-  mockGetWorkspaceTableLimits,
-  mockBatchInsertRows,
-  mockCreateTable,
-  mockDeleteTable,
-} = vi.hoisted(() => ({
-  mockMarkTableJobRunning: vi.fn(),
-  mockReleaseJobClaim: vi.fn(),
+const { mockImportAppendRows, mockImportReplaceRows } = vi.hoisted(() => ({
   mockImportAppendRows: vi.fn(),
   mockImportReplaceRows: vi.fn(),
-  mockGetMaxRowsPerTable: vi.fn(),
-  mockDispatchAfterBatchInsert: vi.fn(),
-  mockSignalSchemaChanged: vi.fn(),
-  mockGetWorkspaceTableLimits: vi.fn(),
-  mockBatchInsertRows: vi.fn(),
-  mockCreateTable: vi.fn(),
-  mockDeleteTable: vi.fn(),
 }))
 
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableJobRunning,
-  releaseJobClaim: mockReleaseJobClaim,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/import-data', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
 }))
-vi.mock('@/lib/table/billing', () => ({
-  getMaxRowsPerTable: mockGetMaxRowsPerTable,
-  getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
-  wouldExceedRowLimit: (limit: number, current: number, added: number) =>
-    limit >= 0 && current + added > limit,
-}))
-vi.mock('@/lib/table/rows/service', () => ({
-  batchInsertRows: mockBatchInsertRows,
-  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-}))
-vi.mock('@/lib/table/service', () => ({
-  createTable: mockCreateTable,
-  deleteTable: mockDeleteTable,
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mockSignalSchemaChanged }))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { performCreateTableFromCsv, performTableCsvImport } from '@/lib/table/orchestration/import'
+
+const mockSignalSchemaChanged = tableEventsMockFns.mockSignalTableSchemaChanged
+const mockMarkTableJobRunning = tableJobsServiceMockFns.mockMarkTableJobRunning
+const mockReleaseJobClaim = tableJobsServiceMockFns.mockReleaseJobClaim
+const mockGetMaxRowsPerTable = tableBillingMockFns.mockGetMaxRowsPerTable
+const mockGetWorkspaceTableLimits = tableBillingMockFns.mockGetWorkspaceTableLimits
+const mockBatchInsertRows = tableRowsServiceMockFns.mockBatchInsertRows
+const mockDispatchAfterBatchInsert = tableRowsServiceMockFns.mockDispatchAfterBatchInsert
+const mockCreateTable = tableServiceMockFns.mockCreateTable
+const mockDeleteTable = tableServiceMockFns.mockDeleteTable
 
 const TABLE = {
   id: 'table-1',

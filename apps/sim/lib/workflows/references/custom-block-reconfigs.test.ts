@@ -1,14 +1,16 @@
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const { mockResolveBinding } = vi.hoisted(() => ({ mockResolveBinding: vi.fn() }))
-
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  resolveCustomBlockToolBinding: mockResolveBinding,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 import { collectForkCustomBlockReconfigs } from '@/lib/workflows/references/custom-block-reconfigs'
+
+const { mockResolveCustomBlockToolBinding: mockResolveBinding } = customBlockOperationsMockFns
 
 const PROD = 'custom_block_prod01'
 const UAT = 'custom_block_uat0001'

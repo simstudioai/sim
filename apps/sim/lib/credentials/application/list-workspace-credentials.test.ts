@@ -1,37 +1,40 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   listVisible: vi.fn(),
   listForWorkspacePrincipal: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/credentials/queries', () => ({
-  listVisibleWorkspaceCredentials: mocks.listVisible,
-  listWorkspacePrincipalCredentials: mocks.listForWorkspacePrincipal,
+  listVisibleWorkspaceCredentials: hoisted.listVisible,
+  listWorkspacePrincipalCredentials: hoisted.listForWorkspacePrincipal,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
+
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -47,19 +50,20 @@ const input = {
 
 describe('listWorkspaceCredentials', () => {
   beforeEach(() => {
-    mocks.loadWorkspace.mockResolvedValue(workspaceContext)
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(
+      workspaceContext
+    )
     mocks.resolvePermission.mockResolvedValue('read')
-    mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true, canAdmin: false })
+    permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
+      hasAccess: true,
+      canAdmin: false,
+    })
     mocks.listVisible.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listForWorkspacePrincipal.mockResolvedValue({ data: [], nextCursorKeys: null })
   })
 
   it('preserves per-credential visibility for sessions', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const principal = createSessionPrincipal()
 
     await listWorkspaceCredentials.execute({ principal, input })
     expect(mocks.listVisible).toHaveBeenCalledWith(
@@ -68,16 +72,12 @@ describe('listWorkspaceCredentials', () => {
   })
 
   it('lists shared connections for a workspace key without creator identity', async () => {
-    const principal = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: 'workspace-1',
-      keyId: 'key-1',
-    }
+    const principal = createWorkspaceApiKeyPrincipal()
 
     await listWorkspaceCredentials.execute({ principal, input })
 
     expect(mocks.listForWorkspacePrincipal).toHaveBeenCalledOnce()
-    expect(mocks.checkWorkspaceAccess).not.toHaveBeenCalled()
+    expect(permissionsMockFns.mockCheckWorkspaceAccess).not.toHaveBeenCalled()
     expect(mocks.listVisible).not.toHaveBeenCalled()
   })
 })

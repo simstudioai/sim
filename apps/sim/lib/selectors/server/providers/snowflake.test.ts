@@ -1,26 +1,24 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveCredentialBundle: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-const STATEMENT_HANDLE = '019c06a4-0000-df4f-0000-00100006589e'
+const mockResolveCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+const STATEMENT_HANDLE = '019c06a4-0000-df4f-0000-00100006589e'
 
 function tableArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   return {

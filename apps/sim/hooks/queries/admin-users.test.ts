@@ -1,28 +1,22 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateUser, mockRequestJson } = vi.hoisted(() => ({
-  mockCreateUser: vi.fn(),
-  mockRequestJson: vi.fn(),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    admin: {
-      createUser: mockCreateUser,
-    },
-  },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { addUser } from '@/hooks/queries/admin-users'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const mockCreateUser = authClientMockFns.mockClient.admin.createUser
 
 const CREATED_USER = {
   id: 'user-1',

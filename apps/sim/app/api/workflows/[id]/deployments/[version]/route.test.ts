@@ -1,11 +1,14 @@
 import { createMockRequest } from '@sim/testing'
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
   parseRequest: vi.fn(),
   read: vi.fn(),
-  session: vi.fn(),
   update: vi.fn(),
 }))
 
@@ -14,18 +17,7 @@ vi.mock('@/lib/api/server', () => ({
   parseRequest: mocks.parseRequest,
 }))
 
-vi.mock('@/lib/api/server/routes', async () => {
-  const { concealCrossTenantResourceError } = await import(
-    '@/lib/api/server/routes/resource-concealment'
-  )
-  return {
-    concealCrossTenantResourceError,
-    defineInternalJsonRoute: vi.fn(() => vi.fn()),
-    InternalUnauthenticatedError: class InternalUnauthenticatedError extends Error {},
-    internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
-    internalSessionAuth: { authenticate: mocks.session },
-  }
-})
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
 vi.mock('@/lib/workflows/api', () => ({
   createInternalWorkflowErrorPolicy: vi.fn(() => ({
@@ -48,6 +40,7 @@ vi.mock('@/lib/workflows/application/read-workflow-version', () => ({
   readWorkflowVersion: { execute: mocks.read },
 }))
 
+import { concealCrossTenantResourceError } from '@/lib/api/server/routes/resource-concealment'
 import {
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
@@ -56,9 +49,19 @@ import {
 } from '@/lib/core/application'
 import { PATCH } from '@/app/api/workflows/[id]/deployments/[version]/route'
 
+apiServerRoutesMockFns.mockConcealCrossTenantResourceError.mockImplementation(
+  concealCrossTenantResourceError
+)
+
+const { mockInternalSessionAuthenticate } = apiServerRoutesMockFns
+
 describe('workflow deployment version PATCH', () => {
   beforeEach(() => {
-    mocks.session.mockResolvedValue({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    mockInternalSessionAuthenticate.mockResolvedValue({
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    })
     mocks.activate.mockResolvedValue({
       deployedAt: new Date('2026-01-01T00:00:00Z'),
       warnings: undefined,

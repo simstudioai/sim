@@ -1,5 +1,16 @@
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
+import { getAllBlocks, getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
+
+const mockGetBlock = getBlock as Mock
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlockRegistry = getBlockRegistry as Mock
+const mockGetBlockByToolName = getBlockByToolName as Mock
+mockGetBlock.mockImplementation((type: string) => MOCK_BLOCKS[type])
+mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_BLOCKS))
+mockGetBlockRegistry.mockImplementation(() => MOCK_BLOCKS)
+mockGetBlockByToolName.mockImplementation(() => undefined)
 
 /**
  * Overrides the global registry stub (every type resolves to a block with no
@@ -57,16 +68,6 @@ const MOCK_BLOCKS = vi.hoisted(
       workflow_input: { type: 'workflow_input', category: 'blocks', subBlocks: [], outputs: {} },
     }) as Record<string, unknown>
 )
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => MOCK_BLOCKS[type],
-  getAllBlocks: () => Object.values(MOCK_BLOCKS),
-  getLatestBlock: () => undefined,
-  getLatestBlockForViewer: () => undefined,
-  getBlockMeta: () => undefined,
-  getBlockRegistry: () => MOCK_BLOCKS,
-  getBlockByToolName: () => undefined,
-}))
 
 function graph(
   blocks: Record<

@@ -1,21 +1,17 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing/mocks'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob, mockGetJobQueue } = vi.hoisted(() => ({
-  mockGetJob: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-}))
-
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: mockGetJobQueue,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 import { resolveWorkflowExecutionOwnership } from '@/lib/workflows/executor/execution-queries'
+
+const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
+const { mockGetJobQueue } = asyncJobsMockFns
 
 describe('resolveWorkflowExecutionOwnership', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mockGetJobQueue.mockResolvedValue({ getJob: mockGetJob })
   })
 
   it('accepts a durable execution bound to the requested workflow', async () => {

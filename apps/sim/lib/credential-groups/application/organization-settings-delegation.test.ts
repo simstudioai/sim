@@ -1,10 +1,13 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { organizationAccountAccessOperations } from '@/lib/credential-groups/application/organization-access'
@@ -61,8 +64,8 @@ describe('connected account settings delegation', () => {
       serviceId: 'slack-search',
       resourceScope: { installationId: 'i', eventId: 'e' },
     },
-    { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
   ])('rejects other identity and delegation boundaries before data access: %j', async (caller) => {
     for (const operation of operations)
       await expect(

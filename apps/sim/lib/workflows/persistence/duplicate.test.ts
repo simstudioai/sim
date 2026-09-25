@@ -1,5 +1,4 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -14,8 +13,6 @@ const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 

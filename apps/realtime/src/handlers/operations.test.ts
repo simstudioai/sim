@@ -5,26 +5,24 @@
  * database and the workspace authorizer are mocked) and assert on the persist call,
  * because that is what durably rewrites `workflow_blocks`.
  */
+import { workflowAuthzMock, workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeWorkflow, mockPersist, mockAssertMutable } = vi.hoisted(() => ({
-  mockAuthorizeWorkflow: vi.fn(),
+const { mockPersist } = vi.hoisted(() => ({
   mockPersist: vi.fn(),
-  mockAssertMutable: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
-  assertWorkflowMutable: mockAssertMutable,
-  WorkflowLockedError: class WorkflowLockedError extends Error {},
-}))
+vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 
 vi.mock('@/database/operations', () => ({
   persistWorkflowOperation: mockPersist,
 }))
 
 import { setupOperationsHandlers } from '@/handlers/operations'
+
+const mockAuthorizeWorkflow = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
+const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
 
 const WORKFLOW_ID = 'wf-acl'
 const BLOCK_ID = 'block-1'

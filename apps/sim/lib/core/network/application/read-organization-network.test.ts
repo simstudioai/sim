@@ -1,28 +1,26 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   membership: vi.fn(),
   section: vi.fn(),
-  route: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn(async () => null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/settings/application/organization-section-access', () => ({
-  authorizeOrganizationSettingsSection: mocks.section,
+  authorizeOrganizationSettingsSection: hoistedMocks.section,
 }))
-vi.mock('@/lib/core/network/config.server', () => ({ resolveOutboundRoute: mocks.route }))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import { readOrganizationNetwork } from '@/lib/core/network/application/read-organization-network'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 
-const principal: Principal = {
-  kind: 'session',
-  userId: 'user_example',
-  sessionId: 'session_example',
-}
+const mocks = { ...hoistedMocks, route: networkConfigMockFns.mockResolveOutboundRoute }
+
+const principal = createSessionPrincipal({ userId: 'user_example', sessionId: 'session_example' })
 const input = { organizationId: 'org_example' }
 
 beforeEach(() => {

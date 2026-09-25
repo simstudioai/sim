@@ -1,61 +1,63 @@
-import type {
-  PersonalApiKeyPrincipal,
-  SessionPrincipal,
-  WorkspaceApiKeyPrincipal,
-} from '@sim/auth/principal'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
+import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   allowedIntegrationTypes: vi.fn(),
-  getBlockVisibility: vi.fn(),
-  listCustomBlocks: vi.fn(),
-  isDeploymentAvailable: vi.fn(),
-  recordAudit: vi.fn(),
-  getAllBlocks: vi.fn(),
-  executeRegistryTool: vi.fn(),
   executeFileManage: vi.fn(),
-  resolveBillingAttribution: vi.fn(),
-  recordUsage: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
-  allowedIntegrationTypes: mocks.allowedIntegrationTypes,
+  allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
   principalUserId: (principal: { kind: string; userId?: string }) =>
     principal.kind === 'session' || principal.kind === 'personal_api_key'
       ? principal.userId
       : undefined,
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  listCustomBlocksWithInputsForWorkspace: mocks.listCustomBlocks,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mocks.isDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: <T>(_rows: unknown, run: () => Promise<T>) => run(),
@@ -63,13 +65,6 @@ vi.mock('@/blocks/custom/server-overlay', () => ({
 
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: <T>(_state: unknown, run: () => Promise<T>) => run(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: mocks.getAllBlocks,
-  getBlock: vi.fn(),
-  getLatestBlockForViewer: vi.fn(),
-  getBlockMeta: vi.fn(() => ({ tags: [] })),
 }))
 
 vi.mock('@/tools/utils', () => ({
@@ -82,27 +77,22 @@ vi.mock('@/tools/tool-ids', () => ({
   resolveToolId: (toolId: string) => toolId,
 }))
 
-vi.mock('@/tools', () => ({ executeTool: mocks.executeRegistryTool }))
+vi.mock('@/tools', () => toolsMock)
 
 vi.mock('@/lib/internal/file/operations', () => ({
-  executeFileManageOperation: mocks.executeFileManage,
+  executeFileManageOperation: hoisted.executeFileManage,
   getFileContentProvenance: vi.fn(),
   fileContentJsonResponse: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBillingAttribution,
-  toBillingContext: () => ({
-    billingEntity: { type: 'workspace', id: WORKSPACE_ID },
-    billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
-  }),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
+import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { fileReadTool } from '@/tools/file/get'
 
@@ -154,6 +144,27 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
 
 const WORKSPACE_ID = 'workspace-1'
 
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  listCustomBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+  isDeploymentAvailable:
+    integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
+  recordUsage: billingUsageLogMockFns.mockRecordUsage,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  getAllBlocks: vi.mocked(getAllBlocks),
+  executeRegistryTool: toolsMockFns.mockExecuteTool,
+  resolveBillingAttribution: billingAttributionMockFns.mockResolveBillingAttribution,
+}
+
+vi.mocked(getBlock).mockReturnValue(undefined as never)
+vi.mocked(getBlockMeta).mockReturnValue({ tags: [] } as never)
+billingAttributionMockFns.mockToBillingContext.mockImplementation(() => ({
+  billingEntity: { type: 'workspace', id: WORKSPACE_ID },
+  billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
+}))
+
 const workspaceContext = {
   workspaceId: WORKSPACE_ID,
   workspaceOrganizationId: 'org-1',
@@ -161,16 +172,8 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
-}
-const workspaceKey: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const principal = createPersonalApiKeyPrincipal()
+const workspaceKey = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {
@@ -241,45 +244,45 @@ describe('executeToolForCaller', () => {
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
   })
 
-  it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
-    principal,
-    { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  ])('hands the authenticated $kind caller through to the real File handler', async (caller) => {
-    mocks.executeFileManage.mockResolvedValue(
-      Response.json({ success: true, data: { files: [{ id: 'file-1' }] } })
-    )
-    /** Adapt the existing registry mock at its dispatch boundary; admission and File handling are real. */
-    mocks.executeRegistryTool.mockImplementationOnce(
-      async (
-        toolId: string,
-        params: Parameters<typeof fileReadTool.operation.input>[0],
-        options: { operationContext: InternalToolOperationContext }
-      ) => {
-        const response = await executeFileTool({
-          toolId,
-          input: fileReadTool.operation.input(params),
-          context: options.operationContext,
-          headers: new Headers(),
-          requestId: 'direct-file-read',
-        })
-        return fileReadTool.transformResponse?.(response)
-      }
-    )
+  it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
+    'hands the authenticated $kind caller through to the real File handler',
+    async (caller) => {
+      mocks.executeFileManage.mockResolvedValue(
+        Response.json({ success: true, data: { files: [{ id: 'file-1' }] } })
+      )
+      /** Adapt the existing registry mock at its dispatch boundary; admission and File handling are real. */
+      mocks.executeRegistryTool.mockImplementationOnce(
+        async (
+          toolId: string,
+          params: Parameters<typeof fileReadTool.operation.input>[0],
+          options: { operationContext: InternalToolOperationContext }
+        ) => {
+          const response = await executeFileTool({
+            toolId,
+            input: fileReadTool.operation.input(params),
+            context: options.operationContext,
+            headers: new Headers(),
+            requestId: 'direct-file-read',
+          })
+          return fileReadTool.transformResponse?.(response)
+        }
+      )
 
-    const result = await executeToolForCaller.execute({
-      principal: caller,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
-    })
+      const result = await executeToolForCaller.execute({
+        principal: caller,
+        input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
+      })
 
-    expect(result).toMatchObject({ status: 'succeeded', output: { files: [{ id: 'file-1' }] } })
-    const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
-    expect(options.operationContext.callerPrincipal).toBe(caller)
-    expect(options.operationContext.workflowId).toBe('')
-    expect(options.operationContext.executorDelegationOrigin).toBeUndefined()
-    expect(params).not.toHaveProperty('callerPrincipal')
-    expect(params._context).not.toHaveProperty('callerPrincipal')
-    expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
-  })
+      expect(result).toMatchObject({ status: 'succeeded', output: { files: [{ id: 'file-1' }] } })
+      const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
+      expect(options.operationContext.callerPrincipal).toBe(caller)
+      expect(options.operationContext.workflowId).toBe('')
+      expect(options.operationContext.executorDelegationOrigin).toBeUndefined()
+      expect(params).not.toHaveProperty('callerPrincipal')
+      expect(params._context).not.toHaveProperty('callerPrincipal')
+      expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
+    }
+  )
 
   it.each(['callerPrincipal', 'principal', 'operationContext', '_context'])(
     'rejects caller input attempting to supply %s authority',

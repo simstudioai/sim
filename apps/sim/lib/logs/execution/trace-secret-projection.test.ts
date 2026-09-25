@@ -1,25 +1,12 @@
 import { createHash } from 'node:crypto'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { materializeLargeValueRefMock, storeLargeValueMock, warnMock } = vi.hoisted(() => ({
-  materializeLargeValueRefMock: vi.fn(),
-  storeLargeValueMock: vi.fn(),
-  warnMock: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: warnMock,
-    error: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeLargeValue: storeLargeValueMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import {
   enforceTraceSpanSecretInvariant,
@@ -31,6 +18,11 @@ import {
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const storeLargeValueMock = executionPayloadStoreMockFns.mockStoreLargeValue
+
+const { warn: warnMock } = getMockLogger('TraceSecretProjection')
 
 const STORE = {
   workspaceId: 'workspace-1',

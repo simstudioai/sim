@@ -1,24 +1,20 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 
-const mocks = vi.hoisted(() => ({ role: vi.fn(), manage: vi.fn(), update: vi.fn() }))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: 'org',
-    allowPersonalApiKeys: true,
-  }),
-}))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  CustomBlockValidationError: class extends Error {},
-  getCustomBlockManageContext: mocks.manage,
-  isCustomBlocksDeploymentEnabled: () => true,
-  updateCustomBlock: mocks.update,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 import { customBlockSettingsActions } from '@/lib/mothership/tools/server/settings-custom-blocks'
 import {
@@ -28,16 +24,23 @@ import {
   updateCustomBlockSettings,
 } from '@/lib/workflows/custom-blocks/application/settings'
 
-const principal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  manage: customBlockOperationsMockFns.mockGetCustomBlockManageContext,
+  update: customBlockOperationsMockFns.mockUpdateCustomBlock,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+customBlockOperationsMockFns.mockIsCustomBlocksDeploymentEnabled.mockReturnValue(true)
+workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) =>
+    createMockWorkspaceApplicationContext({ workspaceId, workspaceOrganizationId: 'org' })
+)
+
+const principal = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'trusted',
   audience: 'sim:settings',
   delegationId: 'call',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-} as const
+})
 const context: SettingsContext = {
   scope: 'workspace',
   workspaceId: 'trusted',
@@ -51,7 +54,6 @@ const publish = {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mocks.role.mockResolvedValue('admin')
   mocks.manage.mockResolvedValue({
     sourceWorkspaceId: 'trusted',

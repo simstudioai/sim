@@ -3,6 +3,7 @@
  */
 
 import { redisConfigMockFns } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/oauth', () => ({
@@ -11,11 +12,7 @@ vi.mock('@/lib/oauth/oauth', () => ({
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(async (value: string) => ({ encrypted: value, iv: 'iv' })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const { mockMinter } = vi.hoisted(() => ({ mockMinter: vi.fn() }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
@@ -30,6 +27,12 @@ import { refreshOAuthToken } from '@/lib/oauth'
 import { refreshTokenIfNeeded, resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: value,
+  iv: 'iv',
+}))
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
@@ -66,10 +69,6 @@ describe('OAuth Utils', () => {
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('Slack installation-scoped refresh', () => {

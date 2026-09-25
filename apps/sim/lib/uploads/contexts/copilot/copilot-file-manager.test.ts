@@ -1,15 +1,14 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-  downloadFile: vi.fn(),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot/copilot-file-manager'
 import type { UploadFileOptions } from '@/lib/uploads/shared/types'
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
 describe('Copilot output key allocation', () => {
   beforeEach(() => {

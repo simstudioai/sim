@@ -1,66 +1,51 @@
 import { Readable } from 'node:stream'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetTableById,
-  mockBulkInsertImportBatch,
-  mockUpdateJobProgress,
-  mockMarkJobReady,
-  mockMarkJobFailed,
-  mockNextImportStartPosition,
-  mockNextImportStartOrderKey,
-  mockAppendTableEvent,
-  mockDeleteFile,
-  mockDownloadFileStream,
-  mockHeadObject,
-  mockRecordImportRejections,
-} = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
-  mockBulkInsertImportBatch: vi.fn(),
-  mockUpdateJobProgress: vi.fn(),
-  mockMarkJobReady: vi.fn(),
-  mockMarkJobFailed: vi.fn(),
-  mockNextImportStartPosition: vi.fn(),
-  mockNextImportStartOrderKey: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDownloadFileStream: vi.fn(),
-  mockHeadObject: vi.fn(),
-  mockRecordImportRejections: vi.fn(),
-}))
+const { mockBulkInsertImportBatch, mockNextImportStartPosition, mockNextImportStartOrderKey } =
+  vi.hoisted(() => ({
+    mockBulkInsertImportBatch: vi.fn(),
+    mockNextImportStartPosition: vi.fn(),
+    mockNextImportStartOrderKey: vi.fn(),
+  }))
 
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/import-data', () => ({
   addImportColumns: vi.fn(),
   bulkInsertImportBatch: mockBulkInsertImportBatch,
   deleteAllTableRows: vi.fn(),
   setTableSchemaForImport: vi.fn(),
 }))
-vi.mock('@/lib/table/jobs/service', () => ({
-  markJobFailedInWorkspace: mockMarkJobFailed,
-  markJobReadyInWorkspace: mockMarkJobReady,
-  recordImportRejections: mockRecordImportRejections,
-  updateJobProgressInWorkspace: mockUpdateJobProgress,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/rows/ordering', () => ({
   nextImportStartOrderKey: mockNextImportStartOrderKey,
   nextImportStartPosition: mockNextImportStartPosition,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-  downloadFileStream: mockDownloadFileStream,
-  headObject: mockHeadObject,
-}))
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: (col: unknown) => col,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/table/wire', () => tableWireMock)
 
 import { CSV_MAX_BATCH_SIZE_BYTES, CSV_SCHEMA_SAMPLE_SIZE } from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockUpdateJobProgress = tableJobsServiceMockFns.mockUpdateJobProgressInWorkspace
+const mockMarkJobReady = tableJobsServiceMockFns.mockMarkJobReadyInWorkspace
+const mockMarkJobFailed = tableJobsServiceMockFns.mockMarkJobFailedInWorkspace
+const mockRecordImportRejections = tableJobsServiceMockFns.mockRecordImportRejections
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
+const mockHeadObject = storageServiceMockFns.mockHeadObject
 
 const table = {
   id: 'tbl_1',

@@ -1,20 +1,23 @@
 import { db } from '@sim/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   audit: vi.fn(),
-  chat: vi.fn(),
   membership: vi.fn(),
-  config: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/create', () => ({ createWorkspace: mocks.create }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.chat },
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/workspaces/create', () => ({ createWorkspace: hoisted.create }))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import * as applicationAudit from '@/lib/core/application/authorized-workspace-use-case'
 import { executeOrganizationWorkspaceUseCase } from '@/lib/mothership/application/execute-organization-workspace-use-case'
@@ -25,6 +28,12 @@ import { routeExecution } from '@/lib/mothership/tools/server/router'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { createOrganizationWorkspace } from '@/lib/workspaces/application/create-organization-workspace'
 import * as policy from '@/lib/workspaces/policy'
+
+const mocks = {
+  ...hoisted,
+  chat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
 
 const context: ServerToolContext = {
   userId: 'actor',
@@ -57,8 +66,11 @@ const workspace = {
   workspaceMode: 'organization',
   permissions: 'admin',
 }
-const readPolicy = vi.spyOn(policy, 'getWorkspaceCreationPolicy')
-vi.spyOn(applicationAudit, 'recordProjectedUseCaseAuditEntries').mockImplementation(mocks.audit)
+let readPolicy: MockInstance<typeof policy.getWorkspaceCreationPolicy>
+beforeEach(() => {
+  readPolicy = vi.spyOn(policy, 'getWorkspaceCreationPolicy')
+  vi.spyOn(applicationAudit, 'recordProjectedUseCaseAuditEntries').mockImplementation(mocks.audit)
+})
 
 beforeEach(() => {
   mocks.create.mockResolvedValue(workspace)
@@ -255,7 +267,7 @@ describe('organization workspace creation through the real tool router', () => {
       { ...principal, organizationId: 'other' },
       { ...principal, expiresAt: new Date(0) },
       { ...principal, audience: 'sim:settings' },
-      { kind: 'session' as const, userId: 'actor', sessionId: 'session' },
+      createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
     ]) {
       await expect(
         createOrganizationWorkspace.execute({

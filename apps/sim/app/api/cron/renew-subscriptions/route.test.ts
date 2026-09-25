@@ -8,19 +8,16 @@ import {
   redisConfigMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerifyCronAuth } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
-}))
-
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: mockVerifyCronAuth,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { GET } from './route'
+
+const mockVerifyCronAuth = authInternalMockFns.mockVerifyCronAuth
 
 function createRequest() {
   return createMockRequest(

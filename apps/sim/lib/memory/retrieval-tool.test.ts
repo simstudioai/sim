@@ -1,12 +1,14 @@
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ principal: vi.fn(), retrieve: vi.fn() }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.principal,
-}))
+const hoisted = vi.hoisted(() => ({ retrieve: vi.fn() }))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 vi.mock('@/lib/memory/application/retrieval', () => ({
-  retrieveAgentMemoryUseCase: { execute: mocks.retrieve },
+  retrieveAgentMemoryUseCase: { execute: hoisted.retrieve },
 }))
 vi.mock('@/lib/memory/artifacts', () => ({
   MAX_MEMORY_ARTIFACT_BYTES: 8 * 1024 * 1024,
@@ -16,6 +18,11 @@ vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: vi.fn
 vi.mock('@/lib/memory/retrieval-prefix', () => ({ readMemoryRetrievalPrefix: vi.fn() }))
 
 import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
+
+const mocks = {
+  ...hoisted,
+  principal: executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext,
+}
 
 describe('trusted Agent memory tool binding', () => {
   beforeEach(() => {

@@ -1,6 +1,6 @@
 /**
  * Runs against the disposable PostgreSQL in TEST_DATABASE_URL. From apps/sim:
- * `bunx vitest run --mode integration executor/handlers/agent/memory-harness.integration.ts`.
+ * `bun run --cwd apps/sim test --mode integration executor/handlers/agent/memory-harness.integration.ts`.
  * AGENT_MEMORY_TEST_LIVE=1 uses configured OpenAI/Anthropic credentials and synthetic PDFs.
  * Otherwise only provider HTTP responses are simulated; storage, SQL, hydration, dispatch,
  * SDK request construction, response parsing, and memory persistence execute real code.
@@ -13,6 +13,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { sql } from 'drizzle-orm'
@@ -93,19 +94,14 @@ import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { ProviderRequest } from '@/providers/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('The Agent memory harness requires a disposable local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 const live = process.env.AGENT_MEMORY_TEST_LIVE === '1'
 const schemaName = `agent_memory_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 3,
-      connection: { search_path: schemaName },
-      onnotice: () => {},
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 3,
+  connection: { search_path: schemaName },
+  onnotice: () => {},
+})
 const scope = { workspaceId: generateId(), workflowId: generateId(), userId: generateId() }
 const block = {
   id: generateId(),
@@ -193,7 +189,6 @@ async function executeTurn(ctx: ExecutionContext, inputs: AgentInputs): Promise<
 
 /** Generate the production tables exercised here; unrelated application FKs are omitted. */
 async function createTable(table: PgTable): Promise<void> {
-  if (!connection) throw new Error('Missing harness database')
   const dialect = new PgDialect()
   const config = getTableConfig(table)
   const columns = config.columns.map((column) => {
@@ -213,7 +208,6 @@ async function createTable(table: PgTable): Promise<void> {
 }
 
 async function readConversation(key: string): Promise<StoredConversation> {
-  if (!connection) throw new Error('Missing harness database')
   const [row] = await connection<StoredConversation[]>`
     SELECT m.data, m.secret_provenance_version, p.content_hash, p.status, p.entries
     FROM memory m LEFT JOIN memory_secret_provenance p ON p.memory_id = m.id
@@ -322,325 +316,319 @@ async function interceptFetch(input: RequestInfo | URL, init?: RequestInit): Pro
   )
 }
 
-describe.skipIf(!databaseUrl)(
-  'Agent memory through PostgreSQL, storage, and provider transports',
-  () => {
-    beforeAll(async () => {
-      if (!connection) throw new Error('Missing harness database')
-      fixture.uploads = await mkdtemp(join(tmpdir(), 'sim-memory-files-'))
-      await connection`CREATE SCHEMA ${connection(schemaName)}`
-      fixture.database = drizzle(connection, { schema })
-      for (const table of [
-        memory,
-        memorySecretProvenance,
-        workspaceFiles,
-        workspaceFileSecretProvenance,
-        workspace,
-        workflow,
-        workflowExecutionLogs,
-        resumeQueue,
-      ])
-        await createTable(table)
-      await fixture.database.insert(workspace).values({
-        id: scope.workspaceId,
-        name: 'Attachment harness',
-        ownerId: scope.userId,
-        billedAccountUserId: scope.userId,
-      })
-      await fixture.database.insert(workflow).values({
-        id: scope.workflowId,
-        workspaceId: scope.workspaceId,
-        userId: scope.userId,
-        name: 'Attachment harness',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastSynced: new Date(),
-      })
-      await connection.unsafe(
-        `CREATE UNIQUE INDEX memory_workspace_key_idx ON memory(workspace_id, key)`
-      )
-      await connection.unsafe(
-        `CREATE UNIQUE INDEX workspace_files_key_active_unique ON workspace_files(key) WHERE deleted_at IS NULL`
-      )
-      await connection.unsafe(`
+describe('Agent memory through PostgreSQL, storage, and provider transports', () => {
+  beforeAll(async () => {
+    fixture.uploads = await mkdtemp(join(tmpdir(), 'sim-memory-files-'))
+    await connection`CREATE SCHEMA ${connection(schemaName)}`
+    fixture.database = drizzle(connection, { schema })
+    for (const table of [
+      memory,
+      memorySecretProvenance,
+      workspaceFiles,
+      workspaceFileSecretProvenance,
+      workspace,
+      workflow,
+      workflowExecutionLogs,
+      resumeQueue,
+    ])
+      await createTable(table)
+    await fixture.database.insert(workspace).values({
+      id: scope.workspaceId,
+      name: 'Attachment harness',
+      ownerId: scope.userId,
+      billedAccountUserId: scope.userId,
+    })
+    await fixture.database.insert(workflow).values({
+      id: scope.workflowId,
+      workspaceId: scope.workspaceId,
+      userId: scope.userId,
+      name: 'Attachment harness',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSynced: new Date(),
+    })
+    await connection.unsafe(
+      `CREATE UNIQUE INDEX memory_workspace_key_idx ON memory(workspace_id, key)`
+    )
+    await connection.unsafe(
+      `CREATE UNIQUE INDEX workspace_files_key_active_unique ON workspace_files(key) WHERE deleted_at IS NULL`
+    )
+    await connection.unsafe(`
       CREATE FUNCTION demote_memory() RETURNS trigger LANGUAGE plpgsql AS $body$
       BEGIN NEW.secret_provenance_version := NULL; RETURN NEW; END; $body$;
       CREATE TRIGGER memory_demote BEFORE UPDATE OF data ON memory FOR EACH ROW
       WHEN(OLD.data IS DISTINCT FROM NEW.data) EXECUTE FUNCTION demote_memory();
     `)
-    })
+  })
 
-    afterAll(async () => {
-      try {
-        if (process.env.AGENT_MEMORY_TEST_REPORT) {
-          await writeFile(
-            process.env.AGENT_MEMORY_TEST_REPORT,
-            JSON.stringify({ live, cases: report }, null, 2)
-          )
-        }
-        if (connection) await connection`DROP SCHEMA IF EXISTS ${connection(schemaName)} CASCADE`
-      } finally {
-        fixture.database = undefined
-        if (connection) await connection.end()
-        if (fixture.uploads) await rm(fixture.uploads, { recursive: true, force: true })
-        vi.unstubAllGlobals()
+  afterAll(async () => {
+    try {
+      if (process.env.AGENT_MEMORY_TEST_REPORT) {
+        await writeFile(
+          process.env.AGENT_MEMORY_TEST_REPORT,
+          JSON.stringify({ live, cases: report }, null, 2)
+        )
       }
-    })
+      await connection`DROP SCHEMA IF EXISTS ${connection(schemaName)} CASCADE`
+    } finally {
+      fixture.database = undefined
+      await connection.end()
+      if (fixture.uploads) await rm(fixture.uploads, { recursive: true, force: true })
+      vi.unstubAllGlobals()
+    }
+  })
 
-    it.each(
-      (['workspace', 'mothership'] as const).flatMap((storageContext) =>
-        (['openai', 'anthropic'] as const).flatMap((provider) =>
-          [false, true].map((streaming) => ({ storageContext, provider, streaming }))
-        )
+  it.each(
+    (['workspace', 'mothership'] as const).flatMap((storageContext) =>
+      (['openai', 'anthropic'] as const).flatMap((provider) =>
+        [false, true].map((streaming) => ({ storageContext, provider, streaming }))
       )
-    )(
-      'deployed chat reads remembered $storageContext files with $provider, streaming=$streaming',
-      async ({ storageContext, provider, streaming }) => {
-        if (!fixture.database || !connection) throw new Error('Missing harness database')
-        vi.stubGlobal('fetch', interceptFetch)
-        outbound = []
-        const conversationId = generateId()
-        const pdf = await PDFDocument.create()
-        pdf
-          .addPage()
-          .drawText('A workspace image-edit result can be recalled without a new upload.')
-        const buffer = Buffer.from(await pdf.save())
-        const key = `workspace/${scope.workspaceId}/${generateId()}/result.pdf`
-        await uploadFile({
-          file: buffer,
-          fileName: 'result.pdf',
-          contentType: 'application/pdf',
-          context: 'workspace',
-          preserveKey: true,
-          customKey: key,
-          persistMetadata: false,
-        })
-        const record = await fixture.database.transaction(async (tx) => {
-          const record = await insertImmutableFileMetadata(
-            {
-              id: generateId(),
-              key,
-              userId: scope.userId,
-              workspaceId: scope.workspaceId,
-              context: storageContext,
-              originalName: 'result.pdf',
-              contentType: 'application/pdf',
-              size: buffer.length,
-            },
-            tx
-          )
-          await initializeWorkspaceFileSecretProvenanceInTx(
-            tx,
-            record.id,
-            record.contentUpdatedAt,
-            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-          )
-          return record
-        })
-        const file: UserFile = {
-          id: record.id,
-          name: 'result.pdf',
-          key,
-          url: '',
-          size: buffer.length,
-          type: 'application/pdf',
-          context: 'workspace',
-        }
-        const createChatContext = async () => {
-          const ctx = context(streaming)
-          ctx.principal = {
-            kind: 'system',
-            serviceId: 'chat',
-            workspaceId: scope.workspaceId,
-            workflowId: scope.workflowId,
-          }
-          const deploymentVersionId = generateId()
-          ctx.executorDelegationOrigin = {
-            workflowId: scope.workflowId,
-            executionId: ctx.executionId,
-            principal: ctx.principal,
-            currentWorkflow: {
-              workflowId: scope.workflowId,
-              mode: 'deployment',
-              deploymentVersionId,
-            },
-          }
-          await fixture.database!.insert(workflowExecutionLogs).values({
-            id: generateId(),
-            workflowId: scope.workflowId,
-            workspaceId: scope.workspaceId,
-            executionId: ctx.executionId!,
-            deploymentVersionId,
-            stateSnapshotId: generateId(),
-            level: 'info',
-            status: 'running',
-            trigger: 'chat',
-            startedAt: new Date(),
-          })
-          return ctx
-        }
-        const inputs: AgentInputs = {
-          model: models[provider],
-          apiKey: apiKey(provider),
-          maxTokens: '128',
-          memoryType: 'conversation',
-          conversationId,
-          userPrompt: 'Read the attached PDF and reply exactly READY.',
-        }
-        transportReply = 'READY'
-        const firstContext = await createChatContext()
-        await expect(
-          readWorkspaceFileRecordByKey.execute({
-            principal: firstContext.principal!,
-            input: { key, assertedWorkspaceId: scope.workspaceId },
-          })
-        ).rejects.toThrow('Principal kind system')
-
-        const strictWorkspaceRead = readWorkspaceFileRecordByKey.execute({
-          principal: {
-            kind: 'workspace_api_key',
-            workspaceId: scope.workspaceId,
-            keyId: 'harness-key',
-          },
-          input: { key, assertedWorkspaceId: scope.workspaceId },
-        })
-        if (storageContext === 'mothership') {
-          await expect(strictWorkspaceRead).rejects.toMatchObject({ code: 'not_found' })
-        } else {
-          await expect(strictWorkspaceRead).resolves.toMatchObject({ file: { id: record.id } })
-        }
-
-        /** Exercise large-file authorization with real metadata and delegation before model dispatch. */
-        const largeFile = { ...file, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
-        const largeRequest: ProviderRequest = {
-          model: models[provider],
-          apiKey: apiKey(provider),
-          userId: scope.userId,
-          messages: [{ role: 'user', content: 'Read the attachment', files: [largeFile] }],
-        }
-        const cloudStorage = vi.spyOn(StorageService, 'hasCloudStorage').mockReturnValue(true)
-        const presign = vi
-          .spyOn(StorageService, 'generatePresignedDownloadUrl')
-          .mockResolvedValue('https://storage.example.com/signed')
-        try {
-          await attachLargeFileRemoteUrls(largeRequest, provider, firstContext)
-          expect(presign).toHaveBeenCalledWith(key, 'workspace', 3600)
-          expect(largeFile.remoteUrl).toBe('https://storage.example.com/signed')
-          if (provider === 'openai') {
-            const upload = vi.fn(async (url: string, init?: RequestInit) => {
-              expect(url).toBe('https://api.openai.com/v1/files')
-              expect(init?.body).toBeInstanceOf(FormData)
-              const body = init!.body as FormData
-              const uploaded = body.get('file') as File
-              expect(Buffer.from(await uploaded.arrayBuffer())).toEqual(buffer)
-              return Response.json({ id: 'file-harness' })
-            })
-            vi.stubGlobal('fetch', upload)
-            await uploadLargeFilesToProvider(largeRequest, provider, firstContext)
-            expect(upload).toHaveBeenCalledOnce()
-            expect(largeFile.providerFileId).toBe('file-harness')
-          }
-        } finally {
-          cloudStorage.mockRestore()
-          presign.mockRestore()
-          vi.stubGlobal('fetch', interceptFetch)
-        }
-
-        expect(await executeTurn(firstContext, { ...inputs, files: [file] })).toBe('READY')
-        expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
-        const stored = await readConversation(conversationId)
-        expect(stored.data[0].files).toEqual([file])
-        expect(JSON.stringify(stored)).not.toContain('base64')
-
-        expect(
-          await executeTurn(await createChatContext(), {
-            ...inputs,
-            userPrompt: 'Read the earlier PDF again and reply exactly READY.',
-          })
-        ).toBe('READY')
-        expect(requestFiles(outbound[1])).toEqual([buffer.toString('base64')])
-
-        const missingOrigin = await createChatContext()
-        missingOrigin.executorDelegationOrigin = undefined
-        await expect(executeTurn(missingOrigin, inputs)).rejects.toThrow()
-        const otherWorkspace = await createChatContext()
-        otherWorkspace.workspaceId = generateId()
-        await expect(
-          executeTurn(otherWorkspace, { ...inputs, files: [file], memoryType: 'none' })
-        ).rejects.toThrow('could not be read')
-        const terminalRun = await createChatContext()
-        await connection`UPDATE workflow_execution_logs SET status = 'completed' WHERE execution_id = ${terminalRun.executionId!}`
-        await expect(executeTurn(terminalRun, inputs)).rejects.toThrow('active workflow execution')
-        const mismatchedDeployment = await createChatContext()
-        mismatchedDeployment.executorDelegationOrigin!.currentWorkflow = {
-          workflowId: scope.workflowId,
-          mode: 'deployment',
-          deploymentVersionId: generateId(),
-        }
-        await expect(executeTurn(mismatchedDeployment, inputs)).rejects.toThrow(
-          'active workflow execution'
-        )
-        await connection`UPDATE workspace_files SET deleted_at = NOW() WHERE id = ${file.id}`
-        await expect(executeTurn(await createChatContext(), inputs)).rejects.toThrow(
-          'could not be read'
-        )
-        expect(outbound).toHaveLength(2)
-        report.push({
-          provider,
-          streaming,
-          storageContext,
-          stored,
-          controls: {
-            missingOrigin: 'blocked before HTTP',
-            differentWorkspace: 'blocked before HTTP',
-            terminalRun: 'blocked before HTTP',
-            mismatchedDeployment: 'blocked before HTTP',
-            deletedFile: 'blocked before HTTP',
-          },
-          passed: true,
-        })
-        await deleteFile({ key, context: 'workspace' })
-      },
-      150_000
     )
-
-    it.each(
-      (
-        [
-          { first: 'openai', second: 'openai', source: 'files' },
-          { first: 'anthropic', second: 'anthropic', source: 'messages' },
-          { first: 'openai', second: 'anthropic', source: 'userPrompt' },
-          { first: 'anthropic', second: 'openai', source: 'files' },
-        ] as const
-      ).flatMap((scenario) => [false, true].map((streaming) => ({ ...scenario, streaming })))
-    )(
-      '$first → $second, using $source, streaming=$streaming',
-      async ({ first, second, source, streaming }) => {
-        vi.stubGlobal('fetch', interceptFetch)
-        outbound = []
-        const conversationId = generateId()
-        const firstContext = context(streaming)
-        const marker = `PROBE-${generateShortId()}`
-        const pdf = await PDFDocument.create()
-        const font = await pdf.embedFont(StandardFonts.Helvetica)
-        pdf.addPage().drawText(`memory_probe = ${marker}`, { x: 40, y: 700, size: 18, font })
-        const buffer = Buffer.from(await pdf.save())
-        const file = await uploadExecutionFile(
+  )(
+    'deployed chat reads remembered $storageContext files with $provider, streaming=$streaming',
+    async ({ storageContext, provider, streaming }) => {
+      if (!fixture.database || !connection) throw new Error('Missing harness database')
+      vi.stubGlobal('fetch', interceptFetch)
+      outbound = []
+      const conversationId = generateId()
+      const pdf = await PDFDocument.create()
+      pdf.addPage().drawText('A workspace image-edit result can be recalled without a new upload.')
+      const buffer = Buffer.from(await pdf.save())
+      const key = `workspace/${scope.workspaceId}/${generateId()}/result.pdf`
+      await uploadFile({
+        file: buffer,
+        fileName: 'result.pdf',
+        contentType: 'application/pdf',
+        context: 'workspace',
+        preserveKey: true,
+        customKey: key,
+        persistMetadata: false,
+      })
+      const record = await fixture.database.transaction(async (tx) => {
+        const record = await insertImmutableFileMetadata(
           {
+            id: generateId(),
+            key,
+            userId: scope.userId,
             workspaceId: scope.workspaceId,
-            workflowId: scope.workflowId,
-            executionId: firstContext.executionId!,
+            context: storageContext,
+            originalName: 'result.pdf',
+            contentType: 'application/pdf',
+            size: buffer.length,
           },
-          buffer,
-          'memory-probe.pdf',
-          'application/pdf',
-          scope.userId,
+          tx
+        )
+        await initializeWorkspaceFileSecretProvenanceInTx(
+          tx,
+          record.id,
+          record.contentUpdatedAt,
           EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
         )
-        expect(file.key).toContain(firstContext.executionId)
-        if (!connection) throw new Error('Missing harness database')
-        /** Production provenance compares JavaScript Dates, so compare versions at millisecond precision. */
-        const [storedFile] = await connection`
+        return record
+      })
+      const file: UserFile = {
+        id: record.id,
+        name: 'result.pdf',
+        key,
+        url: '',
+        size: buffer.length,
+        type: 'application/pdf',
+        context: 'workspace',
+      }
+      const createChatContext = async () => {
+        const ctx = context(streaming)
+        ctx.principal = {
+          kind: 'system',
+          serviceId: 'chat',
+          workspaceId: scope.workspaceId,
+          workflowId: scope.workflowId,
+        }
+        const deploymentVersionId = generateId()
+        ctx.executorDelegationOrigin = {
+          workflowId: scope.workflowId,
+          executionId: ctx.executionId,
+          principal: ctx.principal,
+          currentWorkflow: {
+            workflowId: scope.workflowId,
+            mode: 'deployment',
+            deploymentVersionId,
+          },
+        }
+        await fixture.database!.insert(workflowExecutionLogs).values({
+          id: generateId(),
+          workflowId: scope.workflowId,
+          workspaceId: scope.workspaceId,
+          executionId: ctx.executionId!,
+          deploymentVersionId,
+          stateSnapshotId: generateId(),
+          level: 'info',
+          status: 'running',
+          trigger: 'chat',
+          startedAt: new Date(),
+        })
+        return ctx
+      }
+      const inputs: AgentInputs = {
+        model: models[provider],
+        apiKey: apiKey(provider),
+        maxTokens: '128',
+        memoryType: 'conversation',
+        conversationId,
+        userPrompt: 'Read the attached PDF and reply exactly READY.',
+      }
+      transportReply = 'READY'
+      const firstContext = await createChatContext()
+      await expect(
+        readWorkspaceFileRecordByKey.execute({
+          principal: firstContext.principal!,
+          input: { key, assertedWorkspaceId: scope.workspaceId },
+        })
+      ).rejects.toThrow('Principal kind system')
+
+      const strictWorkspaceRead = readWorkspaceFileRecordByKey.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: scope.workspaceId,
+          keyId: 'harness-key',
+        },
+        input: { key, assertedWorkspaceId: scope.workspaceId },
+      })
+      if (storageContext === 'mothership') {
+        await expect(strictWorkspaceRead).rejects.toMatchObject({ code: 'not_found' })
+      } else {
+        await expect(strictWorkspaceRead).resolves.toMatchObject({ file: { id: record.id } })
+      }
+
+      /** Exercise large-file authorization with real metadata and delegation before model dispatch. */
+      const largeFile = { ...file, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
+      const largeRequest: ProviderRequest = {
+        model: models[provider],
+        apiKey: apiKey(provider),
+        userId: scope.userId,
+        messages: [{ role: 'user', content: 'Read the attachment', files: [largeFile] }],
+      }
+      const cloudStorage = vi.spyOn(StorageService, 'hasCloudStorage').mockReturnValue(true)
+      const presign = vi
+        .spyOn(StorageService, 'generatePresignedDownloadUrl')
+        .mockResolvedValue('https://storage.example.com/signed')
+      try {
+        await attachLargeFileRemoteUrls(largeRequest, provider, firstContext)
+        expect(presign).toHaveBeenCalledWith(key, 'workspace', 3600)
+        expect(largeFile.remoteUrl).toBe('https://storage.example.com/signed')
+        if (provider === 'openai') {
+          const upload = vi.fn(async (url: string, init?: RequestInit) => {
+            expect(url).toBe('https://api.openai.com/v1/files')
+            expect(init?.body).toBeInstanceOf(FormData)
+            const body = init!.body as FormData
+            const uploaded = body.get('file') as File
+            expect(Buffer.from(await uploaded.arrayBuffer())).toEqual(buffer)
+            return Response.json({ id: 'file-harness' })
+          })
+          vi.stubGlobal('fetch', upload)
+          await uploadLargeFilesToProvider(largeRequest, provider, firstContext)
+          expect(upload).toHaveBeenCalledOnce()
+          expect(largeFile.providerFileId).toBe('file-harness')
+        }
+      } finally {
+        cloudStorage.mockRestore()
+        presign.mockRestore()
+        vi.stubGlobal('fetch', interceptFetch)
+      }
+
+      expect(await executeTurn(firstContext, { ...inputs, files: [file] })).toBe('READY')
+      expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
+      const stored = await readConversation(conversationId)
+      expect(stored.data[0].files).toEqual([file])
+      expect(JSON.stringify(stored)).not.toContain('base64')
+
+      expect(
+        await executeTurn(await createChatContext(), {
+          ...inputs,
+          userPrompt: 'Read the earlier PDF again and reply exactly READY.',
+        })
+      ).toBe('READY')
+      expect(requestFiles(outbound[1])).toEqual([buffer.toString('base64')])
+
+      const missingOrigin = await createChatContext()
+      missingOrigin.executorDelegationOrigin = undefined
+      await expect(executeTurn(missingOrigin, inputs)).rejects.toThrow()
+      const otherWorkspace = await createChatContext()
+      otherWorkspace.workspaceId = generateId()
+      await expect(
+        executeTurn(otherWorkspace, { ...inputs, files: [file], memoryType: 'none' })
+      ).rejects.toThrow('could not be read')
+      const terminalRun = await createChatContext()
+      await connection`UPDATE workflow_execution_logs SET status = 'completed' WHERE execution_id = ${terminalRun.executionId!}`
+      await expect(executeTurn(terminalRun, inputs)).rejects.toThrow('active workflow execution')
+      const mismatchedDeployment = await createChatContext()
+      mismatchedDeployment.executorDelegationOrigin!.currentWorkflow = {
+        workflowId: scope.workflowId,
+        mode: 'deployment',
+        deploymentVersionId: generateId(),
+      }
+      await expect(executeTurn(mismatchedDeployment, inputs)).rejects.toThrow(
+        'active workflow execution'
+      )
+      await connection`UPDATE workspace_files SET deleted_at = NOW() WHERE id = ${file.id}`
+      await expect(executeTurn(await createChatContext(), inputs)).rejects.toThrow(
+        'could not be read'
+      )
+      expect(outbound).toHaveLength(2)
+      report.push({
+        provider,
+        streaming,
+        storageContext,
+        stored,
+        controls: {
+          missingOrigin: 'blocked before HTTP',
+          differentWorkspace: 'blocked before HTTP',
+          terminalRun: 'blocked before HTTP',
+          mismatchedDeployment: 'blocked before HTTP',
+          deletedFile: 'blocked before HTTP',
+        },
+        passed: true,
+      })
+      await deleteFile({ key, context: 'workspace' })
+    },
+    150_000
+  )
+
+  it.each(
+    (
+      [
+        { first: 'openai', second: 'openai', source: 'files' },
+        { first: 'anthropic', second: 'anthropic', source: 'messages' },
+        { first: 'openai', second: 'anthropic', source: 'userPrompt' },
+        { first: 'anthropic', second: 'openai', source: 'files' },
+      ] as const
+    ).flatMap((scenario) => [false, true].map((streaming) => ({ ...scenario, streaming })))
+  )(
+    '$first → $second, using $source, streaming=$streaming',
+    async ({ first, second, source, streaming }) => {
+      vi.stubGlobal('fetch', interceptFetch)
+      outbound = []
+      const conversationId = generateId()
+      const firstContext = context(streaming)
+      const marker = `PROBE-${generateShortId()}`
+      const pdf = await PDFDocument.create()
+      const font = await pdf.embedFont(StandardFonts.Helvetica)
+      pdf.addPage().drawText(`memory_probe = ${marker}`, { x: 40, y: 700, size: 18, font })
+      const buffer = Buffer.from(await pdf.save())
+      const file = await uploadExecutionFile(
+        {
+          workspaceId: scope.workspaceId,
+          workflowId: scope.workflowId,
+          executionId: firstContext.executionId!,
+        },
+        buffer,
+        'memory-probe.pdf',
+        'application/pdf',
+        scope.userId,
+        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+      )
+      expect(file.key).toContain(firstContext.executionId)
+      /** Production provenance compares JavaScript Dates, so compare versions at millisecond precision. */
+      const [storedFile] = await connection`
           SELECT f.id, f.key, f.workspace_id, f.context, f.original_name, f.content_type,
             f.size_bytes::integer AS size_bytes, f.secret_provenance_version,
             p.status, p.entries,
@@ -648,153 +636,150 @@ describe.skipIf(!databaseUrl)(
           FROM workspace_files f
           LEFT JOIN workspace_file_secret_provenance p ON p.file_id = f.id
           WHERE f.key = ${file.key!}`
-        expect(storedFile).toEqual({
-          id: file.id,
-          key: file.key,
-          workspace_id: scope.workspaceId,
-          context: 'execution',
-          original_name: 'memory-probe.pdf',
-          content_type: 'application/pdf',
-          size_bytes: buffer.length,
-          secret_provenance_version: 1,
-          status: 'exact',
-          entries: [],
-          provenance_bound: true,
-        })
-        const firstPrompt =
-          'Read the attached PDF. Reply exactly READY. Do not quote or mention anything from the file.'
-        const firstInputs: AgentInputs = {
-          model: models[first],
-          apiKey: apiKey(first),
-          maxTokens: '128',
-          memoryType: 'conversation',
-          conversationId,
-          ...(source === 'userPrompt'
-            ? { userPrompt: firstPrompt, files: [file] }
-            : {
-                messages: [
-                  {
-                    role: 'user',
-                    content: firstPrompt,
-                    ...(source === 'messages' ? { files: [file] } : {}),
-                  },
-                ],
-                ...(source === 'files' ? { files: [file] } : {}),
-              }),
-        }
-        transportReply = 'READY'
-        expect(await executeTurn(firstContext, firstInputs)).toBe('READY')
-        const firstStored = await readConversation(conversationId)
-        expect(firstStored.data.map((message) => message.role)).toEqual(['user', 'assistant'])
-        const reference: UserFile = {
-          id: file.id,
-          name: file.name,
-          key: file.key,
-          url: '',
-          size: buffer.length,
-          type: 'application/pdf',
-          context: 'execution',
-        }
-        expect(firstStored.data[0].files).toEqual([reference])
-        expect(JSON.stringify(firstStored)).not.toContain(marker)
-        expect(JSON.stringify(firstStored)).not.toContain('base64')
-        expect(JSON.stringify(firstStored)).not.toContain('providerFile')
-        expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
+      expect(storedFile).toEqual({
+        id: file.id,
+        key: file.key,
+        workspace_id: scope.workspaceId,
+        context: 'execution',
+        original_name: 'memory-probe.pdf',
+        content_type: 'application/pdf',
+        size_bytes: buffer.length,
+        secret_provenance_version: 1,
+        status: 'exact',
+        entries: [],
+        provenance_bound: true,
+      })
+      const firstPrompt =
+        'Read the attached PDF. Reply exactly READY. Do not quote or mention anything from the file.'
+      const firstInputs: AgentInputs = {
+        model: models[first],
+        apiKey: apiKey(first),
+        maxTokens: '128',
+        memoryType: 'conversation',
+        conversationId,
+        ...(source === 'userPrompt'
+          ? { userPrompt: firstPrompt, files: [file] }
+          : {
+              messages: [
+                {
+                  role: 'user',
+                  content: firstPrompt,
+                  ...(source === 'messages' ? { files: [file] } : {}),
+                },
+              ],
+              ...(source === 'files' ? { files: [file] } : {}),
+            }),
+      }
+      transportReply = 'READY'
+      expect(await executeTurn(firstContext, firstInputs)).toBe('READY')
+      const firstStored = await readConversation(conversationId)
+      expect(firstStored.data.map((message) => message.role)).toEqual(['user', 'assistant'])
+      const reference: UserFile = {
+        id: file.id,
+        name: file.name,
+        key: file.key,
+        url: '',
+        size: buffer.length,
+        type: 'application/pdf',
+        context: 'execution',
+      }
+      expect(firstStored.data[0].files).toEqual([reference])
+      expect(JSON.stringify(firstStored)).not.toContain(marker)
+      expect(JSON.stringify(firstStored)).not.toContain('base64')
+      expect(JSON.stringify(firstStored)).not.toContain('providerFile')
+      expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
 
-        /** Fresh handler, execution, and registry force a DB read and a new execution-scoped byte cache. */
-        const secondContext = context(streaming)
-        transportReply = marker
-        const followupInputs: AgentInputs = {
-          model: models[second],
-          apiKey: apiKey(second),
-          maxTokens: '128',
-          memoryType: 'conversation',
-          conversationId,
-          messages: [
-            {
-              role: 'user',
-              content:
-                'What is the memory_probe value from the PDF I attached earlier? Reply exactly the value. If no PDF is available, reply NO_FILE.',
-            },
-          ],
-        }
-        expect(await executeTurn(secondContext, followupInputs)).toBe(marker)
-        expect(secondContext.fileKeys).toEqual([file.key])
-        expect(outbound).toHaveLength(2)
-        expect(outbound.every((request) => Boolean(request.body.stream) === streaming)).toBe(true)
-        expect(requestFiles(outbound[1])).toEqual([buffer.toString('base64')])
-        const secondStored = await readConversation(conversationId)
-        expect(secondStored.data.map((message) => message.role)).toEqual([
-          'user',
-          'assistant',
-          'user',
-          'assistant',
-        ])
-        expect(secondStored.data[0]).toEqual(firstStored.data[0])
-        expect(secondStored.data[2].files).toBeUndefined()
-        expect(secondStored.data[3].content).toBe(marker)
-
-        transportReply = 'NO_FILE'
-        const unrelatedConversationId = generateId()
-        const unrelatedContext = context(streaming)
-        expect(
-          await executeTurn(unrelatedContext, {
-            ...followupInputs,
-            conversationId: unrelatedConversationId,
-          })
-        ).toBe('NO_FILE')
-        expect(unrelatedContext.fileKeys ?? []).toEqual([])
-        expect(outbound).toHaveLength(3)
-        expect(requestFiles(outbound[2])).toEqual([])
-        const unrelatedStored = await readConversation(unrelatedConversationId)
-        expect(unrelatedStored.data).toHaveLength(2)
-        expect(unrelatedStored.data.every((message) => !message.files)).toBe(true)
-
-        const otherWorkflow = context(streaming)
-        otherWorkflow.workflowId = generateId()
-        otherWorkflow.principal = {
-          kind: 'system',
-          serviceId: 'schedule',
-          workspaceId: scope.workspaceId,
-          workflowId: otherWorkflow.workflowId,
-        }
-        await expect(executeTurn(otherWorkflow, followupInputs)).rejects.toThrow(
-          'could not be read'
-        )
-        expect(outbound).toHaveLength(3)
-
-        await deleteFile({ key: file.key!, context: 'execution' })
-        await expect(executeTurn(context(streaming), followupInputs)).rejects.toThrow(
-          'could not be read'
-        )
-        expect(outbound).toHaveLength(3)
-        const afterDeletion = await readConversation(conversationId)
-        expect(afterDeletion.data[0].files).toEqual([reference])
-        report.push({
-          first,
-          second,
-          source,
-          streaming,
-          marker,
-          storedFile,
-          firstStored,
-          secondStored,
-          controls: {
-            unrelatedConversation: 'passed',
-            differentWorkflow: 'blocked before HTTP',
-            missingSource: 'blocked before HTTP',
+      /** Fresh handler, execution, and registry force a DB read and a new execution-scoped byte cache. */
+      const secondContext = context(streaming)
+      transportReply = marker
+      const followupInputs: AgentInputs = {
+        model: models[second],
+        apiKey: apiKey(second),
+        maxTokens: '128',
+        memoryType: 'conversation',
+        conversationId,
+        messages: [
+          {
+            role: 'user',
+            content:
+              'What is the memory_probe value from the PDF I attached earlier? Reply exactly the value. If no PDF is available, reply NO_FILE.',
           },
-          transports: outbound.map((request) => ({
-            host: request.host,
-            fileCount: requestFiles(request).length,
-            fileSha256: requestFiles(request).map((base64) =>
-              createHash('sha256').update(Buffer.from(base64, 'base64')).digest('hex')
-            ),
-          })),
-          passed: true,
+        ],
+      }
+      expect(await executeTurn(secondContext, followupInputs)).toBe(marker)
+      expect(secondContext.fileKeys).toEqual([file.key])
+      expect(outbound).toHaveLength(2)
+      expect(outbound.every((request) => Boolean(request.body.stream) === streaming)).toBe(true)
+      expect(requestFiles(outbound[1])).toEqual([buffer.toString('base64')])
+      const secondStored = await readConversation(conversationId)
+      expect(secondStored.data.map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+        'user',
+        'assistant',
+      ])
+      expect(secondStored.data[0]).toEqual(firstStored.data[0])
+      expect(secondStored.data[2].files).toBeUndefined()
+      expect(secondStored.data[3].content).toBe(marker)
+
+      transportReply = 'NO_FILE'
+      const unrelatedConversationId = generateId()
+      const unrelatedContext = context(streaming)
+      expect(
+        await executeTurn(unrelatedContext, {
+          ...followupInputs,
+          conversationId: unrelatedConversationId,
         })
-      },
-      150_000
-    )
-  }
-)
+      ).toBe('NO_FILE')
+      expect(unrelatedContext.fileKeys ?? []).toEqual([])
+      expect(outbound).toHaveLength(3)
+      expect(requestFiles(outbound[2])).toEqual([])
+      const unrelatedStored = await readConversation(unrelatedConversationId)
+      expect(unrelatedStored.data).toHaveLength(2)
+      expect(unrelatedStored.data.every((message) => !message.files)).toBe(true)
+
+      const otherWorkflow = context(streaming)
+      otherWorkflow.workflowId = generateId()
+      otherWorkflow.principal = {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: scope.workspaceId,
+        workflowId: otherWorkflow.workflowId,
+      }
+      await expect(executeTurn(otherWorkflow, followupInputs)).rejects.toThrow('could not be read')
+      expect(outbound).toHaveLength(3)
+
+      await deleteFile({ key: file.key!, context: 'execution' })
+      await expect(executeTurn(context(streaming), followupInputs)).rejects.toThrow(
+        'could not be read'
+      )
+      expect(outbound).toHaveLength(3)
+      const afterDeletion = await readConversation(conversationId)
+      expect(afterDeletion.data[0].files).toEqual([reference])
+      report.push({
+        first,
+        second,
+        source,
+        streaming,
+        marker,
+        storedFile,
+        firstStored,
+        secondStored,
+        controls: {
+          unrelatedConversation: 'passed',
+          differentWorkflow: 'blocked before HTTP',
+          missingSource: 'blocked before HTTP',
+        },
+        transports: outbound.map((request) => ({
+          host: request.host,
+          fileCount: requestFiles(request).length,
+          fileSha256: requestFiles(request).map((base64) =>
+            createHash('sha256').update(Buffer.from(base64, 'base64')).digest('hex')
+          ),
+        })),
+        passed: true,
+      })
+    },
+    150_000
+  )
+})

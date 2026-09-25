@@ -11,37 +11,30 @@
  *
  * Two wire changes are deliberate; see the `deliberate wire changes` block.
  */
+
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    readRow: vi.fn(),
-    updateRow: vi.fn(),
-    deleteRow: vi.fn(),
-    authenticate: vi.fn(),
-  },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
-vi.mock('@/lib/table/application/rows', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/table/application/rows')>()
-  return {
-    ...actual,
-    readTableRow: { operation: { id: 'tables.rows.read' }, execute: mocks.readRow },
-    updateTableRow: { operation: { id: 'tables.rows.update' }, execute: mocks.updateRow },
-    deleteTableRow: { operation: { id: 'tables.rows.delete' }, execute: mocks.deleteRow },
-  }
-})
-
-vi.mock('@/lib/table/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/table/api')>()
-  return { ...actual, internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate } }
-})
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { GET, PATCH } from '@/app/api/table/[tableId]/rows/[rowId]/route'
+
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  readRow: tableApplicationRowsMockFns.mockReadTableRow,
+  updateRow: tableApplicationRowsMockFns.mockUpdateTableRow,
+  deleteRow: tableApplicationRowsMockFns.mockDeleteTableRow,
+}
 
 const TABLE_ID = 'tbl_1'
 const ROW_ID = 'row_1'

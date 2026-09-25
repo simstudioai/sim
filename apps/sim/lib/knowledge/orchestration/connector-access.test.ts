@@ -1,14 +1,29 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
+import { knowledgeTagsServiceMock } from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  grant: vi.fn(),
-  revoke: vi.fn(),
-  validateBinding: vi.fn(),
-  loadGroup: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   dispatchSync: vi.fn(),
-  dispatchMemberSync: vi.fn(),
-  memberAccessAvailable: vi.fn(),
   provision: vi.fn(),
   rewriteAcls: vi.fn(),
 }))
@@ -20,59 +35,48 @@ vi.mock('@/connectors/registry.server', () => ({
 }))
 
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
-  rewriteConnectorAcls: mocks.rewriteAcls,
+  rewriteConnectorAcls: hoisted.rewriteAcls,
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: vi.fn() }))
-vi.mock('@/lib/billing/core/subscription', () => ({ hasWorkspaceLiveSyncAccess: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  deleteDocumentStorageFiles: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  cleanupUnusedTagDefinitions: vi.fn(),
-  createTagDefinition: vi.fn(),
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  grantKnowledgeConnectorCredentialAccess: mocks.grant,
-  revokeKnowledgeConnectorCredentialAccess: mocks.revoke,
-  validateKnowledgeConnectorMembersBinding: mocks.validateBinding,
-  findListingCapViolation: vi.fn(() => null),
-  stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.loadGroup,
-}))
-vi.mock('@/lib/knowledge/access/availability', async () => {
-  const { OrchestrationError } = await import('@/lib/core/orchestration/types')
-  return {
-    isKnowledgeMemberAccessAvailable: mocks.memberAccessAvailable,
-    requireKnowledgeMemberAccessAvailable: async (context: { workspaceId: string }) => {
-      if (await mocks.memberAccessAvailable(context)) return
-      throw new OrchestrationError(
-        'validation',
-        'Per-member access is not available for this workspace'
-      )
-    },
-  }
-})
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  provisionKnowledgeConnectorMembersBinding: mocks.provision,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
 }))
-vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mocks.dispatchSync }))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  dispatchMemberSync: mocks.dispatchMemberSync,
-}))
+vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: hoisted.dispatchSync }))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   performUpdateKnowledgeConnectorAccess,
   resolveKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/orchestration/connector-access'
+
+const mocks = {
+  ...hoisted,
+  grant: knowledgeMemberAccessMockFns.mockGrantKnowledgeConnectorCredentialAccess,
+  revoke: knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCredentialAccess,
+  validateBinding: knowledgeMemberAccessMockFns.mockValidateKnowledgeConnectorMembersBinding,
+  loadGroup: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  dispatchMemberSync: knowledgeMemberQueueMockFns.mockDispatchMemberSync,
+}
+
+knowledgeAvailabilityMockFns.mockRequireKnowledgeMemberAccessAvailable.mockImplementation(
+  async (context: { workspaceId: string }) => {
+    if (await knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable(context)) return
+    throw new OrchestrationError(
+      'validation',
+      'Per-member access is not available for this workspace'
+    )
+  }
+)
 
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const ACTOR = { userId: 'admin-1', source: 'ui' as const, requestId: 'req-1' }
@@ -150,7 +154,7 @@ const SCOPED_META = {
 
 describe('resolveKnowledgeConnectorMembersBinding', () => {
   beforeEach(() => {
-    mocks.memberAccessAvailable.mockResolvedValue(true)
+    knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
     mocks.provision.mockResolvedValue({
       credentialGroupId: 'group-1',
       credentialGroupOptionId: 'option-1',
@@ -171,7 +175,7 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
   })
 
   it('refuses members mode where the feature is off, before loading anything', async () => {
-    mocks.memberAccessAvailable.mockResolvedValue(false)
+    knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
@@ -180,7 +184,9 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ message: 'Per-member access is not available for this workspace' })
-    expect(mocks.memberAccessAvailable).toHaveBeenCalledWith({ workspaceId: 'ws-1' })
+    expect(knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+    })
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 

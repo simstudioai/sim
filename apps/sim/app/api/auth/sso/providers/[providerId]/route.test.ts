@@ -1,19 +1,14 @@
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 /** Authorization and the primary switch are the use case's; its own tests and the PostgreSQL suite cover them. */
 vi.mock('@/lib/auth/sso/application/set-primary-provider', () => ({
   setPrimarySsoProviderOperation: { id: 'organization.sso.set_primary_provider' },
@@ -25,7 +20,9 @@ vi.mock('@/lib/auth/sso/application/set-primary-provider', () => ({
 
 import { DELETE } from '@/app/api/auth/sso/providers/[providerId]/route'
 
-const context = { params: Promise.resolve({ providerId: 'acme-okta' }) }
+const mockGetSession = authMockFns.mockGetSession
+
+const context = createRouteContext({ providerId: 'acme-okta' })
 const request = () => createMockRequest('DELETE')
 
 describe('DELETE /api/auth/sso/providers/[providerId]', () => {

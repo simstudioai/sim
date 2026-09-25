@@ -1,8 +1,5 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { isIdpInitiatedLoginAllowed } from '@/lib/auth/sso/idp-initiated-login'
 
 function queueProvider(issuer: string) {

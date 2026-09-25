@@ -1,49 +1,29 @@
-import {
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  resetEnvMock,
-  setEnv,
-  setEnvFlags,
-} from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetPersonalSubscription,
-  mockGetOrganizationSubscription,
-  mockGetWorkspaceWithOwner,
-  mockGetEffectiveBillingStatus,
-  mockIsOrganizationBillingBlocked,
-} = vi.hoisted(() => ({
-  mockGetPersonalSubscription: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetPersonalSubscription,
-  getHighestPrioritySubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   hasWorkspaceInboxAccess,
   hasWorkspaceInboxGraceAccess,
 } from '@/lib/billing/core/subscription'
+
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockGetPersonalSubscription = billingPlanMockFns.mockGetHighestPriorityPersonalSubscription
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const { mockGetEffectiveBillingStatus, mockIsOrganizationBillingBlocked } = billingAccessMockFns
 
 beforeEach(() => {
   resetDbChainMock()

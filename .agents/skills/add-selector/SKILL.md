@@ -122,7 +122,7 @@ list, manifest/registry exhaustiveness plus an existing provider primitive test 
 Run the smallest relevant set, then:
 
 ```bash
-bunx vitest run <focused selector tests>
+bun run --cwd apps/sim test <focused selector tests>
 bun run --cwd apps/sim type-check
 bun run check:fork-dependent-coverage
 bun run check:client-boundary

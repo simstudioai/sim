@@ -1,30 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { electronMockFns } from '@/test/electron-mock'
 
-const promptTouchID = vi.fn(async () => undefined)
-const canPromptTouchID = vi.fn(() => true)
-const showMessageBox = vi.fn(async () => ({ response: 1 }))
-const getFocusedWindow = vi.fn(() => null as { isDestroyed(): boolean } | null)
-
-vi.mock('electron', () => ({
-  systemPreferences: {
-    get canPromptTouchID() {
-      return canPromptTouchID
-    },
-    get promptTouchID() {
-      return promptTouchID
-    },
-  },
-  dialog: {
-    get showMessageBox() {
-      return showMessageBox
-    },
-  },
-  BrowserWindow: {
-    get getFocusedWindow() {
-      return getFocusedWindow
-    },
-  },
-}))
+vi.mock('electron', () => import('@/test/electron-mock'))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() }),
@@ -33,6 +10,13 @@ vi.mock('@sim/logger', () => ({
 const { authorizeForSecret, revokeSecretAuthorization } = await import(
   '@/main/browser-credentials/os-auth'
 )
+
+const {
+  mockPromptTouchID: promptTouchID,
+  mockCanPromptTouchID: canPromptTouchID,
+  mockShowMessageBox: showMessageBox,
+  mockGetFocusedWindow: getFocusedWindow,
+} = electronMockFns
 
 const GRACE_MS = 30_000
 

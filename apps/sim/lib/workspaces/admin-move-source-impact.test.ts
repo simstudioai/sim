@@ -1,15 +1,18 @@
 import { member, subscription } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveMoveEntitlements } from '@/lib/workspaces/admin-move-source-impact'
 
 vi.unmock('drizzle-orm')
 
-const { isSubscriptionBackedEntitlement } = vi.hoisted(() => ({
-  isSubscriptionBackedEntitlement: vi.fn(() => true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({ isSubscriptionBackedEntitlement }))
+const isSubscriptionBackedEntitlement =
+  billingSubscriptionMockFns.mockIsSubscriptionBackedEntitlement
 
 const SOURCE = 'org-source'
 const DESTINATION = 'org-destination'

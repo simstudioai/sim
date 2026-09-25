@@ -1,18 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: true,
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { resolveCredentialGroupsAvailability } from '@/lib/credential-groups/availability'
+
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
+
+setEnvFlags({ isHosted: true })
+afterAll(resetEnvFlagsMock)
 
 describe('resolveCredentialGroupsAvailability', () => {
   it('does not expose organization accounts in a personal workspace even with the global flag enabled', async () => {

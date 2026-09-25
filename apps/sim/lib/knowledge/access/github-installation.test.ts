@@ -1,22 +1,30 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveGitHubInstallationReadGrants } from '@/lib/knowledge/access/github-installation'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
-const mocks = vi.hoisted(() => ({
-  token: vi.fn(),
-  installation: vi.fn(),
-  repositoryInstallation: vi.fn(),
-  decrypt: vi.fn(),
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+
+const mocks = {
+  token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  installation: githubInstallationMockFns.mockAssertGitHubInstallationActive,
+  repositoryInstallation: githubInstallationMockFns.mockAssertGitHubInstallationRepositoryActive,
   fetch: vi.fn(),
-}))
-vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: mocks.token }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  parseGitHubInstallationBinding: (value: unknown) => value,
-  assertGitHubInstallationActive: mocks.installation,
-  assertGitHubInstallationRepositoryActive: mocks.repositoryInstallation,
-}))
+}
+githubInstallationMockFns.mockParseGitHubInstallationBinding.mockImplementation(
+  (value: unknown) => value
+)
 
 const input = {
   scope: { kind: 'organization' as const, organizationId: 'org-1' },
@@ -62,12 +70,11 @@ beforeEach(() => {
   mocks.token.mockResolvedValue({ accessToken: 'ghu_alice' })
   mocks.installation.mockResolvedValue(binding)
   mocks.repositoryInstallation.mockResolvedValue(undefined)
-  mocks.decrypt.mockResolvedValue({ decrypted: JSON.stringify(binding) })
+  encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(binding) })
   mocks.fetch.mockImplementation(async (url: string) =>
     Response.json(url.includes('/git/ref/') ? reference : metadata)
   )
 })
-afterEach(() => vi.restoreAllMocks())
 
 describe('live GitHub installation reader access', () => {
   it('requires both current installation and personal Contents access for the immutable repository', async () => {
@@ -163,7 +170,7 @@ describe('live GitHub installation reader access', () => {
     mocks.installation.mockRejectedValueOnce(new Error('suspended'))
     await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])
     queueSources()
-    mocks.decrypt.mockResolvedValueOnce({
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({
       decrypted: JSON.stringify({ ...binding, accountId: '91' }),
     })
     await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])

@@ -1,19 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
 
 const TOKEN_URL = 'https://zoom.us/oauth/token'
 
 const FIELDS = { clientId: 'zoom-cid', clientSecret: 'zoom-secret', orgId: 'AbCdEf123' }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 const mockFetch = vi.fn()
 
@@ -35,13 +26,9 @@ describe('mintZoomServiceAccountToken', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('returns the minted token, granted scopes, and derived identity on success', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         access_token: 'zoom-access',
         token_type: 'bearer',
         expires_in: 3600,
@@ -71,7 +58,7 @@ describe('mintZoomServiceAccountToken', () => {
 
   it('throws invalid_credentials on 400 invalid_client', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, { error: 'invalid_client', reason: 'Invalid client_id or client_secret' })
+      jsonResponse({ error: 'invalid_client', reason: 'Invalid client_id or client_secret' }, 400)
     )
 
     await expect(mintZoomServiceAccountToken(FIELDS)).rejects.toMatchObject({
@@ -83,7 +70,7 @@ describe('mintZoomServiceAccountToken', () => {
   })
 
   it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(429, { error: 'rate_limit_exceeded' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'rate_limit_exceeded' }, 429))
 
     await expect(mintZoomServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',

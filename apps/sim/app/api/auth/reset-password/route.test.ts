@@ -1,8 +1,11 @@
 /**
  * Tests for reset password API route
  */
+
 import { createMockRequest } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
   mockCheckRateLimitDirect: vi.fn(),
@@ -14,38 +17,11 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   },
 }))
 
-const { mockResetPassword, mockLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockResetPassword: vi.fn(),
-    mockLogger: logger,
-  }
-})
-
-vi.mock('@/lib/auth', () => ({
-  auth: {
-    api: {
-      resetPassword: mockResetPassword,
-    },
-  },
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
-
 import { APIError } from 'better-auth/api'
 import { POST } from '@/app/api/auth/reset-password/route'
+
+const mockResetPassword = authMockFns.mockResetPassword
+const mockLogger = getMockLogger('PasswordResetAPI')
 
 describe('Reset Password API Route', () => {
   beforeEach(() => {
@@ -54,10 +30,6 @@ describe('Reset Password API Route', () => {
       allowed: true,
       resetAt: new Date(Date.now() + 60_000),
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('rejects with 429 once the per-IP budget is spent, without consuming the token', async () => {

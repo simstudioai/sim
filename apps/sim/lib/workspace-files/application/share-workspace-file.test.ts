@@ -1,37 +1,21 @@
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getShare: vi.fn(),
-  getWorkspaceShares: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  loadFileContext: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  upsertFileShare: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: mocks.getShare,
-  getWorkspaceSharesForResources: mocks.getWorkspaceShares,
-  ShareValidationError: class ShareValidationError extends Error {},
-  upsertFileShare: mocks.upsertFileShare,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-  loadActiveWorkspaceFileContext: mocks.loadFileContext,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validatePublicFileSharing: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
@@ -43,11 +27,17 @@ import {
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  getWorkspaceFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadWorkspace: workspaceFileManagerMockFns.mockLoadActiveWorkspaceContext,
+  loadFileContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getShare: publicSharesMockFns.mockGetShareForResource,
+  getWorkspaceShares: publicSharesMockFns.mockGetWorkspaceSharesForResources,
+  upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
+
+const principal = createSessionPrincipal()
 
 describe('getWorkspaceFileShares', () => {
   beforeEach(() => {

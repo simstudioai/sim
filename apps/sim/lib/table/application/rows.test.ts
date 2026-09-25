@@ -1,151 +1,60 @@
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockReplaceRowsPrimitive,
-  mockDeleteRowsByIds,
-  mockCreateSecretProvenance,
-  mockIsScopeCompatible,
-  mockLoadSecretProvenance,
-  mockAssertRowCapacity,
-  mockNotifyTableRowUsage,
-  mockQueryRows,
-  mockRecordAudit,
-  mockReplaceRowsWithTx,
-  mockResolveContext,
-  mockResolvePermission,
-  mockSignalRowsChanged,
-  mockSignalRowsChangedByActor,
-  mockUpsertRow,
-  mockWithLockedTable,
-  mockInsertRow,
-  mockBatchInsertRows,
-  mockUpdateRow,
-  mockUpdateRowsByFilter,
-  mockValidateRowData,
-  mockValidateBatchRows,
-  mockBatchUpdateRows,
-  mockGetRowSummaryById,
-  mockLoadExecutionsForRow,
-  mockLoadEnrichmentDetail,
-  mockIsFeatureEnabled,
-  mockGetWorkspaceOrganizationId,
-} = vi.hoisted(() => ({
-  mockReplaceRowsPrimitive: vi.fn(),
-  mockDeleteRowsByIds: vi.fn(),
-  mockCreateSecretProvenance: vi.fn(),
-  mockIsScopeCompatible: vi.fn(),
-  mockLoadSecretProvenance: vi.fn(),
-  mockAssertRowCapacity: vi.fn(),
-  mockNotifyTableRowUsage: vi.fn(),
-  mockQueryRows: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockReplaceRowsWithTx: vi.fn(),
-  mockResolveContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockSignalRowsChanged: vi.fn(),
-  mockSignalRowsChangedByActor: vi.fn(),
-  mockUpsertRow: vi.fn(),
-  mockWithLockedTable: vi.fn(),
-  mockInsertRow: vi.fn(),
-  mockBatchInsertRows: vi.fn(),
-  mockUpdateRow: vi.fn(),
-  mockUpdateRowsByFilter: vi.fn(),
-  mockValidateRowData: vi.fn(),
-  mockValidateBatchRows: vi.fn(),
-  mockBatchUpdateRows: vi.fn(),
-  mockGetRowSummaryById: vi.fn(),
-  mockLoadExecutionsForRow: vi.fn(),
-  mockLoadEnrichmentDetail: vi.fn(),
-  mockIsFeatureEnabled: vi.fn(),
-  mockGetWorkspaceOrganizationId: vi.fn(),
-}))
+const { mockIsScopeCompatible, mockLoadExecutionsForRow, mockLoadEnrichmentDetail } = vi.hoisted(
+  () => ({
+    mockIsScopeCompatible: vi.fn(),
+    mockLoadExecutionsForRow: vi.fn(),
+    mockLoadEnrichmentDetail: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/table', () => ({
-  TABLE_LIMITS: {
-    MAX_BATCH_INSERT_SIZE: 1000,
-    MAX_BULK_OPERATION_SIZE: 1000,
-    MAX_QUERY_LIMIT: 1000,
-    MAX_ROW_RUN_STATE_BYTES: 256,
-  },
-  batchInsertRows: mockBatchInsertRows,
-  batchUpdateRows: mockBatchUpdateRows,
-  deleteRow: vi.fn(),
-  deleteRowsByFilter: vi.fn(),
-  deleteRowsByIds: mockDeleteRowsByIds,
-  findRowMatches: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: mockGetRowSummaryById,
-  insertRow: mockInsertRow,
-  queryRows: mockQueryRows,
-  replaceTableRows: mockReplaceRowsPrimitive,
-  rowDataNameToId: (data: Record<string, unknown>, idByName: Map<string, string>) =>
-    Object.fromEntries(
-      Object.entries(data).flatMap(([name, value]) => {
-        const id = idByName.get(name)
-        return id ? [[id, value]] : []
-      })
-    ),
-  sortSpecNamesToIds: vi.fn(),
-  updateRow: mockUpdateRow,
-  updateRowsByFilter: mockUpdateRowsByFilter,
-  upsertRow: mockUpsertRow,
-  validateBatchRows: mockValidateBatchRows,
-  validateRowData: mockValidateRowData,
-  withLockedTable: mockWithLockedTable,
+  ...tableMock,
+  TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_ROW_RUN_STATE_BYTES: 256 },
 }))
 
-vi.mock('@/lib/table/billing', () => ({
-  assertRowCapacity: mockAssertRowCapacity,
-  notifyTableRowUsage: mockNotifyTableRowUsage,
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 vi.mock('@/lib/table/column-types', () => ({
   columnTypeOf: (column: { type: string }) => ({ id: column.type }),
 }))
 
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
-  createExactEmptyTableRowSecretProvenance: (data: Record<string, unknown>) => ({
-    complete: true,
-    columns: Object.fromEntries(
-      Object.keys(data).map((columnId) => [columnId, { version: 1, complete: true, entries: [] }])
-    ),
-  }),
-  createUnknownTableRowSecretProvenance: () => ({ complete: false, columns: {} }),
-  TableRowProvenanceReader: class {
-    constructor(scope: unknown) {
-      mockLoadSecretProvenance(scope)
-    }
-    exportProvenance() {
-      return { version: 1, complete: true, entries: [] }
-    }
-  },
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 
 vi.mock('@/lib/table/validation', () => ({
   coerceRowValues: vi.fn(),
@@ -155,13 +64,9 @@ vi.mock('@/lib/execution/durable-secret-provenance', () => ({
   isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
 }))
 
-vi.mock('@/lib/table/rows/service', () => ({
-  replaceTableRowsWithTx: mockReplaceRowsWithTx,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mockResolveContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 vi.mock('@/lib/table/import', () => ({
   CSV_MAX_BATCH_SIZE: 5000,
@@ -172,10 +77,7 @@ vi.mock('@/lib/table/rows/executions', () => ({
   loadExecutionsForRow: mockLoadExecutionsForRow,
 }))
 
-vi.mock('@/lib/table/events', () => ({
-  signalTableRowsChanged: mockSignalRowsChanged,
-  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { TABLE_LIMITS } from '@/lib/table'
 import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
@@ -197,6 +99,36 @@ import {
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { encodeCursor } from '@/lib/table/rows/cursor'
 
+const {
+  mockReplaceTableRows: mockReplaceRowsPrimitive,
+  mockDeleteRowsByIds,
+  mockQueryRows,
+  mockUpsertRow,
+  mockWithLockedTable,
+  mockInsertRow,
+  mockBatchInsertRows,
+  mockUpdateRow,
+  mockUpdateRowsByFilter,
+  mockValidateRowData,
+  mockValidateBatchRows,
+  mockBatchUpdateRows,
+  mockGetRowSummaryById,
+  mockAssertRowCapacity,
+  mockNotifyTableRowUsage,
+} = tableMockFns
+const {
+  mockCreateTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
+  mockTableRowProvenanceReader: mockLoadSecretProvenance,
+} = tableRowsSecretProvenanceMockFns
+const mockReplaceRowsWithTx = tableRowsServiceMockFns.mockReplaceTableRowsWithTx
+const mockResolveContext = tableApplicationContextMockFns.mockResolveActiveTableContext
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
+const mockGetWorkspaceOrganizationId = workspacesUtilsMockFns.mockGetWorkspaceOrganizationId
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockSignalRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
+const mockSignalRowsChangedByActor = tableEventsMockFns.mockSignalTableRowsChangedByActor
+
 const TABLE: TableDefinition = {
   id: 'table-1',
   name: 'People',
@@ -212,7 +144,7 @@ const TABLE: TableDefinition = {
   updatedAt: new Date('2026-01-01'),
 }
 
-const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal()
 const GENERIC_WEBHOOK_EXECUTOR = {
   kind: 'delegated' as const,
   serviceId: 'executor' as const,
@@ -267,17 +199,12 @@ describe('replaceProjectedWireRows application command', () => {
       ],
     },
   }
-  const delegatedPrincipal = {
-    kind: 'delegated' as const,
-    serviceId: 'copilot' as const,
-    subjectUserId: 'user-1',
+  const delegatedPrincipal = createDelegatedPrincipal({
     workspaceId: TABLE.workspaceId,
     delegationId: 'copilot-tool:tool-1',
     audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2099-01-01'),
     resourceScope: { tableId: TABLE.id },
-  }
+  })
 
   beforeEach(() => {
     mockResolvePermission.mockResolvedValue('write')
@@ -1019,10 +946,13 @@ describe('row delivery to an observing transport', () => {
       const observe = vi.fn(async () => {})
       const result = await observeTableRowDelivery(observe, reads[name])
 
-      expect(mockLoadSecretProvenance).toHaveBeenCalledWith({
-        userId: PRINCIPAL.userId,
-        workspaceId: TABLE.workspaceId,
-      })
+      expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
+        {
+          userId: PRINCIPAL.userId,
+          workspaceId: TABLE.workspaceId,
+        },
+        undefined
+      )
       expect(observe).toHaveBeenCalledTimes(1)
       expect(observe).toHaveBeenCalledWith(
         { version: 1, complete: true, entries: [] },

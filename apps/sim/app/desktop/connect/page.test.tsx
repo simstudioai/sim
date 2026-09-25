@@ -1,42 +1,25 @@
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRedirect, baseUrl } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRedirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
-  /** Mutable so a test can give the deployment a trailing-slash base URL. */
-  baseUrl: { value: 'https://sim.test' },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: mockGetSession } },
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { oauth2: { link: vi.fn() } },
-  signOut: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => baseUrl.value,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 /** Keeps the landing-page barrel the real shell pulls in out of this graph. */
 vi.mock('@/app/desktop/components/desktop-handoff-shell', () => ({
   DesktopHandoffShell: () => null,
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
 }))
 
 import DesktopConnectPage from '@/app/desktop/connect/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const VALID_STATE = 'a'.repeat(32)
 const PORT = '57979'
@@ -55,7 +38,7 @@ async function renderPage(params: Record<string, string>) {
 
 describe('DesktopConnectPage', () => {
   beforeEach(() => {
-    baseUrl.value = 'https://sim.test'
+    urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', email: 'user@example.com' },
     })

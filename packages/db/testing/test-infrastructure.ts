@@ -43,8 +43,13 @@ export function readTestRedisUrl(): string | undefined {
   const value = process.env.TEST_REDIS_URL
   if (!value) return undefined
   const url = new URL(value)
-  if (url.protocol !== 'redis:' || !LOOPBACK_HOSTS.has(url.hostname)) {
-    throw new Error('TEST_REDIS_URL must be a redis:// URL on a loopback host')
+  if (
+    url.protocol !== 'redis:' ||
+    !LOOPBACK_HOSTS.has(url.hostname) ||
+    url.username ||
+    url.password
+  ) {
+    throw new Error('TEST_REDIS_URL must be a credential-free redis:// URL on a loopback host')
   }
   return value
 }

@@ -1,3 +1,14 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PayloadSizeLimitError,
@@ -13,28 +24,24 @@ import type { InternalToolOperationContext } from '@/lib/internal/tool-operation
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { UserFile } from '@/executor/types'
 
-const mocks = vi.hoisted(() => ({
-  uploadExecution: vi.fn(),
-  uploadCopilot: vi.fn(),
-  deleteFile: vi.fn(),
-  deleteMetadata: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecution,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mocks.uploadCopilot,
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mocks.deleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mocks.deleteMetadata }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   presentInternalToolOperationResult,
   storeInternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result.server'
+
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
+const { mockDeleteFile } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
 
 const runContext: InternalToolOperationContext = {
   workspaceId: 'workspace-1',
@@ -78,20 +85,20 @@ function storedFile(
 
 describe('presentInternalToolOperationResult', () => {
   beforeEach(() => {
-    mocks.uploadExecution.mockReset()
-    mocks.uploadCopilot.mockReset()
-    mocks.deleteFile.mockReset()
-    mocks.deleteMetadata.mockReset()
-    mocks.uploadExecution.mockImplementation(
+    mockUploadExecutionFile.mockReset()
+    mockUploadCopilotFile.mockReset()
+    mockDeleteFile.mockReset()
+    mockDeleteFileMetadata.mockReset()
+    mockUploadExecutionFile.mockImplementation(
       async (_scope: unknown, buffer: Buffer, name: string, type: string) =>
-        storedFile(buffer, name, type, 'execution', mocks.uploadExecution.mock.calls.length)
+        storedFile(buffer, name, type, 'execution', mockUploadExecutionFile.mock.calls.length)
     )
-    mocks.uploadCopilot.mockImplementation(
+    mockUploadCopilotFile.mockImplementation(
       async (input: { buffer: Buffer; fileName: string; contentType: string }) =>
         storedFile(input.buffer, input.fileName, input.contentType, 'copilot')
     )
-    mocks.deleteFile.mockResolvedValue(undefined)
-    mocks.deleteMetadata.mockResolvedValue(true)
+    mockDeleteFile.mockResolvedValue(undefined)
+    mockDeleteFileMetadata.mockResolvedValue(true)
   })
 
   it('persists a 12 MiB workbook before serializing its descriptor and adjacent metadata', async () => {
@@ -120,7 +127,7 @@ describe('presentInternalToolOperationResult', () => {
         metadata: { sourceId: 'item-1' },
       },
     })
-    const [scope, buffer, name, mimeType, userId] = mocks.uploadExecution.mock.calls[0]!
+    const [scope, buffer, name, mimeType, userId] = mockUploadExecutionFile.mock.calls[0]!
     expect(buffer).toBe(input.buffer)
     expect({ scope, name, mimeType, userId }).toEqual({
       scope: { workspaceId: 'workspace-1', workflowId: 'workflow-1', executionId: 'execution-1' },
@@ -128,7 +135,7 @@ describe('presentInternalToolOperationResult', () => {
       mimeType: input.mimeType,
       userId: 'user-1',
     })
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
   it('stores non-run files under the authenticated Copilot user', async () => {
@@ -142,13 +149,13 @@ describe('presentInternalToolOperationResult', () => {
       file: { context: 'copilot' },
       fileUrl: 'https://storage.example/file-1',
     })
-    expect(mocks.uploadCopilot).toHaveBeenCalledWith({
+    expect(mockUploadCopilotFile).toHaveBeenCalledWith({
       buffer: input.buffer,
       fileName: input.name,
       contentType: input.mimeType,
       userId: 'user-1',
     })
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 
   it('replaces binary representation headers before the JSON transport size check', async () => {
@@ -184,8 +191,8 @@ describe('presentInternalToolOperationResult', () => {
     expect(response.headers.get('content-encoding')).toBeNull()
     expect(response.headers.get('x-provider-version')).toBe('v1')
     expect(headers.get('content-length')).toBe(String(input.buffer.length))
-    expect(mocks.uploadExecution).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it("does not make an actorless principal's compatibility owner a Copilot user", async () => {
@@ -207,7 +214,7 @@ describe('presentInternalToolOperationResult', () => {
         }
       )
     ).rejects.toThrow('human subject')
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
   it('uses a real principal subject and refuses a conflicting claimed owner', async () => {
@@ -217,18 +224,18 @@ describe('presentInternalToolOperationResult', () => {
       userId: undefined,
       executorDelegationOrigin: {
         workflowId: 'workflow-1',
-        principal: { kind: 'session', userId: 'actual-user', sessionId: 'session-1' },
+        principal: createSessionPrincipal({ userId: 'actual-user' }),
       },
     }
     await presentInternalToolOperationResult(result, context)
-    expect(mocks.uploadCopilot).toHaveBeenCalledWith(
+    expect(mockUploadCopilotFile).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'actual-user' })
     )
 
     await expect(
       presentInternalToolOperationResult(result, { ...context, userId: 'other-user' })
     ).rejects.toThrow('does not match')
-    expect(mocks.uploadCopilot).toHaveBeenCalledTimes(1)
+    expect(mockUploadCopilotFile).toHaveBeenCalledTimes(1)
   })
 
   it.each([
@@ -242,8 +249,8 @@ describe('presentInternalToolOperationResult', () => {
         context
       )
     ).rejects.toThrow()
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
   it('accepts exactly 100 MiB and rejects larger files before uploading', async () => {
@@ -252,7 +259,7 @@ describe('presentInternalToolOperationResult', () => {
       createInternalToolFileResult(atLimit, (stored) => ({ file: stored })),
       runContext
     )
-    expect(mocks.uploadExecution).toHaveBeenCalledTimes(1)
+    expect(mockUploadExecutionFile).toHaveBeenCalledTimes(1)
 
     const oversized = file(Buffer.alloc(MAX_BUFFERED_TRANSFER_BYTES + 1))
     await expect(
@@ -261,7 +268,7 @@ describe('presentInternalToolOperationResult', () => {
         runContext
       )
     ).rejects.toBeInstanceOf(PayloadSizeLimitError)
-    expect(mocks.uploadExecution).toHaveBeenCalledTimes(1)
+    expect(mockUploadExecutionFile).toHaveBeenCalledTimes(1)
   })
 
   it('checks the aggregate buffer budget before storing the first file', async () => {
@@ -275,13 +282,13 @@ describe('presentInternalToolOperationResult', () => {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       observedBytes: 101 * 1024 * 1024,
     })
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 
   it('rolls back an upload that completed after cancellation, without the aborted signal', async () => {
     const controller = new AbortController()
     const error = new Error('cancelled during upload')
-    mocks.uploadExecution.mockImplementationOnce(async () => {
+    mockUploadExecutionFile.mockImplementationOnce(async () => {
       controller.abort(error)
       return storedFile(Buffer.from('file'), 'file.txt', 'text/plain', 'execution')
     })
@@ -293,17 +300,17 @@ describe('presentInternalToolOperationResult', () => {
         controller.signal
       )
     ).rejects.toBe(error)
-    expect(mocks.uploadExecution).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteFile).toHaveBeenCalledWith({
+    expect(mockUploadExecutionFile).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFile).toHaveBeenCalledWith({
       key: 'execution/file-1/file.txt',
       context: 'execution',
     })
-    expect(mocks.deleteMetadata).toHaveBeenCalledWith('execution/file-1/file.txt')
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('execution/file-1/file.txt')
   })
 
   it('rolls back preceding uploads when a later upload fails', async () => {
     const error = new Error('Storage unavailable')
-    mocks.uploadExecution
+    mockUploadExecutionFile
       .mockResolvedValueOnce(
         storedFile(Buffer.from('file'), 'first.txt', 'text/plain', 'execution')
       )
@@ -314,8 +321,8 @@ describe('presentInternalToolOperationResult', () => {
         runContext
       )
     ).rejects.toBe(error)
-    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteMetadata).toHaveBeenCalledWith('execution/file-1/first.txt')
+    expect(mockDeleteFile).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('execution/file-1/first.txt')
   })
 
   it.each([
@@ -331,11 +338,11 @@ describe('presentInternalToolOperationResult', () => {
         copilotContext
       )
     ).rejects.toThrow()
-    expect(mocks.deleteFile).toHaveBeenCalledWith({
+    expect(mockDeleteFile).toHaveBeenCalledWith({
       key: 'copilot/file-1/workbook.xlsx',
       context: 'copilot',
     })
-    expect(mocks.deleteMetadata).toHaveBeenCalledWith('copilot/file-1/workbook.xlsx')
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('copilot/file-1/workbook.xlsx')
   })
 
   it('rolls back when adjacent JSON exceeds the unchanged transport limit', async () => {
@@ -348,8 +355,8 @@ describe('presentInternalToolOperationResult', () => {
         runContext
       )
     ).rejects.toMatchObject({ maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES })
-    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteMetadata).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFile).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(1)
   })
 
   it('rolls back storage if the external result finalizer rejects its output', async () => {
@@ -364,16 +371,16 @@ describe('presentInternalToolOperationResult', () => {
       )
     ).rejects.toBe(error)
 
-    expect(mocks.deleteFile).toHaveBeenCalledWith({
+    expect(mockDeleteFile).toHaveBeenCalledWith({
       key: 'copilot/file-1/workbook.xlsx',
       context: 'copilot',
     })
-    expect(mocks.deleteMetadata).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(1)
   })
 
   it('attempts remaining cleanup after a deletion failure and preserves the original error', async () => {
     const error = new Error('Presentation failed')
-    mocks.deleteFile.mockRejectedValueOnce(new Error('Cleanup failed'))
+    mockDeleteFile.mockRejectedValueOnce(new Error('Cleanup failed'))
     await expect(
       presentInternalToolOperationResult(
         createInternalToolFilesResult([file(), { ...file(), name: 'second.xlsx' }], () => {
@@ -382,8 +389,8 @@ describe('presentInternalToolOperationResult', () => {
         runContext
       )
     ).rejects.toBe(error)
-    expect(mocks.deleteFile).toHaveBeenCalledTimes(2)
-    expect(mocks.deleteMetadata).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteMetadata).toHaveBeenCalledWith('execution/file-2/second.xlsx')
+    expect(mockDeleteFile).toHaveBeenCalledTimes(2)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('execution/file-2/second.xlsx')
   })
 })

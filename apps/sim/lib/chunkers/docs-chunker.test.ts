@@ -1,14 +1,20 @@
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: vi.fn(async () => ({ embeddings: [] })),
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
 import { mkdtemp, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { DocsChunker, resolveDocumentTitle } from '@/lib/chunkers/docs-chunker'
+
+knowledgeEmbeddingsMockFns.mockGenerateEmbeddings.mockImplementation(async () => ({
+  embeddings: [],
+}))
 
 function cleanContent(content: string): string {
   const chunker = new DocsChunker()

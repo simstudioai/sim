@@ -1,13 +1,11 @@
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchResolvedWebhookTarget } = vi.hoisted(() => ({
-  mockDispatchResolvedWebhookTarget: vi.fn(),
-}))
-
-vi.mock('@/lib/webhooks/processor', () => ({
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   resolveSlackEventKey: vi.fn(),
@@ -19,6 +17,8 @@ import {
   getSlackDispatchResponse,
   resolveSlackExternalUserSubject,
 } from '@/lib/webhooks/slack-dispatch'
+
+const mockDispatchResolvedWebhookTarget = webhooksProcessorMockFns.mockDispatchResolvedWebhookTarget
 
 describe('resolveSlackExternalUserSubject', () => {
   it('uses the actor tenant for Slack Connect interactions', () => {

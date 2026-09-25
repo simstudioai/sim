@@ -2,17 +2,21 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson, mockUseUserPermissionConfig } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
+const { mockUseUserPermissionConfig } = vi.hoisted(() => ({
   mockUseUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/blocks/custom/client-overlay', () => ({ useCustomBlockOverlayVersion: () => 0 }))
 vi.mock('@/blocks/visibility/context', () => ({
   overlayVisibility: () => null,
@@ -34,6 +38,9 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { integrationAvailabilityKeys } from '@/hooks/queries/integration-availability'
 import { type PermissionConfigResult, usePermissionConfig } from '@/hooks/use-permission-config'
 
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 const AVAILABILITY: GetAllowedIntegrationsResponse = {
   allowedIntegrations: null,
   integrationAvailability: [{ type: 'github_v2', state: 'ready', oauthAvailable: false }],
@@ -53,7 +60,6 @@ describe('usePermissionConfig deployment readiness', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     mockUseUserPermissionConfig.mockReturnValue({ data: undefined, isLoading: false })
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')

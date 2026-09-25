@@ -1,6 +1,7 @@
 import type { CredentialGroupOptionConfig } from '@sim/db/schema'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   configuration: vi.fn(),
@@ -20,7 +21,6 @@ vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
     email: 'member@fixture.test',
   }),
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.fixture.test' }))
 
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import {
@@ -28,6 +28,9 @@ import {
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { slackCredentialGroupProviderAdapter as adapter } from '@/lib/credential-groups/slack-provider'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.fixture.test')
+afterAll(resetUrlsMock)
 
 describe('Slack member scope policy', () => {
   beforeEach(() => {

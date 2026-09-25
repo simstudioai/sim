@@ -1,23 +1,29 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteSelectorRequest, mockRequestJson } = vi.hoisted(() => ({
+const { mockExecuteSelectorRequest } = vi.hoisted(() => ({
   mockExecuteSelectorRequest: vi.fn(),
-  mockRequestJson: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/client/execute-selector', () => ({
   executeSelectorRequest: mockExecuteSelectorRequest,
 }))
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 interface HookHarness<T> {
   getResult: () => T

@@ -1,20 +1,9 @@
 import { member, organization, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Realistic plan-check predicates so `pickHighestPrioritySubscription` exercises
- * the real Enterprise > Team > Pro priority ordering over the rows we feed it.
- */
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-  checkEnterprisePlan: (s: { plan?: string; status?: string } | null) =>
-    s?.plan === 'enterprise' && ['active', 'past_due'].includes(s?.status ?? ''),
-  checkTeamPlan: (s: { plan?: string; status?: string } | null) =>
-    s?.plan === 'team' && ['active', 'past_due'].includes(s?.status ?? ''),
-  checkProPlan: (s: { plan?: string; status?: string } | null) =>
-    s?.plan === 'pro' && ['active', 'past_due'].includes(s?.status ?? ''),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 

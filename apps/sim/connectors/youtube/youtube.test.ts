@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
 
 const API_KEY = 'test-key'
@@ -80,10 +80,6 @@ const listDocuments = youtubeConnector.listDocuments
 const getDocument = youtubeConnector.getDocument
 
 describe('youtubeConnector.listDocuments', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('excludes only items whose privacyStatus is explicitly private', async () => {
     mockFetch(
       playlistOnly([
@@ -193,10 +189,6 @@ describe('youtubeConnector.listDocuments', () => {
 })
 
 describe('youtubeConnector.getDocument', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('throws on 403 so quota exhaustion is not mistaken for a deleted video', async () => {
     mockFetch(() => fakeResponse({ status: 403, text: 'quotaExceeded' }))
     await expect(getDocument(API_KEY, {}, 'aaa')).rejects.toThrow('403')

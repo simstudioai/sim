@@ -1,57 +1,61 @@
-import { auditMock, auditMockFns } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   listCatalog: vi.fn(),
   requireProvider: vi.fn(),
   getCredential: vi.fn(),
-  getActor: vi.fn(),
   deleteRecord: vi.fn(),
-  capture: vi.fn(),
-  environment: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/orchestration', () => ({
-  createServiceAccountCredential: mocks.create,
-  deleteCredentialRecord: mocks.deleteRecord,
+  createServiceAccountCredential: hoisted.create,
+  deleteCredentialRecord: hoisted.deleteRecord,
 }))
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.listCatalog,
-  requireAvailableServiceAccountCredentialProvider: mocks.requireProvider,
+  listCredentialProviderCatalog: hoisted.listCatalog,
+  requireAvailableServiceAccountCredentialProvider: hoisted.requireProvider,
 }))
 vi.mock('@/lib/credentials/queries', () => ({
-  getWorkspaceCredential: mocks.getCredential,
+  getWorkspaceCredential: hoisted.getCredential,
 }))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-  requireOrdinaryCredentialType: (type: string) => {
-    if (type === 'managed_oauth' || type === 'managed_mcp') {
-      throw new Error('Managed credential reached an ordinary credential surface')
-    }
-    return type
-  },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
-vi.mock('@/lib/environment/utils', () => ({ getEffectiveDecryptedEnv: mocks.environment }))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   createServiceAccountCredentialUseCase,
   deleteCredentialUseCase,
 } from '@/lib/credentials/application/service-account'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
+
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  capture: posthogServerMockFns.mockCaptureServerEvent,
+  environment: environmentUtilsMockFns.mockGetEffectiveDecryptedEnv,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const workspace = {
@@ -60,11 +64,7 @@ const workspace = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const principal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const principal = createPersonalApiKeyPrincipal()
 const credential = {
   id: 'credential-1',
   workspaceId: WORKSPACE_ID,
@@ -111,11 +111,7 @@ describe('credential service-account application operations', () => {
   it('rejects workspace keys before canonical loading on create', async () => {
     await expect(
       createServiceAccountCredentialUseCase.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: WORKSPACE_ID,
-          keyId: 'key-1',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }),
         input: {
           workspaceId: WORKSPACE_ID,
           type: 'service_account',

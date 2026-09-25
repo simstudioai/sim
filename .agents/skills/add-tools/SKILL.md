@@ -256,7 +256,7 @@ Hard rules:
   provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
   secret into them.
 
-Add focused tests covering named projection, ordinary identical text without provenance, nested and
+Run the `test-audit` authoring gate, then cover these risks at the boundary that owns them: named projection, ordinary identical text without provenance, nested and
 serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
 failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
 For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,

@@ -1,4 +1,10 @@
 import { dbChainMockFns, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -13,19 +19,13 @@ afterAll(() => {
   mockGetActiveWorkflow.mockReset()
 })
 
-const { mockAuthorizeOrganization, mockAuthorizeCancellation } = vi.hoisted(() => ({
-  mockAuthorizeOrganization: vi.fn(),
-  mockAuthorizeCancellation: vi.fn(),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChat: { execute: mockAuthorizeOrganization },
-  authorizeOrganizationChatCancellation: { execute: mockAuthorizeCancellation },
-}))
+const {
+  mockAuthorizeOrganizationChat: mockAuthorizeOrganization,
+  mockAuthorizeOrganizationChatCancellation: mockAuthorizeCancellation,
+} = mothershipOrganizationChatsMockFns
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getAccessibleCopilotChat,
@@ -232,7 +232,7 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   })
 })
 
-const orgPrincipal = { kind: 'session' as const, userId: USER_ID, sessionId: 'session-1' }
+const orgPrincipal = createSessionPrincipal({ userId: USER_ID })
 
 describe('organization chat isolation', () => {
   beforeEach(() => {

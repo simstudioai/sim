@@ -1,13 +1,15 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
-const mocks = vi.hoisted(() => ({ secureFetchWithValidation: vi.fn() }))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mocks.secureFetchWithValidation,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { getZohoDeskAttachment } from '@/lib/internal/zoho-desk/operations'
+
+const { mockSecureFetchWithValidation } = inputValidationMockFns
 
 const input = {
   accessToken: 'token',
@@ -18,7 +20,7 @@ const input = {
 
 describe('getZohoDeskAttachment', () => {
   it('rejects a declared attachment size above the buffered transfer limit', async () => {
-    mocks.secureFetchWithValidation.mockResolvedValue(
+    mockSecureFetchWithValidation.mockResolvedValue(
       new Response(new Uint8Array(), {
         headers: { 'content-length': String(MAX_BUFFERED_TRANSFER_BYTES + 1) },
       })
@@ -37,7 +39,7 @@ describe('getZohoDeskAttachment', () => {
         controller.close()
       },
     })
-    mocks.secureFetchWithValidation.mockResolvedValue(new Response(body))
+    mockSecureFetchWithValidation.mockResolvedValue(new Response(body))
 
     await expect(getZohoDeskAttachment(input, {})).rejects.toMatchObject({
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
@@ -51,7 +53,7 @@ describe('getZohoDeskAttachment', () => {
       await expect(getZohoDeskAttachment({ ...input, href }, {})).rejects.toMatchObject({
         status: 400,
       })
-      expect(mocks.secureFetchWithValidation).not.toHaveBeenCalled()
+      expect(mockSecureFetchWithValidation).not.toHaveBeenCalled()
     }
   )
 })

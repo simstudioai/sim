@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockModuleLoaded, mockResetAllStores } = vi.hoisted(() => ({
   mockModuleLoaded: vi.fn(),
@@ -53,10 +53,6 @@ describe('clearUserData', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new EnumerableStorage())
     vi.stubGlobal('sessionStorage', new EnumerableStorage())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('clears identity data while preserving device preferences', async () => {

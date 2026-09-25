@@ -1,30 +1,45 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveContext: vi.fn(),
-  permission: vi.fn(),
-  snapshot: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   report: vi.fn(),
-  secrets: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
-vi.mock('@/lib/workflows/editing/lint-report', () => ({ buildWorkflowLintReport: mocks.report }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretsUseCase: { execute: mocks.secrets, delegationAudience: 'sim:secrets' },
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
+vi.mock('@/lib/workflows/editing/lint-report', () => ({ buildWorkflowLintReport: hoisted.report }))
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { workflowLintCommand } from '@/lib/mothership/agent-cli/engines/lint'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
+
+const mocks = {
+  ...hoisted,
+  snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  secrets: secretsUseCasesMockFns.mockListSecretsUseCase,
+  resolveContext: workflowContextMockFns.mockResolveActiveWorkflowApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const graph = {
   blocks: {
@@ -43,11 +58,7 @@ const graph = {
   parallels: {},
   variables: {},
 }
-const principal = {
-  kind: 'personal_api_key' as const,
-  userId: 'authenticated-user',
-  keyId: 'key-1',
-}
+const principal = createPersonalApiKeyPrincipal({ userId: 'authenticated-user' })
 const request = vi.fn(
   async <T>(path: string): Promise<T> =>
     (path.endsWith('/state') ? { data: graph } : { data: [], nextCursor: null }) as T
@@ -197,7 +208,7 @@ describe('Mothership workflow lint scope', () => {
   })
 
   it('also accepts a session and uses its subject rather than the billing owner', async () => {
-    const session = { kind: 'session' as const, userId: 'session-user', sessionId: 'session-1' }
+    const session = createSessionPrincipal({ userId: 'session-user' })
     await readWorkflowLint.execute({ principal: session, input: { workflowId: 'wf-1' } })
     expect(mocks.report).toHaveBeenCalledWith(
       expect.anything(),
@@ -212,11 +223,10 @@ describe('Mothership workflow lint scope', () => {
   it('refuses an actorless workspace key before canonical loading', async () => {
     await expect(
       readWorkflowLint.execute({
-        principal: {
-          kind: 'workspace_api_key',
+        principal: createWorkspaceApiKeyPrincipal({
           workspaceId: 'workflow-workspace',
           keyId: 'workspace-key',
-        },
+        }),
         input: { workflowId: 'wf-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

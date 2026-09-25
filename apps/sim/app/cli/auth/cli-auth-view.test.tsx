@@ -1,19 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockApprove, mockUseWorkspaces, mockPush } = vi.hoisted(() => ({
+const { mockApprove, mockUseWorkspaces } = vi.hoisted(() => ({
   mockApprove: vi.fn(),
   mockUseWorkspaces: vi.fn(),
-  mockPush: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('nuqs', () => ({
   useQueryStates: () => [

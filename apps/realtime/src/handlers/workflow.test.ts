@@ -1,3 +1,4 @@
+import { databaseMock } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
@@ -17,10 +18,7 @@ vi.mock('@/handlers/avatar', () => ({
   resolveAvatarUrl: mockResolveAvatarUrl,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn() },
-  user: { image: 'image' },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@/database/operations', () => ({
   getWorkflowState: mockGetWorkflowState,

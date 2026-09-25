@@ -1,25 +1,29 @@
-import { NextRequest } from 'next/server'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  createTable: vi.fn(),
-  listTables: vi.fn(),
-  capture: vi.fn(),
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
-vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 
-vi.mock('@/lib/table/application/tables', () => ({
-  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.createTable },
-  listTableDefinitionsUseCase: { operation: { id: 'tables.list' }, execute: mocks.listTables },
-}))
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { POST } from '@/app/api/table/route'
+
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  createTable: tableApplicationTablesMockFns.mockCreateTableUseCase,
+  listTables: tableApplicationTablesMockFns.mockListTableDefinitionsUseCase,
+}
 
 const TABLE = {
   id: 'table-1',
@@ -43,35 +47,17 @@ const TABLE = {
 }
 
 function sessionPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'session',
-    userId: 'user-1',
-    sessionId: 'session-1',
-  })
+  mocks.authenticate.mockResolvedValue(createSessionPrincipal())
 }
 
 function executorPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
-  })
+  mocks.authenticate.mockResolvedValue(
+    createExecutorPrincipal({ audience: 'sim:tables', workspaceId: 'workspace-canonical' })
+  )
 }
 
 function post(body: unknown) {
-  return POST(
-    new NextRequest('http://localhost/api/table', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    {}
-  )
+  return POST(createMockRequest({ method: 'POST', url: 'http://localhost/api/table', body }), {})
 }
 
 describe('/api/table application adapter', () => {

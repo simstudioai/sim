@@ -3,57 +3,33 @@ import {
   hybridAuthMockFns,
   type TableDefinitionFactoryOptions,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const {
-  mockCheckAccess,
-  mockImportAppendRows,
-  mockImportReplaceRows,
-  mockDispatchAfterBatchInsert,
-  mockMarkTableImporting,
-  mockReleaseImportClaim,
-  mockGetMaxRowsPerTable,
-} = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
+const { mockImportAppendRows, mockImportReplaceRows } = vi.hoisted(() => ({
   mockImportAppendRows: vi.fn(),
   mockImportReplaceRows: vi.fn(),
-  mockDispatchAfterBatchInsert: vi.fn(),
-  mockMarkTableImporting: vi.fn(),
-  mockReleaseImportClaim: vi.fn(),
-  mockGetMaxRowsPerTable: vi.fn(),
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
-  generateShortId: vi.fn().mockReturnValue('short-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  const { TableLockedError } = await import('@/lib/table/mutation-locks')
-  return {
-    checkAccess: mockCheckAccess,
-    /** Mirrors the real helper: only a `user` principal names a governed subject. */
-    capabilityGovernedUserId: (principal: { kind: string; userId?: string }) =>
-      principal.kind === 'user' ? (principal.userId ?? null) : null,
-    accessError: (result: { status: number }) => {
-      const message = result.status === 404 ? 'Table not found' : 'Access denied'
-      return NextResponse.json({ error: message }, { status: result.status })
-    },
-    csvProxyBodyCapResponse: () => null,
-    tableLockErrorResponse: (error: unknown) =>
-      error instanceof TableLockedError
-        ? NextResponse.json({ error: error.message, lock: error.lock }, { status: 423 })
-        : null,
-    multipartErrorResponse: (error: { code: string; message: string }) =>
-      NextResponse.json(
-        { error: error.message },
-        { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
-      ),
-  }
-})
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
 
 /**
  * The route imports `importAppendRows` / `importReplaceRows` from
@@ -67,25 +43,31 @@ vi.mock('@/lib/table/import-data', () => ({
   importReplaceRows: mockImportReplaceRows,
 }))
 
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableImporting,
-  releaseJobClaim: mockReleaseImportClaim,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 
-vi.mock('@/lib/table/rows/service', () => ({
-  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
 /** The append pre-check reads the workspace's current plan row limit, not the frozen `table.maxRows`. */
-vi.mock('@/lib/table/billing', () => ({
-  getMaxRowsPerTable: mockGetMaxRowsPerTable,
-  wouldExceedRowLimit: (limit: number, current: number, added: number) =>
-    limit >= 0 && current + added > limit,
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/[tableId]/import/route'
+
+const { mockDispatchAfterBatchInsert } = tableRowsServiceMockFns
+const {
+  mockMarkTableJobRunning: mockMarkTableImporting,
+  mockReleaseJobClaim: mockReleaseImportClaim,
+} = tableJobsServiceMockFns
+const { mockGetMaxRowsPerTable } = tableBillingMockFns
+const { mockCheckAccess } = tableRouteUtilsMockFns
+tableRouteUtilsMockFns.mockCsvProxyBodyCapResponse.mockReturnValue(null)
+tableRouteUtilsMockFns.mockMultipartErrorResponse.mockImplementation((error) =>
+  Response.json({ error: error.message }, { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 })
+)
+
+idMockFns.mockGenerateId.mockReturnValue('deadbeefcafef00d')
+idMockFns.mockGenerateShortId.mockReturnValue('short-id')
 
 function createCsvFile(contents: string, name = 'data.csv', type = 'text/csv'): File {
   return new File([contents], name, { type })
@@ -148,7 +130,7 @@ async function callPost(form: FormData, { tableId }: { tableId: string } = { tab
     method: 'POST',
     body: form,
   })
-  return POST(req, { params: Promise.resolve({ tableId }) })
+  return POST(req, createRouteContext({ tableId }))
 }
 
 describe('POST /api/table/[tableId]/import', () => {
@@ -208,7 +190,7 @@ describe('POST /api/table/[tableId]/import', () => {
       signal: undefined,
     } as unknown as NextRequest
 
-    const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+    const response = await POST(req, createRouteContext({ tableId: 'tbl_1' }))
     expect(response.status).toBe(400)
     expect(mockImportAppendRows).not.toHaveBeenCalled()
     expect(mockImportReplaceRows).not.toHaveBeenCalled()
@@ -264,7 +246,7 @@ describe('POST /api/table/[tableId]/import', () => {
 
     expect(req.headers.get('content-length')).toBeNull()
 
-    const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+    const response = await POST(req, createRouteContext({ tableId: 'tbl_1' }))
 
     expect(response.status).toBe(200)
     expect(mockImportAppendRows).toHaveBeenCalledTimes(1)

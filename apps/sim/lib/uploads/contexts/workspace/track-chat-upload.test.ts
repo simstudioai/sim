@@ -1,46 +1,36 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckStorageQuotaForBillingContext,
-  mockDecrementStorageUsageForBillingContext,
-  mockIncrementStorageUsageForBillingContext,
-  mockResolveStorageBillingContext,
-  mockHasCloudStorage,
-  mockHeadObject,
-  mockReplaceWorkspaceFileSecretProvenanceInTx,
-} = vi.hoisted(() => ({
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockDecrementStorageUsageForBillingContext: vi.fn(),
-  mockIncrementStorageUsageForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockHasCloudStorage: vi.fn(),
-  mockHeadObject: vi.fn(),
-  mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
-  incrementStorageUsageForBillingContext: mockIncrementStorageUsageForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-  downloadFile: vi.fn(),
-  hasCloudStorage: mockHasCloudStorage,
-  headObject: mockHeadObject,
-  uploadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
-  preserveWorkspaceFileSecretProvenanceInTx: vi.fn(),
-  replaceWorkspaceFileSecretProvenanceInTx: mockReplaceWorkspaceFileSecretProvenanceInTx,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { suffixedName, trackChatUpload } from './workspace-file-manager'
+
+const mockReplaceWorkspaceFileSecretProvenanceInTx =
+  workspaceFileSecretProvenanceMockFns.mockReplaceWorkspaceFileSecretProvenanceInTx
+
+const mockCheckStorageQuotaForBillingContext =
+  billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+const mockIncrementStorageUsageForBillingContext =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockDecrementStorageUsageForBillingContext =
+  billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx
+
+const mockHasCloudStorage = storageServiceMockFns.mockHasCloudStorage
+const mockHeadObject = storageServiceMockFns.mockHeadObject
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const WORKSPACE_ID = '22222222-2222-2222-2222-222222222222'

@@ -1,20 +1,41 @@
 import { vi } from 'vitest'
 
+const PASSWORD_CHARS =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
+
+/** Same alphabet and length contract as the real `generatePassword`, using Web Crypto. */
+function generatePassword(length = 24): string {
+  const bytes = new Uint32Array(length)
+  crypto.getRandomValues(bytes)
+  let result = ''
+  for (const byte of bytes) result += PASSWORD_CHARS.charAt(byte % PASSWORD_CHARS.length)
+  return result
+}
+
 /**
  * Controllable mock functions for `@/lib/core/security/encryption`.
  * Default: `decryptSecret` resolves to `{ decrypted: 'test-decrypted' }`,
- * `encryptSecret` resolves to `{ encrypted: 'test-encrypted', iv: 'test-iv' }`.
+ * `encryptSecret` resolves to `{ encrypted: 'test-encrypted', iv: 'test-iv' }` (`iv` is typed
+ * optional so overrides may return `{ encrypted }` alone),
+ * `generatePassword` returns a random password of the requested length (24 by default).
  *
  * @example
  * ```ts
  * import { encryptionMockFns } from '@sim/testing'
  *
  * encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'my-secret' })
+ * encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({ decrypted: value }))
  * ```
  */
 export const encryptionMockFns = {
-  mockDecryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-decrypted' }),
-  mockEncryptSecret: vi.fn().mockResolvedValue({ encrypted: 'test-encrypted', iv: 'test-iv' }),
+  mockDecryptSecret: vi.fn(async (_encryptedValue: string) => ({ decrypted: 'test-decrypted' })),
+  mockEncryptSecret: vi.fn(
+    async (_secret: string): Promise<{ encrypted: string; iv?: string }> => ({
+      encrypted: 'test-encrypted',
+      iv: 'test-iv',
+    })
+  ),
+  mockGeneratePassword: vi.fn(generatePassword),
 }
 
 /**
@@ -28,4 +49,5 @@ export const encryptionMockFns = {
 export const encryptionMock = {
   decryptSecret: encryptionMockFns.mockDecryptSecret,
   encryptSecret: encryptionMockFns.mockEncryptSecret,
+  generatePassword: encryptionMockFns.mockGeneratePassword,
 }

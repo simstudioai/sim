@@ -5,17 +5,17 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReconcileOrganizationSeats } = vi.hoisted(() => ({
-  mockReconcileOrganizationSeats: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mockReconcileOrganizationSeats,
-}))
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 
 import { reconcileTeamSeatDrift } from '@/lib/billing/organizations/seat-drift'
+
+const mockReconcileOrganizationSeats = organizationSeatsMockFns.mockReconcileOrganizationSeats
 
 afterAll(resetEnvFlagsMock)
 

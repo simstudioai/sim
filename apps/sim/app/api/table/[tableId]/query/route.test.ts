@@ -1,21 +1,13 @@
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  MockTableV2FeatureDisabledError,
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableV2FeatureDisabledError } = vi.hoisted(() => {
-  class MockTableV2FeatureDisabledError extends Error {
-    constructor() {
-      super('The v2 table query API is not enabled for this workspace')
-    }
-  }
-  return {
-    MockTableV2FeatureDisabledError,
-    mocks: { authenticate: vi.fn(), queryRows: vi.fn() },
-  }
-})
-
-vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/api/row-route-policies', () => ({
   internalTableV2QueryErrorPolicy: {
@@ -29,12 +21,14 @@ vi.mock('@/lib/table/api/row-route-policies', () => ({
   },
 }))
 
-vi.mock('@/lib/table/application/rows', () => ({
-  TableV2FeatureDisabledError: MockTableV2FeatureDisabledError,
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/table/[tableId]/query/route'
+
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  queryRows: tableApplicationRowsMockFns.mockQueryTableRows,
+}
 
 const TABLE = {
   id: 'table-1',

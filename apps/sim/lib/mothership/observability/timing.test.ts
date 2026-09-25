@@ -5,6 +5,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
 import {
@@ -12,8 +13,7 @@ import {
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
 
-const { transaction } = vi.hoisted(() => ({ transaction: vi.fn() }))
-vi.mock('@sim/db', () => ({ db: { transaction } }))
+const transaction = dbChainMockFns.transaction
 
 describe('Mothership boundary timing', () => {
   const exporter = new InMemorySpanExporter()

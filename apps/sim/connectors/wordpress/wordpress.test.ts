@@ -1,17 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { wordpressConnector } from '@/connectors/wordpress/wordpress'
 
 const ACCESS_TOKEN = 'test-token'
 const SITE_CONFIG = { siteUrl: 'mysite.wordpress.com' }
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 /** Resolves the URL of the nth (0-indexed) fetch the connector performed. */
 function requestUrl(callIndex = 0): URL {
@@ -38,10 +32,6 @@ function postFixture(overrides: Record<string, unknown> = {}) {
 describe('wordpress listDocuments', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('flags the listing capped when maxPosts hides posts that still exist', async () => {

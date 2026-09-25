@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -11,13 +12,11 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   cancel: vi.fn(),
   refetch: vi.fn(),
-  invalidate: vi.fn(),
   connected: vi.fn(),
   status: undefined as GitHubSearchSetupStatus | undefined,
   error: null as Error | null,
 }))
-const client = { invalidateQueries: mocks.invalidate }
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => client }))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/hooks/queries/github-search-setup', () => ({
   isGitHubSetupTerminalError: (error: unknown) =>
     error instanceof ApiClientError && error.status === 403,
@@ -31,6 +30,8 @@ vi.mock('@/hooks/queries/github-search-setup', () => ({
 }))
 
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
+
+const mockInvalidate = reactQueryMockFns.mockQueryClient.invalidateQueries
 
 describe('GitHub installation setup handoff', () => {
   let root: Root
@@ -79,8 +80,6 @@ describe('GitHub installation setup handoff', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it('opens approval synchronously and completes only from the authorized server receipt', async () => {
@@ -103,8 +102,8 @@ describe('GitHub installation setup handoff', () => {
     expect(current.pending).toBe(false)
     expect(mocks.connected).toHaveBeenCalledExactlyOnceWith('installation-1')
     expect(tab.close).toHaveBeenCalledOnce()
-    expect(mocks.invalidate).toHaveBeenCalledTimes(4)
-    expect(mocks.invalidate).toHaveBeenCalledWith({
+    expect(mockInvalidate).toHaveBeenCalledTimes(4)
+    expect(mockInvalidate).toHaveBeenCalledWith({
       queryKey: ['oauthCredentials', 'list', 'github-repositories', '', '', 'org-1', 'browsing'],
     })
     act(() => root.render(<Probe />))

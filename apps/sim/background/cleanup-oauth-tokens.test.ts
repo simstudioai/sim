@@ -1,23 +1,15 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runCleanupOAuthTokens } from '@/background/cleanup-oauth-tokens'
 
-const mocks = vi.hoisted(() => ({
-  select: vi.fn(),
-  delete: vi.fn(),
-  transaction: vi.fn(),
+const mocks = {
+  select: dbChainMockFns.select,
+  delete: dbChainMockFns.delete,
+  transaction: dbChainMockFns.transaction,
   txSelect: vi.fn(),
   txDelete: vi.fn(),
   limits: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mocks.select,
-    delete: mocks.delete,
-    transaction: mocks.transaction,
-  },
-}))
-
-import { runCleanupOAuthTokens } from '@/background/cleanup-oauth-tokens'
+}
 
 /** A select chain that answers `rows` once awaited, capturing its `where`. */
 function selectChain(rows: unknown[], captured: unknown[]) {

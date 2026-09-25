@@ -1,4 +1,12 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { knowledgeSearchUseCaseMock } from '@sim/testing/mocks/knowledge-search-use-case.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -21,12 +29,6 @@ const mocks = vi.hoisted(() => ({
   completeUpload: vi.fn(),
   cancelUpload: vi.fn(),
   persistedResponse: vi.fn(),
-  readKnowledgeBase: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
-  deleteKnowledgeBase: vi.fn(),
-  restoreKnowledgeBase: vi.fn(),
-  platformUpload: vi.fn(),
-  capture: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/application/documents', () => ({
@@ -37,15 +39,7 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
   deleteKnowledgeDocument: mocks.useCase('knowledge.documents.delete', mocks.deleteDocument),
 }))
 
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  readInternalKnowledgeBase: mocks.useCase('knowledge.session.read', mocks.readKnowledgeBase),
-  updateInternalKnowledgeBase: mocks.useCase('knowledge.session.update', mocks.updateKnowledgeBase),
-  deleteInternalKnowledgeBase: mocks.useCase('knowledge.session.delete', mocks.deleteKnowledgeBase),
-  restoreInternalKnowledgeBase: mocks.useCase(
-    'knowledge.session.restore',
-    mocks.restoreKnowledgeBase
-  ),
-}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 
 vi.mock('@/lib/knowledge/application/connectors', () => ({
   listKnowledgeConnectors: mocks.useCase('knowledge.connectors.list', mocks.listConnectors),
@@ -64,9 +58,7 @@ vi.mock('@/lib/knowledge/application/connectors', () => ({
   ),
 }))
 
-vi.mock('@/lib/knowledge/application/search', () => ({
-  KnowledgeSearchProvenanceUnavailableError: class extends Error {},
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   KnowledgeDocumentUnsupportedMediaTypeError: class extends Error {},
@@ -92,16 +84,16 @@ vi.mock('@/lib/knowledge/api/secret-provenance', () => ({
   finalizeKnowledgePersistedResponse: mocks.persistedResponse,
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformUpload },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH as updateConnectorDocuments } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
 import { POST as syncConnector } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 import { GET as readKnowledgeBase } from '@/app/api/knowledge/[id]/route'
+
+const { mockReadInternalKnowledgeBaseExecute } = knowledgeBaseUseCasesMockFns
 
 const session = {
   user: { id: 'user-1', email: 'user@example.com', name: 'User' },
@@ -115,10 +107,11 @@ describe('migrated internal Knowledge routes', () => {
   })
 
   it('renders unknown knowledge base failures safely', async () => {
-    mocks.readKnowledgeBase.mockRejectedValue(new Error('postgres password=secret'))
-    const response = await readKnowledgeBase(createMockRequest('GET'), {
-      params: Promise.resolve({ id: 'knowledge-1' }),
-    })
+    mockReadInternalKnowledgeBaseExecute.mockRejectedValue(new Error('postgres password=secret'))
+    const response = await readKnowledgeBase(
+      createMockRequest('GET'),
+      createRouteContext({ id: 'knowledge-1' })
+    )
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Failed to fetch knowledge base' })
@@ -130,7 +123,7 @@ describe('migrated internal Knowledge routes', () => {
         operation: 'exclude',
         documentIds: Array.from({ length: 101 }, (_, index) => `document-${index}`),
       }),
-      { params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }) }
+      createRouteContext({ id: 'knowledge-1', connectorId: 'connector-1' })
     )
 
     expect(response.status).toBe(400)
@@ -141,13 +134,14 @@ describe('migrated internal Knowledge routes', () => {
     const message = 'Sync finished recently. Try again in 60 seconds.'
     mocks.syncConnector.mockRejectedValueOnce(new OrchestrationError('conflict', message))
 
-    const response = await syncConnector(createMockRequest('POST'), {
-      params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }),
-    })
+    const response = await syncConnector(
+      createMockRequest('POST'),
+      createRouteContext({ id: 'knowledge-1', connectorId: 'connector-1' })
+    )
 
     expect(mocks.syncConnector).toHaveBeenCalledOnce()
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({ error: message })
-    expect(mocks.capture).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

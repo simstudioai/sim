@@ -1,29 +1,36 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCalculateCost,
   mockCheckAttributedUsageLimits,
   mockCheckAndBillPayerOverageThreshold,
-  mockGenerateEmbeddings,
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-  mockGetFileMetadataByKeys,
+
   mockProcessDocument,
-  mockRecordUsage,
 } = vi.hoisted(() => ({
-  mockCalculateCost: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
-  mockGenerateEmbeddings: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
   mockProcessDocument: vi.fn(),
-  mockRecordUsage: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: mockRecordUsage,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
@@ -39,32 +46,31 @@ vi.mock('@/lib/knowledge/embedding-models', () => ({
   getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
 }))
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: mockGenerateEmbeddings,
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenanceByMetadata:
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: vi.fn(),
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/providers/utils', () => ({
-  calculateCost: mockCalculateCost,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import * as billingAttribution from '@/lib/billing/core/billing-attribution'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import * as embeddingClient from '@/lib/embeddings/client'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+
+const mockGenerateEmbeddings = knowledgeEmbeddingsMockFns.mockGenerateEmbeddings
+const mockRecordUsage = billingUsageLogMockFns.mockRecordUsage
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockGetBoundWorkspaceFileSecretProvenanceByMetadata =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata
+const mockCalculateCost = providersUtilsMockFns.mockCalculateCost
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {

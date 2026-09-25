@@ -1,13 +1,15 @@
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
-const { bindDelegation } = vi.hoisted(() => ({ bindDelegation: vi.fn() }))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: bindDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
+
+const { mockBindInternalExecutorDelegation: bindDelegation } = authInternalDelegationMockFns
 
 const workspaceFile = { key: 'workspace/workspace-1/image.png' }
 const systemPrincipal = {

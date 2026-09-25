@@ -2,18 +2,20 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ consent: vi.fn(), signOut: vi.fn() }))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { oauth2: { consent: mocks.consent }, signOut: mocks.signOut },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { OAuthConsentView } from '@/app/(auth)/oauth/consent/consent-view'
 import { oauthProviderKeys } from '@/hooks/queries/oauth-provider'
+
+const mocks = {
+  consent: authClientMockFns.mockClient.oauth2.consent,
+  signOut: authClientMockFns.mockSignOut,
+}
 
 let root: Root
 let container: HTMLDivElement

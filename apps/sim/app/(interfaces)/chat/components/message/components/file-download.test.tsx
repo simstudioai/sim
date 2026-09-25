@@ -59,8 +59,6 @@ function renderFile(file: ChatFile | ChatFile[]): HTMLDivElement {
 
 afterEach(() => {
   while (mounts.length) mounts.pop()?.()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('ChatFileDownload', () => {

@@ -73,6 +73,8 @@ boundary covers the bug; do not replay it at every layer it crosses.
 - negative controls that pass for an unrelated reason (a different guard short-circuits first);
 - names or fixtures that promise more than the input exercises;
 - dead production code or exports whose only callers are tests.
+- a hand-rolled `vi.mock` factory for a module `vitest.setup.ts` or `@sim/testing` already mocks, or a
+  local copy of a `@sim/testing` helper (`bun run check:test-patterns` fails on these).
 
 ## Retention bar
 
@@ -133,10 +135,7 @@ For a whole subsystem or the whole repo:
 
 Never edit source or tests while Vitest is running in the same checkout.
 
-1. Run the touched and sibling test files. From `apps/sim`:
-   `../../node_modules/.bin/vitest run <paths>` (never `bunx vitest`, which fetches a different
-   Vitest). Other workspaces: run from the workspace directory. Never pipe the runner through
-   `grep`/`tail` where the pipe hides its exit code.
+1. Run the touched and sibling test files (`.claude/rules/sim-testing.md` → Running).
 2. If production code changed: `bun run type-check` in that workspace.
 3. `bun run check:audits` from the repo root (some audits list test files by path).
 4. `bun run lint`, then `git diff --check`.

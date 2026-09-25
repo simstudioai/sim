@@ -1,13 +1,14 @@
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveOrganizationLanding, mockSearchAvailable } = vi.hoisted(() => ({
+const { mockResolveOrganizationLanding } = vi.hoisted(() => ({
   mockResolveOrganizationLanding: vi.fn(),
-  mockSearchAvailable: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mockSearchAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 vi.mock('@/lib/organizations/surface', () => ({
   resolveOrganizationLanding: mockResolveOrganizationLanding,
@@ -17,6 +18,8 @@ import {
   resolveAppEntryPath,
   resolveOrganizationEntryPath,
 } from '@/lib/navigation/resolve-app-entry'
+
+const mockSearchAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
 
 describe('resolveAppEntryPath', () => {
   beforeEach(() => {

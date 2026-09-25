@@ -6,6 +6,8 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -15,14 +17,11 @@ const mocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   getSession: vi.fn(),
   linkAccount: vi.fn(),
-  getBaseUrl: vi.fn(),
   requireClient: vi.fn(),
   createConnection: vi.fn(),
-  getPerRequestScopes: vi.fn(),
   launchConnection: vi.fn(),
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
-  getCanonicalScopes: vi.fn(),
   isPubliclyRegistered: vi.fn(),
 }))
 
@@ -36,10 +35,6 @@ vi.mock('better-auth/next-js', () => ({
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
   auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  SITE_URL: 'https://www.sim.ai',
-  getBaseUrl: mocks.getBaseUrl,
 }))
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mocks.requireClient,
@@ -59,10 +54,7 @@ vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
 vi.mock('@/lib/credentials/application/launch-scoped-credential-connection', () => ({
   launchScopedCredentialConnection: mocks.launchConnection,
 }))
-vi.mock('@/lib/oauth/utils', () => ({
-  getPerRequestOAuthLinkScopes: mocks.getPerRequestScopes,
-  getCanonicalScopesForProvider: mocks.getCanonicalScopes,
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
   decryptQuickBooksOAuthClientConfig: mocks.decryptQuickBooksClientConfig,
 }))
@@ -71,6 +63,8 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
 }))
 
 import { GET } from '@/app/api/auth/oauth2/authorize/route'
+
+const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = oauthUtilsMockFns
 
 const BASE_URL = 'https://sim.test'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -94,7 +88,7 @@ describe('OAuth2 authorize route', () => {
   beforeEach(() => {
     resetDbChainMock()
     setEnvFlags({ isAuthDisabled: false })
-    mocks.getBaseUrl.mockReturnValue(BASE_URL)
+    urlsMockFns.mockGetBaseUrl.mockReturnValue(BASE_URL)
     mocks.isPubliclyRegistered.mockResolvedValue(false)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -116,9 +110,9 @@ describe('OAuth2 authorize route', () => {
       },
     })
     mocks.linkAccount.mockResolvedValue(linkResponse())
-    mocks.getPerRequestScopes.mockReturnValue(undefined)
+    mockGetPerRequestOAuthLinkScopes.mockReturnValue(undefined)
     mocks.betterAuthGET.mockResolvedValue(new Response(null, { status: 302 }))
-    mocks.getCanonicalScopes.mockReturnValue([
+    mockGetCanonicalScopesForProvider.mockReturnValue([
       'openid',
       'profile',
       'email',

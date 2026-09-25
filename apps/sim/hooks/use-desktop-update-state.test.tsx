@@ -4,6 +4,7 @@
 
 import { act } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,12 +15,7 @@ const desktopMocks = vi.hoisted(() => ({
   listener: null as ((state: DesktopUpdateState) => void) | null,
 }))
 
-vi.mock('@/lib/desktop', () => ({
-  getDesktopUpdates: () => ({
-    getState: desktopMocks.getState,
-    onState: desktopMocks.onState,
-  }),
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
@@ -34,6 +30,10 @@ function Harness() {
 
 describe('useDesktopUpdateState', () => {
   beforeEach(() => {
+    libDesktopMockFns.mockGetDesktopUpdates.mockReturnValue({
+      getState: desktopMocks.getState,
+      onState: desktopMocks.onState,
+    })
     desktopMocks.listener = null
     desktopMocks.onState.mockImplementation((listener) => {
       desktopMocks.listener = listener

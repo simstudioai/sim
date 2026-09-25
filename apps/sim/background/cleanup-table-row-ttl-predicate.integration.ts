@@ -3,6 +3,7 @@
  * session temp tables, so the provisioned schema is untouched; locking, events, and triggers are
  * fixtures.
  */
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import postgres from 'postgres'
@@ -48,7 +49,7 @@ describe('table row TTL predicate in PostgreSQL', () => {
   )
 
   it('deletes only expired UTC cells in PostgreSQL with a non-UTC session', async () => {
-    const client = postgres(process.env.TEST_DATABASE_URL!, { max: 1 })
+    const client = postgres(readTestDatabaseUrl(), { max: 1 })
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-07T12:00:00.500Z'))
     try {
       await client`SET TIME ZONE 'America/Los_Angeles'`

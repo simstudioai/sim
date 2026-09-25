@@ -1,72 +1,29 @@
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  schemaMock,
-  setEnvFlags,
-} from '@sim/testing'
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetHighestPrioritySubscription,
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetWorkspaceWithOwner,
-  mockCheckEnterprisePlan,
-  mockGetPlanTierCredits,
-  mockHasUsableSubscriptionAccess,
-  mockGetEffectiveBillingStatus,
-  mockIsOrganizationBillingBlocked,
-  mockCheckOrgPlan,
-} = vi.hoisted(() => ({
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetHighestPriorityPersonalSubscription: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockCheckEnterprisePlan: vi.fn(),
-  mockGetPlanTierCredits: vi.fn(),
-  mockHasUsableSubscriptionAccess: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
-  mockCheckOrgPlan: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  getPlanTierCredits: mockGetPlanTierCredits,
-  isEnterprise: (plan: string | null | undefined) => plan === 'enterprise',
-  isMaxTier: (plan: string | null | undefined) =>
-    mockGetPlanTierCredits(plan) >= 25000 || plan === 'enterprise',
-  isOrgPlan: (plan: string | null | undefined) =>
-    plan === 'enterprise' || plan === 'team' || Boolean(plan?.startsWith('team_')),
-  isPro: vi.fn(),
-  isTeam: vi.fn(),
-  sqlIsPaid: vi.fn(() => ({ type: 'sqlIsPaid' })),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-/** Mirrors the production sets exactly — a mock that widens them would let a gate regress unnoticed. */
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  checkEnterprisePlan: mockCheckEnterprisePlan,
-  checkOrgPlan: mockCheckOrgPlan,
-  checkProPlan: vi.fn(),
-  checkTeamPlan: vi.fn(),
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-  hasUsableSubscriptionAccess: mockHasUsableSubscriptionAccess,
-  USABLE_SUBSCRIPTION_STATUSES: ['active'],
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getOrganizationCoverageForMember,
@@ -81,6 +38,18 @@ import {
   resolveOrganizationPlan,
   syncSubscriptionPlan,
 } from '@/lib/billing/core/subscription'
+
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
+const { mockGetEffectiveBillingStatus, mockIsOrganizationBillingBlocked } = billingAccessMockFns
+const { mockGetHighestPrioritySubscription, mockGetHighestPriorityPersonalSubscription } =
+  billingPlanMockFns
+const { mockGetPlanTierCredits } = billingPlanHelpersMockFns
+const { mockCheckEnterprisePlan, mockCheckOrgPlan, mockHasUsableSubscriptionAccess } =
+  billingSubscriptionUtilsMockFns
+billingPlanHelpersMockFns.mockIsMaxTier.mockImplementation(
+  (plan) => mockGetPlanTierCredits(plan) >= 25000 || plan === 'enterprise'
+)
+billingPlanHelpersMockFns.mockSqlIsPaid.mockReturnValue({ type: 'sqlIsPaid' })
 
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true, isHosted: true })

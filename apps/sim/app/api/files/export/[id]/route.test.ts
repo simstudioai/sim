@@ -1,21 +1,23 @@
-import { recordAudit } from '@sim/audit'
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 
-const {
-  mockCheckAuth,
-  mockGetFileMetadataById,
-  mockVerifyFileAccess,
-  mockDownloadFile,
-  mockExtractEmbeddedFileRefs,
-} = vi.hoisted(() => ({
-  mockCheckAuth: vi.fn(),
-  mockGetFileMetadataById: vi.fn(),
-  mockVerifyFileAccess: vi.fn(),
-  mockDownloadFile: vi.fn(),
+const { mockExtractEmbeddedFileRefs } = vi.hoisted(() => ({
   mockExtractEmbeddedFileRefs: vi.fn(),
 }))
 
@@ -24,30 +26,26 @@ function embeds(...ids: string[]) {
   mockExtractEmbeddedFileRefs.mockReturnValue({ keys: [], ids })
 }
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckAuth,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataById: mockGetFileMetadataById,
-}))
-vi.mock('@/app/api/files/authorization', () => ({ verifyFileAccess: mockVerifyFileAccess }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/uploads/server/embedded-image-refs', () => ({
   extractEmbeddedFileRefs: mockExtractEmbeddedFileRefs,
 }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { GET } from '@/app/api/files/export/[id]/route'
 
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+const mockGetFileMetadataById = uploadsMetadataMockFns.mockGetFileMetadataById
+const mockVerifyFileAccess = filesAuthorizationMockFns.mockVerifyFileAccess
+const mockCheckAuth = hybridAuthMockFns.mockCheckSessionOrInternalAuth
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
 const MB = 1024 * 1024
 const DOC_ID = 'doc-1'
-const context = { params: Promise.resolve({ id: DOC_ID }) }
+const context = createRouteContext({ id: DOC_ID })
 
 function request() {
   return createMockRequest('GET', undefined, {}, `http://localhost:3000/api/files/export/${DOC_ID}`)
@@ -104,7 +102,7 @@ describe('markdown export bundling', () => {
       `/api/files/serve/${getServeStoragePrefix()}/${encodeURIComponent(DOC_RECORD.key)}`
     )
     expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({ format: 'file', assetCount: 0 }),
       })
@@ -194,7 +192,7 @@ describe('markdown export bundling', () => {
 
     expect(response.status).toBe(400)
     expect((await response.json()).error).toContain('exceeds')
-    expect(recordAudit).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockDownloadFile.mock.calls.length).toBeLessThan(ids.length + 1)
   })
 

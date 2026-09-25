@@ -1,70 +1,32 @@
 import { createMockRequest } from '@sim/testing'
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  status: 200,
-  userRateLimit: vi.fn(() => ({ kind: 'user' as const })),
-  errorPolicy: undefined as
-    | {
-        project(error: unknown): { body: unknown; status: number; headers?: HeadersInit } | null
-        unhandled?(): { body: unknown; status: number; headers?: HeadersInit }
-      }
-    | undefined,
-}))
-
-vi.mock('@/lib/api/server/routes', () => {
-  const internalErrorResponse = vi.fn((status: number, body: unknown, headers?: HeadersInit) => ({
-    body,
-    status,
-    headers,
-  }))
-  const internalOrchestrationErrorPolicy = {
-    project(error: unknown) {
-      if (!(error instanceof Error) || !('code' in error)) return null
-      const code = (error as Error & { code: string }).code
-      const status =
-        code === 'validation'
-          ? 400
-          : code === 'unauthorized'
-            ? 401
-            : code === 'forbidden'
-              ? 403
-              : code === 'not_found'
-                ? 404
-                : code === 'conflict'
-                  ? 409
-                  : 500
-      return internalErrorResponse(status, { error: error.message })
-    },
-    unhandled: () => internalErrorResponse(500, { error: 'Internal server error' }),
+const mocks = await vi.hoisted(async () => {
+  const state = {
+    status: 200,
+    errorPolicy: undefined as
+      | {
+          project(error: unknown): { body: unknown; status: number; headers?: HeadersInit } | null
+          unhandled?(): { body: unknown; status: number; headers?: HeadersInit }
+        }
+      | undefined,
   }
-
-  return {
-    defineInternalJsonRoute: vi.fn(
-      (options: { errorPolicy: typeof mocks.errorPolicy; staticResponseHeaders?: HeadersInit }) => {
-        mocks.errorPolicy = options.errorPolicy
-        return async () =>
-          new Response(JSON.stringify({ ok: mocks.status < 400 }), {
-            status: mocks.status,
-            headers: options.staticResponseHeaders,
-          })
-      }
-    ),
-    extendInternalErrorPolicy: vi.fn(
-      (
-        base: typeof internalOrchestrationErrorPolicy,
-        project: (error: unknown) => ReturnType<typeof internalErrorResponse> | null
-      ) => ({
-        project: (error: unknown) => project(error) ?? base.project(error),
-        unhandled: base.unhandled,
-      })
-    ),
-    internalErrorResponse,
-    internalOrchestrationErrorPolicy,
-    internalRateLimits: { user: mocks.userRateLimit },
-    internalSessionAuth: {},
-  }
+  const { apiServerRoutesMockFns } = await import('@sim/testing/mocks/api-server-routes.mock')
+  apiServerRoutesMockFns.mockDefineInternalJsonRoute.mockImplementation(
+    (options: { errorPolicy: typeof state.errorPolicy; staticResponseHeaders?: HeadersInit }) => {
+      state.errorPolicy = options.errorPolicy
+      return async () =>
+        new Response(JSON.stringify({ ok: state.status < 400 }), {
+          status: state.status,
+          headers: options.staticResponseHeaders,
+        })
+    }
+  )
+  return state
 })
+
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

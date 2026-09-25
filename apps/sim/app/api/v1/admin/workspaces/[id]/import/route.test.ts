@@ -6,49 +6,32 @@
  * materialize under. These pin that the ceiling is enforced and surfaces as a 409.
  */
 import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing/mocks/workflows-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
 const {
-  mockLogger,
-  mockGetWorkspaceWithOwner,
   mockParseWorkflowJson,
   mockExtractWorkflowName,
   mockPrepareWorkflowStateForPersistence,
-  mockSaveWorkflowToNormalizedTables,
-  mockDeduplicateWorkflowName,
   mockNormalizeImportedVariables,
 } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
-  mockGetWorkspaceWithOwner: vi.fn(),
   mockParseWorkflowJson: vi.fn(),
   mockExtractWorkflowName: vi.fn(),
   mockPrepareWorkflowStateForPersistence: vi.fn(),
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-  mockDeduplicateWorkflowName: vi.fn(),
   mockNormalizeImportedVariables: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/app/api/v1/admin/middleware', () => ({
   withAdminAuthParams: (handler: unknown) => handler,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workflows/operations/import-export', () => ({
   parseWorkflowJson: mockParseWorkflowJson,
   extractWorkflowName: mockExtractWorkflowName,
@@ -57,18 +40,20 @@ vi.mock('@/lib/workflows/operations/import-export', () => ({
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mockPrepareWorkflowStateForPersistence,
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
-vi.mock('@/lib/workflows/utils', () => ({ deduplicateWorkflowName: mockDeduplicateWorkflowName }))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/workflows/variables/parse', () => ({
   normalizeImportedVariables: mockNormalizeImportedVariables,
 }))
 
 import { POST } from '@/app/api/v1/admin/workspaces/[id]/import/route'
 
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
+const { mockSaveWorkflowToNormalizedTables } = workflowsPersistenceUtilsMockFns
+const { mockDeduplicateWorkflowName } = workflowsUtilsMockFns
+
 const WORKSPACE_ID = 'ws-1'
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const FULL_MESSAGE =
   'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.'

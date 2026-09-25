@@ -1,20 +1,15 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
-  mockLogger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
+const { mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
   mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
   mockPinnedClose: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
 }))
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
@@ -62,10 +57,7 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ToolListChangedNotificationSchema: { method: 'notifications/tools/list_changed' },
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
-  DEFAULT_EXECUTION_TIMEOUT_MS: 30000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -76,6 +68,10 @@ import {
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
 } from '@/lib/mcp/types'
+
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(30000)
+
+const mockLogger = getMockLogger('McpClient')
 
 function createConfig(): McpServerConfig {
   return {
@@ -89,7 +85,6 @@ function createConfig(): McpServerConfig {
 describe('McpClient notification handler', () => {
   beforeEach(() => {
     capturedNotificationHandler = null
-    vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
     mockSdkListTools.mockResolvedValue({ tools: [] })
     // clearAllMocks resets call history but not implementations; re-establish the

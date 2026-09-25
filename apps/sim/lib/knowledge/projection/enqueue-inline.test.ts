@@ -1,17 +1,20 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock } from '@sim/testing/mocks/feature-flags.mock'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ runPass: vi.fn(), trigger: vi.fn() }))
+const mocks = vi.hoisted(() => ({ runPass: vi.fn() }))
 
-vi.mock('@sim/db', () => ({ db: { execute: async () => [{ pending: true }] } }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: async () => false }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mocks.trigger } }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: () => false }))
 vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: mocks.runPass }))
 
 import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
+
+setEnvFlags({ isTriggerDevEnabled: false })
+dbChainMockFns.execute.mockImplementation(async () => [{ pending: true }])
 
 /** A pass that runs until the test finishes it. */
 function heldPass() {

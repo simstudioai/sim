@@ -14,6 +14,9 @@
  * on every block of every execution in the product, and buys a caller nothing it cannot get
  * by resolving the id it was handed.
  */
+import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -41,14 +44,14 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
  * executor, the paused-run manager, and deployment orchestration — are stubbed
  * rather than loaded.
  */
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: vi.fn(),
   WorkflowExecutionNotFoundError: class WorkflowExecutionNotFoundError extends Error {},
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({ performCreateWorkflowTransition: vi.fn() }))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/core/telemetry', () => ({ PlatformEvents: { apiKeyGenerated: vi.fn() } }))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 import { executeRunWorkflow } from '@/lib/mothership/tools/handlers/workflow/mutations'
 

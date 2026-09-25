@@ -1,14 +1,12 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = vi.hoisted(() => ({
-  mockSecureFetchWithPinnedIP: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import {
   fetchRemoteImage,

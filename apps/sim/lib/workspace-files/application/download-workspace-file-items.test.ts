@@ -1,87 +1,75 @@
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  events,
-  mockLoadContext,
-  mockResolvePermission,
-  mockListFiles,
-  mockListFolders,
-  mockFetchServable,
-  mockRecordAudit,
-  mockIsGenerated,
-  mockIsRenderable,
-  mockIsDocNotReady,
-  mockGetUserPermissionConfig,
-} = vi.hoisted(() => ({
+const { events, mockFetchServable, mockIsDocNotReady } = vi.hoisted(() => ({
   events: [] as string[],
-  mockLoadContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockListFiles: vi.fn(),
-  mockListFolders: vi.fn(),
   mockFetchServable: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockIsGenerated: vi.fn(),
-  mockIsRenderable: vi.fn(),
   mockIsDocNotReady: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
 }))
+const {
+  mockLoadWorkspaceFileOperationContext: mockLoadContext,
+  mockListWorkspaceFiles: mockListFiles,
+  mockListWorkspaceFileFolders: mockListFolders,
+} = workspaceUploadsMockFns
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  /** The use case passes the organization the authorized context already loaded. */
-  resolveVerifiedUserAccessControlContext: async (userId: string, workspaceId: string) => ({
-    config: await mockGetUserPermissionConfig(userId, workspaceId),
-  }),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; path?: string; name: string }>) =>
-    new Map(folders.map((folder) => [folder.id, folder.path ?? folder.name])),
-  listWorkspaceFileFolders: mockListFolders,
-  listWorkspaceFiles: mockListFiles,
-  loadWorkspaceFileOperationContext: mockLoadContext,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
   fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServable,
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  formatFileSize: (bytes: number) => `${bytes} bytes`,
-  isGeneratedDocumentSourceType: mockIsGenerated,
-  isRenderableDocumentName: mockIsRenderable,
-  MAX_RENDERED_DOCUMENT_BYTES: 50 * 1024 * 1024,
-  needsRenderedArtifact: (contentType: string | null | undefined, fileName: string) =>
-    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: (names: string[]) => `Pending: ${names.join(', ')}`,
   isDocNotReadyError: mockIsDocNotReady,
 }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
-const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
-const delegatedPrincipal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
+const { mockGetUserPermissionConfig } = permissionGroupsResolveMockFns
+const {
+  mockIsGeneratedDocumentSourceType: mockIsGenerated,
+  mockIsRenderableDocumentName: mockIsRenderable,
+} = fileUtilsMockFns
+
+/** The use case passes the organization the authorized context already loaded. */
+permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext.mockImplementation(
+  async (userId: string, workspaceId: string) => ({
+    config: await mockGetUserPermissionConfig(userId, workspaceId),
+  })
+)
+fileUtilsMockFns.mockFormatFileSize.mockImplementation((bytes: number) => `${bytes} bytes`)
+fileUtilsMockFns.mockNeedsRenderedArtifact.mockImplementation(
+  (contentType: string | null | undefined, fileName: string) =>
+    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName)
+)
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
+const delegatedPrincipal = createDelegatedPrincipal({
   subjectUserId: 'u1',
   workspaceId: 'ws-1',
-  delegationId: 'delegation-1',
   audience: 'sim:workspace-files',
-  issuedAt: new Date('2026-01-01T00:00:00Z'),
-  expiresAt: new Date('2099-01-01T00:00:00Z'),
   resourceScope: { fileId: 'f1' },
-}
+})
 const workspace = {
   workspaceId: 'ws-1',
   workspaceOrganizationId: null,

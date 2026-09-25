@@ -10,14 +10,6 @@ vi.mock('@sim/security/dns', () => ({
   preferIpv4: (addresses: string[]) => addresses[0],
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
-}))
-
 import * as networkTransport from '@/lib/core/network/transport.server'
 import {
   createPinnedFetchWithDispatcher,
@@ -28,7 +20,6 @@ import {
 const servers: http.Server[] = []
 
 afterEach(() => {
-  vi.restoreAllMocks()
   for (const server of servers.splice(0)) {
     server.closeAllConnections()
     server.close()

@@ -1,9 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/components/icons', () => ({
-  ServiceNowIcon: () => null,
-}))
-
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { servicenowConnector, shouldIngestKBArticle } from '@/connectors/servicenow/servicenow'
 
 const INSTANCE_URL = 'https://acme.service-now.com'
@@ -46,22 +42,11 @@ function _kbRecordPlain(sysId: string, workflowState?: string): Record<string, u
   }
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 const mockFetch = vi.fn()
 
 beforeEach(() => {
   mockFetch.mockReset()
   vi.stubGlobal('fetch', mockFetch)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 /** Reads the URL passed to the single fetch call as a parsed URL. */

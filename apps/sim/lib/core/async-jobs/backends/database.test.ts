@@ -1,4 +1,4 @@
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,18 +8,6 @@ const { mockRecordCancellationResult } = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
-}))
-
-vi.mock('@sim/db', () => ({
-  asyncJobs: {
-    attempts: 'attempts',
-    id: 'id',
-    metadata: 'metadata',
-    payload: 'payload',
-    status: 'status',
-    type: 'type',
-  },
-  db: dbChainMock.db,
 }))
 
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'

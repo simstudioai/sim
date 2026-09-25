@@ -1,39 +1,49 @@
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { tasks } from '@trigger.dev/sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   runPass: vi.fn(),
-  resolveRegion: vi.fn(),
-  trigger: vi.fn(),
-  execute: vi.fn(),
-  isFeatureEnabled: vi.fn(),
-  env: { TRIGGER_SECRET_KEY: 'fixture-key' as string | undefined },
   insideRun: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { execute: mocks.execute } }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.isFeatureEnabled }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mocks.trigger } }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mocks.resolveRegion }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
-vi.mock('@/lib/core/config/env', () => ({ env: mocks.env }))
-vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: mocks.insideRun }))
-vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: mocks.runPass }))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: hoisted.insideRun }))
+vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: hoisted.runPass }))
 
 import {
   enqueueKnowledgeProjectionSweep,
   requestKnowledgeProjection,
 } from '@/lib/knowledge/projection/enqueue'
 
+const mocks = {
+  ...hoisted,
+  resolveRegion: asyncJobsRegionMockFns.mockResolveTriggerRegion,
+  isFeatureEnabled: featureFlagsMockFns.mockIsFeatureEnabled,
+}
+
+setEnvFlags({ isTriggerDevEnabled: true })
+
+const mockTrigger = vi.mocked(tasks.trigger)
+
 describe('knowledge projection enqueue', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-23T12:34:45.000Z'))
     mocks.resolveRegion.mockResolvedValue('us-east-1')
-    mocks.trigger.mockResolvedValue({ id: 'run-1' })
-    mocks.execute.mockResolvedValue([{ pending: true }])
+    mockTrigger.mockResolvedValue({ id: 'run-1' })
+    dbChainMockFns.execute.mockResolvedValue([{ pending: true }])
     mocks.isFeatureEnabled.mockResolvedValue(false)
-    mocks.env.TRIGGER_SECRET_KEY = 'fixture-key'
+    mockEnvObject.TRIGGER_SECRET_KEY = 'fixture-key'
     mocks.insideRun.mockReturnValue(false)
   })
 
@@ -47,7 +57,7 @@ describe('knowledge projection enqueue', () => {
       backend: 'trigger-dev',
       jobId: 'run-1',
     })
-    expect(mocks.trigger).toHaveBeenCalledWith('knowledge-projection', undefined, {
+    expect(mockTrigger).toHaveBeenCalledWith('knowledge-projection', undefined, {
       idempotencyKey: 'knowledge-projection:sweep:29836114',
       idempotencyKeyTTL: '5m',
       region: 'us-east-1',
@@ -59,19 +69,19 @@ describe('knowledge projection enqueue', () => {
   it('debounces prompt requests across processes and collapses them within one', async () => {
     await requestKnowledgeProjection()
     await requestKnowledgeProjection()
-    expect(mocks.trigger).toHaveBeenCalledTimes(1)
-    expect(mocks.trigger).toHaveBeenCalledWith('knowledge-projection', undefined, {
+    expect(mockTrigger).toHaveBeenCalledTimes(1)
+    expect(mockTrigger).toHaveBeenCalledWith('knowledge-projection', undefined, {
       debounce: { key: 'knowledge-projection', delay: '5s', maxDelay: '1m' },
       region: 'us-east-1',
     })
     vi.advanceTimersByTime(5_000)
     await requestKnowledgeProjection()
-    expect(mocks.trigger).toHaveBeenCalledTimes(2)
+    expect(mockTrigger).toHaveBeenCalledTimes(2)
   })
 
   it('never fails the write that asked when the request is refused', async () => {
     vi.advanceTimersByTime(60_000)
-    mocks.trigger.mockRejectedValueOnce(new Error('trigger unavailable'))
+    mockTrigger.mockRejectedValueOnce(new Error('trigger unavailable'))
     await expect(requestKnowledgeProjection()).resolves.toBeUndefined()
   })
 })

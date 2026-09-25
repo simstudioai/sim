@@ -1,19 +1,19 @@
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { discover, discoverManaged } = vi.hoisted(() => ({
-  discover: vi.fn(),
+const { discoverManaged } = vi.hoisted(() => ({
   discoverManaged: vi.fn(),
 }))
 vi.mock('@/lib/credentials/application/discover-managed-mcp-tools', () => ({
   discoverManagedMcpToolsUseCase: { execute: discoverManaged },
 }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  discoverMcpServerToolsUseCase: { execute: discover },
-}))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { mcpSelectorAttachments } from '@/lib/selectors/server/providers/mcp'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const discover = mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase
 
 function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelectorArgs {
   return {

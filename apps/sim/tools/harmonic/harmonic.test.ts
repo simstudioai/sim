@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { harmonicBatchGetPeopleTool } from '@/tools/harmonic/batch_get_people'
@@ -50,12 +51,6 @@ const buildBody = (tool: ToolConfig, params: Record<string, unknown>): Record<st
 const accepted202Response = (body: unknown) =>
   new Response(JSON.stringify(body), {
     status: 202,
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-const jsonResponse = (body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
 

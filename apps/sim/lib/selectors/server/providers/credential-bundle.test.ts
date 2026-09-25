@@ -1,27 +1,30 @@
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mockResolveCredentialAccessToken = vi.hoisted(() => vi.fn())
 const mockResolveOrganizationToken = vi.hoisted(() => vi.fn())
 const mockOwnAccount = vi.hoisted(() => vi.fn())
-const mockResolveManagedToken = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
   authorizePersonalSearchSetupCredential: mockOwnAccount,
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mockResolveManagedToken,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
   resolveOrganizationCredentialTokenBundle: mockResolveOrganizationToken,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mockResolveCredentialAccessToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
+
+const mockResolveCredentialAccessToken = authOAuthUtilsMockFns.mockResolveCredentialTokenBundle
+
+const mockResolveManagedToken = credentialsManagedOauthMockFns.mockResolveManagedOAuthToken
 
 describe('selector credential bundles', () => {
   it('resolves a personal Atlassian grant through the owned managed-account path', async () => {

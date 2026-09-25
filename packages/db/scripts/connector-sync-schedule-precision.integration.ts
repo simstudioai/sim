@@ -1,9 +1,5 @@
 import { readFileSync } from 'node:fs'
-import {
-  applyMigration,
-  migrationTestDatabaseUrl,
-  withMigrationSchema,
-} from '@sim/db/scripts/migration-fixture'
+import { applyMigration, withMigrationSchema } from '@sim/db/scripts/migration-fixture'
 import type postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
@@ -33,7 +29,7 @@ async function subMillisecondsOf(sql: postgres.Sql, id: string): Promise<number[
   return [row.member, row.content]
 }
 
-describe.skipIf(!migrationTestDatabaseUrl)('connector sync schedule precision', () => {
+describe('connector sync schedule precision', () => {
   it('rounds schedules a SQL writer stored, and refuses to store new ones', async () => {
     await withMigrationSchema('sync_precision', async (sql) => {
       await sql`CREATE TABLE knowledge_connector (

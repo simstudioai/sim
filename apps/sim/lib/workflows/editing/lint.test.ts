@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { getBlock } from '@/blocks/registry'
+import { getToolParams } from '@/tools/metadata'
 import {
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
@@ -6,6 +9,28 @@ import {
   hasWorkflowLintIssues,
   lintEditedWorkflowState,
 } from './lint'
+
+const mockGetToolParams = getToolParams as Mock
+const mockGetBlock = getBlock as Mock
+mockGetToolParams.mockImplementation((toolId: string) => {
+  if (toolId === 'knowledge_search') {
+    return {
+      knowledgeBaseId: { type: 'string', required: true, visibility: 'user-or-llm' },
+      query: { type: 'string', required: true, visibility: 'user-or-llm' },
+    }
+  }
+  if (toolId === 'table_v2_query_rows') {
+    return { tableId: { type: 'string', required: true, visibility: 'user-only' } }
+  }
+  return undefined
+})
+
+mockGetBlock.mockImplementation((type: string) => {
+  if (type === 'schedule') return { category: 'triggers', subBlocks: [], outputs: {} }
+  if (type === 'knowledge') return KNOWLEDGE_BLOCK
+  if (type === 'table_v2') return TABLE_BLOCK
+  return undefined
+})
 
 /**
  * A resource block shaped like `knowledge`: a picker/manual canonical pair for
@@ -73,33 +98,6 @@ const TABLE_BLOCK = {
 }
 
 /** Overrides the global registry mock so a `schedule` block carries its real category. */
-vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn((type: string) => {
-    if (type === 'schedule') return { category: 'triggers', subBlocks: [], outputs: {} }
-    if (type === 'knowledge') return KNOWLEDGE_BLOCK
-    if (type === 'table_v2') return TABLE_BLOCK
-    return undefined
-  }),
-  getAllBlocks: vi.fn(() => []),
-  getBlockMeta: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: vi.fn(() => undefined),
-  getToolParams: vi.fn((toolId: string) => {
-    if (toolId === 'knowledge_search') {
-      return {
-        knowledgeBaseId: { type: 'string', required: true, visibility: 'user-or-llm' },
-        query: { type: 'string', required: true, visibility: 'user-or-llm' },
-      }
-    }
-    if (toolId === 'table_v2_query_rows') {
-      return { tableId: { type: 'string', required: true, visibility: 'user-only' } }
-    }
-    return undefined
-  }),
-}))
 
 function baseBlock(id: string, type: string, name: string, subBlocks: Record<string, any> = {}) {
   return {

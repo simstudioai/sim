@@ -1,70 +1,64 @@
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { credentialGroupsServiceMock } from '@sim/testing/mocks/credential-groups-service.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeBaseUseCasesMock } from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { knowledgeEmbeddingsMock } from '@sim/testing/mocks/knowledge-embeddings.mock'
+import { knowledgeServiceMock } from '@sim/testing/mocks/knowledge-service.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  config: vi.fn(),
   index: vi.fn(),
   createServer: vi.fn(),
   handle: vi.fn(),
   connect: vi.fn(),
   close: vi.fn(),
-  requireSearch: vi.fn(),
 }))
 vi.mock('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js', () => ({
   WebStandardStreamableHTTPServerTransport: class {
     handleRequest = mocks.handle
   },
 }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100 }),
-  RateLimiter: class {
-    checkRateLimitDirect = async () => ({ allowed: true, remaining: 99, resetAt: new Date() })
-    checkRateLimitDirectOrThrow = async () => ({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date(),
-    })
-  },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'http://localhost' }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/knowledge/mcp/server', () => ({ createKnowledgeMcpServer: mocks.createServer }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: (owner: { organizationId: string }) => ({
-    organizationId: owner.organizationId,
-    workspaceId: undefined,
-  }),
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/application/billing', () => ({
   resolveKnowledgeAttributedUserId: (principal: { userId: string }) => principal.userId,
 }))
 vi.mock('@/lib/knowledge/search/search-index', () => ({ findSearchIndex: mocks.index }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/credential-groups/service', () => ({ ensureWorkspaceAccountsGroup: vi.fn() }))
-vi.mock('@/lib/knowledge/service', () => ({ createAuthorizedKnowledgeBase: vi.fn() }))
-vi.mock('@/lib/knowledge/embeddings', () => ({ getConfiguredKbEmbedding: vi.fn() }))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  createKnowledgeBase: { execute: vi.fn() },
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 vi.mock('@/lib/knowledge/application/connectors', () => ({
   createKnowledgeConnector: { execute: vi.fn() },
 }))
 vi.mock('@/lib/knowledge/application/connector-access', () => ({
   startKnowledgeConnectorMemberEnrollment: { execute: vi.fn() },
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireKnowledgeMemberAccessAvailable: vi.fn(),
-  requireSourceMirroredAccessAvailable: vi.fn(),
-  requireOrganizationSearchAvailable: mocks.requireSearch,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
 vi.mock('@/lib/sim-search/connectors', () => ({
   SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
@@ -78,9 +72,18 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
+
+knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockImplementation(
+  (owner: { organizationId: string }) => ({
+    organizationId: owner.organizationId,
+    workspaceId: undefined,
+  })
+)
+
 const resource = 'http://localhost/api/mcp/search/organizations/org-1'
 const handlers = createKnowledgeMcpHandlers()
-const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
+const principal = createPersonalApiKeyPrincipal({ userId: 'person-1' })
 const auth = {
   principal,
   keyType: 'personal' as const,
@@ -89,26 +92,27 @@ const auth = {
   rateLimitSubscription: null,
 }
 function request(headers: Record<string, string> = {}) {
-  return new NextRequest('http://localhost/api/mcp/search/organizations/org-1', {
+  return createMockRequest({
     method: 'POST',
+    url: 'http://localhost/api/mcp/search/organizations/org-1',
     headers: {
       'content-type': 'application/json',
       'x-forwarded-for': '127.0.0.1',
       'x-api-key': 'personal-key',
       ...headers,
     },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    body: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
   })
 }
 function post(req = request()) {
-  return handlers.POST(req, { params: Promise.resolve({ organizationId: 'org-1' }) })
+  return handlers.POST(req, createRouteContext({ organizationId: 'org-1' }))
 }
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.authenticate.mockResolvedValue(auth)
-  mocks.config.mockResolvedValue(null)
-  mocks.requireSearch.mockResolvedValue(undefined)
+  v2RouteMocks.authenticate.mockResolvedValue(auth)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockResolvedValue(undefined)
   mocks.index.mockResolvedValue({ id: 'index-1' })
   mocks.createServer.mockReturnValue({ connect: mocks.connect, close: mocks.close })
   mocks.handle.mockImplementation(
@@ -124,10 +128,11 @@ describe('organization MCP request admission', () => {
   it.each(['GET', 'POST', 'DELETE'] as const)(
     'advertises OAuth discovery on an unauthenticated %s',
     async (method) => {
-      mocks.authenticate.mockRejectedValue(new V2ApiKeyUnauthenticatedError())
-      const response = await handlers[method](request(), {
-        params: Promise.resolve({ organizationId: 'org-1' }),
-      })
+      v2RouteMocks.authenticate.mockRejectedValue(new V2ApiKeyUnauthenticatedError())
+      const response = await handlers[method](
+        request(),
+        createRouteContext({ organizationId: 'org-1' })
+      )
       expect(response.status).toBe(401)
       expect(response.headers.get('WWW-Authenticate')).toBe(
         'Bearer resource_metadata="http://localhost/.well-known/oauth-protected-resource/api/mcp/search/organizations/org-1", scope="search:read offline_access"'
@@ -137,7 +142,7 @@ describe('organization MCP request admission', () => {
   )
 
   it('requests Search scope without exposing the index for insufficient OAuth grants', async () => {
-    mocks.authenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       ...auth,
       principal: {
         kind: 'oauth_access_token',
@@ -160,12 +165,14 @@ describe('organization MCP request admission', () => {
     expect(result.status).toBe(200)
     expect(result.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
-    expect(mocks.requireSearch).toHaveBeenCalledExactlyOnceWith('org-1')
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+    ).toHaveBeenCalledExactlyOnceWith('org-1')
     expect(mocks.createServer).toHaveBeenCalledWith(
       expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
     )
     expect(mocks.close).toHaveBeenCalledOnce()
-    expect(mocks.authenticate).toHaveBeenCalledWith(
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(
       { apiKey: 'personal-key', bearer: null },
       { resource, allowUnboundApiTokens: true }
     )
@@ -174,7 +181,7 @@ describe('organization MCP request admission', () => {
     const req = request({ authorization: 'Bearer personal-key' })
     req.headers.delete('x-api-key')
     expect((await post(req)).status).toBe(200)
-    expect(mocks.authenticate).toHaveBeenCalledWith(
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(
       { apiKey: 'personal-key', bearer: null },
       { resource, allowUnboundApiTokens: true }
     )
@@ -183,7 +190,7 @@ describe('organization MCP request admission', () => {
     const token = `${OAUTH_ACCESS_TOKEN_PREFIX}test-access-token`
     const req = request({ authorization: `Bearer ${token}` })
     req.headers.delete('x-api-key')
-    mocks.authenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       ...auth,
       principal: {
         kind: 'oauth_access_token',
@@ -196,16 +203,16 @@ describe('organization MCP request admission', () => {
       keyType: 'oauth',
     })
     expect((await post(req)).status).toBe(200)
-    expect(mocks.authenticate).toHaveBeenCalledWith(
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(
       { apiKey: null, bearer: token },
       { resource, allowUnboundApiTokens: true }
     )
     expect(mocks.index).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
   })
   it('rejects workspace API keys even if the workspace ID matches the organization ID', async () => {
-    mocks.authenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       ...auth,
-      principal: { kind: 'workspace_api_key', workspaceId: 'org-1', keyId: 'workspace-key' },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'org-1', keyId: 'workspace-key' }),
       keyType: 'workspace',
     })
     expect((await post()).status).toBe(403)
@@ -216,22 +223,29 @@ describe('organization MCP request admission', () => {
     dbChainMockFns.limit.mockResolvedValue([])
     expect((await post()).status).toBe(404)
     expect(mocks.index).not.toHaveBeenCalled()
-    expect(mocks.requireSearch).not.toHaveBeenCalled()
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+    ).not.toHaveBeenCalled()
   })
   it('rejects disabled organization Search before index lookup or MCP discovery', async () => {
-    mocks.requireSearch.mockRejectedValue(
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValue(
       new OrchestrationError('forbidden', 'Search is not enabled for this organization')
     )
     const response = await post()
     expect(response.status).toBe(403)
-    expect(mocks.requireSearch).toHaveBeenCalledWith('org-1')
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+    ).toHaveBeenCalledWith('org-1')
     expect(mocks.index).not.toHaveBeenCalled()
     expect(mocks.createServer).not.toHaveBeenCalled()
   })
   it.each(['disablePersonalApiKeys', 'hideKnowledgeBaseTab'])(
     'enforces current organization policy: %s',
     async (field) => {
-      mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, [field]: true })
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        [field]: true,
+      })
       expect((await post()).status).toBe(403)
       expect(mocks.index).not.toHaveBeenCalled()
       expect(mocks.createServer).not.toHaveBeenCalled()
@@ -239,7 +253,7 @@ describe('organization MCP request admission', () => {
   )
   it('rejects conflicting bearer and header keys before organization lookup', async () => {
     expect((await post(request({ authorization: 'Bearer another-key' }))).status).toBe(401)
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
     expect(mocks.index).not.toHaveBeenCalled()
   })
   it('denies a foreign origin before opening a protocol transport', async () => {

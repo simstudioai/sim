@@ -52,7 +52,6 @@ function createFakeClient() {
 }
 
 afterEach(() => {
-  vi.unstubAllEnvs()
   mockError.mockClear()
 })
 

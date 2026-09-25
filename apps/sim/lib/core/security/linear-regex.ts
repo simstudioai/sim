@@ -252,7 +252,7 @@ function parseSplitShape(pattern: string): SplitShape | null {
  * quadratic on a multi-megabyte document and forfeits the linear guarantee
  * this module exists for. Delimiters that do not self-overlap — punctuation,
  * tags, whitespace between tokens — are exact, and
- * `linear-regex.differential.test.ts` pins that.
+ * `linear-regex.test.ts` pins that.
  */
 export function compileLookaroundSplit(
   pattern: string,

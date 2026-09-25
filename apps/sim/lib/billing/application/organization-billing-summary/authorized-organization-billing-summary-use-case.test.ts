@@ -1,35 +1,21 @@
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  membership: vi.fn(),
-  execute: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({ limit: mocks.membership }),
-      }),
-    }),
-  },
-}))
-
 import { defineAuthorizedOrganizationBillingSummaryUseCase } from '@/lib/billing/application/organization-billing-summary/authorized-organization-billing-summary-use-case'
 import { organizationBillingSummaryOperations } from '@/lib/billing/application/organization-billing-summary/operations'
 import { ForbiddenOperationError } from '@/lib/core/application'
 
-const session: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  membership: dbChainMockFns.limit,
+  execute: vi.fn(),
 }
-const personalKey: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+
+const session = createSessionPrincipal()
+const personalKey = createPersonalApiKeyPrincipal()
 
 const useCase = defineAuthorizedOrganizationBillingSummaryUseCase({
   operation: organizationBillingSummaryOperations.read,

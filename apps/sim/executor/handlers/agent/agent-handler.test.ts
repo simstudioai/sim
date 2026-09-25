@@ -1,12 +1,23 @@
 import {
   dbChainMockFns,
-  loggerMock,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import {
   afterAll,
   afterEach,
@@ -21,14 +32,13 @@ import {
 import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { AgentTurnSession } from '@/lib/memory/agent-turn-session'
 import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
 import { AGENT, BlockType } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import * as agentMemory from '@/executor/handlers/agent/memory'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { executeProviderRequest } from '@/providers'
 import {
   getEncryptedConversationMessage,
   setEncryptedConversationMessage,
@@ -44,17 +54,23 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { ToolSchemaEnrichmentError } from '@/tools/params'
 
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(undefined)
+
+const mockImportWorkspaceFileSecretProvenanceForModelView =
+  workspaceFileSecretProvenanceMockFns.mockImportWorkspaceFileSecretProvenanceForModelView
+const mockValidateModelProvider = permissionCheckMockFns.mockValidateModelProvider
+mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
+providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('mock-provider')
+providersUtilsMockFns.mockIsDeepResearchModel.mockImplementation((model: string) =>
+  model.includes('deep-research')
+)
+providersUtilsMockFns.mockGetApiKey.mockReturnValue('mock-api-key')
+
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
-const {
-  mockDiscoverMcpServerToolsAsExecutor,
-  mockImportWorkspaceFileSecretProvenanceForModelView,
-  mockValidateModelProvider,
-  mockOpenAgentTurnSession,
-} = vi.hoisted(() => ({
+const { mockDiscoverMcpServerToolsAsExecutor, mockOpenAgentTurnSession } = vi.hoisted(() => ({
   mockDiscoverMcpServerToolsAsExecutor: vi.fn().mockResolvedValue([]),
-  mockImportWorkspaceFileSecretProvenanceForModelView: vi.fn().mockResolvedValue(true),
-  mockValidateModelProvider: vi.fn().mockResolvedValue(undefined),
   mockOpenAgentTurnSession: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -66,63 +82,18 @@ vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: mockDiscoverMcpServerToolsAsExecutor,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateModelProvider: mockValidateModelProvider,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  importWorkspaceFileSecretProvenanceForModelView:
-    mockImportWorkspaceFileSecretProvenanceForModelView,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
-  isDeepResearchModel: (model: string) => model.includes('deep-research'),
-  transformBlockTool: vi.fn(),
-  getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),
-  getApiKey: vi.fn().mockReturnValue('mock-api-key'),
-  getProvider: vi.fn().mockReturnValue({
-    chat: {
-      completions: {
-        create: vi.fn().mockResolvedValue({
-          content: 'Mocked response content',
-          model: 'mock-model',
-          tokens: { input: 10, output: 20, total: 30 },
-          toolCalls: [],
-          cost: 0.001,
-          timing: { total: 100 },
-        }),
-      },
-    },
-  }),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/blocks', () => ({
-  getAllBlocks: vi.fn().mockReturnValue([]),
-  getBlock: vi.fn().mockReturnValue(undefined),
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/tools', () => ({
-  executeTool: vi.fn(),
-}))
-
-vi.mock('@/providers', () => ({
-  executeProviderRequest: vi.fn().mockResolvedValue({
-    content: 'Mocked response content',
-    model: 'mock-model',
-    tokens: { input: 10, output: 20, total: 30 },
-    toolCalls: [],
-    cost: 0.001,
-    timing: { total: 100 },
-  }),
-}))
+vi.mock('@/providers', () => providersMock)
 
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
@@ -177,10 +148,16 @@ const mockExecuteTool = executeTool as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = vi.fn()
-const mockExecuteProviderRequest = executeProviderRequest as Mock
-const mockAgentLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'AgentBlockHandler')
-].value
+const mockExecuteProviderRequest = providersMockFns.mockExecuteProviderRequest
+mockExecuteProviderRequest.mockResolvedValue({
+  content: 'Mocked response content',
+  model: 'mock-model',
+  tokens: { input: 10, output: 20, total: 30 },
+  toolCalls: [],
+  cost: 0.001,
+  timing: { total: 100 },
+})
+const mockAgentLogger = getMockLogger('AgentBlockHandler')
 
 beforeAll(() => {
   setEnvFlags({ isDev: true, isTest: false })
@@ -195,7 +172,6 @@ describe('AgentBlockHandler', () => {
 
   beforeEach(() => {
     handler = new AgentBlockHandler()
-    vi.clearAllMocks()
     mockOpenAgentTurnSession.mockReset().mockResolvedValue(undefined)
     mockValidateModelProvider.mockReset().mockResolvedValue(undefined)
     mockDiscoverMcpServerToolsAsExecutor.mockImplementation(
@@ -410,8 +386,6 @@ describe('AgentBlockHandler', () => {
       userPrompt: 'Keep the answer brief.',
     }
 
-    afterEach(() => vi.restoreAllMocks())
-
     it('shares one turn across fallback and preserves private history metadata', async () => {
       const session = {
         turnId: 'turn-1',
@@ -584,10 +558,6 @@ describe('AgentBlockHandler', () => {
   describe('conversation attachment replay', () => {
     beforeEach(() => {
       dbChainMockFns.returning.mockResolvedValue([{ id: 'memory-1' }])
-    })
-
-    afterEach(() => {
-      vi.restoreAllMocks()
     })
 
     const file = {

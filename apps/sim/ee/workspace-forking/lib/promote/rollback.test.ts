@@ -1,39 +1,36 @@
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockResolveForkEdge,
-  mockAcquireTargetLock,
-  mockAcquireEdgeLock,
   mockGetLatestRun,
   mockDeleteAllRuns,
   mockReactivate,
-  mockUndeploy,
-  mockDeleteIdentity,
   mockEnqueueUndeploy,
   mockProcessOutbox,
   mockNotify,
   mockGetDeploymentStatus,
 } = vi.hoisted(() => ({
-  mockResolveForkEdge: vi.fn(),
-  mockAcquireTargetLock: vi.fn(),
-  mockAcquireEdgeLock: vi.fn(),
   mockGetLatestRun: vi.fn(),
   mockDeleteAllRuns: vi.fn(),
   mockReactivate: vi.fn(),
-  mockUndeploy: vi.fn(),
-  mockDeleteIdentity: vi.fn(),
   mockEnqueueUndeploy: vi.fn(),
   mockProcessOutbox: vi.fn(),
   mockNotify: vi.fn(),
   mockGetDeploymentStatus: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  resolveForkEdge: mockResolveForkEdge,
-  acquireForkTargetLock: mockAcquireTargetLock,
-  acquireForkEdgeLock: mockAcquireEdgeLock,
-  setForkLockTimeout: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 
 vi.mock('@/ee/workspace-forking/lib/promote/promote-run-store', () => ({
   getLatestPromoteRunForTarget: mockGetLatestRun,
@@ -44,17 +41,13 @@ vi.mock('@/ee/workspace-forking/lib/promote/reactivate-in-tx', () => ({
   reactivateDeployedVersionInTx: mockReactivate,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  undeployWorkflow: mockUndeploy,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   getWorkflowDeploymentStatus: mockGetDeploymentStatus,
 }))
 
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  deleteWorkflowIdentityByIds: mockDeleteIdentity,
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
   enqueueWorkflowUndeploySideEffects: mockEnqueueUndeploy,
@@ -67,6 +60,11 @@ vi.mock('@/ee/workspace-forking/lib/socket', () => ({
 
 import { db } from '@sim/db'
 import { rollbackFork } from '@/ee/workspace-forking/lib/promote/rollback'
+
+const mockResolveForkEdge = workspaceForkingLineageMockFns.mockResolveForkEdge
+const mockDeleteIdentity = workspaceForkingMappingStoreMockFns.mockDeleteWorkflowIdentityByIds
+
+const mockUndeploy = workflowsPersistenceUtilsMockFns.mockUndeployWorkflow
 
 const EDGE = { childWorkspaceId: 'child-ws', parentWorkspaceId: 'parent-ws' }
 

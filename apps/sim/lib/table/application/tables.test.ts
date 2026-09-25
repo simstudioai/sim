@@ -1,63 +1,27 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  getTableById: vi.fn(),
-  getLimits: vi.fn(),
-  listDefinitions: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  queryTables: vi.fn(),
-  resolveArchivedContext: vi.fn(),
-  resolveActiveContext: vi.fn(),
-  resolveFolderPathFilter: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-  restoreTable: vi.fn(),
-  signal: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_RESTORED: 'table.restored' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-  resolveFolderPathFilter: mocks.resolveFolderPathFilter,
-}))
-
-vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mocks.getLimits }))
-vi.mock('@/lib/table/service', () => ({
-  createTable: vi.fn(),
-  deleteTable: vi.fn(),
-  getTableById: mocks.getTableById,
-  listTables: mocks.listDefinitions,
-  moveTableToFolder: vi.fn(),
-  queryTables: mocks.queryTables,
-  renameTable: vi.fn(),
-  restoreTable: mocks.restoreTable,
-  updateTableDescription: vi.fn(),
-}))
-
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveActiveContext,
-  resolveArchivedTableContext: mocks.resolveArchivedContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 /**
  * The two projectors are deliberately distinguishable here: the strict one
@@ -74,9 +38,25 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
   archivableTableFolderPath: () => '/',
 }))
 
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { listTablesUseCase, restoreTableUseCase } from '@/lib/table/application/tables'
+
+const mocks = {
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  resolveFolderPathFilter: folderQueriesMockFns.mockResolveFolderPathFilter,
+  getLimits: tableBillingMockFns.mockGetWorkspaceTableLimits,
+  resolveActiveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  resolveArchivedContext: tableApplicationContextMockFns.mockResolveArchivedTableContext,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  audit: auditMockFns.mockRecordAudit,
+  getTableById: tableServiceMockFns.mockGetTableById,
+  listDefinitions: tableServiceMockFns.mockListTables,
+  queryTables: tableServiceMockFns.mockQueryTables,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  restoreTable: tableServiceMockFns.mockRestoreTable,
+  signal: tableEventsMockFns.mockSignalTableSchemaChanged,
+}
 
 const WORKSPACE = {
   workspaceId: 'workspace-1',
@@ -85,7 +65,7 @@ const WORKSPACE = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal()
 
 const ARCHIVED: TableDefinition = {
   id: 'table-1',

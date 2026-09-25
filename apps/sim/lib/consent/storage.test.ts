@@ -56,7 +56,6 @@ afterEach(() => {
   store = undefined
   deleteConsentFromStorage()
   window.localStorage.clear()
-  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 

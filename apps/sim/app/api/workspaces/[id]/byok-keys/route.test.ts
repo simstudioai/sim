@@ -7,53 +7,44 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetUserEntityPermissions, mockGetWorkspaceById, mockEncryptSecret, mockDecryptSecret } =
-  vi.hoisted(() => ({
-    mockGetUserEntityPermissions: vi.fn(),
-    mockGetWorkspaceById: vi.fn(),
-    mockEncryptSecret: vi.fn(),
-    mockDecryptSecret: vi.fn(),
-  }))
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: mockEncryptSecret,
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-  getWorkspaceById: mockGetWorkspaceById,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'billing',
-  }),
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
-    mockGetUserEntityPermissions(...args),
-  permissionSatisfies: (actual: string, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { GET, POST } from '@/app/api/workspaces/[id]/byok-keys/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetUserEntityPermissions, mockGetWorkspaceById } = permissionsMockFns
+const { mockEncryptSecret, mockDecryptSecret } = encryptionMockFns
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetUserEntityPermissions(...args)
+)
+workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) =>
+    createMockWorkspaceApplicationContext({ workspaceId, billedAccountUserId: 'billing' })
+)
 
 const WORKSPACE_ID = 'workspace-1'
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const storedKeyRow = (id: string, name: string | null = null) => ({
   id,

@@ -1,30 +1,7 @@
-import { createEnvMock, envFlagsMock } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const flags = vi.hoisted(() => ({
-  authDisabled: false,
-  registrationDisabled: false,
-  appUrl: 'https://sim.test',
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  ...envFlagsMock,
-  get isAuthDisabled() {
-    return flags.authDisabled
-  },
-  get isRegistrationDisabled() {
-    return flags.registrationDisabled
-  },
-}))
-
-vi.mock('@/lib/core/config/env', () => {
-  const mock = createEnvMock({ NEXT_PUBLIC_APP_URL: 'https://sim.test' })
-  return {
-    ...mock,
-    getEnv: (key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? flags.appUrl : mock.getEnv(key)),
-  }
-})
 
 vi.unmock('@/lib/core/utils/urls')
 
@@ -44,24 +21,24 @@ function redirectParts(response: Response): { destination: URL; callback: URL } 
 
 describe('OAuth login bridge', () => {
   beforeEach(() => {
-    flags.authDisabled = false
-    flags.registrationDisabled = false
-    flags.appUrl = 'https://sim.test'
+    setEnvFlags({ isAuthDisabled: false, isRegistrationDisabled: false })
+    setEnv({ NEXT_PUBLIC_APP_URL: 'https://sim.test' })
   })
 
   it.each([true, false])(
     'keeps the configured auth origin when Next normalizes loopback hosts (authDisabled=%s)',
     async (authDisabled) => {
-      flags.authDisabled = authDisabled
-      flags.appUrl = 'http://127.0.0.1:37488'
-      const incoming = new NextRequest(`${flags.appUrl}/oauth/sign-in?client_id=sim-cli`)
+      const appUrl = 'http://127.0.0.1:37488'
+      setEnvFlags({ isAuthDisabled: authDisabled })
+      setEnv({ NEXT_PUBLIC_APP_URL: appUrl })
+      const incoming = new NextRequest(`${appUrl}/oauth/sign-in?client_id=sim-cli`)
       expect(incoming.nextUrl.origin).toBe('http://localhost:37488')
 
       const response = await GET(incoming)
       const destination = new URL(response.headers.get('location')!)
-      expect(destination.origin).toBe(flags.appUrl)
+      expect(destination.origin).toBe(appUrl)
       expect(destination.pathname).toBe(authDisabled ? '/' : '/signup')
-      if (!authDisabled) expect(redirectParts(response).callback.origin).toBe(flags.appUrl)
+      if (!authDisabled) expect(redirectParts(response).callback.origin).toBe(appUrl)
     }
   )
 
@@ -90,7 +67,7 @@ describe('OAuth login bridge', () => {
     expect((await proxy(new NextRequest(destination, { headers }))).status).toBe(307)
 
     destination.searchParams.delete('redirect')
-    flags.authDisabled = true
+    setEnvFlags({ isAuthDisabled: true })
     expect((await proxy(new NextRequest(destination, { headers }))).status).toBe(307)
   })
 })

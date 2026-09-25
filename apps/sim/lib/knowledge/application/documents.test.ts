@@ -1,110 +1,72 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveKnowledgeBase: vi.fn(),
-  resolveDocument: vi.fn(),
-  resolveCanonicalDocument: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveHumanBilling: vi.fn(),
-  resolveSystemBilling: vi.fn(),
-  checkUsage: vi.fn(),
-  getDocuments: vi.fn(),
-  bulkDocumentOperation: vi.fn(),
-  bulkDocumentOperationByFilter: vi.fn(),
-  createDocument: vi.fn(),
-  deleteDocument: vi.fn(),
-  updateDocument: vi.fn(),
-  processQueue: vi.fn(),
-  createDocumentRecords: vi.fn(),
-  deleteDocumentById: vi.fn(),
-  getProcessingConfig: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   performSingleUpload: vi.fn(),
   performBulkUpload: vi.fn(),
   markTimedOut: vi.fn(),
   retryProcessing: vi.fn(),
-  uploadStoredFile: vi.fn(),
   generateKnowledgeBaseFileKey: vi.fn(),
-  recordKnowledgeBaseFileOwnership: vi.fn(),
-  recordAudit: vi.fn(),
-  captureServerEvent: vi.fn(),
-  getDocumentTagDefinitions: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    DOCUMENT_UPLOADED: 'document.uploaded',
-    DOCUMENT_DELETED: 'document.deleted',
-    DOCUMENT_UPDATED: 'document.updated',
-  },
-  AuditResourceType: { DOCUMENT: 'document' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveHumanBilling,
-  resolveSystemBillingAttribution: mocks.resolveSystemBilling,
-  checkAttributedUsageLimits: mocks.checkUsage,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeDocumentContext: mocks.resolveDocument,
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveCanonicalDocument,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  getDocuments: mocks.getDocuments,
-  bulkDocumentOperation: mocks.bulkDocumentOperation,
-  bulkDocumentOperationByFilter: mocks.bulkDocumentOperationByFilter,
-  createSingleDocument: mocks.createDocument,
-  createDocumentRecords: mocks.createDocumentRecords,
-  deleteDocument: mocks.deleteDocumentById,
-  deleteKnowledgeDocumentInKnowledgeBase: mocks.deleteDocument,
-  updateDocument: mocks.updateDocument,
-  processDocumentsWithQueue: mocks.processQueue,
-  getProcessingConfig: mocks.getProcessingConfig,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mocks.getDocumentTagDefinitions,
-  getDocumentTagDefinitionsByKnowledgeBaseIds: async (ids: string[]) =>
-    new Map(
-      await Promise.all(ids.map(async (id) => [id, await mocks.getDocumentTagDefinitions(id)]))
-    ),
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
-  performUploadKnowledgeDocument: mocks.performSingleUpload,
-  performUploadKnowledgeDocuments: mocks.performBulkUpload,
-  performMarkKnowledgeDocumentTimedOut: mocks.markTimedOut,
-  performRetryKnowledgeDocumentProcessing: mocks.retryProcessing,
+  performUploadKnowledgeDocument: hoisted.performSingleUpload,
+  performUploadKnowledgeDocuments: hoisted.performBulkUpload,
+  performMarkKnowledgeDocumentTimedOut: hoisted.markTimedOut,
+  performRetryKnowledgeDocumentProcessing: hoisted.retryProcessing,
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: mocks.uploadStoredFile },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager', () => ({
-  generateKnowledgeBaseFileKey: mocks.generateKnowledgeBaseFileKey,
+  generateKnowledgeBaseFileKey: hoisted.generateKnowledgeBaseFileKey,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  recordKnowledgeBaseFileOwnership: mocks.recordKnowledgeBaseFileOwnership,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
@@ -118,6 +80,25 @@ import {
   uploadKnowledgeDocument,
   upsertKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
+
+const mocks = {
+  ...hoisted,
+  getDocuments: knowledgeDocumentsServiceMockFns.mockGetDocuments,
+  bulkDocumentOperation: knowledgeDocumentsServiceMockFns.mockBulkDocumentOperation,
+  bulkDocumentOperationByFilter: knowledgeDocumentsServiceMockFns.mockBulkDocumentOperationByFilter,
+  createDocument: knowledgeDocumentsServiceMockFns.mockCreateSingleDocument,
+  createDocumentRecords: knowledgeDocumentsServiceMockFns.mockCreateDocumentRecords,
+  deleteDocumentById: knowledgeDocumentsServiceMockFns.mockDeleteDocument,
+  deleteDocument: knowledgeDocumentsServiceMockFns.mockDeleteKnowledgeDocumentInKnowledgeBase,
+  updateDocument: knowledgeDocumentsServiceMockFns.mockUpdateDocument,
+  processQueue: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+  getProcessingConfig: knowledgeDocumentsServiceMockFns.mockGetProcessingConfig,
+  getDocumentTagDefinitions: knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitions,
+}
+
+knowledgeContextsMockFns.mockResolveActiveKnowledgeResourceContext.mockImplementation(
+  (...args: unknown[]) => knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext(...args)
+)
 
 /** Every mocked context carries the workspace read scope the resolvers would attach. */
 const knowledgeAccess = {
@@ -163,36 +144,38 @@ const storedDocumentInput = {
 
 describe('knowledge document application use cases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveKnowledgeBase.mockResolvedValue(context)
-    mocks.resolveDocument.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(context)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeDocumentContext.mockResolvedValue({
       ...context,
       documentId: document.id,
       document,
     })
-    mocks.resolveCanonicalDocument.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
       ...context,
       documentId: document.id,
       document,
     })
-    mocks.resolveSystemBilling.mockResolvedValue({
+    billingAttributionMockFns.mockResolveSystemBillingAttribution.mockResolvedValue({
       actorUserId: 'billing-owner-1',
       workspaceId: 'workspace-1',
     })
-    mocks.resolveHumanBilling.mockResolvedValue({
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
       actorUserId: 'user-1',
       workspaceId: 'workspace-1',
     })
-    mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    billingAttributionMockFns.mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: false,
+    })
     mocks.generateKnowledgeBaseFileKey.mockReturnValue('kb/upload-1')
-    mocks.uploadStoredFile.mockResolvedValue({
+    storageServiceMockFns.mockUploadFile.mockResolvedValue({
       path: '/api/files/serve/kb%2Fupload-1',
       key: 'kb/upload-1',
       name: uploadFile.filename,
       size: uploadFile.fileSize,
       type: uploadFile.mimeType,
     })
-    mocks.recordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
+    uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
     mocks.createDocument.mockResolvedValue(document)
     mocks.updateDocument.mockResolvedValue(document)
     mocks.processQueue.mockResolvedValue(undefined)
@@ -228,7 +211,7 @@ describe('knowledge document application use cases', () => {
   })
 
   it('rejects a document read after workspace permission is revoked', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(
       readKnowledgeDocument.execute({
         principal: { kind: 'session', userId: 'reader' },
@@ -239,7 +222,7 @@ describe('knowledge document application use cases', () => {
   })
 
   it('enforces personal-key policy before returning a resolved document', async () => {
-    mocks.resolveDocument.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeDocumentContext.mockResolvedValue({
       ...context,
       allowPersonalApiKeys: false,
       documentId: document.id,
@@ -247,7 +230,7 @@ describe('knowledge document application use cases', () => {
     })
     await expect(
       readKnowledgeDocument.execute({
-        principal: { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'reader' }),
         input: { knowledgeBaseId: context.knowledgeBaseId, documentId: document.id },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -264,7 +247,7 @@ describe('knowledge document application use cases', () => {
     queueTableRows(schemaMock.document, [{ id: 'existing-1' }])
 
     const result = await upsertKnowledgeDocument.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         knowledgeBaseId: 'knowledge-1',
         assertedWorkspaceId: 'workspace-1',
@@ -292,7 +275,7 @@ describe('knowledge document application use cases', () => {
 
   it('authorizes the canonical knowledge base before listing documents', async () => {
     await listKnowledgeDocuments.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         knowledgeBaseId: 'knowledge-1',
         assertedWorkspaceId: 'workspace-1',
@@ -300,13 +283,13 @@ describe('knowledge document application use cases', () => {
       },
     })
 
-    expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
+    expect(knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext).toHaveBeenCalledWith(
       expect.objectContaining({ assertedWorkspaceId: 'workspace-1' }),
       expect.objectContaining({ kind: 'session' })
     )
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getDocuments.mock.invocationCallOrder[0]
-    )
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.getDocuments.mock.invocationCallOrder[0])
     expect(mocks.getDocuments).toHaveBeenCalledWith(
       'knowledge-1',
       expect.any(Object),
@@ -317,11 +300,7 @@ describe('knowledge document application use cases', () => {
 
   it('resolves current workspace-key billing while retaining key audit attribution', async () => {
     await uploadKnowledgeDocument.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal(),
       input: {
         knowledgeBaseId: 'knowledge-1',
         assertedWorkspaceId: 'workspace-1',
@@ -330,8 +309,10 @@ describe('knowledge document application use cases', () => {
       },
     })
 
-    expect(mocks.resolveSystemBilling).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.recordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
+    expect(billingAttributionMockFns.mockResolveSystemBillingAttribution).toHaveBeenCalledWith(
+      'workspace-1'
+    )
+    expect(uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
       key: 'kb/upload-1',
       userId: 'billing-owner-1',
       workspaceId: 'workspace-1',
@@ -339,7 +320,7 @@ describe('knowledge document application use cases', () => {
       contentType: 'application/pdf',
       size: 42,
     })
-    expect(mocks.uploadStoredFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith({
       file: uploadFile.buffer,
       fileName: uploadFile.filename,
       contentType: uploadFile.mimeType,
@@ -348,10 +329,10 @@ describe('knowledge document application use cases', () => {
       preserveKey: true,
       persistMetadata: false,
     })
-    expect(mocks.recordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.uploadStoredFile.mock.invocationCallOrder[0]
-    )
-    expect(mocks.uploadStoredFile.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(
+      uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]
+    ).toBeLessThan(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0])
+    expect(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.createDocument.mock.invocationCallOrder[0]
     )
     expect(mocks.createDocument).toHaveBeenCalledWith(
@@ -372,28 +353,26 @@ describe('knowledge document application use cases', () => {
         },
       }
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: null,
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.documents.upload',
-          actor: {
-            kind: 'workspace_api_key',
-            keyId: 'key-1',
-            workspaceId: 'workspace-1',
-          },
+          actor: createWorkspaceApiKeyPrincipal(),
         }),
       })
     )
   })
 
   it('leaves only a sweepable knowledge-base binding when final authorization fails', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+      .mockResolvedValueOnce('write')
+      .mockResolvedValueOnce(null)
 
     await expect(
       uploadKnowledgeDocument.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           knowledgeBaseId: 'knowledge-1',
           assertedWorkspaceId: 'workspace-1',
@@ -403,22 +382,22 @@ describe('knowledge document application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.recordKnowledgeBaseFileOwnership).toHaveBeenCalledOnce()
-    expect(mocks.uploadStoredFile).toHaveBeenCalledWith(
+    expect(uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership).toHaveBeenCalledOnce()
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith(
       expect.objectContaining({ context: 'knowledge-base', persistMetadata: false })
     )
     expect(mocks.createDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-knowledge-base document before deletion and audit', async () => {
-    mocks.resolveDocument.mockRejectedValueOnce(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeDocumentContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Document not found')
     )
 
     await expect(
       deleteKnowledgeDocument.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           knowledgeBaseId: 'knowledge-1',
           documentId: 'document-from-another-kb',
@@ -428,19 +407,21 @@ describe('knowledge document application use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.deleteDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a cross-workspace document update before current membership or mutation', async () => {
-    mocks.resolveCanonicalDocument.mockResolvedValueOnce({
-      ...context,
-      workspaceId: 'workspace-b',
-      billedAccountUserId: 'billing-owner-b',
-      knowledgeBaseId: 'knowledge-b',
-      knowledgeBase: { id: 'knowledge-b', name: 'Workspace B docs' },
-      documentId: 'document-b',
-      document: { ...document, id: 'document-b', knowledgeBaseId: 'knowledge-b' },
-    })
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValueOnce(
+      {
+        ...context,
+        workspaceId: 'workspace-b',
+        billedAccountUserId: 'billing-owner-b',
+        knowledgeBaseId: 'knowledge-b',
+        knowledgeBase: { id: 'knowledge-b', name: 'Workspace B docs' },
+        documentId: 'document-b',
+        document: { ...document, id: 'document-b', knowledgeBaseId: 'knowledge-b' },
+      }
+    )
 
     await expect(
       updateKnowledgeDocument.execute({
@@ -467,9 +448,9 @@ describe('knowledge document application use cases', () => {
       code: 'forbidden',
     })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
     expect(mocks.updateDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a tag value that does not match its definition type', async () => {
@@ -516,7 +497,7 @@ describe('knowledge document application use cases', () => {
   it('bounds bulk document creation before billing or orchestration', async () => {
     await expect(
       createKnowledgeDocuments.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           knowledgeBaseId: 'knowledge-1',
           assertedWorkspaceId: 'workspace-1',
@@ -532,13 +513,13 @@ describe('knowledge document application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.checkUsage).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mocks.performBulkUpload).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-knowledge-base bulk document before mutation for a dual-workspace subject', async () => {
-    mocks.resolveCanonicalDocument.mockRejectedValueOnce(
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Document not found')
     )
 
@@ -561,7 +542,7 @@ describe('knowledge document application use cases', () => {
     })
 
     expect(result).toMatchObject({ deleted: [], failed: ['workspace-2-document'] })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
       'dual-workspace-user',
       'workspace-1',
       null,
@@ -569,21 +550,23 @@ describe('knowledge document application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.deleteDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('audits completed document deletions before propagating infrastructure failure', async () => {
     const failure = new Error('document store unavailable')
-    mocks.resolveCanonicalDocument.mockImplementation(async ({ documentId }) => ({
-      ...context,
-      documentId,
-      document: { ...document, id: documentId },
-    }))
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockImplementation(
+      async ({ documentId }) => ({
+        ...context,
+        documentId,
+        document: { ...document, id: documentId },
+      })
+    )
     mocks.deleteDocument.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
 
     await expect(
       bulkDeleteKnowledgeDocuments.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           knowledgeBaseId: 'knowledge-1',
           assertedWorkspaceId: 'workspace-1',
@@ -592,10 +575,10 @@ describe('knowledge document application use cases', () => {
       })
     ).rejects.toBe(failure)
 
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledOnce()
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ resourceId: 'document-1' })
     )
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

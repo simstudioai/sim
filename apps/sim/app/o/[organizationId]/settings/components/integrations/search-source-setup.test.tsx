@@ -1,7 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, cloneElement, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,8 +22,6 @@ vi.mock('@/hooks/queries/environment', () => ({
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
   hasMaxAccess: true,
-  replace: vi.fn(),
-  push: vi.fn(),
   availabilityReady: true,
   availabilityLoading: false,
   availabilityError: null as Error | null,
@@ -75,9 +80,7 @@ const mocks = vi.hoisted(() => ({
   connectorsQuery: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: mocks.userId } } }),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useUpdateSearchIntegration: () => ({ mutate: mocks.updateSearchIntegration }),
@@ -114,11 +117,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
     refetchIntegrationAvailability: mocks.refetchAvailability,
   }),
 }))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  usePathname: () => '/o/org-1/settings/integrations',
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
   useOptionalWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
@@ -139,53 +138,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
     hasMaxAccess: mocks.hasMaxAccess,
   }),
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  isConnectorSyncingOrPending: (row: {
-    status: string
-    accessMode?: string
-    memberSyncStatus?: string
-  }) =>
-    ['pending', 'syncing'].includes(row.status) ||
-    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
-  useSearchIndex: (
-    scope: { workspaceId?: string; organizationId?: string },
-    options: { enabled: boolean }
-  ) => {
-    mocks.basesQuery(scope.workspaceId ?? scope.organizationId, options)
-    return {
-      data: { knowledgeBaseId: mocks.bases.find((base) => base.isSearchIndex)?.id ?? null },
-      isPending: mocks.basesPending,
-      isError: Boolean(mocks.basesError),
-      error: mocks.basesError,
-      isFetching: false,
-      refetch: mocks.refetchBases,
-    }
-  },
-  useCreateConnector: () => ({ mutate: mocks.create, isPending: mocks.createPending }),
-  useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
-  useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
-  usePrepareSearchSource: () => ({
-    mutate: mocks.prepare,
-    data: mocks.prepareData,
-    isPending: mocks.preparePending,
-    error: mocks.prepareError,
-  }),
-  useConnectorList: (id?: string) => {
-    mocks.connectorsQuery(id)
-    return {
-      data: mocks.connectors,
-      isError: Boolean(mocks.connectorsError),
-      error: mocks.connectorsError,
-      isPending: mocks.connectorsPending,
-      isSuccess: !mocks.connectorsPending && !mocks.connectorsError,
-      isFetching: mocks.connectorsPending,
-      refetch: mocks.refetchConnectors,
-    }
-  },
-  useConnectorDocuments: () => ({ data: { documents: [], total: 0 }, isLoading: false }),
-  useExcludeConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useRestoreConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
-}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   useOAuthCredentials: () => ({
     data: mocks.credentials,
@@ -222,6 +175,71 @@ import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
+
+const mockPush = nextNavigationMockFns.router.push
+const mockReplace = nextNavigationMockFns.router.replace
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/org-1/settings/integrations')
+authClientMockFns.mockUseSession.mockImplementation(() => ({
+  data: { user: { id: mocks.userId } },
+}))
+
+const connectorQueries = kbConnectorsQueriesMockFns
+connectorQueries.mockUseSearchIndex.mockImplementation(
+  (scope: { workspaceId?: string; organizationId?: string }, options: { enabled: boolean }) => {
+    mocks.basesQuery(scope.workspaceId ?? scope.organizationId, options)
+    return {
+      data: { knowledgeBaseId: mocks.bases.find((base) => base.isSearchIndex)?.id ?? null },
+      isPending: mocks.basesPending,
+      isError: Boolean(mocks.basesError),
+      error: mocks.basesError,
+      isFetching: false,
+      refetch: mocks.refetchBases,
+    }
+  }
+)
+connectorQueries.mockUseCreateConnector.mockImplementation(() => ({
+  mutate: mocks.create,
+  isPending: mocks.createPending,
+}))
+connectorQueries.mockUseUpdateConnector.mockImplementation(() => ({
+  mutate: mocks.update,
+  isPending: mocks.updatePending,
+}))
+connectorQueries.mockUseUpdateConnectorAccess.mockImplementation(() => ({
+  mutate: mocks.applyAccess,
+  isPending: mocks.accessPending,
+}))
+connectorQueries.mockUsePrepareSearchSource.mockImplementation(() => ({
+  mutate: mocks.prepare,
+  data: mocks.prepareData,
+  isPending: mocks.preparePending,
+  error: mocks.prepareError,
+}))
+connectorQueries.mockUseConnectorList.mockImplementation((id?: string) => {
+  mocks.connectorsQuery(id)
+  return {
+    data: mocks.connectors,
+    isError: Boolean(mocks.connectorsError),
+    error: mocks.connectorsError,
+    isPending: mocks.connectorsPending,
+    isSuccess: !mocks.connectorsPending && !mocks.connectorsError,
+    isFetching: mocks.connectorsPending,
+    refetch: mocks.refetchConnectors,
+  }
+})
+connectorQueries.mockUseConnectorDocuments.mockImplementation(() => ({
+  data: { documents: [], total: 0 },
+  isLoading: false,
+}))
+connectorQueries.mockUseExcludeConnectorDocument.mockImplementation(() => ({
+  mutate: vi.fn(),
+  isPending: false,
+}))
+connectorQueries.mockUseRestoreConnectorDocument.mockImplementation(() => ({
+  mutate: vi.fn(),
+  isPending: false,
+}))
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -387,7 +405,6 @@ afterEach(async () => {
   container?.remove()
   root = null
   container = null
-  vi.restoreAllMocks()
   resetDeploymentShape()
 })
 
@@ -408,8 +425,8 @@ describe('Search source setup with real connector dialogs', () => {
         />,
         `?manage-source=${source}`
       )
-      if (source === 'source-one') expect(mocks.replace).toHaveBeenCalledWith(destination)
-      else expect(mocks.replace).not.toHaveBeenCalled()
+      if (source === 'source-one') expect(mockReplace).toHaveBeenCalledWith(destination)
+      else expect(mockReplace).not.toHaveBeenCalled()
       expect(mocks.connectorsQuery).not.toHaveBeenCalled()
       expect(document.querySelector('[role="dialog"]')).toBeNull()
     }
@@ -1444,7 +1461,7 @@ describe('resuming Search source setup', () => {
     const created = connector()
     await act(async () => mocks.create.mock.calls[0][1].onSuccess(created))
     expect(onCreated).toHaveBeenCalledWith('slack', created)
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     expect(useConnectorSetupStore.getState().getDraft(key)).toBeUndefined()
   })
 

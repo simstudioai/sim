@@ -184,8 +184,6 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     activeContainer = null
     animationFrames.clear()
     document.body.replaceChildren()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it('rejects the gate instead of revealing through a failed forced hide', async () => {

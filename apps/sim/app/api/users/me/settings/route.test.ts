@@ -1,16 +1,9 @@
 import { createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { GET, PATCH } from '@/app/api/users/me/settings/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 describe('PATCH /api/users/me/settings', () => {
   beforeEach(() => {

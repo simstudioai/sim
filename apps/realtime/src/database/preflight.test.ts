@@ -1,38 +1,21 @@
+import { databaseMock, dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockLimit } = vi.hoisted(() => ({
-  mockLimit: vi.fn(),
-}))
+vi.mock('@sim/db', () => databaseMock)
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        limit: mockLimit,
-      }),
-    }),
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
-vi.mock('@sim/db/schema', () => ({
-  workflow: {},
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { sleep } from '@sim/utils/helpers'
 import { assertSchemaCompatibility } from '@/database/preflight'
+
+const mockLimit = dbChainMockFns.limit
 
 /** Builds a Postgres-shaped error carrying a SQLSTATE `code`, as postgres.js throws. */
 function pgError(code: string): Error & { code: string } {

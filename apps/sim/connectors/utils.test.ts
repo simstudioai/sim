@@ -1,7 +1,9 @@
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import { knowledgeSecureFetchMock } from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({ fetchWithRetry: vi.fn() }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import {
   appendPendingMicrosoftGraphFolders,

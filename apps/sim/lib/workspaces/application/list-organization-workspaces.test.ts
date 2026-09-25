@@ -1,30 +1,40 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  rows: vi.fn(),
-  config: vi.fn(),
-  feature: vi.fn(),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.feature }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/workspaces/utils', () => ({ listAccessibleWorkspaceRowsForUser: mocks.rows }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.config,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listOrganizationWorkspaces } from '@/lib/workspaces/application/list-organization-workspaces'
 
-const principal = { kind: 'session' as const, userId: 'user', sessionId: 'session' }
+const mocks = {
+  feature: featureFlagsMockFns.mockIsFeatureEnabled,
+  rows: workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  config: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+}
+
+const principal = createSessionPrincipal({ userId: 'user', sessionId: 'session' })
 const row = (id: string, organizationId = 'org', role: 'read' | 'write' | 'admin' = 'read') => ({
   workspace: { id, name: `Workspace ${id}`, organizationId, allowPersonalApiKeys: true },
   permissionType: role,
 })
 beforeEach(() => {
-  vi.resetAllMocks()
   mocks.authorize.mockResolvedValue({ userId: 'user', organizationId: 'org' })
   mocks.config.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
   mocks.feature.mockResolvedValue(false)

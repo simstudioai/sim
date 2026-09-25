@@ -1,41 +1,53 @@
 import { db } from '@sim/db'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  workspace: vi.fn(),
-  organizationLock: vi.fn(),
-  billingLock: vi.fn(),
-  groupLock: vi.fn(),
-  authority: vi.fn(),
-  admission: vi.fn(),
-  capability: vi.fn(),
-  workspacePolicy: vi.fn(),
-  subscription: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: mocks.workspace }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.organizationLock,
-}))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: mocks.billingLock,
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.groupLock }))
-vi.mock('@/lib/invitations/core', () => ({
-  requireInvitationResendAuthority: mocks.authority,
-  resolveInvitationAdmissionOrganizationId: mocks.admission,
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateInvitationsAllowed: mocks.capability,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  WORKSPACE_MODE: { ORGANIZATION: 'organization' },
-  getWorkspaceInvitePolicy: mocks.workspacePolicy,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 import type { InvitationWithGrants } from '@/lib/invitations/core'
 import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
+
+const mocks = {
+  billingLock: billingIdentityLockMockFns.mockAcquireUserBillingIdentityLock,
+  groupLock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+  authority: invitationsCoreMockFns.mockRequireInvitationResendAuthority,
+  admission: invitationsCoreMockFns.mockResolveInvitationAdmissionOrganizationId,
+  workspacePolicy: workspacesPolicyMockFns.mockGetWorkspaceInvitePolicy,
+  subscription: billingCoreMockFns.mockGetOrganizationSubscription,
+}
 
 const invitation: InvitationWithGrants = {
   id: 'invite',
@@ -61,7 +73,7 @@ const invitation: InvitationWithGrants = {
 beforeEach(() => {
   vi.resetAllMocks()
   setEnvFlags({ isBillingEnabled: true })
-  mocks.workspace.mockResolvedValue({
+  permissionsMockFns.mockGetWorkspaceWithOwner.mockResolvedValue({
     id: 'workspace',
     organizationId: 'org',
     workspaceMode: 'personal',
@@ -77,19 +89,27 @@ describe('locked resend policy', () => {
   it('locks parent contexts before authority rows and permission-group leaves, then reads policy on the same executor', async () => {
     await lockInvitationResendPolicy(db, invitation, 'actor', 'org')
     const order = [
-      mocks.organizationLock,
+      organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
       mocks.billingLock,
       mocks.authority,
       mocks.groupLock,
-      mocks.capability,
+      permissionCheckMockFns.mockValidateInvitationsAllowed,
     ].map((mock) => mock.mock.invocationCallOrder[0])
     expect(order).toEqual([...order].sort((a, b) => a - b))
     expect(mocks.authority).toHaveBeenCalledWith(db, invitation, 'actor', 'org')
     expect(mocks.admission).toHaveBeenCalledWith(invitation, db)
-    expect(mocks.capability).toHaveBeenCalledWith('actor', { organizationId: 'org' }, db)
-    expect(mocks.capability).toHaveBeenCalledWith('actor', { workspaceId: 'workspace' }, db)
+    expect(permissionCheckMockFns.mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'actor',
+      { organizationId: 'org' },
+      db
+    )
+    expect(permissionCheckMockFns.mockValidateInvitationsAllowed).toHaveBeenCalledWith(
+      'actor',
+      { workspaceId: 'workspace' },
+      db
+    )
     expect(mocks.workspacePolicy).toHaveBeenCalledWith(
-      await mocks.workspace.mock.results[0].value,
+      await permissionsMockFns.mockGetWorkspaceWithOwner.mock.results[0].value,
       db
     )
   })
@@ -97,7 +117,7 @@ describe('locked resend policy', () => {
   it('observes a restriction committed while waiting for the policy lock', async () => {
     const refusal = new Error('Invitations restricted')
     mocks.groupLock.mockImplementation(async () => {
-      mocks.capability.mockRejectedValue(refusal)
+      permissionCheckMockFns.mockValidateInvitationsAllowed.mockRejectedValue(refusal)
     })
     await expect(lockInvitationResendPolicy(db, invitation, 'actor')).rejects.toBe(refusal)
     expect(mocks.workspacePolicy).not.toHaveBeenCalled()

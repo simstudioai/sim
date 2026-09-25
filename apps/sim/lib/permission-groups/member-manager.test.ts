@@ -1,5 +1,11 @@
 import { member, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { permissionGroupLocksMock } from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -8,13 +14,9 @@ const mocks = vi.hoisted(() => ({
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: vi.fn() }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/group-manager', () => ({ requirePermissionGroup: mocks.group }))
 vi.mock('@/lib/permission-groups/repository', () => ({ getGroupWorkspaces: mocks.workspaces }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
@@ -27,6 +29,8 @@ import {
   bulkAddPermissionGroupMemberRecords,
   removePermissionGroupMemberRecord,
 } from '@/lib/permission-groups/member-manager'
+
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
 
 const group = { id: 'group-1', name: 'Restricted', isDefault: false, membershipMode: 'inherit' }
 beforeEach(() => {

@@ -1,19 +1,20 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetUrlsMock)
 
-const { mockToken, mockSleep } = vi.hoisted(() => ({
-  mockToken: vi.fn(),
-  mockSleep: vi.fn(),
-}))
+const mockToken = authInternalMockFns.mockGenerateInternalToken
 
 const mockBaseUrl = urlsMockFns.mockGetInternalApiBaseUrl
 
-vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
-vi.mock('@sim/utils/helpers', () => ({ sleep: mockSleep }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
+
+const mockSleep = utilsHelpersMockFns.mockSleep
 
 describe('maskPIIBatchViaHttp', () => {
   let fetchMock: ReturnType<typeof vi.fn>
@@ -21,7 +22,6 @@ describe('maskPIIBatchViaHttp', () => {
   beforeEach(() => {
     mockToken.mockResolvedValue('tok')
     mockBaseUrl.mockReturnValue('http://app.internal:3000')
-    mockSleep.mockResolvedValue(undefined)
     fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
       const { texts } = JSON.parse(init.body) as { texts: string[] }
       return new Response(JSON.stringify({ masked: texts.map((t) => `M(${t})`) }), {
@@ -30,10 +30,6 @@ describe('maskPIIBatchViaHttp', () => {
       })
     })
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('splits by count into multiple requests, preserving global order', async () => {

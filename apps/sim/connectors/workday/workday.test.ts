@@ -5,7 +5,8 @@
  * with the `listingCapped` flag the sync engine reads before hard-deleting the
  * documents a partial listing left out.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { workdayConnector } from '@/connectors/workday/workday'
 
 const ACCESS_TOKEN = 'client-secret:refresh-token'
@@ -20,13 +21,6 @@ const PUBLISHED_ID = '0d75a5e37a411000167d21b9239f0001'
 const AUDIENCE_ID = '8ac3f16c1fff10000c53e90920940001'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function versionFixture(id: string, version = 1) {
   return {
@@ -88,10 +82,6 @@ describe('workday listDocuments', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('refuses to list when no status was chosen, rather than indexing every revision', async () => {
     mockApi({ total: 1, data: [versionFixture('a')] })
 
@@ -131,10 +121,6 @@ describe('workday listDocuments', () => {
 describe('workday credential failures', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('re-authenticates once and replays the request when a cached token has expired', async () => {

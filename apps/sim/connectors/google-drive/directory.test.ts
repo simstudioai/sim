@@ -1,15 +1,9 @@
+import { jsonResponse } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
 import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 /** Routes each request by the group id in its path, so nesting can be described declaratively. */
 function directory(members: Record<string, unknown[]>, groups: unknown[] = []) {

@@ -1,17 +1,14 @@
 import { credential } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  decryptSecret: vi.fn(),
-  parseBinding: vi.fn(),
-  resolveToken: vi.fn(),
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decryptSecret }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  parseGitHubInstallationBinding: mocks.parseBinding,
-  resolveGitHubInstallationAccessToken: mocks.resolveToken,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
   refreshOAuthToken: vi.fn(),
@@ -20,6 +17,12 @@ vi.mock('@/lib/oauth/oauth', () => ({
 
 import { resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+
+const mocks = {
+  parseBinding: githubInstallationMockFns.mockParseGitHubInstallationBinding,
+  resolveToken: githubInstallationMockFns.mockResolveGitHubInstallationAccessToken,
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+}
 
 const row = {
   type: 'service_account',
@@ -32,7 +35,6 @@ const binding = { installationId: '21', accountId: '11' }
 
 beforeEach(() => {
   resetDbChainMock()
-  vi.clearAllMocks()
   mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(binding) })
   mocks.parseBinding.mockReturnValue(binding)
   mocks.resolveToken.mockResolvedValue({ accessToken: 'ghs_contents' })

@@ -2,13 +2,17 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   enrollmentMutate: vi.fn(),
   sourceConnectionMutate: vi.fn(),
-  invalidateQueries: vi.fn(),
   connectionError: vi.fn(),
   channels: [] as Array<{
     name: string
@@ -17,23 +21,8 @@ const mocks = vi.hoisted(() => ({
   }>,
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
-}))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useStartConnectorMemberEnrollment: () => ({
-    mutate: mocks.enrollmentMutate,
-    submittedAt: 0,
-    isPending: false,
-    error: null,
-  }),
-  useConnectSimSearchConnector: () => ({
-    mutate: mocks.sourceConnectionMutate,
-    submittedAt: 0,
-    isPending: false,
-    error: null,
-  }),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 
@@ -88,6 +77,18 @@ function enrollment(): Enrollment {
 }
 
 beforeEach(() => {
+  kbConnectorsQueriesMockFns.mockUseStartConnectorMemberEnrollment.mockReturnValue({
+    mutate: mocks.enrollmentMutate,
+    submittedAt: 0,
+    isPending: false,
+    error: null,
+  })
+  kbConnectorsQueriesMockFns.mockUseConnectSimSearchConnector.mockReturnValue({
+    mutate: mocks.sourceConnectionMutate,
+    submittedAt: 0,
+    isPending: false,
+    error: null,
+  })
   vi.useFakeTimers()
   mocks.channels.length = 0
   vi.stubGlobal(
@@ -115,8 +116,6 @@ afterEach(() => {
   container = null
   latest = null
   vi.useRealTimers()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('useMemberEnrollment', () => {

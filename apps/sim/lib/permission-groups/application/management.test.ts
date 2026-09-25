@@ -2,30 +2,33 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  governed: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   load: vi.fn(),
   workspaces: vi.fn(),
   invalidWorkspaces: vi.fn(),
   scopeConflicts: vi.fn(),
   allConflict: vi.fn(),
-  lock: vi.fn(),
-  audit: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-  isOrganizationPermissionRegimeActive: mocks.governed,
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/repository', () => ({
-  loadGroupInOrganization: mocks.load,
-  getGroupWorkspaces: mocks.workspaces,
-  findWorkspacesNotInOrganization: mocks.invalidWorkspaces,
+  loadGroupInOrganization: hoisted.load,
+  getGroupWorkspaces: hoisted.workspaces,
+  findWorkspacesNotInOrganization: hoisted.invalidWorkspaces,
   getWorkspacesForGroups: vi.fn(),
   listOrganizationWorkspaces: vi.fn(),
   formatScopeConflictError: () => 'Scope conflict',
@@ -33,20 +36,10 @@ vi.mock('@/lib/permission-groups/repository', () => ({
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', async (original) => ({
   ...(await original<typeof import('@/lib/permission-groups/application/group-membership')>()),
-  findScopeConflicts: mocks.scopeConflicts,
-  findAllMembersWorkspaceConflict: mocks.allConflict,
+  findScopeConflicts: hoisted.scopeConflicts,
+  findAllMembersWorkspaceConflict: hoisted.allConflict,
 }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.audit,
-  AuditAction: {
-    PERMISSION_GROUP_UPDATED: 'permission_group.updated',
-    PERMISSION_GROUP_CREATED: 'permission_group.created',
-    PERMISSION_GROUP_DELETED: 'permission_group.deleted',
-    PERMISSION_GROUP_MEMBER_ADDED: 'permission_group.member.added',
-    PERMISSION_GROUP_MEMBER_REMOVED: 'permission_group.member.removed',
-  },
-  AuditResourceType: { PERMISSION_GROUP: 'permission_group' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   addPermissionGroupMember,
@@ -54,6 +47,13 @@ import {
   removePermissionGroupMember,
   updatePermissionGroup,
 } from '@/lib/permission-groups/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  lock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+  governed: permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const principal = {
   kind: 'organization_delegated',
@@ -100,7 +100,7 @@ describe('permission group current organization authority', () => {
     { ...principal, audience: 'sim:search' },
     { ...principal, expiresAt: new Date(0) },
     { ...principal, resourceScope: { chatId: '' } },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
   ])('rejects invalid authority before canonical loading: %j', async (invalid) => {
     await expect(
       getPermissionGroup.execute({ principal: invalid, input: scope })

@@ -1,19 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 
 const ME_URL = 'https://api.crmworkspace.com/v1/me'
 
 const FIELDS = { apiToken: '12345678901234567890123456789012' }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 const mockFetch = vi.fn()
 
@@ -22,13 +13,9 @@ describe('validateWealthboxServiceAccount', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('probes the me endpoint with a Bearer token', async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse(200, {
+      jsonResponse({
         name: 'Bill Jones',
         email: 'bill@example.com',
         current_user: { id: 42, email: 'bill@example.com', name: 'Bill Jones' },
@@ -45,8 +32,8 @@ describe('validateWealthboxServiceAccount', () => {
   it('throws invalid_credentials when Bearer 401s but ACCESS_TOKEN succeeds', async () => {
     mockFetch.mockImplementation(async (_url: string, init?: RequestInit) => {
       const headers = (init?.headers ?? {}) as Record<string, string>
-      if (headers.Authorization) return jsonResponse(401, { error: 'No valid API key provided' })
-      if (headers.ACCESS_TOKEN) return jsonResponse(200, { name: 'Bill Jones' })
+      if (headers.Authorization) return jsonResponse({ error: 'No valid API key provided' }, 401)
+      if (headers.ACCESS_TOKEN) return jsonResponse({ name: 'Bill Jones' })
       throw new Error('unexpected fetch headers')
     })
 
@@ -63,7 +50,7 @@ describe('validateWealthboxServiceAccount', () => {
   })
 
   it('throws invalid_credentials on 402 (expired Wealthbox trial)', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(402, { error: 'Wealthbox trial account has expired' }))
+    mockFetch.mockResolvedValue(jsonResponse({ error: 'Wealthbox trial account has expired' }, 402))
 
     await expect(validateWealthboxServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',

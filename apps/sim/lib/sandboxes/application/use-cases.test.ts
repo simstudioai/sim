@@ -1,58 +1,48 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    loadContext: vi.fn(),
-    resolvePermission: vi.fn(),
-    hasAccess: vi.fn(),
-    budget: vi.fn(),
+const { hoisted } = vi.hoisted(() => ({
+  hoisted: {
     listPage: vi.fn(),
     read: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
-    audit: vi.fn(),
   },
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SANDBOX_CREATED: 'sandbox.created',
-    SANDBOX_UPDATED: 'sandbox.updated',
-    SANDBOX_DELETED: 'sandbox.deleted',
-  },
-  AuditResourceType: { SANDBOX: 'sandbox' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceSandboxAccess: mocks.hasAccess,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.budget
-  },
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
   SANDBOX_MUTATION_LIMIT: { maxTokens: 20, refillRate: 10, refillIntervalMs: 60_000 },
-  createWorkspaceSandbox: mocks.create,
+  createWorkspaceSandbox: hoisted.create,
   currentSandboxStrategy: () => 'prebuilt',
-  deleteWorkspaceSandbox: mocks.remove,
-  listWorkspaceSandboxesPage: mocks.listPage,
-  readWorkspaceSandbox: mocks.read,
-  updateWorkspaceSandbox: mocks.update,
+  deleteWorkspaceSandbox: hoisted.remove,
+  listWorkspaceSandboxesPage: hoisted.listPage,
+  readWorkspaceSandbox: hoisted.read,
+  updateWorkspaceSandbox: hoisted.update,
 }))
 
 import {
@@ -72,6 +62,15 @@ import {
   listWorkspaceSandboxesUseCase,
   updateWorkspaceSandboxUseCase,
 } from '@/lib/sandboxes/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  hasAccess: billingSubscriptionMockFns.mockHasWorkspaceSandboxAccess,
+  budget: rateLimiterMockFns.mockCheckRateLimitDirect,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -94,12 +93,11 @@ const sandbox = {
   createdAt: '2026-08-04T11:00:00.000Z',
   updatedAt: '2026-08-04T12:00:00.000Z',
 }
-const session = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-const workspaceKey = {
-  kind: 'workspace_api_key' as const,
+const session = createSessionPrincipal()
+const workspaceKey = createWorkspaceApiKeyPrincipal({
   workspaceId: workspace.workspaceId,
   keyId: 'workspace-key-1',
-}
+})
 const BUDGET_OK = { allowed: true, remaining: 19, resetAt: new Date('2026-08-04T12:01:00Z') }
 const createInput = {
   workspaceId: workspace.workspaceId,
@@ -109,18 +107,13 @@ const createInput = {
   source: 'api' as const,
 }
 
-function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
+function copilotPrincipal(overrides: Parameters<typeof createDelegatedPrincipal>[0] = {}) {
+  return createDelegatedPrincipal({
     workspaceId: workspace.workspaceId,
     delegationId: 'copilot-tool:call-1',
     audience: SANDBOX_DELEGATION_AUDIENCE,
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
     ...overrides,
-  }
+  })
 }
 
 describe('sandbox application use cases', () => {

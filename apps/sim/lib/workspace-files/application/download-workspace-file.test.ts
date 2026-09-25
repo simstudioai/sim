@@ -1,42 +1,36 @@
 import { Readable } from 'node:stream'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 class FakeDocNotReadyError extends Error {}
 
-const mocks = vi.hoisted(() => ({
-  provenance: vi.fn(),
-  downloadStream: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
-  getFile: vi.fn(),
-  loadContext: vi.fn(),
-  recordAudit: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'FILE_DOWNLOADED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   isDocNotReadyError: (error: unknown) => error instanceof FakeDocNotReadyError,
@@ -45,6 +39,16 @@ vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
 
 import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+
+const mocks = {
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  downloadStream: storageServiceMockFns.mockDownloadFileStream,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const context = {
   fileId: 'file-1',
@@ -95,7 +99,7 @@ const uploadedPdf = {
   storageContext: 'workspace',
 }
 
-const SESSION = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const SESSION = createSessionPrincipal()
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
   return new Response(stream).text()
@@ -184,6 +188,7 @@ describe('workspace file downloads', () => {
   })
 })
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)

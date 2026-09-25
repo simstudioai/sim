@@ -1,3 +1,4 @@
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Capture useEffect calls so tests can trigger them manually.
@@ -15,15 +16,10 @@ vi.mock('react', () => ({
   useRef: (init: unknown) => ({ current: init }),
 }))
 
-const mockGetQueryData = vi.fn()
+const mockGetQueryData = reactQueryMockFns.mockQueryClient.getQueryData
 const mockFetchNextPage = vi.fn()
-const mockQueryClient = {
-  getQueryData: mockGetQueryData,
-}
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: vi.fn(() => mockQueryClient),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/hooks/queries/tables', () => ({
   tableRowsInfiniteOptions: vi.fn(({ tableId, pageSize, filter, sort }) => ({
@@ -93,7 +89,6 @@ function makeHook(queryOptions = QUERY_OPTIONS) {
 
 beforeEach(() => {
   capturedEffects.length = 0
-  vi.clearAllMocks()
   mockGetQueryData.mockReturnValue(undefined)
   mockFetchNextPage.mockResolvedValue(OK)
 })

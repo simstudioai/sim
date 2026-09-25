@@ -6,33 +6,18 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEncryptSecret,
-  mockDecryptSecret,
-  mockDeletePersonalEnvCredentialForUser,
-  mockInvalidateEffectiveDecryptedEnvCache,
-} = vi.hoisted(() => ({
-  mockEncryptSecret: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockDeletePersonalEnvCredentialForUser: vi.fn(),
-  mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
-vi.mock('@/lib/credentials/environment', () => ({
-  createWorkspaceEnvCredentials: vi.fn(),
-  deleteWorkspaceEnvCredentials: vi.fn(),
-  upsertPersonalEnvCredentialForUser: vi.fn(),
-  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
-}))
-vi.mock('@/lib/environment/utils', () => ({
-  invalidateEffectiveDecryptedEnvCache: mockInvalidateEffectiveDecryptedEnvCache,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import {
   deletePersonalSecret,
@@ -41,6 +26,11 @@ import {
   setWorkspaceSecret,
   updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
+
+const mockInvalidateEffectiveDecryptedEnvCache =
+  environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache
+const mockDeletePersonalEnvCredentialForUser =
+  credentialsEnvironmentMockFns.mockDeletePersonalEnvCredentialForUser
 
 describe('secret value storage', () => {
   beforeEach(() => {

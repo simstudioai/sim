@@ -100,14 +100,14 @@ jobs:
 
       - name: Run packages/db integration tests
         working-directory: packages/db
-        run: bunx vitest run --mode integration
+        run: bun run test --mode integration
 
       - name: Run apps/sim integration tests
         working-directory: apps/sim
         # A non-UTC process zone keeps timestamp-without-time-zone handling honest.
         env:
           TZ: America/Los_Angeles
-        run: bunx vitest run --mode integration
+        run: bun run test --mode integration
 
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
         if: matrix.provision == 'push'
@@ -115,7 +115,7 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
         run: >-
-          bunx vitest run --mode integration lib/billing/core/usage-log.integration.ts
+          bun run test --mode integration lib/billing/core/usage-log.integration.ts
           --outputFile.json=test-results/integration-pg16.json
 
       - name: Upload integration test reports

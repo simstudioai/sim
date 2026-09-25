@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
-vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
-
 vi.mock('@/connectors/google-drive/workspace-drives', () => ({
   GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE: 100,
   listGoogleWorkspaceDrives: async () => ({ driveIds: [] }),
@@ -67,7 +65,6 @@ describe('Drive file shortcuts', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('uses current target MIME and filename instead of stale shortcut hints', async () => {

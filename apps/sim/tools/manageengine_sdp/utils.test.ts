@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { resolveSdpBase, SDP_DATA_CENTER_BASES } from '@/tools/manageengine_sdp/data-centers'
 import {
@@ -9,13 +10,6 @@ import {
   getSdpErrorMessage,
   parseSdpResponse,
 } from '@/tools/manageengine_sdp/utils'
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 describe('resolveSdpBase', () => {
   /**

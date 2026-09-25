@@ -15,8 +15,6 @@ describe('client tool completion reporting', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
-    vi.clearAllMocks()
   })
 
   it('bounds every normal confirmation attempt with an abortable deadline', async () => {

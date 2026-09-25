@@ -1,15 +1,16 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  assertAuthBinding: vi.fn(),
-  completeSession: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   finalizePurpose: vi.fn(),
-  getOwnedSession: vi.fn(),
-  getPrincipalSession: vi.fn(),
   reauthorizeWorkspacePurpose: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  createSession: vi.fn(),
   authorizeCreate: vi.fn(),
   attribution: vi.fn(),
   authorizeOrganizationAttachment: vi.fn(),
@@ -17,31 +18,21 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
-  authorizeOrganizationAttachmentControl: mocks.authorizeOrganizationAttachment,
+  authorizeOrganizationAttachmentControl: hoisted.authorizeOrganizationAttachment,
   createOrganizationAssistantAttachment: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/organization-logo/application', () => ({
-  authorizeOrganizationLogoControl: mocks.authorizeOrganizationLogo,
+  authorizeOrganizationLogoControl: hoisted.authorizeOrganizationLogo,
   createOrganizationLogoUpload: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  abortUploadSession: vi.fn(),
-  assertUploadSessionAuthBinding: mocks.assertAuthBinding,
-  completeUploadSession: mocks.completeSession,
-  createUploadPartUrls: vi.fn(),
-  createUploadSession: mocks.createSession,
-  getOwnedUploadSession: mocks.getOwnedSession,
-  getPrincipalUploadSession: mocks.getPrincipalSession,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 vi.mock('@/app/api/files/uploads/finalizers', () => ({
-  finalizeUploadPurpose: mocks.finalizePurpose,
+  finalizeUploadPurpose: hoisted.finalizePurpose,
   finalizeWorkspaceFileUpload: vi.fn(),
   loadCompletedUploadPurpose: vi.fn(),
   loadCompletedWorkspaceFileUpload: vi.fn(),
@@ -50,17 +41,14 @@ vi.mock('@/app/api/files/uploads/finalizers', () => ({
 vi.mock('@/app/api/files/uploads/purposes', () => ({
   createPurposeUploadSession: vi.fn(),
   reauthorizeUploadPurpose: vi.fn(),
-  reauthorizeWorkspaceUploadPurpose: mocks.reauthorizeWorkspacePurpose,
-  resolveUploadAttributionUserId: mocks.attribution,
+  reauthorizeWorkspaceUploadPurpose: hoisted.reauthorizeWorkspacePurpose,
+  resolveUploadAttributionUserId: hoisted.attribution,
 }))
 
 vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => ({
-  authorizeWorkspaceFileOperation: mocks.authorizeCreate,
+  authorizeWorkspaceFileOperation: hoisted.authorizeCreate,
 }))
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: async () => new Map(),
-  resolveFolderPathFromIndex: () => null,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
 import {
   abortInternalUploadSession,
@@ -72,11 +60,20 @@ import {
 } from '@/lib/uploads/upload-session/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+folderQueriesMockFns.mockLoadActiveFolderPathIndex.mockImplementation(async () => new Map())
+folderQueriesMockFns.mockResolveFolderPathFromIndex.mockReturnValue(null)
+
+const mocks = {
+  ...hoisted,
+  assertAuthBinding: uploadSessionMockFns.mockAssertUploadSessionAuthBinding,
+  completeSession: uploadSessionMockFns.mockCompleteUploadSession,
+  getOwnedSession: uploadSessionMockFns.mockGetOwnedUploadSession,
+  getPrincipalSession: uploadSessionMockFns.mockGetPrincipalUploadSession,
+  createSession: uploadSessionMockFns.mockCreateUploadSession,
+  getWorkspaceFile: workspaceUploadsMockFns.mockGetWorkspaceFile,
 }
+
+const principal = createSessionPrincipal()
 
 describe('upload session application', () => {
   beforeEach(() => {

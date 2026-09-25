@@ -1,28 +1,31 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { dehydrate, hydrate, QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockListOrganizationChats, mockListWorkspacesForViewer, mockGetUserProfile } = vi.hoisted(
-  () => ({
-    mockListOrganizationChats: vi.fn(),
-    mockListWorkspacesForViewer: vi.fn(),
-    mockGetUserProfile: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  listOrganizationChats: { execute: mockListOrganizationChats },
+const { mockListWorkspacesForViewer } = vi.hoisted(() => ({
+  mockListWorkspacesForViewer: vi.fn(),
 }))
+
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: mockListWorkspacesForViewer,
 }))
-vi.mock('@/lib/users/queries', () => ({ getUserProfile: mockGetUserProfile }))
-vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+vi.mock('@sim/emcn', () => emcnMock)
 
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { userProfileKeys } from '@/hooks/queries/current-user-data'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { workspaceKeys } from '@/hooks/queries/workspace'
+
+const mockListOrganizationChats = mothershipOrganizationChatsMockFns.mockListOrganizationChats
+const mockGetUserProfile = usersQueriesMockFns.mockGetUserProfile
 
 const PRINCIPAL: SessionPrincipal = { kind: 'session', userId: 'viewer', sessionId: 'session' }
 const CHAT = {

@@ -1233,10 +1233,6 @@ describe('workflow executor metadata delegation', () => {
     })
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('binds cross-workflow metadata reads to the target without attaching the parent run', async () => {
     const result = await transformBlockTool(
       { type: 'workflow', params: { workflowId: 'child-workflow' } },

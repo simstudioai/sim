@@ -1,18 +1,18 @@
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRetentionAccess } = vi.hoisted(() => ({
-  mockRetentionAccess: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceSandboxRetentionAccess: mockRetentionAccess,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import {
   hasWorkspaceSandboxRetentionAccessCached,
   resetSandboxEntitlementCache,
 } from '@/lib/execution/remote-sandbox/entitlement'
+
+const mockRetentionAccess = billingSubscriptionMockFns.mockHasWorkspaceSandboxRetentionAccess
 
 const WORKSPACE_ID = 'workspace-1'
 

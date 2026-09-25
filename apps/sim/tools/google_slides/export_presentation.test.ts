@@ -1,21 +1,20 @@
 import { createExecutionContext, inputValidationMock, inputValidationMockFns } from '@sim/testing'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadCopilotFile, mockUploadExecutionFile } = vi.hoisted(() => ({
-  mockUploadCopilotFile: vi.fn(),
-  mockUploadExecutionFile: vi.fn(),
-}))
-
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mockUploadCopilotFile,
-}))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
 import { executeGoogleSlidesTool } from '@/lib/internal/google-slides/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+const mockUploadCopilotFile = uploadsCopilotMockFns.mockUploadCopilotFile
+const mockUploadExecutionFile = uploadsExecutionMockFns.mockUploadExecutionFile
 
 function operationCall(
   overrides: Partial<InternalToolOperationCall> = {}

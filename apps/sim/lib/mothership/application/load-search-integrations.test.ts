@@ -1,8 +1,11 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authorizeChat, listIntegrations, liveAccounts } = vi.hoisted(() => ({
-  authorizeChat: vi.fn(),
+const { listIntegrations, liveAccounts } = vi.hoisted(() => ({
   liveAccounts: vi.fn(),
   listIntegrations: vi.fn(),
 }))
@@ -11,15 +14,15 @@ vi.mock('@/lib/sim-search/live/application', () => ({
   listLiveSearchAccounts: { execute: liveAccounts },
 }))
 
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: authorizeChat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
   listPersonalSearchIntegrations: { execute: listIntegrations },
 }))
 
 import type { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+
+const authorizeChat = mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation
 
 type InventoryPage = Awaited<ReturnType<typeof listPersonalSearchIntegrations.execute>>
 

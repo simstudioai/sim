@@ -6,46 +6,39 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
   listDeployments: vi.fn(),
   getLiveChatDeployment: vi.fn(),
   getIdentifierOwner: vi.fn(),
-  performChatDeploy: vi.fn(),
-  validateChatDeployAuth: vi.fn(),
-  audit: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CHAT_DEPLOYED: 'chat.deployed', CHAT_DELETED: 'chat.deleted' },
-  AuditResourceType: { CHAT: 'chat' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => {
-    const context = await mocks.loadWorkspaceContext(workspaceId)
-    if (!context) throw new Error('Workspace not found')
-    return context
-  },
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: mocks.listDeployments,
   getLiveChatDeploymentForWorkflow: mocks.getLiveChatDeployment,
@@ -53,23 +46,20 @@ vi.mock('@/lib/chat-deployments/queries', () => ({
   getChatDeploymentWithWorkspace: vi.fn(),
   updateChatDeploymentRow: vi.fn(),
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performChatDeploy: mocks.performChatDeploy,
-  performChatUndeploy: vi.fn(),
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateChatDeployAuth: mocks.validateChatDeployAuth,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { GET } from '@/app/api/v2/chat-deployments/route'
 
+const { mockPerformChatDeploy } = workflowsOrchestrationMockFns
+
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
 
 const personalKeyAuth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
+  principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -106,9 +96,10 @@ function chatRow(overrides: Record<string, unknown> = {}) {
 }
 
 async function get(search = `?workspaceId=${WORKSPACE_ID}`) {
-  return GET(new NextRequest(`http://localhost/api/v2/chat-deployments${search}`), {
-    params: Promise.resolve({}),
-  })
+  return GET(
+    createMockRequest({ url: `http://localhost/api/v2/chat-deployments${search}` }),
+    createRouteContext({})
+  )
 }
 
 describe('/api/v2/chat-deployments', () => {
@@ -117,9 +108,11 @@ describe('/api/v2/chat-deployments', () => {
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.loadWorkspaceContext.mockResolvedValue(workspaceContext)
-    mocks.resolveWorkflowContext.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(
+      workspaceContext
+    )
+    workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue({
       ...workspaceContext,
       workflowId: WORKFLOW_ID,
       workflow: { id: WORKFLOW_ID, name: 'Support', workspaceId: WORKSPACE_ID },
@@ -130,8 +123,8 @@ describe('/api/v2/chat-deployments', () => {
     })
     mocks.getLiveChatDeployment.mockResolvedValue(null)
     mocks.getIdentifierOwner.mockResolvedValue(null)
-    mocks.validateChatDeployAuth.mockResolvedValue(undefined)
-    mocks.performChatDeploy.mockImplementation(async () => {
+    permissionCheckMockFns.mockValidateChatDeployAuth.mockResolvedValue(undefined)
+    mockPerformChatDeploy.mockImplementation(async () => {
       mocks.getLiveChatDeployment.mockResolvedValue(chatRow())
       return {
         success: true,
@@ -239,7 +232,7 @@ describe('/api/v2/chat-deployments', () => {
      * about whether the workspace holds any deployment.
      */
     it('conceals a workspace the caller cannot reach as a missing workspace', async () => {
-      mocks.resolvePermission.mockResolvedValue(null)
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
       const response = await get()
 

@@ -1,22 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   executeQuickBooksUpdateItemOperation,
   executeQuickBooksUpdateVendorOperation,
 } from '@/lib/internal/quickbooks/provider-operations'
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { QUICKBOOKS_ENV: 'production' },
-}))
-
 import { executeQuickBooksFullUpdate } from '@/tools/quickbooks/utils'
 
 describe('QuickBooks documented full updates', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('reads, verifies, preserves, merges, and posts a complete entity', async () => {

@@ -1,31 +1,32 @@
-import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDecrementStorageUsageForBillingContext,
-  mockDecrementStorageUsageForBillingContextInTx,
-  mockGetAccessibleCopilotChat,
-  mockReconcileChatStreamMarkers,
-  mockReadEvents,
-  mockReadFilePreviewSessions,
-  mockGetLatestRunForStream,
-} = vi.hoisted(() => ({
-  mockDecrementStorageUsageForBillingContext: vi.fn(),
-  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockGetAccessibleCopilotChat: vi.fn(),
-  mockReconcileChatStreamMarkers: vi.fn(),
-  mockReadEvents: vi.fn(),
-  mockReadFilePreviewSessions: vi.fn(),
-  mockGetLatestRunForStream: vi.fn(),
-}))
+const { mockReconcileChatStreamMarkers, mockReadEvents, mockReadFilePreviewSessions } = vi.hoisted(
+  () => ({
+    mockReconcileChatStreamMarkers: vi.fn(),
+    mockReadEvents: vi.fn(),
+    mockReadFilePreviewSessions: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
-  getAccessibleCopilotChatWithMessages: mockGetAccessibleCopilotChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
 vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
@@ -39,34 +40,28 @@ vi.mock('@/lib/mothership/request/session/file-preview-session', () => ({
   readFilePreviewSessions: mockReadFilePreviewSessions,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mockGetLatestRunForStream,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: vi.fn(),
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { DELETE, GET, PATCH } from '@/app/api/mothership/chats/[chatId]/route'
 
-function makeContext(chatId: string) {
-  return { params: Promise.resolve({ chatId }) }
-}
+const { mockGetAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat } =
+  mothershipChatLifecycleMockFns
+mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatWithMessages.mockImplementation(
+  (...args: Parameters<typeof mockGetAccessibleCopilotChat>) =>
+    mockGetAccessibleCopilotChat(...args)
+)
+const { mockGetLatestRunForStream } = mothershipAsyncRunsMockFns
+const { mockDecrementStorageUsageForBillingContextInTx } = billingStorageMockFns
 
 function createRequest(chatId: string) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}`, {
-    method: 'GET',
-  })
+  return createMockRequest({ url: `http://localhost:3000/api/mothership/chats/${chatId}` })
 }
 
 afterAll(() => {
@@ -152,7 +147,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
             ]
           : []),
       ])
-      const response = await GET(createRequest('chat-watch'), makeContext('chat-watch'))
+      const response = await GET(
+        createRequest('chat-watch'),
+        createRouteContext({ chatId: 'chat-watch' })
+      )
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.chat.messages).toHaveLength(2)
@@ -187,7 +185,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       new Map([['chat-stuck', { chatId: 'chat-stuck', streamId: null, status: 'inactive' }]])
     )
 
-    const response = await GET(createRequest('chat-stuck'), makeContext('chat-stuck'))
+    const response = await GET(
+      createRequest('chat-stuck'),
+      createRouteContext({ chatId: 'chat-stuck' })
+    )
     expect(response.status).toBe(200)
     const body = await response.json()
 
@@ -214,7 +215,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     })
     mockGetLatestRunForStream.mockResolvedValueOnce({ status: 'complete' })
 
-    const response = await GET(createRequest('chat-finished'), makeContext('chat-finished'))
+    const response = await GET(
+      createRequest('chat-finished'),
+      createRouteContext({ chatId: 'chat-finished' })
+    )
     expect(response.status).toBe(200)
     const body = await response.json()
 
@@ -245,7 +249,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       ])
     )
 
-    const response = await GET(createRequest('chat-mismatch'), makeContext('chat-mismatch'))
+    const response = await GET(
+      createRequest('chat-mismatch'),
+      createRouteContext({ chatId: 'chat-mismatch' })
+    )
     expect(response.status).toBe(200)
     const body = await response.json()
 
@@ -271,16 +278,16 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
 
   it('soft-deletes an unbilled chat without decrementing workspace or payer storage', async () => {
     const response = await DELETE(
-      new NextRequest('http://localhost:3000/api/mothership/chats/chat-delete', {
+      createMockRequest({
         method: 'DELETE',
+        url: 'http://localhost:3000/api/mothership/chats/chat-delete',
       }),
-      makeContext('chat-delete')
+      createRouteContext({ chatId: 'chat-delete' })
     )
 
     expect(response.status).toBe(200)
     expect(dbChainMockFns.update).toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
-    expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 })
@@ -291,7 +298,7 @@ describe('organization chat mutations publish private owner updates', () => {
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
     mockGetAccessibleCopilotChat.mockResolvedValue({
       id: 'chat-1',
@@ -307,11 +314,12 @@ describe('organization chat mutations publish private owner updates', () => {
   it('does not publish if a concurrent deletion leaves no updated row', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
     const response = await PATCH(
-      new NextRequest('http://localhost/api/mothership/chats/chat-1', {
+      createMockRequest({
         method: 'PATCH',
-        body: JSON.stringify({ pinned: true }),
+        url: 'http://localhost/api/mothership/chats/chat-1',
+        body: { pinned: true },
       }),
-      makeContext('chat-1')
+      createRouteContext({ chatId: 'chat-1' })
     )
     expect(response.status).toBe(404)
     expect(publishChatStatusChanged).not.toHaveBeenCalled()

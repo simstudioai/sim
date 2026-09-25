@@ -1,33 +1,38 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { discoverServerTools, assertPermissionsAllowed, getServer, resolveTarget } = vi.hoisted(
-  () => ({
-    discoverServerTools: vi.fn(),
-    getServer: vi.fn(),
-    resolveTarget: vi.fn(),
-    assertPermissionsAllowed: vi.fn(),
-  })
-)
+const { discoverServerTools } = vi.hoisted(() => ({
+  discoverServerTools: vi.fn(),
+}))
 
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: discoverServerTools,
 }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: resolveTarget,
-}))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  getMcpServerUseCase: { execute: getServer },
-  discoverMcpServerToolsUseCase: {
-    execute: async (args: unknown) => ({ tools: await discoverServerTools(args) }),
-  },
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({ assertPermissionsAllowed }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import {
   buildOrganizationTaggedMcpToolSchemas,
   buildSelectedMcpToolSchemas,
   buildTaggedMcpToolSchemas,
 } from '@/lib/mothership/mcp-tools'
+
+const assertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+const getServer = mcpUseCasesMockFns.mockGetMcpServerUseCase
+const resolveTarget = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase.mockImplementation(async (args: unknown) => ({
+  tools: await discoverServerTools(args),
+}))
 
 describe('mothership MCP tool schemas', () => {
   beforeEach(() => {
@@ -127,7 +132,7 @@ describe('mothership MCP tool schemas', () => {
 
 describe('organization tagged MCP targets', () => {
   const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
-  const principal = { kind: 'session' as const, userId: 'user-1' }
+  const principal = createSessionPrincipal()
   beforeEach(() => {
     getServer.mockImplementation(async ({ input }) => ({
       server: { workspaceId: input.serverId === 'server-a' ? 'workspace-a' : 'workspace-b' },

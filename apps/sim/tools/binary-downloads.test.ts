@@ -184,7 +184,6 @@ beforeEach(() => {
 
 afterEach(() => {
   expect(fetch).not.toHaveBeenCalled()
-  vi.unstubAllGlobals()
 })
 
 describe.each(DOWNLOAD_CASES)('$tool.id binary download', (provider) => {

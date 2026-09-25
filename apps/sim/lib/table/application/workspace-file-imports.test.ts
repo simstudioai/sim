@@ -1,92 +1,91 @@
+import {
+  createDelegatedPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  batchInsert: vi.fn(),
-  createTable: vi.fn(),
-  deleteTable: vi.fn(),
-  fetchFile: vi.fn(),
-  inferSchema: vi.fn(),
-  loadFileContext: vi.fn(),
-  markJob: vi.fn(),
-  parseRows: vi.fn(),
-  provenance: vi.fn(),
-  releaseJob: vi.fn(),
-  replaceRows: vi.fn(),
-  resolveFile: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveTableContext: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-  runDetached: vi.fn(),
-  signal: vi.fn(),
-  validateMapping: vi.fn(),
-  coerceRows: vi.fn(),
-  CsvImportValidationError: class extends Error {},
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_CREATED: 'table.created', TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'request-id-1234' }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }))
-vi.mock('@/lib/table', () => ({
-  batchInsertRows: mocks.batchInsert,
-  buildAutoMapping: vi.fn(() => ({ name: 'name' })),
-  coerceRowsForTable: mocks.coerceRows,
-  CsvImportValidationError: mocks.CsvImportValidationError,
-  CSV_ASYNC_IMPORT_THRESHOLD_BYTES: 8 * 1024 * 1024,
-  CSV_MAX_BATCH_SIZE: 1000,
-  getWorkspaceTableLimits: vi.fn(() => ({ maxRowsPerTable: 100, maxTables: 5 })),
-  inferSchemaFromCsv: mocks.inferSchema,
-  parseFileRows: mocks.parseRows,
-  replaceTableRows: mocks.replaceRows,
-  sanitizeName: (value: string) => value,
-  TABLE_LIMITS: { MAX_TABLE_NAME_LENGTH: 128 },
-  validateMapping: mocks.validateMapping,
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveTableContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mocks.signal }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
+vi.mock('@/lib/table', () => ({ ...tableMock, CSV_MAX_BATCH_SIZE: 1000 }))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: vi.fn() }))
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunningInWorkspace: mocks.markJob,
-  releaseJobClaimInWorkspace: mocks.releaseJob,
-}))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
-}))
-vi.mock('@/lib/table/service', () => ({
-  createTable: mocks.createTable,
-  deleteTable: mocks.deleteTable,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchFile,
-  loadActiveWorkspaceFileContext: mocks.loadFileContext,
-  resolveWorkspaceFileReference: mocks.resolveFile,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import {
   createTableFromWorkspaceFile,
   importWorkspaceFileIntoTable,
 } from '@/lib/table/application/workspace-file-imports'
+
+const mocks = {
+  batchInsert: tableMockFns.mockBatchInsertRows,
+  inferSchema: tableMockFns.mockInferSchemaFromCsv,
+  markJob: tableJobsServiceMockFns.mockMarkTableJobRunningInWorkspace,
+  parseRows: tableMockFns.mockParseFileRows,
+  releaseJob: tableJobsServiceMockFns.mockReleaseJobClaimInWorkspace,
+  replaceRows: tableMockFns.mockReplaceTableRows,
+  resolveTableContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  runDetached: backgroundTaskMockFns.mockRunDetached,
+  validateMapping: tableMockFns.mockValidateMapping,
+  coerceRows: tableMockFns.mockCoerceRowsForTable,
+  audit: auditMockFns.mockRecordAudit,
+  createTable: tableServiceMockFns.mockCreateTable,
+  deleteTable: tableServiceMockFns.mockDeleteTable,
+  fetchFile: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  loadFileContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  resolveFile: workspaceFileManagerMockFns.mockResolveWorkspaceFileReference,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  signal: tableEventsMockFns.mockSignalTableRowsChanged,
+}
+
+tableMockFns.mockBuildAutoMapping.mockReturnValue({ name: 'name' })
+tableMockFns.mockGetWorkspaceTableLimits.mockReturnValue({ maxRowsPerTable: 100, maxTables: 5 })
+tableMockFns.mockSanitizeName.mockImplementation((value: string) => value)
+tableRowsSecretProvenanceMockFns.mockCreateExactEmptyTableRowSecretProvenance.mockReturnValue({
+  complete: true,
+  columns: {},
+})
+
+idMockFns.mockGenerateId.mockReturnValue('request-id-1234')
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -112,16 +111,10 @@ const sourceFile = {
   type: 'text/csv',
   size: 128,
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
-}
+})
 const tablePrincipal = { ...principal, resourceScope: { tableId: 'table-1' } }
 
 describe('workspace-file Table application commands', () => {
@@ -210,11 +203,7 @@ describe('workspace-file Table application commands', () => {
   it('rejects non-delegated upload identities before canonical workspace or file loading', async () => {
     await expect(
       createTableFromWorkspaceFile.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key-1',
-        } as never,
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }) as never,
         input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

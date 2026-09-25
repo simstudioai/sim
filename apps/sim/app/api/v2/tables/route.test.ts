@@ -5,34 +5,29 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  list: vi.fn(),
-  create: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
-  getMaxRowsPerTable: vi.fn(),
-}))
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/tables', () => ({
-  listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
-  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
-}))
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
-vi.mock('@/lib/table/billing', () => ({
-  getMaxRowsPerTable: mocks.getMaxRowsPerTable,
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 import { v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
 import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { writeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/tables/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
+const { mockGetMaxRowsPerTable } = tableBillingMockFns
+const { mockListTablesUseCase, mockCreateTableUseCase } = tableApplicationTablesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const principal = {
@@ -76,15 +71,15 @@ describe('/api/v2/tables', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
-    mocks.getMaxRowsPerTable.mockResolvedValue(5000)
-    mocks.list.mockResolvedValue({
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
+    mockGetMaxRowsPerTable.mockResolvedValue(5000)
+    mockListTablesUseCase.mockResolvedValue({
       tables: [{ table, folderPath: '/' }],
       nextKeys: undefined,
       sortBy: 'name',
       sortOrder: 'asc',
     })
-    mocks.create.mockResolvedValue({ table, folderPath: '/' })
+    mockCreateTableUseCase.mockResolvedValue({ table, folderPath: '/' })
   })
 
   /**
@@ -96,7 +91,7 @@ describe('/api/v2/tables', () => {
    * names and stays green when a route drops the stamp entirely.
    */
   it('refuses a cursor minted under a different filter', async () => {
-    mocks.list.mockResolvedValue({
+    mockListTablesUseCase.mockResolvedValue({
       tables: [{ table, folderPath: '/' }],
       nextKeys: ['Contacts', 'table-1'],
       sortBy: 'name',
@@ -111,7 +106,7 @@ describe('/api/v2/tables', () => {
     const { nextCursor } = await minted.json()
     expect(nextCursor).toEqual(expect.any(String))
 
-    mocks.list.mockClear()
+    mockListTablesUseCase.mockClear()
     const replayed = await GET(
       new NextRequest(
         `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=beta&cursor=${encodeURIComponent(nextCursor)}`
@@ -120,7 +115,7 @@ describe('/api/v2/tables', () => {
 
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
-    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mockListTablesUseCase).not.toHaveBeenCalled()
   })
 
   /**
@@ -132,7 +127,7 @@ describe('/api/v2/tables', () => {
    * contribute nothing to the scope.
    */
   it('resumes a cursor minted before scope entered the binding', async () => {
-    mocks.list.mockResolvedValue({
+    mockListTablesUseCase.mockResolvedValue({
       tables: [{ table, folderPath: '/' }],
       nextKeys: undefined,
       sortBy: 'createdAt',
@@ -152,7 +147,7 @@ describe('/api/v2/tables', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.list).toHaveBeenLastCalledWith(
+    expect(mockListTablesUseCase).toHaveBeenLastCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ after: ['2026-08-01T00:00:00.000Z', 'table-1'] }),
       })
@@ -172,7 +167,7 @@ describe('/api/v2/tables', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect(mocks.create).toHaveBeenCalledWith(
+    expect(mockCreateTableUseCase).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({
           schema: { columns: [{ name: 'Name', type: 'string', required: true }] },

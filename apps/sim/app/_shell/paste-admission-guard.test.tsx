@@ -2,17 +2,16 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { warning } = vi.hoisted(() => ({ warning: vi.fn() }))
-
-vi.mock('@sim/emcn', () => ({
-  useToast: () => ({ toast: { warning } }),
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
+
+const { warning } = emcnMockFns.mockToast
 
 let host: HTMLDivElement
 let root: Root
@@ -65,7 +64,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.clearAllMocks()
 })
 
 describe('PasteAdmissionGuard', () => {

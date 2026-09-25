@@ -1,20 +1,31 @@
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ authorize: vi.fn(), audit: vi.fn() }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 
 import { organizationSettingsOperations } from '@/lib/organizations/application/operations'
 import {
   readOrganizationSettings,
   updateOrganizationSettings,
 } from '@/lib/organizations/application/settings'
+
+const mocks = {
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',

@@ -8,39 +8,23 @@ import {
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 
-const {
-  mockIncrementStorageUsageInTx,
-  mockDecrementStorageUsageInTx,
-  mockResolveStorageBillingContext,
-  mockRecordKnowledgeBaseFileOwnership,
-  mockPersistCopiedResourceMappings,
-  mockDeleteCopiedResourceMappingsByTargets,
-} = vi.hoisted(() => ({
-  mockIncrementStorageUsageInTx: vi.fn(),
-  mockDecrementStorageUsageInTx: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockRecordKnowledgeBaseFileOwnership: vi.fn(),
-  mockPersistCopiedResourceMappings: vi.fn(),
-  mockDeleteCopiedResourceMappingsByTargets: vi.fn(),
-}))
-
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageInTx,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  recordKnowledgeBaseFileOwnership: mockRecordKnowledgeBaseFileOwnership,
-}))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  persistCopiedResourceMappings: mockPersistCopiedResourceMappings,
-  deleteCopiedResourceMappingsByTargets: mockDeleteCopiedResourceMappingsByTargets,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
@@ -54,6 +38,17 @@ import {
   ForkCopyContinuation,
   type ForkCopyProgress,
 } from '@/ee/workspace-forking/lib/copy/progress'
+
+const {
+  mockIncrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
+  mockDecrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = billingStorageMockFns
+const { mockPersistCopiedResourceMappings, mockDeleteCopiedResourceMappingsByTargets } =
+  workspaceForkingMappingStoreMockFns
+
+const mockRecordKnowledgeBaseFileOwnership =
+  uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership
 
 function basePlan(overrides: Partial<ForkContentPlan> = {}): ForkContentPlan {
   return {

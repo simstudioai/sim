@@ -1,7 +1,8 @@
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
-const { mockBuildInBackground, mockBuilder, mockEnv } = vi.hoisted(() => {
+const { mockBuildInBackground, mockBuilder } = vi.hoisted(() => {
   const builder = {
     fromTemplate: vi.fn(),
     makeDir: vi.fn(),
@@ -11,16 +12,8 @@ const { mockBuildInBackground, mockBuilder, mockEnv } = vi.hoisted(() => {
   return {
     mockBuildInBackground: vi.fn(),
     mockBuilder: builder,
-    mockEnv: {
-      E2B_API_KEY: 'test-key',
-      E2B_DOMAIN: undefined,
-      E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
-      E2B_FUNCTION_TEMPLATE_GENERATION: '1785792000000',
-    },
   }
 })
-
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 
 vi.mock('@e2b/code-interpreter', () => {
   const Template = Object.assign(() => mockBuilder, {
@@ -35,6 +28,13 @@ import {
   e2bProvider,
   sandboxImageName,
 } from '@/lib/execution/remote-sandbox/e2b'
+
+setEnv({
+  E2B_API_KEY: 'test-key',
+  E2B_DOMAIN: undefined,
+  E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  E2B_FUNCTION_TEMPLATE_GENERATION: '1785792000000',
+})
 
 const CHILD_BUILD_ID = '7d9d12d6-5f2a-44df-9cc2-a20203f3813b'
 

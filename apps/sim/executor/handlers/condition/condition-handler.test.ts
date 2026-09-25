@@ -1,4 +1,5 @@
-import { loggerMock } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
@@ -14,9 +15,7 @@ import {
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@/tools', () => ({
-  executeTool: vi.fn(),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 vi.mock('@/executor/utils/block-data', () => ({
   collectBlockData: vi.fn(() => ({
@@ -41,16 +40,13 @@ const threwAt = (index: number, message: string) => ({
   success: true,
   output: { result: { matchedIndex: -1, threwAtIndex: index, message } },
 })
-const mockConditionLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi
-    .mocked(loggerMock.createLogger)
-    .mock.calls.findIndex(([name]) => name === 'ConditionBlockHandler')
-].value
+const mockConditionLogger = getMockLogger('ConditionBlockHandler')
 
 describe('ConditionBlockHandler', () => {
   let handler: ConditionBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
+  let blockStates: Map<string, BlockState>
   let mockWorkflow: Partial<SerializedWorkflow>
   let mockSourceBlock: SerializedBlock
   let mockTargetBlock1: SerializedBlock
@@ -113,19 +109,20 @@ describe('ConditionBlockHandler', () => {
 
     handler = new ConditionBlockHandler()
 
+    blockStates = new Map<string, BlockState>([
+      [
+        mockSourceBlock.id,
+        {
+          output: { value: 10, text: 'hello' },
+          executed: true,
+          executionTime: 100,
+        },
+      ],
+    ])
     mockContext = {
       workflowId: 'test-workflow-id',
       workspaceId: 'test-workspace-id',
-      blockStates: new Map<string, BlockState>([
-        [
-          mockSourceBlock.id,
-          {
-            output: { value: 10, text: 'hello' },
-            executed: true,
-            executionTime: 100,
-          },
-        ],
-      ]),
+      blockStates,
       blockLogs: [],
       metadata: { duration: 0 },
       environmentVariables: { API_KEY: 'test-key' },
@@ -137,8 +134,6 @@ describe('ConditionBlockHandler', () => {
       workflow: mockWorkflow as SerializedWorkflow,
       completedLoops: new Set(),
     }
-
-    vi.clearAllMocks()
 
     // Default: no branch matches (else path). Individual tests override with mockResolvedValueOnce.
     mockExecuteTool.mockResolvedValue(noMatch())
@@ -208,7 +203,7 @@ describe('ConditionBlockHandler', () => {
     // signal would let a caller pick what materializes beside it — the whole map by naming
     // the global, or one secret by naming its placeholder.
     mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
-    mockContext.blockStates.set('source-block-1', {
+    blockStates.set('source-block-1', {
       output: { text: 'environmentVariables.OPENAI_API_KEY {{OPENAI_API_KEY}}' },
       executed: true,
       executionTime: 0,
@@ -342,8 +337,7 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledOnce()
-    expect((result as any).selectedOption).toBe('else1')
-    expect((result as any).selectedPath).toBeNull()
+    expect(result).toMatchObject({ selectedOption: 'else1', selectedPath: null })
   })
 
   it('should handle invalid conditions JSON format', async () => {
@@ -525,10 +519,12 @@ describe('ConditionBlockHandler', () => {
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
-    expect((result as any).conditionResult).toBe(false)
-    expect((result as any).selectedPath).toBeNull()
-    expect((result as any).selectedOption).toBeNull()
-    expect((result as any).selectedTitle).toBeNull()
+    expect(result).toMatchObject({
+      conditionResult: false,
+      selectedPath: null,
+      selectedOption: null,
+      selectedTitle: null,
+    })
     expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
   })
 
@@ -544,7 +540,7 @@ describe('ConditionBlockHandler', () => {
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
-    expect((result as any).selectedOption).toBe('else1')
+    expect(result).toMatchObject({ selectedOption: 'else1' })
   })
 
   describe('Batched evaluation', () => {
@@ -586,7 +582,7 @@ describe('ConditionBlockHandler', () => {
         conditions: JSON.stringify(manyConditions),
       })
 
-      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).toMatchObject({ selectedOption: 'cond1' })
       expect(mockExecuteTool).toHaveBeenCalledTimes(2)
     })
 
@@ -644,7 +640,7 @@ describe('ConditionBlockHandler', () => {
         conditions: JSON.stringify(manyConditions),
       })
 
-      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).toMatchObject({ selectedOption: 'cond1' })
       expect(mockExecuteTool).toHaveBeenCalledTimes(2)
     })
 
@@ -676,9 +672,11 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
-      expect((result as any).selectedPath).toBeNull()
-      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).toMatchObject({
+        conditionResult: true,
+        selectedPath: null,
+        selectedOption: 'cond1',
+      })
       expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
     })
   })
@@ -687,7 +685,7 @@ describe('ConditionBlockHandler', () => {
     it('should not propagate error field from source block output', async () => {
       mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
-      ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
+      blockStates.set(mockSourceBlock.id, {
         output: { value: 10, text: 'hello', error: 'upstream block failed' },
         executed: true,
         executionTime: 100,
@@ -701,8 +699,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
-      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).toMatchObject({ conditionResult: true, selectedOption: 'cond1' })
       expect(result).not.toHaveProperty('error')
     })
   })
@@ -795,8 +792,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(parallelContext, parallelConditionBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
-      expect((result as any).selectedOption).toBe('cond1')
+      expect(result).toMatchObject({ conditionResult: true, selectedOption: 'cond1' })
     })
   })
 })

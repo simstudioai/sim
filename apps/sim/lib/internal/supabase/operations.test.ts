@@ -1,19 +1,21 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { executeSupabaseStorageUpload } from '@/lib/internal/supabase/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 const BASE_INPUT = {
   projectId: 'project1234',
@@ -28,12 +30,12 @@ const BASE_INPUT = {
 
 describe('executeSupabaseStorageUpload', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ Key: 'documents/hello.txt' })))
   })
 
   it('authorizes stored files before loading bytes', async () => {
-    mocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('audio'),
       contentType: 'text/plain',
     })
@@ -54,12 +56,12 @@ describe('executeSupabaseStorageUpload', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       'workspace/workspace-1/hello.txt',
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledAfter(mocks.assertToolFileAccess)
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledAfter(mockAssertToolFileAccess)
   })
 })

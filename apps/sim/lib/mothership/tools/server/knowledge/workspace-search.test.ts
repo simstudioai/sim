@@ -1,29 +1,27 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
-  authorizeChat: vi.fn(),
-  info: vi.fn(),
 }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mocks.info, error: vi.fn(), warn: vi.fn() }),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/knowledge/application/workspace-search', () => ({
   searchOrganizationKnowledge: {
     get operation() {
       return knowledgeOperations.search
     },
-    execute: mocks.search,
+    execute: hoisted.search,
   },
   searchWorkspaceKnowledge: {
     get operation() {
       return knowledgeOperations.search
     },
-    execute: mocks.search,
+    execute: hoisted.search,
   },
 }))
 vi.mock('@/lib/knowledge/application/read-search-document', () => ({
@@ -31,7 +29,7 @@ vi.mock('@/lib/knowledge/application/read-search-document', () => ({
     get operation() {
       return knowledgeOperations.readDocument
     },
-    execute: mocks.read,
+    execute: hoisted.read,
   },
 }))
 
@@ -43,6 +41,12 @@ import {
   searchWorkspaceServerTool,
 } from '@/lib/mothership/tools/server/knowledge/workspace-search'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  authorizeChat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+  info: getMockLogger('KnowledgeSearchDiagnostics').info,
+}
 
 const context = {
   userId: 'reader',

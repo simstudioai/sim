@@ -5,109 +5,84 @@
  * read must recover the plan/free base plus prepaid balance, and subsequent
  * subscription syncs must preserve independent personal and organization pools.
  */
+
+import { billingAccessMock } from '@sim/testing/mocks/billing-access.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  schemaMock,
-  setEnvFlags,
-} from '@sim/testing'
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(() => {
   resetDbChainMock()
 })
 
-const {
-  mockGetFreeTierLimit,
-  mockGetHighestPrioritySubscription,
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetPerUserMinimumLimit,
-  mockHasPaidSubscriptionStatus,
-  mockIsOrgScopedSubscription,
-} = vi.hoisted(() => ({
-  mockGetFreeTierLimit: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetHighestPriorityPersonalSubscription: vi.fn(),
-  mockGetPerUserMinimumLimit: vi.fn(),
-  mockHasPaidSubscriptionStatus: vi.fn(),
-  mockIsOrgScopedSubscription: vi.fn(),
+const { mockGetEmailPreferences } = vi.hoisted(() => ({
+  mockGetEmailPreferences: vi.fn(() => Promise.resolve(null as unknown)),
 }))
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  canEditUsageLimit: vi.fn(),
-  getFreeTierLimit: mockGetFreeTierLimit,
-  getPerUserMinimumLimit: mockGetPerUserMinimumLimit,
-  getPlanPricing: vi.fn(() => ({ basePrice: 20 })),
-  hasPaidSubscriptionStatus: mockHasPaidSubscriptionStatus,
-  hasUsableSubscriptionAccess: vi.fn(),
-  isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
   computeWeeklyRefreshConsumed: vi.fn(),
 }))
 
-const {
-  mockGetEmailSubject,
-  mockGetLimitEmailSubject,
-  mockRenderCreditsExhausted,
-  mockRenderFreeTierUpgrade,
-  mockRenderUsageLimitReached,
-  mockRenderUsageThreshold,
-  mockSendEmail,
-  mockGetEmailPreferences,
-  mockIsOrgAdminRole,
-} = vi.hoisted(() => ({
-  mockGetEmailSubject: vi.fn(() => 'Subject'),
-  mockGetLimitEmailSubject: vi.fn(() => 'Limit subject'),
-  mockRenderCreditsExhausted: vi.fn(() => Promise.resolve('<html>free</html>')),
-  mockRenderFreeTierUpgrade: vi.fn(() => Promise.resolve('<html>nudge</html>')),
-  mockRenderUsageLimitReached: vi.fn(() => Promise.resolve('<html>reached</html>')),
-  mockRenderUsageThreshold: vi.fn(() => Promise.resolve('<html>warning</html>')),
-  mockSendEmail: vi.fn(() => Promise.resolve({ success: true })),
-  mockGetEmailPreferences: vi.fn(() => Promise.resolve(null as unknown)),
-  mockIsOrgAdminRole: vi.fn(() => true),
-}))
+vi.mock('@/components/emails', () => emailTemplatesMock)
 
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: mockGetEmailSubject,
-  getLimitEmailSubject: mockGetLimitEmailSubject,
-  renderCreditsExhaustedEmail: mockRenderCreditsExhausted,
-  renderFreeTierUpgradeEmail: mockRenderFreeTierUpgrade,
-  renderUsageLimitReachedEmail: mockRenderUsageLimitReached,
-  renderUsageThresholdEmail: mockRenderUsageThreshold,
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: mockSendEmail,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   getEmailPreferences: mockGetEmailPreferences,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({ isOrgAdminRole: mockIsOrgAdminRole }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   getUserUsageLimit,
   maybeSendUsageThresholdEmail,
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
+
+const mockIsOrgAdminRole = workspaceAuthzMockFns.mockIsOrgAdminRole
+const {
+  mockGetFreeTierLimit,
+  mockGetPerUserMinimumLimit,
+  mockHasPaidSubscriptionStatus,
+  mockIsOrgScopedSubscription,
+} = billingSubscriptionUtilsMockFns
+const { mockGetHighestPrioritySubscription, mockGetHighestPriorityPersonalSubscription } =
+  billingPlanMockFns
+const {
+  mockGetEmailSubject,
+  mockGetLimitEmailSubject,
+  mockRenderCreditsExhaustedEmail: mockRenderCreditsExhausted,
+  mockRenderFreeTierUpgradeEmail: mockRenderFreeTierUpgrade,
+  mockRenderUsageLimitReachedEmail: mockRenderUsageLimitReached,
+  mockRenderUsageThresholdEmail: mockRenderUsageThreshold,
+} = emailTemplatesMockFns
+const { mockSendEmail } = emailMailerMockFns
+billingSubscriptionUtilsMockFns.mockGetPlanPricing.mockReturnValue({ basePrice: 20 } as never)
+mockGetEmailSubject.mockReturnValue('Subject')
+mockGetLimitEmailSubject.mockReturnValue('Limit subject')
+mockRenderCreditsExhausted.mockResolvedValue('<html>free</html>')
+mockRenderFreeTierUpgrade.mockResolvedValue('<html>nudge</html>')
+mockRenderUsageLimitReached.mockResolvedValue('<html>reached</html>')
+mockRenderUsageThreshold.mockResolvedValue('<html>warning</html>')
+mockSendEmail.mockResolvedValue({ success: true })
 
 const PRO_SUBSCRIPTION = {
   id: 'sub-1',

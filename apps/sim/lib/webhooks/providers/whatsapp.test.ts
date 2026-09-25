@@ -1,10 +1,7 @@
 import { createHmac } from 'node:crypto'
-import { dbChainMock, queueTableRows, schemaMock } from '@sim/testing'
+import { queueTableRows, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
+import { describe, expect, it } from 'vitest'
 import { whatsappHandler } from './whatsapp'
 
 function reqWithHeaders(headers: Record<string, string>): NextRequest {

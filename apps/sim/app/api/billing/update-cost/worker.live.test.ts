@@ -2,6 +2,27 @@ import { type ExecFileException, execFile } from 'node:child_process'
 import { createServer } from 'node:http'
 import { promisify } from 'node:util'
 import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { billingPlanMock } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { billingUsageMonitorMock } from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import type { Sql } from 'postgres'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -30,69 +51,48 @@ vi.mock('@sim/db', async () => {
 })
 
 /** Subscription and payment-provider fixtures; callback, ledger and replay code are real. */
-vi.mock('@/lib/billing/core/subscription', () => {
-  const subscription = async (userId: string) => {
-    if (userId === 'billing-replay-transient' && state.temporaryFailures-- > 0) {
-      throw new Error('Temporary subscription lookup failure')
-    }
-    return {
-      id: 'billing-replay-subscription',
-      referenceId: userId,
-      plan: 'pro',
-      status: 'active',
-      periodStart: new Date('2025-02-01T00:00:00.000Z'),
-      periodEnd: new Date('2025-03-01T00:00:00.000Z'),
-    }
-  }
-  return {
-    getHighestPrioritySubscription: subscription,
-    getHighestPriorityPersonalSubscription: subscription,
-    getOrganizationSubscriptionUsable: vi.fn(),
-  }
-})
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: vi.fn(),
-  getHighestPriorityPersonalSubscription: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: async () => ({ billingBlocked: false }),
-  isOrganizationBillingBlocked: async () => false,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  calculateSubscriptionOverage: async () => 0,
-  computeOrgOverageAmount: vi.fn(),
-  getOrganizationSubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/lib/billing/cycle-close', () => ({ isSubscriptionCycleCloseCurrent: async () => true }))
-vi.mock('@/lib/billing/plan-helpers', () => ({ isEnterprise: () => false, isFree: () => false }))
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  hasUsableSubscriptionAccess: () => true,
-  isOrgScopedSubscription: () => false,
-}))
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkBillingBlocked: vi.fn(),
-  checkBillingEntityBlocked: vi.fn(),
-  checkOrganizationMemberUsageLimit: vi.fn(),
-  checkUsageStatus: vi.fn(),
-}))
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: { STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice' },
-}))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
-vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: unknown,
-    _name: unknown,
-    _attrs: unknown,
-    run: (span: { setAttribute: () => void; setAttributes: () => void }) => unknown
-  ) => run({ setAttribute: vi.fn(), setAttributes: vi.fn() }),
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import { POST } from '@/app/api/billing/update-cost/route'
 
 const run = promisify(execFile)
+
+const subscription = async (userId: string) => {
+  if (userId === 'billing-replay-transient' && state.temporaryFailures-- > 0) {
+    throw new Error('Temporary subscription lookup failure')
+  }
+  return {
+    id: 'billing-replay-subscription',
+    referenceId: userId,
+    plan: 'pro',
+    status: 'active',
+    periodStart: new Date('2025-02-01T00:00:00.000Z'),
+    periodEnd: new Date('2025-03-01T00:00:00.000Z'),
+  }
+}
+billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation(subscription)
+billingSubscriptionMockFns.mockGetHighestPriorityPersonalSubscription.mockImplementation(
+  subscription
+)
+billingAccessMockFns.mockGetEffectiveBillingStatus.mockResolvedValue({ billingBlocked: false })
+billingAccessMockFns.mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+billingCoreMockFns.mockCalculateSubscriptionOverage.mockResolvedValue(0)
+billingPlanHelpersMockFns.mockIsEnterprise.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsFree.mockReturnValue(false)
+billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionAccess.mockReturnValue(true)
+billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription.mockReturnValue(false)
 
 afterAll(async () => {
   await state.client?.end()

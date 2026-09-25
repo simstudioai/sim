@@ -1,64 +1,37 @@
 import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import { billingUsageMonitorMock } from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 
-const {
-  mockSleep,
-  mockCheckAttributedUsageLimits,
-  mockCheckRateLimit,
-  mockGetActivelyBannedUserIds,
-  mockReserveExecutionSlot,
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-} = vi.hoisted(() => ({
-  mockSleep: vi.fn().mockResolvedValue(undefined),
-  mockCheckAttributedUsageLimits: vi.fn(),
+const { mockCheckRateLimit } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
-  mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
-  mockReserveExecutionSlot: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: mockSleep,
-}))
-vi.mock('@/lib/auth/ban', () => ({
-  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
-}))
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkServerSideUsageLimits: vi.fn(),
-}))
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  reserveExecutionSlot: mockReserveExecutionSlot,
-  UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {
-    readonly code = 'SERVICE_OVERLOADED'
-    readonly statusCode = 503
-    readonly retryable = true
-    /** Mirrors ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE. */
-    readonly retryAfterSeconds = 5
-  },
-}))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mockCheckAttributedUsageLimits,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: vi.fn(),
-}))
-vi.mock('@/lib/core/execution-limits', () => ({
-  getExecutionTimeout: vi.fn(() => 0),
-  resolveAsyncExecutionTimeout: vi.fn((policyTimeoutMs, requestedTimeoutSeconds) => {
-    if (requestedTimeoutSeconds === undefined) return policyTimeoutMs
-    const requestedTimeoutMs = requestedTimeoutSeconds * 1000
-    return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
-  }),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: vi.fn(function (this: unknown) {
     return { checkRateLimitWithSubscription: mockCheckRateLimit }
@@ -68,6 +41,12 @@ vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { preprocessExecution, WORKFLOW_NOT_DEPLOYED_CODE } from './preprocessing'
+
+const { mockResolveBillingAttribution, mockResolveSystemBillingAttribution } =
+  billingAttributionMockFns
+const mockGetActivelyBannedUserIds = authBanMockFns.mockGetActivelyBannedUserIds
+const mockCheckAttributedUsageLimits = billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits
+const mockReserveExecutionSlot = billingUsageReservationMockFns.mockReserveExecutionSlot
 
 const ORGANIZATION_ATTRIBUTION = {
   actorUserId: 'actor-1',
@@ -895,6 +874,71 @@ describe('preprocessExecution billing attribution', () => {
         code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
         cause: { code: 'SERVICE_OVERLOADED' },
       },
+    })
+  })
+})
+
+describe('preprocessExecution webhook correlation logging', () => {
+  beforeEach(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+      isDeployed: true,
+    })
+  })
+
+  afterAll(() => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockReset()
+  })
+
+  it('preserves webhook correlation when logging preprocessing failures', async () => {
+    mockResolveSystemBillingAttribution.mockRejectedValueOnce(
+      new Error('Unable to resolve billing payer')
+    )
+
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const correlation = {
+      executionId: 'execution-webhook-1',
+      requestId: 'request-webhook-1',
+      source: 'webhook' as const,
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      path: 'incoming/slack',
+      provider: 'slack',
+      triggerType: 'webhook',
+    }
+
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'unknown',
+      triggerType: 'webhook',
+      executionId: 'execution-webhook-1',
+      requestId: 'request-webhook-1',
+      loggingSession: loggingSession as any,
+      triggerData: { correlation },
+      workflowRecord: {
+        id: 'workflow-1',
+        workspaceId: 'workspace-1',
+        isDeployed: true,
+      } as any,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        statusCode: 500,
+      },
+    })
+
+    expect(loggingSession.safeStart).toHaveBeenCalledWith({
+      userId: 'unknown',
+      workspaceId: 'workspace-1',
+      variables: {},
+      triggerData: { correlation },
     })
   })
 })

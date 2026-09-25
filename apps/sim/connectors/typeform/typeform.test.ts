@@ -1,17 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 
 const ACCESS_TOKEN = 'test-token'
 const FORM_CONFIG = { formId: 'abc123' }
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const FORM_DEFINITION = {
   id: 'abc123',
@@ -37,10 +31,6 @@ function requestUrl(callIndex = 0): URL {
 describe('typeform listDocuments', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('derives an incremental since filter at the second precision the API documents', async () => {
@@ -82,10 +72,6 @@ describe('typeform listDocuments', () => {
 describe('typeform getDocument', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   /**

@@ -1,15 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
-
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockLogger = getMockLogger('ResolvedSecretProjectionRefusal')
 
 const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
 

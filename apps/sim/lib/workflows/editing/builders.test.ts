@@ -1,4 +1,9 @@
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
 import { generateId } from '@sim/utils/id'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
@@ -11,14 +16,25 @@ import {
   resolveBlockRetryUpdate,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
 
-const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
-  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
-}))
+const mockIsIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
-}))
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlock = getBlock as Mock
+mockGetAllBlocks.mockImplementation(() => [
+  apiBlockConfig,
+  agentBlockConfig,
+  conditionBlockConfig,
+  knowledgeBlockConfig,
+  slackBlockConfig,
+  webhookBlockConfig,
+  gatedOperationBlockConfig,
+])
+mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 const agentBlockConfig = {
   type: 'agent',
@@ -124,19 +140,6 @@ const blocksByType: Record<string, unknown> = {
   generic_webhook: webhookBlockConfig,
   gated: gatedOperationBlockConfig,
 }
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [
-    apiBlockConfig,
-    agentBlockConfig,
-    conditionBlockConfig,
-    knowledgeBlockConfig,
-    slackBlockConfig,
-    webhookBlockConfig,
-    gatedOperationBlockConfig,
-  ],
-  getBlock: (type: string) => blocksByType[type],
-}))
 
 describe('createBlockFromParams', () => {
   it('derives agent outputs from responseFormat when outputs are not provided', () => {

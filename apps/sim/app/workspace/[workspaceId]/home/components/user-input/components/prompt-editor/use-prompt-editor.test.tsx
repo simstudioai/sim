@@ -3,7 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
@@ -76,10 +76,6 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
 }
 
 describe('usePromptEditor context insertion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
     const context = {
       kind: 'file_selection',

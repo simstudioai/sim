@@ -4,21 +4,19 @@
  * the routing: the text layer is tried first, and OCR is reached only when it is
  * missing or unreadable.
  */
+
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { warnLog } = vi.hoisted(() => ({ warnLog: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ warn: warnLog, error: vi.fn(), info: vi.fn(), debug: vi.fn() }),
+const { mockExecuteMistralParse } = vi.hoisted(() => ({
+  mockExecuteMistralParse: vi.fn(),
 }))
-
-const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistralParse } =
-  vi.hoisted(() => ({
-    mockParseBuffer: vi.fn(),
-    mockDownload: vi.fn(),
-    mockToken: vi.fn(),
-    mockBaseUrl: vi.fn(),
-    mockExecuteMistralParse: vi.fn(),
-  }))
 
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
@@ -30,17 +28,9 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
-vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/utils/urls')>()),
-  getInternalApiBaseUrl: mockBaseUrl,
-}))
-
-vi.mock('@/lib/file-parsers', () => ({
-  parseBuffer: mockParseBuffer,
-  isSupportedFileType: (extension: string) => ['pdf'].includes(extension),
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 vi.mock('@/lib/internal/mistral/operations', () => ({
   executeMistralParse: mockExecuteMistralParse,
 }))
@@ -53,6 +43,13 @@ import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+const mockToken = authInternalMockFns.mockGenerateInternalToken
+
+const mockBaseUrl = urlsMockFns.mockGetInternalApiBaseUrl
+
+const mockDownload = fileUtilsServerMockFns.mockDownloadFileFromUrl
 
 /** The source URL is downloaded under the caller's access before inline OCR admission. */
 const PDF_URL = 'https://example.com/Contract.pdf'
@@ -101,7 +98,6 @@ describe('PDF OCR triage', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 

@@ -7,27 +7,22 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { fileUtilsServerMock } from '@sim/testing/mocks/file-utils-server.mock'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceFilesListMock } from '@sim/testing/mocks/workspace-files-list.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockAssertActiveWorkspaceAccess,
-  mockFetchWorkspaceFileBuffer,
-  mockLoadActiveWorkspaceContext,
-  mockLoadActiveWorkspaceFileContext,
-  mockResolveEffectiveWorkspacePermission,
-  mockGetWorkspaceFile,
-  mockResolveWorkspaceFileReference,
-  mockUpdateWorkspaceFileContent,
-} = vi.hoisted(() => ({
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockLoadActiveWorkspaceContext: vi.fn(),
-  mockLoadActiveWorkspaceFileContext: vi.fn(),
-  mockResolveEffectiveWorkspacePermission: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockUpdateWorkspaceFileContent: vi.fn(),
-}))
 
 vi.mock('@/lib/uploads/archive', () => ({
   ArchiveError: class ArchiveError extends Error {},
@@ -36,62 +31,19 @@ vi.mock('@/lib/uploads/archive', () => ({
   statusForArchiveError: () => 400,
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: vi.fn(() => false),
-  parseBuffer: vi.fn(),
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceFilesChanged: vi.fn(async () => undefined),
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: vi.fn().mockResolvedValue(null),
-  getSharesForResources: vi.fn().mockResolvedValue(new Map()),
-  getWorkspaceSharesForResources: vi.fn().mockResolvedValue(new Map()),
-  ShareValidationError: class ShareValidationError extends Error {},
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' ||
-    permission === required ||
-    (permission === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
-    mockResolveEffectiveWorkspacePermission(...args),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  getWorkspaceFileByName: vi.fn(),
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
-  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-  normalizeWorkspaceFileItemName: (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed || trimmed === '.' || trimmed === '..' || /[/\\]/.test(trimmed)) {
-      throw new Error('Invalid file name')
-    }
-    return trimmed
-  },
-  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
-  uploadWorkspaceFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  FileConflictError: class FileConflictError extends Error {},
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  getWorkspaceFileByName: vi.fn(),
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
-  uploadWorkspaceFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
@@ -120,14 +72,7 @@ vi.mock('@/lib/workspace-files/application/edit-workspace-file-content', () => (
   },
 }))
 
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listWorkspaceFilesInFolderScope: {
-    execute: vi.fn(),
-  },
-  queryWorkspaceFilePage: {
-    execute: vi.fn(),
-  },
-}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   moveWorkspaceFileItemsOperation: {
@@ -135,37 +80,38 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: vi.fn(async () => true),
-  releaseLock: vi.fn(async () => undefined),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: vi.fn(),
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: (...args: unknown[]) => mockAssertActiveWorkspaceAccess(...args),
-  getUserEntityPermissions: vi.fn(),
-  isWorkspaceAccessDeniedError: vi.fn(() => false),
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceWrite: vi.fn(),
   reportDurableSecretProvenanceRefusal: vi.fn(),
 }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async () => ({ decrypted: 'synthetic-known-secret-123' })),
-  encryptSecret: vi.fn(async () => ({ encrypted: 'synthetic-ciphertext' })),
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+
+const { mockAssertActiveWorkspaceAccess } = permissionsMockFns
+const {
+  mockFetchWorkspaceFileBuffer,
+  mockGetWorkspaceFile,
+  mockLoadActiveWorkspaceContext,
+  mockLoadActiveWorkspaceFileContext,
+  mockResolveWorkspaceFileReference,
+  mockUpdateWorkspaceFileContent,
+} = workspaceFileManagerMockFns
+const { mockResolveEffectiveWorkspacePermission } = workspaceAuthzMockFns
+
+fileParsersMockFns.mockIsSupportedFileType.mockImplementation(() => false)
+
+encryptionMockFns.mockDecryptSecret.mockImplementation(async () => ({
+  decrypted: 'synthetic-known-secret-123',
+}))
+encryptionMockFns.mockEncryptSecret.mockImplementation(async () => ({
+  encrypted: 'synthetic-ciphertext',
 }))
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'

@@ -1,28 +1,10 @@
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { mockGetApiKeyWithBYOK, mockGetBYOKKey, mockCalculateCost, mockShouldBill } = vi.hoisted(
-  () => ({
-    mockGetApiKeyWithBYOK: vi.fn(),
-    mockGetBYOKKey: vi.fn(),
-    mockCalculateCost: vi.fn(),
-    mockShouldBill: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/api-key/byok', () => ({
-  getApiKeyWithBYOK: mockGetApiKeyWithBYOK,
-  getBYOKKey: mockGetBYOKKey,
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: mockCalculateCost,
-  shouldBillModelUsage: mockShouldBill,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import {
   computePiCost,
@@ -30,6 +12,11 @@ import {
   resolvePiModelKey,
   resolvePiSearchKey,
 } from '@/executor/handlers/pi/core/keys'
+
+const { mockGetApiKeyWithBYOK, mockGetBYOKKey } = apiKeyByokMockFns
+
+const mockCalculateCost = providersUtilsMockFns.mockCalculateCost
+const mockShouldBill = providersUtilsMockFns.mockShouldBillModelUsage
 
 beforeAll(() => {
   envFlagsMockFns.getCostMultiplier.mockReturnValue(2)

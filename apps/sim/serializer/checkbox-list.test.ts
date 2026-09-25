@@ -39,10 +39,13 @@ vi.mock('@/blocks', async () => {
   }
 })
 
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 import { Serializer } from '@/serializer'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 function serializeOptions(value: unknown): Record<string, unknown> {
   const blocks = {

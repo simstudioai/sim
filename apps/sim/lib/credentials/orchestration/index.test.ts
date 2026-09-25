@@ -1,28 +1,30 @@
 import {
-  auditMock,
   dbChainMockFns,
   environmentUtilsMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockRecordAudit,
-  mockGetCredentialActorContext,
-  mockDecryptSecret,
   mockVerifyAndBuildServiceAccountSecret,
   mockIsClientCredentialAccountProviderId,
   mockGetClientCredentialAccountDescriptor,
   mockDeleteConnectionCredential,
   mockDeleteOrphanedOAuthAccount,
-  mockDeleteWorkspaceEnvCredentials,
-  mockDeletePersonalEnvCredentialForUser,
 } = vi.hoisted(() => ({
-  mockRecordAudit: vi.fn(),
-  mockGetCredentialActorContext: vi.fn(),
-  mockDecryptSecret: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
   mockIsClientCredentialAccountProviderId: vi.fn(() => false),
   // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
@@ -30,19 +32,10 @@ const {
   mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
   mockDeleteConnectionCredential: vi.fn(),
   mockDeleteOrphanedOAuthAccount: vi.fn(),
-  mockDeleteWorkspaceEnvCredentials: vi.fn(),
-  mockDeletePersonalEnvCredentialForUser: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_UPDATED: 'credential.updated' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mockRecordAudit,
-  auditUpdatedFields: auditMock.auditUpdatedFields,
-}))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
   listSlackCredentialGroupConfigurationsForBot: vi.fn().mockResolvedValue([]),
 }))
@@ -53,7 +46,7 @@ vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
   findSlackSearchInstallation: vi.fn().mockResolvedValue(null),
 }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mockDecryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/service-account-secret', () => ({
   verifyAndBuildServiceAccountSecret: mockVerifyAndBuildServiceAccountSecret,
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
@@ -67,17 +60,14 @@ vi.mock('@/lib/credentials/deletion', () => ({
   deleteConnectionCredential: mockDeleteConnectionCredential,
   deleteOrphanedOAuthAccount: mockDeleteOrphanedOAuthAccount,
 }))
-vi.mock('@/lib/credentials/environment', () => ({
-  deleteWorkspaceEnvCredentials: mockDeleteWorkspaceEnvCredentials,
-  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   AtlassianValidationError: class AtlassianValidationError extends Error {},
 }))
 vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
   TokenServiceAccountValidationError: class TokenServiceAccountValidationError extends Error {},
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   createServiceAccountCredential,
@@ -85,6 +75,14 @@ import {
   performUpdateCredential,
   statusForCredentialOrchestrationError,
 } from '@/lib/credentials/orchestration'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockGetCredentialActorContext = credentialsAccessMockFns.mockGetCredentialActorContext
+const mockDeleteWorkspaceEnvCredentials =
+  credentialsEnvironmentMockFns.mockDeleteWorkspaceEnvCredentials
+const mockDeletePersonalEnvCredentialForUser =
+  credentialsEnvironmentMockFns.mockDeletePersonalEnvCredentialForUser
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 const OLD_EMAIL = 'old-sa@old-project.iam.gserviceaccount.com'
 const NEW_EMAIL = 'new-sa@new-project.iam.gserviceaccount.com'

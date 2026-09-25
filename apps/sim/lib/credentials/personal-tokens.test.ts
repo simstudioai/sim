@@ -1,26 +1,29 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsOrganizationSetupMock,
+  credentialGroupsOrganizationSetupMockFns,
+} from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  setup: vi.fn(),
-  enroll: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   verify: vi.fn(),
   encrypt: vi.fn(),
-  lock: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.setup,
-}))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: mocks.enroll,
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  lockCredentialGroupEnrollmentLifecycle: mocks.lock,
-}))
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 vi.mock('@/lib/credentials/gitlab-personal-token', () => ({
-  verifyGitLabPersonalToken: mocks.verify,
-  encryptPersonalToken: mocks.encrypt,
+  verifyGitLabPersonalToken: hoisted.verify,
+  encryptPersonalToken: hoisted.encrypt,
 }))
 
 import {
@@ -30,6 +33,13 @@ import {
   updatePersonalTokenCredential,
 } from '@/lib/credentials/personal-tokens'
 import type { CredentialRow } from '@/lib/credentials/queries'
+
+const mocks = {
+  ...hoisted,
+  setup: credentialGroupsOrganizationSetupMockFns.mockRequireOrganizationAccountsSetup,
+  enroll: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  lock: credentialGroupsEnrollmentsMockFns.mockLockCredentialGroupEnrollmentLifecycle,
+}
 
 const input = {
   userId: 'owner',

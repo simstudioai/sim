@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchVantaWithAuth } from '@/lib/internal/vanta/client'
 
 describe('Vanta provider client', () => {
@@ -6,10 +6,6 @@ describe('Vanta provider client', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('aborts the shared token request when its last waiter cancels', async () => {

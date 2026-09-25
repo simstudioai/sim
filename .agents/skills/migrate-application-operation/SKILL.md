@@ -80,7 +80,7 @@ Preserve behavior unless the task explicitly changes it. Stop and report a decis
 
 ## Freeze observable behavior before editing
 
-Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point and add focused characterization tests for behavior not already pinned down.
+Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point. Pin behavior no existing test covers with a characterization test only where it passes the `test-audit` gate; otherwise record it in the baseline and verify it by hand after the move.
 
 Capture all of these when they apply:
 
@@ -315,18 +315,16 @@ Do not force these through an ordinary JSON migration:
 
 Stop and report a missing design rather than weakening identity, authorization, limits, or errors.
 
-## Test the complete matrix
+## Test each risk at one boundary
 
-Add focused tests for every migrated surface and principal kind allowed by the operation:
+Run the `test-audit` authoring gate before writing any test. Own each risk at exactly one boundary:
 
-- Application: allowed and disallowed roles, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and infrastructure propagation.
-- Operation registry: role/workspace-key/principal-kind/delegated-service consistency and fail-fast rejection of invalid definitions.
-- Repository: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
-- Internal API: authentication before parsing, exact contract, typed errors, and surface analytics only after success.
-- Public API: personal and workspace keys, rate behavior, concealment, exact external envelope, and rate headers.
-- Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
-- Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
-- Compatibility characterization: legacy normalization, exact response/redirect/cookie behavior, concealment, error subclass precedence, and branch-specific output.
+- Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and audit derived from authoritative results.
+- One `*.integration.ts` owns repository semantics: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
+- Add a surface test only for a surface-specific risk (for example, a v2 envelope or rate header, a Copilot forged-scope rejection, or a legacy redirect/cookie behavior the characterization baseline pinned). Do not restate the operation registry or the shared builders' auth-before-parse behavior per surface.
+
+Risks that usually earn a test when the change introduces them:
+
 - Failure sequencing: inject a failure after each independently committing step and assert persisted state plus audit, analytics, and notification effects.
 - Concurrency: overlap stateful browser or provider flows and prove each callback consumes only its own state and return destination.
 - Rendering boundaries: exercise hostile values for every newly connected input that reaches HTML, inline JavaScript, URLs, logs, or provider requests.
@@ -334,7 +332,7 @@ Add focused tests for every migrated surface and principal kind allowed by the o
 Run at minimum:
 
 ```bash
-bunx vitest run <focused test files>
+bun run --cwd apps/sim test <focused test files>
 bunx biome check <changed source and test files>
 bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
 bun run check:api-validation:strict

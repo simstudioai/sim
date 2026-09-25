@@ -1,20 +1,16 @@
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDownloadFileFromUrl,
-  mockGenerateInternalToken,
-  mockGetInternalApiBaseUrl,
-  mockExecuteMistralParse,
-  mockParseBuffer,
-  mockAdmit,
-} = vi.hoisted(() => ({
-  mockDownloadFileFromUrl: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockGetInternalApiBaseUrl: vi.fn(),
+const { mockExecuteMistralParse, mockAdmit } = vi.hoisted(() => ({
   mockExecuteMistralParse: vi.fn(),
-  mockParseBuffer: vi.fn(),
   mockAdmit: vi.fn(),
 }))
 
@@ -26,32 +22,27 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   waitForProviderAdmission: mockAdmit,
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/utils/urls')>()),
-  getInternalApiBaseUrl: mockGetInternalApiBaseUrl,
-}))
-
-vi.mock('@/lib/file-parsers', () => ({
-  parseBuffer: mockParseBuffer,
-  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'txt', 'csv'].includes(extension),
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 vi.mock('@/lib/internal/mistral/operations', () => ({
   executeMistralParse: mockExecuteMistralParse,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromUrl: mockDownloadFileFromUrl,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { env } from '@/lib/core/config/env'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
+
+const mockGetInternalApiBaseUrl = urlsMockFns.mockGetInternalApiBaseUrl
+
+const mockDownloadFileFromUrl = fileUtilsServerMockFns.mockDownloadFileFromUrl
 
 describe('knowledge document model-input provenance', () => {
   beforeEach(async () => {
@@ -79,7 +70,6 @@ describe('knowledge document model-input provenance', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 

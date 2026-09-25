@@ -72,6 +72,8 @@
     "check:source-text": "bun run scripts/check-source-text.ts",
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
+    "check:test-patterns": "bun run scripts/check-test-patterns.ts",
+    "check:schema-mock": "bun run scripts/generate-schema-mock.ts --check",
     "check:audits": "bun run scripts/run-audits.ts",
     "check:skills": "bun run scripts/sync-skills.ts --check",
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",

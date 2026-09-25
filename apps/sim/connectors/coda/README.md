@@ -51,11 +51,9 @@ Discovery order is mutable and the public list omits never-opened documents. Dis
 
 ## Reproducible checks
 
-From `apps/sim`:
-
 ```sh
-bunx vitest run connectors/coda/coda.test.ts connectors/coda/permissions.test.ts lib/selectors/server/providers/coda.test.ts lib/credentials/token-service-accounts/validators/coda.test.ts lib/selectors/manifest.test.ts
-CODA_CONNECTOR_LIVE_TOKEN_FILE=/path/to/token bunx vitest run --mode live connectors/coda/coda.live.test.ts
+bun run --cwd apps/sim test connectors/coda/coda.test.ts connectors/coda/permissions.test.ts lib/selectors/server/providers/coda.test.ts lib/credentials/token-service-accounts/validators/coda.test.ts lib/selectors/manifest.test.ts
+CODA_CONNECTOR_LIVE_TOKEN_FILE=/path/to/token bun run --cwd apps/sim test --mode live connectors/coda/coda.live.test.ts
 ```
 
 The provider test creates and deletes its own document. `CODA_CONNECTOR_LIVE_ORGANIZATION_ID` enables additional Enterprise export/ACL/directory checks against that fixture when the token belongs to an Enterprise organization. Set `CODA_CONNECTOR_LIVE_FIXTURE_FILE=/path/to/fixture.json` to retain it for the application test, then from the repository root:

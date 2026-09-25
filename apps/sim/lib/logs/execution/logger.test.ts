@@ -5,6 +5,24 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -14,89 +32,70 @@ import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
+billingUsageMonitorMockFns.mockCheckUsageStatus.mockResolvedValue({
+  limit: 100,
+  percentUsed: 50,
+  currentUsage: 50,
+  isExceeded: false,
+  isWarning: false,
+  scope: 'user',
+  organizationId: null,
+})
+billingUsageMockFns.mockGetOrgUsageLimit.mockResolvedValue({ limit: 1000 })
+billingUsageMockFns.mockMaybeSendUsageThresholdEmail.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockRecordUsage.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockStableEventKey.mockImplementation((parts: Record<string, unknown>) =>
+  JSON.stringify(parts)
+)
+billingUsageLogMockFns.mockDeriveBillingContext.mockImplementation((userId: string) => ({
+  billingEntity: { type: 'user', id: userId },
+  billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
+}))
+
+billingAttributionMockFns.mockResolveBillingAttribution.mockImplementation(
+  ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
+    Promise.resolve({
+      actorUserId,
+      workspaceId,
+      billedAccountUserId: 'payer-1',
+      organizationId: 'org-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: '2024-01-01T00:00:00.000Z',
+        end: '2024-02-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    })
+)
+billingAttributionMockFns.mockToBillingContext.mockImplementation((attribution) => ({
+  billingEntity: attribution.billingEntity,
+  billingPeriod: {
+    start: new Date(attribution.billingPeriod.start),
+    end: new Date(attribution.billingPeriod.end),
+  },
+}))
+
+billingSubscriptionMockFns.mockGetHighestPriorityPersonalSubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
+billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
+
 afterAll(resetDbChainMock)
 
-/** Flat logger whose withMetadata() children share one spy set, so log level is assertable. */
-const { mockLogger, statsLogErrorMock } = vi.hoisted(() => {
-  const mockLogger: Record<string, ReturnType<typeof vi.fn>> = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-  }
-  mockLogger.child = vi.fn(() => mockLogger)
-  mockLogger.withMetadata = vi.fn(() => mockLogger)
-  return { mockLogger, statsLogErrorMock: mockLogger.error }
-})
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mockLogger),
-  logger: mockLogger,
-  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
-  getRequestContext: vi.fn(() => undefined),
-  setRequestAuth: vi.fn(),
-}))
+const mockLogger = getMockLogger('ExecutionLogger')
 
 // Mock billing modules
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPriorityPersonalSubscription: vi.fn(() => Promise.resolve(null)),
-  getHighestPrioritySubscription: vi.fn(() => Promise.resolve(null)),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn(
-    ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
-      Promise.resolve({
-        actorUserId,
-        workspaceId,
-        billedAccountUserId: 'payer-1',
-        organizationId: 'org-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: '2024-01-01T00:00:00.000Z',
-          end: '2024-02-01T00:00:00.000Z',
-        },
-        payerSubscription: null,
-      })
-  ),
-  toBillingContext: vi.fn((attribution) => ({
-    billingEntity: attribution.billingEntity,
-    billingPeriod: {
-      start: new Date(attribution.billingPeriod.start),
-      end: new Date(attribution.billingPeriod.end),
-    },
-  })),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkUsageStatus: vi.fn(() =>
-    Promise.resolve({
-      limit: 100,
-      percentUsed: 50,
-      currentUsage: 50,
-      isExceeded: false,
-      isWarning: false,
-      scope: 'user',
-      organizationId: null,
-    })
-  ),
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  getOrgUsageLimit: vi.fn(() => Promise.resolve({ limit: 1000 })),
-  maybeSendUsageThresholdEmail: vi.fn(() => Promise.resolve()),
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: vi.fn(() => Promise.resolve()),
-  stableEventKey: vi.fn((parts: Record<string, unknown>) => JSON.stringify(parts)),
-  deriveBillingContext: vi.fn((userId: string) => ({
-    billingEntity: { type: 'user', id: userId },
-    billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
-  })),
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
@@ -157,7 +156,6 @@ describe('ExecutionLogger', () => {
 
   beforeEach(() => {
     logger = new ExecutionLogger()
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -768,7 +766,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
 
   beforeEach(() => {
     logger = new ExecutionLogger() as any
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

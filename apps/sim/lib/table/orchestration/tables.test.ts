@@ -1,29 +1,18 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockDeleteTable, mockDeleteRow, mockRenameTable, mockCaptureServerEvent, mockRecordAudit } =
-  vi.hoisted(() => ({
-    mockDeleteTable: vi.fn(),
-    mockDeleteRow: vi.fn(),
-    mockRenameTable: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-    mockRecordAudit: vi.fn(),
-  }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_DELETED: 'table.deleted', TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mockRecordAudit,
-}))
-
-vi.mock('@/lib/table/service', () => ({
-  deleteTable: mockDeleteTable,
-  moveTableToFolder: vi.fn(),
-  renameTable: mockRenameTable,
-  updateTableLocks: vi.fn(),
-}))
-vi.mock('@/lib/table/rows/service', () => ({ deleteRow: mockDeleteRow }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
@@ -32,6 +21,13 @@ import {
   performDeleteTableRow,
   performRenameTable,
 } from '@/lib/table/orchestration/tables'
+
+const mockDeleteRow = tableRowsServiceMockFns.mockDeleteRow
+
+const mockDeleteTable = tableServiceMockFns.mockDeleteTable
+const mockRenameTable = tableServiceMockFns.mockRenameTable
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const TABLE = { id: 'table-1', name: 'Tasks', workspaceId: 'ws-1' } as unknown as TableDefinition
 

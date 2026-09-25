@@ -5,27 +5,24 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableSchema } from '@/lib/table/types'
 
-const { mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
-  mockAssertTableRowTtlEnabled: vi.fn(),
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceTablesChanged: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
-vi.mock('@/lib/table/billing', () => ({
-  assertRowCapacity: vi.fn().mockResolvedValue(undefined),
-  notifyTableRowUsage: vi.fn(),
-}))
-
-vi.mock('@/lib/table/ttl-availability', () => ({
-  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
-}))
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 
 import { createTable, getTableById } from '@/lib/table/service'
+
+const mockAssertTableRowTtlEnabled = tableTtlAvailabilityMockFns.mockAssertTableRowTtlEnabled
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 

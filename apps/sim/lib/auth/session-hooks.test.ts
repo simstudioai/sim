@@ -53,7 +53,6 @@ describe('prepareSessionForCreation', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     resetEnvFlagsMock()
   })
 

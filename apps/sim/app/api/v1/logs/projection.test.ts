@@ -10,45 +10,40 @@
  * same helper `readLogDetail` resolves its flags through — so they fail if
  * either surface stops projecting.
  */
+import { createRouteContext } from '@sim/testing/helpers/http'
 import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import {
   v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
   v1RateLimiterModuleMock,
   v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
+} from '@sim/testing/mocks/v1-route.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticateV1Request,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockListPublicWorkflowLogs,
-  mockGetPublicWorkflowLog,
-  mockMaterialize,
-} = vi.hoisted(() => ({
-  mockAuthenticateV1Request: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockListPublicWorkflowLogs: vi.fn(),
-  mockGetPublicWorkflowLog: vi.fn(),
-  mockMaterialize: vi.fn(),
-}))
+const { mockAuthenticateV1Request, mockListPublicWorkflowLogs, mockGetPublicWorkflowLog } =
+  vi.hoisted(() => ({
+    mockAuthenticateV1Request: vi.fn(),
+    mockListPublicWorkflowLogs: vi.fn(),
+    mockGetPublicWorkflowLog: vi.fn(),
+  }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-  getWorkspaceBilledAccountUserId: vi.fn(async () => 'billed-user'),
-  getWorkspaceOrganizationId: vi.fn(async () => null),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/billing/core/subscription', () => v1SubscriptionModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v1RateLimiterModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
@@ -57,31 +52,28 @@ vi.mock('@/lib/logs/public-queries', () => ({
   getPublicWorkflowLog: mockGetPublicWorkflowLog,
   decodePublicLogCursor: vi.fn(),
 }))
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterialize,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 vi.mock('@/lib/logs/snapshot-sanitizer', () => ({
   sanitizeExecutionSnapshotState: (state: unknown) => state,
 }))
-vi.mock('@/app/api/v1/logs/meta', async () => {
-  const { projectUserLimits } =
-    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
-  return {
-    getUserLimits: vi.fn(async () => ({
-      usage: { currentPeriodCost: 4.25, limit: 50, plan: 'pro', isExceeded: false },
-    })),
-    projectUserLimits,
-    createApiResponse: (body: unknown, limits: unknown) => ({
-      body: { ...(body as object), limits },
-      headers: {},
-    }),
-  }
-})
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as getLogDetail } from '@/app/api/v1/logs/[id]/route'
 import { GET as getExecution } from '@/app/api/v1/logs/executions/[executionId]/route'
 import { GET as listLogs } from '@/app/api/v1/logs/route'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockImplementation(
+  async () => 'billed-user'
+)
+workspacesUtilsMockFns.mockGetWorkspaceOrganizationId.mockImplementation(async () => null)
+const { mockMaterializeExecutionDataForDisplay: mockMaterialize } = traceStoreMockFns
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+v1LogsMetaMockFns.mockGetUserLimits.mockResolvedValue({
+  usage: { currentPeriodCost: 4.25, limit: 50, plan: 'pro', isExceeded: false },
+})
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -136,10 +128,7 @@ function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) 
 }
 
 function apiRequest(path: string) {
-  return new NextRequest(`http://localhost${path}`, {
-    method: 'GET',
-    headers: { 'x-api-key': 'sim_test' },
-  })
+  return createMockRequest({ url: `http://localhost${path}`, headers: { 'x-api-key': 'sim_test' } })
 }
 
 function listFull() {
@@ -151,15 +140,14 @@ function listFull() {
 }
 
 function readExecution() {
-  return getExecution(apiRequest('/api/v1/logs/executions/exec-1'), {
-    params: Promise.resolve({ executionId: 'exec-1' }),
-  })
+  return getExecution(
+    apiRequest('/api/v1/logs/executions/exec-1'),
+    createRouteContext({ executionId: 'exec-1' })
+  )
 }
 
 function readDetail() {
-  return getLogDetail(apiRequest(`/api/v1/logs/${LOG_ID}`), {
-    params: Promise.resolve({ id: LOG_ID }),
-  })
+  return getLogDetail(apiRequest(`/api/v1/logs/${LOG_ID}`), createRouteContext({ id: LOG_ID }))
 }
 
 beforeEach(() => {

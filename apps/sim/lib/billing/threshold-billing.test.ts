@@ -1,98 +1,80 @@
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCalculateSubscriptionOverage,
-  mockComputeOrgOverageAmount,
-  mockEnqueueOutboxEvent,
-  mockGetEffectiveBillingStatus,
-  mockGetHighestPrioritySubscription,
-  mockGetBillingPeriodUsageCost,
-  mockGetOrganizationSubscriptionUsable,
-  mockHasUsableSubscriptionAccess,
-  mockIsEnterprise,
-  mockIsFree,
-  mockIsOrgScopedSubscription,
-  mockIsOrganizationBillingBlocked,
-  mockIsSubscriptionCycleCloseCurrent,
-  mockRecordAudit,
-  mockCaptureServerEvent,
-} = vi.hoisted(() => ({
-  mockCalculateSubscriptionOverage: vi.fn(),
-  mockComputeOrgOverageAmount: vi.fn(),
-  mockEnqueueOutboxEvent: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetBillingPeriodUsageCost: vi.fn(),
-  mockGetOrganizationSubscriptionUsable: vi.fn(),
-  mockHasUsableSubscriptionAccess: vi.fn(),
-  mockIsEnterprise: vi.fn(),
-  mockIsFree: vi.fn(),
-  mockIsOrgScopedSubscription: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
+const { mockIsSubscriptionCycleCloseCurrent } = vi.hoisted(() => ({
   mockIsSubscriptionCycleCloseCurrent: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { OVERAGE_BILLED: 'overage.billed' },
-  AuditResourceType: { BILLING: 'billing' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  calculateSubscriptionOverage: mockCalculateSubscriptionOverage,
-  computeOrgOverageAmount: mockComputeOrgOverageAmount,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-  getOrganizationSubscriptionUsable: mockGetOrganizationSubscriptionUsable,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
+const mockGetOrganizationSubscriptionUsable =
+  billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/cycle-close', () => ({
   isSubscriptionCycleCloseCurrent: mockIsSubscriptionCycleCloseCurrent,
 }))
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: mockIsEnterprise,
-  isFree: mockIsFree,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  hasUsableSubscriptionAccess: mockHasUsableSubscriptionAccess,
-  isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mockEnqueueOutboxEvent,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   checkAndBillOverageThreshold,
   checkAndBillPayerOverageThreshold,
   ThresholdSettlementError,
 } from '@/lib/billing/threshold-billing'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
+const mockCalculateSubscriptionOverage = billingCoreMockFns.mockCalculateSubscriptionOverage
+const mockComputeOrgOverageAmount = billingCoreMockFns.mockComputeOrgOverageAmount
+const mockGetEffectiveBillingStatus = billingAccessMockFns.mockGetEffectiveBillingStatus
+const mockIsOrganizationBillingBlocked = billingAccessMockFns.mockIsOrganizationBillingBlocked
+const mockGetBillingPeriodUsageCost = billingUsageLogMockFns.mockGetBillingPeriodUsageCost
+const mockHasUsableSubscriptionAccess =
+  billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionAccess
+const mockIsOrgScopedSubscription = billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription
+const mockIsEnterprise = billingPlanHelpersMockFns.mockIsEnterprise
+const mockIsFree = billingPlanHelpersMockFns.mockIsFree
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const userSubscription = {
   id: 'sub-db-1',

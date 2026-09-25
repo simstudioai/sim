@@ -1,30 +1,42 @@
 import type { Principal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  permission: vi.fn(),
-  context: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
-  safe: vi.fn(),
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mocks.safe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE: 'File cannot be sent to a model',
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveReferencedWorkspaceFileContext: mocks.context,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 vi.mock('@/lib/workspace-files/application/resolve-rendered-workspace-artifact', () => ({
-  resolveRenderedWorkspaceArtifact: mocks.render,
+  resolveRenderedWorkspaceArtifact: hoisted.render,
 }))
 
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 
-const principal: Principal = { kind: 'session', userId: 'u', sessionId: 's' }
+const mocks = {
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  context: workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
+  ...hoisted,
+  safe: workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe,
+}
+
+const principal: Principal = createSessionPrincipal({ userId: 'u', sessionId: 's' })
 const input = { workspaceId: 'ws', reference: 'files/report.pdf', maxBytes: 1024 }
 const file = {
   id: 'file',

@@ -1,11 +1,13 @@
 /**
  * Runs the real Drizzle queries against an isolated PostgreSQL schema in TEST_DATABASE_URL.
- * From apps/sim: `bunx vitest run --mode integration lib/table/rows/secret-provenance.integration.ts`.
+ * `bun run --cwd apps/sim test --mode integration lib/table/rows/secret-provenance.integration.ts`.
  * The default unit suite separately checks enforcement, stale-snapshot reporting, and
  * write-event attribution without a database.
  */
+
 import * as schema from '@sim/db/schema'
 import { userTableRows } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { loggingSessionMock } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -80,16 +82,13 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: vi.fn(),
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Table provenance PostgreSQL tests require a local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 const testSchema = `provenance_${generateShortId()
   .replace(/[^a-zA-Z0-9]/g, '')
   .toLowerCase()}`
 const connectionOptions = { max: 1, connection: { search_path: testSchema } }
-const connection = databaseUrl ? postgres(databaseUrl, connectionOptions) : undefined
-const writer = databaseUrl ? postgres(databaseUrl, connectionOptions) : undefined
+const connection = postgres(databaseUrl, connectionOptions)
+const writer = postgres(databaseUrl, connectionOptions)
 const updatedAt = new Date('2026-08-05T00:00:00.123Z')
 const secretEntry = { columnId: 'retained', encryptedValue: 'encrypted-secret', name: 'SECRET' }
 const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -129,7 +128,6 @@ async function insertRow({
   stale,
   data = { retained: 'value', removed: 'other' },
 }: Fixture) {
-  if (!connection) throw new Error('PostgreSQL test database is not initialized')
   await connection`
     INSERT INTO user_table_rows (id, table_id, workspace_id, data, updated_at, secret_provenance_version)
     VALUES (${id}, 'table-1', 'workspace-1', ${JSON.stringify(data)}::jsonb, ${updatedAt.toISOString()}, ${version})
@@ -184,9 +182,8 @@ async function writeWideRow() {
   return fixture
 }
 
-describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
+describe('table provenance in PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection`CREATE SCHEMA ${connection(testSchema)}`
     database.current = drizzle(connection, { schema })
     await connection.unsafe(`
@@ -224,7 +221,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   beforeEach(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection.unsafe(
       'TRUNCATE table_row_executions, user_table_rows, user_table_row_secret_provenance, user_table_definitions'
     )
@@ -232,13 +228,12 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await writer?.end()
-    if (connection) await connection`DROP SCHEMA ${connection(testSchema)} CASCADE`
-    await connection?.end()
+    await writer.end()
+    await connection`DROP SCHEMA ${connection(testSchema)} CASCADE`
+    await connection.end()
   })
 
   async function concurrentPatch(data: RowData) {
-    if (!writer) throw new Error('Writer unavailable')
     await drizzle(writer, { schema }).transaction(async (tx) => {
       await mutateTableRowsWithSecretProvenance(tx as DbTransaction, {
         rows: [{ rowId: 'row-1', provenance: { complete: true, columns: {} } }],
@@ -339,7 +334,7 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
     const capture = reader.capture.bind(reader)
     vi.spyOn(reader, 'capture').mockImplementation(async (executor: DbExecutor, rows) => {
       expect(executor).not.toBe(database.current)
-      const [outside] = await writer!`SELECT data FROM user_table_rows WHERE id = 'row-1'`
+      const [outside] = await writer`SELECT data FROM user_table_rows WHERE id = 'row-1'`
       expect(outside.data.retained).toBe('value')
       await capture(executor, rows)
     })
@@ -366,7 +361,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   it.each(['exact', 'unknown', 'legacy', 'stale'] as const)(
     'preserves %s row provenance through cancellation, restart, and a cell write',
     async (baseStatus) => {
-      if (!connection) throw new Error('PostgreSQL fixture unavailable')
       const boundEntry = {
         ...secretEntry,
         sourceUserId: scope.userId,
@@ -488,7 +482,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   it.each(['cancelled', 'replaced'] as const)(
     'rolls back execution-only cleanup rejected by a %s attempt',
     async (attempt) => {
-      if (!connection) throw new Error('PostgreSQL fixture unavailable')
       await insertRow({ status: 'exact', entries: [secretEntry] })
       await connection`
       INSERT INTO table_row_executions (table_id, row_id, group_id, status, execution_id, workflow_id)
@@ -520,7 +513,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   )
 
   it('rolls back cell data and provenance when a cancelled worker writes late', async () => {
-    if (!connection) throw new Error('PostgreSQL fixture unavailable')
     await insertRow({ status: 'exact', entries: [secretEntry] })
     await connection`
       INSERT INTO table_row_executions (table_id, row_id, group_id, status, workflow_id)
@@ -851,7 +843,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   it('writes and reads 1,000 columns carrying eleven secrets without losing their column or source bindings', async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     const { scope, entries, data } = await writeWideRow()
     const [stored] = await connection`
       SELECT p.status, jsonb_array_length(p.entries) AS bindings,

@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   auditMock,
@@ -9,49 +9,55 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  role: vi.fn(),
-  context: vi.fn(),
-  orgAdmin: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   revoke: vi.fn(),
-  removeOrg: vi.fn(),
-  seats: vi.fn(),
-  analytics: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  isOrganizationAdminOrOwner: mocks.orgAdmin,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
-  revokeWorkspaceAccessTx: mocks.revoke,
+  revokeWorkspaceAccessTx: hoisted.revoke,
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  removeUserFromOrganization: mocks.removeOrg,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: mocks.seats }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
 
-const delegated: DelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  ...hoisted,
+  seats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  context: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  orgAdmin: permissionsMockFns.mockIsOrganizationAdminOrOwner,
+  removeOrg: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+}
+
+const delegated = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: '11111111-1111-4111-8111-111111111111',
   delegationId: 'call',
   audience: 'sim:settings',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-}
+})
 
 function queueWorkspace(
   options: {

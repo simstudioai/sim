@@ -1,20 +1,26 @@
 import { resetDbChainMock } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
-  vi.hoisted(() => ({
-    mockDownloadServableFileFromStorage: vi.fn(),
-    mockReadWorkspaceFileByKey: vi.fn(),
-    mockVerifyFileAccess: vi.fn(),
-  }))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
+const { mockReadWorkspaceFileByKey } = vi.hoisted(() => ({
+  mockReadWorkspaceFileByKey: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 vi.mock(
   '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
@@ -35,6 +41,9 @@ import {
 import { StoredWorkspaceFileUnavailableError } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockVerifyFileAccess } = filesAuthorizationMockFns
+
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
 const PDF_BYTES = Buffer.from('%PDF-1.4 rendered bytes')
 
@@ -47,16 +56,11 @@ const generatedPdf: UserFile = {
   key: 'workspace/2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f/1700000000000-abc1234-report.pdf',
 }
 
-const delegatedReader = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
+const delegatedReader = createDelegatedPrincipal({
   subjectUserId: 'reader',
-  workspaceId: 'workspace-1',
   delegationId: 'read-1',
   audience: 'sim:function-executions',
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
-}
+})
 
 describe('readUserFileContent', () => {
   beforeEach(() => {
@@ -109,7 +113,7 @@ describe('readUserFileContent', () => {
   })
 
   it('carries the actual execution principal through live knowledge-file authorization', async () => {
-    const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session-1' }
+    const principal = createSessionPrincipal({ userId: 'reader' })
     const file: UserFile = {
       id: 'kb-file',
       name: 'page.txt',
@@ -289,11 +293,7 @@ describe('readUserFileContent', () => {
   })
 
   it('authorizes an exact workspace storage key with the workspace-key principal', async () => {
-    const principal = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: 'workspace-1',
-      keyId: 'key-1',
-    }
+    const principal = createWorkspaceApiKeyPrincipal()
 
     await readUserFileContent(generatedPdf, {
       principal,
@@ -316,11 +316,7 @@ describe('readUserFileContent', () => {
   it.each([undefined, 'workspace', 'mothership'] as const)(
     'resolves chat-upload ownership canonically with descriptor context %s',
     async (context) => {
-      const principal = {
-        kind: 'workspace_api_key' as const,
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      }
+      const principal = createWorkspaceApiKeyPrincipal()
       await assertUserFileContentAccess(
         { key: 'workspace/workspace-1/upload.png', context },
         { principal, workspaceId: 'workspace-1' }
@@ -342,7 +338,7 @@ describe('readUserFileContent', () => {
     {
       userId: 'billing-owner',
       workspaceId: 'workspace-1',
-      principal: { kind: 'workspace_api_key' as const, workspaceId: 'workspace-1', keyId: 'key-1' },
+      principal: createWorkspaceApiKeyPrincipal(),
     },
   ])('never uses a user fallback to accept a mothership context alias', async (options) => {
     mockReadWorkspaceFileByKey.mockRejectedValue(
@@ -390,9 +386,10 @@ describe('readUserFileContent', () => {
 
   it.each(
     ([undefined, 'workspace'] as const).flatMap((context) =>
-      [{ kind: 'session' as const, userId: 'reader', sessionId: 'session-1' }, delegatedReader].map(
-        (principal) => ({ context, principal })
-      )
+      [createSessionPrincipal({ userId: 'reader' }), delegatedReader].map((principal) => ({
+        context,
+        principal,
+      }))
     )
   )(
     'retains legacy authorization for an unscoped caller with absent metadata: %j',
@@ -420,7 +417,7 @@ describe('readUserFileContent', () => {
   it.each(
     ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
       [
-        { kind: 'session' as const, userId: 'reader', sessionId: 'session-1' },
+        createSessionPrincipal({ userId: 'reader' }),
         delegatedReader,
         { ...delegatedReader, resourceScope: { fileId: 'file-1', chatId: 'chat-1' } },
       ].map((principal) => ({ context, principal }))

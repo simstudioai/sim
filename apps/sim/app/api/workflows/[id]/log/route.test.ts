@@ -1,65 +1,51 @@
 import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { loggingSessionMock, loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Override global db mock with the configurable chain mock
-
-const {
-  mockValidateWorkflowAccess,
-  mockGetWorkspaceBilledAccountUserId,
-  mockResolveBillingAttribution,
-  mockAssertBillingAttributionSnapshot,
-  mockStart,
-  mockSetResolvedSecretTraceRegistry,
-  mockSafeComplete,
-  mockSafeCompleteWithError,
-} = vi.hoisted(() => ({
+const { mockValidateWorkflowAccess } = vi.hoisted(() => ({
   mockValidateWorkflowAccess: vi.fn(),
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockAssertBillingAttributionSnapshot: vi.fn((value) => value),
-  mockStart: vi.fn().mockResolvedValue(undefined),
-  mockSetResolvedSecretTraceRegistry: vi.fn(),
-  mockSafeComplete: vi.fn().mockResolvedValue(undefined),
-  mockSafeCompleteWithError: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/app/api/workflows/middleware', () => ({
   validateWorkflowAccess: mockValidateWorkflowAccess,
 }))
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-  resolveBillingAttribution: mockResolveBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn(function LoggingSession() {
-    return {
-      start: mockStart,
-      setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
-      markAsFailed: vi.fn().mockResolvedValue(undefined),
-      safeCompleteWithError: mockSafeCompleteWithError,
-      safeComplete: mockSafeComplete,
-    }
-  }),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 0 }),
 }))
 
-import { POST } from './route'
+import { POST } from '@/app/api/workflows/[id]/log/route'
+
+const { mockGetWorkspaceBilledAccountUserId } = workspacesUtilsMockFns
+const { mockResolveBillingAttribution } = billingAttributionMockFns
+const {
+  mockStart,
+  mockSetResolvedSecretTraceRegistry,
+  mockSafeComplete,
+  mockSafeCompleteWithError,
+} = loggingSessionMockFns
 
 const makeRequest = (workflowId: string, body: unknown) =>
-  new NextRequest(`http://localhost/api/workflows/${workflowId}/log`, {
+  createMockRequest({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    url: `http://localhost/api/workflows/${workflowId}/log`,
+    body,
   })
 
 const validResult = { success: true, output: { value: 42 } }
@@ -127,7 +113,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: VICTIM_EXECUTION_ID,
         result: validResult,
       }),
-      { params: Promise.resolve({ id: ATTACKER_WORKFLOW_ID }) }
+      createRouteContext({ id: ATTACKER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(404)
@@ -143,7 +129,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'missing-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(404)
@@ -173,7 +159,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'actor-mismatch-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(403)
@@ -201,7 +187,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'workspace-mismatch-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(500)
@@ -236,7 +222,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'existing-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(200)
@@ -278,7 +264,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'trusted-provenance-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(200)
@@ -309,7 +295,7 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
         executionId: 'legacy-no-provenance-execution-id',
         result: validResult,
       }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+      createRouteContext({ id: OWNER_WORKFLOW_ID })
     )
 
     expect(res.status).toBe(200)

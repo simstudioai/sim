@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachProtocolCommands } from './index'
 
@@ -33,10 +33,6 @@ beforeEach(() => {
   requestRaw.mockReset()
   stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
   stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 function ndjson(events: Array<Record<string, unknown>>): Response {

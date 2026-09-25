@@ -1,23 +1,25 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { executeAshbyUpload } from '@/lib/internal/ashby/operations'
 
@@ -32,13 +34,13 @@ const FILE = {
 
 describe('executeAshbyUpload', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('resume'),
       contentType: 'application/pdf',
     })
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 204 })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 204 })
     vi.stubGlobal(
       'fetch',
       vi
@@ -76,15 +78,15 @@ describe('executeAshbyUpload', () => {
       success: true,
       output: { id: 'candidate-1' },
     })
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledOnce()
-    expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledOnce()
-    expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledOnce()
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledOnce()
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://uploads.example.com/form',
       'uploadUrl',
       'contentFetch'
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledOnce()
-    const uploadOptions = mocks.secureFetchWithPinnedIP.mock.calls[0][2]
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+    const uploadOptions = mockSecureFetchWithPinnedIP.mock.calls[0][2]
     const multipartBody = new TextDecoder().decode(uploadOptions.body as Uint8Array)
     expect(multipartBody).toContain('name="Content-Type"')
     expect(multipartBody).toContain('application/pdf')
@@ -94,7 +96,7 @@ describe('executeAshbyUpload', () => {
   })
 
   it('returns the storage authorization denial without downloading or uploading', async () => {
-    mocks.assertToolFileAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
     const response = await executeAshbyUpload(
@@ -109,12 +111,12 @@ describe('executeAshbyUpload', () => {
       { userId: 'sim-user', requestId: 'request-1' }
     )
     expect(response.status).toBe(404)
-    expect(mocks.downloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('returns 413 when the servable file exceeds Ashby upload limits', async () => {
-    mocks.downloadServableFileFromStorage.mockRejectedValueOnce(
+    mockDownloadServableFileFromStorage.mockRejectedValueOnce(
       new PayloadSizeLimitError({
         label: 'servable file download',
         maxBytes: 25 * 1024 * 1024,

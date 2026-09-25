@@ -2,20 +2,18 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { policy, discovery, protectedMount, refresh } = vi.hoisted(() => ({
+const { policy, discovery, protectedMount } = vi.hoisted(() => ({
   policy: vi.fn(),
   discovery: vi.fn(),
   protectedMount: vi.fn(),
-  refresh: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  useRouter: () => ({ refresh }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@sim/emcn', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
@@ -27,12 +25,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => ({
-  Lock: () => null,
-  Plus: () => null,
-  Upload: () => null,
-  BookOpen: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
 vi.mock('@/hooks/queries/access-requests', () => ({
   useDiscoverAccessRequests: discovery,
@@ -42,6 +35,9 @@ vi.mock('@/ee/access-requests/components/request-access-action', () => ({
 }))
 
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+
+const { refresh } = nextNavigationMockFns.router
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 describe('PermissionAccessBoundary', () => {
   let container: HTMLDivElement

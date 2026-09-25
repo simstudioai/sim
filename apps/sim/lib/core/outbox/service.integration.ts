@@ -1,6 +1,8 @@
 /** Real PostgreSQL claims verify scheduling fairness and concurrent delivery. */
+
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -39,10 +41,8 @@ function planNodes(plan: QueryPlan): QueryPlan[] {
 describe('outbox scheduling in PostgreSQL', () => {
   const eventTypes = new Set<string>()
   const schemaName = `outbox_test_${generateId().replaceAll('-', '')}`
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (!databaseUrl) throw new Error('Outbox tests require a disposable local database')
   const connection = postgres(
-    databaseUrl,
+    readTestDatabaseUrl(),
     withUtcTimestamps({
       max: 4,
       prepare: false,

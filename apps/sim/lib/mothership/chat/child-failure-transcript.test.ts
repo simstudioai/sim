@@ -1,4 +1,5 @@
 import { createElement } from 'react'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
@@ -23,9 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 const failure = 'The model reached its output limit before finishing the response.'
 function event(

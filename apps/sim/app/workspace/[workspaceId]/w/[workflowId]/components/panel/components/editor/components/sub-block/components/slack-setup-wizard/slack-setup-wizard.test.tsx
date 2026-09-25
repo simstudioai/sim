@@ -1,5 +1,9 @@
 /** @vitest-environment jsdom */
 import { act, useState } from 'react'
+import {
+  resetWorkflowRegistryMockState,
+  workflowRegistryStoreMock,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
@@ -12,7 +16,7 @@ vi.mock('@/hooks/use-webhook-management', () => ({
     isLoading: mocks.loading,
   }),
 }))
-vi.mock('@/stores/workflows/registry/store', () => ({ useWorkflowRegistry: () => 'workflow-1' }))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: (selector: (state: { workflowValues: object }) => unknown) =>
     selector({ workflowValues: {} }),
@@ -26,6 +30,8 @@ vi.mock(
 )
 
 import { SlackSetupWizard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard'
+
+resetWorkflowRegistryMockState({ activeWorkflowId: 'workflow-1' })
 
 let root: Root
 let container: HTMLDivElement

@@ -1,6 +1,13 @@
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import '@sim/testing/mocks/executor'
 
-import { loggerMock, resetEnvMock, setEnv } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
 import { BlockType } from '@/executor/constants'
@@ -9,6 +16,12 @@ import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
+
+authInternalMockFns.mockGenerateInternalDelegationToken.mockResolvedValue('signed-mcp-scope')
+
+const mockAreModelSafeWorkspaceFileKeys =
+  workspaceFileSecretProvenanceMockFns.mockAreModelSafeWorkspaceFileKeys
+const mockGenerateId = idMockFns.mockGenerateId
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -32,32 +45,25 @@ const PRIVATE_PROVENANCE = {
 }
 
 const {
-  mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
   mockDiscoverMcpServerToolsAsExecutor,
   mockExtractAPIErrorMessage,
-  mockGenerateId,
   mockReadUserFileContent,
 } = vi.hoisted(() => ({
-  mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
   mockDiscoverMcpServerToolsAsExecutor: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
-  mockGenerateId: vi.fn(),
   mockReadUserFileContent: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalDelegationToken: vi.fn().mockResolvedValue('signed-mcp-scope'),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: mockDiscoverMcpServerToolsAsExecutor,
@@ -69,19 +75,13 @@ vi.mock('@/executor/utils/http', () => ({
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   readUserFileContent: mockReadUserFileContent,
 }))
 
-const mockMothershipLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi
-    .mocked(loggerMock.createLogger)
-    .mock.calls.findIndex(([name]) => name === 'MothershipBlockHandler')
-].value
+const mockMothershipLogger = getMockLogger('MothershipBlockHandler')
 
 function createAbortError(): Error {
   const error = new Error('The operation was aborted')
@@ -202,8 +202,6 @@ describe('MothershipBlockHandler', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
-    vi.unstubAllGlobals()
     resetEnvMock()
   })
 

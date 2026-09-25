@@ -4,40 +4,19 @@
 import {
   authMockFns,
   createMockRequest,
+  dbChainMockFns,
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockDb } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
-  mockDb: { select: vi.fn(), insert: vi.fn() },
-}))
-
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-// The route and `lib/pinned-items/resources` import both the db client AND the table
-// schema objects from `@sim/db`; the global database mock only covers the client, so
-// `schemaMock`'s table shapes are merged in here.
-vi.mock('@sim/db', () => ({ db: mockDb, ...schemaMock }))
 
 import { GET, POST } from '@/app/api/pinned-items/route'
+
+const mockDb = { select: dbChainMockFns.select, insert: dbChainMockFns.insert }
 
 const mockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User' }
 

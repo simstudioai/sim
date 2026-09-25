@@ -1,10 +1,16 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertAccess: vi.fn(),
   createClient: vi.fn(),
-  downloadFile: vi.fn(),
-  processFiles: vi.fn(),
   request: vi.fn(),
 }))
 
@@ -12,17 +18,15 @@ vi.mock('@/lib/internal/jira/client', () => ({
   createJiraClient: mocks.createClient,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 import { executeJiraAddAttachment, executeJiraWrite } from '@/lib/internal/jira/operations'
 
@@ -41,11 +45,11 @@ const context = {
 describe('Jira operations', () => {
   beforeEach(() => {
     mocks.createClient.mockResolvedValue(client)
-    mocks.assertAccess.mockResolvedValue(null)
-    mocks.processFiles.mockReturnValue([
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockProcessFilesToUserFiles.mockReturnValue([
       { key: 'workspace/file.txt', name: 'file.txt', size: 4, type: 'text/plain' },
     ])
-    mocks.downloadFile.mockResolvedValue({
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('test'),
       contentType: 'text/plain',
     })
@@ -113,13 +117,13 @@ describe('Jira operations', () => {
       )
     ).rejects.toMatchObject({ status: 400 })
 
-    expect(mocks.processFiles).not.toHaveBeenCalled()
+    expect(mockProcessFilesToUserFiles).not.toHaveBeenCalled()
     expect(mocks.createClient).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it('fails closed when attachment access is denied', async () => {
-    mocks.assertAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
 
@@ -137,7 +141,7 @@ describe('Jira operations', () => {
       status: 404,
       body: { success: false, error: 'File not found' },
     })
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalled()
   })
 })

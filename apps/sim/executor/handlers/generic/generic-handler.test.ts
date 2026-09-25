@@ -62,9 +62,6 @@ describe('GenericBlockHandler', () => {
         body: (params) => params,
       },
     }
-
-    // Reset mocks using vi
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(undefined)
 
     // Set up mockGetTool to return mockTool

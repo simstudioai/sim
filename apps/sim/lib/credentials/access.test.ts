@@ -1,21 +1,11 @@
 import { account, credential, credentialMember, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = permissionsMockFns
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-  resolveWorkspaceAccess: vi.fn(async (workspaceId: string, userId: string, provided?: any) =>
-    provided && provided.workspace?.id === workspaceId
-      ? provided
-      : mockCheckWorkspaceAccess(workspaceId, userId)
-  ),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { getCredentialActorContext, resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 

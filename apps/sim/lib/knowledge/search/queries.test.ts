@@ -61,8 +61,6 @@ const embeddingTable = {
 beforeEach(() => forgetProjectionFilled())
 
 describe('retrieval leg budgets', () => {
-  afterEach(() => vi.restoreAllMocks())
-
   it.each([undefined, 3000])(
     'applies vector budget %s without shortening keyword or tag retrieval',
     async (vectorBudgetMs) => {
@@ -298,7 +296,6 @@ describe('workspace-scoped vector retrieval', () => {
     })
   })
   afterEach(() => {
-    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 

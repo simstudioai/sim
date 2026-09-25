@@ -5,6 +5,18 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,18 +38,11 @@ vi.mock('@/lib/credential-groups/oauth-state', () => ({
   createCredentialGroupOAuthAttempt: createAttempt,
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => adapter,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  decryptManagedOAuthTokenSet: vi.fn(),
-  encryptManagedOAuthTokenSet: vi.fn().mockResolvedValue('encrypted-token-set'),
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  dispatchMemberSyncsForCredentialOption: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 
 import {
   completeCredentialGroupOAuth,
@@ -45,6 +50,12 @@ import {
 } from '@/lib/credential-groups/oauth'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 import { dispatchMemberSyncsForCredentialOption } from '@/lib/knowledge/connectors/member-queue'
+
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue(adapter)
+credentialsManagedOauthMockFns.mockEncryptManagedOAuthTokenSet.mockResolvedValue(
+  'encrypted-token-set'
+)
+knowledgeMemberQueueMockFns.mockDispatchMemberSyncsForCredentialOption.mockResolvedValue(undefined)
 
 const POLICY = {
   provider: 'gmail' as const,

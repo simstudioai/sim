@@ -1,44 +1,11 @@
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { queryClient, cacheStore } = vi.hoisted(() => {
-  const cache = new Map<string, unknown>()
-  return {
-    cacheStore: cache,
-    queryClient: {
-      cancelQueries: vi.fn().mockResolvedValue(undefined),
-      invalidateQueries: vi.fn().mockResolvedValue(undefined),
-      getQueryData: vi.fn((key: readonly unknown[]) => cache.get(JSON.stringify(key))),
-      setQueryData: vi.fn((key: readonly unknown[], updater: unknown) => {
-        const k = JSON.stringify(key)
-        const prev = cache.get(k)
-        const next =
-          typeof updater === 'function' ? (updater as (p: unknown) => unknown)(prev) : updater
-        cache.set(k, next)
-        return next
-      }),
-      getQueriesData: vi.fn((opts: { queryKey: readonly unknown[] }) => {
-        const prefix = JSON.stringify(opts.queryKey).slice(0, -1)
-        return [...cache.entries()]
-          .filter(([k]) => k.startsWith(prefix))
-          .map(([k, v]) => [JSON.parse(k), v])
-      }),
-      removeQueries: vi.fn(),
-    },
-  }
-})
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  infiniteQueryOptions: (opts: unknown) => opts,
-  useQuery: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: vi.fn(),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/lib/api/client/errors', () => ({
   isValidationError: vi.fn(() => false),
@@ -50,9 +17,7 @@ vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import {
@@ -62,6 +27,25 @@ import {
   useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
+
+const cacheStore = new Map<string, unknown>()
+const queryClient = reactQueryMockFns.mockQueryClient
+queryClient.getQueryData.mockImplementation((key: readonly unknown[]) =>
+  cacheStore.get(JSON.stringify(key))
+)
+queryClient.setQueryData.mockImplementation((key: readonly unknown[], updater: unknown) => {
+  const k = JSON.stringify(key)
+  const prev = cacheStore.get(k)
+  const next = typeof updater === 'function' ? (updater as (p: unknown) => unknown)(prev) : updater
+  cacheStore.set(k, next)
+  return next
+})
+queryClient.getQueriesData.mockImplementation((opts: { queryKey: readonly unknown[] }) => {
+  const prefix = JSON.stringify(opts.queryKey).slice(0, -1)
+  return [...cacheStore.entries()]
+    .filter(([k]) => k.startsWith(prefix))
+    .map(([k, v]) => [JSON.parse(k), v])
+})
 
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'
@@ -83,7 +67,6 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 
 beforeEach(() => {
   cacheStore.clear()
-  vi.clearAllMocks()
 })
 
 describe('useUpdateTableView autosave ordering', () => {

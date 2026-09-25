@@ -7,24 +7,19 @@
  * parameters), and a `locked` failure must carry `lock` so the client knows
  * which lock to clear.
  */
-import { createMockRequest } from '@sim/testing'
-import { NextResponse } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockCheckWorkspaceScope,
-  mockGetTableById,
-  mockCheckWorkspaceAccess,
-  mockPerformDeleteTable,
-  mockResolveWorkspaceRequestActor,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockCheckWorkspaceScope: vi.fn(),
-  mockGetTableById: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
+const { mockPerformDeleteTable } = vi.hoisted(() => ({
   mockPerformDeleteTable: vi.fn(),
-  mockResolveWorkspaceRequestActor: vi.fn(),
 }))
 
 /** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
@@ -39,61 +34,30 @@ function workspaceAccess(permission: string | null, organizationId: string | nul
   }
 }
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  checkWorkspaceScope: mockCheckWorkspaceScope,
-  createRateLimitResponse: () => NextResponse.json({ error: 'Rate limited' }, { status: 429 }),
-  /**
-   * Mirrors the real `tableAccessPrincipal`, which branches on `keyType` being
-   * `'personal'` — NOT on it being `'workspace'`. Only a personal key names a
-   * person; anything else, an absent `keyType` included, reaches `checkAccess`
-   * as the workspace so no bystander's permission group is applied to it.
-   */
-  tableAccessPrincipal: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal'
-      ? { kind: 'user', userId: rateLimit.userId }
-      : { kind: 'workspace_api_key', keyCreatorUserId: rateLimit.userId },
-  /**
-   * Mirrors the real resolver: a workspace key names no human, so the billed
-   * account stands in as the explicit system actor; anything else keeps its
-   * owner. The route reads it through `requireWorkspaceRequestActor`, which
-   * projects an unresolvable actor onto a 400 instead of throwing, so the mock
-   * reproduces that projection rather than only the raw resolver.
-   */
-  resolveWorkspaceRequestActor: mockResolveWorkspaceRequestActor,
-  requireWorkspaceRequestActor: async (rateLimit: unknown, workspaceId: string) => {
-    const actorUserId = await mockResolveWorkspaceRequestActor(rateLimit, workspaceId)
-    return actorUserId
-      ? { ok: true, actorUserId }
-      : {
-          ok: false,
-          response: NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 }),
-        }
-  },
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-vi.mock('@/lib/table', () => ({
-  buildFilterClause: vi.fn(),
-  getTableById: mockGetTableById,
-  TableQueryValidationError: class TableQueryValidationError extends Error {},
-}))
+vi.mock('@/lib/table', () => tableMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  /** The v1 middleware reads the permission alone; `checkAccess` reads the whole access. */
-  getUserEntityPermissions: async (...args: unknown[]) =>
-    (await mockCheckWorkspaceAccess(...args)).permission,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceOrganizationId: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 vi.mock('@/lib/table/orchestration', () => ({
   performDeleteTable: mockPerformDeleteTable,
 }))
 
 import { DELETE } from '@/app/api/v1/tables/[tableId]/route'
+
+workspacesUtilsMockFns.mockGetWorkspaceOrganizationId.mockResolvedValue(null)
+const { mockGetTableById } = tableMockFns
+
+const { mockCheckRateLimit, mockCheckWorkspaceScope, mockResolveWorkspaceRequestActor } =
+  v1MiddlewareMockFns
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+/** The v1 middleware reads the permission alone; `checkAccess` reads the whole access. */
+permissionsMockFns.mockGetUserEntityPermissions.mockImplementation(
+  async (...args: unknown[]) => (await mockCheckWorkspaceAccess(...args)).permission
+)
 
 const TABLE_ID = '22222222-2222-4222-8222-222222222222'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -108,7 +72,7 @@ function makeRequest() {
 }
 
 function makeContext() {
-  return { params: Promise.resolve({ tableId: TABLE_ID }) }
+  return createRouteContext({ tableId: TABLE_ID })
 }
 
 describe('DELETE /api/v1/tables/[tableId] — orchestration failure projection', () => {

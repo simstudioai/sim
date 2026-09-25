@@ -1,5 +1,14 @@
 import { workspace } from '@sim/db/schema'
 import { queueTableRows } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { mothershipOtelMock, mothershipOtelMockFns } from '@sim/testing/mocks/mothership-otel.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { sleep } from '@sim/utils/helpers'
 import '@sim/testing/mocks/executor'
 
@@ -9,60 +18,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   executeTool,
   dispatchCli,
-  completeAsyncToolCall,
-  markAsyncToolRunning,
-  upsertAsyncToolCall,
-  claimSimToolExecution,
-  settleSimToolExecution,
   waitForToolConfirmation,
   onEvent,
   recordSimToolMetric,
-  setAttribute,
-  withCopilotToolSpan,
-  encryptSecret,
-  decryptSecret,
   publishToolConfirmation,
-  replaceTerminalAsyncToolCallResult,
-  mockError,
-} = vi.hoisted(() => {
-  const setAttribute = vi.fn()
-  return {
-    executeTool: vi.fn(),
-    dispatchCli: vi.fn(),
-    encryptSecret: vi.fn(),
-    decryptSecret: vi.fn(),
-    publishToolConfirmation: vi.fn(),
-    waitForToolConfirmation: vi.fn(),
-    replaceTerminalAsyncToolCallResult: vi.fn(),
-    mockError: vi.fn(),
-    completeAsyncToolCall: vi.fn(),
-    markAsyncToolRunning: vi.fn(),
-    upsertAsyncToolCall: vi.fn(),
-    claimSimToolExecution: vi.fn(),
-    settleSimToolExecution: vi.fn(),
-    onEvent: vi.fn(),
-    recordSimToolMetric: vi.fn(),
-    setAttribute,
-    withCopilotToolSpan: vi.fn(
-      (_input: unknown, fn: (span: { setAttribute: typeof setAttribute }) => Promise<unknown>) =>
-        fn({ setAttribute })
-    ),
-  }
-})
+} = vi.hoisted(() => ({
+  executeTool: vi.fn(),
+  dispatchCli: vi.fn(),
+  publishToolConfirmation: vi.fn(),
+  waitForToolConfirmation: vi.fn(),
+  onEvent: vi.fn(),
+  recordSimToolMetric: vi.fn(),
+}))
 
 vi.mock('@/lib/api/server/routes/in-process-transport', () => ({
   dispatchInProcessV2Request: dispatchCli,
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: async () => 'read',
-  permissionSatisfies: (actual: string | null, required: string) => actual === required,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret, decryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution: vi.fn(),
@@ -73,16 +47,7 @@ vi.mock('@/lib/mothership/tool-executor', () => ({
   executeTool,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  completeAsyncToolCall,
-  completeOwnedSimToolCall: completeAsyncToolCall,
-  renewSimToolExecutionLease: vi.fn().mockResolvedValue(true),
-  markAsyncToolRunning,
-  upsertAsyncToolCall,
-  replaceTerminalAsyncToolCallResult,
-  claimSimToolExecution,
-  settleSimToolExecution,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation,
@@ -93,11 +58,7 @@ vi.mock('@/lib/mothership/request/metrics', () => ({
   recordSimToolMetric,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotToolSpan,
-  withCopilotSpan: (_name: string, _attrs: unknown, fn: () => Promise<unknown>) => fn(),
-  getCopilotTracer: () => trace.getTracer('test-copilot'),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 vi.mock('@/lib/mothership/request/sse-utils', () => ({
   markToolResultSeen: vi.fn(),
@@ -123,10 +84,23 @@ vi.mock('@/lib/mothership/request/tools/workflow-context', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({
   mintDelegationToken: async () => 'local-cli-budget-fixture',
 }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getInternalApiBaseUrl: () => 'https://cli-budget.test',
-  SITE_URL: 'https://cli-budget.test',
-}))
+
+const {
+  mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockMarkAsyncToolRunning: markAsyncToolRunning,
+  mockUpsertAsyncToolCall: upsertAsyncToolCall,
+  mockClaimSimToolExecution: claimSimToolExecution,
+  mockSettleSimToolExecution: settleSimToolExecution,
+  mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult,
+} = mothershipAsyncRunsMockFns
+mothershipAsyncRunsMockFns.mockCompleteOwnedSimToolCall.mockImplementation((...args) =>
+  completeAsyncToolCall(...args)
+)
+mothershipAsyncRunsMockFns.mockRenewSimToolExecutionLease.mockResolvedValue(true)
+mothershipOtelMockFns.mockWithCopilotSpan.mockImplementation(
+  (_name: string, _attrs: unknown, fn: () => Promise<unknown>) => fn()
+)
+mothershipOtelMockFns.mockGetCopilotTracer.mockImplementation(() => trace.getTracer('test-copilot'))
 
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { SimToolExecutionLeaseLostError } from '@/lib/mothership/async-runs/execution-lease'
@@ -160,6 +134,11 @@ import {
 import type { ExecutionContext, ToolCallState } from '@/lib/mothership/request/types'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockEncryptSecret: encryptSecret, mockDecryptSecret: decryptSecret } = encryptionMockFns
+const mockError = getMockLogger('CopilotClientToolWaiter').error
+urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('https://cli-budget.test')
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
 
 function buildStreamingContext(toolCall: ToolCallState) {
   return createStreamingContext({

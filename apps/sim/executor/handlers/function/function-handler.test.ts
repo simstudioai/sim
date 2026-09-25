@@ -1,3 +1,4 @@
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
@@ -8,9 +9,7 @@ import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
-vi.mock('@/tools', () => ({
-  executeTool: vi.fn(),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 const mockExecuteTool = executeTool as Mock
 
@@ -44,9 +43,6 @@ describe('FunctionBlockHandler', () => {
       activeExecutionPath: new Set(),
       completedLoops: new Set(),
     }
-
-    // Reset mocks using vi
-    vi.clearAllMocks()
 
     // Default mock implementation for executeTool
     mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'Success' } })

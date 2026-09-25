@@ -1,22 +1,23 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDnsLookup, mockSecureFetch, mockValidateUrlWithDNS } = vi.hoisted(() => ({
+const { mockDnsLookup } = vi.hoisted(() => ({
   mockDnsLookup: vi.fn(),
-  mockSecureFetch: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
 }))
 
 vi.mock('dns/promises', () => ({
   default: { lookup: mockDnsLookup },
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: mockSecureFetch,
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { connectRequest } from '@/lib/internal/onepassword/client'
+
+const { mockSecureFetchWithPinnedIP: mockSecureFetch, mockValidateUrlWithDNS } =
+  inputValidationMockFns
 
 afterAll(resetEnvFlagsMock)
 

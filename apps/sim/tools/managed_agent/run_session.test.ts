@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { executeManagedAgentRunSessionOperation } from '@/lib/internal/managed-agent/operations/run-session'
 import * as runSessionModule from '@/lib/managed-agents/run-session'
 import type { ManagedAgentRunSessionParams } from '@/tools/managed_agent/types'
@@ -8,7 +8,10 @@ import type { ManagedAgentRunSessionParams } from '@/tools/managed_agent/types'
  * the tool module may already be cached bound to the real run-session module,
  * so patching the shared namespace is the only wiring that always applies.
  */
-const runManagedAgentSession = vi.spyOn(runSessionModule, 'runManagedAgentSession')
+let runManagedAgentSession: MockInstance<typeof runSessionModule.runManagedAgentSession>
+beforeEach(() => {
+  runManagedAgentSession = vi.spyOn(runSessionModule, 'runManagedAgentSession')
+})
 
 afterAll(() => {
   runManagedAgentSession.mockRestore()

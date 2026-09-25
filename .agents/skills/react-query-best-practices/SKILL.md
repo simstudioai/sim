@@ -26,7 +26,7 @@ Read these before analyzing:
 ## Rules to enforce
 
 ### Query keys and hooks
-Enforce CLAUDE.md "React Query" and `.claude/rules/sim-queries.md` (key factory with `all` + plural prefixes, `signal` forwarding, named `staleTime` constants reused by prefetches, `keepPreviousData` only on variable keys, `requestJson` boundary). Additionally:
+Enforce `.claude/rules/sim-queries.md` (key factory with `all` + plural prefixes, `signal` forwarding, named `staleTime` constants reused by prefetches, `keepPreviousData` only on variable keys, `requestJson` boundary). Additionally:
 - Key factories live next to their hooks — except a factory, standalone fetcher/mapper, or `staleTime` constant that a server module (a `prefetch.ts`, route, block, trigger) imports, which must live in a non-`'use client'` module under `hooks/queries/utils/` per `.claude/rules/sim-queries.md` (a `'use client'` export called from the server crashes SSR)
 - Use `enabled` to prevent queries from running without required params
 - Warm data for hover/focus intent with `queryClient.prefetchQuery` and shared `queryOptions`; never temporarily enable a mounted hidden observer, which can remain active after focus restoration and refetch data for closed UI
@@ -37,7 +37,7 @@ Enforce CLAUDE.md "React Query" and `.claude/rules/sim-queries.md` (key factory 
 - Server prefetches must call the authorized use case, apply the route presenter/response schema, and reuse the client's exact key, mapper, and stale time. Keep all fallible auth/read/parse work inside `queryFn` so an optional warm cannot fail the page, and never bypass a route that redacts fields.
 
 ### Mutations
-Enforce CLAUDE.md "Mutation Hooks" (targeted invalidation, `onMutate`/`onError` rollback, mutation objects out of `useCallback` deps). Additionally:
+Enforce `.claude/rules/sim-queries.md` "Mutation Hook" (targeted invalidation, `onMutate`/`onError` rollback, mutation objects out of `useCallback` deps). Additionally:
 - Plain mutations invalidate in `onSuccess`; optimistic mutations reconcile in `onSettled` (fires on success and error) with rollback in `onError` — see `.claude/rules/sim-queries.md` "Mutation Hook" / "Optimistic Updates"
 
 ### Server state ownership

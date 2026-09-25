@@ -6,7 +6,6 @@ import type { ToolConfig } from '@/tools/types'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function cost(

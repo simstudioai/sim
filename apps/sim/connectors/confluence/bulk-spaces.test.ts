@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -17,8 +17,6 @@ beforeEach(() => {
       : fetchMock(input, init)
   })
 })
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Confluence bulk space validation', () => {
   it('bounds encoded URLs for long space keys', async () => {

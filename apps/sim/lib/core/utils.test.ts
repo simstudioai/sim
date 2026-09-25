@@ -1,6 +1,6 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { formatDuration } from '@sim/utils/formatting'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
   setEnv({
@@ -50,10 +50,6 @@ vi.mock('crypto', () => ({
     toString: vi.fn().mockReturnValue('random-iv'),
   }),
 }))
-
-afterEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('encryption and decryption', () => {
   it.concurrent('should encrypt secrets correctly', async () => {

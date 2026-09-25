@@ -1,6 +1,8 @@
 import { asyncJobs, tableJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { JOB_RETENTION_HOURS } from '@/lib/core/async-jobs'
 import {
@@ -9,15 +11,14 @@ import {
   SCHEDULE_CARRIER_RECONCILED_METADATA_KEY,
 } from '@/lib/workflows/schedules/carrier-metadata'
 
-const { mockDeleteFile, mockVerifyCronAuth } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn().mockResolvedValue(undefined),
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
-}))
-
-vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { GET } from '@/app/api/cron/cleanup-stale-executions/route'
+
+const mockVerifyCronAuth = authInternalMockFns.mockVerifyCronAuth
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+mockDeleteFile.mockResolvedValue(undefined)
 
 const cleanupLogger =
   vi.mocked(createLogger).mock.results[

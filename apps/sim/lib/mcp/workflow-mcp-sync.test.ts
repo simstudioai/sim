@@ -1,36 +1,11 @@
 import { flattenMockConditions, hasMockCondition } from '@sim/testing'
+import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-/**
- * The global `@sim/db` mock carries the chain fns but no table objects, and
- * this module reaches for `workflowMcpTool` directly.
- */
-vi.mock('@sim/db', async () => {
-  const { databaseMock } = await import('@sim/testing')
-  const column = (name: string) => `workflow_mcp_tool.${name}`
-  return {
-    ...databaseMock,
-    workflowMcpServer: { id: 'workflow_mcp_server.id', workspaceId: 'workflow_mcp_server.ws' },
-    workflowMcpTool: {
-      id: column('id'),
-      serverId: column('server_id'),
-      workflowId: column('workflow_id'),
-      toolName: column('tool_name'),
-      toolDescription: column('tool_description'),
-      parameterSchema: column('parameter_schema'),
-      parameterDescriptionOverrides: column('parameter_description_overrides'),
-      archivedAt: column('archived_at'),
-      createdAt: column('created_at'),
-      updatedAt: column('updated_at'),
-    },
-  }
-})
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     acquireLock: vi.fn(),
     hasValidStartBlock: vi.fn(),
-    loadDeployedState: vi.fn(),
     usageRows: vi.fn(),
     exceedsBudget: vi.fn(),
   },
@@ -42,9 +17,7 @@ vi.mock('@/lib/mcp/server-locks', () => ({
 vi.mock('@/lib/workflows/triggers/trigger-utils', () => ({
   hasValidStartBlockInState: mocks.hasValidStartBlock,
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployedState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: null }))
 vi.mock('@/lib/mcp/workflow-tool-schema', () => ({
   applyDescriptionOverrides: (schema: unknown) => schema,

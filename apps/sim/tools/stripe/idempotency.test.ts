@@ -1,25 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: mockWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
-  runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: vi.fn(),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import * as stripeToolModule from '@/tools/stripe'
 import { STRIPE_UNKEYED_DELIVERY } from '@/tools/stripe/idempotency'
 import type { ToolConfig } from '@/tools/types'
+
+const { warn: mockWarn } = getMockLogger('StripeIdempotency')
 
 /** Stripe's header, exactly as it must appear on the wire. */
 const IDEMPOTENCY_HEADER = 'Idempotency-Key'
@@ -107,10 +93,6 @@ describe('stripe delivery classification', () => {
 })
 
 describe('stripe idempotency keys', () => {
-  beforeEach(() => {
-    mockWarn.mockClear()
-  })
-
   describe.each(KEYED_TOOLS.map((tool) => [tool.id, tool] as const))('%s', (_id, tool) => {
     it('derives the token from the execution identity, keyed to its own tool id', () => {
       const headers = buildHeaders(tool, { ...params(), _context: { ...CONTEXT } })

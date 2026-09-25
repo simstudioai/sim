@@ -1,25 +1,16 @@
 import crypto from 'node:crypto'
 import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchResolvedWebhookTarget, mockFindWebhooksByRoutingKey, mockRelease } = vi.hoisted(
-  () => ({
-    mockDispatchResolvedWebhookTarget: vi.fn(),
-    mockFindWebhooksByRoutingKey: vi.fn(),
-    mockRelease: vi.fn(),
-  })
-)
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-}))
-
-vi.mock('@/lib/core/admission/gate', () => ({
-  admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
-  tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
   withRouteHandler:
@@ -28,6 +19,13 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/tiktok/route'
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
+
+const mockDispatchResolvedWebhookTarget = webhooksProcessorMockFns.mockDispatchResolvedWebhookTarget
+const mockFindWebhooksByRoutingKey = webhooksProcessorMockFns.mockFindWebhooksByRoutingKey
 
 const target = (id: string) => ({
   webhook: { id, path: null, provider: 'tiktok' },

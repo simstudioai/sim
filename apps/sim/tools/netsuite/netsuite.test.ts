@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { executeNetsuiteTool } from '@/lib/internal/netsuite/execute-tool'
 import { executeNetsuiteAttachRecordOperation } from '@/lib/internal/netsuite/operations/attach-record'
 import { executeNetsuiteGetSelectOptionsOperation } from '@/lib/internal/netsuite/operations/get-select-options'
@@ -556,10 +556,6 @@ const SOURCE_MATRIX: SourceMatrixEntry[] = [
 ]
 
 describe('NetSuite operation contracts', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('matches all 27 Oracle method, path, query, header, body, and success contracts', async () => {
     const apiCalls: Array<{ url: string; init?: RequestInit }> = []
     let apiIndex = 0

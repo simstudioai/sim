@@ -1,18 +1,16 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 
-const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = vi.hoisted(() => ({
-  mockGetUserUsageLogs: vi.fn(),
-  mockGetUsageCreditsByLogId: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getUserUsageLogs: mockGetUserUsageLogs,
-  getUsageCreditsByLogId: mockGetUsageCreditsByLogId,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { GET } from '@/app/api/users/me/usage-logs/route'
+
+const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = billingUsageLogMockFns
 
 describe('GET /api/users/me/usage-logs', () => {
   beforeEach(() => {

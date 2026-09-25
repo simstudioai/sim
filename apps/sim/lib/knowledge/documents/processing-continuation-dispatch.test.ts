@@ -1,14 +1,8 @@
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
+import { tasks } from '@trigger.dev/sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
-  mockTrigger: vi.fn(),
-  mockResolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mockTrigger } }))
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { dispatchDocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
@@ -16,6 +10,8 @@ import type {
   DocumentProcessingLane,
   DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
+
+const mockTrigger = vi.mocked(tasks.trigger)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',

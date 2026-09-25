@@ -25,7 +25,9 @@ function fastest(run: (content: string) => void, content: string): number {
  * millisecond bound measures the machine as much as the algorithm: it fails on a
  * loaded CI box, and set generously enough not to, it lets a genuine quadratic
  * through at the single size it happens to sample. Quadratic costs ~16x for 4x
- * the input; linear costs ~4x.
+ * the input; linear costs ~4x. The smallest of three independent ratios is
+ * returned: a GC pause or a loaded CI box can inflate one sample, but a genuine
+ * quadratic is slow every time.
  */
 export function scalingRatioOver4x(
   run: (content: string) => void,
@@ -33,10 +35,13 @@ export function scalingRatioOver4x(
 ): number {
   // Warm up first — the JIT would otherwise charge the whole compile to the
   // small sample and flatter the ratio.
-  fastest(run, buildContent(2_000))
+  const smallContent = buildContent(2_000)
+  const largeContent = buildContent(8_000)
+  fastest(run, smallContent)
 
-  const small = fastest(run, buildContent(2_000))
-  const large = fastest(run, buildContent(8_000))
-
-  return large / small
+  let best = Number.POSITIVE_INFINITY
+  for (let trial = 0; trial < 3; trial++) {
+    best = Math.min(best, fastest(run, largeContent) / fastest(run, smallContent))
+  }
+  return best
 }

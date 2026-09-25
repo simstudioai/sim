@@ -1,63 +1,47 @@
-import { createMockRequest } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAssertActiveWorkspaceAccess,
-  mockBuildIntegrationToolSchemas,
   mockBuildSelectedMcpToolSchemas,
   mockBuildTaggedMcpToolSchemas,
-  mockCheckInternalAuth,
   mockComputeWorkspaceEntitlements,
-  mockDecryptSecret,
-  mockGetPersonalAndWorkspaceEnv,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
-  mockRequireBillingAttributionHeader,
   mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockBuildIntegrationToolSchemas: vi.fn(),
   mockBuildSelectedMcpToolSchemas: vi.fn(),
   mockBuildTaggedMcpToolSchemas: vi.fn(),
-  mockCheckInternalAuth: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockGetPersonalAndWorkspaceEnv: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
-  mockRequireBillingAttributionHeader: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyInternalDelegationToken: vi.fn().mockResolvedValue({
-    workflowId: 'workflow-1',
-    executionId: 'execution-1',
-    mcpBlockId: 'block-1',
-    subjectUserId: 'user-1',
-  }),
-}))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: vi
-    .fn()
-    .mockResolvedValue({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkInternalAuth: mockCheckInternalAuth,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
-}))
-
-vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
 vi.mock('@/lib/mothership/chat/process-contents', () => ({
   processContextsServer: mockProcessContextsServer,
@@ -84,21 +68,30 @@ vi.mock('@/lib/mothership/transport/connection', () => ({
   getSimConnection: () => ({ mode: 'checkpoint', channelId: 'f'.repeat(64) }),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDocSandboxEnabled: false,
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError: vi.fn(() => false),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { buildExecuteResponsePayload, POST } from '@/app/api/mothership/execute/route'
+
+executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
+  workspaceId: 'workspace-1',
+})
+
+authInternalMockFns.mockVerifyInternalDelegationToken.mockResolvedValue({
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+  mcpBlockId: 'block-1',
+  subjectUserId: 'user-1',
+})
+
+const mockBuildIntegrationToolSchemas = mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas
+
+const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
+const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+const mockRequireBillingAttributionHeader =
+  billingAttributionMockFns.mockRequireBillingAttributionHeader
 
 type Payload = Parameters<typeof buildExecuteResponsePayload>[0]
 

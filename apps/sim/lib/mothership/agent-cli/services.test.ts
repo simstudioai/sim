@@ -1,34 +1,42 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-const boundary = vi.hoisted(() => ({
-  workspace: vi.fn(),
-  organization: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   route: vi.fn(),
   sink: vi.fn(),
   provenance: vi.fn(),
   readInput: vi.fn(),
 }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: boundary.workspace,
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: boundary.organization },
-}))
-vi.mock('@/lib/mothership/tools/server/router', () => ({ routeExecution: boundary.route }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/mothership/tools/server/router', () => ({ routeExecution: hoisted.route }))
 vi.mock('@/lib/mothership/agent-cli/run-cli', () => ({
-  readCliInputFile: boundary.readInput,
+  readCliInputFile: hoisted.readInput,
   runCli: vi.fn(),
 }))
-vi.mock('@/lib/mothership/agent-cli/sink', () => ({ applySink: boundary.sink }))
+vi.mock('@/lib/mothership/agent-cli/sink', () => ({ applySink: hoisted.sink }))
 vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
-  createWorkbenchFileProvenance: boundary.provenance,
+  createWorkbenchFileProvenance: hoisted.provenance,
 }))
 
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+
+const boundary = {
+  ...hoisted,
+  workspace: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  organization: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+}
 
 const organization: AgentCliExecutionContext = {
   userId: 'actor',

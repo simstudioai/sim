@@ -1,27 +1,32 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
-  decrypt: vi.fn(),
-  parseBinding: vi.fn(),
-  list: vi.fn(),
-  resolve: vi.fn(),
 }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
-  authorizeOrganizationCredentialUse: mocks.authorize,
+  authorizeOrganizationCredentialUse: hoisted.authorize,
 }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {},
-  parseGitHubInstallationBinding: mocks.parseBinding,
-  listGitHubInstallationRepositories: mocks.list,
-  resolveGitHubInstallationRepository: mocks.resolve,
-}))
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  parseBinding: githubInstallationMockFns.mockParseGitHubInstallationBinding,
+  list: githubInstallationMockFns.mockListGitHubInstallationRepositories,
+  resolve: githubInstallationMockFns.mockResolveGitHubInstallationRepository,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+}
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const binding = { installationId: '21', accountId: '11' }
 const row = {
   organizationId: 'org-1',

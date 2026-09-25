@@ -3,18 +3,16 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  downloadFileStream: vi.fn(),
   readInlineFileUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadFileStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/knowledge/transfer/export-source', () => ({
   readInlineFileUrl: mocks.readInlineFileUrl,
@@ -100,7 +98,9 @@ async function readArchive(source: Readable): Promise<JSZip> {
 
 describe('buildKnowledgeBundleArchive', () => {
   beforeEach(() => {
-    mocks.downloadFileStream.mockImplementation(async () => Readable.from([Buffer.from('pdf')]))
+    storageServiceMockFns.mockDownloadFileStream.mockImplementation(async () =>
+      Readable.from([Buffer.from('pdf')])
+    )
     mocks.readInlineFileUrl.mockResolvedValue(
       `data:text/plain;base64,${Buffer.from('hi').toString('base64')}`
     )
@@ -128,7 +128,7 @@ describe('buildKnowledgeBundleArchive', () => {
   it('rejects the archive reader when an original disappears before its stream opens', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'knowledge-export-missing-'))
     const source = createReadStream(join(directory, 'absent.txt'))
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     try {
       await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -148,7 +148,7 @@ describe('buildKnowledgeBundleArchive', () => {
         throw new Error('Original source failed')
       })()
     )
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     await expect(readArchive(archive)).rejects.toThrow('Original source failed')
     expect(source.destroyed).toBe(true)
@@ -161,7 +161,7 @@ describe('buildKnowledgeBundleArchive', () => {
         this.destroy()
       },
     })
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ERR_STREAM_PREMATURE_CLOSE' })
     expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
@@ -170,10 +170,10 @@ describe('buildKnowledgeBundleArchive', () => {
   /** A browser that abandons the download must not leave the append loop or its blob stream hanging. */
   it('releases the in-flight source and stops appending when the consumer goes away', async () => {
     const blob = new Readable({ read() {} })
-    mocks.downloadFileStream.mockResolvedValue(blob)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(blob)
     const archive = buildKnowledgeBundleArchive(bundle())
     await sleep(1)
-    expect(mocks.downloadFileStream).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalledTimes(1)
 
     archive.destroy()
     await sleep(1)

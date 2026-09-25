@@ -3,20 +3,16 @@ import {
   dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
+  permissionsMock,
+  permissionsMockFns,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
 import { or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkspaceAccess } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-}))
-
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   CopilotCodeSecretAccessError,
@@ -24,6 +20,8 @@ import {
   MAX_SECRET_MOUNT_NAMES,
   materializeCopilotCodeSecrets,
 } from '@/lib/mothership/tools/secret-mount-materializer.server'
+
+const { mockCheckWorkspaceAccess } = permissionsMockFns
 
 interface CredentialRow {
   type: 'env_personal' | 'env_workspace'

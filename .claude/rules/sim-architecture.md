@@ -1,58 +1,12 @@
 ---
-description: Core architecture principles for the Sim app
+description: Sim app boundaries — the use client server boundary, the app/worker runtime env split, and feature layout
 paths:
   - "apps/sim/**"
 ---
 
 # Sim App Architecture
 
-## Core Principles
-1. **Single Responsibility**: Each component, hook, store has one clear purpose
-2. **Composition Over Complexity**: Break down complex logic into smaller pieces
-3. **Type Safety First**: TypeScript interfaces for all props, state, return types
-4. **Predictable State**: Zustand for global state, useState for UI-only concerns
-
-## Root-Level Structure
-
-```
-apps/
-├── sim/                 # this app (Next.js: UI + API routes + workflow editor)
-│   ├── app/             # Next.js app router (pages, API routes)
-│   ├── blocks/          # Block definitions and registry
-│   ├── components/      # Shared UI (emcn/, ui/)
-│   ├── executor/        # Workflow execution engine
-│   ├── hooks/           # Shared hooks (queries/, selectors/)
-│   ├── lib/             # App-wide utilities
-│   ├── providers/       # LLM provider integrations
-│   ├── stores/          # Zustand stores
-│   ├── tools/           # Tool definitions
-│   └── triggers/        # Trigger definitions
-└── realtime/            # Bun Socket.IO server (collaborative canvas)
-
-packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
-                         # security, tsconfig, utils, platform-authz,
-                         # workflow-persistence, workflow-types
-```
-
-## Package Boundaries
-
-- `apps/* → packages/*` only. Packages never import from `apps/*`.
-- `apps/realtime` avoids Next.js, React, the block/tool registry, provider SDKs, and the executor; never add `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` imports to any package it consumes. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
-
-## Protected Application Operations
-
-Every real operation on protected or persisted data crosses one authorized application boundary:
-
-1. The surface authenticates its credential or trusted context and constructs a `Principal`.
-2. A fixed, code-defined semantic operation declares minimum role, workspace-key policy, allowed principal kinds, and delegated services.
-3. The application use case loads canonical context, checks asserted scope, authorizes current access, executes the manager/repository, projects semantic audit, and runs shared domain effects.
-4. The surface presents its own internal, v2, Copilot, or tool result.
-
-Routes and tools must not query protected data, authorize resources, implement business transactions, or record semantic audit. Application modules must not import `app/api/**`, `next/server`, route contracts/presenters, or Copilot handlers. Copilot must call the same domain use case through `createCopilotApplicationAdapter`; do not create a second Copilot business implementation. Atomic compound mutations need one top-level semantic application operation rather than sequential surface calls.
-
-Ordinary internal and v2 routes use the shared JSON/binary route builders. Those builders already apply `withRouteHandler`; do not double-wrap them. Use raw `withRouteHandler` only for explicit protocol, streaming, large-body, multipart, or lifecycle exceptions, while keeping protected business work inside application use cases.
-
-Use the `migrate-application-operation` skill before creating or migrating a protected endpoint, tool command, or resource method.
+Repository layout, package boundaries, the application operation boundary, naming, and utils placement are in the root `CLAUDE.md`. This file holds the app-internal boundaries.
 
 ## The `'use client'` server boundary
 
@@ -95,18 +49,3 @@ feature/
 ├── feature.tsx          # Main component
 └── page.tsx             # Next.js page entry
 ```
-
-## Naming Conventions
-- **Components**: PascalCase (`WorkflowList`)
-- **Hooks**: `use` prefix (`useWorkflowOperations`)
-- **Files**: kebab-case (`workflow-list.tsx`)
-- **Stores**: `stores/feature/store.ts`
-- **Constants**: SCREAMING_SNAKE_CASE
-- **Interfaces**: PascalCase with suffix (`WorkflowListProps`)
-
-## Utils Rules
-
-- **Never create `utils.ts` for single consumer** - inline it
-- **Create `utils.ts` when** 2+ files need the same helper
-- **Check existing sources** before duplicating (`lib/` has many utilities)
-- **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)

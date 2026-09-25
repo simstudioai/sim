@@ -1,39 +1,43 @@
 import { credentialGroup } from '@sim/db/schema'
 import { auditMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import { credentialGroupsOrganizationSetupMock } from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  organizationAccess: vi.fn(),
-  workspaceAccess: vi.fn(),
-  workspaceContext: vi.fn(),
-  available: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   load: vi.fn(),
   consume: vi.fn(),
   exchange: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  requireOrganizationMembership: mocks.organizationAccess,
-}))
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: mocks.workspaceAccess,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.workspaceContext,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
-  createSlackManagedUsersAttempt: mocks.create,
-  loadSlackManagedUsersAttempt: mocks.load,
-  consumeSlackManagedUsersAttempt: mocks.consume,
-  exchangeAndConfigureSlackManagedUsers: mocks.exchange,
+  createSlackManagedUsersAttempt: hoisted.create,
+  loadSlackManagedUsersAttempt: hoisted.load,
+  consumeSlackManagedUsersAttempt: hoisted.consume,
+  exchangeAndConfigureSlackManagedUsers: hoisted.exchange,
 }))
 
 import {
@@ -41,7 +45,15 @@ import {
   startSlackCredentialGroupConfiguration,
 } from '@/lib/credential-groups/application/slack-managed-users'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  workspaceAccess: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
+
+const organizationAccess = organizationAuthorizationMockFns.mockRequireOrganizationMembership
+const workspaceContext = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+const principal = createSessionPrincipal()
 const group = { id: 'group-1', workspaceId: null, organizationId: 'organization-1' }
 const attempt = {
   organizationId: 'organization-1',
@@ -62,13 +74,13 @@ const attempt = {
 beforeEach(() => {
   resetDbChainMock()
   mocks.available.mockResolvedValue(true)
-  mocks.organizationAccess.mockResolvedValue({
+  organizationAccess.mockResolvedValue({
     organizationId: 'organization-1',
     userId: 'user-1',
     role: 'admin',
   })
   mocks.workspaceAccess.mockResolvedValue(undefined)
-  mocks.workspaceContext.mockResolvedValue({ workspaceId: 'workspace-1' })
+  workspaceContext.mockResolvedValue({ workspaceId: 'workspace-1' })
   mocks.create.mockResolvedValue({ state: 'state-1', authorizationUrl: 'https://slack.com/oauth' })
   mocks.load.mockResolvedValue(attempt)
   mocks.consume.mockResolvedValue(attempt)
@@ -103,12 +115,7 @@ describe('scoped Slack setup', () => {
   it('creates an organization-bound attempt after current admin and feature checks', async () => {
     queueTableRows(credentialGroup, [group])
     await start()
-    expect(mocks.organizationAccess).toHaveBeenCalledWith(
-      principal,
-      'organization-1',
-      'admin',
-      'none'
-    )
+    expect(organizationAccess).toHaveBeenCalledWith(principal, 'organization-1', 'admin', 'none')
     expect(mocks.available).toHaveBeenCalledWith({
       kind: 'organization',
       organizationId: 'organization-1',
@@ -144,7 +151,7 @@ describe('scoped Slack setup', () => {
       },
     })
     expect(mocks.workspaceAccess).toHaveBeenCalled()
-    expect(mocks.organizationAccess).not.toHaveBeenCalled()
+    expect(organizationAccess).not.toHaveBeenCalled()
     expect(mocks.create.mock.calls[0][0]).toMatchObject({ workspaceId: 'workspace-1' })
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('organizationId')
   })
@@ -158,7 +165,7 @@ describe('scoped Slack setup', () => {
 
   it('rechecks admin access before consuming the callback', async () => {
     queueTableRows(credentialGroup, [group])
-    mocks.organizationAccess.mockRejectedValue(new Error('Role revoked'))
+    organizationAccess.mockRejectedValue(new Error('Role revoked'))
     await expect(finish()).rejects.toThrow('Role revoked')
     expect(mocks.consume).not.toHaveBeenCalled()
     expect(mocks.exchange).not.toHaveBeenCalled()

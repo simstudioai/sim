@@ -1,48 +1,48 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   cancel: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
   create: vi.fn(),
-  getTable: vi.fn(),
   require: vi.fn(),
-  resolveContext: vi.fn(),
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_EXPORTED: 'table.exported' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
-vi.mock('@/lib/table', () => ({ getTableById: mocks.getTable }))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table/orchestration/export-resource', () => ({
-  cancelTableExportResource: mocks.cancel,
-  createTableExportResource: mocks.create,
-  requireTableExport: mocks.require,
+  cancelTableExportResource: hoisted.cancel,
+  createTableExportResource: hoisted.create,
+  requireTableExport: hoisted.require,
   tableExportResult: vi.fn(),
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  generatePresignedDownloadUrl: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { cancelTableExportUseCase, createTableExportUseCase } from '@/lib/table/application/exports'
+
+const mocks = {
+  ...hoisted,
+  getTable: tableMockFns.mockGetTableById,
+  resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+}
 
 const now = new Date('2026-08-01T00:00:00.000Z')
 const table: TableDefinition = {
@@ -72,18 +72,13 @@ const record = {
   updatedAt: now,
   completedAt: null,
 }
-const executor: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
+const executor = createExecutorPrincipal({
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+})
+
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
 
 describe('table export application use cases', () => {
   beforeEach(() => {

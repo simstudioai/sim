@@ -6,24 +6,21 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
-const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: vi.fn(async () => {
@@ -52,6 +49,19 @@ import {
   resolveTagMapping,
   revokeDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
 
 const CONNECTOR = 'connector-1'
 

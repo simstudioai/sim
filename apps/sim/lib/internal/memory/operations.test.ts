@@ -1,4 +1,8 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -9,12 +13,9 @@ const mocks = vi.hoisted(() => ({
   requestsProvenance: vi.fn(),
   suppliesWriteProvenance: vi.fn(),
   readWriteProvenance: vi.fn(),
-  requireBillingAttribution: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireWorkspaceBillingAttributionHeader: mocks.requireBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/application/use-cases', () => ({
   appendMemoryUseCase: { execute: mocks.append },
@@ -29,6 +30,8 @@ vi.mock('@/lib/internal/memory/provenance', () => ({
   readMemoryWriteProvenance: mocks.readWriteProvenance,
 }))
 
+const { mockRequireWorkspaceBillingAttributionHeader } = billingAttributionMockFns
+
 import {
   executeMemoryAdd,
   executeMemoryDelete,
@@ -37,17 +40,13 @@ import {
   type MemoryToolOperationContext,
 } from '@/lib/internal/memory/operations'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
+const PRINCIPAL = createExecutorPrincipal({
   workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
   audience: 'sim:memory',
   issuedAt: new Date('2026-08-27T00:00:00.000Z'),
   expiresAt: new Date('2026-08-27T00:05:00.000Z'),
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+})
 
 const RECORD = {
   id: 'memory-1',
@@ -65,7 +64,7 @@ describe('Memory direct operations', () => {
     mocks.requestsProvenance.mockReturnValue(false)
     mocks.suppliesWriteProvenance.mockReturnValue(false)
     mocks.readWriteProvenance.mockReturnValue(undefined)
-    mocks.requireBillingAttribution.mockReturnValue({
+    mockRequireWorkspaceBillingAttributionHeader.mockReturnValue({
       billedAccountUserId: 'billing-owner',
       workspaceId: 'workspace-canonical',
     })
@@ -111,7 +110,7 @@ describe('Memory direct operations', () => {
     await expect(input.resolveBillingAttribution('workspace-canonical')).resolves.toMatchObject({
       billedAccountUserId: 'billing-owner',
     })
-    expect(mocks.requireBillingAttribution).toHaveBeenCalledWith(expect.any(Headers), {
+    expect(mockRequireWorkspaceBillingAttributionHeader).toHaveBeenCalledWith(expect.any(Headers), {
       workspaceId: 'workspace-canonical',
     })
   })

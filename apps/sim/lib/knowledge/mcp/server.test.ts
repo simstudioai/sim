@@ -1,9 +1,16 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { createMockLogger, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeSearchUseCaseMock,
+  knowledgeSearchUseCaseMockFns,
+} from '@sim/testing/mocks/knowledge-search-use-case.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   tools: new Map<
     string,
     (input: Record<string, unknown>, extra: { signal: AbortSignal }) => Promise<CallToolResult>
@@ -12,22 +19,17 @@ const mocks = vi.hoisted(() => ({
     string,
     { description: string; inputSchema: { parse: (input: unknown) => unknown } }
   >(),
-  search: vi.fn(),
   read: vi.fn(),
   liveSearch: vi.fn(),
   liveRead: vi.fn(),
   chat: vi.fn(),
   rateLimit: vi.fn(),
-  info: vi.fn(),
   afterResponse: vi.fn<(task: () => Promise<void>) => void>(),
   recordActivity: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: mocks.afterResponse }))
+vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: hoisted.afterResponse }))
 vi.mock('@/lib/knowledge/mcp/activity', () => ({
-  recordOrganizationSearchMcpActivity: mocks.recordActivity,
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ ...createMockLogger(), info: mocks.info }),
+  recordOrganizationSearchMcpActivity: hoisted.recordActivity,
 }))
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   McpServer: class {
@@ -39,34 +41,38 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
         extra: { signal: AbortSignal }
       ) => Promise<CallToolResult>
     ) {
-      mocks.tools.set(name, run)
-      mocks.configs.set(name, config)
+      hoisted.tools.set(name, run)
+      hoisted.configs.set(name, config)
     }
   },
 }))
 vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
-  v2RateLimits: { publicApi: { enforce: mocks.rateLimit } },
+  v2RateLimits: { publicApi: { enforce: hoisted.rateLimit } },
 }))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: mocks.search },
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 vi.mock('@/lib/knowledge/application/read-indexed-document', () => ({
-  readIndexedKnowledgeDocument: { execute: mocks.read },
+  readIndexedKnowledgeDocument: { execute: hoisted.read },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({
-  searchLiveKnowledge: { execute: mocks.liveSearch },
-  readLiveDocument: { execute: mocks.liveRead },
+  searchLiveKnowledge: { execute: hoisted.liveSearch },
+  readLiveDocument: { execute: hoisted.liveRead },
 }))
 vi.mock('@/lib/knowledge/application/chat', () => ({
-  organizationSearchChat: { execute: mocks.chat },
+  organizationSearchChat: { execute: hoisted.chat },
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
+const mocks = {
+  ...hoisted,
+  search: knowledgeSearchUseCaseMockFns.mockSearchKnowledgeExecute,
+}
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'person-1' })
 const auth = {
   principal,
   keyType: 'personal' as const,
@@ -277,7 +283,7 @@ describe('MCP tool completion records', () => {
     create()
     const result = await call('read_document', {})
     expect(result.isError).toBe(true)
-    expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
+    expect(getMockLogger('KnowledgeMcp').info).toHaveBeenCalledExactlyOnceWith(
       'Knowledge MCP tool completed',
       expect.objectContaining({ toolName: 'read_document', outcome: 'error' })
     )
@@ -287,13 +293,16 @@ describe('MCP tool completion records', () => {
     create()
     mocks.search.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Private denial reason'))
     await call('search', { query: 'private query' })
-    expect(mocks.info).toHaveBeenCalledExactlyOnceWith('Knowledge MCP tool completed', {
-      toolName: 'search',
-      operation: 'knowledge.search',
-      organizationId: 'org-1',
-      userId: 'person-1',
-      outcome: 'error',
-      durationMs: expect.any(Number),
-    })
+    expect(getMockLogger('KnowledgeMcp').info).toHaveBeenCalledExactlyOnceWith(
+      'Knowledge MCP tool completed',
+      {
+        toolName: 'search',
+        operation: 'knowledge.search',
+        organizationId: 'org-1',
+        userId: 'person-1',
+        outcome: 'error',
+        durationMs: expect.any(Number),
+      }
+    )
   })
 })

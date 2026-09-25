@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
 import { sleep } from './helpers'
 
@@ -14,10 +14,6 @@ function jsonResponse(body: unknown): Response {
     headers: { 'content-type': 'application/json' },
   })
 }
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('runEmbeddedCli', () => {
   it('cancels only the selected embedded invocation and refuses new requests after Stop', async () => {

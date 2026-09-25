@@ -1,30 +1,35 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  getActor: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   deleteCredential: vi.fn(),
-  capture: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 vi.mock('@/lib/credentials/orchestration', () => ({
-  deleteCredentialRecord: mocks.deleteCredential,
+  deleteCredentialRecord: hoisted.deleteCredential,
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { deleteManyCredentialsUseCase } from '@/lib/credentials/application/delete-many-credentials'
+
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -32,16 +37,7 @@ const workspace = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:credentials',
-  issuedAt: new Date('2026-08-14T12:00:00.000Z'),
-  expiresAt: new Date('2030-08-14T12:05:00.000Z'),
-}
+const principal = createDelegatedPrincipal({ audience: 'sim:credentials' })
 
 function oauthCredential(id: string, workspaceId = 'workspace-1') {
   return {
@@ -63,7 +59,7 @@ function oauthCredential(id: string, workspaceId = 'workspace-1') {
 
 describe('deleteManyCredentialsUseCase', () => {
   beforeEach(() => {
-    mocks.loadWorkspace.mockResolvedValue(workspace)
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.deleteCredential.mockResolvedValue(true)
   })

@@ -1,14 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceFile, mockGetFileMetadataByKey } = vi.hoisted(() => ({
-  mockGetWorkspaceFile: vi.fn(),
-  mockGetFileMetadataByKey: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ getWorkspaceFile: mockGetWorkspaceFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mockGetFileMetadataByKey }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
+
+const mockGetFileMetadataByKey = uploadsMetadataMockFns.mockGetFileMetadataByKey
 
 describe('resolveWorkspaceInlineImage', () => {
   it('resolves by key only when the row belongs to the workspace', async () => {

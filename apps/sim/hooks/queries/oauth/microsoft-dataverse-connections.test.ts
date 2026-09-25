@@ -2,26 +2,15 @@
  * @vitest-environment jsdom
  */
 import { act, createElement, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBeginOAuthConnect, mockLink } = vi.hoisted(() => ({
-  mockBeginOAuthConnect: vi.fn(),
-  mockLink: vi.fn(),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { oauth2: { link: mockLink } },
-}))
-
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () =>
-    mockBeginOAuthConnect.mock.calls.length >= 0 &&
-    mockBeginOAuthConnect.getMockName() === 'desktop'
-      ? { beginOAuthConnect: mockBeginOAuthConnect }
-      : null,
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 import { getMicrosoftDataverseRequiredScope } from '@/lib/oauth/microsoft-dataverse'
 import {
@@ -30,6 +19,14 @@ import {
   useConnectMicrosoftDataverseOAuthService,
   useMicrosoftDataverseCredentialBinding,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
+
+const mockBeginOAuthConnect = vi.fn()
+const mockLink = authClientMockFns.mockClient.oauth2.link
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  mockBeginOAuthConnect.getMockName() === 'desktop'
+    ? { beginOAuthConnect: mockBeginOAuthConnect }
+    : undefined
+)
 
 function renderHookWithClient<T>(useHook: () => T): {
   queryClient: QueryClient

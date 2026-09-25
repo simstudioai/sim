@@ -1,21 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeRunTaskOperation } from '@/lib/internal/browser-use/operations/run-task'
 
 const mockFetch = vi.fn<typeof fetch>()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 describe('executeRunTaskOperation', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it('uses the created profile session to fetch the live URL when task status omits it', async () => {
     mockFetch

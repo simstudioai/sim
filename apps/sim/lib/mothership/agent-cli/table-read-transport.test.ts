@@ -1,16 +1,16 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ scoped: vi.fn(), decrypt: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
+const hoisted = vi.hoisted(() => ({ scoped: vi.fn() }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
-  createScopedCliTransport: () => mocks.scoped,
+  createScopedCliTransport: () => hoisted.scoped,
 }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: async (owner: { userId: string }, workspaceId?: string) => ({
-    workspaceId: workspaceId ?? 'workspace',
-    userId: owner.userId,
-  }),
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   SESSION_SANDBOX_HOME: '/home/user',
   readSessionSandboxFile: vi.fn(),
@@ -29,6 +29,15 @@ import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/reso
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { reportTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = { ...hoisted, decrypt: encryptionMockFns.mockDecryptSecret }
+
+mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace.mockImplementation(
+  async (owner: { userId: string }, workspaceId?: string) => ({
+    workspaceId: workspaceId ?? 'workspace',
+    userId: owner.userId,
+  })
+)
 
 const SECRET = 'PRIVATE_TABLE_CELL_CANARY_FOR_LOCAL_TEST'
 const scope = { userId: 'reader', workspaceId: 'workspace' }

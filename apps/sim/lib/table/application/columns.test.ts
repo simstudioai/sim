@@ -1,51 +1,46 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  deleteColumns: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   findUnmigrated: vi.fn(),
   performUpdate: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  signal: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/table', () => ({
-  TABLE_LIMITS: { MAX_COLUMNS_PER_TABLE: 3 },
-  addTableColumn: vi.fn(),
-  deleteColumn: vi.fn(),
-  deleteColumns: mocks.deleteColumns,
-  getColumnId: (column: { id?: string; name: string }) => column.id ?? column.name,
+  ...tableMock,
+  TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_COLUMNS_PER_TABLE: 3 },
 }))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table/columns/workflow-references', () => ({
-  findUnmigratedTableBlockReferences: mocks.findUnmigrated,
+  findUnmigratedTableBlockReferences: hoisted.findUnmigrated,
 }))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: mocks.performUpdate }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: hoisted.performUpdate }))
 
 import {
   deleteTableColumnsUseCase,
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
+
+const mocks = {
+  ...hoisted,
+  deleteColumns: tableMockFns.mockDeleteColumns,
+  resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  signal: tableEventsMockFns.mockSignalTableSchemaChanged,
+}
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -67,17 +62,11 @@ const table: TableDefinition = {
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
-}
+})
 
 const tableAfterDelete: TableDefinition = {
   ...table,

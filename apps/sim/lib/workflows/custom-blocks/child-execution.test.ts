@@ -1,15 +1,16 @@
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
-const { mockCheckAttributedUsageLimits, mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
-  mockCheckAttributedUsageLimits: vi.fn(),
+const { mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
   mockSubscribe: vi.fn(),
   mockUnsubscribe: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mockCheckAttributedUsageLimits,
-}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
   subscribeToExecutionCancellation: mockSubscribe,
@@ -23,6 +24,8 @@ import {
   waitForChildRuns,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { isBoundarySafeError } from '@/executor/errors/boundary'
+
+const mockCheckAttributedUsageLimits = billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits
 
 const attribution = { actorUserId: 'owner-1', workspaceId: 'workspace-source' } as any
 

@@ -1,3 +1,9 @@
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -12,23 +18,13 @@ import {
 import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import type { UserFile } from '@/executor/types'
 
-const { mockDownloadFile, mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  addLargeValueReference: vi.fn(),
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
+
+const mockRegisterLargeValueOwner = largeValueMetadataMockFns.mockRegisterLargeValueOwner
 
 const TEST_EXECUTION_CONTEXT = {
   workspaceId: 'workspace-1',

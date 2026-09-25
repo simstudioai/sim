@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
 import * as usageLogModule from '@/lib/billing/core/usage-log'
 import * as thresholdBillingModule from '@/lib/billing/threshold-billing'
@@ -14,20 +14,28 @@ import * as providersUtilsModule from '@/providers/utils'
  * file. Patching the real namespaces (and restoring afterAll) is the only
  * wiring that composes.
  */
-const mockRecordUsage = vi
-  .spyOn(usageLogModule, 'recordUsage')
-  .mockResolvedValue(undefined as never)
-const mockToBillingContext = vi.spyOn(billingAttributionModule, 'toBillingContext')
-const mockCheckAndBillPayerOverageThreshold = vi
-  .spyOn(thresholdBillingModule, 'checkAndBillPayerOverageThreshold')
-  .mockResolvedValue(undefined as never)
-const mockCalculateCost = vi.spyOn(providersUtilsModule, 'calculateCost')
-const estimateTokenCountSpy = vi
-  .spyOn(tokenizationModule, 'estimateTokenCount')
-  .mockReturnValue({ count: 100 } as never)
-const getEmbeddingModelInfoSpy = vi
-  .spyOn(embeddingModelsModule, 'getEmbeddingModelInfo')
-  .mockReturnValue({ tokenizerProvider: 'openai' } as never)
+let mockRecordUsage: MockInstance<typeof usageLogModule.recordUsage>
+let mockToBillingContext: MockInstance<typeof billingAttributionModule.toBillingContext>
+let mockCheckAndBillPayerOverageThreshold: MockInstance<
+  typeof thresholdBillingModule.checkAndBillPayerOverageThreshold
+>
+let mockCalculateCost: MockInstance<typeof providersUtilsModule.calculateCost>
+let estimateTokenCountSpy: MockInstance<typeof tokenizationModule.estimateTokenCount>
+let getEmbeddingModelInfoSpy: MockInstance<typeof embeddingModelsModule.getEmbeddingModelInfo>
+beforeEach(() => {
+  mockRecordUsage = vi.spyOn(usageLogModule, 'recordUsage').mockResolvedValue(undefined as never)
+  mockToBillingContext = vi.spyOn(billingAttributionModule, 'toBillingContext')
+  mockCheckAndBillPayerOverageThreshold = vi
+    .spyOn(thresholdBillingModule, 'checkAndBillPayerOverageThreshold')
+    .mockResolvedValue(undefined as never)
+  mockCalculateCost = vi.spyOn(providersUtilsModule, 'calculateCost')
+  estimateTokenCountSpy = vi
+    .spyOn(tokenizationModule, 'estimateTokenCount')
+    .mockReturnValue({ count: 100 } as never)
+  getEmbeddingModelInfoSpy = vi
+    .spyOn(embeddingModelsModule, 'getEmbeddingModelInfo')
+    .mockReturnValue({ tokenizerProvider: 'openai' } as never)
+})
 
 afterAll(() => {
   mockRecordUsage.mockRestore()

@@ -1,8 +1,4 @@
-import type {
-  OrganizationDelegatedPrincipal,
-  Principal,
-  SessionPrincipal,
-} from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { member, organization } from '@sim/db/schema'
 import {
   authMockFns,
@@ -12,42 +8,39 @@ import {
   resetDbChainMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  entitled: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   foreignTargets: vi.fn(),
   clamp: vi.fn(),
   invalidateSession: vi.fn(),
   invalidateSecurity: vi.fn(),
-  audit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.entitled,
-  isOrganizationOnEnterprisePlan: mocks.entitled,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/billing/retention', () => ({
-  getForeignWorkspaceTargetsReason: mocks.foreignTargets,
+  getForeignWorkspaceTargetsReason: hoisted.foreignTargets,
 }))
 vi.mock('@/lib/auth/session-policy', () => ({
-  eagerClampOrgSessions: mocks.clamp,
-  invalidateSessionPolicyCache: mocks.invalidateSession,
+  eagerClampOrgSessions: hoisted.clamp,
+  invalidateSessionPolicyCache: hoisted.invalidateSession,
 }))
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateSecurityPolicyVersionCache: mocks.invalidateSecurity,
+  invalidateSecurityPolicyVersionCache: hoisted.invalidateSecurity,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.audit,
-  AuditAction: {
-    ORGANIZATION_UPDATED: 'organization.updated',
-    ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   getOrganizationDataRetention,
@@ -62,7 +55,16 @@ import {
   PUT as updateRetentionRoute,
 } from '@/app/api/organizations/[id]/data-retention/route'
 
-const session: SessionPrincipal = { kind: 'session', userId: 'actor', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  entitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+  audit: auditMockFns.mockRecordAudit,
+}
+billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan.mockImplementation(
+  (...args: unknown[]) => mocks.entitled(...args)
+)
+
+const session = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 function delegated(): OrganizationDelegatedPrincipal {
   return {
     kind: 'organization_delegated',
@@ -89,7 +91,7 @@ beforeEach(() => {
 })
 
 describe('organization configuration HTTP adapters', () => {
-  const routeContext = { params: Promise.resolve({ id: 'org' }) }
+  const routeContext = createRouteContext({ id: 'org' })
 
   it('preserves retention member read and enterprise denial before update', async () => {
     queueTableRows(member, [{ role: 'member' }])
@@ -139,7 +141,7 @@ describe('organization configuration authorization', () => {
   })
 
   it.each<Principal>([
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
     { ...delegated(), audience: 'sim:search' },
     { ...delegated(), organizationId: 'foreign' },
     { ...delegated(), expiresAt: new Date(0) },

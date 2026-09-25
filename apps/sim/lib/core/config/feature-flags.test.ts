@@ -1,36 +1,15 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    KNOWLEDGE_PROJECTION_FILL: undefined as boolean | undefined,
-    KNOWLEDGE_ASYNC_PROJECTION: undefined as boolean | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    TABLES_V2_API: undefined as boolean | undefined,
-    TABLE_ROW_TTL: undefined as boolean | undefined,
-    MSHIP_MODEL_SELECTOR: undefined as boolean | undefined,
-    MSHIP_PLAN_MODE: undefined as boolean | undefined,
-    AGENT_MEMORY_HISTORY: undefined as boolean | undefined,
-    CREDENTIAL_GROUPS: undefined as boolean | undefined,
-    KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-    KNOWLEDGE_TIN_KEYWORD: undefined as boolean | undefined,
-    SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
-  },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  isTruthy: (v: unknown) => Boolean(v),
-  get env() {
-    return envRef
-  },
 }))
 
 vi.mock('@/lib/permissions/super-user', () => ({
@@ -55,6 +34,23 @@ import {
   getFeatureFlags,
   isFeatureEnabled,
 } from '@/lib/core/config/feature-flags?feature-flags-test'
+
+const envRef = mockEnvObject
+setEnv({
+  APPCONFIG_APPLICATION: 'sim-staging',
+  KNOWLEDGE_PROJECTION_FILL: undefined,
+  KNOWLEDGE_ASYNC_PROJECTION: undefined,
+  APPCONFIG_ENVIRONMENT: 'staging',
+  TABLES_V2_API: undefined,
+  TABLE_ROW_TTL: undefined,
+  MSHIP_MODEL_SELECTOR: undefined,
+  MSHIP_PLAN_MODE: undefined,
+  AGENT_MEMORY_HISTORY: undefined,
+  CREDENTIAL_GROUPS: undefined,
+  KNOWLEDGE_MEMBER_ACCESS: undefined,
+  KNOWLEDGE_TIN_KEYWORD: undefined,
+  SLACK_SEARCH_SHARED_APP: undefined,
+})
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {

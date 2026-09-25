@@ -1,23 +1,33 @@
 import type { Principal } from '@sim/auth/principal'
 import { credential, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  config: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   catalog: vi.fn(),
   requireService: vi.fn(),
   requireOAuth: vi.fn(),
-  repository: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.catalog,
-  requireAvailableServiceAccountCredentialProvider: mocks.requireService,
-  requireAvailableOAuthCredentialProvider: mocks.requireOAuth,
+  listCredentialProviderCatalog: hoisted.catalog,
+  requireAvailableServiceAccountCredentialProvider: hoisted.requireService,
+  requireAvailableOAuthCredentialProvider: hoisted.requireOAuth,
 }))
 vi.mock('@/lib/credentials/application/credential-crud', () => ({
   throwCredentialMutationFailure: vi.fn(),
@@ -30,21 +40,28 @@ vi.mock('@/lib/credentials/connect-draft', () => ({
   createConnectDraft: vi.fn(),
   getActiveConnectDraft: vi.fn(),
 }))
-vi.mock('@/lib/oauth/credential-service', () => ({ resolveCredentialTokenBundle: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: async () => ({ decrypted: '{}' }),
-}))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  parseGitHubInstallationBinding: () => ({ installationId: '42', accountId: '7' }),
-  resolveGitHubInstallationRepository: mocks.repository,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireConnectorCredential } from '@/lib/knowledge/application/connector-credential'
 import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const principal: Principal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  repository: githubInstallationMockFns.mockResolveGitHubInstallationRepository,
+}
+
+githubInstallationMockFns.mockParseGitHubInstallationBinding.mockImplementation(() => ({
+  installationId: '42',
+  accountId: '7',
+}))
+
+encryptionMockFns.mockDecryptSecret.mockImplementation(async () => ({ decrypted: '{}' }))
+
+const principal: Principal = createSessionPrincipal({ userId: 'admin-1' })
 const installed = {
   id: 'installation-credential',
   organizationId: 'org-1',
@@ -67,7 +84,7 @@ const input = {
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.config.mockResolvedValue(null)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
   mocks.catalog.mockResolvedValue([])
   mocks.repository.mockResolvedValue({ id: '123', fullName: 'example/private' })
 })
@@ -166,7 +183,7 @@ describe('organization source credential authorization', () => {
 
   it('enforces the existing integration-management capability', async () => {
     queueTableRows(member, [{ role: 'admin' }])
-    mocks.config.mockResolvedValue({
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideIntegrationsTab: true,
     })
@@ -178,7 +195,7 @@ describe('organization source credential authorization', () => {
     await expect(
       requireConnectorCredential({
         ...input,
-        principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1' }),
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(dbChainMockFns.from).not.toHaveBeenCalled()

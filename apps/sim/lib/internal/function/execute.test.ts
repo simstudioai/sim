@@ -1,14 +1,15 @@
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   execute: vi.fn(),
   executeChat: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mocks.execute },
@@ -21,6 +22,8 @@ vi.mock('@/lib/function-execution/application/execute-chat-function', () => ({
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 describe('executeFunctionTool', () => {
   beforeEach(() => {
@@ -55,7 +58,7 @@ describe('executeFunctionTool', () => {
       expiresAt: new Date(Date.now() + 60_000),
       delegationContext: { kind: 'workflow_execution' as const, ...origin },
     }
-    mocks.createPrincipal.mockResolvedValue(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
     const context = {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
@@ -81,13 +84,14 @@ describe('executeFunctionTool', () => {
       requestId: 'request-1',
     })
 
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith({
       context,
       audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
       expiresAt: expect.any(Date),
       resourceScope: { executionId: 'execution-1' },
     })
-    const delegatedExpiry = mocks.createPrincipal.mock.calls[0]?.[0].expiresAt as Date
+    const delegatedExpiry = mockCreateExecutorPrincipalFromExecutionContext.mock.calls[0]?.[0]
+      .expiresAt as Date
     expect(delegatedExpiry.getTime()).toBeGreaterThanOrEqual(startedAt + 60_000)
     expect(delegatedExpiry.getTime()).toBeLessThanOrEqual(Date.now() + 60_000)
     expect(mocks.execute).toHaveBeenCalledWith({
@@ -135,7 +139,7 @@ describe('executeFunctionTool', () => {
         })
       )
       expect(mocks.execute).not.toHaveBeenCalled()
-      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     }
   )
   it.each([

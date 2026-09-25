@@ -1,50 +1,22 @@
 import { authMockFns, createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFilterBlacklistedModels,
-  mockIsProviderBlacklisted,
-  mockGetBYOKKey,
-  mockGetUserEntityPermissions,
-} = vi.hoisted(() => ({
-  mockFilterBlacklistedModels: vi.fn(),
-  mockIsProviderBlacklisted: vi.fn(),
-  mockGetBYOKKey: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  filterBlacklistedModels: mockFilterBlacklistedModels,
-  isProviderBlacklisted: mockIsProviderBlacklisted,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: mockGetBYOKKey,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/providers/baseten/models/route'
 
 const mockGetSession = authMockFns.mockGetSession
-
-function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}): Response {
-  const status = init.status ?? 200
-  const ok = init.ok ?? (status >= 200 && status < 300)
-  return {
-    ok,
-    status,
-    statusText: ok ? 'OK' : 'Error',
-    json: vi.fn(async () => body),
-  } as unknown as Response
-}
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
+const { mockGetUserEntityPermissions } = permissionsMockFns
 
 function setEnvKey(value: string | undefined): void {
   setEnv({ BASETEN_API_KEY: value })

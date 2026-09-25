@@ -1,26 +1,31 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
   fetch: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { importPersonaAccounts } from '@/lib/internal/persona/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 describe('importPersonaAccounts', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mocks.fetch)
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadServableFileFromStorage.mockResolvedValue({ buffer: Buffer.from('a,b\n1,2') })
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({ buffer: Buffer.from('a,b\n1,2') })
     mocks.fetch.mockResolvedValue(
       Response.json({
         data: {
@@ -32,7 +37,7 @@ describe('importPersonaAccounts', () => {
   })
 
   it('fails closed before provider work when file access is denied', async () => {
-    mocks.assertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
+    mockAssertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
 
     await expect(
       importPersonaAccounts(

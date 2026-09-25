@@ -1,31 +1,35 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   group: vi.fn(),
   workspaces: vi.fn(),
   invalidWorkspaces: vi.fn(),
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/repository', () => ({
-  loadGroupInOrganization: mocks.group,
-  getGroupWorkspaces: mocks.workspaces,
-  findWorkspacesNotInOrganization: mocks.invalidWorkspaces,
+  loadGroupInOrganization: hoisted.group,
+  getGroupWorkspaces: hoisted.workspaces,
+  findWorkspacesNotInOrganization: hoisted.invalidWorkspaces,
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
-  findAllMembersWorkspaceConflict: mocks.allConflict,
-  findScopeConflicts: mocks.scopeConflicts,
+  findAllMembersWorkspaceConflict: hoisted.allConflict,
+  findScopeConflicts: hoisted.scopeConflicts,
 }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -34,6 +38,13 @@ import {
   deletePermissionGroupRecord,
   updatePermissionGroupRecord,
 } from '@/lib/permission-groups/group-manager'
+
+const mocks = {
+  ...hoisted,
+  lock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+}
+
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
 
 const group = {
   id: 'group-1',

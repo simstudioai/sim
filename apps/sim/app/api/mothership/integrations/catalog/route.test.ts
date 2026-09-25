@@ -1,19 +1,22 @@
-import { NextRequest } from 'next/server'
+import { mcpUseCasesMock } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ build: vi.fn(), workspace: vi.fn(), permission: vi.fn() }))
 vi.unmock('@/lib/mothership/request/http')
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildIntegrationToolSchemas: mocks.build }))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: vi.fn() }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({ listMcpServersUseCase: { execute: vi.fn() } }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.permission,
-  permissionSatisfies: (actual: string | null, needed: string) =>
-    actual === 'admin' || actual === 'write' || actual === needed,
-}))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/mothership/chat/application/workspace-context', () => ({
   readWorkspaceContext: { execute: vi.fn() },
 }))
@@ -35,6 +38,12 @@ import type { IntegrationCatalogRequest } from '@/lib/mothership/generated/integ
 import { executeSimControl } from '@/lib/mothership/transport/control'
 import { POST } from '@/app/api/mothership/integrations/catalog/route'
 
+const mocks = {
+  build: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
 const scope = {
   userId: 'actor',
   workspaceId: '11111111-1111-4111-8111-111111111111',
@@ -45,8 +54,9 @@ function request(
   key = env.INTERNAL_API_SECRET ?? '',
   catalogInput: IntegrationCatalogRequest = input
 ) {
-  return new NextRequest('http://localhost/api/mothership/integrations/catalog', {
+  return createMockRequest({
     method: 'POST',
+    url: 'http://localhost/api/mothership/integrations/catalog',
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
@@ -54,7 +64,7 @@ function request(
       'x-mothership-workspace-id': scope.workspaceId,
       'x-mothership-chat-id': scope.chatId,
     },
-    body: JSON.stringify(catalogInput),
+    body: catalogInput,
   })
 }
 function checkpoint(catalogInput: IntegrationCatalogRequest = input) {

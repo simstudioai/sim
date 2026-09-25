@@ -1,19 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   deleteWorkflowMcpServerContract,
@@ -24,6 +23,8 @@ import {
   useWorkflowMcpTools,
   workflowMcpServerKeys,
 } from '@/hooks/queries/workflow-mcp-servers'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 let container: HTMLDivElement
 let root: Root
@@ -53,7 +54,6 @@ describe('workflow MCP server queries', () => {
   afterEach(() => {
     act(() => root.unmount())
     queryClient.clear()
-    vi.clearAllMocks()
   })
 
   it('does not carry protected tool data between server keys', async () => {

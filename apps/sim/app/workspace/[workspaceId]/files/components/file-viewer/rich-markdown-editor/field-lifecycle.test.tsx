@@ -46,7 +46,6 @@ afterEach(async () => {
   await vi.advanceTimersByTimeAsync(10)
   host.remove()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('field callbacks remain tied to the committed render', () => {

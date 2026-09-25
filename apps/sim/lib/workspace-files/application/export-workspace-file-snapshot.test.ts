@@ -1,34 +1,37 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
-  getFile: vi.fn(),
-  resolvePermission: vi.fn(),
-  download: vi.fn(),
-  audit: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  getWorkspaceFile: mocks.getFile,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mocks.download }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { exportWorkspaceFileSnapshot } from '@/lib/workspace-files/application/export-workspace-file-snapshot'
 
-const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  download: storageServiceMockFns.mockDownloadFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const SESSION: Principal = createSessionPrincipal()
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'doc-1'
 const file = {
@@ -173,24 +176,20 @@ describe('exportWorkspaceFileSnapshot', () => {
   })
 
   it('keeps file-scoped delegation from widening to other embedded files', async () => {
-    const principal: Principal = {
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
+    const principal: Principal = createDelegatedPrincipal({
       workspaceId: WORKSPACE_ID,
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resourceScope: { fileId: FILE_ID },
-    }
+    })
     const content = '![A](/api/files/view/image-1)'
     expect((await execute(content, principal)).buffer.toString()).toBe(content)
     expect(mocks.download).not.toHaveBeenCalled()
   })
 
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    createPersonalApiKeyPrincipal(),
     {
       kind: 'oauth_access_token',
       userId: 'user-1',
@@ -217,23 +216,21 @@ describe('exportWorkspaceFileSnapshot', () => {
 
   it('rejects expired delegated authority and workspace keys from another tenant', async () => {
     await expect(
-      execute('snapshot', {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: WORKSPACE_ID,
-        delegationId: 'delegation-1',
-        audience: 'sim:workspace-files',
-        issuedAt: new Date(0),
-        expiresAt: new Date(1),
-      })
+      execute(
+        'snapshot',
+        createDelegatedPrincipal({
+          workspaceId: WORKSPACE_ID,
+          audience: 'sim:workspace-files',
+          issuedAt: new Date(0),
+          expiresAt: new Date(1),
+        })
+      )
     ).rejects.toMatchObject({ code: 'forbidden' })
     await expect(
-      execute('snapshot', {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-2',
-        keyId: 'key-2',
-      })
+      execute(
+        'snapshot',
+        createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace-2', keyId: 'key-2' })
+      )
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.getFile).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()

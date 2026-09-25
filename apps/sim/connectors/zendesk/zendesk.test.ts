@@ -1,12 +1,14 @@
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetch } = vi.hoisted(() => ({ mockSecureFetch: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: mockSecureFetch,
-}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { sameOriginNextUrl, zendeskConnector } from '@/connectors/zendesk/zendesk'
+
+const mockSecureFetch = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 describe('sameOriginNextUrl', () => {
   const baseUrl = 'https://acme.zendesk.com'

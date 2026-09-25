@@ -1,28 +1,24 @@
 import { readFileSync } from 'node:fs'
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckInternalApiKey,
-  mockRecordCumulativeUsage,
   mockCheckAndBillOverageThreshold,
   mockCheckAndBillPayerOverageThreshold,
-  mockRequireAccountBillingDecisionHeader,
-  mockRequireBillingAttributionHeader,
-  mockResolveLegacyV0BillingAttribution,
-  mockToBillingContext,
-  MockCumulativeUsageContextMismatchError,
   MockThresholdSettlementError,
 } = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
-  mockRecordCumulativeUsage: vi.fn(),
   mockCheckAndBillOverageThreshold: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
-  mockRequireAccountBillingDecisionHeader: vi.fn(),
-  mockRequireBillingAttributionHeader: vi.fn(),
-  mockResolveLegacyV0BillingAttribution: vi.fn(),
-  mockToBillingContext: vi.fn(),
-  MockCumulativeUsageContextMismatchError: class extends Error {},
   MockThresholdSettlementError: class extends Error {
     readonly code: string
     get retryable() {
@@ -37,39 +33,13 @@ const {
   },
 }))
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: unknown,
-    _span: unknown,
-    _attrs: unknown,
-    fn: (span: { setAttribute: () => void; setAttributes: () => void }) => unknown
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  CumulativeUsageContextMismatchError: MockCumulativeUsageContextMismatchError,
-  recordCumulativeUsage: mockRecordCumulativeUsage,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  BILLING_ACCOUNT_DECISION_HEADER: 'x-sim-billing-account-decision',
-  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
-  BILLING_REQUEST_ID_HEADER: 'x-sim-billing-request-id',
-  COPILOT_BILLING_PROTOCOL: {
-    attributed: 'attribution-v1',
-    direct: 'direct-v1',
-    legacy: 'legacy-v0',
-  },
-  COPILOT_BILLING_PROTOCOL_HEADER: 'x-sim-billing-protocol',
-  requireAccountBillingDecisionHeader: mockRequireAccountBillingDecisionHeader,
-  requireBillingCallbackAttribution: mockRequireBillingAttributionHeader,
-  resolveLegacyV0BillingAttribution: mockResolveLegacyV0BillingAttribution,
-  toBillingContext: mockToBillingContext,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: mockCheckAndBillOverageThreshold,
@@ -88,6 +58,17 @@ import {
   COPILOT_BILLING_PROTOCOL,
 } from '@/lib/mothership/generated/billing-protocol-v1'
 import { POST } from '@/app/api/billing/update-cost/route'
+
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+const { mockRecordCumulativeUsage } = billingUsageLogMockFns
+
+const mockRequireAccountBillingDecisionHeader =
+  billingAttributionMockFns.mockRequireAccountBillingDecisionHeader
+const mockRequireBillingAttributionHeader =
+  billingAttributionMockFns.mockRequireBillingCallbackAttribution
+const mockResolveLegacyV0BillingAttribution =
+  billingAttributionMockFns.mockResolveLegacyV0BillingAttribution
+const mockToBillingContext = billingAttributionMockFns.mockToBillingContext
 
 afterAll(resetEnvFlagsMock)
 

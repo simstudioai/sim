@@ -1,27 +1,24 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  requestJson: vi.fn(),
-  publicClientPrelogin: vi.fn(),
-  consent: vi.fn(),
-  signOut: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    oauth2: { publicClientPrelogin: mocks.publicClientPrelogin, consent: mocks.consent },
-    signOut: mocks.signOut,
-  },
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { useOAuthConsent, useOAuthSwitchAccount } from '@/hooks/queries/oauth-provider'
+
+const mocks = {
+  publicClientPrelogin: authClientMockFns.mockClient.oauth2.publicClientPrelogin,
+  consent: authClientMockFns.mockClient.oauth2.consent,
+  signOut: authClientMockFns.mockSignOut,
+}
 
 const mounted: { root: Root; queryClient: QueryClient }[] = []
 

@@ -14,50 +14,49 @@ import {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
   listExecutions: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execution-queries', () => ({
   listWorkflowExecutions: mocks.listExecutions,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
+
+const mockLoadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
 
 const sessionPrincipal = { kind: 'session' as const, userId: 'user-1' }
-const workspaceKeyPrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const workspaceKeyPrincipal = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 
 const input = { workflowId: WORKFLOW_ID, limit: 10, order: 'desc' as const }
 
@@ -67,14 +66,14 @@ function runRow(costTotal: string | null) {
 
 beforeEach(() => {
   resetPermissionGroupScopeMock()
-  mocks.loadWorkspace.mockResolvedValue({
+  mockLoadWorkspace.mockResolvedValue({
     workspaceId: WORKSPACE_ID,
     workspaceOrganizationId: 'organization-1',
     allowPersonalApiKeys: true,
     billedAccountUserId: 'billing-owner-1',
   })
-  mocks.resolvePermission.mockResolvedValue('admin')
-  mocks.resolveWorkflowContext.mockResolvedValue({
+  mockResolvePermission.mockResolvedValue('admin')
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue({
     workspaceId: WORKSPACE_ID,
     workspaceOrganizationId: 'organization-1',
     allowPersonalApiKeys: true,

@@ -1,41 +1,20 @@
 import {
-  dbChainMockFns,
-  envMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
-
-const mockGetEnv = envMockFns.getEnv
-
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { envMockFns } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEq, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
-  mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  mockGetHighestPrioritySubscription: vi.fn(),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  organization: {
-    id: 'organization.id',
-    storageUsedBytes: 'organization.storageUsedBytes',
-  },
-  userStats: {
-    storageUsedBytes: 'userStats.storageUsedBytes',
-    userId: 'userStats.userId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  eq: mockEq,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import { checkStorageQuota, checkStorageQuotaForBillingContext } from '@/lib/billing/storage/limits'
+
+const mockGetEnv = envMockFns.getEnv
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
 
 const ORG_CONTEXT: StorageBillingContext = {
   workspaceId: 'workspace-1',

@@ -1,76 +1,37 @@
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  MockTriggerApiError as MockApiError,
+  triggerSdkMockFns,
+} from '@sim/testing/mocks/trigger-sdk.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockApiError,
-  mockBatchTriggerAndWait,
-  mockCancel,
-  mockList,
-  mockLogger,
-  mockRetrieve,
-  mockResolveTriggerRegion,
-  mockRecordCancellationResult,
-  mockTaskContext,
-  mockTrigger,
-} = vi.hoisted(() => {
-  class MockApiError extends Error {
-    constructor(
-      readonly status: number | undefined,
-      message: string
-    ) {
-      super(message)
-    }
-  }
-
-  return {
-    MockApiError,
-    mockBatchTriggerAndWait: vi.fn(),
-    mockCancel: vi.fn(),
-    mockList: vi.fn(),
-    mockLogger: {
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-    },
-    mockRetrieve: vi.fn(),
-    mockResolveTriggerRegion: vi.fn(),
-    mockRecordCancellationResult: vi.fn(),
-    mockTaskContext: { isInsideTask: false },
-    mockTrigger: vi.fn(),
-  }
-})
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
-vi.mock('@trigger.dev/core/v3', () => ({
-  taskContext: mockTaskContext,
+const { mockRecordCancellationResult } = vi.hoisted(() => ({
+  mockRecordCancellationResult: vi.fn(),
 }))
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  ApiError: MockApiError,
-  runs: {
-    cancel: mockCancel,
-    list: mockList,
-    retrieve: mockRetrieve,
-  },
-  tasks: {
-    batchTriggerAndWait: mockBatchTriggerAndWait,
-    trigger: mockTrigger,
-  },
-}))
-
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import { TriggerDevJobQueue } from '@/lib/core/async-jobs/backends/trigger-dev'
 import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/async-jobs/types'
+
+const {
+  mockTasksBatchTriggerAndWait: mockBatchTriggerAndWait,
+  mockRunsCancel: mockCancel,
+  mockRunsList: mockList,
+  mockRunsRetrieve: mockRetrieve,
+  mockTasksTrigger: mockTrigger,
+} = triggerSdkMockFns
+
+const mockLogger = getMockLogger('TriggerDevJobQueue')
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
 
 interface MockListedRun {
   id: string
@@ -109,7 +70,6 @@ describe('TriggerDevJobQueue enqueue', () => {
   beforeEach(() => {
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
-    mockTaskContext.isInsideTask = false
   })
 
   it('uses the provided job ID as the Trigger.dev idempotency key', async () => {

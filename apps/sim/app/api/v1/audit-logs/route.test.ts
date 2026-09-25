@@ -3,17 +3,17 @@
  * the caller's organization and the scope is built from the org context.
  */
 import { createMockRequest } from '@sim/testing'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckRateLimit,
   mockValidateV1EnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
   mockQueryAuditLogs,
   mockBuildFilterConditions,
 } = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
   mockValidateV1EnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
@@ -21,12 +21,7 @@ const {
   mockBuildFilterConditions: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(),
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
   validateV1EnterpriseAuditAccess: mockValidateV1EnterpriseAuditAccess,
@@ -39,12 +34,16 @@ vi.mock('@/lib/audit-logs/query', () => ({
   queryAuditLogs: mockQueryAuditLogs,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
 import { GET } from '@/app/api/v1/audit-logs/route'
+
+const { mockCheckRateLimit } = v1MiddlewareMockFns
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
+}))
 
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['admin-1', 'member-1']

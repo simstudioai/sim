@@ -1,6 +1,20 @@
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import { organizationAuthorizationMock } from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
@@ -10,18 +24,14 @@ const m = vi.hoisted(() => ({
   owners: vi.fn(),
   release: vi.fn(),
   run: vi.fn(),
-  createRun: vi.fn(),
-  updateRun: vi.fn(),
   finalize: vi.fn(),
   start: vi.fn(),
   finish: vi.fn(),
   finishWithError: vi.fn(),
   terminate: vi.fn(),
   streamOptions: vi.fn(),
-  payload: vi.fn(),
   inventory: vi.fn(),
   outcome: vi.fn(),
-  memberAuthorization: vi.fn(),
   lease: vi.fn(),
   stopped: vi.fn(),
   sources: vi.fn(),
@@ -35,72 +45,60 @@ const m = vi.hoisted(() => ({
   })),
 }))
 vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
-  authorizeSlackSearchInstallation: m.authorize,
+  authorizeSlackSearchInstallation: hoisted.authorize,
 }))
-vi.mock('@/lib/internal/slack/search-client', () => ({ getSlackSearchSender: m.sender }))
+vi.mock('@/lib/internal/slack/search-client', () => ({ getSlackSearchSender: hoisted.sender }))
 vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
-  resolveSlackSearchMember: m.member,
+  resolveSlackSearchMember: hoisted.member,
   SlackSearchIdentityError: class extends Error {},
 }))
 vi.mock('@/lib/knowledge/application/slack-search/chat', () => ({
-  resolveSlackSearchChat: m.chat,
-  persistSlackSearchQuestion: m.persist,
+  resolveSlackSearchChat: hoisted.chat,
+  persistSlackSearchQuestion: hoisted.persist,
   slackSearchChatOperation: { id: 'organization.chats.slack' },
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.memberAuthorization,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/operations', () => ({
   knowledgeOperations: { search: { organizationOperation: { id: 'knowledge.search' } } },
 }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
-  recordSlackSearchOutcome: m.outcome,
+  recordSlackSearchOutcome: hoisted.outcome,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
-  requireSlackSearchTurnLease: m.lease,
-  wasSlackSearchTurnStopped: m.stopped,
+  requireSlackSearchTurnLease: hoisted.lease,
+  wasSlackSearchTurnStopped: hoisted.stopped,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
-  getSlackSearchSourceStatus: { execute: m.sources },
+  getSlackSearchSourceStatus: { execute: hoisted.sources },
 }))
 vi.mock('@/lib/knowledge/application/slack-search/onboarding', () => ({
-  sendSlackSearchOnboarding: m.onboarding,
+  sendSlackSearchOnboarding: hoisted.onboarding,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/title', () => ({
-  generateSlackSearchChatTitle: m.title,
+  generateSlackSearchChatTitle: hoisted.title,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveOrganizationBillingAttribution: async () => ({
-    organizationId: 'org1',
-    actorUserId: 'member1',
-  }),
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment: m.createRun,
-  updateRunStatus: m.updateRun,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
-  loadCopilotSearchIntegrations: m.inventory,
+  loadCopilotSearchIntegrations: hoisted.inventory,
 }))
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildCopilotRequestPayload: m.payload }))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/chat/persisted-message', () => ({
-  buildPersistedAssistantMessage: m.buildMessage,
-  withStoppedContentBlock: m.stoppedMessage,
+  buildPersistedAssistantMessage: hoisted.buildMessage,
+  withStoppedContentBlock: hoisted.stoppedMessage,
   normalizeMessage: (message: unknown) => message,
 }))
-vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: m.finalize }))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: async () => ({ resolvedSecretTraceRegistry: {} }),
-}))
+vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: hoisted.finalize }))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: m.run,
+  runHeadlessCopilotLifecycle: hoisted.run,
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
-  acquirePendingChatStream: m.lock,
+  acquirePendingChatStream: hoisted.lock,
   cleanupAbortMarker: vi.fn(),
-  getChatStreamLockOwners: m.owners,
+  getChatStreamLockOwners: hoisted.owners,
   registerActiveStream: vi.fn(),
-  releasePendingChatStream: m.release,
+  releasePendingChatStream: hoisted.release,
   startAbortPoller: () => 0,
   unregisterActiveStream: vi.fn(),
 }))
@@ -108,12 +106,12 @@ vi.mock('@/lib/slack-search/connections', () => ({ deliverSlackSearchConnections
 vi.mock('@/lib/slack-search/assistant-stream', () => ({
   SlackSearchAssistantStream: class {
     constructor(options: unknown) {
-      m.streamOptions(options)
+      hoisted.streamOptions(options)
     }
-    start = m.start
-    finish = m.finish
-    finishWithError = m.finishWithError
-    terminateAfterFailure = m.terminate
+    start = hoisted.start
+    finish = hoisted.finish
+    finishWithError = hoisted.finishWithError
+    terminateAfterFailure = hoisted.terminate
     onEvent = vi.fn()
     assertHealthy = vi.fn()
   },
@@ -125,6 +123,20 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import { SlackSearchIdentityError } from '@/lib/knowledge/application/slack-search/identity'
+
+const m = {
+  ...hoisted,
+  createRun: mothershipAsyncRunsMockFns.mockCreateRunSegment,
+  updateRun: mothershipAsyncRunsMockFns.mockUpdateRunStatus,
+  payload: mothershipChatPayloadMockFns.mockBuildCopilotRequestPayload,
+}
+
+billingAttributionMockFns.mockResolveOrganizationBillingAttribution.mockImplementation(
+  async () => ({
+    organizationId: 'org1',
+    actorUserId: 'member1',
+  })
+)
 
 const principal = {
   kind: 'slack_installation',

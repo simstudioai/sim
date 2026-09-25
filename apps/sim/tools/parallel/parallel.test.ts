@@ -1,12 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { describe, expect, it, vi } from 'vitest'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { deepResearchTool } from '@/tools/parallel/deep_research'
 import { extractTool } from '@/tools/parallel/extract'
 import { resolveSearchMode, searchTool, toList } from '@/tools/parallel/search'
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { hostedKeyUnknownModelCost: vi.fn() },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 const API_KEY = 'test-key'
 
@@ -24,13 +24,6 @@ function extractBody(params: Record<string, unknown>) {
     apiKey: API_KEY,
     ...params,
   } as never) as Record<string, unknown>
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 describe('toList', () => {
@@ -146,10 +139,6 @@ describe('parallel_extract request', () => {
 })
 
 describe('parallel_deep_research', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('defaults to a text schema and disables event streaming', () => {
     const body = deepResearchTool.request.body?.({
       input: 'HVAC market',

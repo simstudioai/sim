@@ -1,37 +1,35 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDeleteFileMetadata,
-  mockDeleteFiles,
-  mockDownloadFileFromUrl,
-  mockUploadExecutionFile,
-  mockUploadCopilotFile,
-} = vi.hoisted(() => ({
-  mockDeleteFileMetadata: vi.fn(),
-  mockDeleteFiles: vi.fn(),
-  mockDownloadFileFromUrl: vi.fn(),
-  mockUploadExecutionFile: vi.fn(),
-  mockUploadCopilotFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromUrl: mockDownloadFileFromUrl,
-}))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-}))
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mockUploadCopilotFile,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFiles: mockDeleteFiles,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+const { mockDownloadFileFromUrl } = fileUtilsServerMockFns
+const { mockDeleteFiles } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
 
 import { executeInstagramTool } from '@/lib/internal/instagram/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
 
 const mockFetch = vi.fn()
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0x01])
@@ -61,10 +59,6 @@ beforeEach(() => {
       type: string
     ) => executionFile(name, type, buffer.length)
   )
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 function request(

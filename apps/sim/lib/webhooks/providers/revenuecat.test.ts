@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { revenueCatHandler } from '@/lib/webhooks/providers/revenuecat'
 
 function requestWithAuth(authValue?: string): NextRequest {
@@ -107,10 +107,6 @@ describe('RevenueCat webhook provider', () => {
       workflow: {},
       requestId: 'rc-delete',
     }
-
-    afterEach(() => {
-      vi.restoreAllMocks()
-    })
 
     it('does not throw on a 404 (already gone)', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })))

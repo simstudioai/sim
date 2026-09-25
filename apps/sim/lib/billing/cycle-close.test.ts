@@ -1,88 +1,57 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import {
   dbChainMockFns,
   drizzleOrmMock,
   queueTableRows,
   resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/database.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockComputeOrgOverageAmount,
-  mockIsSubscriptionOrgScoped,
-  mockGetStampedPeriodRangeUsageCostByUser,
-  mockComputeWeeklyRefreshConsumed,
-  mockEnqueueOutboxEvent,
-  mockGetPlanPricing,
-  mockGetPlanWeeklyRefreshDollars,
-  mockResolveSubscriptionUsagePeriod,
-  mockIsEnterprise,
-  mockIsFree,
-  mockRecordAudit,
-  mockCaptureServerEvent,
-} = vi.hoisted(() => ({
-  mockComputeOrgOverageAmount: vi.fn(),
-  mockIsSubscriptionOrgScoped: vi.fn(),
-  mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
+const { mockComputeWeeklyRefreshConsumed, mockResolveSubscriptionUsagePeriod } = vi.hoisted(() => ({
   mockComputeWeeklyRefreshConsumed: vi.fn(),
-  mockEnqueueOutboxEvent: vi.fn(),
-  mockGetPlanPricing: vi.fn(),
-  mockGetPlanWeeklyRefreshDollars: vi.fn(),
   mockResolveSubscriptionUsagePeriod: vi.fn(),
-  mockIsEnterprise: vi.fn(),
-  mockIsFree: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { OVERAGE_BILLED: 'overage.billed' },
-  AuditResourceType: { BILLING: 'billing' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  computeOrgOverageAmount: mockComputeOrgOverageAmount,
-  isSubscriptionOrgScoped: mockIsSubscriptionOrgScoped,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 vi.mock('@/lib/billing/core/reporting-period', () => ({
   resolveSubscriptionUsagePeriod: mockResolveSubscriptionUsagePeriod,
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  COPILOT_USAGE_SOURCES: ['copilot'],
-  getStampedPeriodRangeUsageCostByUser: mockGetStampedPeriodRangeUsageCostByUser,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
   computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
 }))
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  getPlanWeeklyRefreshDollars: mockGetPlanWeeklyRefreshDollars,
-  isEnterprise: mockIsEnterprise,
-  isFree: mockIsFree,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-  getPlanPricing: mockGetPlanPricing,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mockEnqueueOutboxEvent,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   claimTerminalPeriod,
@@ -91,6 +60,18 @@ import {
   isSubscriptionCycleCloseCurrent,
   sweepBillingCycleCloses,
 } from '@/lib/billing/cycle-close'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
+const mockComputeOrgOverageAmount = billingCoreMockFns.mockComputeOrgOverageAmount
+const mockIsSubscriptionOrgScoped = billingCoreMockFns.mockIsSubscriptionOrgScoped
+const mockGetStampedPeriodRangeUsageCostByUser =
+  billingUsageLogMockFns.mockGetStampedPeriodRangeUsageCostByUser
+const mockGetPlanPricing = billingSubscriptionUtilsMockFns.mockGetPlanPricing
+const mockGetPlanWeeklyRefreshDollars = billingPlanHelpersMockFns.mockGetPlanWeeklyRefreshDollars
+const mockIsEnterprise = billingPlanHelpersMockFns.mockIsEnterprise
+const mockIsFree = billingPlanHelpersMockFns.mockIsFree
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 type SubInput = Parameters<typeof closeElapsedBillingPeriod>[0]
 

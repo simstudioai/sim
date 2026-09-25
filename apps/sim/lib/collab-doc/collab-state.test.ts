@@ -1,18 +1,8 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db/schema', () => ({
-  ...schemaMock,
-  workspaceFileCollabState: {
-    fileId: 'file_id',
-    docState: 'doc_state',
-    sourceHash: 'source_hash',
-  },
-}))
-
 import { workspaceFileCollabState, workspaceFiles } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   assertCollabDocStateSize,
   CollabDocStateConflictError,
@@ -63,17 +53,17 @@ describe('loadCollabDocState', () => {
         byteCount: expect.objectContaining({ strings: ['octet_length(', ')'] }),
         docState: expect.objectContaining({
           strings: ['CASE WHEN ', ' <= ', ' THEN ', ' END'],
-          values: [expect.anything(), maxBytes, 'doc_state'],
+          values: [expect.anything(), maxBytes, workspaceFileCollabState.docState],
         }),
-        sourceHash: 'source_hash',
+        sourceHash: workspaceFileCollabState.sourceHash,
         stateHash: expect.objectContaining({
           strings: ['CASE WHEN ', ' <= ', ' THEN encode(sha256(', "), 'hex') END"],
-          values: [expect.anything(), maxBytes, 'doc_state'],
+          values: [expect.anything(), maxBytes, workspaceFileCollabState.docState],
         }),
       })
       expect(dbChainMockFns.where).toHaveBeenCalledWith({
         type: 'eq',
-        left: 'file_id',
+        left: workspaceFileCollabState.fileId,
         right: 'file-1',
       })
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
@@ -121,13 +111,13 @@ describe('saveCollabDocStateInTx', () => {
     queueTableRows(workspaceFileCollabState, [{ fileId: 'file-1' }])
 
     await expect(saveState(prepared)).resolves.toBeUndefined()
-    expect(dbChainMockFns.select).toHaveBeenCalledWith({ fileId: 'file_id' })
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({ fileId: workspaceFileCollabState.fileId })
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
     expect(dbChainMockFns.where).toHaveBeenCalledWith(
       expect.objectContaining({
         conditions: expect.arrayContaining([
-          { type: 'eq', left: 'file_id', right: 'file-1' },
-          { type: 'eq', left: 'source_hash', right: prepared.sourceHash },
+          { type: 'eq', left: workspaceFileCollabState.fileId, right: 'file-1' },
+          { type: 'eq', left: workspaceFileCollabState.sourceHash, right: prepared.sourceHash },
           expect.objectContaining({ type: 'eq', right: prepared.expectedState.stateHash }),
         ]),
       })
@@ -158,7 +148,9 @@ describe('saveCollabDocStateInTx', () => {
       sourceHash: 'next-source',
       updatedAt: expect.any(Date),
     })
-    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'file_id' })
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({
+      target: workspaceFileCollabState.fileId,
+    })
     expect(dbChainMockFns.onConflictDoUpdate).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
@@ -169,13 +161,17 @@ describe('saveCollabDocStateInTx', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledWith({
       type: 'and',
       conditions: [
-        { type: 'eq', left: 'file_id', right: 'file-1' },
-        { type: 'eq', left: 'source_hash', right: 'previous-source' },
+        { type: 'eq', left: workspaceFileCollabState.fileId, right: 'file-1' },
+        { type: 'eq', left: workspaceFileCollabState.sourceHash, right: 'previous-source' },
         {
           type: 'eq',
           left: expect.objectContaining({
             strings: ['CASE WHEN octet_length(', ') <= ', ' THEN encode(sha256(', "), 'hex') END"],
-            values: ['doc_state', MAX_COLLAB_DOC_STATE_BYTES, 'doc_state'],
+            values: [
+              workspaceFileCollabState.docState,
+              MAX_COLLAB_DOC_STATE_BYTES,
+              workspaceFileCollabState.docState,
+            ],
           }),
           right: 'previous-state',
         },

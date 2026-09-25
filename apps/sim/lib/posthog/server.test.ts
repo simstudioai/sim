@@ -15,20 +15,20 @@ import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
  * exists — without that the whole suite would pass on a disabled no-op.
  */
 describe('captureServerEvent', () => {
+  let client: NonNullable<ReturnType<typeof getPostHogClient>>
   let captureSpy: MockInstance
 
   beforeAll(() => {
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test')
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_ENABLED', 'true')
 
-    const client = getPostHogClient()
-    if (!client) throw new Error('expected an enabled PostHog client to spy on')
-    captureSpy = vi.spyOn(client, 'capture').mockImplementation(() => {})
+    const enabledClient = getPostHogClient()
+    if (!enabledClient) throw new Error('expected an enabled PostHog client to spy on')
+    client = enabledClient
   })
 
   beforeEach(() => {
-    captureSpy.mockClear()
-    captureSpy.mockImplementation(() => {})
+    captureSpy = vi.spyOn(client, 'capture').mockImplementation(() => {})
     vi.mocked(loggerMock.getRequestContext).mockReturnValue(undefined)
   })
 

@@ -1,21 +1,19 @@
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getUserProfile: vi.fn(),
-  getUserSettings: vi.fn(),
-}))
-
-vi.mock('@/lib/users/queries', () => ({
-  getUserProfile: mocks.getUserProfile,
-  getUserSettings: mocks.getUserSettings,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import {
   getCurrentUserProfileUseCase,
   getCurrentUserSettingsUseCase,
 } from '@/lib/users/application/read-current-user'
+
+const mocks = {
+  getUserProfile: usersQueriesMockFns.mockGetUserProfile,
+  getUserSettings: usersQueriesMockFns.mockGetUserSettings,
+}
 
 const personalKey: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',

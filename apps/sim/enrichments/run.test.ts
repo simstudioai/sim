@@ -1,11 +1,13 @@
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { projectEnrichmentProviderFailure, toolProvider } from '@/enrichments/providers'
 import { runEnrichment } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const ICON = (() => null) as unknown as EnrichmentConfig['icon']
 

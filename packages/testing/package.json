@@ -20,9 +20,21 @@
       "types": "./src/factories/index.ts",
       "default": "./src/factories/index.ts"
     },
+    "./factories/*": {
+      "types": "./src/factories/*.ts",
+      "default": "./src/factories/*.ts"
+    },
     "./builders": {
       "types": "./src/builders/index.ts",
       "default": "./src/builders/index.ts"
+    },
+    "./helpers": {
+      "types": "./src/helpers/index.ts",
+      "default": "./src/helpers/index.ts"
+    },
+    "./helpers/*": {
+      "types": "./src/helpers/*.ts",
+      "default": "./src/helpers/*.ts"
     },
     "./mocks": {
       "types": "./src/mocks/index.ts",
@@ -66,6 +78,7 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@sim/auth": "workspace:*",
     "@sim/utils": "workspace:*"
   }
 }

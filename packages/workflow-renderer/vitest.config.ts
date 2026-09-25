@@ -1,8 +1,12 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import sharedConfig from '../../vitest.shared'
 
-export default defineConfig({
-  test: {
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    setupFiles: ['./vitest.setup.ts'],
-  },
-})
+export default mergeConfig(
+  sharedConfig,
+  defineConfig({
+    test: {
+      include: ['src/**/*.test.{ts,tsx}'],
+      setupFiles: ['./vitest.setup.ts'],
+    },
+  })
+)

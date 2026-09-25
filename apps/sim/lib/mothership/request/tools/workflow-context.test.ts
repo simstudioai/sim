@@ -1,29 +1,26 @@
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
-const { checkAttributedUsageLimitsMock, reserveExecutionSlotMock, resolveBillingAttributionMock } =
-  vi.hoisted(() => ({
-    checkAttributedUsageLimitsMock: vi.fn(),
-    reserveExecutionSlotMock: vi.fn(),
-    resolveBillingAttributionMock: vi.fn(),
-  }))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+const resolveBillingAttributionMock = billingAttributionMockFns.mockResolveBillingAttribution
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+const checkAttributedUsageLimitsMock = billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: resolveBillingAttributionMock,
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: checkAttributedUsageLimitsMock,
-}))
-
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  reserveExecutionSlot: reserveExecutionSlotMock,
-  UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {
-    readonly code = ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE
-    readonly statusCode = 503
-    readonly retryable = true
-  },
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
+const reserveExecutionSlotMock = billingUsageReservationMockFns.mockReserveExecutionSlot
 
 import { applyCreateWorkflowOutputToContext } from '@/lib/mothership/request/tools/workflow-context'
 import type { ExecutionContext } from '@/lib/mothership/request/types'

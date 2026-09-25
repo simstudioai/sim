@@ -1,8 +1,7 @@
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  refreshAccessTokenIfNeeded: vi.fn(),
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getCredentialOwner: vi.fn(),
@@ -117,7 +116,6 @@ describe('zohoDeskHandler', () => {
 
   describe('createSubscription request body', () => {
     afterEach(() => {
-      vi.restoreAllMocks()
       vi.mocked(getCredentialOwner).mockReset()
       vi.mocked(refreshAccessTokenIfNeeded).mockReset()
     })

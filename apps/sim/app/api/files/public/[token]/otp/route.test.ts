@@ -1,9 +1,13 @@
 import { requestUtilsMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockResolveActiveShareByToken,
   mockIsEmailAllowed,
   mockSetDeploymentAuthCookie,
   mockGenerateOTP,
@@ -12,12 +16,8 @@ const {
   mockDeleteOTP,
   mockIncrementOTPAttempts,
   mockDecodeOTPValue,
-  mockRenderOTPEmail,
-  mockSendEmail,
-  mockCheckRateLimitDirect,
   mockAfterResponse,
 } = vi.hoisted(() => ({
-  mockResolveActiveShareByToken: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockGenerateOTP: vi.fn(),
@@ -26,15 +26,10 @@ const {
   mockDeleteOTP: vi.fn(),
   mockIncrementOTPAttempts: vi.fn(),
   mockDecodeOTPValue: vi.fn(),
-  mockRenderOTPEmail: vi.fn(),
-  mockSendEmail: vi.fn(),
-  mockCheckRateLimitDirect: vi.fn(),
   mockAfterResponse: vi.fn(),
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  resolveActiveShareByToken: mockResolveActiveShareByToken,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 vi.mock('@/lib/core/security/deployment', () => ({
   isEmailAllowed: mockIsEmailAllowed,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
@@ -51,21 +46,20 @@ vi.mock('@/lib/core/security/otp', () => ({
   OTP_EMAIL_RATE_LIMIT: { maxTokens: 3, refillRate: 3, refillIntervalMs: 1000 },
   OTP_RESOURCE_RATE_LIMIT: { maxTokens: 100, refillRate: 100, refillIntervalMs: 1000 },
 }))
-vi.mock('@/components/emails', () => ({
-  getOtpSubject: (label: string) => `Verification code for ${label}`,
-  renderOTPEmail: mockRenderOTPEmail,
-}))
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: mockSendEmail }))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
-}))
+vi.mock('@/components/emails', () => emailTemplatesMock)
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/core/utils/after-response', () => ({
   afterResponse: mockAfterResponse,
 }))
 
 import { PUT, POST as routePost } from '@/app/api/files/public/[token]/otp/route'
+
+const { mockSendEmail } = emailMailerMockFns
+const { mockRenderOTPEmail } = emailTemplatesMockFns
+const { mockResolveActiveShareByToken } = publicSharesMockFns
+
+const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
 
 const POST: typeof routePost = async (...args) => {
   const response = await routePost(...args)
@@ -74,18 +68,18 @@ const POST: typeof routePost = async (...args) => {
   return response
 }
 
-const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
+const params = (token = 'tok_1') => createRouteContext({ token })
 const post = (email: string, token = 'tok_1') =>
-  new NextRequest(`http://localhost/api/files/public/${token}/otp`, {
+  createMockRequest({
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email }),
+    url: `http://localhost/api/files/public/${token}/otp`,
+    body: { email },
   })
 const put = (email: string, otp: string, token = 'tok_1') =>
-  new NextRequest(`http://localhost/api/files/public/${token}/otp`, {
+  createMockRequest({
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, otp }),
+    url: `http://localhost/api/files/public/${token}/otp`,
+    body: { email, otp },
   })
 
 const emailShare = {

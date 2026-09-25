@@ -1,7 +1,7 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDeleteFile, mockEnqueueOutboxEvents, mockProcessOutboxEventById } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
+const { mockEnqueueOutboxEvents, mockProcessOutboxEventById } = vi.hoisted(() => ({
   mockEnqueueOutboxEvents: vi.fn(),
   mockProcessOutboxEventById: vi.fn(),
 }))
@@ -12,9 +12,7 @@ vi.mock('@/lib/core/outbox/service', () => ({
   processOutboxEventById: mockProcessOutboxEventById,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
@@ -23,6 +21,8 @@ import {
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
   workspaceFileStorageCleanupOutboxHandlers,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 
 function context(): OutboxEventContext {
   return {

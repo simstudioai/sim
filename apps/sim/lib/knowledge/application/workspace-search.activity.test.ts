@@ -1,66 +1,72 @@
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchUseCaseMock,
+  knowledgeSearchUseCaseMockFns,
+} from '@sim/testing/mocks/knowledge-search-use-case.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  afterSearch: vi.fn(async () => undefined),
-  context: vi.fn(),
-  policy: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   findIndex: vi.fn(),
-  available: vi.fn(),
   activity: vi.fn(),
-  search: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: mocks.context,
-  resolveKnowledgeOwnerContext: mocks.context,
-  resolveKnowledgeWorkspaceContext: mocks.context,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.policy,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/knowledge/search/search-index', () => ({
-  findSearchIndex: mocks.findIndex,
-  findWorkspaceSearchIndex: mocks.findIndex,
+  findSearchIndex: hoisted.findIndex,
+  findWorkspaceSearchIndex: hoisted.findIndex,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: mocks.available,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/search/activity', () => ({
-  recordOrganizationSearchActivity: mocks.activity,
+  recordOrganizationSearchActivity: hoisted.activity,
 }))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  runKnowledgeSearch: mocks.search,
-  buildKnowledgeSearchContext: (
-    _principal: unknown,
-    context: unknown,
-    knowledgeBases: unknown
-  ) => ({
-    ...(context as object),
-    knowledgeBases,
-    access: {},
-  }),
-  validateKnowledgeSearchInput: () => undefined,
-  afterKnowledgeSearch: mocks.afterSearch,
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 
 import {
   searchOrganizationKnowledge,
   searchScopedKnowledge,
 } from '@/lib/knowledge/application/workspace-search'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  afterSearch: knowledgeSearchUseCaseMockFns.mockAfterKnowledgeSearch,
+  search: knowledgeSearchUseCaseMockFns.mockRunKnowledgeSearch,
+}
+mocks.afterSearch.mockImplementation(async () => undefined)
+
+knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockImplementation((...args: unknown[]) =>
+  knowledgeContextsMockFns.mockResolveKnowledgeOrganizationContext(...args)
+)
+knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockImplementation(
+  (...args: unknown[]) => knowledgeContextsMockFns.mockResolveKnowledgeOrganizationContext(...args)
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const input = { organizationId: 'org', query: 'policy', topK: 20, surface: 'slack' } as const
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.context.mockResolvedValue({ organizationId: 'org' })
-  mocks.policy.mockResolvedValue(null)
+  knowledgeContextsMockFns.mockResolveKnowledgeOrganizationContext.mockResolvedValue({
+    organizationId: 'org',
+  })
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
   mocks.findIndex.mockResolvedValue(null)
-  mocks.available.mockResolvedValue(undefined)
+  knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockResolvedValue(undefined)
   mocks.activity.mockResolvedValue(undefined)
   mocks.search.mockResolvedValue({
     results: [],
@@ -81,7 +87,9 @@ describe.each([
       query: 'policy',
       knowledgeBases: [],
     })
-    expect(mocks.available).toHaveBeenCalledExactlyOnceWith('org')
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+    ).toHaveBeenCalledExactlyOnceWith('org')
     expect(mocks.activity).toHaveBeenCalledExactlyOnceWith({
       organizationId: 'org',
       userId: 'reader',
@@ -93,7 +101,9 @@ describe.each([
 
   it('does not meter an unavailable Search request', async () => {
     queueTableRows(member, [{ role: 'member' }])
-    mocks.available.mockRejectedValueOnce(new Error('Search is disabled'))
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValueOnce(
+      new Error('Search is disabled')
+    )
     await expect(operation.execute({ principal, input })).rejects.toThrow('Search is disabled')
     expect(mocks.activity).not.toHaveBeenCalled()
     expect(mocks.search).not.toHaveBeenCalled()

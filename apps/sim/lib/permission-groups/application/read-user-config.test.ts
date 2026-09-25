@@ -1,34 +1,43 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  role: vi.fn(),
-  config: vi.fn(),
-  regime: vi.fn(),
-  group: vi.fn(),
-  admin: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.config,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mocks.regime,
-  resolveWorkspaceGroup: mocks.group,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ isOrganizationAdminOrOwner: mocks.admin }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const personal = { kind: 'personal_api_key', userId: 'caller', keyId: 'key' } as const
+const mocks = {
+  context: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  config: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+  regime: permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive,
+  group: permissionGroupsResolveMockFns.mockResolveWorkspaceGroup,
+  admin: permissionsMockFns.mockIsOrganizationAdminOrOwner,
+}
+
+const personal = createPersonalApiKeyPrincipal({ userId: 'caller', keyId: 'key' })
 const oauth = {
   kind: 'oauth_access_token',
   userId: 'caller',
@@ -62,7 +71,7 @@ describe('effective caller permission configuration', () => {
   it('rejects workspace keys before canonical loading', async () => {
     await expect(
       readUserPermissionConfig.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input,
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })

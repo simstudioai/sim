@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { describe, expect, it } from 'vitest'
 import {
   completeGitHubSearchSetupQuerySchema,
   gitHubSearchSetupScopeSchema,
@@ -6,7 +7,7 @@ import {
   startGitHubSearchSetupBodySchema,
 } from '@/lib/api/contracts/knowledge/github-setup'
 
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
 const scope = {
   organizationId: 'org/with?special&characters',

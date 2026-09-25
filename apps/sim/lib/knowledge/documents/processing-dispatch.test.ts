@@ -1,19 +1,22 @@
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  processDocumentsWithQueue: vi.fn(),
   recordUndispatchedDocumentFailure: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  processDocumentsWithQueue: mocks.processDocumentsWithQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
   recordUndispatchedDocumentFailure: mocks.recordUndispatchedDocumentFailure,
 }))
 
 import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
+
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
 
 const DOCUMENTS = [
   {
@@ -34,7 +37,7 @@ const DOCUMENTS = [
 
 describe('dispatchDocumentProcessing', () => {
   it('records only documents whose returned dispatch outcome failed', async () => {
-    mocks.processDocumentsWithQueue.mockResolvedValueOnce({
+    mockProcessDocumentsWithQueue.mockResolvedValueOnce({
       requested: 2,
       accepted: 1,
       failed: 1,
@@ -59,7 +62,7 @@ describe('dispatchDocumentProcessing', () => {
   })
 
   it('does not turn a partial failure-recording error into a total dispatch failure', async () => {
-    mocks.processDocumentsWithQueue.mockResolvedValueOnce({
+    mockProcessDocumentsWithQueue.mockResolvedValueOnce({
       requested: 2,
       accepted: 0,
       failed: 2,

@@ -1,8 +1,6 @@
 import { db } from '@sim/db'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SearchBudget, SearchDeadlineError } from '@/lib/knowledge/search/budget'
-
-afterEach(() => vi.restoreAllMocks())
 
 describe('search SQL deadline', () => {
   it('does not start a fallback with a fresh budget', async () => {

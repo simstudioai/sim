@@ -1,16 +1,12 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl, select } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Usage integration tests require a disposable local database')
-  }
-  return { databaseUrl, select: vi.fn() }
-})
+const { select } = vi.hoisted(() => ({ select: vi.fn() }))
+const databaseUrl = readTestDatabaseUrl()
 vi.mock('@sim/db', () => ({ db: { select }, dbReplica: { select } }))
 
 import { usageLog } from '@sim/db/schema'
@@ -18,17 +14,14 @@ import { readUsageBreakdown } from '@/lib/billing/core/usage-analytics-queries'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
 
 const schemaName = `usage_pagination_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 1,
-      prepare: false,
-      connection: { search_path: schemaName },
-      onnotice: () => undefined,
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 1,
+  prepare: false,
+  connection: { search_path: schemaName },
+  onnotice: () => undefined,
+})
 
 beforeAll(async () => {
-  if (!connection) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`CREATE TABLE usage_log (
     id text PRIMARY KEY, user_id text, category text, source text, description text,
@@ -40,7 +33,6 @@ beforeAll(async () => {
   select.mockImplementation((fields) => database.select(fields))
 })
 beforeEach(async () => {
-  if (!connection) return
   await connection`TRUNCATE usage_log`
   await connection`INSERT INTO usage_log (id, user_id, category, source, description, cost,
       billing_entity_type, billing_entity_id, created_at)
@@ -50,19 +42,18 @@ beforeEach(async () => {
       ('x', 'x', 'model', 'workflow', 'Model', 999, 'organization', 'other', '2026-06-01 00:00:00.123500')`
 })
 afterAll(async () => {
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA "${schemaName}" CASCADE`)
   await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('organization usage pagination SQL', () => {
+describe('organization usage pagination SQL', () => {
   it.each(['asc', 'desc'] as const)(
     'pages millisecond ties exactly once in %s order after the anchor is deleted',
     async (sortOrder) => {
       const options = { limit: 1, includeSummary: false, keyset: { sortOrder } }
       const first = await getBillingEntityUsageLogs({ type: 'organization', id: 'org' }, options)
       const seen = first.logs.map((row) => row.id)
-      await connection!`DELETE FROM usage_log WHERE id = ${seen[0]}`
+      await connection`DELETE FROM usage_log WHERE id = ${seen[0]}`
       let cursorKeys = first.pagination.nextCursorKeys
       while (cursorKeys) {
         const page = await getBillingEntityUsageLogs(

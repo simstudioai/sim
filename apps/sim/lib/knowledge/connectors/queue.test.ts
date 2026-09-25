@@ -8,32 +8,21 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreateIdempotencyKey,
-  mockExecuteSync,
-  mockIsTriggerAvailable,
-  mockResolveTriggerRegion,
-  mockTrigger,
-} = vi.hoisted(() => ({
-  mockCreateIdempotencyKey: vi.fn(),
-  mockExecuteSync: vi.fn(),
-  mockIsTriggerAvailable: vi.fn(),
-  mockResolveTriggerRegion: vi.fn(),
-  mockTrigger: vi.fn(),
-}))
+const { mockExecuteSync } = vi.hoisted(() => ({ mockExecuteSync: vi.fn() }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  idempotencyKeys: { create: mockCreateIdempotencyKey },
-  tasks: { trigger: mockTrigger },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({
-  isTriggerAvailable: mockIsTriggerAvailable,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
   isConnectorRunnableStatus: (status: string) => status === 'active' || status === 'error',
@@ -57,6 +46,12 @@ import {
   dispatchSync,
   SYNC_DISPATCH_FAILED_ERROR,
 } from '@/lib/knowledge/connectors/queue'
+
+const { mockIdempotencyKeysCreate: mockCreateIdempotencyKey, mockTasksTrigger: mockTrigger } =
+  triggerSdkMockFns
+
+const mockIsTriggerAvailable = triggerAvailabilityMockFns.mockIsTriggerAvailable
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',

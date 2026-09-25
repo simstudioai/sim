@@ -1,4 +1,6 @@
-import { createMockLogger, resetEnvMock, setEnv } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
@@ -14,15 +16,6 @@ import {
   MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
 
-const { mockGetBYOKKey } = vi.hoisted(() => ({
-  mockGetBYOKKey: vi.fn(),
-}))
-
-const { mockDiagnosticWarn } = vi.hoisted(() => ({ mockDiagnosticWarn: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ ...createMockLogger(), warn: mockDiagnosticWarn }),
-}))
-
 const { quotaGates, mockAdmit, mockCooldown, mockQuotaCheck } = vi.hoisted(() => ({
   quotaGates: new Set<string>(),
   mockAdmit: vi.fn(),
@@ -37,9 +30,9 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   recordProviderCooldown: mockCooldown,
 }))
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: mockGetBYOKKey,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
+
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
 
 /**
  * Exercises the orchestrator end-to-end against a mocked transport: batching,
@@ -49,14 +42,6 @@ vi.mock('@/lib/api-key/byok', () => ({
  */
 
 const originalFetch = global.fetch
-
-function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    statusText: String(status),
-    headers: new Headers(responseHeaders),
-  })
-}
 
 function sizedVector(values: number[], dimensions: number): number[] {
   return [...values, ...Array(Math.max(0, dimensions - values.length)).fill(0)].slice(0, dimensions)
@@ -111,7 +96,6 @@ function oversizedChunkedSuccessResponse(): Response {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  mockDiagnosticWarn.mockClear()
   mockQuotaCheck
     .mockReset()
     .mockImplementation(async (identity: { credentialFingerprint: string }) =>
@@ -146,7 +130,6 @@ afterEach(() => {
   quotaGates.clear()
   global.fetch = originalFetch
   vi.useRealTimers()
-  vi.restoreAllMocks()
   resetEnvMock()
 })
 

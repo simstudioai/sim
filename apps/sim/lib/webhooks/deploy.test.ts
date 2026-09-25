@@ -8,6 +8,8 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { triggersMock, triggersMockFns } from '@sim/testing/mocks/triggers.mock'
 import { eq, ne } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -15,13 +17,13 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 // deploy.ts pulls in the trigger/block/provider registries at module load; none are exercised by
 // buildProviderConfig (a pure function), so stub them to keep this unit test fast and isolated.
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-// `deploy.ts` reads the registry through `@/blocks`, while the trigger-id resolution it now
-// shares (`@/triggers/webhook-url`) reads `@/blocks/registry`. Point both specifiers at ONE spy
-// so a test configuring the block config governs the whole path, not half of it.
-vi.mock('@/blocks', () => ({ getBlock: mockGetBlock }))
-vi.mock('@/blocks/registry', () => ({ getBlock: mockGetBlock }))
-vi.mock('@/triggers', () => ({ getTrigger: vi.fn(), isTriggerValid: vi.fn(() => true) }))
+/**
+ * `deploy.ts` reads the registry through `@/blocks`, while the trigger-id resolution it now
+ * shares (`@/triggers/webhook-url`) reads the globally mocked `@/blocks/registry`. Point
+ * `@/blocks` at that same spy so a test configuring the block config governs the whole path.
+ */
+vi.mock('@/blocks', async () => ({ getBlock: (await import('@/blocks/registry')).getBlock }))
+vi.mock('@/triggers', () => triggersMock)
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: vi.fn() }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: vi.fn(),
@@ -43,24 +45,11 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   isDeploymentVersionProtectedByCurrentOperation: mockIsDeploymentVersionProtected,
 }))
 
-const {
-  mockGetQuickBooksWebhookCredential,
-  mockGetSlackBotCredential,
-  mockResolveOAuthAccountId,
-  mockRefreshAccessTokenIfNeeded,
-  mockFetchSlackTeamId,
-} = vi.hoisted(() => ({
+const { mockGetQuickBooksWebhookCredential, mockFetchSlackTeamId } = vi.hoisted(() => ({
   mockGetQuickBooksWebhookCredential: vi.fn(),
-  mockGetSlackBotCredential: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockFetchSlackTeamId: vi.fn(),
 }))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getSlackBotCredential: mockGetSlackBotCredential,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  refreshAccessTokenIfNeeded: mockRefreshAccessTokenIfNeeded,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   fetchSlackTeamId: mockFetchSlackTeamId,
 }))
@@ -80,6 +69,14 @@ import { getProviderHandler } from '@/lib/webhooks/providers'
 import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
 import { getBlock } from '@/blocks'
 import { getTrigger } from '@/triggers'
+
+const mockGetSlackBotCredential = authOAuthUtilsMockFns.mockGetSlackBotCredential
+const mockResolveOAuthAccountId = authOAuthUtilsMockFns.mockResolveOAuthAccountId
+const mockRefreshAccessTokenIfNeeded = authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded
+
+vi.mocked(getBlock).mockReturnValue(undefined)
+triggersMockFns.mockGetTrigger.mockReturnValue(undefined)
+triggersMockFns.mockIsTriggerValid.mockReturnValue(true)
 
 afterAll(() => {
   resetDbChainMock()

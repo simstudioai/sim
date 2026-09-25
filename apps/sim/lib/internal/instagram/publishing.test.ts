@@ -1,18 +1,17 @@
 import type { Logger } from '@sim/logger'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHasCloudStorage, mockResolveFileInputToUrl } = vi.hoisted(() => ({
-  mockHasCloudStorage: vi.fn(),
-  mockResolveFileInputToUrl: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  resolveFileInputToUrl: mockResolveFileInputToUrl,
-}))
+const { mockHasCloudStorage } = storageServiceMockFns
+const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 
 import {
   resolveInstagramCarouselMedia,
@@ -42,10 +41,6 @@ beforeEach(() => {
   mockResolveFileInputToUrl.mockImplementation(async ({ file }: { file?: { name?: string } }) => ({
     fileUrl: `https://signed.example.com/${file?.name || 'media'}`,
   }))
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('resolveInstagramMedia', () => {

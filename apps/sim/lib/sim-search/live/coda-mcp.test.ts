@@ -1,20 +1,17 @@
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   runtime: vi.fn(),
-  discover: vi.fn(),
-  execute: vi.fn(),
   auth: vi.fn(),
   validate: vi.fn(),
 }))
-vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ loadOwnCodaMcpRuntime: mocks.runtime }))
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverManagedMcpTools: mocks.discover, executeManagedMcpTool: mocks.execute },
-}))
+vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ loadOwnCodaMcpRuntime: hoisted.runtime }))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
-  createManagedMcpAuthProvider: mocks.auth,
+  createManagedMcpAuthProvider: hoisted.auth,
 }))
-vi.mock('@/lib/mcp/application/execute-tool', () => ({ validateToolArguments: mocks.validate }))
+vi.mock('@/lib/mcp/application/execute-tool', () => ({ validateToolArguments: hoisted.validate }))
 
 import {
   type CodaMcpClient,
@@ -23,6 +20,12 @@ import {
   readCodaMcp,
   searchCodaMcp,
 } from '@/lib/sim-search/live/coda-mcp'
+
+const mocks = {
+  ...hoisted,
+  discover: mcpServiceMockFns.mockDiscoverManagedMcpTools,
+  execute: mcpServiceMockFns.mockExecuteManagedMcpTool,
+}
 
 const input = { query: 'launch', limit: 20, scopes: [] }
 

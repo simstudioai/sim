@@ -1,32 +1,27 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { listCatalogConnectorTypes } from '@/lib/catalog/application/list-connector-types'
 
+const mocks = {
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
 const WORKSPACE_ID = 'workspace-1'
-const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const session = createSessionPrincipal()
 
 describe('connector-type catalog', () => {
   beforeEach(() => {

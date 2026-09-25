@@ -1,30 +1,28 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  fetchBuffer: vi.fn(),
-  getByName: vi.fn(),
-  loadContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveStoredReference: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFileByName: mocks.getByName,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  resolveWorkspaceFileReference: mocks.resolveStoredReference,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  fetchBuffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  getByName: workspaceFileManagerMockFns.mockGetWorkspaceFileByName,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolveStoredReference: workspaceFileManagerMockFns.mockResolveWorkspaceFileReference,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 const file = {
   id: 'file-1',
   workspaceId: 'workspace-1',

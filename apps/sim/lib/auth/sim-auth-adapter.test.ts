@@ -1,24 +1,15 @@
 import { db } from '@sim/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   insert: vi.fn(),
-  transaction: vi.fn(),
-  rootInsert: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    insert: mocks.rootInsert,
-    transaction: mocks.transaction,
-    select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: 'org-1' }] }) }) }),
-  },
 }))
 
 vi.mock('better-auth/adapters/drizzle', () => ({
   drizzleAdapter: (database: object) => () => ({
-    create: mocks.create,
+    create: hoisted.create,
     transaction: vi.fn(),
     database,
   }),
@@ -27,8 +18,18 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 import { getAuthDatabase } from '@/lib/auth/database-context'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 
+const mocks = {
+  ...hoisted,
+  transaction: dbChainMockFns.transaction,
+  rootInsert: dbChainMockFns.insert,
+}
+
+afterAll(resetDbChainMock)
+
 describe('createSimAuthAdapter', () => {
   beforeEach(() => {
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'org-1' }])
     const tx = { insert: mocks.insert }
     mocks.transaction.mockImplementation(async (callback) => callback(tx))
     mocks.insert.mockReturnValue({
