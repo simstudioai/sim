@@ -108,6 +108,8 @@ const TILE_ICON_SIZE_CLASS = {
 
 export interface BlockTileViewProps
   extends Omit<HTMLAttributes<HTMLElement>, 'children' | 'style'> {
+  /** Inline root for a tile placed inside a native button. */
+  as?: 'div' | 'span'
   /**
    * Block the tile represents; decides whether it takes the canvas role accent.
    * Omitted by rows that name no block, such as catalog and section headers.
@@ -125,6 +127,7 @@ export interface BlockTileViewProps
 
 /** Shared block tile; callers resolve registry metadata before rendering. */
 export function BlockTileView({
+  as: Element = 'div',
   blockType,
   icon,
   bgColor,
@@ -154,7 +157,7 @@ export function BlockTileView({
   const foregroundClass = isLightTileColor(fill) ? 'text-black!' : 'text-white!'
 
   return (
-    <div
+    <Element
       className={cn(chipIconSlotClass, 'overflow-hidden rounded-md [&_img]:size-full', sizeClass)}
       style={{ background: fill }}
       {...props}
@@ -172,7 +175,7 @@ export function BlockTileView({
           <span className={cn('font-bold text-micro', foregroundClass)}>{fallbackLabel}</span>
         )
       )}
-    </div>
+    </Element>
   )
 }
 
