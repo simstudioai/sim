@@ -26,6 +26,7 @@ import {
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { validateValueForSubBlockType } from '@/lib/workflows/editing/validation'
+import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
   assertWorkflowGraphIdsUnclaimed,
@@ -72,9 +73,8 @@ export interface ReplaceWorkflowStateInput {
   /** Omitted leaves the stored variables untouched. */
   variables?: Record<string, unknown>
   /**
-   * Validate and lint without persisting. The response is byte-identical to a
-   * committed write of the same body, so a caller can inspect the findings it
-   * would get and then send the same request for real.
+   * Validate and lint without persisting. Binding removals describe the current
+   * snapshot; a later committed write compares against the state it replaces.
    */
   dryRun?: boolean
 }
@@ -93,6 +93,43 @@ export interface ReplaceWorkflowStateResult {
   lint: WorkflowLintReport
   /** True when nothing was persisted because the caller asked for a dry run. */
   dryRun: boolean
+}
+
+/** Validates saved attachment identity against the same baseline the replacement will overwrite. */
+function assertSavedToolBindings(
+  blocks: Record<string, BlockState>,
+  previous: Record<string, BlockState> | undefined
+): void {
+  if (!previous) {
+    throw new OrchestrationError(
+      'validation',
+      'Cannot validate tool edits without the saved workflow state'
+    )
+  }
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const config = getBlock(block.type)
+    if (!config) continue
+    for (const field of config.subBlocks) {
+      if (field.type !== 'tool-input' || !block.subBlocks[field.id]) continue
+      const savedBlock = previous[blockId]
+      const error = validateToolBindingAuthoring(
+        block.type,
+        block.subBlocks[field.id].value,
+        savedBlock?.type === block.type ? savedBlock.subBlocks[field.id]?.value : undefined
+      )
+      if (error)
+        throw new OrchestrationError('validation', `Block ${block.name || blockId}: ${error}`)
+    }
+  }
+}
+
+/** Binding loss is advisory and accompanies the exact baseline used for the comparison. */
+function bindingRemovalWarnings(removedBindings: RemovedWorkflowBinding[]): string[] {
+  return removedBindings.length
+    ? [
+        `This replacement removes ${removedBindings.length} credential/table binding references. Inspect removedBindings before saving; use workflows state get for in-place edits, not workflows export.`,
+      ]
+    : []
 }
 
 /**
@@ -144,15 +181,6 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         principal.kind === 'delegated' &&
         principal.serviceId === 'copilot' &&
         Object.values(blocks).some((block) => getToolBindingAuthoringSchema(block.type))
-      const previous = await loadWorkflowFromNormalizedTables(context.workflowId, undefined, {
-        persistMigrations: false,
-      })
-      if (enforceToolBindings && !previous) {
-        throw new OrchestrationError(
-          'validation',
-          'Cannot validate tool edits without the saved workflow state'
-        )
-      }
       for (const [blockId, block] of Object.entries(blocks)) {
         const config = getBlock(block.type)
         if (!config) continue
@@ -160,16 +188,6 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         for (const [fieldId, stored] of Object.entries(block.subBlocks ?? {})) {
           const field = fields.get(fieldId)
           if (!field) continue
-          if (enforceToolBindings && field.type === 'tool-input') {
-            const savedBlock = previous?.blocks[blockId]
-            const error = validateToolBindingAuthoring(
-              block.type,
-              stored.value,
-              savedBlock?.type === block.type ? savedBlock.subBlocks[fieldId]?.value : undefined
-            )
-            if (error)
-              throw new OrchestrationError('validation', `Block ${block.name || blockId}: ${error}`)
-          }
           const result = validateValueForSubBlockType(
             field,
             stored.value,
@@ -188,24 +206,12 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         }
       }
 
-      const removedBindings = collectRemovedWorkflowBindings(previous?.blocks ?? {}, blocks)
-      const bindingWarnings = removedBindings.length
-        ? [
-            `This replacement removes ${removedBindings.length} credential/table binding references. Inspect removedBindings before saving; use workflows state get for in-place edits, not workflows export.`,
-          ]
-        : []
       const graph = {
         blocks,
         edges: sanitized.edges as WorkflowState['edges'],
       }
 
-      /**
-       * Linted before the write so a dry run and a committed write report the
-       * same findings for the same body. Unlike its sibling `applyOperations`,
-       * this operation admits workspace API keys, which have no human subject —
-       * the reference pass is skipped for them rather than resolved against the
-       * billing owner. See {@link buildWorkflowLintReport}.
-       */
+      /** Validate references as the acting human, never as the workspace billing owner. */
       const subjectUserId = humanSubjectUserId(principal)
 
       const lint = await buildWorkflowLintReport(graph, {
@@ -215,11 +221,16 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       })
 
       if (input.dryRun) {
+        const previous = await loadWorkflowFromNormalizedTables(context.workflowId, undefined, {
+          persistMigrations: false,
+        })
+        if (enforceToolBindings) assertSavedToolBindings(blocks, previous?.blocks)
+
         /**
          * The same preparation the committed write runs, so a dry run reports the
          * notes that write would produce and checks the ids it would actually
-         * insert — the prepared graph, not the caller's body. Preparing here and
-         * again inside the write is the cost of the two paths never disagreeing.
+         * insert — the prepared graph, not the caller's body. Concurrent writes
+         * can still change the binding baseline or claim ids after this preview.
          */
         const prepared = prepareWorkflowStateForPersistence(graph)
         await assertWorkflowGraphIdsUnclaimed(
@@ -228,6 +239,10 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
           collectWorkflowGraphIds(prepared.state)
         )
 
+        const removedBindings = collectRemovedWorkflowBindings(
+          previous?.blocks ?? {},
+          prepared.state.blocks
+        )
         logger.info('Validated workflow state without persisting', {
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
@@ -239,7 +254,11 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
           workspaceId: context.workspaceId,
           blocksCount: Object.keys(graph.blocks).length,
           edgesCount: graph.edges.length,
-          warnings: [...validation.warnings, ...prepared.warnings, ...bindingWarnings],
+          warnings: [
+            ...validation.warnings,
+            ...prepared.warnings,
+            ...bindingRemovalWarnings(removedBindings),
+          ],
           removedBindings,
           needsRedeployment: await checkNeedsRedeployment(context.workflowId),
           lint,
@@ -250,6 +269,16 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       const attribution = resolvePrincipalAttribution(principal, {
         workspaceBillingOwnerUserId: context.billedAccountUserId,
       })
+      /** The locked reader supplies a caller-authored graph; preserve its pre-transaction admission. */
+      await assertNoWithheldBlockType(
+        { workspaceId: context.workspaceId, subjectUserId },
+        Object.values(graph.blocks)
+      )
+      let previousBlocks: Record<string, BlockState> = {}
+      const variables =
+        input.variables === undefined
+          ? undefined
+          : normalizeWorkflowVariables(input.variables, { coerceValues: true })
       const persisted = await replaceWorkflowNormalizedState({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
@@ -263,21 +292,17 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
          * reachable state.
          */
         subjectUserId,
-        state: {
-          blocks: graph.blocks,
-          edges: graph.edges,
-          /**
-           * Re-keyed by variable id and coerced onto each declared type by the
-           * same helper `PATCH /workflows/{id}/variables` uses, so a full
-           * replacement cannot write a shape the incremental path never
-           * produces. Omitted stays omitted — that leaves the column untouched.
-           */
-          variables:
-            input.variables === undefined
-              ? undefined
-              : normalizeWorkflowVariables(input.variables, { coerceValues: true }),
+        state: async (tx) => {
+          const previous = await loadWorkflowFromNormalizedTables(context.workflowId, tx, {
+            persistMigrations: false,
+          })
+          if (enforceToolBindings) assertSavedToolBindings(blocks, previous?.blocks)
+          previousBlocks = previous?.blocks ?? {}
+          return { blocks: graph.blocks, edges: graph.edges, variables }
         },
       })
+
+      const removedBindings = collectRemovedWorkflowBindings(previousBlocks, persisted.state.blocks)
 
       logger.info('Replaced workflow state', {
         workflowId: context.workflowId,
@@ -291,7 +316,11 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         workspaceId: context.workspaceId,
         blocksCount: Object.keys(persisted.state.blocks).length,
         edgesCount: persisted.state.edges.length,
-        warnings: [...validation.warnings, ...persisted.warnings, ...bindingWarnings],
+        warnings: [
+          ...validation.warnings,
+          ...persisted.warnings,
+          ...bindingRemovalWarnings(removedBindings),
+        ],
         removedBindings,
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         lint,

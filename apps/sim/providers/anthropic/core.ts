@@ -968,6 +968,7 @@ export async function executeAnthropicProviderRequest(
               endTime: tc.endTime,
               duration: tc.duration,
               result: tc.result as Record<string, unknown> | undefined,
+              success: tc.success,
             }))
           : undefined,
       toolResults: toolResults.length > 0 ? toolResults : undefined,

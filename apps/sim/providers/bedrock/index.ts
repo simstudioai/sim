@@ -1033,6 +1033,7 @@ export const bedrockProvider: ProviderConfig = {
                 endTime: tc.endTime,
                 duration: tc.duration,
                 result: tc.result,
+                success: tc.success,
               }))
             : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,

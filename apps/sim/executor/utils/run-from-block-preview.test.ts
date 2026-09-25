@@ -1,7 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { DAGExecutor } from '@/executor/execution/executor'
+import { ExecutionState } from '@/executor/execution/state'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import { previewRunFromBlock } from '@/executor/utils/run-from-block-preview'
+import {
+  buildClonedSubflowId,
+  buildParallelSentinelStartId,
+  buildSentinelStartId,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+vi.mock('@/executor/handlers/registry', () => ({
+  createBlockHandlers: () => [
+    { canHandle: () => true, execute: async () => ({ result: 'value' }) },
+  ],
+}))
 
 function block(id: string, type = 'function'): SerializedBlock {
   return {
@@ -49,6 +62,26 @@ function workflow(): SerializedWorkflow {
       { source: 'sibling', target: 'join' },
     ],
     loops: {},
+  }
+}
+
+function containerWorkflow(kind: 'loop' | 'parallel'): SerializedWorkflow {
+  return {
+    version: '1',
+    blocks: [block('start', 'starter'), block('container', kind), block('inner'), block('after')],
+    connections: [
+      { source: 'start', target: 'container' },
+      { source: 'container', target: 'inner', sourceHandle: `${kind}-start-source` },
+      { source: 'container', target: 'after', sourceHandle: `${kind}-end-source` },
+    ],
+    loops:
+      kind === 'loop'
+        ? { container: { id: 'container', nodes: ['inner'], iterations: 1, loopType: 'for' } }
+        : {},
+    parallels:
+      kind === 'parallel'
+        ? { container: { id: 'container', nodes: ['inner'], count: 1, parallelType: 'count' } }
+        : {},
   }
 }
 
@@ -140,26 +173,7 @@ describe('partial-run preview with the real DAG builder', () => {
   it.each(['loop', 'parallel'] as const)(
     'projects %s sentinels to containers and refuses interior starts',
     (kind) => {
-      const graph: SerializedWorkflow = {
-        version: '1',
-        blocks: [
-          block('start', 'starter'),
-          block('container', kind),
-          block('inner'),
-          block('after'),
-        ],
-        connections: [
-          { source: 'start', target: 'container' },
-          { source: 'container', target: 'inner', sourceHandle: `${kind}-start-source` },
-          { source: 'container', target: 'after', sourceHandle: `${kind}-end-source` },
-        ],
-        loops:
-          kind === 'loop'
-            ? { container: { id: 'container', nodes: ['inner'], iterations: 2 } }
-            : {},
-        parallels:
-          kind === 'parallel' ? { container: { id: 'container', nodes: ['inner'], count: 2 } } : {},
-      }
+      const graph = containerWorkflow(kind)
       const result = previewRunFromBlock(graph, 'container', snapshot(['start']))
       expect(result.validation.valid).toBe(true)
       expect(result.rerunBlocks.map((item) => item.blockId)).toEqual([
@@ -179,6 +193,73 @@ describe('partial-run preview with the real DAG builder', () => {
       expect(previewRunFromBlock(graph, 'after', snapshot(['container', 'inner₍0₎']))).toEqual(
         after
       )
+    }
+  )
+
+  it.each(['loop', 'parallel'] as const)(
+    'distinguishes %s control state from a completed container output in real snapshots',
+    async (kind) => {
+      const graph = containerWorkflow(kind)
+      const sentinelStartId =
+        kind === 'loop'
+          ? buildSentinelStartId('container')
+          : buildParallelSentinelStartId('container')
+      const makeExecutor = (stopAfterBlockId?: string) =>
+        new DAGExecutor({
+          workflow: graph,
+          contextExtensions: {
+            workspaceId: 'workspace-test',
+            executionId: 'execution-test',
+            principal: { kind: 'session', userId: 'user-test', sessionId: 'session-test' },
+            stopAfterBlockId,
+          },
+        })
+      const partial = await makeExecutor(sentinelStartId).execute('workflow-test')
+      const partialState = partial.executionState!
+      expect(partialState.blockStates[sentinelStartId].output).toEqual({ sentinelStart: true })
+      expect(partialState.blockStates.container).toBeUndefined()
+      expect(
+        previewRunFromBlock(graph, 'after', partialState).upstreamBlocks.find(
+          (item) => item.blockId === 'container'
+        )?.hasCachedOutput
+      ).toBe(false)
+
+      const complete = await makeExecutor().execute('workflow-test')
+      const completeState = complete.executionState!
+      expect(completeState.blockStates.container.output).toHaveProperty('results')
+      expect(
+        previewRunFromBlock(graph, 'after', completeState).upstreamBlocks.find(
+          (item) => item.blockId === 'container'
+        )
+      ).toMatchObject({ executedInSource: true, hasCachedOutput: true })
+    }
+  )
+
+  it.each(['loop', 'parallel'] as const)(
+    'recognizes cloned %s aggregate outputs without mistaking cloned control state for them',
+    (kind) => {
+      const containerId = buildClonedSubflowId('container', 2)
+      const consumerId = buildClonedSubflowId('consumer', 2)
+      const sentinelId =
+        kind === 'loop'
+          ? buildSentinelStartId(containerId)
+          : buildParallelSentinelStartId(containerId)
+      const state = new ExecutionState()
+      state.setBlockOutput(sentinelId, { sentinelStart: true })
+      const preview = () =>
+        previewRunFromBlock(containerWorkflow(kind), 'after', {
+          ...snapshot(),
+          blockStates: Object.fromEntries(state.getBlockStates()),
+          executedBlocks: [...state.getExecutedBlocks()],
+        }).upstreamBlocks.find((item) => item.blockId === 'container')
+
+      expect(state.getBlockOutput('container', consumerId)).toBeUndefined()
+      expect(preview()?.hasCachedOutput).toBe(false)
+
+      const output = { results: [[{ result: 'value' }]] }
+      state.setBlockOutput(containerId, output)
+      expect(state.getBlockOutput('container', consumerId)).toEqual(output)
+      expect(preview()).toMatchObject({ executedInSource: true, hasCachedOutput: true })
     }
   )
 

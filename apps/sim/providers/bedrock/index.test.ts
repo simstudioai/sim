@@ -85,7 +85,9 @@ import type { StreamingExecution } from '@/executor/types'
 import { bedrockProvider } from '@/providers/bedrock/index'
 import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import { getModelCapabilities, isKnownModelId } from '@/providers/models'
+import type { ProviderResponse } from '@/providers/types'
 import { prepareToolsWithUsageControl } from '@/providers/utils'
+import { executeTool } from '@/tools'
 
 describe('bedrockProvider credential handling', () => {
   beforeEach(() => {
@@ -102,6 +104,49 @@ describe('bedrockProvider credential handling', () => {
     systemPrompt: 'You are helpful.',
     messages: [{ role: 'user' as const, content: 'Hello' }],
   }
+
+  it.each([false, true])(
+    'preserves authoritative tool success=%s in its response',
+    async (success) => {
+      vi.mocked(executeTool).mockResolvedValueOnce(
+        success
+          ? { success: true, output: { error: true, message: 'An error record returned as data' } }
+          : { success: false, error: 'Search credits exhausted', output: {} }
+      )
+      mockSend
+        .mockResolvedValueOnce({
+          output: {
+            message: {
+              content: [{ toolUse: { toolUseId: 'search-1', name: 'exa_search', input: {} } }],
+            },
+          },
+          stopReason: 'tool_use',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        })
+        .mockResolvedValueOnce({
+          output: { message: { content: [{ text: 'Handled tool result' }] } },
+          stopReason: 'end_turn',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        })
+
+      const result = (await bedrockProvider.executeRequest({
+        ...baseRequest,
+        stream: false,
+        tools: [
+          {
+            id: 'exa_search',
+            description: 'Search',
+            params: {},
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        ],
+      })) as ProviderResponse
+
+      expect(executeTool).toHaveBeenCalledWith('exa_search', expect.any(Object), expect.any(Object))
+      expect(result.toolCalls).toHaveLength(1)
+      expect(result.toolCalls![0].success).toBe(success)
+    }
+  )
 
   it('preserves system-only instructions while supplying the required user message', async () => {
     await bedrockProvider.executeRequest({

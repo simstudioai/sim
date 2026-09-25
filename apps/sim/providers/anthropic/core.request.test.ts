@@ -1,5 +1,9 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  buildTraceSpans,
+  traceSpansIndicateFailure,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -15,6 +19,89 @@ describe('executeAnthropicProviderRequest request identity and usage', () => {
   beforeEach(() => {
     mockExecuteTool.mockReset()
   })
+
+  it.each([
+    ['anthropic', false],
+    ['anthropic', true],
+    ['azure-anthropic', false],
+    ['azure-anthropic', true],
+  ] as const)(
+    'preserves authoritative tool success for %s traces when success=%s',
+    async (providerId, success) => {
+      mockExecuteTool.mockResolvedValue(
+        success
+          ? { success: true, output: { error: true, message: 'An error record returned as data' } }
+          : { success: false, error: 'Search credits exhausted', output: {} }
+      )
+      const create = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', id: 'search-1', name: 'exa_search', input: {} }],
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 2, output_tokens: 2 },
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'Handled tool result' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 2, output_tokens: 2 },
+        })
+      const result = (await executeAnthropicProviderRequest(
+        {
+          model: 'claude-sonnet-4-5',
+          apiKey: 'test-key',
+          stream: false,
+          maxTokens: 1024,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [
+            {
+              id: 'exa_search',
+              description: 'Search',
+              params: {},
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+          ],
+        },
+        {
+          providerId,
+          providerLabel: providerId,
+          createClient: () => ({ messages: { create } }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )) as ProviderResponse
+
+      expect(result.toolCalls).toHaveLength(1)
+      expect(result.toolCalls![0].success).toBe(success)
+      for (const withTimingSegments of [true, false]) {
+        const { traceSpans } = buildTraceSpans({
+          success: true,
+          output: { content: result.content },
+          metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+          logs: [
+            {
+              blockId: 'research',
+              blockType: 'agent',
+              startedAt: '2024-01-01T10:00:00.000Z',
+              endedAt: '2024-01-01T10:00:01.000Z',
+              durationMs: 1000,
+              success: true,
+              output: {
+                toolCalls: { list: result.toolCalls!, count: 1 },
+                ...(withTimingSegments && { providerTiming: result.timing }),
+              },
+            },
+          ],
+        })
+        const agentSpan = traceSpans[0].children![0]
+        const toolSpan = agentSpan.children!.find((span) => span.type === 'tool')!
+        expect(toolSpan.status).toBe(success ? 'success' : 'error')
+        expect(toolSpan.errorHandled).toBe(success ? undefined : true)
+        expect(toolSpan.errorMessage).toBe(success ? undefined : 'Search credits exhausted')
+        expect(agentSpan.status).toBe('success')
+        expect(traceSpans[0].status).toBe('success')
+        expect(traceSpansIndicateFailure(traceSpans)).toBe(false)
+      }
+    }
+  )
 
   it('keeps registry identity while sending the resolved wire model and aggregating cache usage', async () => {
     const create = vi.fn().mockResolvedValue({

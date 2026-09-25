@@ -1,5 +1,6 @@
+import { db } from '@sim/db'
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { workflowAuthzMockFns } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -8,12 +9,17 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   notify: vi.fn(),
   replace: vi.fn(),
+  replacementResult: vi.fn(),
+  resolvedState: vi.fn(),
   prepare: vi.fn(),
   collectGraphIds: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
   needsRedeployment: vi.fn(),
   loadNormalized: vi.fn(),
+  saveNormalized: vi.fn(),
+  extractCustomTools: vi.fn(),
+  admitBlockTypes: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -52,11 +58,21 @@ vi.mock('@/lib/workflows/deployment-status', () => ({
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: mocks.loadNormalized,
+  saveWorkflowToNormalizedTables: mocks.saveNormalized,
+}))
+
+vi.mock('@/lib/workflows/persistence/block-access-guard', () => ({
+  assertNoWithheldBlockType: mocks.admitBlockTypes,
+}))
+
+vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
+  extractAndPersistCustomTools: mocks.extractCustomTools,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
+import type { ReplaceWorkflowNormalizedStateInput } from '@/lib/workflows/persistence/replace-normalized-state'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { getBlock } from '@/blocks/registry'
@@ -97,9 +113,14 @@ describe('replaceWorkflowState', () => {
     )
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.admitBlockTypes.mockResolvedValue(undefined)
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
-    mocks.replace.mockResolvedValue({
+    mocks.replace.mockImplementation(async ({ state }: ReplaceWorkflowNormalizedStateInput) => {
+      mocks.resolvedState(typeof state === 'function' ? await state(db) : state)
+      return mocks.replacementResult()
+    })
+    mocks.replacementResult.mockReturnValue({
       warnings: [],
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
     })
@@ -152,12 +173,110 @@ describe('replaceWorkflowState', () => {
       ])
       expect(result.warnings.join(' ')).toContain('removes 1 credential/table binding')
       expect(mocks.loadNormalized).toHaveBeenCalledTimes(1)
-      expect(mocks.loadNormalized).toHaveBeenCalledWith(context.workflowId, undefined, {
-        persistMigrations: false,
-      })
+      expect(mocks.loadNormalized).toHaveBeenCalledWith(
+        context.workflowId,
+        dryRun ? undefined : db,
+        {
+          persistMigrations: false,
+        }
+      )
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
     }
   )
+
+  it('compares removals against the baseline read after the replacement acquires its row lock', async () => {
+    const { replaceWorkflowNormalizedState } = await vi.importActual<
+      typeof import('@/lib/workflows/persistence/replace-normalized-state')
+    >('@/lib/workflows/persistence/replace-normalized-state')
+    resetDbChainMock()
+    mocks.saveNormalized.mockResolvedValue({ success: true })
+    mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
+    mocks.replace.mockImplementationOnce(replaceWorkflowNormalizedState)
+    vi.mocked(getBlock).mockImplementation((type) =>
+      type === 'bound-test'
+        ? ({
+            type: 'bound-test',
+            subBlocks: [{ id: 'credential', type: 'oauth-input' }],
+            outputs: {},
+          } as never)
+        : defaultGetBlock?.(type)
+    )
+    const baseline = (credential: string) => ({
+      blocks: {
+        [BLOCK.id]: {
+          ...BLOCK,
+          type: 'bound-test',
+          subBlocks: {
+            credential: { id: 'credential', type: 'oauth-input' as const, value: credential },
+          },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    let saved = baseline('credential-before-concurrent-save')
+    mocks.loadNormalized.mockImplementation(async () => saved)
+    let unlock!: () => void
+    let started!: () => void
+    const lockStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const lockReleased = new Promise<void>((resolve) => {
+      unlock = resolve
+    })
+    dbChainMockFns.for.mockImplementationOnce(async () => {
+      started()
+      await lockReleased
+      return [{ id: context.workflowId }]
+    })
+
+    const replacing = replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+    await lockStarted
+    saved = baseline('credential-committed-while-waiting-for-lock')
+    unlock()
+    const result = await replacing
+
+    expect(result.removedBindings.map((binding) => binding.resourceId)).toEqual([
+      'credential-committed-while-waiting-for-lock',
+    ])
+    expect(mocks.loadNormalized).toHaveBeenCalledWith(context.workflowId, expect.anything(), {
+      persistMigrations: false,
+    })
+    expect(mocks.saveNormalized).toHaveBeenCalledTimes(1)
+    expect(mocks.admitBlockTypes).toHaveBeenCalledBefore(dbChainMockFns.for)
+    expect(mocks.loadNormalized).toHaveBeenCalledBefore(mocks.saveNormalized)
+  })
+
+  it.each([true, false])(
+    'allows an initially absent normalized graph (dryRun=%s)',
+    async (dryRun) => {
+      mocks.loadNormalized.mockResolvedValue(null)
+      const result = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun },
+      })
+      expect(result.removedBindings).toEqual([])
+      expect(result.blocksCount).toBe(1)
+      expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+    }
+  )
+
+  it('refuses a withheld block before acquiring the replacement lock', async () => {
+    mocks.admitBlockTypes.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Block type is not allowed')
+    )
+    await expect(
+      replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.admitBlockTypes).toHaveBeenCalledWith(
+      { workspaceId: context.workspaceId, subjectUserId: sessionPrincipal.userId },
+      [BLOCK]
+    )
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
 
   it('does not read saved bindings before access is authorized', async () => {
     mocks.resolvePermission.mockResolvedValue('read')
@@ -205,7 +324,12 @@ describe('replaceWorkflowState', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       attributedUserId: 'user-1',
-      state: { blocks: { 'block-1': BLOCK }, edges: [], variables: undefined },
+      state: expect.any(Function),
+    })
+    expect(mocks.resolvedState).toHaveBeenCalledWith({
+      blocks: { 'block-1': BLOCK },
+      edges: [],
+      variables: undefined,
     })
   })
 
@@ -229,15 +353,13 @@ describe('replaceWorkflowState', () => {
       },
     })
 
-    expect(mocks.replace).toHaveBeenCalledWith(
+    expect(mocks.resolvedState).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: expect.objectContaining({
-          variables: {
-            'var-1': { id: 'var-1', name: 'retries', type: 'number', value: 42 },
-            'var-2': { id: 'var-2', name: 'enabled', type: 'boolean', value: true },
-            'var-3': { id: 'var-3', name: 'tags', type: 'array', value: ['a', 'b'] },
-          },
-        }),
+        variables: {
+          'var-1': { id: 'var-1', name: 'retries', type: 'number', value: 42 },
+          'var-2': { id: 'var-2', name: 'enabled', type: 'boolean', value: true },
+          'var-3': { id: 'var-3', name: 'tags', type: 'array', value: ['a', 'b'] },
+        },
       })
     )
   })
@@ -425,14 +547,15 @@ describe('replaceWorkflowState', () => {
     }
     const replacement = { ...input, blocks: { [BLOCK.id]: block } }
 
-    it.each([false, true])('rejects new aliases before persistence (dryRun=%s)', async (dryRun) => {
+    it.each([false, true])('rejects new aliases before writing (dryRun=%s)', async (dryRun) => {
       await expect(
         replaceWorkflowState.execute({
           principal: copilotPrincipal,
           input: { ...replacement, dryRun },
         })
       ).rejects.toThrow('attachment names are read-only')
-      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+      expect(mocks.resolvedState).not.toHaveBeenCalled()
       expect(mocks.notify).not.toHaveBeenCalled()
     })
 
@@ -449,11 +572,9 @@ describe('replaceWorkflowState', () => {
           input: { ...replacement, blocks: { [BLOCK.id]: { ...block, name: 'Updated Agent' } } },
         })
       ).resolves.toMatchObject({ dryRun: false })
-      expect(mocks.replace).toHaveBeenCalledWith(
+      expect(mocks.resolvedState).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: expect.objectContaining({
-            blocks: { [BLOCK.id]: { ...block, name: 'Updated Agent' } },
-          }),
+          blocks: { [BLOCK.id]: { ...block, name: 'Updated Agent' } },
         })
       )
     })
