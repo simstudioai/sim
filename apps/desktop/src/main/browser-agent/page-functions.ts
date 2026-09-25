@@ -125,6 +125,7 @@ export function installPageHelpers(): void {
     const registry = window.__simAgentElements ?? []
     for (let id = 0; id < registry.length && controls.length < 4; id++) {
       const element = registry[id]
+      if (!element) continue
       let inOverlay = false
       for (
         let current: Element | null = element;

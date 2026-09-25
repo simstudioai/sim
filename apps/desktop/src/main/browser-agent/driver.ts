@@ -4509,6 +4509,7 @@ async function executeToolInner(
     case 'browser_hover': {
       const contents = session.requireAutomationTab().view.webContents
       if (params.elementId === undefined) {
+        const hoverNavigationEpoch = navigationEpoch(contents)
         const x = requireNum(params, 'x')
         const y = requireNum(params, 'y')
         const path = pointerPath(params)
@@ -4518,7 +4519,7 @@ async function executeToolInner(
           )
         }
         assertCurrentExecution()
-        assertActiveContents(contents)
+        assertActiveContents(contents, hoverNavigationEpoch)
         const pointTarget = unwrapPageResult(
           await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
         )
@@ -4528,7 +4529,7 @@ async function executeToolInner(
         const beforePage = await pageActionState(contents, true)
         const beforeElement = await activeElementState(contents)
         assertCurrentExecution()
-        assertActiveContents(contents)
+        assertActiveContents(contents, hoverNavigationEpoch)
         await cdp.movePointer(contents, path, { x, y }, signal)
         await sleep(150)
         const afterElement = await activeElementState(contents)

@@ -3783,6 +3783,36 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it('aborts a coordinate hover when a cross-document navigation lands mid-flight', async () => {
+    const contents = await openPage()
+    let navigated = false
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) return Promise.resolve({ found: true })
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        if (!navigated) {
+          navigated = true
+          emitContentsEvent(contents, 'did-navigate')
+        }
+        return Promise.resolve({
+          url: 'https://example.com/login',
+          title: 'Example',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_hover', { x: 40, y: 50 })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/active tab or page changed/)
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
   it('aborts a keypress when a cross-document navigation lands mid-flight', async () => {
     const contents = await openPage()
     let navigated = false
