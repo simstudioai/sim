@@ -567,14 +567,16 @@ describe('native search endpoints', () => {
         has_more: true,
       })
       .mockResolvedValueOnce({ ok: true, permalink: 'https://team.slack.com/archives/C1/p123456' })
+      .mockResolvedValueOnce({ ok: true, user: { profile: { display_name: 'Sid' } } })
     const result = await readSlack(api, '123.456', 'C1')
     expect(api.json.mock.calls[0]).toEqual([
       '/api/conversations.replies',
       { query: { channel: 'C1', ts: '123.456', limit: '100' } },
     ])
-    expect(result.content).toContain('Reply evidence')
+    expect(api.json.mock.calls[2]).toEqual(['/api/users.info', { query: { user: 'U1' } }])
+    expect(result.content).toContain('Sid: Reply evidence')
     expect(result.content).toContain('Thread continues')
-    expect(api.json).toHaveBeenCalledTimes(2)
+    expect(api.json).toHaveBeenCalledTimes(3)
   })
   it('applies Slack modifiers and date bounds without requiring term clauses', async () => {
     const api = client()

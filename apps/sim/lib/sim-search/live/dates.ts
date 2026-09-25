@@ -30,6 +30,19 @@ export function dateSortDirection(filters?: WorkspaceSearchFilters): 'asc' | 'de
   return filters.sortBy === 'oldest' ? 'asc' : 'desc'
 }
 
+/**
+ * A newest- or oldest-first listing without terms or dates lists items up to now, the default
+ * Slack's conversations.history applies to an omitted `latest`. Providers need a bound to list
+ * without search terms, so the implied one is made explicit and checked like any other.
+ */
+export function withImpliedListingBound(
+  filters: WorkspaceSearchFilters | undefined,
+  now: Date
+): WorkspaceSearchFilters | undefined {
+  if (!dateSortDirection(filters) || hasDateBounds(filters)) return filters
+  return { ...filters, endDate: now.toISOString() }
+}
+
 /** Native bounds may be widened for provider precision; returned metadata is checked exactly. */
 export function nativeDateBounds(input: NativeSearchInput): { start?: string; end?: string } {
   const filters = input.filters
