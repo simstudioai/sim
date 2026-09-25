@@ -62,6 +62,7 @@ import {
   migratePanelScope,
   panelUpdateAllowed,
   panelWindow,
+  setAgentView,
 } from '@/main/browser-agent/panel'
 import {
   agentAppOrigin,
@@ -2155,7 +2156,7 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       preload: join(__dirname, 'browser-preload.cjs'),
       // Throttled by default: a hidden tab should idle. The one exception is
       // the active tab while a tool waits on it, applied explicitly by
-      // applyActiveTabThrottling — never blanket across every tab.
+      // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
       spellcheck: false,
       // The default every origin this tab visits starts at; a per-origin zoom
@@ -2476,7 +2477,7 @@ export function hasSession(): boolean {
 export function setAutomationActive(active: boolean): void {
   if (currentScope.automationActive === active) return
   currentScope.automationActive = active
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
 }
 
@@ -2487,25 +2488,26 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
 }
 
 /**
- * Unthrottles the active tab while automation is active, and throttles every
- * other tab. Call after anything that changes which tab is active, so the
- * exemption follows the active tab rather than being stranded on the old one.
- */
-/**
  * Re-applies the tab throttling policy after a caller temporarily suspended it
  * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
  * internal policy does.
  */
 export function reassertTabThrottling(): void {
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
 }
 
-function applyActiveTabThrottling(): void {
+/**
+ * Unthrottles the automation tab while automation is active, throttles every other tab, and
+ * keeps the automation tab composited while no panel shows it. Call after anything that changes
+ * which tab the agent drives, so neither follows a stale tab.
+ */
+function applyAutomationTabPolicy(): void {
   for (const tab of tabs) {
     if (tab.view.webContents.isDestroyed()) continue
     const exempt = currentScope.automationActive && tab.id === currentScope.automationTabId
     tab.view.webContents.setBackgroundThrottling(!exempt)
   }
+  setAgentView(getBrowserScopeId(), automationTab()?.view ?? null)
 }
 
 /** A closed target must not transfer its activity marker to a replacement tab. */
@@ -2643,7 +2645,7 @@ function addTabInternal({
       revokeTabMediaPermissions(previousActiveTab, false)
     }
     currentScope.activeTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     if (!currentScope.restoring) layout()
     if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
     if (notify && !currentScope.restoring) events?.onActiveTabChanged(tab.view.webContents)
@@ -2923,7 +2925,7 @@ export function tabForNavigation(
     detachIfAttached(tab.view)
     tab.view = view
     contents.close()
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     layout()
     events?.onActiveTabChanged(view.webContents)
     return view.webContents
@@ -3058,13 +3060,13 @@ export function restoreBrowserSession(): void {
     state.lastPersistedSnapshot = previousState.lastPersistedSnapshot
     if (previousDownloads) browserDownloadsByScope.set(scopeId, previousDownloads)
     else browserDownloadsByScope.delete(scopeId)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     throw error
   } finally {
     state.restoring = false
   }
 
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   const restoredActive = restoredLoads.find(({ tab }) => tab.id === state.activeTabId)
   if (restoredActive) {
     pendingForegroundTabRestores.push(
@@ -3099,7 +3101,7 @@ export function addAutomationTab(url?: string, popup?: PopupWindowOptions): Agen
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   persistBrowserSession()
   events?.onTabsChanged()
   return tab
@@ -3113,7 +3115,7 @@ export function ensureAutomationTab(): AgentTab {
   tab = activeTab()
   if (tab) {
     currentScope.automationTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     events?.onTabsChanged()
     return tab
   }
@@ -3174,7 +3176,7 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   layout()
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
   persistBrowserSession()
@@ -3189,7 +3191,7 @@ export function switchAutomationTab(tabId: string): AgentTab {
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
   return tab
 }
@@ -3271,7 +3273,7 @@ function removeTab(
     const opener = tabs.find((entry) => entry.id === tab.openerTabId)
     currentScope.automationTabId =
       opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
   persistBrowserSession()

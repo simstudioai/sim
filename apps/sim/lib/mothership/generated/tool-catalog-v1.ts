@@ -830,6 +830,13 @@ export const BrowserDrag: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      durationMs: {
+        type: 'integer',
+        description:
+          'Optional total movement time in milliseconds, 0 to 10000. Use it for slow, smooth movement; the default is a brisk move.',
+        minimum: 0,
+        maximum: 10000,
+      },
       fromElementId: {
         type: 'number',
         description: 'Drag source element id from the latest snapshot. Alternative to fromX/fromY.',
@@ -849,6 +856,17 @@ export const BrowserDrag: ToolCatalogEntry = {
         description: 'Drop target X in CSS viewport pixels (paired with toY).',
       },
       toY: { type: 'number', description: 'Drop target Y in CSS viewport pixels.' },
+      via: {
+        type: 'array',
+        description:
+          'Optional viewport points in CSS pixels, at most 20, that the pointer passes through in order before the end point — to route around obstacles, sweep a surface, or trace a shape.',
+        items: {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' } },
+          required: ['x', 'y'],
+        },
+        maxItems: 20,
+      },
     },
   },
   resultSchema: {
@@ -1246,6 +1264,13 @@ export const BrowserHover: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      durationMs: {
+        type: 'integer',
+        description:
+          'Optional total movement time in milliseconds, 0 to 10000. Use it for slow, smooth movement; the default is a brisk move.',
+        minimum: 0,
+        maximum: 10000,
+      },
       elementId: {
         type: 'number',
         description:
@@ -1263,8 +1288,24 @@ export const BrowserHover: ToolCatalogEntry = {
           },
         },
       },
+      via: {
+        type: 'array',
+        description:
+          'Optional viewport points in CSS pixels, at most 20, that the pointer passes through in order before the end point — to route around obstacles, sweep a surface, or trace a shape.',
+        items: {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' } },
+          required: ['x', 'y'],
+        },
+        maxItems: 20,
+      },
+      x: {
+        type: 'number',
+        description:
+          'Hover at this X in CSS viewport pixels instead of an element id (paired with y), for canvas and map surfaces.',
+      },
+      y: { type: 'number', description: 'Hover Y in CSS viewport pixels.' },
     },
-    required: ['elementId'],
   },
   resultSchema: {
     type: 'object',

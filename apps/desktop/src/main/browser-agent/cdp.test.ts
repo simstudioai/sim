@@ -15,10 +15,13 @@ import {
   captureScreenshot,
   clickAt,
   consumeAgentContextMenu,
+  dragPointer,
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
+  movePointer,
   PRIMARY_CLICK,
+  pointerPathSteps,
   releaseFileInput,
   resolveFileInput,
   setColorScheme,
@@ -256,6 +259,122 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+
+  it('stops a pointer route as soon as it is aborted', async () => {
+    const contents = new WebContentsView().webContents
+    const moves = () =>
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) => String(method).startsWith('Input.dispatchMouseEvent'))
+    const aborted = new AbortController()
+    aborted.abort()
+    await expect(
+      movePointer(contents, { via: [], durationMs: null }, { x: 5, y: 5 }, aborted.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(moves()).toHaveLength(0)
+
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const route = movePointer(
+        contents,
+        { via: [{ x: 0, y: 0 }], durationMs: 5_000 },
+        { x: 500, y: 0 },
+        controller.signal
+      )
+      const settled = expect(route).rejects.toMatchObject({ name: 'AbortError' })
+      await vi.advanceTimersByTimeAsync(100)
+      const sentBeforeAbort = moves().length
+      controller.abort()
+      await settled
+      expect(moves()).toHaveLength(sentBeforeAbort)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends nothing for an already-aborted drag and cancels one aborted while it settles', async () => {
+    const contents = new WebContentsView().webContents
+    const mouse = () =>
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) => method === 'Input.dispatchMouseEvent')
+        .map(([, params]) => toRecord(params).type)
+    const aborted = new AbortController()
+    aborted.abort()
+    await expect(
+      dragPointer(contents, { x: 0, y: 0 }, { x: 50, y: 0 }, undefined, aborted.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(contents.debugger.sendCommand).not.toHaveBeenCalled()
+
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const drag = dragPointer(
+        contents,
+        { x: 0, y: 0 },
+        { x: 50, y: 0 },
+        undefined,
+        controller.signal
+      )
+      const settled = expect(drag).rejects.toMatchObject({ name: 'AbortError' })
+      // The default route takes 13 moves 20 ms apart, then a 120 ms settle hold.
+      await vi.advanceTimersByTimeAsync(300)
+      controller.abort()
+      await settled
+      expect(mouse().at(-1)).toBe('mouseReleased')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases the button when a timed drag is aborted mid-route', async () => {
+    const contents = new WebContentsView().webContents
+    const types = () =>
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) => method === 'Input.dispatchMouseEvent')
+        .map(([, params]) => toRecord(params).type)
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const drag = dragPointer(
+        contents,
+        { x: 0, y: 0 },
+        { x: 500, y: 0 },
+        { via: [], durationMs: 5_000 },
+        controller.signal
+      )
+      const settled = expect(drag).rejects.toMatchObject({ name: 'AbortError' })
+      await vi.advanceTimersByTimeAsync(100)
+      controller.abort()
+      await settled
+      expect(types().at(-1)).toBe('mouseReleased')
+      expect(types().filter((type) => type === 'mouseMoved').length).toBeLessThan(20)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the default drag pace and lands exactly on every via point', () => {
+    const direct = pointerPathSteps({ x: 0, y: 0 }, { via: [], durationMs: null }, { x: 120, y: 0 })
+    expect(direct.stepDelayMs).toBe(20)
+    expect(direct.points).toHaveLength(12)
+    expect(direct.points[0]).toEqual({ x: 10, y: 0 })
+    expect(direct.points[11]).toEqual({ x: 120, y: 0 })
+
+    const routed = pointerPathSteps(
+      { x: 0, y: 0 },
+      { via: [{ x: 100, y: 0 }], durationMs: 800 },
+      { x: 100, y: 300 }
+    )
+    expect(routed.points).toContainEqual({ x: 100, y: 0 })
+    expect(routed.points[routed.points.length - 1]).toEqual({ x: 100, y: 300 })
+    expect(routed.points.length * routed.stepDelayMs).toBeCloseTo(800)
+    // The longer second segment gets about three times the steps of the first.
+    const corner = routed.points.findIndex((point) => point.x === 100 && point.y === 0)
+    expect(routed.points.length - 1 - corner).toBeGreaterThan(corner * 2)
   })
 
   it('holds the button down for holdMs before releasing it', async () => {

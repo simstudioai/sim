@@ -522,6 +522,20 @@ describe('browser-agent session', () => {
     expect(session.migrateBrowserScope('chat-real', 'occupied')).toBe(false)
   })
 
+  it('carries the agent tab registration through a scope migration', () => {
+    const first = session.withBrowserScope('pending:workspace', () => session.ensureTab())
+    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
+    const removeChildView = (
+      win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
+    ).contentView.removeChildView
+    removeChildView.mockClear()
+
+    // The migrated chat moves its agent to a new tab: the first stops being an agent tab.
+    session.withBrowserScope('chat-real', () => session.addAutomationTab())
+
+    expect(removeChildView).toHaveBeenCalledWith(first.view)
+  })
+
   it('retains a migrated provisional alias until the durable scope is disposed', () => {
     const tab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
     expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
@@ -2398,6 +2412,7 @@ describe('browser-agent session', () => {
 
   it('gives background automation a viewport without taking panel ownership', () => {
     const tab = session.withBrowserScope('background-chat', () => session.ensureTab())
+    const view = tab.view as unknown as MockView
 
     expect(tab.view.setBounds).toHaveBeenCalledWith({
       x: 0,
@@ -2405,7 +2420,10 @@ describe('browser-agent session', () => {
       width: 1180,
       height: 850,
     })
-    expect(win.contentView.addChildView).not.toHaveBeenCalledWith(tab.view)
+    // Parked invisibly so input and captures on it complete; it never shows.
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(tab.view)
+    expect(view.setVisible).toHaveBeenCalledWith(false)
+    expect(view.setVisible).not.toHaveBeenCalledWith(true)
     expect(session.getActiveBrowserScopeId()).toBe('chat-test')
   })
 
@@ -2422,11 +2440,16 @@ describe('browser-agent session', () => {
     const content = (win as unknown as { contentView: { addChildView: ReturnType<typeof vi.fn> } })
       .contentView
 
-    // No bounds yet: the view is not attached to the window.
-    expect(content.addChildView).not.toHaveBeenCalledWith(tab.view)
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    // No bounds yet: the agent's view is parked invisibly, never shown.
     expect(content.addChildView).toHaveBeenCalledWith(tab.view)
+    expect(view.setVisible).toHaveBeenCalledWith(false)
+    expect(view.setVisible).not.toHaveBeenCalledWith(true)
+
+    // Bounds arrive: the parked view is adopted in place, not re-added.
+    content.addChildView.mockClear()
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    expect(content.addChildView).not.toHaveBeenCalled()
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
     expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 800, height: 600 })
 
     // Panel hidden: the view stops painting but stays attached. Detaching
@@ -2467,11 +2490,81 @@ describe('browser-agent session', () => {
 
     const second = session.addTab()
 
-    // Hiding keeps a view attached, but a tab switch still has to detach:
-    // two native views stacked in the window would composite over each other.
-    expect(content.removeChildView).toHaveBeenCalledWith(first.view)
+    // A tab switch hides the previous view so two native views never composite over
+    // each other; the agent still drives the first tab, so it stays parked, not removed.
+    expect(content.removeChildView).not.toHaveBeenCalledWith(first.view)
+    expect(first.view.setVisible).toHaveBeenLastCalledWith(false)
     expect(content.addChildView).toHaveBeenCalledWith(second.view)
     expect(second.view.webContents.invalidate).toHaveBeenCalledOnce()
+
+    // A tab the agent does not drive is removed when another tab takes over.
+    content.removeChildView.mockClear()
+    session.switchTab(first.id)
+    expect(content.removeChildView).toHaveBeenCalledWith(second.view)
+  })
+
+  it('gives keyboard focus back to the visible page when it parks the agent tab', () => {
+    const visibleTab = session.ensureTab()
+    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    const visibleContents = visibleTab.view.webContents as unknown as MockView['webContents']
+    visibleContents.isFocused.mockReturnValue(true)
+    vi.mocked(visibleContents.focus).mockClear()
+
+    session.addAutomationTab()
+
+    expect(visibleContents.focus).toHaveBeenCalled()
+  })
+
+  it('parks an agent tab in the main window when a secondary window stops showing it', () => {
+    const otherWindow = mainWindowMock() as unknown as {
+      contentView: {
+        addChildView: ReturnType<typeof vi.fn>
+        removeChildView: ReturnType<typeof vi.fn>
+      }
+    }
+    const agentTab = session.ensureTab()
+    panel.setPanelBounds(
+      { x: 0, y: 0, width: 800, height: 600 },
+      otherWindow as unknown as BrowserWindow
+    )
+    expect(otherWindow.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
+    vi.mocked(win.contentView.addChildView).mockClear()
+
+    session.addTab()
+
+    expect(otherWindow.contentView.removeChildView).toHaveBeenCalledWith(agentTab.view)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
+  })
+
+  it('keeps the agent tab composited while the user views another tab, and releases it on close', () => {
+    const agentTab = session.ensureTab()
+    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    const content = (
+      win as unknown as {
+        contentView: {
+          addChildView: ReturnType<typeof vi.fn>
+          removeChildView: ReturnType<typeof vi.fn>
+        }
+      }
+    ).contentView
+    const userTab = session.addTab()
+    const agentView = agentTab.view as unknown as MockView
+
+    // The user's tab is visible; the agent's tab is parked, still in the window.
+    expect(content.removeChildView).not.toHaveBeenCalledWith(agentTab.view)
+    expect(agentView.setVisible).toHaveBeenLastCalledWith(false)
+
+    // Switching back adopts the parked view in place.
+    content.addChildView.mockClear()
+    session.switchTab(agentTab.id)
+    expect(content.addChildView).not.toHaveBeenCalledWith(agentTab.view)
+    expect(agentView.setVisible).toHaveBeenLastCalledWith(true)
+
+    // Closing the agent tab while the user views another tab removes its parked view.
+    session.switchTab(userTab.id)
+    content.removeChildView.mockClear()
+    session.closeTab(agentTab.id)
+    expect(content.removeChildView).toHaveBeenCalledWith(agentTab.view)
   })
 
   // The measured report is the sole writer of bounds. A main-process
