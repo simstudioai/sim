@@ -19,7 +19,7 @@ export interface InlineChipProps {
 export function InlineChip({ children, muted }: InlineChipProps) {
   return (
     <ChipTag
-      variant='gray'
+      variant='workflow-inline'
       className={cn(
         'max-w-[160px] translate-y-[-1px] align-middle',
         muted && 'text-[var(--text-muted)]'
