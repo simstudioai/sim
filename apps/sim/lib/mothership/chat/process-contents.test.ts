@@ -2017,6 +2017,36 @@ describe('organization resource mention targets', () => {
     )
   })
 
+  it.each<[string, ChatContext, Mock, Record<string, string>]>([
+    [
+      'table',
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'workspace-a' },
+      readTableUseCase,
+      { tableId: 'table-1', workspaceId: 'workspace-a' },
+    ],
+    [
+      'file',
+      { kind: 'file', fileId: 'file-1', label: 'Notes', workspaceId: 'workspace-a' },
+      readWorkspaceFileMetadata,
+      { fileId: 'file-1', assertedWorkspaceId: 'workspace-a' },
+    ],
+    [
+      'knowledge base',
+      { kind: 'knowledge', knowledgeId: 'kb-1', label: 'Docs', workspaceId: 'workspace-a' },
+      readKnowledgeBase,
+      { knowledgeBaseId: 'kb-1', assertedWorkspaceId: 'workspace-a' },
+    ],
+  ])('reads a tagged %s in its authorized owner workspace', async (_kind, context, read, input) => {
+    read.mockClear()
+    await processContextsServer([context], 'user', '', undefined, 'chat', undefined, 'org')
+    expect(read).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ workspaceId: 'workspace-a' }),
+        input: expect.objectContaining(input),
+      })
+    )
+  })
+
   it('reads nothing for a resource whose owner workspace is not authorized for the chat', async () => {
     const result = await processContextsServer(
       [{ kind: 'workflow', workflowId: 'workflow-1', label: 'Foreign', workspaceId: 'foreign' }],

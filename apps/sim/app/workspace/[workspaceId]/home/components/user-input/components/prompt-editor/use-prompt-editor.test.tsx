@@ -171,6 +171,54 @@ it('preserves an explicit cross-workspace resource owner in the organization men
   }
 })
 
+it('keeps a copied organization resource chip addressed to its owner workspace on paste', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'table',
+        id: 'table-1',
+        title: 'Accounts',
+        workspaceId: 'sales',
+      })
+    )
+    textarea.value = result().value
+    textarea.setSelectionRange(0, textarea.value.length)
+    let copied = ''
+    act(() => {
+      result().handleCopy({
+        currentTarget: textarea,
+        clipboardData: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          },
+        },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    act(() => result().clear())
+    textarea.value = ''
+    textarea.setSelectionRange(0, 0)
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? copied : '') },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(result().contexts).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'sales' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
 it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
   const skill = {
     id: 'built-in',

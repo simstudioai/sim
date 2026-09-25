@@ -507,9 +507,10 @@ export function usePromptEditor({
     (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
       const mapped = mapResourceToContext(resource)
       if (!mapped) return
+      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
       return insertMention(
-        organizationId && resource.workspaceId && isWorkspaceOwnedContext(mapped)
-          ? { ...mapped, workspaceId: resource.workspaceId }
+        organizationId && ownerWorkspaceId && isWorkspaceOwnedContext(mapped)
+          ? { ...mapped, workspaceId: ownerWorkspaceId }
           : mapped,
         selected
       )

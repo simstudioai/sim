@@ -1,3 +1,4 @@
+import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
@@ -44,10 +45,23 @@ const PORTABLE_KIND_TO_ID_FIELD = {
  */
 export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
 
+/**
+ * Carries the owning workspace of a resource chip, which an organization chat
+ * needs to resolve it: `sim:kind/id?workspace=<owner>`. Links without it parse
+ * exactly as before.
+ */
+const OWNER_PARAM = '?workspace='
+
 /** Serializes a portable chip link, escaping Markdown delimiters in its label. */
-export function serializePortableChipLink(kind: PortableKind, id: string, label: string): string {
+export function serializePortableChipLink(
+  kind: PortableKind,
+  id: string,
+  label: string,
+  workspaceId?: string
+): string {
   const escapedLabel = label.replace(/[\\[\]]/g, '\\$&')
-  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id})`
+  const owner = workspaceId ? `${OWNER_PARAM}${encodeURIComponent(workspaceId)}` : ''
+  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id}${owner})`
 }
 
 function parsePortableChipLabel(label: string): string {
@@ -73,6 +87,8 @@ export interface ParsedChipLink {
   kind: PortableKind
   id: string
   label: string
+  /** Owning workspace, carried by resource chips copied from an organization chat. */
+  workspaceId?: string
   start: number
   end: number
 }
@@ -107,7 +123,12 @@ function serializeChipContext(context: ChatContext): string | null {
   if (!isPortableKind(context.kind)) return null
   const id = getPortableId(context)
   if (!id) return null
-  return serializePortableChipLink(context.kind, id, context.label)
+  return serializePortableChipLink(
+    context.kind,
+    id,
+    context.label,
+    isWorkspaceOwnedContext(context) ? context.workspaceId : undefined
+  )
 }
 
 /**
@@ -211,11 +232,15 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
   let match: RegExpExecArray | null
 
   while ((match = pattern.exec(text)) !== null) {
-    const [full, label, kind, id] = match
+    const [full, label, kind, address] = match
     if (!isPortableKind(kind)) continue
+    const ownerAt = address.lastIndexOf(OWNER_PARAM)
     links.push({
       kind,
-      id,
+      id: ownerAt === -1 ? address : address.slice(0, ownerAt),
+      ...(ownerAt === -1
+        ? {}
+        : { workspaceId: decodeURIComponent(address.slice(ownerAt + OWNER_PARAM.length)) }),
       label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
@@ -235,6 +260,13 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
  * @returns The matching chat context.
  */
 export function chipLinkToContext(link: ParsedChipLink): ChatContext {
+  const context = chipLinkBaseContext(link)
+  return link.workspaceId && isWorkspaceOwnedContext(context)
+    ? { ...context, workspaceId: link.workspaceId }
+    : context
+}
+
+function chipLinkBaseContext(link: ParsedChipLink): ChatContext {
   switch (link.kind) {
     case 'table':
       return { kind: 'table', tableId: link.id, label: link.label }
