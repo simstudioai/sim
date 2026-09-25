@@ -18,7 +18,11 @@ import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { buildSlackAppCreationUrl, getSlackAppNameError } from '@/lib/integrations/slack-manifest'
+import {
+  buildSlackAppCreationUrl,
+  getSlackAppNameError,
+  SLACK_APP_CREATION_URL_MAX_LENGTH,
+} from '@/lib/integrations/slack-manifest'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateScopedCredential,
@@ -205,6 +209,12 @@ export function ConnectSlackBotModal({
     searchOnly,
   ])
 
+  const createAppUrl = buildSlackAppCreationUrl(manifestJson)
+  const creationUrlError =
+    createAppUrl.length > SLACK_APP_CREATION_URL_MAX_LENGTH
+      ? 'This app configuration is too large to open in Slack. Shorten or remove slash commands.'
+      : null
+
   const capabilityIds = [...selected]
   const setCapabilityIds = (next: string[]) => setSelected(new Set(next))
 
@@ -271,7 +281,12 @@ export function ConnectSlackBotModal({
           fallback, which collides for a second bot in the same workspace. */}
       <Wizard.Step
         title={searchOnly ? 'Name your Slack app' : 'Configure your bot'}
-        canAdvance={appName.trim().length > 0 && !nameError && !manifestConfigurationError}
+        canAdvance={
+          appName.trim().length > 0 &&
+          !nameError &&
+          !manifestConfigurationError &&
+          !creationUrlError
+        }
       >
         <StepConfigure
           searchOnly={searchOnly}
@@ -284,13 +299,17 @@ export function ConnectSlackBotModal({
           descriptionError={descriptionError}
           slashCommands={slashCommands}
           onSlashCommandsChange={setSlashCommands}
-          slashCommandsError={slashCommandsError}
+          slashCommandsError={slashCommandsError ?? creationUrlError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
         />
       </Wizard.Step>
       <Wizard.Step title={isReconnect ? 'Open your app in Slack' : 'Create the app in Slack'}>
-        <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
+        <StepCreate
+          manifestJson={manifestJson}
+          createAppUrl={createAppUrl}
+          reconnect={isReconnect}
+        />
       </Wizard.Step>
       <Wizard.Step title='Install and paste your Bot Token' canAdvance={botToken.trim().length > 0}>
         <StepToken value={botToken} onChange={setBotToken} reconnect={isReconnect} />
@@ -496,9 +515,10 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
 
 interface StepCreateProps {
   manifestJson: string
+  createAppUrl: string
   reconnect: boolean
 }
-function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
+function StepCreate({ manifestJson, createAppUrl, reconnect }: StepCreateProps) {
   if (reconnect) {
     return (
       <SubStepList>
@@ -528,10 +548,7 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
         <SubStep n={1}>
           <div>Open Slack with the manifest for your selected permissions already filled in:</div>
           <div className='mt-2'>
-            <SlackAppManifest
-              manifest={manifestJson}
-              createAppUrl={buildSlackAppCreationUrl(manifestJson)}
-            />
+            <SlackAppManifest manifest={manifestJson} createAppUrl={createAppUrl} />
           </div>
         </SubStep>
         <SubStep n={2}>

@@ -1,4 +1,5 @@
 const SLACK_APP_NAME_MAX_LENGTH = 35
+export const SLACK_APP_CREATION_URL_MAX_LENGTH = 30_000
 
 /** Opens Slack's app creation flow with the generated manifest already filled in. */
 export function buildSlackAppCreationUrl(manifest: string): string {
