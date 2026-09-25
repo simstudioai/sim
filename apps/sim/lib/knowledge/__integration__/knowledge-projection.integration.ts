@@ -99,10 +99,8 @@ const subjectToken = (subject: string) => `s:github-repositories:-:${subject}`
 const aclOf = (...who: Array<'alice' | 'bob'>) =>
   who.map((name) => subjectToken(members[name].subject)).sort()
 /**
- * A direction no other integration file writes. The vector legs here walk the approximate index,
- * which the files sharing this database crowd with `[1, 0, …]` rows; tied at distance zero with
- * this file's chunks, those can exhaust the walk's tuple cap before it reaches them. Inside the
- * first 512 dimensions, the only ones the candidate projection keeps.
+ * A direction no other integration file writes, so no row of theirs ties with this file's chunks.
+ * Inside the first 512 dimensions, the only ones the candidate projection keeps.
  */
 const vector = Array.from({ length: 1536 }, (_, index) => (index === 511 ? 1 : 0))
 const queryVector = {
@@ -173,12 +171,17 @@ const keywordIds = async () =>
     .map((row) => row.id)
     .sort()
 
+/**
+ * Ranked exactly on the row, under the same visibility predicate the graph walk applies. The walk
+ * is approximate: in a graph the other files sharing this database crowd with degenerate vectors,
+ * a chunk can be pruned from every neighbour list and never be reached, however far the walk goes.
+ */
 const vectorIds = async () =>
   (
     await handleVectorOnlySearch({
       ...searchInputs(),
       distanceThreshold: 2,
-      permitted: { kind: 'unbounded', broad: true },
+      permitted: { kind: 'unbounded', broad: false },
     })
   )
     .map((row) => row.id)

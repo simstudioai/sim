@@ -137,12 +137,17 @@ const keywordIds = async (who: 'alice' | 'bob') =>
     })
   ).map((row) => row.id)
 
+/**
+ * Ranked exactly on the row, under the same visibility predicate the graph walk applies. The walk
+ * is approximate: in a graph the other files sharing this database crowd with degenerate vectors,
+ * a chunk can be pruned from every neighbour list and never be reached, however far the walk goes.
+ */
 const vectorIds = async (who: 'alice' | 'bob') =>
   (
     await handleVectorOnlySearch({
       ...searchInputs(who),
       distanceThreshold: 2,
-      permitted: { kind: 'unbounded', broad: true },
+      permitted: { kind: 'unbounded', broad: false },
     })
   ).map((row) => row.id)
 
