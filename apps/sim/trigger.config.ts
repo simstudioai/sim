@@ -102,9 +102,9 @@ export default defineConfig({
    * outside Vitest and fails the whole deploy. Setting this replaces the CLI's
    * defaults (`*.test.*` and `*.spec.*`), which are restated here alongside
    * the `*.integration.*` suffix used for suites that run against real
-   * Postgres/Redis.
+   * Postgres/Redis, across every extension task discovery matches.
    */
-  ignorePatterns: ['**/*.{test,spec,integration}.{ts,mts,cts,js,mjs,cjs}'],
+  ignorePatterns: ['**/*.{test,spec,integration}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
   /**
    * Runs before any task run, in the run process. Marks the process so that
    * dispatch decisions further down the call graph stop inferring from
