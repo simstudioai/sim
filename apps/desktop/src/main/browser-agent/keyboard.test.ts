@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -310,6 +311,23 @@ describe('dispatchKeyCombo', () => {
       'Input.dispatchKeyEvent',
       expect.objectContaining({ type: 'keyUp', key: 'Enter' }),
     ])
+  })
+
+  it('releases only the chord keys whose press was attempted', async () => {
+    const contents = new WebContentsView().webContents
+    vi.mocked(contents.debugger.sendCommand)
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('shift-down response lost'))
+
+    await expect(dispatchKeyCombo(contents, parseKeyCombo('Ctrl+Shift+K'))).rejects.toMatchObject({
+      name: KeyDispatchError.name,
+      keyDownDispatched: true,
+    })
+
+    const keys = vi
+      .mocked(contents.debugger.sendCommand)
+      .mock.calls.map(([, params]) => `${toRecord(params).type} ${toRecord(params).key}`)
+    expect(keys).toEqual(['rawKeyDown Control', 'rawKeyDown Shift', 'keyUp Shift', 'keyUp Control'])
   })
 
   it('does not turn menu-restoration cleanup failure into a duplicate key retry signal', async () => {

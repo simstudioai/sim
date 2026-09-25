@@ -71,7 +71,7 @@ export function installPageHelpers(): void {
    * mounts inside the app root it just hid, so its own ancestor carries aria-hidden. Visibility
    * checks skip only the aria-hidden test on ancestors above this modal. Null when any modal is
    * visible unmodified (the portaled case) or no single topmost modal is contained by all of its
-   * hidden ancestors.
+   * hidden ancestors. A modal nested inside another open modal is the topmost of the two.
    */
   let exemptModal: Element | null | undefined
   window.__simAgentFindExemptModal = (): Element | null => {
@@ -109,8 +109,10 @@ export function installPageHelpers(): void {
       if (visible) rendered.push({ modal, hidden })
     }
     if (rendered.some(({ hidden }) => hidden.length === 0)) return null
-    const topmost = rendered.filter(({ hidden }) =>
-      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    const topmost = rendered.filter(
+      ({ modal, hidden }) =>
+        hidden.every((ancestor) => rendered.every((other) => ancestor.contains(other.modal))) &&
+        !rendered.some((other) => other.modal !== modal && modal.contains(other.modal))
     )
     return topmost.length === 1 ? topmost[0].modal : null
   }

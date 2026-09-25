@@ -14,6 +14,7 @@ import {
 import {
   captureScreenshot,
   clickAt,
+  consumeAgentContextMenu,
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
@@ -270,6 +271,28 @@ describe('browser-agent CDP instrumentation', () => {
       await vi.advanceTimersByTimeAsync(500)
       await click
       expect(types()).toEqual(['mousePressed', 'mouseReleased'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a held right-click marked as the agent context menu until release', async () => {
+    const contents = new WebContentsView().webContents
+    vi.useFakeTimers()
+    try {
+      const rightHold = { ...PRIMARY_CLICK, button: 'right' as const, holdMs: 1500 }
+      await Promise.all([
+        clickAt(contents, 5, 6, false, rightHold),
+        vi.advanceTimersByTimeAsync(1500),
+      ])
+      expect(consumeAgentContextMenu(contents)).toBe(true)
+
+      const click = clickAt(contents, 5, 6, false, rightHold)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(consumeAgentContextMenu(contents)).toBe(true)
+      await vi.advanceTimersByTimeAsync(1500)
+      await click
+      expect(consumeAgentContextMenu(contents)).toBe(false)
     } finally {
       vi.useRealTimers()
     }

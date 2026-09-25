@@ -647,6 +647,16 @@ function publishActiveBrowserDownload(active: ActiveBrowserDownload): void {
   publishBrowserDownloads(liveScopeId)
 }
 
+/** A disk probe that resolves after its download finished or stopped must not cancel it. */
+function isDiskCheckStale(active: ActiveBrowserDownload): boolean {
+  return (
+    active.terminal ||
+    active.finished ||
+    Boolean(active.limitReason) ||
+    !activeBrowserDownloads.has(active)
+  )
+}
+
 function checkBrowserDownloadDiskSpace(
   active: ActiveBrowserDownload,
   check: 'admission' | 'progress',
@@ -664,9 +674,7 @@ function checkBrowserDownloadDiskSpace(
   active.diskCheckInFlight = true
   void browserDownloadFreeDiskBytes(active.directory)
     .then((freeDiskBytes) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) {
-        return
-      }
+      if (isDiskCheckStale(active)) return
       const requiredFreeDiskBytes =
         MIN_BROWSER_DOWNLOAD_FREE_DISK_BYTES +
         activeDownloadReservations(check === 'admission' ? active : undefined)
@@ -683,7 +691,7 @@ function checkBrowserDownloadDiskSpace(
       if (check === 'admission' && active.download.state === 'progressing') active.item.resume()
     })
     .catch((error) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) return
+      if (isDiskCheckStale(active)) return
       logger.warn('Could not complete an agent browser download disk-space check', {
         error: getErrorMessage(error),
       })

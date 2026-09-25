@@ -3495,6 +3495,44 @@ describe('browser-agent session', () => {
     })
   })
 
+  it('ignores a progress disk probe that resolves after the download completed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+      const progressProbe = deferred<number>()
+      const getFreeDiskBytes = vi
+        .fn<(directory: string) => number | Promise<number>>()
+        .mockReturnValueOnce(Number.MAX_SAFE_INTEGER)
+        .mockReturnValueOnce(progressProbe.promise)
+      session = freshSession(win, {}, undefined, {
+        getDirectory: () => directory,
+        getFreeDiskBytes,
+      })
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      const download = mockDownloadItem({ filename: 'late-probe.bin', totalBytes: 100 })
+
+      startMockDownload(contents, download)
+      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+      vi.setSystemTime(Date.now() + 1_000)
+      download.emitUpdated()
+      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
+
+      download.emitDone('completed')
+      progressProbe.resolve(0)
+
+      await vi.waitFor(() =>
+        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+          filename: 'late-probe.bin',
+          state: 'completed',
+        })
+      )
+      expect(download.item.cancel).not.toHaveBeenCalled()
+      expect(finishedDownloadFiles(directory)).toEqual(['late-probe.bin'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('interrupts a completed download whose staging file cannot be moved into place', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     session = freshSession(win, {}, undefined, {

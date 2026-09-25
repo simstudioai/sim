@@ -530,9 +530,11 @@ export const BrowserClick: ToolCatalogEntry = {
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
       },
       holdMs: {
-        type: 'number',
+        type: 'integer',
         description:
           'Keep the button pressed this many milliseconds before releasing (0 to 10000, default 0), for press-and-hold controls. Single clicks only.',
+        minimum: 0,
+        maximum: 10000,
       },
       modifiers: {
         type: 'array',
@@ -673,9 +675,11 @@ export const BrowserClickAt: ToolCatalogEntry = {
         required: ['accept'],
       },
       holdMs: {
-        type: 'number',
+        type: 'integer',
         description:
           'Keep the button pressed this many milliseconds before releasing (0 to 10000, default 0), for press-and-hold controls. Single clicks only.',
+        minimum: 0,
+        maximum: 10000,
       },
       modifiers: {
         type: 'array',

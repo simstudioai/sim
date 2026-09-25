@@ -1012,7 +1012,14 @@ export async function clickAt(
         modifiers,
         clickCount: count,
       })
-      if (holdMs > 0) await sleep(holdMs)
+      if (holdMs > 0) {
+        await sleep(holdMs)
+        // Windows opens the context menu on release, after the hold; renew a marker a
+        // press-time menu has not already consumed.
+        if (button === 'right' && agentContextClicks.has(contents)) {
+          agentContextClicks.set(contents, Date.now())
+        }
+      }
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x,

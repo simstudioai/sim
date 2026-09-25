@@ -372,28 +372,37 @@ export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo
     if (depth === 0) contents.setIgnoreMenuShortcuts(true)
     applicationMenuIsolationDepth.set(contents, depth + 1)
   }
-  let keyDownDispatched = false
+  const presses = [...modifierKeys.downs, down]
+  let pressesAttempted = 0
   try {
-    // Mark before awaiting: Blink may receive the key-down and then lose the
+    // Count before awaiting: Blink may receive a key-down and then lose the
     // CDP acknowledgement during navigation/process swap. In that ambiguous
     // case cleanup is required and a synthetic retry could double-act.
-    keyDownDispatched = true
-    for (const event of modifierKeys.downs) await cdp.dispatchKeyEvent(contents, event)
-    await cdp.dispatchKeyEvent(contents, down)
+    for (const press of presses) {
+      pressesAttempted++
+      await cdp.dispatchKeyEvent(contents, press)
+    }
     await cdp.dispatchKeyEvent(contents, up)
     for (const event of modifierKeys.ups) await cdp.dispatchKeyEvent(contents, event)
   } catch (error) {
-    if (keyDownDispatched && !contents.isDestroyed()) {
+    if (pressesAttempted > 0 && !contents.isDestroyed()) {
       // Like pointer cleanup, this is best effort. The original key-up may
       // have reached Blink before its CDP response was lost; a duplicate
       // release is harmless, while omitting it can leave input state stuck.
-      for (const release of [up, ...modifierKeys.ups]) {
+      // Only keys whose press was attempted are released: a key-up for a key
+      // that never went down can itself trigger a page's keyup handler.
+      const heldModifiers = Math.min(pressesAttempted, modifierKeys.downs.length)
+      const releases = [
+        ...(pressesAttempted === presses.length ? [up] : []),
+        ...modifierKeys.ups.slice(modifierKeys.ups.length - heldModifiers),
+      ]
+      for (const release of releases) {
         await cdp.dispatchKeyEvent(contents, release).catch(() => {})
       }
     }
     throw new KeyDispatchError(
       getErrorMessage(error, 'Trusted key dispatch failed'),
-      keyDownDispatched
+      pressesAttempted > 0
     )
   } finally {
     if (isolatesApplicationMenu) {

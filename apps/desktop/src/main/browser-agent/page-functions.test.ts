@@ -2536,4 +2536,19 @@ describe('modal hidden together with its own app root', () => {
     expect(outline).not.toContain('Discard')
     expect((readPageActionState() as { dialogs: string[] }).dialogs).toEqual(['Upper'])
   })
+
+  it('exposes a disablePortal modal nested inside another open modal', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <div role="dialog" aria-modal="true" aria-label="Outer"><button>Discard</button>
+          <div role="dialog" aria-modal="true" aria-label="Inner"><button>Confirm</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Confirm')
+    expect(outline).not.toContain('Discard')
+  })
 })
