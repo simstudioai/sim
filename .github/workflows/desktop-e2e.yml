@@ -10,6 +10,7 @@ on:
       - '.github/workflows/desktop-e2e.yml'
       - '.github/workflows/desktop-release.yml'
       - 'apps/desktop/**'
+      - 'apps/sim/app/workspace/**/browser-session/**'
       - 'apps/sim/app/_styles/**'
       - 'apps/sim/lib/postcss/**'
       - 'apps/sim/postcss.config.mjs'

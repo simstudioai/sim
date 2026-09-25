@@ -53,7 +53,10 @@ let activeContainer: HTMLDivElement | null = null
 let nextAnimationFrameId = 1
 const animationFrames = new Map<number, FrameRequestCallback>()
 
-function renderOcclusionHook(panelVisible = true): HookHarness {
+function renderOcclusionHook(
+  panelVisible = true,
+  getHostRect = () => new DOMRect(500, 64, 800, 700)
+): HookHarness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -63,7 +66,7 @@ function renderOcclusionHook(panelVisible = true): HookHarness {
   let latest: OcclusionResult | undefined
 
   function Probe({ visible }: { visible: boolean }) {
-    latest = useBrowserPanelOcclusion('chat-1', 'tab-1', visible)
+    latest = useBrowserPanelOcclusion('chat-1', 'tab-1', visible, getHostRect)
     return null
   }
 
@@ -290,6 +293,140 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
 
     expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(2)
     expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
+    expect(hook.result().snapshot).toBeNull()
+    hook.unmount()
+  })
+
+  it('replaces the native page only while a moving tooltip overlaps it', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    const hook = renderOcclusionHook()
+    const tooltip = document.createElement('div')
+    tooltip.setAttribute('data-native-surface-overlay', '')
+    let bounds = new DOMRect(100, 100, 200, 60)
+    tooltip.getBoundingClientRect = () => bounds
+    act(() => document.body.appendChild(tooltip))
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+
+    bounds = new DOMRect(450, 100, 200, 60)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshotLayer).toBe('popover')
+
+    bounds = new DOMRect(100, 100, 200, 60)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+    hook.unmount()
+  })
+
+  it('retains overlapping menus through modal handoff and releases after the last overlay', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    const hook = renderOcclusionHook()
+    const menu = document.createElement('div')
+    menu.setAttribute('data-native-surface-overlay', '')
+    menu.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(menu))
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+
+    const modal = addModalOverlay()
+    await flushOcclusionLifecycle()
+    expect(hook.result().snapshotLayer).toBe('modal')
+    act(() => modal.remove())
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshotLayer).toBe('popover')
+
+    act(() => menu.remove())
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+    hook.unmount()
+  })
+
+  it('keeps an open menu above the native page while a resized frame is still capturing', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    let bounds = new DOMRect(500, 64, 800, 700)
+    const hook = renderOcclusionHook(true, () => bounds)
+    const menu = document.createElement('div')
+    menu.setAttribute('data-native-surface-overlay', '')
+    menu.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(menu))
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+
+    let finishCapture: ((frame: typeof SNAPSHOT) => void) | undefined
+    captureBrowserPanelSnapshot.mockImplementation(
+      () =>
+        new Promise<typeof SNAPSHOT>((resolve) => {
+          finishCapture = resolve
+        })
+    )
+    bounds = new DOMRect(500, 64, 600, 700)
+    await flushOcclusionLifecycle()
+    expect(finishCapture).toBeTypeOf('function')
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshot).toEqual(SNAPSHOT)
+
+    const resized = { ...SNAPSHOT, viewportBounds: { ...SNAPSHOT.viewportBounds, width: 600 } }
+    finishCapture?.(resized)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshot).toEqual(resized)
+
+    bounds = new DOMRect(500, 64, 400, 700)
+    await flushOcclusionLifecycle()
+    act(() => menu.remove())
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+
+    finishCapture?.({ ...resized, viewportBounds: { ...resized.viewportBounds, width: 400 } })
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+  })
+
+  it('does not hide the page when an overlapping tooltip disappears during capture', async () => {
+    let finishCapture: ((frame: typeof SNAPSHOT) => void) | undefined
+    captureBrowserPanelSnapshot.mockImplementation(
+      () =>
+        new Promise<typeof SNAPSHOT>((resolve) => {
+          finishCapture = resolve
+        })
+    )
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    const hook = renderOcclusionHook()
+    const tooltip = document.createElement('div')
+    tooltip.setAttribute('data-native-surface-overlay', '')
+    tooltip.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(tooltip))
+    await flushOcclusionLifecycle()
+    expect(finishCapture).toBeTypeOf('function')
+
+    act(() => tooltip.remove())
+    await flushOcclusionLifecycle()
+    finishCapture?.(SNAPSHOT)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
     expect(hook.result().snapshot).toBeNull()
     hook.unmount()
   })
