@@ -2,14 +2,22 @@
  * @vitest-environment node
  */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SubBlockConfig } from '@/blocks/types'
 
-const { fetched } = vi.hoisted(() => ({
+const { fetched, editor } = vi.hoisted(() => ({
+  editor: {
+    blocks: {} as Record<string, unknown>,
+    values: {} as Record<string, unknown>,
+    subBlocks: [] as SubBlockConfig[],
+    credentials: {} as Record<string, { type: 'oauth' | 'service_account' }>,
+  },
   fetched: {
     options: [
       { id: 'col_a', label: 'Email' },
       { id: 'col_b', label: 'Name' },
     ] as { id: string; label: string }[],
+    isDynamic: true,
     isLoadingOptions: false,
     hasLoadedOptions: true,
     fetchError: null as string | null,
@@ -49,7 +57,7 @@ vi.mock(
   () => ({
     useFetchedOptions: () => ({
       fetchedOptions: fetched.options,
-      isDynamic: true,
+      isDynamic: fetched.isDynamic,
       isLoadingOptions: fetched.isLoadingOptions,
       hasLoadedOptions: fetched.hasLoadedOptions,
       fetchError: fetched.fetchError,
@@ -88,17 +96,28 @@ vi.mock('@/hooks/use-operation-access', () => ({
 }))
 vi.mock('@/executor/handlers/response/response-handler', () => ({ ResponseBlockHandler: {} }))
 vi.mock('@/stores/workflows/workflow/store', () => ({
-  useWorkflowStore: (selector: (state: unknown) => unknown) => selector({ blocks: {} }),
+  useWorkflowStore: (selector: (state: unknown) => unknown) => selector({ blocks: editor.blocks }),
 }))
 vi.mock('@/stores/workflows/registry/store', () => ({
   useWorkflowRegistry: (selector: (state: unknown) => unknown) =>
     selector({ activeWorkflowId: 'wf-1', hydration: { workspaceId: 'workspace-1' } }),
 }))
 vi.mock('@/stores/workflows/subblock/store', () => ({
-  useSubBlockStore: (selector: (state: unknown) => unknown) => selector({ workflowValues: {} }),
+  EMPTY_BLOCK_SUBBLOCK_VALUES: {},
+  useSubBlockStore: (selector: (state: unknown) => unknown) =>
+    selector({ workflowValues: { 'wf-1': { 'block-1': editor.values } } }),
+}))
+
+vi.mock('@/blocks/registry', () => ({
+  getBlock: () => ({ subBlocks: editor.subBlocks }),
+}))
+vi.mock('@/hooks/queries/credentials', () => ({
+  useWorkspaceCredential: (id?: string) => ({ data: id ? editor.credentials[id] : undefined }),
 }))
 
 import { Dropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown'
+import { slackOAuthTrigger } from '@/triggers/slack/oauth'
+import { SLACK_ALL_EVENT_OPTIONS } from '@/triggers/slack/shared'
 
 function render(): string {
   return renderToStaticMarkup(
@@ -179,4 +198,65 @@ describe('Dropdown multi-select stale selections', () => {
       fetched.hydratedOptions = []
     }
   })
+})
+
+describe('Slack event credential options', () => {
+  beforeEach(() => {
+    fetched.isDynamic = false
+    editor.subBlocks = slackOAuthTrigger.subBlocks
+    editor.credentials = {
+      native: { type: 'oauth' },
+      custom: { type: 'service_account' },
+    }
+    editor.values = {}
+    editor.blocks = {
+      'block-1': { type: 'slack_v2', triggerMode: true, data: { canonicalModes: {} } },
+    }
+  })
+
+  function renderEvents() {
+    return renderToStaticMarkup(
+      <Dropdown
+        blockId='block-1'
+        subBlockId='eventType'
+        options={[...SLACK_ALL_EVENT_OPTIONS]}
+        value='message'
+      />
+    )
+  }
+
+  it.each([
+    ['native', true],
+    ['custom', false],
+    ['unresolved', false],
+    ['', false],
+  ])('shows native Assistant options only for a resolved OAuth credential (%s)', (id, visible) => {
+    editor.values = { customBotCredential: id }
+    const html = renderEvents()
+    for (const event of ['assistant_thread_started', 'assistant_thread_context_changed']) {
+      expect(html.includes(`data-value="${event}"`)).toBe(visible)
+    }
+    expect(html).toContain('data-value="message"')
+    expect(html).toContain('data-value="agent_session_stopped"')
+  })
+
+  it.each([
+    ['basic', 'native', 'custom', true],
+    ['basic', 'custom', 'native', false],
+    ['advanced', 'custom', 'native', true],
+    ['advanced', 'native', 'custom', false],
+  ])(
+    'uses the active %s credential rather than its stale counterpart',
+    (mode, basic, advanced, visible) => {
+      editor.blocks = {
+        'block-1': {
+          type: 'slack_v2',
+          triggerMode: true,
+          data: { canonicalModes: { botCredential: mode } },
+        },
+      }
+      editor.values = { customBotCredential: basic, manualBotCredential: advanced }
+      expect(renderEvents().includes('data-value="assistant_thread_started"')).toBe(visible)
+    }
+  )
 })

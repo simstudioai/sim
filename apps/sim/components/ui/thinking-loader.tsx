@@ -215,7 +215,7 @@ const VARIANT_PHRASE: Record<ThinkingLoaderVariant, string> = {
   compass: 'In formation…', // Formation — many Pods in parallel
   metaballs: 'Dispatching…', // Dispatch — sending work out
   relay: 'Returning…', // Return — work coming back, consolidated
-  burst: 'Thinking…', // Thinking — the Core deliberating
+  burst: 'Thinking', // Thinking — the Core deliberating
   thinking: 'Standing by…', // Waiting · Sentinel — holding for a condition
   orb: 'Ready', // Orb — settled, ready to act
 }
@@ -244,7 +244,7 @@ export interface ThinkingLoaderProps {
   size?: number
   /** Shape-to-shape goo overlap duration. Defaults to the loader's CSS timing. */
   morphDurationMs?: number
-  /** Optional status text (e.g. "Thinking…") rendered beside the goo with a shimmer sweep. */
+  /** Optional status text (e.g. "Thinking") rendered beside the goo with a shimmer sweep. */
   label?: string
   /**
    * Show a world-aligned status phrase that matches the current shape — e.g.
@@ -288,7 +288,7 @@ export interface ThinkingLoaderProps {
  *
  * @example
  * ```tsx
- * <ThinkingLoader label='Thinking…' />
+ * <ThinkingLoader label='Thinking' />
  * ```
  */
 export function ThinkingLoader({

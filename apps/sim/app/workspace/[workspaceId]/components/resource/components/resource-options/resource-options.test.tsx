@@ -4,7 +4,14 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SortDropdown } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options/resource-filter-panel'
+import {
+  ResourceOptions,
+  SortDropdown,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options/resource-options'
 
 const LONG_COLUMN_LABEL = 'highest_current_champion_role_across_the_entire_company'
 
@@ -123,5 +130,49 @@ describe('SortDropdown', () => {
 
     expect(onSort).toHaveBeenCalledWith('name', 'desc')
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+describe('ResourceOptions filter content', () => {
+  it('keeps section controls focusable and clear actions working in the filter popover', () => {
+    const onClear = vi.fn()
+    act(() => {
+      root.render(
+        <ResourceOptions
+          filter={{
+            content: (
+              <ResourceFilterPanel>
+                <ResourceFilterSection label='Status'>
+                  <button type='button'>Choose status</button>
+                </ResourceFilterSection>
+                <button type='button' onClick={onClear}>
+                  Clear all filters
+                </button>
+              </ResourceFilterPanel>
+            ),
+          }}
+        />
+      )
+    })
+
+    const trigger = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Filter'
+    )
+    expect(trigger).toBeDefined()
+    act(() => trigger?.click())
+
+    const choice = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Choose status'
+    )
+    expect(choice).toBeDefined()
+    expect(document.body).toHaveTextContent('Status')
+    act(() => choice?.focus())
+    expect(document.activeElement).toBe(choice)
+
+    const clear = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Clear all filters'
+    )
+    act(() => clear?.click())
+    expect(onClear).toHaveBeenCalledOnce()
   })
 })

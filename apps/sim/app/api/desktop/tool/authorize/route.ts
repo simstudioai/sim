@@ -1,6 +1,6 @@
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeDesktopToolContract } from '@/lib/api/contracts/desktop-tool-authorization'
 import { parseRequest } from '@/lib/api/server'
@@ -24,7 +24,8 @@ import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
  * Electron calls this endpoint from the main process before every privileged
  * native model action. It returns only server-persisted canonical tool args;
  * Electron validates local-file requests against them and uses them directly
- * for browser and terminal tools.
+ * for browser and terminal tools. The presentation-only `activity` field is
+ * dropped: desktop actions reject arguments they do not declare.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -117,7 +118,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   return NextResponse.json({
     toolName: toolCall.toolName,
-    args,
+    args: omit(args, ['activity']),
     chatId: run.chatId,
   })
 })

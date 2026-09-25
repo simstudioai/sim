@@ -912,6 +912,21 @@ describe('collectSnapshot', () => {
     expect(captured.input.ownerDocument).toBe(document)
   })
 
+  it('climbs out of a shadow root inside a same-origin frame to find the file input', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const childDocument = frame.contentDocument as Document
+    childDocument.body.innerHTML = '<div id="host"></div><input type="file">'
+    const host = childDocument.getElementById('host') as HTMLElement
+    const button = childDocument.createElement('button')
+    host.attachShadow({ mode: 'open' }).append(button)
+    const input = childDocument.querySelector('input') as HTMLInputElement
+    register(button)
+
+    expect(button.getRootNode()).not.toBeInstanceOf(ShadowRoot)
+    expect(resolveFileInputTarget(0)).toEqual({ input, document: childDocument })
+  })
+
   it('refuses a disconnected or stale upload reference', () => {
     const input = document.createElement('input')
     input.type = 'file'

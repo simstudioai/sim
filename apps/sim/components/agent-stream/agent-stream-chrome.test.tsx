@@ -76,7 +76,7 @@ describe('AgentStreamThinkingChrome', () => {
     }
   })
 
-  it('opens while streaming with Thinking… label and scrollable body', () => {
+  it('opens while streaming with Thinking label and scrollable body', () => {
     const { container, unmount } = renderChrome({
       thinking: 'step one',
       isStreaming: true,
@@ -91,7 +91,7 @@ describe('AgentStreamThinkingChrome', () => {
     ) as HTMLDivElement
 
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(toggle.textContent).toContain('Thinking…')
+    expect(toggle.textContent).toContain('Thinking')
     expect(
       container
         .querySelector('[data-testid="agent-stream-thinking-label"]')
@@ -182,7 +182,7 @@ describe('AgentStreamThinkingChrome', () => {
 
     rerender({ thinking: 'first then more', isStreaming: true })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(toggle.textContent).toContain('Thinking…')
+    expect(toggle.textContent).toContain('Thinking')
   })
 })
 

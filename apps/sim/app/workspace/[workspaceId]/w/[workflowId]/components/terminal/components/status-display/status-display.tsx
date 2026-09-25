@@ -1,18 +1,14 @@
 'use client'
 
 import { memo } from 'react'
-import { Badge } from '@sim/emcn'
+import { badgeVariants, cn } from '@sim/emcn'
 import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 /**
- * Running badge component - displays a consistent "Running" indicator
+ * Inline running badge for valid content inside a native terminal row button.
  */
 const RunningBadge = memo(function RunningBadge() {
-  return (
-    <Badge variant='green' className={BADGE_STYLE}>
-      Running
-    </Badge>
-  )
+  return <span className={cn(badgeVariants({ variant: 'green' }), BADGE_STYLE)}>Running</span>
 })
 
 /**

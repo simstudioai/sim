@@ -354,6 +354,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        /** Credential-type gate for this dropdown option. */
+        reactiveCondition?: SubBlockConfig['reactiveCondition']
         defaultChecked?: boolean
         description?: string
       }[]
@@ -371,6 +373,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        /** Credential-type gate for this dropdown option. */
+        reactiveCondition?: SubBlockConfig['reactiveCondition']
         defaultChecked?: boolean
         description?: string
       }[])

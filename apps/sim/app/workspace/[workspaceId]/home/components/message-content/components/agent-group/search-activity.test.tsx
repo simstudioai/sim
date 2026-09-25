@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import { ToolCallItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
@@ -224,6 +225,42 @@ describe('search in shared tool activity', () => {
     expect(container.innerHTML).not.toContain('--text-error')
   })
 
+  it('replaces a failed search with the search that followed it', () => {
+    const retry = completedSearch('two', 'Second query')
+    render([retry])
+    expand()
+    const alone = { text: container.textContent, links: container.querySelectorAll('a').length }
+    render([{ ...completedSearch('one', 'First query'), status: 'error' }, retry])
+    expand()
+    expect({ text: container.textContent, links: container.querySelectorAll('a').length }).toEqual(
+      alone
+    )
+  })
+
+  it('keeps a failed search that no later search retried', () => {
+    const read: ToolCallData = {
+      id: 'read',
+      toolName: 'read_document',
+      displayTitle: 'Reading document',
+      activityDescription: 'Reading the launch plan',
+      status: 'success',
+    }
+    render([read])
+    expect(header()).toBeNull()
+    render([{ ...completedSearch('one', 'First query'), status: 'error' }, read])
+    expect(header()).not.toBeNull()
+    expect(container.textContent).not.toMatch(/failed/i)
+  })
+
+  it('keeps the last search visible when every search failed', () => {
+    render([
+      { ...completedSearch('one', 'First query'), status: 'error' },
+      { ...completedSearch('two', 'Second query'), status: 'error' },
+    ])
+    expect(headerText()).toBe('Searching documents')
+    expect(container.textContent).not.toMatch(/failed/i)
+  })
+
   it.each([
     { success: false, data: { results: [] } },
     {},
@@ -273,6 +310,26 @@ describe('search in shared tool activity', () => {
     expect(headerText()).toBe('Searched documents')
     expect(header()).toBeNull()
     expect(container.textContent).not.toContain('No results')
+  })
+
+  function renderReloadedEmptySearch(status: 'partial' | 'complete') {
+    const output = compactRetrievalCitations('search_workspace', {
+      success: true,
+      data: { results: [], retrieval: { status, timedOutLegs: [] } },
+    })
+    render([{ ...tool, status: 'success', result: { success: true, output } }])
+  }
+
+  it('never claims no results for a reloaded partial empty search', () => {
+    renderReloadedEmptySearch('partial')
+    expect(header()).toBeNull()
+    expect(container.textContent).not.toContain('No results')
+  })
+
+  it('still reports no results for a reloaded complete empty search', () => {
+    renderReloadedEmptySearch('complete')
+    expand()
+    expect(container.textContent).toContain('No results')
   })
 
   it('preserves available source matches when retrieval is partial', () => {

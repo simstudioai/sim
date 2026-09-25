@@ -9,21 +9,22 @@ import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { EMPTY_BLOCK_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
- * Evaluates reactive conditions for subblocks. Always calls the same hooks
+ * Evaluates reactive conditions for subblocks or supplied option targets. Always calls the same hooks
  * regardless of whether a reactive condition exists (Rules of Hooks).
  *
- * Returns a Set of subblock IDs that should be hidden.
+ * Returns the target IDs that should be hidden.
  */
 export function useReactiveConditions(
   subBlocks: SubBlockConfig[],
   blockId: string,
   activeWorkflowId: string | null,
   canonicalModeOverrides?: CanonicalModeOverrides,
-  triggerSurface = false
+  triggerSurface = false,
+  conditionTargets: ReadonlyArray<Pick<SubBlockConfig, 'id' | 'reactiveCondition'>> = subBlocks
 ): Set<string> {
   const reactiveSubBlocks = useMemo(
-    () => subBlocks.filter((subBlock) => subBlock.reactiveCondition),
-    [subBlocks]
+    () => conditionTargets.filter((target) => target.reactiveCondition),
+    [conditionTargets]
   )
   const reactiveCond = reactiveSubBlocks[0]?.reactiveCondition
 

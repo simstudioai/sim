@@ -18,18 +18,20 @@ import {
 import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
-import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 const SOURCE_ROW_CLASSES = cn(
   'not-prose flex items-start gap-2 px-2 py-2 transition-colors focus-within:bg-[var(--surface-hover)]',
   chipHoverSurfaceClass,
-  chipRadiusClass
+  chipRadiusClass,
+  inter.className
 )
 const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
 
@@ -140,7 +142,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         </a>
         <OverflowText
           label={meta.join(' · ')}
-          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
+          className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
         />
         <SourceActions source={source} />
       </div>
@@ -171,7 +173,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         <div className='flex min-w-0 flex-col gap-1 pl-6'>
           <OverflowText
             label={meta.join(' · ')}
-            className='text-[var(--text-muted)] text-caption'
+            className='text-[var(--text-tertiary)] text-caption'
           />
           {source.snippet && (
             <p className='text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>

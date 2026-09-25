@@ -246,7 +246,7 @@ export class SlackSearchAssistantStream {
       }
     }
     this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
-    /** Updating an existing task does not introduce a new position in Slack's timeline. */
+    /** Existing task updates can be delivered without waiting for preceding answer text. */
     this.pendingProgress.push({ textEnd: payload.phase === 'call' ? this.text.length : 0, chunk })
   }
 
@@ -356,7 +356,7 @@ export class SlackSearchAssistantStream {
       token,
       { channel, threadTs },
       [...this.leadingChunks, chunk],
-      'timeline',
+      'plan',
       signal
     )
     this.leadingChunks = []

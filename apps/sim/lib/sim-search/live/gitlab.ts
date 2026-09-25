@@ -52,6 +52,7 @@ export async function searchGitLab(
           order_by: 'last_activity_at',
           sort: 'desc',
         },
+        memo: true,
       })
     )
     const selected = projects.slice(0, 6)

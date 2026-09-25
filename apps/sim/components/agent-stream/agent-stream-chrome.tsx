@@ -112,7 +112,7 @@ export function AgentStreamThinkingChrome({
     setOverflowing(el.scrollHeight > el.clientHeight + 1)
   }
 
-  const label = isStreaming ? 'Thinking…' : 'Thought for a moment'
+  const label = isStreaming ? 'Thinking' : 'Thought for a moment'
 
   return (
     <div className='mb-3'>

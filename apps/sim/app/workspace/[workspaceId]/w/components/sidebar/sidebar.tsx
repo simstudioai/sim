@@ -15,6 +15,8 @@ import {
   Library,
   Loader,
   OverflowText,
+  RowActions,
+  rowActionsGroupClass,
   scrollFadeAttributes,
   scrollFadeClass,
   Tooltip,
@@ -49,7 +51,6 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
-import { getWorkspaceOrganizationHref } from '@/lib/workspaces/organization-navigation'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -75,7 +76,6 @@ import {
   SidebarFooter,
   SidebarNavChip,
   type SidebarNavItemData,
-  SidebarRowActions,
   SidebarSection,
   SidebarTooltip,
   StatusNotice,
@@ -245,7 +245,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             active: isCurrentRoute || isSelected || isMenuOpen,
             fullWidth: true,
           }),
-          'group/sidebar-row'
+          rowActionsGroupClass
         )}
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey) return
@@ -263,7 +263,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
-          <SidebarRowActions
+          <RowActions
             open={isMenuOpen}
             indicator={
               showStatusDot ? (
@@ -288,7 +288,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             >
               <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </SidebarRowAction>
-          </SidebarRowActions>
+          </RowActions>
         )}
       </ChatNavigationLink>
     </SidebarTooltip>
@@ -333,6 +333,10 @@ const HIDDEN_STYLE = { display: 'none' } as const
  */
 const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
+interface SidebarProps {
+  organizationHref: string | null
+}
+
 /**
  * Sidebar component with resizable width that persists across page refreshes.
  *
@@ -349,7 +353,7 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -820,7 +824,6 @@ export const Sidebar = memo(function Sidebar() {
       onNavigate: () => handleOpenSettings(id),
     }))
 
-  const organizationHref = getWorkspaceOrganizationHref(hostContext)
   if (organizationHref) {
     profileNavigationLinks.push({
       label: 'Organization',
@@ -1305,6 +1308,7 @@ export const Sidebar = memo(function Sidebar() {
               )}
             >
               <WorkspaceHeader
+                organizationHref={organizationHref}
                 activeWorkspace={activeWorkspace ?? routeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}

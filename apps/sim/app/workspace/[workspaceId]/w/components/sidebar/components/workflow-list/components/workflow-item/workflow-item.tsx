@@ -1,15 +1,12 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipVariants, cn, OverflowText } from '@sim/emcn'
+import { chipVariants, cn, OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  SidebarRowAction,
-  SidebarRowActions,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -414,7 +411,7 @@ export const WorkflowItem = memo(function WorkflowItem({
             active: active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1),
             fullWidth: true,
           }),
-          'group/sidebar-row',
+          rowActionsGroupClass,
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
@@ -453,7 +450,7 @@ export const WorkflowItem = memo(function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <SidebarRowActions
+          <RowActions
             open={isContextMenuOpen}
             revealOnHover={!isAnyDragActive}
             indicator={
@@ -474,7 +471,7 @@ export const WorkflowItem = memo(function WorkflowItem({
             >
               <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
             </SidebarRowAction>
-          </SidebarRowActions>
+          </RowActions>
         )}
       </Link>
 

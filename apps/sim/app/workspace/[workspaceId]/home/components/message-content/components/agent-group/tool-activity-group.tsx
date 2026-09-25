@@ -3,7 +3,11 @@
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
-import { CallIntegrationTool, RunCode } from '@/lib/mothership/generated/tool-catalog-v1'
+import {
+  CallIntegrationTool,
+  RunCode,
+  SearchWorkspace,
+} from '@/lib/mothership/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   getToolActivitySummaryActions,
@@ -29,6 +33,25 @@ const MAX_SUMMARY_ACTIONS = 3
 
 function isFailedTool(tool: ToolCallData): boolean {
   return tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+}
+
+/**
+ * Drops a search that errored when a later search follows it: the model corrected the query
+ * and searched again, so the failed attempt is not part of what the user reads. The last search
+ * always stays, so a failure that no search retried, or a run whose searches all failed, still
+ * shows its outcome.
+ */
+function withoutRetriedSearchFailures(tools: ToolCallData[]): ToolCallData[] {
+  let lastSearch = -1
+  for (const [index, tool] of tools.entries()) {
+    if (tool.toolName === SearchWorkspace.id) lastSearch = index
+  }
+  return tools.filter(
+    (tool, index) =>
+      index >= lastSearch ||
+      tool.toolName !== SearchWorkspace.id ||
+      tool.status !== ToolCallStatus.error
+  )
 }
 
 function toolCountLabel(tools: ToolCallData[]): string {
@@ -192,12 +215,13 @@ interface ToolActivityGroupProps {
 
 export function ToolActivityGroup({
   activity,
-  tools,
+  tools: calls,
   ToolCallComponent,
   autoScrollActivity = true,
   isLive = false,
 }: ToolActivityGroupProps) {
   const [expanded, setExpanded] = useState(false)
+  const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
   const headerTool = getActivityHeaderTool(tools, statusTool)
@@ -242,7 +266,7 @@ export function ToolActivityGroup({
           isStreaming={working && autoScrollActivity}
           unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
-          <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>
+          <div className='flex min-w-0 flex-col gap-2'>
             {entries.map(({ tool, sources }, index) => (
               <Fragment key={tool.id}>
                 {tools.length === 1 ? null : tool.id === headerTool.id ? (

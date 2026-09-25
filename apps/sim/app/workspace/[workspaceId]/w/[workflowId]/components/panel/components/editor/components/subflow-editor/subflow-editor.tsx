@@ -131,7 +131,7 @@ export function SubflowEditor({
             data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -150,7 +150,7 @@ export function SubflowEditor({
             data-workflow-search-canonical-id={configSearchFieldId}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -223,9 +223,7 @@ export function SubflowEditor({
               data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
               className='relative mt-4 rounded-md'
             >
-              <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-                Parallel Batch Size
-              </Label>
+              <Label className='mb-[6.5px] block pl-0.5 text-small'>Parallel Batch Size</Label>
               <Input
                 type='text'
                 value={batchSizeValue}

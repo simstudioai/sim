@@ -54,6 +54,7 @@ describe('Slack personal-token scope policy', () => {
   })
 
   it.each([
+    'slack_lists_access_set',
     'slack_lists_create',
     'slack_lists_update',
     'slack_lists_items_list',

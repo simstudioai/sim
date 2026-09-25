@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { beginBrowserPanelDividerDrag } from '@/lib/browser-agent/transport'
+import { readSeparatorKey, type SeparatorKey } from '@/lib/core/utils/separator-keys'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
 /**
@@ -64,6 +65,45 @@ export function dividerXAt(clientX: number, geometry: DragGeometry): number {
   return geometry.panelRight - panelWidthAt(clientX, geometry)
 }
 
+/** Width one arrow-key press on the divider moves the panel by, in CSS px. */
+export const KEYBOARD_STEP_PX = 32
+
+/**
+ * Panel width for a separator key on the focused divider. The divider is the
+ * panel's left edge, so moving it left widens the panel; Home and End jump to
+ * the narrowest and widest the drag allows, with the same clamps as
+ * {@link panelWidthAt}.
+ */
+export function keyboardPanelWidth(
+  key: SeparatorKey,
+  currentWidth: number,
+  maxWidth: number
+): number {
+  if (key === 'min') return MOTHERSHIP_WIDTH.MIN
+  if (key === 'max') return maxWidth
+  const delta = key === 'left' ? KEYBOARD_STEP_PX : -KEYBOARD_STEP_PX
+  return Math.max(MOTHERSHIP_WIDTH.MIN, Math.min(currentWidth + delta, maxWidth))
+}
+
+/**
+ * Pins a width without animating to it. The panel's width transition would
+ * otherwise make the embedded browser view chase a moving rect for 200ms.
+ */
+function writeWidthInstantly(el: HTMLElement, width: number) {
+  const prevTransition = el.style.transition
+  el.style.transition = 'none'
+  el.style.width = `${width}px`
+  void el.offsetWidth
+  el.style.transition = prevTransition
+}
+
+/** Mirrors the panel's current width and bounds onto the divider for assistive tech. */
+function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measureMaxWidth(el)) {
+  handle.setAttribute('aria-valuemin', String(MOTHERSHIP_WIDTH.MIN))
+  handle.setAttribute('aria-valuemax', String(Math.round(maxWidth)))
+  handle.setAttribute('aria-valuenow', String(Math.round(el.getBoundingClientRect().width)))
+}
+
 /**
  * Hook for managing resize of the MothershipView resource panel.
  *
@@ -71,11 +111,14 @@ export function dividerXAt(clientX: number, geometry: DragGeometry): number {
  * Pointer Events + setPointerCapture for unified mouse/touch/stylus support.
  * Attach `mothershipRef` to the MothershipView root div and bind
  * `handleResizePointerDown` to the drag handle's onPointerDown.
+ * Bind `handleResizeKeyDown` and `handleResizeFocus` to the same handle so it is
+ * keyboard-adjustable and reports its value to assistive tech.
  * Call `clearWidth` when the panel collapses so the CSS class retakes control.
  */
 export function useMothershipResize(desktopScopeId: string) {
   const mothershipRef = useRef<HTMLDivElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const focusedDividerRef = useRef<HTMLElement | null>(null)
   const desktopScopeIdRef = useRef(desktopScopeId)
   desktopScopeIdRef.current = desktopScopeId
 
@@ -148,6 +191,7 @@ export function useMothershipResize(desktopScopeId: string) {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       cleanupRef.current = null
+      syncDividerValue(handle, el)
     }
     cleanupRef.current = cleanup
 
@@ -213,17 +257,14 @@ export function useMothershipResize(desktopScopeId: string) {
     const clampWidth = () => {
       rafId = null
       const el = mothershipRef.current
-      const pinned = el?.style.width
-      if (!el || !pinned) return
+      if (!el) return
+      const pinned = el.style.width
+      const divider = focusedDividerRef.current
+      const reportsToDivider = divider !== null && document.activeElement === divider
+      if (!pinned && !reportsToDivider) return
       const maxWidth = measureMaxWidth(el)
-      if (Number.parseFloat(pinned) <= maxWidth) return
-      const prevTransition = el.style.transition
-      el.style.transition = 'none'
-      el.style.width = `${maxWidth}px`
-      // Force the clamped width to be picked up before transitions come back,
-      // so restoring the property cannot animate from the pre-clamp width.
-      void el.offsetWidth
-      el.style.transition = prevTransition
+      if (pinned && Number.parseFloat(pinned) > maxWidth) writeWidthInstantly(el, maxWidth)
+      if (reportsToDivider) syncDividerValue(divider, el, maxWidth)
     }
 
     const handleWindowResize = () => {
@@ -238,10 +279,36 @@ export function useMothershipResize(desktopScopeId: string) {
     }
   }, [])
 
+  /** Steps the panel width from the focused divider, never during a live drag. */
+  const handleResizeKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    const key = readSeparatorKey(e)
+    const el = mothershipRef.current
+    if (!key || !el || cleanupRef.current) return
+    const maxWidth = measureMaxWidth(el)
+    const width = keyboardPanelWidth(key, el.getBoundingClientRect().width, maxWidth)
+    e.preventDefault()
+    e.stopPropagation()
+    writeWidthInstantly(el, width)
+    syncDividerValue(e.currentTarget, el, maxWidth)
+  }, [])
+
+  /** Reports the current width when the divider takes focus, and while it keeps focus. */
+  const handleResizeFocus = useCallback((e: React.FocusEvent<HTMLElement>) => {
+    focusedDividerRef.current = e.currentTarget
+    const el = mothershipRef.current
+    if (el) syncDividerValue(e.currentTarget, el)
+  }, [])
+
   /** Remove inline width so the collapse CSS class retakes control */
   const clearWidth = useCallback(() => {
     mothershipRef.current?.style.removeProperty('width')
   }, [])
 
-  return { mothershipRef, handleResizePointerDown, clearWidth }
+  return {
+    mothershipRef,
+    handleResizePointerDown,
+    handleResizeKeyDown,
+    handleResizeFocus,
+    clearWidth,
+  }
 }

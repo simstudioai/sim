@@ -105,6 +105,58 @@ describe('checkUsageStatus', () => {
     )
   })
 
+  it('shares one pooled sum across admissions in an enterprise reporting window', async () => {
+    const billingPeriod = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2027-01-01T00:00:00.000Z'),
+      source: 'reporting' as const,
+      anchorDate: '2026-01-01',
+      interval: 'year' as const,
+    }
+    const subscription = {
+      referenceId: 'org-reporting-shared',
+      plan: 'enterprise',
+      status: 'active',
+      seats: 1,
+      periodStart: billingPeriod.start,
+      periodEnd: billingPeriod.end,
+    }
+    const billingContext = {
+      billingEntity: { type: 'organization' as const, id: 'org-reporting-shared' },
+      billingPeriod,
+    }
+
+    await checkUsageStatus('user-1', subscription, billingContext)
+    await checkUsageStatus('user-2', subscription, billingContext)
+
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledTimes(1)
+  })
+
+  it('sums a Stripe-period organization pool exactly on every admission', async () => {
+    const billingPeriod = {
+      start: new Date('2026-06-01T00:00:00.000Z'),
+      end: new Date('2026-07-01T00:00:00.000Z'),
+      source: 'stripe' as const,
+    }
+    const subscription = {
+      referenceId: 'org-stripe',
+      plan: 'team',
+      status: 'active',
+      seats: 1,
+      periodStart: null,
+      periodEnd: null,
+    }
+    const billingContext = {
+      billingEntity: { type: 'organization' as const, id: 'org-stripe' },
+      billingPeriod,
+    }
+
+    await checkUsageStatus('user-1', subscription, billingContext)
+    await checkUsageStatus('user-1', subscription, billingContext)
+
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledTimes(2)
+  })
+
   it('reads paid personal ledger usage and refresh from one snapshot', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')

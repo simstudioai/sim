@@ -35,6 +35,11 @@ if (typeof document !== 'undefined') {
 setupGlobalFetchMock()
 setupGlobalStorageMocks()
 
+/** next/font is compiled by Next, not evaluated by the unit-test runtime. */
+vi.mock('@/app/_styles/fonts/inter/inter', () => ({
+  inter: { className: 'test-inter-font', variable: 'test-inter-variable' },
+}))
+
 vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)

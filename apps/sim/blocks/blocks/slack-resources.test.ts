@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getSlackV2ActionSubBlocks, SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 import { buildSlackManifest } from '@/triggers/slack/capabilities'
@@ -9,6 +10,7 @@ import { buildSlackManifest } from '@/triggers/slack/capabilities'
 const LIST_OPERATIONS = [
   ['create_list', 'slack_lists_create'],
   ['rename_list', 'slack_lists_update'],
+  ['share_list', 'slack_lists_access_set'],
   ['list_items', 'slack_lists_items_list'],
   ['get_list_item', 'slack_lists_items_info'],
   ['create_list_item', 'slack_lists_items_create'],
@@ -16,9 +18,9 @@ const LIST_OPERATIONS = [
   ['delete_list_item', 'slack_lists_items_delete'],
 ] as const
 
-function visibleFields(operation: string) {
+function visibleFields(operation: string, values: Record<string, unknown> = {}) {
   return getSlackV2ActionSubBlocks()
-    .filter((field) => evaluateSubBlockCondition(field.condition, { operation }))
+    .filter((field) => evaluateSubBlockCondition(field.condition, { operation, ...values }))
     .map((field) => field.id)
 }
 
@@ -27,6 +29,60 @@ function mapParams(params: Record<string, unknown>) {
 }
 
 describe('Slack List and Canvas operations', () => {
+  it('only offers List ownership for user recipients', () => {
+    const options = SlackV2Block.subBlocks.find((field) => field.id === 'listAccessLevel')!.options
+    if (typeof options !== 'function') throw new Error('Expected recipient-aware access levels')
+    expect(options({ values: { listShareTarget: 'channels' } }).map(({ id }) => id)).toEqual([
+      'read',
+      'write',
+    ])
+    expect(options({ values: { listShareTarget: 'users' } }).map(({ id }) => id)).toEqual([
+      'read',
+      'write',
+      'owner',
+    ])
+    expect(options().map(({ id }) => id)).toContain('owner')
+    expect(
+      getSubBlocksDependingOnChange(SlackV2Block.subBlocks, 'listShareTarget').map(({ id }) => id)
+    ).toContain('listAccessLevel')
+  })
+
+  it('shares with only the selected recipient kind and defaults to view access', () => {
+    expect(
+      mapParams({
+        operation: 'share_list',
+        listCredentialId: 'bot',
+        listId: 'F1',
+        listShareUserIds: '["U1"]',
+        listShareChannelIds: 'stale invalid JSON',
+      })
+    ).toEqual({ credential: 'bot', listId: 'F1', accessLevel: 'read', userIds: ['U1'] })
+    expect(
+      mapParams({
+        operation: 'share_list',
+        listCredentialId: 'bot',
+        listId: 'F1',
+        listShareTarget: 'channels',
+        listAccessLevel: 'write',
+        listShareChannelIds: ['C1'],
+        listShareUserIds: 'stale invalid JSON',
+      })
+    ).toEqual({ credential: 'bot', listId: 'F1', accessLevel: 'write', channelIds: ['C1'] })
+    for (const [target, shown, hidden] of [
+      ['users', 'listShareUserIds', 'listShareChannelIds'],
+      ['channels', 'listShareChannelIds', 'listShareUserIds'],
+    ]) {
+      const fields = visibleFields('share_list', { listShareTarget: target })
+      expect(fields).toEqual(expect.arrayContaining(['listId', 'listAccessLevel', shown]))
+      expect(fields).not.toContain(hidden)
+    }
+    expect(() => mapParams({ operation: 'share_list', listShareUserIds: 'bad JSON' })).toThrow(
+      'User IDs'
+    )
+    expect(() => mapParams({ operation: 'share_list', listShareTarget: 'everyone' })).toThrow(
+      'Share With'
+    )
+  })
   it.each(LIST_OPERATIONS)('offers %s inside the Slack block using %s', (operationId, toolId) => {
     const operation = SlackV2Block.subBlocks.find((field) => field.id === 'operation')!
     const options =
