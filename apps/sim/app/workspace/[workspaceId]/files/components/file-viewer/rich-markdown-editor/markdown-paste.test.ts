@@ -9,19 +9,21 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 
-let editor: Editor | null = null
+const editors: Editor[] = []
 
 afterEach(() => {
-  editor?.destroy()
-  editor = null
+  for (const editor of editors.splice(0)) editor.destroy()
 })
 
+/** Every editor is destroyed after its test, including a second one a single test mounts. */
 function mount(editable = true): Editor {
-  return new Editor({
+  const editor = new Editor({
     extensions: [...createMarkdownContentExtensions(), MarkdownPaste],
     enablePasteRules: false,
     editable,
   })
+  editors.push(editor)
+  return editor
 }
 
 function dispatchPaste(
@@ -71,7 +73,7 @@ function transformHtml(ed: Editor, html: string): string {
 
 describe('markdown paste', () => {
   it('keeps pasted markdown literal inside a code block', () => {
-    editor = mount()
+    const editor = mount()
     editor.commands.setContent('```js\ncode here\n```', { contentType: 'markdown' })
     editor.commands.setTextSelection(5)
     expect(editor.isActive('codeBlock')).toBe(true)
@@ -79,7 +81,7 @@ describe('markdown paste', () => {
   })
 
   it('keeps pasted markdown literal inside inline code', () => {
-    editor = mount()
+    const editor = mount()
     editor.commands.setContent('a `codehere` b', { contentType: 'markdown' })
     editor.commands.setTextSelection(6)
     expect(editor.isActive('code')).toBe(true)
@@ -87,13 +89,13 @@ describe('markdown paste', () => {
   })
 
   it('rejects the paste entirely in a read-only editor', () => {
-    editor = mount(false)
+    const editor = mount(false)
     expect(paste(editor, '# heading\n\n- one\n- two')).toBe(false)
     expect(editor.getText()).toBe('')
   })
 
   it('does not flatten a rich table containing literal Markdown-shaped cell text', () => {
-    editor = mount()
+    const editor = mount()
     dispatchPaste(
       editor,
       'Label\tValue\n**literal**\t42',
@@ -105,7 +107,7 @@ describe('markdown paste', () => {
   })
 
   it('preserves the structural blocks of a multi-block document, in order, on paste', () => {
-    editor = mount()
+    const editor = mount()
     expect(paste(editor, '# Title\n\nA paragraph.\n\n- a\n- b\n\n> quote')).toBe(true)
     const structural = (editor.getJSON().content ?? [])
       .map((node) => node.type)
@@ -114,7 +116,7 @@ describe('markdown paste', () => {
   })
 
   it('strips <style>/<script> from pasted HTML so their text never leaks into the doc', () => {
-    editor = mount()
+    const editor = mount()
     const gsheets =
       '<google-sheets-html-origin><style>td{mso-1:2}</style><table><tr><td>a</td></tr></table></google-sheets-html-origin>'
     const cleaned = transformHtml(editor, gsheets)
@@ -125,14 +127,14 @@ describe('markdown paste', () => {
   })
 
   it('strips nested/repeated <script> tags in a single pass, even deeply nested', () => {
-    editor = mount()
+    const editor = mount()
     expect(transformHtml(editor, 'a<script>x<script>y</script></script>b')).toBe('ab')
     const deeplyNested = `a${'<script>'.repeat(50)}x${'</script>'.repeat(50)}b`
     expect(transformHtml(editor, deeplyNested)).toBe('ab')
   })
 
   it('drops an unterminated <script>/<style> and everything after it, without duplicating the prefix', () => {
-    editor = mount()
+    const editor = mount()
     expect(transformHtml(editor, 'abc<script>never-closes')).toBe('abc')
     expect(transformHtml(editor, 'abc<style>never-closes')).toBe('abc')
     expect(transformHtml(editor, '<script>x<script>y</script>')).toBe('')
@@ -145,7 +147,7 @@ describe('linkify a selection on URL paste', () => {
     from = 1,
     to = 10
   ): { handled: boolean; href?: string; text: string } {
-    editor = mount()
+    const editor = mount()
     editor.commands.setContent('select me here', { contentType: 'markdown' })
     editor.commands.setTextSelection({ from, to })
     const handled = paste(editor, pasted)
