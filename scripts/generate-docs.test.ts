@@ -50,6 +50,23 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('preserves versioned inherited tools when the access array appends another operation', () => {
+    const [block] = extractAllBlockConfigs(`
+      export const ExampleBlock: BlockConfig = {
+        type: 'example', name: 'Example', category: 'tools', hideFromToolbar: true,
+        tools: { access: ['example_read', 'example_list'] },
+      }
+      export const ExampleV2Block: BlockConfig = {
+        ...ExampleBlock, type: 'example_v2', hideFromToolbar: false,
+        tools: { access: [
+          ...(ExampleBlock.tools?.access || []).map((toolId) => \`\${toolId}_v2\`),
+          'example_comments',
+        ] },
+      }
+    `)
+    expect(block.tools?.access).toEqual(['example_read_v2', 'example_list_v2', 'example_comments'])
+  })
+
   it('preserves a satisfies block and replaces only the versioned download operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const DownloadBlock = ({
