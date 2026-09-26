@@ -33,6 +33,7 @@ interface ShellScanFrame {
   /** Some operands become arithmetic only after a following assignment or comparison operator. */
   arithmeticEnabled?: boolean
   arithmeticParent?: ShellScanFrame
+  commandArithmetic?: ShellScanFrame
   conditional?: {
     parent?: ShellScanFrame
     previousOperand?: ShellScanFrame
@@ -89,9 +90,14 @@ function shellArithmeticCommandStarts(code: string, index: number): boolean {
   return previous === undefined || /\s|[;&|()<>]/.test(previous)
 }
 
+function getShellArithmeticFrame(frame: ShellScanFrame | undefined): ShellScanFrame | undefined {
+  return frame?.kind === 'arithmetic'
+    ? frame
+    : (frame?.commandArithmetic ?? frame?.arithmeticParent)
+}
+
 function pushShellFrame(frames: ShellScanFrame[], frame: ShellScanFrame): void {
-  const parent = frames.at(-1)
-  frame.arithmeticParent = parent?.kind === 'arithmetic' ? parent : parent?.arithmeticParent
+  frame.arithmeticParent = getShellArithmeticFrame(frames.at(-1))
   frames.push(frame)
 }
 
@@ -328,12 +334,22 @@ function trackShellCommandPosition(code: string, index: number, frame: ShellScan
       frame.commandPosition = false
       const name = readHeredocDelimiterWord(word, 0, word.length)?.delimiter
       frame.declarationCommand = /^(?:declare|export|local|readonly|typeset)$/.test(name ?? '')
+      if (name === 'let') {
+        frame.commandArithmetic = {
+          kind: 'arithmetic',
+          quote: 'none',
+          parenthesisDepth: 0,
+          literalRoot: false,
+          arithmeticParent: frame.arithmeticParent,
+        }
+      }
     }
     frame.wordStart = undefined
   }
   if (separator) {
     frame.commandPosition = true
     frame.declarationCommand = false
+    frame.commandArithmetic = undefined
     frame.redirectionTarget = false
   } else if (redirection) {
     frame.redirectionTarget = true
@@ -646,7 +662,7 @@ function collectShellOccurrenceContexts(
     if (occurrence) {
       contexts.set(occurrence, {
         quote: frame.quote,
-        arithmeticFrame: frame.kind === 'arithmetic' ? frame : frame.arithmeticParent,
+        arithmeticFrame: getShellArithmeticFrame(frame),
       })
       index = occurrence.end
       continue

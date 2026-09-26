@@ -1039,6 +1039,10 @@ describe('code placeholder compiler', () => {
     '[[ 1 -gt {{KEY}} ]]',
     '[[ {{KEY}} -ge 1 ]]',
     '[[ "$(printf %s "{{KEY}}")" -eq 1 ]]',
+    'let "x={{KEY}}"',
+    'let values[{{KEY}}]=1',
+    "builtin let 'x={{KEY}}'",
+    'let "x=$(printf %s "{{KEY}}")"',
     'values[ 1 + {{KEY}} ]=x',
     'values[$(printf %s "{{KEY}}")]=x',
     'values=([{{KEY}}]=x)',
@@ -1128,6 +1132,19 @@ describe('code placeholder compiler', () => {
       environmentVariables: { KEY: 'word' },
     })
     expect(executeShell(compiled.code, compiled.bindings)).toBe('word\nword\n')
+  })
+
+  it('ends builtin arithmetic context at the next shell command', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'let "x=1"; printf "%s\\n" "{{KEY}}"',
+        'let "x=2" # end of arithmetic',
+        'printf "%s\\n" "{{KEY}}"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'two words' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe('two words\ntwo words\n')
   })
 
   it.each([
