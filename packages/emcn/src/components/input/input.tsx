@@ -33,7 +33,11 @@ const INPUT_CLASS =
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
 
-/** Minimal input component matching the textarea styling. */
+/**
+ * Minimal input component matching the textarea styling.
+ * @designProtect className height
+ * @designProtect style height
+ */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = 'text', ...props }, ref) => {
     return <input type={type} className={cn(INPUT_CLASS, className)} ref={ref} {...props} />

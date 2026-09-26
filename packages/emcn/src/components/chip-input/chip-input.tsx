@@ -50,6 +50,9 @@ export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
 /**
  * Forwards its ref to the inner `<input>` so callers can focus or measure the
  * field directly, exactly like a native input.
+ * @designProtect className colours font-family font-size padding height gap border-radius borders box-shadow
+ * @designProtect style colours font-family font-size padding height gap border-radius borders box-shadow
+ * @designAllow inputClassName typography
  */
 export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   (

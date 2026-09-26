@@ -84,6 +84,11 @@ export interface ButtonProps
   iconPadding?: VariantProps<typeof buttonVariants>['iconPadding']
 }
 
+/**
+ * Consumers may stretch the button to their surrounding layout.
+ * @designAllow className width
+ * @designAllow style width
+ */
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, iconPadding, ...props }, ref) => {
     return (

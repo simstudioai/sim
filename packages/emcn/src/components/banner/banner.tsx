@@ -32,6 +32,7 @@ export interface BannerProps
   textClassName?: string
 }
 
+/** @designAllow textClassName typography */
 export function Banner({
   actionClassName,
   actionDisabled,

@@ -1,6 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": false },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
   "files": {
     "ignoreUnknown": false,
     "includes": [
@@ -144,8 +148,12 @@
   "overrides": [
     {
       "includes": ["apps/sim/app/_styles/tailwind.css"],
-      "linter": { "enabled": false },
-      "formatter": { "enabled": false }
+      "linter": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      }
     },
     {
       "includes": ["packages/**"],
@@ -156,6 +164,16 @@
             "noUnusedVariables": "error"
           }
         }
+      }
+    },
+    {
+      "includes": [
+        "scripts/design-conformance/catalogue.json",
+        "scripts/design-conformance/contracts.json",
+        "scripts/design-conformance/contracts.generated.json"
+      ],
+      "formatter": {
+        "enabled": false
       }
     }
   ],

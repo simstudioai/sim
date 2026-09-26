@@ -1,0 +1,250 @@
+{
+  "version": "2.0.0",
+  "policy": "design-conformance/2.0.0",
+  "sources": [
+    "apps/sim/app/_styles/globals.css",
+    "apps/sim/tailwind.config.ts",
+    "packages/emcn/src",
+    ".claude/rules/sim-styling.md",
+    ".claude/rules/emcn-components.md",
+    "packages/emcn/src/AGENTS.md"
+  ],
+  "rules": {
+    "central-colour": {
+      "properties": [
+        "colours"
+      ],
+      "permission": "Central colour reference or explicitly adopted named utility; no literal substitutes",
+      "source": ".claude/rules/sim-styling.md#Color Tokens"
+    },
+    "central-colour-assignment": {
+      "properties": [
+        "custom-colour-assignment"
+      ],
+      "permission": "Every assigned colour, conditional branch and fallback must resolve to an existing global colour token; runtime values remain flagged",
+      "source": "apps/sim/app/_styles/globals.css#colour-tokens"
+    },
+    "central-typography": {
+      "properties": [
+        "font-family",
+        "font-size",
+        "font-weight"
+      ],
+      "permission": "Central named font/type utility or property-compatible central reference",
+      "source": ".claude/rules/sim-styling.md#Text Scale"
+    },
+    "central-radius": {
+      "properties": [
+        "border-radius"
+      ],
+      "permission": "Central radius token or adopted named utility when a radius family exists",
+      "source": "apps/sim/app/_styles/globals.css#radius"
+    },
+    "central-shadow": {
+      "properties": [
+        "box-shadow",
+        "text-shadow"
+      ],
+      "permission": "Central shadow token or exported recipe when a shadow family exists",
+      "source": "apps/sim/app/_styles/globals.css#shadow"
+    },
+    "component-chrome": {
+      "properties": [
+        "colour",
+        "typography",
+        "padding",
+        "height",
+        "radius",
+        "border",
+        "shadow",
+        "gap"
+      ],
+      "permission": "Use supported component props; protected consumer slots cannot restyle owned chrome",
+      "source": ".claude/rules/sim-styling.md#Chip Components (consumer usage)"
+    },
+    "modal-field": {
+      "properties": [
+        "structure"
+      ],
+      "permission": "Directly recognized labeled fields in ChipModalBody use ChipModalField",
+      "source": ".claude/rules/sim-styling.md#Form / chip-modal layout rhythm"
+    },
+    "icon-slot": {
+      "properties": [
+        "width",
+        "height",
+        "colour"
+      ],
+      "permission": "Source-derived field icon slots own geometry; no universal icon size is inferred",
+      "source": ".claude/rules/sim-styling.md#Chip Components (consumer usage)"
+    },
+    "central-definition": {
+      "properties": [
+        "definition"
+      ],
+      "permission": "Review the intended system change with the engineer; record intentional changes or exceptions in the PR and involve the designer for new standards or ambiguous broad impact",
+      "source": "contracts.json#policy"
+    },
+    "central-artwork": {
+      "properties": [
+        "artwork"
+      ],
+      "permission": "Reuse central EMCN artwork; introduce or change shared artwork with an explicit design-system review. Provider branding and user media remain exempt.",
+      "source": "scripts/design-conformance/contracts.json#artwork"
+    },
+    "control-redundant-style": {
+      "properties": [
+        "className"
+      ],
+      "permission": "Remove only exact repeats proven redundant against every resolved active central recipe and the reviewed class merger",
+      "source": "scripts/design-conformance/README.md#control-simplifications"
+    },
+    "control-accessible-name": {
+      "properties": [
+        "accessible-name"
+      ],
+      "permission": "Name proven icon-only buttons with existing action text; dynamic names and content require review",
+      "source": "scripts/design-conformance/README.md#control-simplifications"
+    },
+    "control-duplicate-artwork": {
+      "properties": [
+        "artwork"
+      ],
+      "permission": "Reuse identical static central drawings while preserving caller size, paint and accessibility",
+      "source": "scripts/design-conformance/README.md#control-simplifications"
+    }
+  },
+  "builtins": {
+    "colours": [
+      "white",
+      "black",
+      "current",
+      "transparent",
+      "inherit"
+    ],
+    "font-family": [
+      "sans",
+      "mono"
+    ],
+    "font-size": [
+      "sm"
+    ],
+    "font-weight": [
+      "normal",
+      "medium",
+      "semibold"
+    ],
+    "border-radius": [
+      "none",
+      "full"
+    ],
+    "box-shadow": [
+      "none"
+    ]
+  },
+  "branding": {
+    "@sim/emcn#ChipTag": [
+      "brandColor",
+      "brandForeground"
+    ],
+    "integration": "Literal Sim BlockConfig tools bgColor is an established data input, not an ordinary colour token"
+  },
+  "limits": {
+    "resolutionDepth": 12,
+    "sourceBytes": 2097152,
+    "factsCacheBytes": 67108864,
+    "systemCacheEntries": 8,
+    "summaryBytes": 33554432
+  },
+  "notes": [
+    "User policy permits any approved semantic choice; do not infer text roles from wording.",
+    "No universal spacing, icon size, or complete Tailwind palette approval is implied.",
+    "Built-in utility names are explicitly adopted by the central styling guidance; their values come from pinned Tailwind tooling."
+  ],
+  "adoption": {
+    "namedUtilities": "Only named utilities directly referenced in central styling definitions or explicitly listed builtins; no application occurrence or arbitrary numeric literal grants permission.",
+    "fontWeights": "Explicit documented normal/medium/semibold policy overrides observed historical component debt."
+  },
+  "transparentPrimitives": {
+    "@radix-ui/react-radio-group#Root": {
+      "target": "div",
+      "slots": [
+        "className",
+        "style"
+      ]
+    },
+    "@radix-ui/react-radio-group#Item": {
+      "target": "button",
+      "slots": [
+        "className",
+        "style"
+      ]
+    }
+  },
+  "centralRecipes": {
+    "packages/workflow-renderer/src/canvas-layers.ts": {
+      "exports": {
+        "EDGE_Z_BASE": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#EDGE_Z_BASE"
+        },
+        "CANVAS_Z_INDEX_MODE": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#CANVAS_Z_INDEX_MODE"
+        },
+        "EDGE_Z_MAX": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#EDGE_Z_MAX"
+        },
+        "BLOCK_Z_BASE": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#BLOCK_Z_BASE"
+        },
+        "CONTAINER_CHILD_Z_BASE": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#CONTAINER_CHILD_Z_BASE"
+        },
+        "CONNECTION_PICKER_Z": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#CONNECTION_PICKER_Z"
+        },
+        "getBlockZIndex": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#getBlockZIndex"
+        },
+        "getEdgeZIndex": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#getEdgeZIndex"
+        },
+        "getEdgeZIndexForTarget": {
+          "property": "z-index",
+          "source": "packages/workflow-renderer/src/canvas-layers.ts#getEdgeZIndexForTarget"
+        }
+      }
+    }
+  },
+  "artwork": {
+    "libraries": [
+      "packages/emcn/src/icons/",
+      "packages/emcn/src/illustrations/",
+      "apps/sim/components/iso/"
+    ],
+    "brandingFiles": [
+      "apps/sim/components/icons.tsx"
+    ],
+    "permission": "Reuse central EMCN artwork; introduce or change shared artwork with an explicit design-system review. Provider branding and user media remain exempt.",
+    "brandAssets": {
+      "packages/emcn/src/icons/linkedin.tsx": {
+        "source": "packages/emcn/src/icons/linkedin.tsx#LinkedIn",
+        "reason": "Third-party LinkedIn provider glyph; product icon geometry remains governed separately"
+      }
+    }
+  },
+  "ownership": {
+    "apps/sim/app/_shell/consent/consent-preferences-trigger.tsx": {
+      "scope": "landing",
+      "source": "apps/sim/app/(landing)/components/footer/footer.tsx; apps/sim/app/(landing)/cookie-policy/consent-preferences-link.tsx",
+      "reason": "Consent link presentation belongs exclusively to the landing shell; product reuse requires removing this declaration."
+    }
+  }
+}

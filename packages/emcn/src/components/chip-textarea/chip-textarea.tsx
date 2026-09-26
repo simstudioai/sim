@@ -39,7 +39,9 @@ export interface ChipTextareaProps
   viewOnly?: boolean
 }
 
-/** Forwards its ref to the underlying `<textarea>`, exactly like a native textarea. */
+/** Forwards its ref to the underlying `<textarea>`, exactly like a native textarea. * @designProtect className colours font-family font-size padding gap border-radius borders box-shadow
+ * @designProtect style colours font-family font-size padding gap border-radius borders box-shadow
+ */
 export const ChipTextarea = React.forwardRef<HTMLTextAreaElement, ChipTextareaProps>(
   ({ className, error, resizable = false, viewOnly = false, readOnly, ...props }, ref) => (
     <textarea

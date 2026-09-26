@@ -44,6 +44,7 @@ export interface OverflowTextProps {
  * Use this for human-readable names and titles in constrained chrome. Keep
  * editable values, code, logs, paths, dense grids, and multiline copy on their
  * purpose-built overflow behavior.
+ * @designProtect className overflow overflow-x overflow-y text-overflow white-space mask-image -webkit-mask-image
  */
 export const OverflowText = memo(function OverflowText({
   label,

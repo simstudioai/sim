@@ -57,6 +57,12 @@ All three must hold:
    reported yet, and treating "not failing" as "passing" reports the PR clean before CI has
    had its say. Wait for it — the step-10 stop condition covers a check that never settles.
 
+A passing design-conformance CI step can still contain warnings. Read its latest report and
+triage findings using `/ship`'s [committed design check](../ship/SKILL.md#committed-design-check).
+Intentional system changes and justified exceptions may remain once explained in the PR;
+they do not prevent a clean review or require another fix loop. Honor decisions already made
+in this session. Operational failures must be resolved before reporting the PR clean.
+
 Do not stop early on "no new comments this round" alone — a thread can be open from an earlier
 round, and cubic often lands its first threads a round after Greptile's. Always check all three
 conditions freshly after every push.
@@ -85,11 +91,14 @@ conditions freshly after every push.
    If `mergeable` is `CONFLICTING`, fix that first (step 2). If a check is failing, fix that too
    — treat it exactly like a review finding. If a check is still `pending`, do not evaluate
    "clean" at all: go to step 9 and wait for it. Otherwise, if Greptile is 5/5, every thread
-   across all pages has `isResolved: true`, and every check has finished and passed, stop —
+   across all pages has `isResolved: true`, every check has finished and passed, and any design
+   warnings have been triaged as above, stop —
    report the outcome (see "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
-   usual pre-push checks, push, and go to step 8 to re-trigger review.
+   usual pre-commit checks and commit the resolution. Run `/ship`'s
+   [committed design check](../ship/SKILL.md#committed-design-check) against the resulting HEAD
+   before pushing, then go to step 8 to re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
    confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and
@@ -129,7 +138,11 @@ conditions freshly after every push.
    migration safety, and the regenerate + audit phases. A review-fix round is still a code change
    and can trip any of them just as easily as the original commit did.
 
-7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
+7. **Commit, check and push** the round's fixes as one commit. After committing and before
+   every push, follow `/ship`'s [committed design check](../ship/SKILL.md#committed-design-check),
+   including warning triage and committing/rechecking any resulting fixes. Push only the
+   checked HEAD; rerun after a rebase or any other change to the comparison.
+   Use `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
    with no conflicts, not only the cherry-pick rebuild path; both rewrite commits already
    published to the remote, so a plain `git push` can be rejected either way — then run `/ship`

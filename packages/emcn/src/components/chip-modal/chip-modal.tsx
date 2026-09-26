@@ -774,6 +774,7 @@ export type ChipModalFieldProps =
  * static permission list). For a multi-email chip-list input, prefer
  * `type='emails'` over a `type='custom'` `TagInput` wrapper — it internalizes
  * chip rendering, dedupe, format validation, paste, and Backspace handling.
+ * @designProtect className colours typography padding height gap border-radius borders box-shadow flex-direction align-items justify-content
  */
 function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
