@@ -446,6 +446,38 @@ test('public declaration files participate in finite prop extraction and stalene
   expect(run(root, '--check').status).toBe(1)
 }, 60_000)
 
+test.each([
+  "import type {Props} from '../absent';export function Example({className}:Props){return <button className={className}/>} ",
+  'interface Props extends Missing{className?:string};export function Example({className}:Props){return <button className={className}/>} ',
+])(
+  'unresolved public props preserve unchecked styling inputs: %s',
+  (source) => {
+    const root = fixture()
+    write(root, 'packages/emcn/src/components/example.tsx', source)
+    expect(run(root).status).toBe(0)
+    const metadata = generated(root)
+    expect(
+      metadata.diagnostics.some((d: { reason: string }) =>
+        /public props.*unchecked/i.test(d.reason)
+      )
+    ).toBe(true)
+    expect(metadata.exports.Example.slots.className.unchecked.join('\n')).toMatch(/public props/i)
+  },
+  60_000
+)
+
+test('unrelated unresolved data imports do not invalidate known public props', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    "import {data} from '../absent';export function Example({className}:{className?:string}){return <button className={className}/>};export const exampleData=data"
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).diagnostics).toEqual([])
+  expect(generated(root).exports.Example.slots.className.unchecked).toBeUndefined()
+}, 60_000)
+
 test.each(['missing', 'ambiguous'])(
   'invalid %s public symbols fail extraction',
   (mode) => {
@@ -491,6 +523,43 @@ test('ownership metadata rejects longhand permissions overlapping a protected fa
   expect(result.status).toBe(2)
   expect(result.stderr).toMatch(/contradictory/i)
 }, 60_000)
+
+test('ownership metadata permits independent physical longhands', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    component(
+      '\n * @designAllow className padding-left\n * @designProtect className padding-right\n'
+    )
+  )
+  const result = run(root)
+  expect(result.status, result.stderr).toBe(0)
+  const slot = generated(root).exports.Example.slots.className
+  expect(slot.allowed).toEqual(['padding-left'])
+  expect(slot.protected).toContain('padding-right')
+}, 60_000)
+
+test.each([
+  ['font-size', 'font'],
+  ['border-top-color', 'border'],
+])(
+  'ownership metadata rejects %s permission overlapping %s shorthand',
+  (allowed, protectedProperty) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      component(
+        `\n * @designAllow className ${allowed}\n * @designProtect className ${protectedProperty}\n`
+      )
+    )
+    const result = run(root)
+    expect(result.status, result.stderr).toBe(2)
+    expect(result.stderr).toMatch(/contradictory/i)
+  },
+  60_000
+)
 
 test('token cycles require matching finite CSS contexts and cross-context availability stays unchecked', () => {
   const root = fixture()

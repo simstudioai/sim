@@ -11,6 +11,7 @@ import { centralCompiler, centralCompilerDiagnostics } from '#design-conformance
 import { canonical, category, family, hash, TOKEN_FILE } from '#design-conformance/model'
 import {
   type Compiler,
+  competingProperties,
   compilerIdentity,
   declarations,
   variablesIn,
@@ -829,6 +830,69 @@ async function generate(
       ? [...new Set(values)].sort((a, b) => compareStrings(String(a), String(b)))
       : undefined
   }
+  // Inspect only the public parameter's declarative type closure. Unrelated imports
+  // and implementation bodies are outside this boundary, and library types are pinned.
+  const unresolvedProps = (props: ts.Type | undefined, parameter: ts.Symbol | undefined) => {
+    const unknown = new Map<ts.Node, string>()
+    const visited = new Set<ts.Node>()
+    const inspectDeclaration = (declaration: ts.Declaration) => {
+      if (!paths.has(declaration.getSourceFile().fileName)) return
+      if (ts.isInterfaceDeclaration(declaration)) inspect(declaration)
+      else if (ts.isTypeAliasDeclaration(declaration)) inspect(declaration.type)
+      else if (ts.isTypeParameterDeclaration(declaration)) {
+        if (declaration.constraint) inspect(declaration.constraint)
+        if (declaration.default) inspect(declaration.default)
+      }
+    }
+    const inspect = (node: ts.Node) => {
+      if (visited.has(node)) return
+      if (visited.size >= 512) {
+        unknown.set(node, 'type resolution limit')
+        return
+      }
+      visited.add(node)
+      const reference = ts.isTypeReferenceNode(node)
+        ? node.typeName
+        : ts.isExpressionWithTypeArguments(node)
+          ? node.expression
+          : ts.isTypeQueryNode(node)
+            ? node.exprName
+            : undefined
+      if (reference) {
+        const symbol = checker.getSymbolAtLocation(reference)
+        const target = symbol && unaliased(symbol)
+        if (!target?.declarations?.length) unknown.set(node, reference.getText())
+        else for (const declaration of target.declarations) inspectDeclaration(declaration)
+      }
+      if (
+        ts.isImportTypeNode(node) &&
+        checker.getTypeAtLocation(node).flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)
+      )
+        unknown.set(node, node.getText())
+      ts.forEachChild(node, inspect)
+    }
+    for (const declaration of parameter?.declarations ?? [])
+      if (ts.isParameter(declaration) && declaration.type) inspect(declaration.type)
+    const inspectType = (type: ts.Type) => {
+      for (const declaration of (type.aliasSymbol ?? type.getSymbol())?.declarations ?? [])
+        inspectDeclaration(declaration)
+      if (type.isUnionOrIntersection()) for (const part of type.types) inspectType(part)
+    }
+    if (props) inspectType(props)
+    if (
+      props &&
+      props.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.TypeParameter) &&
+      !unknown.size
+    ) {
+      const declaration = parameter?.valueDeclaration ?? parameter?.declarations?.[0]
+      if (declaration) unknown.set(declaration, checker.typeToString(props))
+    }
+    return [...unknown].map(([node, type]) => ({
+      file: path.relative(virtualRoot, node.getSourceFile().fileName),
+      line: node.getSourceFile().getLineAndCharacterOfPosition(node.getStart()).line + 1,
+      type,
+    }))
+  }
   const defaultsUnknown = new Set<string>()
   const internalIds = new Map<string, string>()
   const metadataByExport = new Map<
@@ -887,6 +951,11 @@ async function generate(
       const props = params[0]
         ? checker.getTypeOfSymbolAtLocation(params[0], declaration)
         : undefined
+      const propsNotes = unresolvedProps(props, params[0]).map((boundary) => {
+        const reason = `Public props boundary of ${publicName} is unresolved or unconstrained: ${boundary.type}; styling ownership remains unchecked`
+        note(boundary.file, boundary.line, reason)
+        return reason
+      })
       const slots: VisualExport['slots'] = {}
       if (props)
         for (const prop of props.getProperties()) {
@@ -913,7 +982,18 @@ async function generate(
           )
         )
         const recordDefaults = (pattern: t.ObjectPattern) => {
-          for (const property of pattern.properties)
+          for (const property of pattern.properties) {
+            if (
+              propsNotes.length &&
+              t.isObjectProperty(property) &&
+              /^(?:className|style|.*ClassName|.*Style|.*[Ii]con)$/.test(key(property.key))
+            )
+              slots[key(property.key)] ??= {
+                protected: [],
+                allowed: [],
+                recipes: [],
+                forwards: [],
+              }
             if (t.isObjectProperty(property) && t.isAssignmentPattern(property.value)) {
               const value = scalar(sourceFile, property.value.right)
               if (value !== undefined) defaults[key(property.key)] = value
@@ -926,6 +1006,7 @@ async function generate(
                 )
               }
             }
+          }
         }
         for (const param of fn.params) if (t.isObjectPattern(param)) recordDefaults(param)
         t.traverseFast(fn.body, (node) => {
@@ -938,8 +1019,21 @@ async function generate(
             )
           )
             recordDefaults(node.id)
+          if (
+            propsNotes.length &&
+            t.isMemberExpression(node) &&
+            t.isIdentifier(node.object) &&
+            objectParams.has(
+              modules.get(sourceFile)?.references.get(node.object)?.name ?? node.object.name
+            ) &&
+            (!node.computed || t.isStringLiteral(node.property)) &&
+            /^(?:className|style|.*ClassName|.*Style|.*[Ii]con)$/.test(key(node.property))
+          )
+            slots[key(node.property)] ??= { protected: [], allowed: [], recipes: [], forwards: [] }
         })
       }
+      for (const slot of Object.values(slots))
+        if (propsNotes.length) slot.unchecked = sorted([...(slot.unchecked ?? []), ...propsNotes])
       const isIcon = sourceFile.includes('/icons/') || sourceFile.includes('/illustrations/')
       const line =
         declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.getStart()).line + 1
@@ -1333,7 +1427,7 @@ async function generate(
             a === p ||
             a === '*' ||
             p === '*' ||
-            family(a) === family(p) ||
+            competingProperties(a, p) ||
             category(a) === p ||
             category(p) === a
         )
