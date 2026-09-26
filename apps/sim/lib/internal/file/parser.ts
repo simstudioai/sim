@@ -35,13 +35,16 @@ import {
 } from '@/lib/internal/file/operations'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import { ExternalUrlValidationError, fetchExternalUrl } from '@/lib/uploads/contexts/workspace'
 import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
+import {
+  ExternalUrlValidationError,
+  fetchExternalUrl,
+} from '@/lib/uploads/utils/fetch-external-url.server'
 import {
   extractCleanFilename,
   extractStorageKey,

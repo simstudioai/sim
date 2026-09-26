@@ -41,14 +41,6 @@ export class MockWorkspaceFileItemsNotFoundError extends Error {
   }
 }
 
-/** Real `ExternalUrlValidationError` stand-in: same `name` and message. */
-export class MockExternalUrlValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ExternalUrlValidationError'
-  }
-}
-
 /** Structural stand-in for a folder row passed to `buildWorkspaceFileFolderPathMap`. */
 interface MockFolderPathRow {
   id: string
@@ -57,7 +49,7 @@ interface MockFolderPathRow {
 }
 
 /**
- * Controllable mock functions for the folder-manager and external-URL halves of the
+ * Controllable mock functions for the folder-manager half of the
  * `@/lib/uploads/contexts/workspace` barrel. The file-manager half is
  * `workspaceFileManagerMockFns` (re-exported here as `...workspaceFileManagerMockFns`).
  *
@@ -75,7 +67,6 @@ interface MockFolderPathRow {
  */
 export const workspaceUploadsMockFns = {
   ...workspaceFileManagerMockFns,
-  mockFetchExternalUrl: vi.fn(),
   mockLoadWorkspaceFileOperationContext: vi.fn(),
   mockAssertWorkspaceFileItemsBelongToWorkspace: vi.fn(),
   mockNormalizeWorkspaceFileItemName: vi.fn((name: string, itemLabel: 'File' | 'Folder') => {
@@ -128,7 +119,7 @@ const fns = workspaceUploadsMockFns
 
 /**
  * Static mock module for the `@/lib/uploads/contexts/workspace` barrel
- * (`workspace-file-manager` + `workspace-file-folder-manager` + `fetch-external-url`).
+ * (`workspace-file-manager` + `workspace-file-folder-manager`).
  *
  * The error classes extend `Error`, not `OrchestrationError`: their `name`, `code` and
  * message match production, but `instanceof OrchestrationError` is false.
@@ -140,11 +131,9 @@ const fns = workspaceUploadsMockFns
  */
 export const workspaceUploadsMock = {
   ...workspaceFileManagerMock,
-  ExternalUrlValidationError: MockExternalUrlValidationError,
   WorkspaceFileFolderConflictError: MockWorkspaceFileFolderConflictError,
   WorkspaceFileMoveConflictError: MockWorkspaceFileMoveConflictError,
   WorkspaceFileItemsNotFoundError: MockWorkspaceFileItemsNotFoundError,
-  fetchExternalUrl: fns.mockFetchExternalUrl,
   loadWorkspaceFileOperationContext: fns.mockLoadWorkspaceFileOperationContext,
   assertWorkspaceFileItemsBelongToWorkspace: fns.mockAssertWorkspaceFileItemsBelongToWorkspace,
   normalizeWorkspaceFileItemName: fns.mockNormalizeWorkspaceFileItemName,

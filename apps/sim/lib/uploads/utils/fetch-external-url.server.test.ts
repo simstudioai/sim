@@ -11,7 +11,7 @@ import * as inputValidation from '@/lib/core/security/input-validation.server'
 import {
   ExternalUrlValidationError,
   fetchExternalUrl,
-} from '@/lib/uploads/contexts/workspace/fetch-external-url'
+} from '@/lib/uploads/utils/fetch-external-url.server'
 
 let validateUrlWithDNSSpy: MockInstance<typeof inputValidation.validateUrlWithDNS>
 let secureFetchWithPinnedIPSpy: MockInstance<typeof inputValidation.secureFetchWithPinnedIP>

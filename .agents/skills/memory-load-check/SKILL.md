@@ -45,7 +45,7 @@ Read these when doing a deeper pass:
   - dispatch concrete chunks (`workspaceIds`, retention, label) instead of one giant scope
   - prefer Trigger.dev queue/concurrency keys when available
   - execute inline fallback chunks sequentially, not with unbounded `Promise.all`
-- File parse pattern in `apps/sim/lib/internal/file/parser.ts` and `apps/sim/lib/uploads/contexts/workspace/fetch-external-url.ts`
+- File parse pattern in `apps/sim/lib/internal/file/parser.ts` and `apps/sim/lib/uploads/utils/fetch-external-url.server.ts`
   - cap downloads and parsed output separately
   - preserve partial results when a later item exceeds the cap
   - never read untrusted response bodies without a byte cap
