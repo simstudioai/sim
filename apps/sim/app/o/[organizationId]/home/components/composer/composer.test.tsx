@@ -4,7 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
   live: false,
@@ -95,6 +98,7 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
+  useMothershipPlanEffortStore.getState().reset()
   useMothershipEffortStore.setState({
     effort: 'high',
     modelSelection: { model: 'gpt-6-astra', fastMode: false },
@@ -189,7 +193,7 @@ afterEach(async () => {
 async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
-  requestMode: 'agent' | 'assistant' = 'assistant',
+  requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
   controls: Pick<
     ComponentProps<typeof Composer>,
     'isSending' | 'showModeSelector' | 'onModeChange' | 'restoredContexts' | 'onSendQueuedHead'
@@ -366,3 +370,22 @@ it.each([
     expect(input.value).toBe('')
   }
 )
+
+it('renders and restores separate Plan and Build model preferences when changing modes', async () => {
+  mocks.plan = true
+  mocks.advanced = true
+  await render(false, '', 'plan')
+  expect(container.textContent).toContain('Opus 5.5')
+  expect(container.textContent).toContain('Medium')
+  await act(async () => {
+    useMothershipPlanEffortStore.getState().setModel('gpt-6-astra')
+    useMothershipPlanEffortStore.getState().setEffort('xhigh')
+  })
+  expect(container.textContent).toContain('GPT-6 Astra')
+  expect(container.textContent).toContain('Extra High')
+  await render(false, '', 'agent')
+  expect(container.textContent).toContain('GPT-6 Astra')
+  expect(container.textContent).not.toContain('Extra High')
+  await render(false, '', 'plan')
+  expect(container.textContent).toContain('Extra High')
+})

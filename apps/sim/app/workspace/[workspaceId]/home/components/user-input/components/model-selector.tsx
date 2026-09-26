@@ -17,23 +17,33 @@ import {
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { ModelSettingTrigger } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-setting-trigger'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
-/** Model, reasoning effort, and Fast mode for Build chat composers. */
-export function ModelSelector() {
+interface ModelSelectorProps {
+  plan?: boolean
+}
+
+/** Mode-specific preferences keep planning choices separate from Build chats. */
+export function ModelSelector({ plan = false }: ModelSelectorProps) {
+  const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
   const advanced = useFeatureFlag('mothership-model-selector')
-  const selection = useMothershipEffortStore((state) => state.modelSelection)
-  const setModel = useMothershipEffortStore((state) => state.setModel)
-  const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
-  const storedEffort = useMothershipEffortStore((state) => state.effort)
+  const selection = usePreferenceStore((state) => state.modelSelection)
+  const setModel = usePreferenceStore((state) => state.setModel)
+  const setFastMode = usePreferenceStore((state) => state.setFastMode)
+  const storedEffort = usePreferenceStore((state) => state.effort)
   const { effort, modelSelection } = resolveMothershipModelSettings(
     { effort: storedEffort, modelSelection: selection },
-    advanced
+    advanced,
+    plan
   )
-  const options = advanced
-    ? mothershipEffortOptions(modelSelection.model)
-    : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
-  const setEffort = useMothershipEffortStore((state) => state.setEffort)
+  const options =
+    advanced || plan
+      ? mothershipEffortOptions(modelSelection.model)
+      : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
+  const setEffort = usePreferenceStore((state) => state.setEffort)
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
   const modelLabel =
     MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??

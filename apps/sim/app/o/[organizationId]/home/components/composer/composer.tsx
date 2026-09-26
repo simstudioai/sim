@@ -308,6 +308,7 @@ export function Composer({
         />
       ) : (
         <InputToolbar
+          plan={requestMode === 'plan'}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

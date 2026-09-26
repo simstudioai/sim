@@ -122,7 +122,10 @@ import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-ca
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
@@ -3673,8 +3676,12 @@ export function useChat(
             ...(options?.requestMode !== 'assistant'
               ? {
                   ...resolveMothershipModelSettings(
-                    useMothershipEffortStore.getState(),
-                    modelSelectorEnabled
+                    (options?.requestMode === 'plan'
+                      ? useMothershipPlanEffortStore
+                      : useMothershipEffortStore
+                    ).getState(),
+                    modelSelectorEnabled,
+                    options?.requestMode === 'plan'
                   ),
                 }
               : {}),

@@ -841,6 +841,33 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
+  it.each([false, true])(
+    'defaults Plan admission to Opus Medium with model selection %s',
+    async (advanced) => {
+      flags.models.mockResolvedValue(advanced)
+      flags.plan.mockResolvedValue(true)
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Plan this automation',
+            workspaceId: 'ws-1',
+            mode: 'plan',
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'plan',
+          effort: 'medium',
+          modelSelection: { model: 'claude-opus-5-5', fastMode: false },
+        }),
+        expect.anything()
+      )
+    }
+  )
+
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

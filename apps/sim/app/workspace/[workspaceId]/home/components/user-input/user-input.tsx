@@ -585,6 +585,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       />
 
       <InputToolbar
+        plan={requestMode === 'plan'}
         leadingControls={
           <>
             <Tooltip.Root>

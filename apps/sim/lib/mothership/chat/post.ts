@@ -998,7 +998,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         isMothershipModelSelectorEnabled(),
         body.mode === 'plan' ? isPlanModeEnabled() : false,
       ])
-      Object.assign(body, resolveMothershipModelSettings(body, modelSelectorEnabled))
+      Object.assign(
+        body,
+        resolveMothershipModelSettings(body, modelSelectorEnabled, body.mode === 'plan')
+      )
       if (body.mode === 'plan' && !planEnabled)
         return createBadRequestResponse('Plan mode is disabled')
     }

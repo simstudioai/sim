@@ -17,57 +17,62 @@ interface MothershipEffortState {
   reset: () => void
 }
 
-const initialState = {
-  effort: 'high',
-  modelSelection: { model: 'gpt-6-astra', fastMode: false },
-} satisfies Pick<MothershipEffortState, 'effort' | 'modelSelection'>
-
-export const useMothershipEffortStore = create<MothershipEffortState>()(
-  devtools(
-    persist(
-      (set) => ({
-        ...initialState,
-        setFastMode: (fastMode) =>
-          set((state) =>
-            resolveMothershipModelSettings(
-              { ...state, modelSelection: { ...state.modelSelection, fastMode } },
-              true
-            )
-          ),
-        setModel: (model) =>
-          set((state) =>
-            resolveMothershipModelSettings(
-              { ...state, modelSelection: { model, fastMode: state.modelSelection.fastMode } },
-              true
-            )
-          ),
-        setEffort: (effort) => set({ effort }),
-        reset: () => set(initialState),
-      }),
-      {
-        name: 'mothership-effort',
-        partialize: ({ effort, modelSelection }) => ({ effort, modelSelection }),
-        merge: (persistedState, currentState) => {
-          const persisted = toRecord(persistedState)
-          const selection = ModelSelectionSchema.safeParse(persisted.modelSelection)
-          const effort =
-            persisted.effort === 'none'
-              ? 'none'
-              : (MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === persisted.effort)
-                  ?.value ?? currentState.effort)
-          return {
-            ...currentState,
-            ...resolveMothershipModelSettings(
-              {
-                effort,
-                modelSelection: selection.success ? selection.data : currentState.modelSelection,
-              },
-              true
+function createMothershipEffortStore(plan: boolean) {
+  const initialState = resolveMothershipModelSettings({}, true, plan)
+  const name = plan ? 'mothership-plan-effort' : 'mothership-effort'
+  return create<MothershipEffortState>()(
+    devtools(
+      persist(
+        (set) => ({
+          ...initialState,
+          setFastMode: (fastMode) =>
+            set((state) =>
+              resolveMothershipModelSettings(
+                { ...state, modelSelection: { ...state.modelSelection, fastMode } },
+                true,
+                plan
+              )
             ),
-          }
-        },
-      }
-    ),
-    { name: 'mothership-effort-store' }
+          setModel: (model) =>
+            set((state) =>
+              resolveMothershipModelSettings(
+                { ...state, modelSelection: { model, fastMode: state.modelSelection.fastMode } },
+                true,
+                plan
+              )
+            ),
+          setEffort: (effort) => set({ effort }),
+          reset: () => set(initialState),
+        }),
+        {
+          name,
+          partialize: ({ effort, modelSelection }) => ({ effort, modelSelection }),
+          merge: (persistedState, currentState) => {
+            const persisted = toRecord(persistedState)
+            const selection = ModelSelectionSchema.safeParse(persisted.modelSelection)
+            const effort =
+              persisted.effort === 'none'
+                ? 'none'
+                : (MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === persisted.effort)
+                    ?.value ?? currentState.effort)
+            return {
+              ...currentState,
+              ...resolveMothershipModelSettings(
+                {
+                  effort,
+                  modelSelection: selection.success ? selection.data : currentState.modelSelection,
+                },
+                true,
+                plan
+              ),
+            }
+          },
+        }
+      ),
+      { name: `${name}-store` }
+    )
   )
-)
+}
+
+export const useMothershipEffortStore = createMothershipEffortStore(false)
+export const useMothershipPlanEffortStore = createMothershipEffortStore(true)
