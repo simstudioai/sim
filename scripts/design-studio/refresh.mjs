@@ -16,6 +16,7 @@ import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { productScope } from '../design-conformance/control-scope.ts'
 
 const toolRoot = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(process.env.SIM_STUDIO_REPO ?? path.join(toolRoot, '../..'))
@@ -83,7 +84,8 @@ function productFiles() {
       if (item.isDirectory()) {
         if (!excluded.has(item.name)) descend(path.join(directory, item.name))
       } else if (item.name.endsWith('.tsx') && !/\.(test|spec|stories)\.tsx$/.test(item.name)) {
-        files.push(path.join(directory, item.name))
+        const file = path.join(directory, item.name)
+        if (productScope(relative(file)) === 'check') files.push(file)
       }
     }
   }

@@ -67,6 +67,7 @@ test('landing, docs and marketing helper contents are never read by shared analy
     'apps/sim/app/(docs)/page.tsx': `throw Error('docs source must not be read')`,
     'apps/sim/app/design-studio/components/page.tsx': `throw Error('studio source must not be read')`,
     'apps/sim/lib/content/mdx.tsx': `throw Error('marketing renderer must not be read')`,
+    'apps/sim/lib/content/nested/renderer.tsx': `export const Broken = <`,
   }
   const base = source(files)
   const touched: string[] = []

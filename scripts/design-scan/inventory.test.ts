@@ -250,13 +250,14 @@ test('full scan excludes Monaco theme colours but still checks styling beside th
 })
 
 test('full scan excludes verified landing helpers until product imports them', () => {
-  const helper = 'apps/sim/lib/content/mdx.tsx'
+  const helper = 'apps/sim/lib/content/nested/renderer.tsx'
   const landingMark = 'apps/sim/app/(landing)/components/mark.tsx'
   const f = fixture({
+    'apps/sim/lib/content/unused-malformed.tsx': 'export const Broken = <',
     [helper]: "export const Mdx=()=> <div className='rounded-[13px] text-[13px]' />",
     [landingMark]: 'export const Mark=()=> <span>Logo</span>',
     'apps/sim/app/(landing)/blog/page.tsx':
-      "import {Mdx} from '@/lib/content/mdx'; export default function Page(){return <><Mdx/><button className='rounded-[14px]'>Landing</button></>}",
+      "import {Mdx} from '@/lib/content/nested/renderer'; export default function Page(){return <><Mdx/><button className='rounded-[14px]'>Landing</button></>}",
     'apps/sim/app/(docs)/page.tsx':
       "export const Page=()=> <button className='rounded-[14px]'>Docs</button>",
     'apps/sim/components/logo-use.tsx':
@@ -317,7 +318,7 @@ test('full scan excludes verified landing helpers until product imports them', (
   mkdirSync(path.dirname(path.join(f.repo, component)), { recursive: true })
   writeFileSync(
     path.join(f.repo, component),
-    "import {Mdx} from '@/lib/content/mdx'; export const Product=()=> <Mdx/>"
+    "import {Mdx} from '../lib/content/nested/renderer'; export const Product=()=> <Mdx/>"
   )
   f.git('add', '.')
   f.git('commit', '-qm', 'product adopts helper')

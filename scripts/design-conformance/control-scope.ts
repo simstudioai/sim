@@ -7,7 +7,7 @@ export function productScope(file: string): 'check' | 'exclude' | 'unsupported' 
     file.startsWith('apps/sim/app/(docs)/') ||
     file.startsWith('apps/sim/app/design-studio/') ||
     file.startsWith('apps/sim/tools/generated/') ||
-    ['apps/sim/lib/content/mdx.tsx', 'apps/sim/lib/content/faq.tsx'].includes(file)
+    file.startsWith('apps/sim/lib/content/')
   )
     return 'exclude'
   if (

@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 import { parse, parseExpression } from '@babel/parser'
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
@@ -59,10 +60,18 @@ const owner = (p: NodePath): string => {
   return '<module>'
 }
 const colour = (value: string) => /^#[\da-f]{3,8}$/i.test(value)
-const landingTarget = (value: string) =>
-  /^@\/app\/\(landing\)\/components\//.test(value) ||
-  /(?:^|\/)\(landing\)\/components\//.test(value) ||
-  /^@\/lib\/content\/(?:mdx|faq)(?:$|\.)/.test(value)
+const landingTarget = (file: string, value: string) => {
+  const target = value.startsWith('@/')
+    ? `apps/sim/${value.slice(2)}`
+    : value.startsWith('.')
+      ? posix.normalize(posix.join(posix.dirname(file), value))
+      : value
+  return (
+    target.startsWith('apps/sim/app/(landing)/') ||
+    target.startsWith('apps/sim/lib/content/') ||
+    target === 'apps/sim/lib/content'
+  )
+}
 
 const fullControlRecipes = /#(?:chipVariants|chipGeometryClass|dropdownMenuRowClass)$/
 const repeatedVisualTreatment = (classes: string): boolean => {
@@ -468,7 +477,7 @@ export class ReviewCollector {
   program: NonNullable<ControlHooks['program']> = ({ file, path, reference }) => {
     if (productScope(file) !== 'check') return
     const importTarget = (value: string, p: NodePath) => {
-      if (landingTarget(value))
+      if (landingTarget(file, value))
         this.note(
           file,
           site(p),
