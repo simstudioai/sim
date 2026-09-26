@@ -23176,8 +23176,8 @@
       "type": "snowflake",
       "slug": "snowflake",
       "name": "Snowflake",
-      "description": "Query data and manage warehouses and tasks in Snowflake",
-      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
+      "description": "Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.",
       "bgColor": "#FFFFFF",
       "iconName": "SnowflakeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/snowflake",
@@ -23301,9 +23301,17 @@
         {
           "name": "Call Procedure",
           "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        },
+        {
+          "name": "Ask Cortex Analyst",
+          "description": "Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up."
+        },
+        {
+          "name": "Send Cortex Analyst Feedback",
+          "description": "Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab."
         }
       ],
-      "operationCount": 30,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

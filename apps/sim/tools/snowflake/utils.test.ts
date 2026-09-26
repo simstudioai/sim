@@ -57,6 +57,8 @@ describe('Snowflake integration contracts', () => {
       matchColumns: '["id"]',
       filters: '{"id":1}',
       procedureArguments: '[{"type":"TEXT","value":"x"}]',
+      semanticModels: '[{"semantic_view":"DB.SCHEMA.VIEW"}]',
+      history: '[{"role":"user","content":[{"type":"text","text":"x"}]}]',
       onError: 'CONTINUE',
       onErrorThreshold: '1',
       maxFileSizeBytes: '16000000',
@@ -90,7 +92,7 @@ describe('Snowflake integration contracts', () => {
       }
     }
 
-    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(54)
+    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(58)
 
     expect(
       mapParams({ operation: 'load_data', onError: 'SKIP_FILE_PERCENT', onErrorThreshold: '5' })
