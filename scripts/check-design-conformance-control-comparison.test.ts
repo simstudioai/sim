@@ -39,6 +39,7 @@ test('immutable full snapshots resolve unchanged imports, preserve debt, and war
     `export function Mark(){ return <svg aria-hidden='true' viewBox='0 0 24 24'><rect x='4' y='4' width='16' height='16'/></svg> }`
   )
   put(repo, 'packages/emcn/src/icons/index.ts', `export {Mark} from './mark'`)
+  put(repo, 'packages/emcn/src/index.ts', 'export {}')
   const view = (count: number) =>
     `import {Mark} from '@sim/emcn/icons'; export const View=()=> <div>${'<button><Mark/></button>'.repeat(count)}</div>`
   put(repo, ui, view(1))
@@ -55,7 +56,7 @@ test('immutable full snapshots resolve unchanged imports, preserve debt, and war
   ])
   expect(compareSimplifications(after, before)).toEqual([])
   const report = await checkComparison({ repo, base, head, policy: 'conformance' })
-  expect(report.status).toBe('completed')
+  expect(report.status, report.error).toBe('completed')
   expect(report.controlSimplifications?.introduced).toBe(1)
   expect(report.findings.filter((f) => f.rule === 'control-accessible-name')).toHaveLength(1)
   expect(warningExitCode(1, null, report)).toBe(0)

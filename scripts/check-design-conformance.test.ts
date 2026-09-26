@@ -529,7 +529,7 @@ test('centrally derived template composition is checked without an unknown helpe
 test('central configuration edits notify separately and preserve original JS locations', async () => {
   const file = 'apps/sim/tailwind.config.ts'
   const before = "export default {\n theme:{extend:{colors:{special:'#123456'}}}\n}"
-  const sources = { ...centralSources, [file]: before }
+  const sources = { [TOKEN_FILE]: globals, [file]: before }
   const r = await diff(before, before.replace('#123456', '#654321'), file, sources)
   expect(r.flagged).toBe(true)
   expect(r.findings.every((f) => f.kind === 'system-change')).toBe(true)
