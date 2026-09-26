@@ -1028,6 +1028,10 @@ describe('code placeholder compiler', () => {
     'cat <<EOF\n$[ {{KEY}} * 2 ]\nEOF',
     'values[{{KEY}}]=x',
     'values[{{KEY}}]+=x',
+    'PREFIX=1 values[{{KEY}}]=x',
+    'if values[{{KEY}}]=x; then :; fi',
+    'declare -a values[{{KEY}}]=x',
+    'printf %s done # end of command\nvalues[{{KEY}}]=x',
     'values[ 1 + {{KEY}} ]=x',
     'values[$(printf %s "{{KEY}}")]=x',
     'values=([{{KEY}}]=x)',
@@ -1089,6 +1093,21 @@ describe('code placeholder compiler', () => {
     })
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
       'values[word]=literal\nvalues[word]\nword\nitem[word]\nvalues[word]=literal\n'
+    )
+  })
+
+  it('keeps array-shaped command arguments literal', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'printf "%s\\n" config[{{KEY}}]=1',
+        'PREFIX=1 printf "%s\\n" config[{{KEY}}]+=2',
+        'if true; then printf "%s\\n" config[{{KEY}}]=3; fi',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'word' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      'config[word]=1\nconfig[word]+=2\nconfig[word]=3\n'
     )
   })
 

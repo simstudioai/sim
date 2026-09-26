@@ -33,6 +33,10 @@ interface ShellScanFrame {
   /** A bare name[index] is arithmetic only when its closing bracket is followed by assignment. */
   arrayAssignment?: boolean
   arithmeticParent?: ShellScanFrame
+  wordStart?: number
+  commandPosition?: boolean
+  declarationCommand?: boolean
+  redirectionTarget?: boolean
   literalRoot: boolean
 }
 
@@ -139,6 +143,7 @@ function readShellArrayStart(
     parent.quote === 'none' &&
     !parent.literalRoot &&
     wordStart &&
+    (parent.kind === 'array' || parent.commandPosition !== false || parent.declarationCommand) &&
     (hasName || (character === '[' && parent.kind === 'array'))
   if (!parameter && !assignment) return undefined
 
@@ -280,6 +285,52 @@ function readHeredocDelimiterWord(
   }
 
   return consumed ? { delimiter, quoted, end: cursor } : undefined
+}
+
+/** Assignment-shaped words after an ordinary command name are arguments, not arithmetic. */
+function trackShellCommandPosition(code: string, index: number, frame: ShellScanFrame): void {
+  if (
+    frame.literalRoot ||
+    frame.quote !== 'none' ||
+    (frame.kind !== 'root' && frame.kind !== 'command' && frame.kind !== 'backtick')
+  ) {
+    return
+  }
+  const character = code[index]
+  const redirection = character === '<' || character === '>' || code.startsWith('&>', index)
+  const separator =
+    /[;\n&|()]/.test(character) &&
+    !redirection &&
+    !((character === '&' || character === '|') && /[<>]/.test(code[index - 1] ?? ''))
+  if (!separator && !redirection && !/\s/.test(character)) {
+    if (character === '\\' && /^\r?\n/.test(code.slice(index + 1, index + 3))) return
+    frame.wordStart ??= index
+    return
+  }
+
+  if (frame.wordStart !== undefined) {
+    const word = code.slice(frame.wordStart, index).replace(/\\\r?\n/g, '')
+    if (frame.redirectionTarget) {
+      frame.redirectionTarget = false
+    } else if (
+      !(redirection && /^\d+$/.test(word)) &&
+      frame.commandPosition !== false &&
+      !/^[A-Za-z_][A-Za-z0-9_]*(?:\+?=|\[[\s\S]*\]\+?=)/.test(word) &&
+      !/^(?:if|then|else|elif|while|until|do|!|\{|time|command|builtin|exec)$/.test(word)
+    ) {
+      frame.commandPosition = false
+      const name = readHeredocDelimiterWord(word, 0, word.length)?.delimiter
+      frame.declarationCommand = /^(?:declare|export|local|readonly|typeset)$/.test(name ?? '')
+    }
+    frame.wordStart = undefined
+  }
+  if (separator) {
+    frame.commandPosition = true
+    frame.declarationCommand = false
+    frame.redirectionTarget = false
+  } else if (redirection) {
+    frame.redirectionTarget = true
+  }
 }
 
 function parseHeredocHeaders(
@@ -536,6 +587,7 @@ function collectShellOccurrenceContexts(
     const frame = frames.at(-1)
     if (!frame) break
 
+    trackShellCommandPosition(code, index, frame)
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
       contexts.set(occurrence, {
@@ -614,6 +666,7 @@ function collectShellOccurrenceContexts(
     }
     if (!frame.literalRoot && shellCommentStarts(code, index)) {
       const newline = code.indexOf('\n', index)
+      if (newline !== -1 && newline < end) trackShellCommandPosition(code, newline, frame)
       index = newline === -1 || newline >= end ? end : newline + 1
       continue
     }
