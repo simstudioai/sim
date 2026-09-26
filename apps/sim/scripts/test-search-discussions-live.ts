@@ -27,6 +27,12 @@ import type { NativeClient, NativePage } from '@/lib/sim-search/live/types'
  * "query":"repo:example/project is:pr search in:title",
  * "oracleQueries":["repo:example/project is:pr search in:title"],"expectedId":"123"}].
  * Optional fields: filters (startDate, endDate, sortBy), commentFragment, reviewer, approved.
+ * reviewer requires a submitted review by that login. approved independently checks whether a
+ * submitted APPROVED review event exists, not current approval status or mergeability. Review
+ * fixtures must have fewer than 100 records; a full oracle page is rejected as incomplete.
+ * Oracle queries describe equivalent logical branches. Explicit updated: qualifiers take
+ * precedence over filters; otherwise both paths use inclusive GitHub candidate bounds.
+ * The application search layer applies the exclusive end-date filter and is not exercised here.
  * Keep real identities and source content in the external case file. Timings include gh process
  * and network costs, not model selection or the authorized application/UI boundary.
  */
@@ -232,9 +238,25 @@ async function runQuery(test: QueryCase) {
   const firstRequest = requests.length
   try {
     const oracleRows: Record<string, unknown>[] = []
+    const start = test.filters?.startDate
+      ? new Date(test.filters.startDate).toISOString()
+      : undefined
+    const end = test.filters?.endDate ? new Date(test.filters.endDate).toISOString() : undefined
     for (const query of test.oracleQueries) {
+      const nativeDateRange = (query.match(/"[^"]*"|\S+/g) ?? []).some((token) =>
+        /^updated:/i.test(token)
+      )
+      const dateRange = nativeDateRange
+        ? undefined
+        : start && end
+          ? `updated:${start}..${end}`
+          : start
+            ? `updated:>=${start}`
+            : end
+              ? `updated:<=${end}`
+              : undefined
       const params = new URLSearchParams({
-        q: query,
+        q: [query, dateRange].filter(Boolean).join(' '),
         per_page: '10',
         page: '1',
         ...(test.filters?.sortBy === 'newest' || test.filters?.sortBy === 'oldest'
@@ -244,7 +266,19 @@ async function runQuery(test: QueryCase) {
       const data = object(await githubApi(`/search/issues?${params}`, 'oracle'))
       assert.equal(data.incomplete_results, false, 'GitHub oracle search was incomplete')
       report.oracleTotal += Number(data.total_count)
-      oracleRows.push(...array(data.items))
+      const rows = array(data.items)
+      if (dateRange) {
+        for (const row of rows) {
+          const updated = Date.parse(string(row.updated_at))
+          assert.ok(
+            Number.isFinite(updated) &&
+              (!start || updated >= Date.parse(start)) &&
+              (!end || updated <= Date.parse(end)),
+            'Oracle candidate is outside the inclusive provider date interval'
+          )
+        }
+      }
+      oracleRows.push(...rows)
     }
     report.oracleResultIds = [...new Set(oracleRows.map((row) => string(row.number)))].sort()
     let page: NativePage = { documents: [] }
@@ -321,41 +355,46 @@ async function runQuery(test: QueryCase) {
           'GitHub normalizes hyphenated query terms. A matched review/comment fragment may not contain the literal quoted phrase; read the original before claiming exact wording.',
       })
     }
-    if (test.reviewer || test.approved) {
+    if (test.reviewer || test.approved !== undefined) {
       const document = test.expectedId
         ? page.documents.find((document) => document.id === test.expectedId)
         : page.documents[0]
-      if (document) {
-        const reviews = array(
-          await githubApi(
-            `/repos/${repository}/pulls/${document.id}/reviews?per_page=100`,
-            'oracle'
-          )
-        )
+      assert.ok(document, 'Review expectations require a matching PR result')
+      const reviews = array(
+        await githubApi(`/repos/${repository}/pulls/${document.id}/reviews?per_page=100`, 'oracle')
+      )
+      assert.ok(
+        reviews.length < 100,
+        'Review oracle coverage is incomplete; choose a fixture with fewer than 100 reviews'
+      )
+      const submitted = reviews.filter(
+        (review) => review.state !== 'PENDING' && string(review.submitted_at)
+      )
+      if (test.reviewer)
         assert.ok(
-          reviews.some((review) =>
-            test.reviewer
-              ? object(review.user).login === test.reviewer && review.state !== 'PENDING'
-              : review.state === 'APPROVED'
+          submitted.some(
+            (review) =>
+              string(object(review.user).login).toLowerCase() === test.reviewer!.toLowerCase()
           ),
-          'Independent review events do not support review query result'
+          'Independent review events do not contain the expected reviewer'
         )
-        report.evidence.push({
-          type: 'review-events',
-          url: document.url,
-          snippet: `${reviews.length} independent review events; ${test.reviewer ? `verified reviewer ${test.reviewer}` : 'verified APPROVED event'}.`,
-        })
-      }
-    }
-    if (test.filters?.startDate && test.filters.endDate) {
-      for (const row of oracleRows) {
-        const updated = Date.parse(string(row.updated_at))
-        assert.ok(
-          updated >= Date.parse(test.filters.startDate) &&
-            updated < Date.parse(test.filters.endDate),
-          'Date-filtered result is outside the requested interval'
+      if (test.approved !== undefined)
+        assert.equal(
+          submitted.some((review) => review.state === 'APPROVED'),
+          test.approved,
+          'Independent review events do not match the expected APPROVED event presence'
         )
-      }
+      report.evidence.push({
+        type: 'review-events',
+        url: document.url,
+        snippet: [
+          `${submitted.length} submitted review events`,
+          test.reviewer && `verified reviewer ${test.reviewer}`,
+          test.approved !== undefined && `verified APPROVED event presence: ${test.approved}`,
+        ]
+          .filter(Boolean)
+          .join('; '),
+      })
     }
     report.status = 'passed'
   } catch (error) {
@@ -467,7 +506,7 @@ try {
         repository,
         pullRequest: number,
         boundary:
-          'Real searchGitHub/readGitHub adapters over gh-authenticated GitHub API; independent oracle GETs. Does not exercise model query selection, application authorization, or UI.',
+          'Real searchGitHub/readGitHub adapters over gh-authenticated GitHub API; independent oracle GETs and inclusive native date candidates. Does not exercise application half-open date filtering, model query selection, application authorization, or UI.',
         checks,
         queries,
         requests,
