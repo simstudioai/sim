@@ -7890,3 +7890,71 @@ export const copilotServiceUsage = pgTable(
     index('copilot_service_usage_pending_idx').on(t.nextAttemptAt).where(sql`delivered_at IS NULL`),
   ]
 )
+
+/**
+ * On-prem usage telemetry (receiving side). A self-hosted deployment registered
+ * here reports daily usage buckets to `POST /api/onprem-telemetry/report`,
+ * authenticated by the API key whose hash is stored on the row. See
+ * `apps/sim/lib/onprem-telemetry/README.md`.
+ */
+export const onpremDeployment = pgTable('onprem_deployment', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  apiKeyHash: text('api_key_hash').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+/**
+ * Append-only, effective-dated credit → dollar rates. Dollars are never stored
+ * on a usage report; they are derived at read time from the rate in effect at
+ * the report's `period_start`, so inserting a rate re-values the periods it
+ * covers without rewriting any credit figure.
+ */
+export const onpremDeploymentRate = pgTable(
+  'onprem_deployment_rate',
+  {
+    id: text('id').primaryKey(),
+    deploymentId: text('deployment_id')
+      .notNull()
+      .references(() => onpremDeployment.id, { onDelete: 'cascade' }),
+    usdPerCredit: decimal('usd_per_credit', { precision: 12, scale: 8 }).notNull(),
+    effectiveFrom: timestamp('effective_from').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('onprem_deployment_rate_deployment_effective_idx').on(t.deploymentId, t.effectiveFrom),
+  ]
+)
+
+/**
+ * One row per deployment per UTC day. Re-reports of the same day replace the
+ * row (the sender re-sends a trailing window every run), so a day converges on
+ * its final figures once it has fully elapsed on the deployment side.
+ */
+export const onpremUsageReport = pgTable(
+  'onprem_usage_report',
+  {
+    id: text('id').primaryKey(),
+    deploymentId: text('deployment_id')
+      .notNull()
+      .references(() => onpremDeployment.id, { onDelete: 'cascade' }),
+    periodStart: timestamp('period_start').notNull(),
+    periodEnd: timestamp('period_end').notNull(),
+    workflowExecutions: integer('workflow_executions').notNull().default(0),
+    workflowExecutionsFailed: integer('workflow_executions_failed').notNull().default(0),
+    workflowDurationMs: bigint('workflow_duration_ms', { mode: 'number' }).notNull().default(0),
+    /** 200 × the ledger dollar sum for the day; exact, not rounded. */
+    credits: decimal('credits', { precision: 20, scale: 6 }).notNull().default('0'),
+    inputTokens: bigint('input_tokens', { mode: 'number' }).notNull().default(0),
+    outputTokens: bigint('output_tokens', { mode: 'number' }).notNull().default(0),
+    /** `{ sources: [...], models: [...] }` — see `OnPremUsageBucket`. */
+    breakdown: jsonb('breakdown').notNull().default('{}'),
+    schemaVersion: integer('schema_version').notNull(),
+    reportedAt: timestamp('reported_at').notNull(),
+    receivedAt: timestamp('received_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('onprem_usage_report_deployment_period_unique').on(t.deploymentId, t.periodStart),
+  ]
+)

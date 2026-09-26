@@ -1,0 +1,106 @@
+---
+title: Usage Telemetry
+description: Report daily workflow and credit usage from a self-hosted deployment to a Sim instance
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A self-hosted deployment can report a daily summary of its usage — workflow runs, credits, and model token volume — to a Sim instance, so that instance can see how the deployment is used over time and value that usage at a rate agreed for the deployment.
+
+The feature is **off by default**. Nothing is collected or sent until the four variables below are set, and the workflow execution path never touches it: reporting runs from a background job that reads the deployment's own database after the fact.
+
+## What is sent
+
+One record per UTC calendar day, re-sent for a trailing window on every run so a day converges on its final figures once it has elapsed. Each record carries:
+
+| Field | Source |
+|-------|--------|
+| Workflow executions, failures, total duration | Execution logs |
+| Credits | The usage ledger's dollar sum for the day × 200 |
+| Input and output tokens, per model | The usage ledger's token metadata |
+| Events and credits per usage source | The usage ledger (`workflow`, `knowledge-base`, `wand`, …) |
+
+Nothing else crosses the wire: no workflow inputs or outputs, no credentials, no workflow or user identifiers, and no tool or block names. Aggregation happens inside the database query, so per-execution rows never reach the reporting code.
+
+<Callout type="info">
+  On a self-hosted deployment, models usually run on your own API keys, so their ledger rows carry **tokens with zero credits**. Credits on such a deployment mostly reflect the per-run execution charge (1 credit per workflow run); token volume is reported alongside so the receiving instance can see model usage that Sim never billed.
+</Callout>
+
+## Enable reporting
+
+Register the deployment on the receiving instance (see [Receiving reports](#receiving-reports) below), then set on the self-hosted deployment:
+
+```bash
+ONPREM_TELEMETRY_ENABLED=true
+ONPREM_TELEMETRY_ENDPOINT=https://sim.example.com   # the receiving instance
+ONPREM_TELEMETRY_DEPLOYMENT_ID=acme-prod            # issued at registration
+ONPREM_TELEMETRY_API_KEY=simot_…                    # issued at registration, shown once
+```
+
+Optional:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ONPREM_TELEMETRY_LOOKBACK_DAYS` | `7` | How many trailing days each run re-sends (max 90). Bounds how long the receiving instance can be unreachable before a day is missed. |
+
+The report runs from the `onprem-usage-report` background job every six hours (Docker Compose: `docker/crontab`; Kubernetes: `cronjobs.jobs.onpremUsageReport`). To send immediately:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://your-deployment/api/cron/onprem-usage-report
+```
+
+The response reports `delivered`, `failed` (with the reason), or `disabled`.
+
+## Disable reporting
+
+Unset `ONPREM_TELEMETRY_ENABLED` (or set it to `false`). The next job run exits before running any query or opening any connection, and stays that way until re-enabled. No restart is needed. This is the right setting for airgapped deployments; the job itself is harmless to leave scheduled.
+
+A deployment that is enabled but cannot reach the endpoint keeps running workflows normally. The job logs the failure and re-sends the same window next time.
+
+## Receiving reports
+
+The receiving instance is any Sim deployment with the [admin API](/platform/self-hosting/environment-variables) enabled. Register a deployment and (optionally) its rate in one call:
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/onprem-telemetry/deployments \
+  -H "x-admin-key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"id": "acme-prod", "name": "Acme production", "usdPerCredit": 0.005}'
+```
+
+The response includes `apiKey` exactly once; only its hash is stored.
+
+### Conversion rates
+
+Each deployment has its own append-only history of credit → dollar rates:
+
+```bash
+# Set a new rate, effective now
+curl -X POST https://sim.example.com/api/v1/admin/onprem-telemetry/deployments/acme-prod/rates \
+  -H "x-admin-key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"usdPerCredit": 0.004}'
+
+# Backdate a correction
+curl -X POST … -d '{"usdPerCredit": 0.0045, "effectiveFrom": "2026-09-01T00:00:00Z"}'
+```
+
+Rates are never edited or deleted. Credits are the stored fact; dollars are computed when usage is read, from the rate whose `effectiveFrom` most recently precedes each day's start. That defines what a rate change does to history:
+
+- A rate effective **now** changes the value of days from now on. Earlier days keep the rate that covered them.
+- A rate effective at an **earlier instant** re-values the days from that instant forward the next time they are read. No credit figure changes, and the rate table shows what applied when.
+- Days before a deployment's first rate have no dollar value; the usage response counts their credits as `unvaluedCredits` rather than pricing them silently.
+
+### Reading usage
+
+```bash
+curl "https://sim.example.com/api/v1/admin/onprem-telemetry/deployments/acme-prod/usage?from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+```
+
+Every row states its `credits`, the `rate` it was valued with (`usdPerCredit` and `effectiveFrom`), and the resulting `usd`, plus the per-source and per-model breakdown the deployment sent. Totals cover the range. `GET …/deployments` lists deployments with their current rate and last report time; `GET …/deployments/{id}/rates` shows the rate history.
+
+## Limitations
+
+- **Cooperative, not enforced.** The deployment controls its own database and can disable reporting; nothing here proves completeness. It is a usage picture, not a metering system.
+- **Chat usage is not included.** With billing disabled, cost callbacks from the Sim agent service are acknowledged without being recorded, so Chat model usage never reaches the ledger on a self-hosted deployment.
+- **The current day is partial** until the first run after UTC midnight; `reportedAt` on each row says when it was last sent.
+- **Ledger scan.** Each run aggregates the trailing window from `usage_log` by `created_at`. On a very large deployment consider adding an index on `usage_log (created_at)`.

@@ -188,6 +188,18 @@ Your reverse proxy's body-size limit must be at least as large as the app limits
 
 See [Observability](/platform/self-hosting/observability).
 
+## Usage telemetry
+
+Off unless all four required variables are set. See [Usage Telemetry](/platform/self-hosting/usage-telemetry).
+
+| Variable | Description |
+|----------|-------------|
+| `ONPREM_TELEMETRY_ENABLED` | `true` to report daily usage to a Sim instance. Leave unset on airgapped deployments |
+| `ONPREM_TELEMETRY_ENDPOINT` | Base URL of the receiving instance |
+| `ONPREM_TELEMETRY_DEPLOYMENT_ID` | Deployment id issued by the receiving instance's admin API |
+| `ONPREM_TELEMETRY_API_KEY` | Deployment API key issued alongside the id |
+| `ONPREM_TELEMETRY_LOOKBACK_DAYS` | Trailing days each run re-sends. Defaults to `7`, max `90` |
+
 ## Knowledge Bases
 
 | Variable | Description |

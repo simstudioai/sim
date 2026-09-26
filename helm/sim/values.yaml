@@ -1435,6 +1435,16 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # On-prem usage telemetry. A no-op unless ONPREM_TELEMETRY_ENABLED is set.
+    onpremUsageReport:
+      enabled: true
+      name: onprem-usage-report
+      schedule: "15 */6 * * *"
+      path: "/api/cron/onprem-usage-report"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Releases AgentMail inbox + webhook for workspaces whose Sim Mailer plan
     # lapsed (canceled/downgraded off Max/Enterprise). Tolerates past_due, so a
     # transient payment failure never tears down a paying customer's inbox.

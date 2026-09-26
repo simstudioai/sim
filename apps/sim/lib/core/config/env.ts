@@ -326,6 +326,13 @@ export const env = createEnv({
     // Admin API
     ADMIN_API_KEY:                         z.string().min(32).optional(),          // Admin API key for self-hosted GitOps access (generate with: openssl rand -hex 32)
 
+    // On-prem usage telemetry (sender side; see lib/onprem-telemetry/README.md)
+    ONPREM_TELEMETRY_ENABLED:              z.boolean().optional(),                 // Report daily usage buckets to the Sim instance at ONPREM_TELEMETRY_ENDPOINT. Off by default; leave unset on airgapped deployments
+    ONPREM_TELEMETRY_ENDPOINT:             z.string().url().optional(),            // Base URL of the receiving Sim instance (e.g. https://sim.ai)
+    ONPREM_TELEMETRY_DEPLOYMENT_ID:        z.string().min(1).optional(),           // Deployment id issued by the receiving instance's admin API
+    ONPREM_TELEMETRY_API_KEY:              z.string().min(1).optional(),           // Deployment API key issued alongside the id
+    ONPREM_TELEMETRY_LOOKBACK_DAYS:        z.string().optional(),                  // How many trailing UTC days each report re-sends (default 7); bounds how long an outage can last without losing a day
+
     // Mothership Admin
     MOTHERSHIP_API_ADMIN_KEY:              z.string().min(1).optional(),           // Admin API key for mothership/copilot admin endpoints
     MOTHERSHIP_DEV_URL:                    z.string().url().optional(),            // Mothership dev environment URL

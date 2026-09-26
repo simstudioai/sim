@@ -1996,6 +1996,24 @@ export const GENERATED_SCHEMA_TABLES = {
     'deliveredAt',
     'lastError',
   ],
+  onpremDeployment: ['id', 'name', 'apiKeyHash', 'createdAt', 'updatedAt'],
+  onpremDeploymentRate: ['id', 'deploymentId', 'usdPerCredit', 'effectiveFrom', 'createdAt'],
+  onpremUsageReport: [
+    'id',
+    'deploymentId',
+    'periodStart',
+    'periodEnd',
+    'workflowExecutions',
+    'workflowExecutionsFailed',
+    'workflowDurationMs',
+    'credits',
+    'inputTokens',
+    'outputTokens',
+    'breakdown',
+    'schemaVersion',
+    'reportedAt',
+    'receivedAt',
+  ],
 } as const
 
 /** Every `pgEnum` export mapped to its values. */
