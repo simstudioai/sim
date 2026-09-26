@@ -1423,6 +1423,8 @@ export function inspectControls(
     }
     const native = use.target.startsWith('native:')
     const nativeKind = native ? nativeRole(use.target.slice(7), use.inputs) : undefined
+    const unresolvedAnchor =
+      native && use.tag === 'a' && proof.unknown.has('Anchor href remains unresolved')
     const candidate =
       !!nativeKind ||
       (proof.relationships.has('polymorphic-renderer') && proof.unknown.size > 0) ||
@@ -1432,7 +1434,7 @@ export function inspectControls(
         /^on(?:click|doubleclick|pointerdown|mousedown|keydown|keyup)$/i.test(h)
       ) ||
       (native && use.tag === 'input' && !!use.inputs.type?.unresolved) ||
-      (native && use.tag === 'a' && !!use.inputs.href?.unresolved) ||
+      unresolvedAnchor ||
       !!use.inputs.role?.unresolved ||
       !!use.inputs.tabIndex?.unresolved ||
       !!use.inputs.tabIndex?.values?.some((v) => Number(v) >= 0)
@@ -1455,7 +1457,7 @@ export function inspectControls(
       (!native && proof.unknown.size > 0) ||
       !!use.inputs.role?.unresolved ||
       (native && use.tag === 'input' && !!use.inputs.type?.unresolved) ||
-      (native && use.tag === 'a' && !!use.inputs.href?.unresolved)
+      unresolvedAnchor
     const origin: ControlRecord['origin'] = use.hidden
       ? 'nonvisual'
       : central

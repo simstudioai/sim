@@ -552,6 +552,18 @@ test('imperative anchors require href or an explicit interaction', () => {
   })
   expect(consumer(f.scan()).map((r) => r.inputs.href?.values)).toEqual([['/go']])
 })
+test('spread anchor href remains unresolved without inventing interaction for an omitted href', () => {
+  const f = fixture({
+    [location]:
+      "export const A=props=><><a {...props} className='rounded-lg'>Unknown</a><a {...props} href={undefined}>Text</a><a {...{href:'/go'}} className='rounded-lg'>Known</a></>",
+  })
+  const result = f.scan()
+  const records = consumer(result)
+  expect(records).toHaveLength(2)
+  expect(records.map((r) => r.origin)).toEqual(['unresolved', 'local-control'])
+  expect(records[0].inputs.className.values).toEqual(['rounded-lg'])
+  expect(result.unchecked.some((d) => d.reason === 'Anchor href remains unresolved')).toBe(true)
+})
 test('DOM class and uppercase attributes normalize before control review', () => {
   const f = fixture({
     [location]:
