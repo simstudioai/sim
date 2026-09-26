@@ -59,7 +59,6 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
     setDraft(draftKey, payload)
     setDraft(latestDraftKey, payload)
   }
-  const pending = isSearching && value.trim() === initialValue.trim()
   const submit = (text = value) => {
     if (!text.trim() || (isSearching && text.trim() === initialValue.trim())) return
     const { clearDraft } = useMothershipDraftsStore.getState()
@@ -98,13 +97,13 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       submitControl={
         <ComposerActionButton
           type='button'
-          onClick={() => (pending ? void queryClient.cancelQueries({ queryKey }) : submit())}
-          disabled={!canSubmit}
-          aria-label={pending ? 'Stop search' : 'Search'}
-          aria-busy={pending}
-          active={canSubmit}
+          onClick={() => (isSearching ? void queryClient.cancelQueries({ queryKey }) : submit())}
+          disabled={!canSubmit && !isSearching}
+          aria-label={isSearching ? 'Stop search' : 'Search'}
+          aria-busy={isSearching}
+          active={canSubmit || isSearching}
         >
-          {pending ? (
+          {isSearching ? (
             <StopFilled className='block size-[14px] fill-white dark:fill-black' />
           ) : (
             <ArrowUp className='block size-[16px] text-white dark:text-black' />
