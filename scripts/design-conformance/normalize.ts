@@ -99,6 +99,28 @@ const internal: Record<string, string> = {
   '--tw-scale-x': 'scale',
   '--tw-scale-y': 'scale',
 }
+/** Split authored border geometry and style from its colour input. */
+export function borderDeclarations(property: string, value: string): Declaration[] | null {
+  if (!/^(?:border(?:-(?:top|bottom|left|right))?|outline)$/.test(property)) return null
+  const prefix = property.startsWith('outline') ? 'outline' : 'border'
+  return valueParser(value)
+    .nodes.filter((node) => node.type !== 'space' && node.type !== 'comment')
+    .map((node) => {
+      const part = valueParser.stringify(node)
+      const suffix = /^(?:none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/.test(
+        part
+      )
+        ? 'style'
+        : /^(?:[\d.]+(?:px|em)|0|thin|medium|thick)$/.test(part) || part.includes('--border-width')
+          ? 'width'
+          : 'color'
+      return {
+        property: `${prefix}-${suffix}`,
+        value: part,
+        category: suffix === 'color' ? 'colours' : 'borders',
+      }
+    })
+}
 export function declarations(
   atom: Atom,
   system: Compiler,
@@ -163,23 +185,11 @@ export function declarations(
     if (/^(?:padding|margin|gap|border-radius)$/.test(family(prop))) {
       for (const part of parts.filter((x) => x !== '/'))
         found.push({ property: family(prop), value: part, category: cat })
-    } else if (/^(?:border(?:-(?:top|bottom|left|right))?|outline)$/.test(prop)) {
-      const prefix = prop.startsWith('outline') ? 'outline' : 'border'
-      for (const part of parts) {
-        const suffix =
-          /^(?:none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/.test(part)
-            ? 'style'
-            : /^(?:[\d.]+(?:px|em)|0|thin|medium|thick)$/.test(part) ||
-                part.includes('--border-width')
-              ? 'width'
-              : 'color'
-        found.push({
-          property: `${prefix}-${suffix}`,
-          value: part,
-          category: suffix === 'color' ? 'colours' : 'borders',
-        })
-      }
-    } else found.push({ property: family(prop), value, category: cat })
+    } else {
+      const border = borderDeclarations(prop, value)
+      if (border) found.push(...border)
+      else found.push({ property: family(prop), value, category: cat })
+    }
   })
   return [...new Map(found.map((x) => [JSON.stringify(x), x])).values()]
 }

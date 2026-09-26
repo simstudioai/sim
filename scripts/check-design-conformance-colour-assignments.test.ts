@@ -568,3 +568,16 @@ test('imperative paint properties inspect literals, tokens and unresolved values
     ).toBeGreaterThan(0)
   }
 })
+
+test('imperative neutral paint and border geometry do not become colour findings', () => {
+  for (const expression of [
+    "node.style.background='transparent'",
+    "node.style.border='0'",
+    "node.style.border='2px solid var(--text-body)'",
+  ]) {
+    expect(flagged({ [ui]: `export function update(node){${expression}}` })).toEqual([])
+  }
+  expect(
+    flagged({ [ui]: `export function update(node){node.style.border='2px solid #ff00ff'}` }).length
+  ).toBeGreaterThan(0)
+})

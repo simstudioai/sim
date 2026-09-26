@@ -13,7 +13,7 @@ import { productScope } from '#control-analysis/scope'
 import { type Expr, expression, type StaticInputs, unknown } from '#control-analysis/static-inputs'
 import { centralFile } from '#design-conformance/contracts'
 import { canonical, type Finding, hash, TOKEN_FILE } from '#design-conformance/model'
-import { rawColours, utility, variablesIn } from '#design-conformance/normalize'
+import { borderDeclarations, rawColours, utility, variablesIn } from '#design-conformance/normalize'
 
 interface Site {
   file: string
@@ -638,6 +638,23 @@ export class ColourAssignments {
         }
       const shadowSink = assignment.direct && /^(?:box|text)-shadow$/.test(assignment.name)
       const checks = assignment.values.map((value): Check => {
+        const border = assignment.direct ? borderDeclarations(assignment.name, value) : null
+        if (border) {
+          const paint = border.filter((declaration) => declaration.category === 'colours')
+          if (!paint.length)
+            return {
+              status: 'verified',
+              reason: 'Border shorthand authors no colour',
+              references: [],
+            }
+          return combine(
+            paint.map((declaration) =>
+              checkColourValue(declaration.value, (name, context) =>
+                checkVariable(name, seen, context)
+              )
+            )
+          )
+        }
         const shadow = shadowSink ? /^var\((--shadow-[\w-]+)\)$/.exec(value.trim()) : null
         if (shadow) {
           const name = shadow[1]
@@ -848,6 +865,8 @@ function checkColourValue(
   shadowGeometry = false,
   channelContext = false
 ): Check {
+  if (/^(?:none|transparent)$/i.test(text.trim()))
+    return { status: 'verified', reason: 'No authored paint colour', references: [] }
   if (/^(?:currentColor|inherit|unset|revert|revert-layer)$/i.test(text.trim()))
     return {
       status: 'unresolved',

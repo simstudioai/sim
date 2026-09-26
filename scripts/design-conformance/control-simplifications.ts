@@ -780,7 +780,7 @@ export function inspectSimplifications(
       use.target === 'native:input' &&
       !use.inputs.type?.unresolved &&
       !!use.inputs.type?.values?.length &&
-      use.inputs.type.values.every((value) => value === 'image')
+      use.inputs.type.values.some((value) => value === 'image')
     const isButton =
       use.target === 'native:button' ||
       imageInput ||

@@ -274,3 +274,18 @@ test('native image inputs require an accessible name from alt or ARIA', () => {
     )
   ).toEqual([])
 })
+
+test('finite image and text input branches still inspect the image action name', () => {
+  expect(
+    matching(
+      run('<input type={condition ? "image" : "text"} src="/action.png"/>'),
+      'control-accessible-name'
+    )
+  ).toHaveLength(1)
+  expect(
+    matching(
+      run('<input type={condition ? "image" : "text"} src="/action.png" alt="Submit"/>'),
+      'control-accessible-name'
+    )
+  ).toEqual([])
+})
