@@ -29,6 +29,14 @@ export const knowledgeKeys = {
   lists: () => [...knowledgeKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
     [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
+  /**
+   * Lists carrying document totals, which only the Knowledge page renders. Under `lists()` so a
+   * knowledge-base mutation refreshes them with the plain lists; beside `list()` so a document
+   * mutation refreshes only these and never the pickers.
+   */
+  countedLists: () => [...knowledgeKeys.lists(), 'counted'] as const,
+  countedList: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
+    [...knowledgeKeys.countedLists(), workspaceId ?? 'all', scope] as const,
   details: () => [...knowledgeKeys.all, 'detail'] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,

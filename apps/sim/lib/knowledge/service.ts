@@ -45,6 +45,7 @@ import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/know
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
+  KnowledgeBaseSummary,
   KnowledgeBaseWithCounts,
 } from '@/lib/knowledge/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -145,7 +146,8 @@ const KNOWLEDGE_BASE_SORTS = {
 } satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
 
 export interface GetKnowledgeBasesOptions {
-  access?: KnowledgeReadAccess
+  /** Totals each base's documents as this reader sees them. Omitted, no document is read. */
+  countsFor?: KnowledgeReadAccess
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
@@ -166,37 +168,47 @@ function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
     : isNull(knowledgeBase.deletedAt)
 }
 
+/** A knowledge-base row before its connector summary is attached. */
+type KnowledgeBaseRow = Omit<
+  KnowledgeBaseSummary,
+  'connectorTypes' | 'hasPermissionScopedConnector'
+>
+
 /**
- * The one projection every knowledge-base list renders: the base's own columns plus its live
- * document count. Both list queries read through here so a column added to one list can never
- * be missing from the other — they are concatenated into a single rendered list.
+ * The base's own columns, without reading a single document. Every list shares this projection
+ * so a column added to one can never be missing from another.
  */
 async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
-  limit?: number,
-  access?: KnowledgeReadAccess
+  limit?: number
+): Promise<KnowledgeBaseRow[]> {
+  const query = db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
+    .from(knowledgeBase)
+    .where(where)
+    .orderBy(...orderBy)
+  const rows = limit === undefined ? await query : await query.limit(limit)
+  return rows.map(toActiveKnowledgeBaseReference)
+}
+
+/**
+ * {@link readKnowledgeBaseRows} plus the live totals of the documents `access` admits. Only the
+ * surfaces that display totals pay for the document join, and they always count as a reader.
+ */
+async function readCountedKnowledgeBaseRows(
+  where: SQL | undefined,
+  orderBy: SQL[],
+  limit: number | undefined,
+  access: KnowledgeReadAccess
 ): Promise<
   Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
 > {
-  const scope = access && 'get' in access ? await access.get() : access
+  const scope = 'get' in access ? await access.get() : access
   const query = db
     .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      isSearchIndex: knowledgeBase.isSearchIndex,
-      description: knowledgeBase.description,
+      ...ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      organizationId: knowledgeBase.organizationId,
-      folderId: knowledgeBase.folderId,
       docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
@@ -207,7 +219,7 @@ async function readKnowledgeBaseRows(
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        scope ? knowledgeAccessCondition(scope) : undefined
+        knowledgeAccessCondition(scope)
       )
     )
     .where(where)
@@ -224,7 +236,7 @@ async function readKnowledgeBaseRows(
    * never turns into hundreds of per-batch round trips.
    */
   const liveCounts =
-    access && 'get' in access && rows.length > 0
+    'get' in access && rows.length > 0
       ? await readLiveSourceDocumentCounts(
           limit === undefined && where
             ? where
@@ -236,8 +248,7 @@ async function readKnowledgeBaseRows(
         )
       : undefined
   return rows.map((kb) => ({
-    ...kb,
-    chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+    ...toActiveKnowledgeBaseReference(kb),
     docCount: Number(kb.docCount) + (liveCounts?.get(kb.id)?.docCount ?? 0),
     tokenCount: kb.tokenCount + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
   }))
@@ -300,11 +311,11 @@ async function readLiveSourceDocumentCounts(
   return counts
 }
 
-async function attachConnectorTypes(
-  knowledgeBases: Array<
-    Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>
-  >
-): Promise<KnowledgeBaseWithCounts[]> {
+async function attachConnectorTypes<Row extends KnowledgeBaseRow>(
+  knowledgeBases: Row[]
+): Promise<
+  Array<Row & Pick<KnowledgeBaseSummary, 'connectorTypes' | 'hasPermissionScopedConnector'>>
+> {
   const kbIds = knowledgeBases.map((kb) => kb.id)
   const connectorRows =
     kbIds.length > 0
@@ -363,15 +374,23 @@ async function attachConnectorTypes(
  * authorization. Unlike the legacy user-oriented query, this never widens the
  * scope to workspace-less rows and never depends on a human permission join.
  */
-async function readWorkspaceKnowledgeBaseRows(
+export async function getWorkspaceKnowledgeBases(
   workspaceId: string,
-  scope: KnowledgeBaseScope,
+  scope: KnowledgeBaseScope | undefined,
+  options: GetKnowledgeBasesOptions & { countsFor: KnowledgeReadAccess }
+): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }>
+export async function getWorkspaceKnowledgeBases(
+  workspaceId: string,
+  scope?: KnowledgeBaseScope,
   options?: GetKnowledgeBasesOptions
-): Promise<{
-  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
-  nextCursorKeys: CursorKey[] | null
-}> {
+): Promise<{ data: KnowledgeBaseSummary[]; nextCursorKeys: CursorKey[] | null }>
+export async function getWorkspaceKnowledgeBases(
+  workspaceId: string,
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
+): Promise<{ data: KnowledgeBaseSummary[]; nextCursorKeys: CursorKey[] | null }> {
   const {
+    countsFor,
     folderId,
     search,
     sortBy = 'createdAt',
@@ -380,6 +399,18 @@ async function readWorkspaceKnowledgeBaseRows(
     cursorKeys,
   } = options ?? {}
   const keys = KNOWLEDGE_BASE_SORTS[sortBy]
+  const where = and(
+    eq(knowledgeBase.workspaceId, workspaceId),
+    knowledgeBaseScopeCondition(scope),
+    folderId === undefined
+      ? undefined
+      : folderId === null
+        ? isNull(knowledgeBase.folderId)
+        : eq(knowledgeBase.folderId, folderId),
+    searchFilter(knowledgeBase.name, search),
+    resumeKeyset(keys, cursorKeys, sortOrder)
+  )
+  const orderBy = listOrderBy(keysetColumns(keys), sortOrder)
 
   /**
    * An unpaged read is unbounded, matching the sibling internal lists (`listTables`, workspace
@@ -388,32 +419,10 @@ async function readWorkspaceKnowledgeBaseRows(
    */
   const readLimit = limit === undefined ? undefined : limit + 1
 
-  const rows = await readKnowledgeBaseRows(
-    and(
-      eq(knowledgeBase.workspaceId, workspaceId),
-      knowledgeBaseScopeCondition(scope),
-      folderId === undefined
-        ? undefined
-        : folderId === null
-          ? isNull(knowledgeBase.folderId)
-          : eq(knowledgeBase.folderId, folderId),
-      searchFilter(knowledgeBase.name, search),
-      resumeKeyset(keys, cursorKeys, sortOrder)
-    ),
-    listOrderBy(keysetColumns(keys), sortOrder),
-    readLimit,
-    options?.access
-  )
-
-  return keysetPage(keys, rows, limit)
-}
-
-export async function getWorkspaceKnowledgeBases(
-  workspaceId: string,
-  scope: KnowledgeBaseScope = 'active',
-  options?: GetKnowledgeBasesOptions
-): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }> {
-  const page = await readWorkspaceKnowledgeBaseRows(workspaceId, scope, options)
+  const rows: KnowledgeBaseRow[] = countsFor
+    ? await readCountedKnowledgeBaseRows(where, orderBy, readLimit, countsFor)
+    : await readKnowledgeBaseRows(where, orderBy, readLimit)
+  const page = keysetPage(keys, rows, limit)
   return {
     data: await attachConnectorTypes(page.data),
     nextCursorKeys: page.nextCursorKeys,
@@ -424,9 +433,7 @@ export async function getWorkspaceKnowledgeBases(
 export async function findActiveKnowledgeBasesByExactName(
   workspaceId: string,
   name: string
-): Promise<
-  Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
-> {
+): Promise<KnowledgeBaseRow[]> {
   return readKnowledgeBaseRows(
     and(
       eq(knowledgeBase.workspaceId, workspaceId),
@@ -944,8 +951,8 @@ export async function updateKnowledgeBase(
  * Display names for knowledge bases that live in `workspaceId`, keyed by id.
  *
  * Scoped by workspace in the query rather than checked afterwards, so an id belonging to another
- * tenant resolves to nothing at all. Deliberately narrower than {@link getKnowledgeBaseById}, which
- * joins `document` and aggregates counts — far more than a name lookup needs.
+ * tenant resolves to nothing at all. Deliberately narrower than
+ * {@link getActiveKnowledgeBaseReference}, which reads every column a use case needs.
  */
 export async function getKnowledgeBaseNames(
   knowledgeBaseIds: readonly string[],
@@ -1005,52 +1012,25 @@ export async function getActiveKnowledgeBaseReferences(
 }
 
 /**
- * Get a single knowledge base by ID
- */
-export async function getKnowledgeBaseById(
-  knowledgeBaseId: string
-): Promise<KnowledgeBaseWithCounts | null> {
-  const result = await readKnowledgeBaseRows(
-    and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)),
-    [],
-    1
-  )
-
-  if (result.length === 0) {
-    return null
-  }
-
-  return {
-    ...result[0],
-    chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
-    docCount: Number(result[0].docCount),
-    connectorTypes: [],
-    hasPermissionScopedConnector: false,
-  }
-}
-
-/**
- * The knowledge base with its connector summary, for the surfaces that show
- * it. Kept off {@link getKnowledgeBaseById} so every operation that only
- * resolves its context does not pay for the connector read.
+ * The knowledge base with its connector summary and the document totals `access` can see, for
+ * the surfaces that show them. Kept off {@link getActiveKnowledgeBaseReference} so every
+ * operation that only resolves its context pays for neither the count nor the connector read.
  */
 export async function attachKnowledgeBaseConnectors(
-  knowledgeBase: KnowledgeBaseWithCounts,
-  access?: KnowledgeReadAccess
+  knowledgeBase: KnowledgeBaseRow,
+  access: KnowledgeReadAccess
 ): Promise<KnowledgeBaseWithCounts> {
-  let visible = knowledgeBase
-  if (access) {
-    const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
-    const scope = 'get' in access ? await access.get() : access
-    const [ordinary] = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
-    const live = 'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
-    visible = {
+  const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
+  const scope = 'get' in access ? await access.get() : access
+  const [ordinary] = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
+  const live = 'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
+  const [withConnectors] = await attachConnectorTypes([
+    {
       ...knowledgeBase,
       docCount: Number(ordinary?.docCount ?? 0) + (live?.get(knowledgeBase.id)?.docCount ?? 0),
       tokenCount: (ordinary?.tokenCount ?? 0) + (live?.get(knowledgeBase.id)?.tokenCount ?? 0),
-    }
-  }
-  const [withConnectors] = await attachConnectorTypes([visible])
+    },
+  ])
   return withConnectors
 }
 

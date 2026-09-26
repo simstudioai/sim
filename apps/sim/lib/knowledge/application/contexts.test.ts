@@ -62,7 +62,6 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 const mocks = {
   ...hoisted,
   getKnowledgeBase: knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReference,
-  getKnowledgeBaseWithCounts: knowledgeServiceMockFns.mockGetKnowledgeBaseById,
   getDocument: knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocument,
   getDocumentById: knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocumentById,
   getTag: knowledgeTagsServiceMockFns.mockGetTagDefinitionById,
@@ -90,11 +89,6 @@ describe('knowledge application contexts', () => {
       null
     )
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
-    mocks.getKnowledgeBaseWithCounts.mockResolvedValue({
-      ...knowledgeBase,
-      docCount: 3,
-      tokenCount: 1536,
-    })
     workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(workspace)
     workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValue(workspace)
   })
