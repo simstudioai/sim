@@ -597,7 +597,16 @@ test('none is not approved as a colour or a context-free local colour alias', ()
 })
 
 test('text decoration inspects its paint without treating line/style/thickness as colours', () => {
-  for (const value of ['underline', 'underline dashed 2px', 'none', 'underline var(--text-body)'])
+  for (const value of [
+    'underline',
+    'underline dashed 2px',
+    'underline 2pt',
+    'underline 1Q',
+    'underline 2cqw',
+    'underline 1cap',
+    'none',
+    'underline var(--text-body)',
+  ])
     expect(
       flagged({
         [ui]: `export function update(node){node.style.textDecoration=${JSON.stringify(value)}}`,
@@ -611,4 +620,22 @@ test('text decoration inspects its paint without treating line/style/thickness a
     inspect({ [ui]: 'export function update(node,paint){node.style.textDecoration=paint}' })
       .unchecked.length
   ).toBeGreaterThan(0)
+})
+
+test('CSS colour longhands inspect authored paint across standard and vendor properties', () => {
+  for (const property of [
+    'textEmphasisColor',
+    'columnRuleColor',
+    'floodColor',
+    'stopColor',
+    'WebkitTextFillColor',
+  ]) {
+    expect(
+      flagged({ [ui]: `export function update(node){node.style.${property}='#ff00ff'}` }).length
+    ).toBeGreaterThan(0)
+    expect(
+      flagged({ [ui]: `export function update(node){node.style.${property}='var(--text-body)'}` })
+    ).toEqual([])
+    expect(flagged({ [ui]: `export const data={${property}:'#ff00ff'}` })).toEqual([])
+  }
 })

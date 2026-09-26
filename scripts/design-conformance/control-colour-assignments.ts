@@ -58,7 +58,7 @@ export interface ColourAssignmentReport {
   coverage: { checked: number; verified: number; invalid: number; unresolved: number }
 }
 const colourProperty =
-  /^(?:color|background(?:-color|-image)?|border(?:-(?:top|bottom|left|right|inline|block)(?:-start|-end)?)?(?:-color)?|outline(?:-color)?|fill|stroke|caret-color|accent-color|text-decoration(?:-color)?|box-shadow|text-shadow)$/
+  /^(?:color|(?:-[a-z]+-)?[a-z][\w-]*-color|background(?:-image)?|border(?:-(?:top|bottom|left|right|inline|block)(?:-start|-end)?)?|outline|fill|stroke|text-decoration|box-shadow|text-shadow)$/
 const kebab = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
 /** A missing layout variable is not evidence of a colour. Actual colour sinks still take precedence. */
 const dimensional = (value: string): boolean => {
@@ -638,13 +638,13 @@ export class ColourAssignments {
         }
       const shadowSink = assignment.direct && /^(?:box|text)-shadow$/.test(assignment.name)
       const checks = assignment.values.map((value): Check => {
-        const border = assignment.direct ? paintDeclarations(assignment.name, value) : null
-        if (border) {
-          const paint = border.filter((declaration) => declaration.category === 'colours')
+        const shorthand = assignment.direct ? paintDeclarations(assignment.name, value) : null
+        if (shorthand) {
+          const paint = shorthand.filter((declaration) => declaration.category === 'colours')
           if (!paint.length)
             return {
               status: 'verified',
-              reason: 'Border shorthand authors no colour',
+              reason: 'CSS shorthand authors no explicit colour',
               references: [],
             }
           return combine(

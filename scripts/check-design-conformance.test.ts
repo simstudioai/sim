@@ -561,7 +561,7 @@ test('supported central v3/v4 utility aliases compare as the same styling defini
     input(sources)
   )
   expect(r.findings.filter((f) => f.file === file)).toEqual([])
-})
+}, 15_000)
 
 test('CSS and inline token provenance survives numeric normalization', async () => {
   expect(

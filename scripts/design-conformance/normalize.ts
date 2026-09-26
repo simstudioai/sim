@@ -106,12 +106,16 @@ export function paintDeclarations(property: string, value: string): Declaration[
       .nodes.filter((node) => node.type !== 'space' && node.type !== 'comment')
       .map((node) => {
         const part = valueParser.stringify(node)
+        const dimension = valueParser.unit(part)
+        const thickness =
+          /^(?:auto|from-font|0)$/.test(part) ||
+          (dimension && /^(?:[a-z]+|%)$/i.test(dimension.unit)) ||
+          (node.type === 'function' && ['calc', 'min', 'max', 'clamp'].includes(node.value))
         const suffix = /^(?:none|underline|overline|line-through|blink)$/.test(part)
           ? 'line'
           : /^(?:solid|double|dotted|dashed|wavy)$/.test(part)
             ? 'style'
-            : /^(?:auto|from-font|0|[\d.]+(?:px|rem|em|ex|ch|lh|vw|vh|%))$/.test(part) ||
-                (node.type === 'function' && ['calc', 'min', 'max', 'clamp'].includes(node.value))
+            : thickness
               ? 'thickness'
               : 'color'
         return {
