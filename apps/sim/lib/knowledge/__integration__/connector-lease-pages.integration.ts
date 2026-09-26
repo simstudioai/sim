@@ -1156,6 +1156,13 @@ describe('connector lease ACL pages in PostgreSQL', () => {
         .update(document)
         .set({ sourceSeenAt: sql`now() + interval '1 day'` })
         .where(eq(document.connectorId, members.connectorId))
+      const seenStamps = () =>
+        db
+          .select({ id: document.id, sourceSeenAt: document.sourceSeenAt })
+          .from(document)
+          .where(eq(document.connectorId, members.connectorId))
+          .orderBy(document.id)
+      const seenBefore = await seenStamps()
       provider.list.mockResolvedValue({
         documents: seeded.map((row) => ({
           externalId: row.externalId,
@@ -1186,6 +1193,8 @@ describe('connector lease ACL pages in PostgreSQL', () => {
       expect(perTransaction.reduce((total, writes) => total + writes, 0)).toBe(2 * DOCUMENTS)
       expect(Math.max(...perTransaction)).toBeLessThanOrEqual(PAGE)
       await expectBounded(members.connectorId)
+      /** A row already stamped at or after this run's start is not rewritten by the seen stamp. */
+      expect(await seenStamps()).toEqual(seenBefore)
     })
 
     it('rematerialises what a change feed withdrew one page per lease transaction', async () => {

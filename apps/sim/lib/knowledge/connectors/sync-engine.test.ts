@@ -27,6 +27,11 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import {
+  routeWindowScans,
+  windowScan,
+  windowScans,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
+import {
   buildSyncDatabaseRetryUpdate,
   buildSyncFailureUpdate,
   executeSync,
@@ -68,7 +73,7 @@ beforeEach(resetEnvFlagsMock)
 
 function resetDbChainMock() {
   resetDatabaseMock()
-  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  routeWindowScans()
 }
 
 vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
@@ -2192,15 +2197,8 @@ describe('executeSync hard-delete reconciliation', () => {
     queueTableRows(schemaMock.document, [
       { ownedCount: OWNED_DOC_COUNT, listedCount: LISTED_DOC_COUNT, softCount: 40, hardCount: 40 },
     ])
-    queueTableRows(
-      schemaMock.document,
-      missingIds.slice(0, 25).map((id) => ({ id }))
-    )
-    queueTableRows(
-      schemaMock.document,
-      missingIds.slice(25).map((id) => ({ id }))
-    )
-    queueTableRows(schemaMock.document, [])
+    /** Less than a window remains, so the hard walk scans it once, then pages its matches. */
+    windowScans.push(windowScan(missingIds.map((id) => ({ id, tombstoned: false }))))
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [{ count: LISTED_DOC_COUNT }])
     dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])

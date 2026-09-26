@@ -149,7 +149,7 @@ describe('completed listing reconciliation in PostgreSQL', () => {
     await sql`CREATE TABLE document (
       id text PRIMARY KEY, external_id text, connector_id text, chunk_count integer NOT NULL DEFAULT 1,
       user_excluded boolean NOT NULL DEFAULT false, archived_at timestamp, deleted_at timestamp,
-      source_seen_at timestamp,
+      source_seen_at timestamp, content_hash text,
       acl text[] NOT NULL DEFAULT '{ws}', acl_requirements jsonb NOT NULL DEFAULT '[]',
       acl_verified_at timestamp
     )`

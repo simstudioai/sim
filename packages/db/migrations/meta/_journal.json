@@ -2710,6 +2710,13 @@
       "when": 1790459930776,
       "tag": "0387_date_tag_range_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1790465741392,
+      "tag": "0388_document_connector_reconciliation_v2_index",
+      "breakpoints": true
     }
   ]
 }
