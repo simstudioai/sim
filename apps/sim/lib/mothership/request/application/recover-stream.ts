@@ -13,6 +13,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import type { ChatTurnLogContext } from '@/lib/mothership/chat/chat-log'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import { restoreBillingAdmission } from '@/lib/mothership/request/lifecycle/admission'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
@@ -121,6 +122,8 @@ export const readChatStream = defineAuthorizedChatUseCase({
       if (workspaceId && !userPermission)
         throw new OrchestrationError('forbidden', 'Workspace access revoked')
       const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
+      const requestMode: ChatTurnLogContext['mode'] =
+        intent.mode === 'plan' ? 'plan' : intent.mode === 'assistant' ? 'assistant' : 'agent'
       const completion = {
         chatId,
         userMessageId: run.streamId,
@@ -128,14 +131,22 @@ export const readChatStream = defineAuthorizedChatUseCase({
         workspaceId,
         organizationId,
         userId,
-        requestMode:
-          intent.mode === 'plan'
-            ? ('plan' as const)
-            : intent.mode === 'assistant'
-              ? ('assistant' as const)
-              : ('agent' as const),
+        requestMode,
         notifyWorkspaceStatus: true,
         runController: { id: run.id, token: lease.value },
+        ...(config.data.goRoute === '/api/mothership'
+          ? {
+              chatLog: {
+                chatId,
+                messageId: run.streamId,
+                requestId,
+                userId,
+                userMessage: intent.message,
+                mode: requestMode,
+                startedAt: run.startedAt.getTime(),
+              },
+            }
+          : {}),
       }
       const stream = createSSEStream({
         userId,

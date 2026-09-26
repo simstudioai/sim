@@ -1,5 +1,8 @@
+import { db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
@@ -7,13 +10,12 @@ const logger = createLogger('ChatLog')
 
 const CHAT_LOG_TIMEOUT_MS = 5_000
 
-/** The finished turn's identity, captured when the user's message is admitted. */
+/** The turn a Chat send admitted — rebuilt identically when a relay pod recovers it. */
 export interface ChatTurnLogContext {
   chatId: string
   messageId: string
   requestId: string
   userId: string
-  userEmail?: string
   userMessage: string
   mode: 'assistant' | 'agent' | 'plan'
   startedAt: number
@@ -34,6 +36,28 @@ export function logChatTurn(
 ): void {
   const url = env.SIM_LOGGING_WORKFLOW_URL
   if (!url) return
+  const durationMs = Date.now() - context.startedAt
+  void sendChatTurn(url, context, result, status, durationMs).catch((error) => {
+    logger.warn('Chat log workflow request failed', {
+      chatId: context.chatId,
+      requestId: context.requestId,
+      error: getErrorMessage(error),
+    })
+  })
+}
+
+async function sendChatTurn(
+  url: string,
+  context: ChatTurnLogContext,
+  result: OrchestratorResult,
+  status: ChatTurnStatus,
+  durationMs: number
+): Promise<void> {
+  const [row] = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, context.userId))
+    .limit(1)
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (env.SIM_LOGGING_WORKFLOW_API_KEY) headers['X-API-Key'] = env.SIM_LOGGING_WORKFLOW_API_KEY
@@ -45,7 +69,7 @@ export function logChatTurn(
     chatId: context.chatId,
     messageId: context.messageId,
     userId: context.userId,
-    userEmail: context.userEmail,
+    userEmail: row?.email,
     userMessage: context.userMessage,
     assistantResponse: result.content,
     status,
@@ -55,34 +79,25 @@ export function logChatTurn(
     mode: context.mode,
     source: 'workspace-chat',
     startedAt: new Date(context.startedAt).toISOString(),
-    durationMs: Date.now() - context.startedAt,
+    durationMs,
     usage: {
       inputTokens: result.usage?.prompt ?? 0,
       outputTokens: result.usage?.completion ?? 0,
     },
   }
 
-  void fetch(url, {
+  const response = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({ input }),
     signal: AbortSignal.timeout(CHAT_LOG_TIMEOUT_MS),
   })
-    .then(async (response) => {
-      await response.body?.cancel()
-      if (!response.ok) {
-        logger.warn('Chat log workflow returned a non-2xx status', {
-          status: response.status,
-          chatId: context.chatId,
-          requestId: context.requestId,
-        })
-      }
+  await response.body?.cancel()
+  if (!response.ok) {
+    logger.warn('Chat log workflow returned a non-2xx status', {
+      status: response.status,
+      chatId: context.chatId,
+      requestId: context.requestId,
     })
-    .catch((error) => {
-      logger.warn('Chat log workflow request failed', {
-        chatId: context.chatId,
-        requestId: context.requestId,
-        error: getErrorMessage(error),
-      })
-    })
+  }
 }

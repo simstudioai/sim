@@ -24,7 +24,7 @@ export function buildOnComplete(params: {
   organizationId?: string
   userId?: string
   requestMode?: 'assistant' | 'agent' | 'plan'
-  /** Present for Chat turns that feed the operator chat log. */
+  /** Present for workspace and organization Chat turns, which feed the operator chat log. */
   chatLog?: ChatTurnLogContext
   /**
    * Root agent span for this request. When present, the final
@@ -102,7 +102,7 @@ export function buildOnComplete(params: {
       const assistantMessage = buildPersistedAssistantMessage(result, requestId, params.requestMode)
       const hasPartial =
         !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
-      await finalizeAssistantTurn({
+      const finalization = await finalizeAssistantTurn({
         runController,
         chatId,
         userMessageId,
@@ -112,7 +112,9 @@ export function buildOnComplete(params: {
         ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
       })
 
-      if (chatLog) logChatTurn(chatLog, result, result.success ? 'success' : 'error')
+      if (chatLog && finalization.updated) {
+        logChatTurn(chatLog, result, result.success ? 'success' : 'error')
+      }
       if (notifyChatStatus) {
         publishChatStatusChanged(
           { workspaceId, organizationId, userId },
@@ -144,7 +146,7 @@ export function buildOnError(params: {
   organizationId?: string
   userId?: string
   requestMode?: 'assistant' | 'agent' | 'plan'
-  /** Present for Chat turns that feed the operator chat log. */
+  /** Present for workspace and organization Chat turns, which feed the operator chat log. */
   chatLog?: ChatTurnLogContext
 }) {
   const {
@@ -176,7 +178,7 @@ export function buildOnError(params: {
         error: result?.error || getErrorMessage(error),
       }
       const assistantMessage = buildPersistedAssistantMessage(failed, requestId, params.requestMode)
-      await finalizeAssistantTurn({
+      const finalization = await finalizeAssistantTurn({
         runController,
         chatId,
         userMessageId,
@@ -184,7 +186,7 @@ export function buildOnError(params: {
         streamMarkerPolicy: 'active-or-cleared',
       })
 
-      if (chatLog) logChatTurn(chatLog, failed, 'error')
+      if (chatLog && finalization.updated) logChatTurn(chatLog, failed, 'error')
       if (notifyChatStatus) {
         publishChatStatusChanged(
           { workspaceId, organizationId, userId },

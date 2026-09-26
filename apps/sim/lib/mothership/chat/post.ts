@@ -986,7 +986,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
   let requestId = ''
   const executionId = generateId()
   const runId = generateId()
-  const startedAt = Date.now()
 
   try {
     const session = await getSession()
@@ -1489,7 +1488,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
       const requestMode =
         body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent'
-      /** Workspace and organization Chat feed the operator chat log; the workflow panel does not. */
       const chatLog: ChatTurnLogContext | undefined =
         branch.kind !== 'workflow' && actualChatId
           ? {
@@ -1497,10 +1495,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               messageId: userMessageId,
               requestId,
               userId: authenticatedUserId,
-              ...(authenticatedUserEmail ? { userEmail: authenticatedUserEmail } : {}),
               userMessage: body.message,
               mode: requestMode,
-              startedAt,
+              startedAt: Date.now(),
             }
           : undefined
       const stream = createSSEStream({
