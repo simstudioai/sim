@@ -43,6 +43,18 @@ it('highlights the hovered row around its label and bar without touching neighbo
     expect(area.y + area.height).toBeGreaterThanOrEqual(barCenter(hovered) + 8)
     expect(area.y).toBeGreaterThanOrEqual(barCenter(hovered - 1) + 8)
     expect(area.y + area.height).toBeLessThanOrEqual(labelTop(categories[hovered + 1]))
+
+    chart.resize({ width: 720, height: height * 2 })
+    chart.getZr().flush()
+    chart.getZr().flush()
+    const resized = chart
+      .getZr()
+      .storage.getDisplayList(true)
+      .find((node) => node.type === 'rect' && !node.invisible && node.style.opacity === 0.06)
+    if (!resized) throw new Error('Missing row highlight after resize')
+    const moved = resized.getBoundingRect()
+    expect(moved.y + moved.height).toBeGreaterThanOrEqual(barCenter(hovered) + 8)
+    expect(moved.y).toBeGreaterThanOrEqual(barCenter(hovered - 1) + 8)
     dispose()
   } finally {
     chart.dispose()

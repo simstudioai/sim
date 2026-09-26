@@ -45,6 +45,31 @@ describe('horizontal bar label layout', () => {
     expect(authored.yAxis[0]).not.toHaveProperty('axisLabel')
   })
 
+  it('keeps the label column for grouped bars and sizes rows for every bar in the group', () => {
+    const grouped = {
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category' },
+      series: [{ type: 'bar' }, { type: 'bar' }],
+    }
+    expect(buildChartRenderOption({ option: grouped }).yAxis).not.toHaveProperty('axisLabel')
+    const single = { ...grouped, series: [{ type: 'bar' }] }
+    const rows = 20
+    expect(horizontalBarChartHeight(grouped, rows)).toBeGreaterThanOrEqual(
+      (horizontalBarChartHeight({ ...single, grid: { left: 0 } }, rows) ?? 0) +
+        rows * CHART_BAR_MAX_WIDTH
+    )
+    const stacked = {
+      ...grouped,
+      series: [
+        { type: 'bar', stack: 'total' },
+        { type: 'bar', stack: 'total' },
+      ],
+    }
+    expect(buildChartRenderOption({ option: stacked }).yAxis).toMatchObject({
+      axisLabel: { inside: true },
+    })
+  })
+
   it('keeps the ECharts label column for percentage bar widths it cannot size per row', () => {
     const option = {
       xAxis: { type: 'value' },

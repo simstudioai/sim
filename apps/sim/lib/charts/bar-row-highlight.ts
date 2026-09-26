@@ -30,17 +30,28 @@ export function installBarRowHighlight(
   }
   const color = getComputedStyle(chart.getDom()).getPropertyValue('--text-body').trim()
   let current: number | null = null
+  /** Geometry last drawn; a resize changes it for the same row, so rows alone cannot dedupe. */
+  let drawn = ''
 
   const render = (row: number | null) => {
-    if (row === current) return
     current = row
     if (row === null) {
+      if (drawn === 'hidden') return
+      drawn = 'hidden'
       chart.setOption({ graphic: [{ id: HIGHLIGHT_ID, type: 'rect', invisible: true }] })
       return
     }
     const center = chart.convertToPixel({ yAxisIndex: 0 }, row)
     const left = inset(grid.left)
-    const bottom = center + barWidth / 2 + BELOW_BAR_MARGIN
+    const shape = {
+      x: left,
+      y: center + barWidth / 2 + BELOW_BAR_MARGIN - rowHeight,
+      width: chart.getWidth() - left - inset(grid.right),
+      height: rowHeight,
+    }
+    const geometry = JSON.stringify(shape)
+    if (geometry === drawn) return
+    drawn = geometry
     chart.setOption({
       graphic: [
         {
@@ -49,12 +60,7 @@ export function installBarRowHighlight(
           invisible: false,
           silent: true,
           z: 0,
-          shape: {
-            x: left,
-            y: bottom - rowHeight,
-            width: chart.getWidth() - left - inset(grid.right),
-            height: rowHeight,
-          },
+          shape,
           style: { fill: color, opacity: 0.06 },
         },
       ],
@@ -68,10 +74,16 @@ export function installBarRowHighlight(
     render(typeof category?.value === 'number' ? category.value : null)
   }
   const onLeave = () => render(null)
+  /** Resizes re-render the chart; redraw the active row so it follows the new layout. */
+  const onRendered = () => {
+    if (current !== null) render(current)
+  }
   chart.on('updateAxisPointer', onPointer)
   chart.on('globalout', onLeave)
+  chart.on('finished', onRendered)
   return () => {
     chart.off('updateAxisPointer', onPointer)
     chart.off('globalout', onLeave)
+    chart.off('finished', onRendered)
   }
 }

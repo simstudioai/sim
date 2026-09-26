@@ -36,10 +36,32 @@ export function isHorizontalBarOption(option: Record<string, unknown>): boolean 
 
 const CATEGORY_LABEL_LAYOUT_KEYS = ['inside', 'width', 'margin'] as const
 
+const BAR_GROUP_GAP = 4
+
+/**
+ * Bar thickness per slot in one category row: stacked series share a slot, every other series
+ * gets its own, and slots sit side by side within the row.
+ */
+function barSlotWidths(option: Record<string, unknown>): number[] {
+  const series = Array.isArray(option.series) ? option.series : [option.series]
+  const slots = new Map<unknown, number>()
+  series.forEach((entry, index) => {
+    const bar = toRecord(entry)
+    const width = bar.barWidth ?? bar.barMaxWidth
+    const key = bar.stack ?? Symbol(index)
+    slots.set(
+      key,
+      Math.max(slots.get(key) ?? 0, typeof width === 'number' ? width : CHART_BAR_MAX_WIDTH)
+    )
+  })
+  return [...slots.values()]
+}
+
 /**
  * Labels above the bars are a default layout, not a blend: an option that places its own
  * category labels or reserves a left inset keeps the standard ECharts left column intact. So
- * does a percentage bar width, which scales with the plot and cannot be sized per row.
+ * does a percentage bar width, which scales with the plot and cannot be sized per row, and a
+ * grouped chart, whose side-by-side bars leave no single bar to place a label above.
  */
 function authorsCategoryLabelColumn(option: Record<string, unknown>): boolean {
   const axis = toRecord(Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis)
@@ -47,6 +69,7 @@ function authorsCategoryLabelColumn(option: Record<string, unknown>): boolean {
   const grids = Array.isArray(option.grid) ? option.grid : [option.grid]
   const series = Array.isArray(option.series) ? option.series : [option.series]
   return (
+    barSlotWidths(option).length > 1 ||
     CATEGORY_LABEL_LAYOUT_KEYS.some((key) => axisLabel[key] !== undefined) ||
     series.some((entry) => {
       const bar = toRecord(entry)
@@ -176,9 +199,11 @@ export function horizontalBarChartHeight(
   rowCount: number
 ): number | null {
   if (!isHorizontalBarOption(option)) return null
+  const slots = barSlotWidths(option)
+  const barsHeight =
+    slots.reduce((total, width) => total + width, 0) + BAR_GROUP_GAP * (slots.length - 1)
   const rowHeight =
-    horizontalBarWidth(option) +
-    (authorsCategoryLabelColumn(option) ? LEFT_LABEL_ROW_GAP : ABOVE_BAR_LABEL_SPACE)
+    barsHeight + (authorsCategoryLabelColumn(option) ? LEFT_LABEL_ROW_GAP : ABOVE_BAR_LABEL_SPACE)
   return Math.max(MIN_CHART_HEIGHT, HORIZONTAL_BAR_CHROME_HEIGHT + rowCount * rowHeight)
 }
 
