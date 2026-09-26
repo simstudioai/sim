@@ -33,12 +33,6 @@ interface ChatStatusEventPayload {
   streamId?: string
 }
 
-const DETAIL_INVALIDATING_CHAT_STATUS_TYPES = new Set<ChatStatusEventType>([
-  'started',
-  'completed',
-  'renamed',
-])
-
 function isChatStatusEventType(value: unknown): value is ChatStatusEventType {
   return typeof value === 'string' && CHAT_STATUS_TYPE_SET.has(value)
 }
@@ -65,15 +59,22 @@ function hasNewerKnownActiveStream(current: MothershipChatHistory | undefined, s
   return activeIndex > eventStreamIndex
 }
 
+/**
+ * Returns true when refetching the chat detail for a stream event would only
+ * reload the transcript this client already holds or is about to reload. A
+ * completion of the viewer's own live stream is skipped because the server
+ * persists the turn before closing that stream, and the client's own
+ * finalization refetches the detail once it sees the close.
+ */
 function shouldSkipDetailInvalidationForStreamEvent(
   current: MothershipChatHistory | undefined,
   payload: ChatStatusEventPayload
 ) {
-  if (payload.type !== 'started' && payload.type !== 'completed') return false
   if (!current?.activeStreamId) return false
   if (!payload.streamId) return isLocalOptimisticActiveStream(current)
-  if (payload.type === 'started' && current.activeStreamId === payload.streamId) return true
-  if (current.activeStreamId === payload.streamId) return false
+  if (current.activeStreamId === payload.streamId) {
+    return payload.type === 'started' || isLocalOptimisticActiveStream(current)
+  }
   if (hasNewerKnownActiveStream(current, payload.streamId)) return true
   return (
     payload.type === 'completed' &&
@@ -128,17 +129,23 @@ export function handleMothershipChatStatusEvent(
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }
-  if (payload.type === 'started' || payload.type === 'completed') {
-    const current = queryClient.getQueryData<MothershipChatHistory>(
-      mothershipChatKeys.detail(payload.chatId)
-    )
-    if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) {
-      return
-    }
+  if (payload.type === 'renamed') {
+    /**
+     * The lists invalidated above carry the title every surface renders; the
+     * detail only needs marking stale, not a full transcript reload.
+     */
+    queryClient.invalidateQueries({
+      queryKey: mothershipChatKeys.detail(payload.chatId),
+      refetchType: 'none',
+    })
+    return
   }
-  if (payload.type && DETAIL_INVALIDATING_CHAT_STATUS_TYPES.has(payload.type)) {
-    queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
-  }
+  if (payload.type !== 'started' && payload.type !== 'completed') return
+  const current = queryClient.getQueryData<MothershipChatHistory>(
+    mothershipChatKeys.detail(payload.chatId)
+  )
+  if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) return
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
 }
 
 /**

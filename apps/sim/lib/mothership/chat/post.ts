@@ -41,7 +41,11 @@ import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
-import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import {
+  type ChatLoadResult,
+  loadChatMcpServerIds,
+  resolveOrCreateChat,
+} from '@/lib/mothership/chat/lifecycle'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
@@ -489,27 +493,13 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
  * on a sent message showing only what the user actually typed that turn.
  */
 function collectChatMcpServerIds(
-  conversationHistory: unknown[],
+  chatMcpServerIds: string[],
   currentContexts: UnifiedChatRequest['contexts']
 ): string[] {
-  const serverIds = new Set<string>()
-
-  const collect = (contexts: unknown) => {
-    if (!Array.isArray(contexts)) return
-    for (const ctx of contexts) {
-      if (!ctx || typeof ctx !== 'object') continue
-      const { kind, serverId } = ctx as { kind?: unknown; serverId?: unknown }
-      if (kind === 'mcp' && typeof serverId === 'string' && serverId) {
-        serverIds.add(serverId)
-      }
-    }
+  const serverIds = new Set(chatMcpServerIds)
+  for (const ctx of currentContexts ?? []) {
+    if (ctx.kind === 'mcp' && ctx.serverId) serverIds.add(ctx.serverId)
   }
-
-  for (const message of conversationHistory) {
-    collect((message as { contexts?: unknown } | null)?.contexts)
-  }
-  collect(currentContexts)
-
   return Array.from(serverIds)
 }
 
@@ -1153,7 +1143,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       activeOtelRoot.setInputMessages({ userMessage: body.message })
 
       let currentChat: ChatLoadResult['chat'] = null
-      let conversationHistory: unknown[] = []
       let chatIsNew = false
       actualChatId = body.chatId
 
@@ -1190,9 +1179,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         currentChat = chatResult.chat
         actualChatId = chatResult.chatId || body.chatId
         chatIsNew = chatResult.isNew
-        conversationHistory = Array.isArray(chatResult.conversationHistory)
-          ? chatResult.conversationHistory
-          : []
 
         if (body.chatId && !currentChat) {
           activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 404)
@@ -1317,13 +1303,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.context
         )
       })
-      const [agentContexts, userPermission, executionContext, personalCredentials] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          executionContextPromise,
-          personalCredentialsPromise,
-        ])
+      const chatMcpServerIdsPromise =
+        currentChat && !chatIsNew ? loadChatMcpServerIds(currentChat.id) : Promise.resolve([])
+      const [
+        agentContexts,
+        userPermission,
+        executionContext,
+        personalCredentials,
+        chatMcpServerIds,
+      ] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        executionContextPromise,
+        personalCredentialsPromise,
+        chatMcpServerIdsPromise,
+      ])
       let workspaceContext: string | undefined
       if (personalCredentials) {
         workspaceContext = JSON.stringify({
@@ -1366,7 +1360,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
         },
         () => {
-          const mcpServerIds = collectChatMcpServerIds(conversationHistory, normalizedContexts)
+          const mcpServerIds = collectChatMcpServerIds(chatMcpServerIds, normalizedContexts)
           return branch.kind === 'workflow'
             ? branch.buildPayload({
                 message: body.message,

@@ -154,7 +154,6 @@ describe('Inbox execution actor', () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [],
       isNew: true,
     })
     dbChainMockFns.returning
