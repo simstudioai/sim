@@ -6,6 +6,7 @@ import {
   nativeDateBounds,
   nativeText,
 } from '@/lib/sim-search/live/dates'
+import { readDiscussionSection } from '@/lib/sim-search/live/discussion'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
@@ -124,7 +125,72 @@ export async function readDrive(client: NativeClient, id: string): Promise<Nativ
   } else {
     document.content = `File metadata only. Open the source to read this ${document.kind} file.\n${document.content}`
   }
+  const discussion = await readDriveDiscussion(client, id)
+  document.content = [
+    discussion.warning,
+    document.content,
+    `Source: ${document.url}`,
+    discussion.content,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   return document
+}
+
+/** Drive returns the complete chronological reply list on each comment resource. */
+const DRIVE_COMMENT_FIELDS =
+  'id,content,createdTime,modifiedTime,resolved,deleted,author(displayName),quotedFileContent(value),replies(id,content,createdTime,modifiedTime,deleted,action,author(displayName))'
+
+function* driveDiscussionEntries(comments: Record<string, unknown>[]): Generator<string> {
+  for (const comment of comments) {
+    if (comment.deleted === true) continue
+    yield [
+      `Comment ${string(comment.id)} · ${comment.resolved === true ? 'resolved' : 'unresolved'}`,
+      `${string(object(comment.author).displayName) || 'Unknown author'} · ${string(comment.createdTime)}`,
+      string(comment.modifiedTime) && comment.modifiedTime !== comment.createdTime
+        ? `Updated: ${string(comment.modifiedTime)}`
+        : '',
+      string(object(comment.quotedFileContent).value)
+        ? `Quoted file content: ${string(object(comment.quotedFileContent).value)}`
+        : '',
+      string(comment.content),
+    ]
+      .filter(Boolean)
+      .join('\n')
+    for (const reply of array(comment.replies)) {
+      if (reply.deleted === true) continue
+      yield [
+        `Reply ${string(reply.id)} to comment ${string(comment.id)}`,
+        `${string(object(reply.author).displayName) || 'Unknown author'} · ${string(reply.createdTime)}`,
+        string(reply.modifiedTime) && reply.modifiedTime !== reply.createdTime
+          ? `Updated: ${string(reply.modifiedTime)}`
+          : '',
+        string(reply.action) ? `Action: ${string(reply.action)}` : '',
+        string(reply.content),
+      ]
+        .filter(Boolean)
+        .join('\n')
+    }
+  }
+}
+
+function readDriveDiscussion(client: NativeClient, id: string) {
+  return readDiscussionSection('Drive comments and replies', async (cursor) => {
+    const data = object(
+      await client.json(`/drive/v3/files/${segment(id)}/comments`, {
+        query: {
+          fields: `nextPageToken,comments(${DRIVE_COMMENT_FIELDS})`,
+          pageSize: '20',
+          includeDeleted: 'false',
+          ...(cursor ? { pageToken: cursor } : {}),
+        },
+      })
+    )
+    return {
+      entries: driveDiscussionEntries(array(data.comments)),
+      nextCursor: string(data.nextPageToken) || undefined,
+    }
+  })
 }
 
 /** One metadata read per match, bounded so a page stays within Gmail's per-user rate. */

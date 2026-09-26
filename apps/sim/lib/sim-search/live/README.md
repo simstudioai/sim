@@ -90,7 +90,7 @@ Content types, code branch/tag, path prefix, file extensions, and issue state/la
 
 ## Adding a live Search connector
 
-A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. There are currently nine live providers, while the broader KB registry contains additional providers that are not advertised for Search.
+A workspace KB connector and a live Search provider are different runtime integrations. `listDocuments`/`getDocument`, hashes, chunks, and embeddings remain the KB contract; adding those functions alone does not implement live Search. There are currently thirteen live providers, while the broader KB registry contains additional providers that are not advertised for Search.
 
 ### Registration and ownership
 
@@ -98,11 +98,11 @@ Paths below are relative to `apps/sim`.
 
 | Concern | Canonical location | What to add |
 | --- | --- | --- |
-| Name, logo, auth metadata, config fields | `connectors/<provider>/meta.ts`, registered in `connectors/registry.ts` | Reuse the existing icon from `components/icons`; keep metadata browser-safe. Set `search: true` only when live behavior is implemented and tested. |
+| Name, logo and member setup | `lib/sim-search/live/source-catalog.ts` | Reuse browser-safe connector or managed MCP branding. Live registration does not opt an unrelated KB connector into indexed Search. |
 | Supported provider ID, default origin, credential aliases, account modes | `lib/sim-search/live/provider-catalog.ts` | One `LIVE_SEARCH_PROVIDER_CATALOG` entry. The MCP/tool enum, credential matching, and mode availability derive from it. |
 | Search endpoint and response conversion | `lib/sim-search/live/<provider>.ts` | Implement the provider's documented query, bounded pagination, source dates, snippets, URLs, and status behavior through `NativeClient`. |
 | Document-read endpoint | The same provider module | Read the exact returned reference and return `NativeDocument`. Support every kind the search adapter can emit. |
-| Runtime registration | `lib/sim-search/live/providers.ts` | Register both `search` and `read` in `LIVE_SEARCH_PROVIDERS`. Its exhaustive type requires both for every catalog entry. |
+| Runtime registration | `lib/sim-search/live/providers.ts` | Register native `search` and `read`, or a managed MCP transport with a query guide. `account-session.ts` dispatches managed adapters for the member’s fixed server. |
 | OAuth or managed credentials | Existing `lib/oauth`, `lib/credential-groups`, and credential application operations | Register actual scopes and refresh behavior; resolve the acting user's grant server-side. A catalog alias does not configure OAuth itself. |
 | Service-mode resource fields | `lib/sim-search/live/source-settings.ts` | Expose only fields that live verification actually enforces. Branding and original field definitions stay in ConnectorMeta. |
 | Service source loading and validation | `service-sources.ts`, `source-policy.ts`, `service-session.ts`, provider verifier | Bind current org/provider/source identity; independently verify member results against current source access and settings. Do not advertise service mode without this. |
@@ -112,7 +112,7 @@ Paths below are relative to `apps/sim`.
 
 The provider catalog holds a trusted origin, not an arbitrary URL supplied by a model. Actual endpoint paths and query translation belong in the provider module. `http.ts` supplies bounded responses, a per-client request budget, timeout/cancellation, configured-endpoint validation, and no credential-bearing redirects. Use its origin-bound path API; do not return tokens to UI or model tools.
 
-Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Coda MCP is a deliberate adapter exception: its current managed server/grant is resolved by `mcp-accounts.ts` and `coda-mcp.ts`, which discover tool schemas and permit only the fixed read tools. Neither exception lets a search query choose a credential destination.
+Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Managed MCP providers resolve the current member server/grant through `mcp-accounts.ts` and `managed-mcp.ts`, discover tool schemas and permit only fixed read tools. Coda, Fireflies, Granola and Notion each have an adapter for their actual search/read formats. Neither exception lets a search query choose a credential destination.
 
 ### Provider endpoint map
 
@@ -126,6 +126,10 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | v2 `/wiki/api/v2/pages/{id}` or `/blogposts/{id}` (`body-format=view`); a space reads as its homepage | Same site, spaces, current type/status/labels, source readability |
 | GitHub | `/search/issues`, `/search/code`, `/search/repositories`, `/search/commits` | Issue, repository, commit, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
 | GitLab | Configured `/api/v4/projects/{project}/search`, or supported date listing | Project issue/MR/wiki/file endpoint | Current request-local admin ACL evidence or saved CSV grants, plus content filters |
+| Linear | GraphQL `searchIssues` including comments/archived, or dated `issues` listing | Issue description and paginated comments | Member only; current OAuth grant |
+| Fireflies | MCP `fireflies_get_transcripts` with `scope: all` | Transcript sentences plus summary | Member only; fixed official OAuth server |
+| Granola | MCP meeting query or date listing, hydrated cited meetings | Notes and transcript when available | Member only; source evidence and explicit bounded coverage |
+| Notion | MCP access discovery, AI content search or fallback search | Exact Notion page fetch | Member only; connected-app results excluded |
 | Coda | Personal MCP `search`; REST `/apis/v1/docs` title-search compatibility | MCP read allowlist; REST compatibility document/page reads | Selected parent doc and current source-token visibility; optional Enterprise org membership |
 
 GitHub members use App user tokens. The deployment App needs read permissions for Contents, Issues, and Pull requests for full supported search/read coverage, plus Metadata, organization Members, and user Email addresses for existing setup/identity checks. Installation tokens used to prove repository coverage stay narrowed to contents/metadata; do not use them to replace the member's content grant.
@@ -151,3 +155,9 @@ For end-to-end verification, use authorized fixture accounts on localhost: add t
 - A Google service account requires the provider's actual domain-wide delegation setup and allowed scopes; selecting a mode does not grant permissions. [Google service account delegation](https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority).
 - A service source limits content; it does not grant a member access they lack. GitLab is the explicit exception to personal-provider retrieval and uses separate source ACL checks.
 - Credential Groups and standard knowledge-base connectors remain unchanged. Search's old content-index status is not an authorization dependency for federated requests. Indexed ACL rewrite markers are retained so switching back cannot expose previously indexed content under stale permissions.
+
+### Discussion and meeting evidence
+
+GitHub issue/PR reads include ordinary comments, submitted review decisions and inline review comments with author, date, source link and diff context. Issue-search previews prefer the matching comment fragment. `in:comments` does not guarantee discovery of inline review text. Drive comments and nested replies enrich document reads; Drive file search does not index those discussions. Both adapters report pagination, permission or text caps as incomplete at the start of the read.
+
+Fireflies and Granola use `eventStartAt` for generic date filters; modification filters require independent provider modification metadata. Granola semantic answers are never substituted for source notes: only identifiable cited meetings that can be read become documents. Notion MCP searches content rather than REST titles; plan-dependent tool access, ignored filters and bounded results must remain visible to callers.
