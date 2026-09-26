@@ -6,12 +6,16 @@
     "mcp",
     "coda",
     "confluence",
+    "fireflies",
     "github",
     "gitlab",
     "gmail",
     "google-calendar",
     "google-drive",
+    "granola",
     "jira",
+    "linear",
+    "notion",
     "slack"
   ]
 }

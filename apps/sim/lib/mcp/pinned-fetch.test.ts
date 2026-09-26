@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -27,7 +28,11 @@ vi.mock('@/lib/mcp/domain-check', () => ({
 }))
 
 import { McpSsrfError } from '@/lib/mcp/domain-check'
-import { createGuardedMcpFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import {
+  createGuardedMcpFetch,
+  createPinnedPrivateMcpFetch,
+  createSsrfGuardedMcpFetch,
+} from '@/lib/mcp/pinned-fetch'
 
 const mockCreateGuardedFetchWithDispatcher =
   inputValidationMockFns.mockCreateSsrfGuardedFetchWithDispatcher
@@ -46,7 +51,7 @@ describe('createGuardedMcpFetch', () => {
     })
   })
 
-  it('caps an oversized non-GET response body but leaves the GET SSE stream unbounded', async () => {
+  it('caps an oversized non-GET response body', async () => {
     const big = new Uint8Array(20 * 1024 * 1024) // 20 MiB > 16 MiB cap
     const makeBody = () =>
       new ReadableStream<Uint8Array>({
@@ -61,10 +66,6 @@ describe('createGuardedMcpFetch', () => {
     // A POST (tools/call) body over the cap errors when read.
     const post = await guarded('https://mcp.example/mcp', { method: 'POST' })
     await expect(new Response(post.body).arrayBuffer()).rejects.toThrow(/exceeded \d+ bytes/)
-
-    // The standalone GET SSE stream is not capped — its body streams through.
-    const get = await guarded('https://mcp.example/mcp', { method: 'GET' })
-    await expect(new Response(get.body).arrayBuffer()).resolves.toBeInstanceOf(ArrayBuffer)
   })
 
   it('preserves url and redirected on a capped response (SDK auth-metadata resolution)', async () => {
@@ -97,6 +98,106 @@ describe('createGuardedMcpFetch', () => {
       'https://auth.other.example/token',
       'contentFetch'
     )
+  })
+})
+
+describe.each([
+  { name: 'guarded', create: () => createGuardedMcpFetch() },
+  { name: 'pinned private', create: () => createPinnedPrivateMcpFetch('127.0.0.1') },
+])('$name MCP stream limits', ({ create }) => {
+  beforeEach(() => {
+    const transport = { fetch: sentinelFetch, dispatcher: { destroy: mockDestroy } }
+    mockCreateGuardedFetchWithDispatcher.mockReturnValue(transport)
+    mockCreatePinnedFetchWithDispatcher.mockReturnValue(transport)
+  })
+
+  it.each(['', '\n', '\r\n', '\r'])(
+    'rejects an oversized SSE event before draining its source, with line ending %j',
+    async (lineEnding) => {
+      const chunk = new TextEncoder().encode(`data: ${'x'.repeat(1024 * 1024)}${lineEnding}`)
+      let produced = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (produced === 20) controller.close()
+          else {
+            produced++
+            controller.enqueue(chunk)
+          }
+        },
+      })
+      sentinelFetch.mockResolvedValueOnce(
+        new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+      )
+      const response = await create().fetch('https://mcp.example/mcp', { method: 'GET' })
+      const reader = response.body!.getReader()
+      let received = 0
+      const drain = async () => {
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          received += value.byteLength
+        }
+      }
+      await expect(drain()).rejects.toThrow(/exceeded \d+ bytes/)
+      expect(received).toBeLessThanOrEqual(16 * 1024 * 1024)
+      expect(produced).toBeLessThan(20)
+    }
+  )
+
+  it.each(['\n', '\r\n', '\r'])(
+    'preserves long SSE streams with event separators split across chunks: %j',
+    async (lineEnding) => {
+      const encoder = new TextEncoder()
+      const event = encoder.encode(`data: ${'x'.repeat(1024 * 1024)}`)
+      const separators = [...`${lineEnding}${lineEnding}`].map((value) => encoder.encode(value))
+      const chunks = Array.from({ length: 20 }, () => [event, ...separators]).flat()
+      let index = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index === chunks.length) controller.close()
+          else controller.enqueue(chunks[index++]!)
+        },
+      })
+      const original = new Response(body, {
+        headers: {
+          'content-type': 'text/event-stream; charset=utf-8',
+          'mcp-session-id': 'session',
+        },
+      })
+      Object.defineProperty(original, 'url', { value: 'https://mcp.example/mcp' })
+      Object.defineProperty(original, 'redirected', { value: true })
+      sentinelFetch.mockResolvedValueOnce(original)
+      const response = await create().fetch('https://mcp.example/mcp', { method: 'GET' })
+      expect(response.url).toBe(original.url)
+      expect(response.redirected).toBe(true)
+      expect(response.headers.get('mcp-session-id')).toBe('session')
+      const reader = response.body!.getReader()
+      const expectedHash = createHash('sha256')
+      for (const chunk of chunks) expectedHash.update(chunk)
+      const actualHash = createHash('sha256')
+      let received = 0
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        actualHash.update(value)
+        received += value.byteLength
+      }
+      expect(actualHash.digest('hex')).toBe(expectedHash.digest('hex'))
+      expect(received).toBeGreaterThan(16 * 1024 * 1024)
+    }
+  )
+
+  it('caps a non-SSE GET response even when it contains blank lines', async () => {
+    const event = `data: ${'x'.repeat(1024 * 1024)}\n\n`
+    sentinelFetch.mockResolvedValueOnce(
+      new Response(event.repeat(20), { headers: { 'content-type': 'application/json' } })
+    )
+    const response = await create().fetch('https://mcp.example/mcp', { method: 'GET' })
+    const drain = async () => {
+      const reader = response.body!.getReader()
+      while (!(await reader.read()).done) {}
+    }
+    await expect(drain()).rejects.toThrow(/exceeded \d+ bytes/)
   })
 })
 

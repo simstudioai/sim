@@ -50,7 +50,7 @@ export interface ManagedMcpConnectorSummary {
 }
 
 export type CreateManagedMcpConnectorInput =
-  | { connectorId: 'fireflies' | 'granola' | 'coda' }
+  | { connectorId: Exclude<ManagedMcpConnectorId, 'databricks'> }
   | {
       connectorId: 'databricks'
       name: string
@@ -176,13 +176,16 @@ async function retireManagedMcpCredentials(
   return retired.map((row) => row.id)
 }
 
-export async function createManagedMcpConnector(params: {
-  workspaceId?: string
-  organizationId?: string
-  credentialGroupId: string
-  userId: string
-  input: CreateManagedMcpConnectorInput
-}): Promise<ManagedMcpConnectorMutationResult> {
+export async function createManagedMcpConnector(
+  params: {
+    workspaceId?: string
+    organizationId?: string
+    credentialGroupId: string
+    userId: string
+    input: CreateManagedMcpConnectorInput
+  },
+  executor?: DbOrTx
+): Promise<ManagedMcpConnectorMutationResult> {
   const scope = resourceScopeFromOwner(params)
   const connector = getManagedMcpConnector(params.input.connectorId)
   const url = resolveManagedMcpConnectorUrl(
@@ -208,7 +211,7 @@ export async function createManagedMcpConnector(params: {
   }
 
   try {
-    const mcpServer = await db.transaction(async (tx) => {
+    const create = async (tx: DbOrTx) => {
       const [group] = await tx
         .select({ id: credentialGroup.id })
         .from(credentialGroup)
@@ -321,7 +324,8 @@ export async function createManagedMcpConnector(params: {
         .returning()
       if (!created) throw new Error('Managed MCP server insert returned no row')
       return created
-    })
+    }
+    const mcpServer = executor ? await create(executor) : await db.transaction(create)
     return {
       mcpServer: toSummary(mcpServer),
       retiredMcpConnectionIds: [],

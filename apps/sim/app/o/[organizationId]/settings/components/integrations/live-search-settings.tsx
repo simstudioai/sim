@@ -9,15 +9,16 @@ import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
-  getConnectorAccessAvailability,
-  SEARCH_SOURCE_TYPES,
-  searchMemberAccountProvider,
-} from '@/lib/sim-search/connectors'
-import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SCOPE_FIELDS,
   LIVE_SEARCH_SERVICE_PROVIDERS,
 } from '@/lib/sim-search/live/policy-schema'
+import {
+  getLiveSearchAccessAvailability,
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchMcpConnector,
+  liveSearchMemberAccountProvider,
+} from '@/lib/sim-search/live/source-catalog'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AddOrganizationSourceModal } from '@/app/o/[organizationId]/settings/components/integrations/add-organization-source-modal'
 import {
@@ -71,7 +72,7 @@ export function LiveSearchSettings() {
     policies.data?.filter((row) => row.approved && LIVE_SEARCH_SCOPE_FIELDS[row.connectorType]) ??
     []
   const visible = added.filter((integration) =>
-    SEARCH_SOURCE_TYPES.some(
+    LIVE_SEARCH_SOURCE_TYPES.some(
       ([type, meta]) =>
         type === integration.connectorType && meta.name.toLowerCase().includes(search.toLowerCase())
     )
@@ -80,12 +81,12 @@ export function LiveSearchSettings() {
   const showSecrets =
     secretSource && GENERIC_SECRETS_META.name.toLowerCase().includes(search.toLowerCase())
   const availableToAdd = [
-    ...SEARCH_SOURCE_TYPES.filter(
+    ...LIVE_SEARCH_SOURCE_TYPES.filter(
       ([type]) => LIVE_SEARCH_SCOPE_FIELDS[type] && !added.some((row) => row.connectorType === type)
     ).map(([type, meta]) => ({
       type,
       meta,
-      access: getConnectorAccessAvailability(meta, availability.integrationAvailability, {
+      access: getLiveSearchAccessAvailability(type, availability.integrationAvailability, {
         memberAccessAvailable: searchAccess.memberScoped,
         mirroredAccessAvailable: searchAccess.sourceMirrored,
         oauthServiceAvailability: availability.oauthServiceAvailability,
@@ -143,21 +144,28 @@ export function LiveSearchSettings() {
               />
             )}
             {visible.map((integration) => {
-              const [type, meta] = SEARCH_SOURCE_TYPES.find(
+              const [type, meta] = LIVE_SEARCH_SOURCE_TYPES.find(
                 ([sourceType]) => sourceType === integration.connectorType
               )!
               const serviceAccount =
                 type === 'gitlab' || integration.policy?.accessMode === 'service_account'
-              const memberProvider = searchMemberAccountProvider(type)
+              const memberProvider = liveSearchMemberAccountProvider(type)
+              const mcpProvider = liveSearchMcpConnector(type)
+              const group = accounts.data?.credentialGroup
               const needsMemberSetup =
-                memberProvider &&
                 accounts.data &&
-                !accounts.data.credentialGroup?.options.some(
-                  (option) =>
-                    option.provider === memberProvider &&
-                    option.status === 'active' &&
-                    option.configurationStatus === 'ready'
-                )
+                (memberProvider || mcpProvider) &&
+                (group?.status !== 'active' ||
+                  (mcpProvider
+                    ? !group.mcpServers.some(
+                        (server) => server.managedConnectorId === mcpProvider && server.enabled
+                      )
+                    : !group.options.some(
+                        (option) =>
+                          option.provider === memberProvider &&
+                          option.status === 'active' &&
+                          option.configurationStatus === 'ready'
+                      )))
               const scope = serviceAccount
                 ? type === 'gitlab'
                   ? 'Projects and permissions'
@@ -255,7 +263,7 @@ export function LiveSearchSettings() {
         onOpenChange={(open) => {
           if (!open && !update.isPending) setRemoving(null)
         }}
-        title={`Remove ${removing ? SEARCH_SOURCE_TYPES.find(([type]) => type === removing)?.[1].name : ''} source?`}
+        title={`Remove ${removing ? LIVE_SEARCH_SOURCE_TYPES.find(([type]) => type === removing)?.[1].name : ''} source?`}
         text='Members will no longer be able to search this source.'
         confirm={{
           label: 'Remove source',
