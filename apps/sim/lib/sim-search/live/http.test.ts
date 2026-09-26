@@ -74,6 +74,22 @@ describe('native search network boundary', () => {
     )
     expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
   })
+  it('keeps the HTTP status of a provider failure so callers can tell a missing item apart', async () => {
+    const client = createNativeClient({
+      origin: 'https://api.atlassian.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    for (const status of [404, 500]) {
+      inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValueOnce(
+        new Response('missing', { status })
+      )
+      await expect(client.json('/ex/confluence/cloud/wiki/api/v2/pages/1')).rejects.toMatchObject({
+        status: 'unavailable',
+        httpStatus: status,
+      })
+    }
+  })
   it('reports Retry-After without exposing the provider response body', async () => {
     inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValue(
       new Response('sensitive diagnostic', { status: 429, headers: { 'Retry-After': '45' } })

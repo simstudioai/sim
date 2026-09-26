@@ -66,11 +66,27 @@ function issue(row: Record<string, unknown>, cloudId: string, site: string): Nat
   }
 }
 function page(row: Record<string, unknown>, cloudId: string, site: string): NativeDocument {
+  if (string(row.entityType) === 'space') {
+    const space = object(row.space)
+    return {
+      id: string(space.key),
+      kind: 'space',
+      accessMetadata: { spaceKey: string(space.key) },
+      container: cloudId,
+      title: string(row.title) || string(space.name),
+      url: `${site}/wiki${string(row.url) || `/spaces/${segment(string(space.key))}`}`,
+      content: providerText(string(row.excerpt), 'html') || string(row.title),
+      modifiedAt: string(row.lastModified),
+    }
+  }
   const content = Object.keys(object(row.content)).length ? object(row.content) : row
   const links = object(content._links)
   const version = object(content.version)
+  const spaceKey = string(object(content.space).key)
   return {
     id: string(content.id),
+    kind: string(content.type) === 'blogpost' ? 'blogpost' : 'page',
+    ...(spaceKey ? { accessMetadata: { spaceKey } } : {}),
     container: cloudId,
     title: string(content.title) || string(row.title),
     url: `${site}/wiki${string(links.webui) || `/pages/${segment(string(content.id))}`}`,
@@ -161,7 +177,7 @@ export async function searchAtlassian(
               order
             ),
             limit: String(input.limit),
-            expand: 'content.version',
+            expand: 'content.version,content.space',
             ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
           },
         })
@@ -190,7 +206,8 @@ export async function readAtlassian(
   client: NativeClient,
   provider: 'jira' | 'confluence',
   id: string,
-  cloudId?: string
+  cloudId?: string,
+  kind?: string
 ): Promise<NativeDocument> {
   const site = (await sites(client)).find((row) => string(row.id) === cloudId)
   if (!site || !cloudId)
@@ -205,13 +222,58 @@ export async function readAtlassian(
       cloudId,
       string(site.url)
     )
-  return page(
-    object(
-      await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/content/${segment(id)}`, {
-        query: { expand: 'body.view,version' },
-      })
-    ),
-    cloudId,
-    string(site.url)
+  return readConfluence(client, cloudId, string(site.url), id, kind)
+}
+
+/**
+ * Reads through the v2 API, whose page, blog post, and space endpoints need only the granular
+ * read scopes a Search connection grants; v1 content reads also need read:content-details.
+ * A space is read as its homepage.
+ */
+async function readConfluence(
+  client: NativeClient,
+  cloudId: string,
+  site: string,
+  id: string,
+  kind?: string
+): Promise<NativeDocument> {
+  const api = `/ex/confluence/${segment(cloudId)}/wiki/api/v2`
+  let title: string | undefined
+  let contentId = id
+  let contentKind = kind === 'blogpost' ? 'blogpost' : 'page'
+  if (kind === 'space') {
+    const space = object(
+      array(object(await client.json(`${api}/spaces`, { query: { keys: id } })).results)[0]
+    )
+    if (!string(space.homepageId))
+      throw new NativeSearchError('unavailable', 'The Confluence space has no readable homepage.')
+    title = string(space.name)
+    contentId = string(space.homepageId)
+    contentKind = 'page'
+  }
+  const content = (type: string) =>
+    client.json(`${api}/${type}/${segment(contentId)}`, { query: { 'body-format': 'view' } })
+  /** A reference issued before kinds were recorded may name a blog post; its page read is a 404. */
+  const row = object(
+    kind === undefined
+      ? await content('pages').catch((error: unknown) => {
+          if (error instanceof NativeSearchError && error.httpStatus === 404) {
+            contentKind = 'blogpost'
+            return content('blogposts')
+          }
+          throw error
+        })
+      : await content(contentKind === 'blogpost' ? 'blogposts' : 'pages')
   )
+  const pageTitle = string(row.title)
+  return {
+    id,
+    kind: kind === 'space' ? 'space' : contentKind,
+    container: cloudId,
+    title: title || pageTitle,
+    url: `${site}/wiki${string(object(row._links).webui) || `/pages/${segment(contentId)}`}`,
+    content:
+      providerText(string(object(object(row.body).view).value), 'html') || title || pageTitle,
+    modifiedAt: string(object(row.version).createdAt) || string(row.createdAt),
+  }
 }

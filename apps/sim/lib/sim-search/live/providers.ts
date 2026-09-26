@@ -139,7 +139,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     },
     search: (client, input) => searchAtlassian(client, 'confluence', input),
     read: (client, reference) =>
-      readAtlassian(client, 'confluence', reference.id, reference.container),
+      readAtlassian(client, 'confluence', reference.id, reference.container, reference.kind),
   },
   github: {
     guide: {
