@@ -153,6 +153,7 @@ describe('organization Search approval', () => {
   })
 
   it('preserves existing sources while an explicit deactivation overrides them', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: false }])
     queueTableRows(knowledgeConnector, [
@@ -223,6 +224,7 @@ describe('organization Search controls through Mothership', () => {
   })
 
   it('allows delegated members to read approval state without granting writes', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: true }])
     queueTableRows(knowledgeConnector, [])
@@ -377,6 +379,7 @@ describe('live organization search policies', () => {
   )
 
   it('rejects policy writes when the rollout flag is off', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     queueTableRows(member, [{ role: 'owner' }])
     await expect(
       approveSearchIntegration.execute({

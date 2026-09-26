@@ -1,6 +1,7 @@
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ authorize: vi.fn() }))
 vi.mock('@/lib/settings/application/organization-section-access', () => ({
@@ -26,10 +27,13 @@ import OrganizationProviderPage from '@/app/o/[organizationId]/settings/integrat
 const mockRedirect = nextNavigationMockFns.mockRedirect
 const mockGetSession = authMockFns.mockGetSession
 
+/** Member providers such as Jira keep a provider page only under indexed organization search. */
 beforeEach(() => {
+  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
   mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
   mocks.authorize.mockResolvedValue(true)
 })
+afterEach(resetEnvFlagsMock)
 
 it.each(['jira', 'confluence'])(
   'moves legacy %s Accounts links to filtered People and preserves the search',

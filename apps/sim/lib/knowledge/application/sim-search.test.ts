@@ -6,6 +6,7 @@ import {
   credentialGroupsServiceMock,
   credentialGroupsServiceMockFns,
 } from '@sim/testing/mocks/credential-groups-service.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -35,7 +36,7 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   createConnector: vi.fn(),
@@ -129,6 +130,7 @@ import {
   prepareSearchSource,
 } from '@/lib/knowledge/application/sim-search'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 
 const mocks = {
   ...hoisted,
@@ -173,9 +175,12 @@ function queueConnectorLookups(...results: Array<typeof existingConnector | null
 
 describe('connectSimSearchConnector', () => {
   afterAll(resetDbChainMock)
+  afterEach(resetEnvFlagsMock)
 
   beforeEach(() => {
     resetDbChainMock()
+    /** A Search source crawls into the search index, which only indexed organization search reads. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue(workspaceContext)
     permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(
       DEFAULT_PERMISSION_GROUP_CONFIG
@@ -254,6 +259,22 @@ describe('connectSimSearchConnector', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
+  })
+
+  it('refuses while indexed organization search is dormant, before creating anything', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    queueConnectorLookups(null)
+
+    await expect(
+      connectSimSearchConnector.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
+      })
+    ).rejects.toBeInstanceOf(SearchIndexDormantError)
+    expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+    expect(mocks.enroll).not.toHaveBeenCalled()
   })
 
   it('refuses before creating anything when per-member access is unavailable', async () => {
@@ -337,8 +358,10 @@ describe('connectSimSearchConnector', () => {
 
 describe('organization Search setup', () => {
   const owner = { organizationId: 'org-1' }
+  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
     resetDbChainMock()
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue(owner)
     knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
     mocks.ensureAccounts.mockResolvedValue({ id: 'org-accounts' })

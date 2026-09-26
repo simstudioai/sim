@@ -348,7 +348,7 @@ function ResourceMenuSearch({
   return (
     <>
       <DropdownMenuSearchInput
-        placeholder='Search resources...'
+        placeholder='Search resources'
         value={search}
         onChange={(e) => {
           setSearch(e.target.value)
@@ -382,7 +382,7 @@ function ResourceMenuSearch({
             })
           ) : (
             <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
-              {isHydrating ? 'Loading resources…' : 'No results'}
+              {isHydrating ? 'Loading resources' : 'No results'}
             </div>
           )
         ) : (
@@ -426,7 +426,7 @@ function WorkspaceResourceMenuContent({
   const menu = (
     <>
       <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
-      {isHydrating && <DropdownMenuItem disabled>Loading resources…</DropdownMenuItem>}
+      {isHydrating && <DropdownMenuItem disabled>Loading resources</DropdownMenuItem>}
     </>
   )
   return searchable ? (

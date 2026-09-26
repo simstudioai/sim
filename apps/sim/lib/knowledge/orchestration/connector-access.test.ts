@@ -9,7 +9,6 @@ import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
-import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
 import {
   knowledgeMemberAccessMock,
   knowledgeMemberAccessMockFns,
@@ -41,7 +40,6 @@ vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
-vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)

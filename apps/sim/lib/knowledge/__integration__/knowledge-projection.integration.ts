@@ -1,21 +1,21 @@
 /**
  * The knowledge projector and the readers that must stay correct while it lags. A GitHub member
- * source's document is changed by a writer in either projection mode — synchronous, as every
- * writer before the projector, or asynchronous, where the writer only marks the document — and
- * search is checked before the projector runs: a revoked member is refused and a granted one is
- * served, on the vector and keyword legs and under the source filter, and a disabled or deleted
- * chunk is gone at once. The projector's own contract follows: it converges the rows and removes
- * the mark, keeps a mark that a write bumped during its pass, survives a document deleted under
- * it, writes in pages bounded by chunk rows, fills rows written before they carried a source and
- * ACL, and an asynchronous commit writes no projection row at all.
+ * source's document in a search index is changed by a writer in either projection mode —
+ * synchronous, as every writer now is, or deferred, as writers of releases that carried the
+ * `knowledge-async-projection` flag were, leaving only a mark — and search is checked before the
+ * projector runs: a revoked member is refused and a granted one is served, on the vector and
+ * keyword legs and under the source filter, and a disabled or deleted chunk is gone at once. The
+ * projector's own contract follows: it converges the rows and removes the mark, keeps a mark that
+ * a write bumped during its pass, survives a document deleted under it, writes in pages bounded by
+ * chunk rows, releases workspace marks with nothing to project without a pass, and a deferred
+ * commit writes no projection row at all.
  */
 import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import {
-  DEFER_KNOWLEDGE_PROJECTION,
-  FILL_MARK_CEILING,
+  hasKnowledgeProjectionWork,
   type KnowledgeProjection,
-  markUnfilledProjectionDocuments,
+  releaseSettledMarks,
   runKnowledgeProjection,
 } from '@sim/db/knowledge-projection'
 import {
@@ -37,50 +37,41 @@ import {
 } from '@sim/db/schema'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
 /** The TINQL `resolveTinKeywordQuery` renders for `fixture`: its `english` stem, quoted. */
-vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+vi.mock('@/lib/sim-search/indexed/retrieval/tin-keyword', () => ({
   resolveTinKeywordQuery: async () => '"fixtur"',
 }))
 
-/** The flags a test turns on; connector writers read `knowledge-async-projection` from here. */
-const { enabledFlags, requestKnowledgeProjection } = vi.hoisted(() => ({
-  enabledFlags: new Set<string>(),
-  requestKnowledgeProjection: vi.fn(async () => {}),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: async (flag: string) => enabledFlags.has(flag),
-}))
-/**
- * Writers ask for a pass once they commit; here that request is only recorded, so the passes each
- * test runs are the only ones and a background pass cannot converge rows a test is inspecting.
- */
-vi.mock('@/lib/knowledge/projection/enqueue', () => ({ requestKnowledgeProjection }))
+vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: async () => false }))
 
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import {
-  projectionCandidateAccessCondition,
-  type SearchAccessPlan,
-} from '@/lib/knowledge/access/predicate'
 import type {
   GitHubInstallationReadGrant,
   KnowledgeAccessProvider,
   UserAccessScope,
 } from '@/lib/knowledge/access/types'
 import { leaseTransaction } from '@/lib/knowledge/connectors/sync-lock'
-import {
-  executeKeywordSearch,
-  forgetProjectionFilled,
-  handleVectorOnlySearch,
-  liveSourceAccessFor,
-} from '@/lib/knowledge/search/queries'
+import { liveSourceAccessForConnectors } from '@/lib/knowledge/search/candidates'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import type { SearchAccessPlan } from '@/lib/sim-search/indexed/retrieval/access-plan'
+import { executeIndexedKeywordSearch } from '@/lib/sim-search/indexed/retrieval/keyword'
+import type { IndexedRetrievalContext } from '@/lib/sim-search/indexed/retrieval/permitted'
+import { projectionCandidateAccessCondition } from '@/lib/sim-search/indexed/retrieval/projection-access'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval/projection-fill'
+import { selectIndexedVectorResults } from '@/lib/sim-search/indexed/retrieval/vector'
 
 const ids = createKnowledgeAclFixtureIds()
 const connectorId = generateId()
@@ -140,7 +131,15 @@ const grant: GitHubInstallationReadGrant = {
   repositoryId,
 }
 
-function searchInputs() {
+const searchInputs = {
+  knowledgeBaseIds: [ids.knowledgeBaseId],
+  topK: 20,
+  access: scope,
+  queryVector,
+}
+
+/** A narrow reader of the search index, who proves the installation grant live. */
+function searchContext(): IndexedRetrievalContext {
   const granted = { ...scope, githubInstallationGrants: [grant] }
   const accessProvider: KnowledgeAccessProvider = {
     get: async () => scope,
@@ -149,25 +148,19 @@ function searchInputs() {
     liveSourceConnectorCondition: async () => null,
   }
   return {
-    knowledgeBaseIds: [ids.knowledgeBaseId],
-    topK: 20,
     access: scope,
-    accessProvider,
     accessPlan: plan,
-    liveSourceAccess: liveSourceAccessFor(scope, plan, accessProvider),
-    queryVector,
+    filtered: false,
+    permitted: { kind: 'unbounded', broad: false },
+    liveSourceAccess: liveSourceAccessForConnectors(
+      plan.connectors.liveProofRequired,
+      accessProvider
+    ),
   }
 }
 
 const keywordIds = async () =>
-  (
-    await executeKeywordSearch({
-      ...searchInputs(),
-      query: 'fixture',
-      permitted: { kind: 'unbounded', broad: false },
-      searchIndexOnly: true,
-    })
-  )
+  (await executeIndexedKeywordSearch({ ...searchInputs, query: 'fixture' }, searchContext()))
     .map((row) => row.id)
     .sort()
 
@@ -177,13 +170,7 @@ const keywordIds = async () =>
  * a chunk can be pruned from every neighbour list and never be reached, however far the walk goes.
  */
 const vectorIds = async () =>
-  (
-    await handleVectorOnlySearch({
-      ...searchInputs(),
-      distanceThreshold: 2,
-      permitted: { kind: 'unbounded', broad: false },
-    })
-  )
+  (await selectIndexedVectorResults({ ...searchInputs, distanceThreshold: 2 }, searchContext()))
     .map((row) => row.id)
     .sort()
 
@@ -217,13 +204,19 @@ async function admitted(): Promise<Record<'vector' | 'keyword', string[]>> {
 
 type Mode = 'sync' | 'async'
 
+/**
+ * What a writer of a release that deferred its projection selected first: the setting that skips
+ * the synchronous projection triggers, which the database still honours.
+ */
+const DEFER_PROJECTION = `SELECT set_config('sim.projection_mode', 'async', true)`
+
 /** Runs a write in a transaction of the given projection mode, as a knowledge writer would. */
 function write(
   mode: Mode,
   work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<unknown>
 ) {
   return db.transaction(async (tx) => {
-    if (mode === 'async') await tx.execute(sql.raw(`SELECT ${DEFER_KNOWLEDGE_PROJECTION}`))
+    if (mode === 'async') await tx.execute(sql.raw(DEFER_PROJECTION))
     await work(tx)
   })
 }
@@ -263,8 +256,8 @@ const rowAcl = async (table: typeof embeddingSearch | typeof embeddingKeywordTin
 
 /** The projector's connection: a pass holds its per-document advisory locks on it. */
 let projector: postgres.Sql
-const project = (options: Parameters<typeof runKnowledgeProjection>[1] = {}) =>
-  runKnowledgeProjection(projector, options)
+const project = (options: Partial<Parameters<typeof runKnowledgeProjection>[1]> = {}) =>
+  runKnowledgeProjection(projector, { searchIndexes: true, ...options })
 
 /** Shims for the Tin extension, which the test database does not carry. */
 let createdTinShims = false
@@ -427,7 +420,6 @@ afterAll(async () => {
  * so no synchronous trigger would write the Tin row.
  */
 beforeEach(async () => {
-  requestKnowledgeProjection.mockClear()
   await db.delete(embedding).where(eq(embedding.documentId, documentId))
   await db
     .update(document)
@@ -662,30 +654,19 @@ describe('the projector', () => {
     ).toEqual([])
   })
 
-  it.each([false, true])(
-    "leaves a connector ACL page's projection rows to the projector only while the flag is on (%s)",
-    async (flagOn) => {
-      if (flagOn) enabledFlags.add('knowledge-async-projection')
-      try {
-        await leaseTransaction(connectorId)((tx) =>
-          tx
-            .update(document)
-            .set({ acl: aclOf('bob') })
-            .where(eq(document.id, documentId))
-        )
-      } finally {
-        enabledFlags.delete('knowledge-async-projection')
-      }
-      expect(requestKnowledgeProjection).toHaveBeenCalledOnce()
-      expect(await markOf()).toMatchObject({ content: false })
-      expect((await rowAcl(embeddingSearch))?.acl).toEqual(
-        flagOn ? aclOf('alice', 'bob') : aclOf('bob')
-      )
-      expect(await admitted()).toEqual({ vector: [], keyword: [] })
-      await project()
-      expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('bob'))
-    }
-  )
+  it("rewrites a connector ACL page's projection rows in the page's own statement", async () => {
+    await leaseTransaction(connectorId)((tx) =>
+      tx
+        .update(document)
+        .set({ acl: aclOf('bob') })
+        .where(eq(document.id, documentId))
+    )
+    expect(await markOf()).toMatchObject({ content: false })
+    expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('bob'))
+    expect(await admitted()).toEqual({ vector: [], keyword: [] })
+    await project()
+    expect(await markOf()).toBeUndefined()
+  })
 
   it('splits the marks between passes that start together', async () => {
     const documents = await Promise.all(
@@ -716,7 +697,7 @@ describe('the projector', () => {
     const second = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
     try {
       /** Each page lingers, so neither pass can finish the batch before the other starts. */
-      const lingering = { onPage: () => sleep(25) }
+      const lingering = { onPage: () => sleep(25), searchIndexes: true }
       const passes = await Promise.all([
         project(lingering),
         runKnowledgeProjection(second, lingering),
@@ -749,148 +730,6 @@ describe('the projector', () => {
     expect(await markOf()).toBeUndefined()
   })
 
-  it('fills rows written before they carried a source and ACL, and converges them', async () => {
-    for (const table of [embeddingSearch, embeddingKeywordTin]) {
-      await db
-        .update(table)
-        .set({ connectorId: null, acl: null })
-        .where(eq(table.documentId, documentId))
-    }
-    expect(await markOf()).toBeUndefined()
-    let cursor: Parameters<typeof markUnfilledProjectionDocuments>[1] | null
-    let marked = 0
-    while (cursor !== null) {
-      const fill = await markUnfilledProjectionDocuments(projector, cursor)
-      marked += fill.marked
-      cursor = fill.cursor
-      await project()
-    }
-    expect(marked).toBeGreaterThanOrEqual(1)
-    expect(await rowAcl(embeddingSearch)).toMatchObject({ acl: aclOf('alice', 'bob'), connectorId })
-    expect(await rowAcl(embeddingKeywordTin)).toMatchObject({
-      acl: aclOf('alice', 'bob'),
-      connectorId,
-    })
-    expect(await markOf()).toBeUndefined()
-  })
-
-  it('fills every document when more are unfilled than the fill may mark at once', async () => {
-    const documents = Array.from({ length: FILL_MARK_CEILING + 20 }, () => generateId())
-    await db.insert(document).values(
-      documents.map((id, index) => ({
-        id,
-        connectorId,
-        knowledgeBaseId: ids.knowledgeBaseId,
-        externalId: `fill-${index}`,
-        filename: `fill-${index}.md`,
-        fileUrl: `https://fixture.test/fill-${index}`,
-        fileSize: 12,
-        mimeType: 'text/plain',
-        processingStatus: 'completed' as const,
-        acl: aclOf('alice', 'bob'),
-      }))
-    )
-    /** Two chunks each, whose random ids interleave the documents' rows in the unfilled index. */
-    await write('async', (tx) =>
-      tx
-        .insert(embedding)
-        .values(
-          documents.flatMap((id) =>
-            [0, 1].map((chunkIndex) => ({ ...chunkRow(generateId(), chunkIndex), documentId: id }))
-          )
-        )
-    )
-    await project()
-    /** Only the vector rows, so no other projection's unfilled rows lead the fill back to them. */
-    await db
-      .update(embeddingSearch)
-      .set({ connectorId: null, acl: null })
-      .where(inArray(embeddingSearch.documentId, documents))
-    let cursor: Parameters<typeof markUnfilledProjectionDocuments>[1] | null
-    let marked = 0
-    while (cursor !== null) {
-      const fill = await markUnfilledProjectionDocuments(projector, cursor)
-      marked += fill.marked
-      cursor = fill.cursor
-      await project()
-    }
-    expect(marked).toBeGreaterThanOrEqual(documents.length)
-    expect(
-      await db
-        .select({ id: embeddingSearch.id })
-        .from(embeddingSearch)
-        .where(and(inArray(embeddingSearch.documentId, documents), isNull(embeddingSearch.acl)))
-    ).toEqual([])
-    await db.delete(document).where(inArray(document.id, documents))
-  })
-
-  it('marks what it can while a document it chose is deleted under it', async () => {
-    const [deleted, kept] = [generateId(), generateId()]
-    await db.insert(document).values(
-      [deleted, kept].map((id, index) => ({
-        id,
-        connectorId,
-        knowledgeBaseId: ids.knowledgeBaseId,
-        externalId: `fill-race-${index}`,
-        filename: `fill-race-${index}.md`,
-        fileUrl: `https://fixture.test/fill-race-${index}`,
-        fileSize: 12,
-        mimeType: 'text/plain',
-        processingStatus: 'completed' as const,
-        acl: aclOf('alice', 'bob'),
-      }))
-    )
-    await write('async', (tx) =>
-      tx
-        .insert(embedding)
-        .values([deleted, kept].map((id) => ({ ...chunkRow(generateId(), 0), documentId: id })))
-    )
-    await project()
-    for (const table of [embeddingSearch, embeddingKeywordTin]) {
-      await db
-        .update(table)
-        .set({ connectorId: null, acl: null })
-        .where(inArray(table.documentId, [deleted, kept]))
-    }
-    const deleter = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
-    try {
-      /** The deletion is under way when the fill reads, and commits while the fill still runs. */
-      let fill: ReturnType<typeof markUnfilledProjectionDocuments> | undefined
-      let settled = false
-      await deleter.begin(async (tx) => {
-        await tx`DELETE FROM document WHERE id = ${deleted}`
-        fill = markUnfilledProjectionDocuments(projector)
-        void fill.then(
-          () => {
-            settled = true
-          },
-          () => {
-            settled = true
-          }
-        )
-        await vi.waitFor(
-          async () => {
-            const [row] = await db.execute<{ waiting: boolean }>(
-              sql`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted) AS waiting`
-            )
-            expect(settled || Boolean(row?.waiting)).toBe(true)
-          },
-          { timeout: 5_000, interval: 10 }
-        )
-      })
-      await expect(fill).resolves.toMatchObject({ marked: expect.any(Number) })
-      const marks = await db
-        .select({ documentId: knowledgeProjectionDirty.documentId })
-        .from(knowledgeProjectionDirty)
-        .where(inArray(knowledgeProjectionDirty.documentId, [deleted, kept]))
-      expect(marks.map((mark) => mark.documentId)).toEqual([kept])
-    } finally {
-      await deleter.end()
-      await project()
-      await db.delete(document).where(inArray(document.id, [deleted, kept]))
-    }
-  })
-
   it.each(['sync', 'async'] as const)(
     'writes %s projection rows from a chunk commit only when the writer did not defer them',
     async (mode) => {
@@ -921,4 +760,177 @@ describe('the projector', () => {
       expect(await markOf()).toMatchObject({ content: mode === 'async' })
     }
   )
+
+  it('owes a pass for content and, while indexed search is on, search-index marks, asking only for content behind an undrained release', async () => {
+    const workspaceBaseId = generateId()
+    const [workspaceDocument, contentDocument] = [generateId(), generateId()]
+    await db.insert(knowledgeBase).values({
+      id: workspaceBaseId,
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      name: 'Workspace work fixture',
+      chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
+    })
+    /** Thrown to roll the transaction back, so the marks of other suites are never touched for good. */
+    const rollback = new Error('rollback')
+    try {
+      await db.insert(document).values(
+        [workspaceDocument, contentDocument].map((id, index) => ({
+          id,
+          knowledgeBaseId: workspaceBaseId,
+          filename: `work-${index}.md`,
+          fileUrl: `https://fixture.test/work-${index}`,
+          fileSize: 12,
+          mimeType: 'text/plain',
+          processingStatus: 'completed' as const,
+        }))
+      )
+      const answers: Record<string, { drained: boolean; undrained: boolean; dormant: boolean }> = {}
+      const indexed = { searchIndexes: true }
+      const answer = async (tx: postgres.TransactionSql, label: string) => {
+        answers[label] = {
+          drained: await hasKnowledgeProjectionWork(tx, { drained: true }, indexed),
+          undrained: await hasKnowledgeProjectionWork(tx, { drained: false }, indexed),
+          dormant: await hasKnowledgeProjectionWork(
+            tx,
+            { drained: true },
+            { searchIndexes: false }
+          ),
+        }
+      }
+      await projector
+        .begin(async (tx) => {
+          await tx`DELETE FROM knowledge_projection_dirty`
+          await tx`SELECT mark_knowledge_projection(ARRAY[${workspaceDocument}]::text[], false)`
+          await answer(tx, 'workspace')
+          await tx`SELECT mark_knowledge_projection(ARRAY[${documentId}]::text[], false)`
+          await answer(tx, 'search index')
+          await tx`SELECT mark_knowledge_projection(ARRAY[${contentDocument}]::text[], true)`
+          await answer(tx, 'content')
+          throw rollback
+        })
+        .catch((error) => {
+          if (error !== rollback) throw error
+        })
+      expect(answers).toEqual({
+        workspace: { drained: false, undrained: false, dormant: false },
+        'search index': { drained: true, undrained: false, dormant: false },
+        content: { drained: true, undrained: true, dormant: true },
+      })
+    } finally {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, workspaceBaseId))
+    }
+  })
+
+  it('releases marks with nothing to project, keeping search-index marks for a pass only while indexed search is on', async () => {
+    const workspaceBaseId = generateId()
+    const [synced, deferred, held] = [generateId(), generateId(), generateId()]
+    await db.insert(knowledgeBase).values({
+      id: workspaceBaseId,
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      name: 'Workspace fixture',
+      chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
+    })
+    try {
+      await db.insert(document).values(
+        [synced, deferred, held].map((id, index) => ({
+          id,
+          knowledgeBaseId: workspaceBaseId,
+          filename: `workspace-${index}.md`,
+          fileUrl: `https://fixture.test/workspace-${index}`,
+          fileSize: 12,
+          mimeType: 'text/plain',
+          processingStatus: 'completed' as const,
+        }))
+      )
+      const workspaceChunk = (id: string, documentId: string) => ({
+        ...chunkRow(id, 0),
+        documentId,
+        knowledgeBaseId: workspaceBaseId,
+      })
+      const deferredChunk = generateId()
+      await write('sync', (tx) =>
+        tx
+          .insert(embedding)
+          .values([workspaceChunk(generateId(), synced), workspaceChunk(generateId(), held)])
+      )
+      await write('async', (tx) =>
+        tx.insert(embedding).values(workspaceChunk(deferredChunk, deferred))
+      )
+      /** A search-index mark with nothing but a source and ACL change is still a pass's. */
+      await db
+        .update(document)
+        .set({ acl: aclOf('bob') })
+        .where(eq(document.id, documentId))
+      const marked = async () =>
+        (
+          await db
+            .select({ documentId: knowledgeProjectionDirty.documentId })
+            .from(knowledgeProjectionDirty)
+            .where(
+              inArray(knowledgeProjectionDirty.documentId, [synced, deferred, held, documentId])
+            )
+        )
+          .map((row) => row.documentId)
+          .sort()
+
+      /** A writer re-marking `held` holds its mark until it commits; the release passes it over. */
+      const writer = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => undefined })
+      let release: () => void = () => {}
+      const holding = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let locked: () => void = () => {}
+      const marking = new Promise<void>((resolve) => {
+        locked = resolve
+      })
+      try {
+        const writing = writer.begin(async (tx) => {
+          await tx`SELECT mark_knowledge_projection(ARRAY[${held}]::text[], false)`
+          locked()
+          await holding
+        })
+        await marking
+        expect(
+          (await releaseSettledMarks(projector, Number.POSITIVE_INFINITY, { searchIndexes: true }))
+            .released
+        ).toBeGreaterThanOrEqual(1)
+        expect(await marked()).toEqual([deferred, held, documentId].sort())
+        release()
+        await writing
+      } finally {
+        release()
+        await writer.end()
+      }
+      expect(
+        (await releaseSettledMarks(projector, Number.POSITIVE_INFINITY, { searchIndexes: true }))
+          .released
+      ).toBeGreaterThanOrEqual(1)
+      expect(await marked()).toEqual([deferred, documentId].sort())
+
+      /** The deferred chunk has no row until a pass writes it, and the pass settles both marks. */
+      const deferredRow = async () =>
+        db
+          .select({ id: embeddingSearch.id })
+          .from(embeddingSearch)
+          .where(eq(embeddingSearch.id, deferredChunk))
+      expect(await deferredRow()).toEqual([])
+      await project()
+      expect(await deferredRow()).toEqual([{ id: deferredChunk }])
+      expect(await marked()).toEqual([])
+      expect((await rowAcl(embeddingSearch))?.acl).toEqual(aclOf('bob'))
+
+      /** While indexed search is dormant, nothing reads a search-index mark, so it is released too. */
+      await db
+        .update(document)
+        .set({ acl: aclOf('alice') })
+        .where(eq(document.id, documentId))
+      expect(await marked()).toEqual([documentId])
+      await releaseSettledMarks(projector, Number.POSITIVE_INFINITY, { searchIndexes: false })
+      expect(await marked()).toEqual([])
+    } finally {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, workspaceBaseId))
+    }
+  })
 })

@@ -45,7 +45,7 @@ function LoadedResourceWorkspaceHost({
   const { data, isPending, error } = useWorkspaceHostContextQuery(workspaceId)
   if (isPending)
     return inline ? (
-      <span role='status'>Loading resource…</span>
+      <span role='status'>Loading resource</span>
     ) : (
       <Skeleton className='m-4 h-24 flex-1' />
     )

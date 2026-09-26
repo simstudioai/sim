@@ -4,6 +4,7 @@
 
 import { act, cloneElement, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -405,8 +406,15 @@ afterEach(async () => {
   container?.remove()
   root = null
   container = null
+  resetEnvFlagsMock()
   resetDeploymentShape()
 })
+
+/** Selects the indexed backend, whose arms of these dialogs index and mirror sources. */
+function selectIndexedSearch() {
+  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+  resetDeploymentShape()
+}
 
 describe('Search source setup with real connector dialogs', () => {
   it.each([
@@ -433,6 +441,7 @@ describe('Search source setup with real connector dialogs', () => {
   )
 
   it('prepares organization connected-account indexing in members mode even when central access is available', async () => {
+    selectIndexedSearch()
     mocks.bases = []
     await render(
       <SearchSourceSetup
@@ -736,6 +745,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   it.each(['admin', 'members'] as const)(
     'shows and saves Gmail’s Search default date window in %s mode',
     async (accessMode) => {
+      selectIndexedSearch()
       mocks.credentials = [
         {
           id: 'gmail-service',
@@ -919,6 +929,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   ])(
     'requires the Directory administrator email in $type administrator mode and refuses empty or blank subjects',
     async ({ type, provider }) => {
+      selectIndexedSearch()
       mocks.credentials = [{ ...driveCredential, provider }]
       await render(
         <AddConnectorModal
@@ -959,6 +970,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   ])(
     'excludes personal OAuth accounts and stale OAuth drafts from $type administrator setup',
     async ({ type, provider, name }) => {
+      selectIndexedSearch()
       const oauthCredential = {
         id: 'drive-personal',
         name: 'Personal Drive account',
@@ -1086,6 +1098,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
   )
 
   it('does not let an administrator erase the crawl subject from an existing mirrored Drive source', async () => {
+    selectIndexedSearch()
     await render(
       <EditConnectorModal
         open
@@ -1326,6 +1339,7 @@ describe('canonical Search connector safety', () => {
   })
 
   it('defaults an OAuth source to member accounts and never offers workspace-wide access', async () => {
+    selectIndexedSearch()
     await render(
       <AddConnectorModal
         open

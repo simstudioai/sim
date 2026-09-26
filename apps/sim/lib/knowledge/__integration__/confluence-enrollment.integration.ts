@@ -25,7 +25,7 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
-import { listWorkspaceMemberConnectors } from '@/lib/knowledge/application/connectors'
+import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
 
 describe('Confluence mirrored-identity self-enrollment', () => {
   const previousClient = { id: env.CONFLUENCE_CLIENT_ID, secret: env.CONFLUENCE_CLIENT_SECRET }
@@ -106,15 +106,25 @@ describe('Confluence mirrored-identity self-enrollment', () => {
     await db.$client.end()
   })
 
-  function discover(principal = bob, workspaceId = ids.workspaceId) {
-    return listWorkspaceMemberConnectors.execute({ principal, input: { workspaceId } })
+  /** Bob's enrollment state for the fixture source, or null when none is offered. */
+  async function viewerMembership() {
+    const [connector] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    const memberships = await resolveViewerConnectorMemberships({
+      userId: ids.bobId,
+      workspaceId: ids.workspaceId,
+      connectors: [connector!],
+    })
+    return memberships.get(ids.connectorId) ?? null
   }
 
   it('hides enrollment when the Confluence OAuth client is not configured', async () => {
     const client = { id: env.CONFLUENCE_CLIENT_ID, secret: env.CONFLUENCE_CLIENT_SECRET }
     try {
       Object.assign(env, { CONFLUENCE_CLIENT_ID: undefined, CONFLUENCE_CLIENT_SECRET: undefined })
-      await expect(discover()).resolves.toEqual({ connectors: [] })
+      await expect(viewerMembership()).resolves.toBeNull()
     } finally {
       Object.assign(env, {
         CONFLUENCE_CLIENT_ID: client.id,
@@ -162,18 +172,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
     expect(before.credentials).toEqual([])
     expect(before.policies).toHaveLength(1)
     expect(before.roles.find((role) => role.userId === ids.bobId)?.permissionType).toBe('read')
-    await expect(discover()).resolves.toMatchObject({
-      connectors: [
-        {
-          connectorId: ids.connectorId,
-          knowledgeBaseIsSearchIndex: true,
-          knowledgeBaseName: 'Renamed search index',
-          connectorType: 'confluence',
-          viewerMembership: 'not_enrolled',
-          memberSyncStatus: 'idle',
-        },
-      ],
-    })
+    await expect(viewerMembership()).resolves.toBe('not_enrolled')
 
     const { url } = await enroll()
     const link = new URL(url)
@@ -191,9 +190,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
       invitationTokenHash: createHash('sha256').update(token).digest('hex'),
     })
     expect(pending[0]!.invitationExpiresAt!.getTime()).toBeGreaterThan(Date.now())
-    await expect(discover()).resolves.toMatchObject({
-      connectors: [{ connectorId: ids.connectorId, viewerMembership: 'invited' }],
-    })
+    await expect(viewerMembership()).resolves.toBe('invited')
     expect(await crawlerAuthority()).toEqual(before)
   })
 
@@ -269,7 +266,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
         .set({ options, status: state === 'disabled-group' ? 'disabled' : 'active' })
         .where(eq(credentialGroup.id, groupId))
       const before = await crawlerAuthority()
-      await expect(discover()).resolves.toEqual({ connectors: [] })
+      await expect(viewerMembership()).resolves.toBeNull()
       await expect(enroll()).rejects.toMatchObject({ code: 'validation' })
       expect(await enrollments()).toEqual([])
       expect(await crawlerAuthority()).toEqual(before)
@@ -284,9 +281,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
       .where(eq(credentialGroupEnrollment.credentialGroupId, groupId))
     const revoked = await enrollments()
     const before = await crawlerAuthority()
-    await expect(discover()).resolves.toMatchObject({
-      connectors: [{ connectorId: ids.connectorId, viewerMembership: 'revoked' }],
-    })
+    await expect(viewerMembership()).resolves.toBe('revoked')
     await expect(enroll()).rejects.toMatchObject({ code: 'forbidden' })
     expect(await enrollments()).toEqual(revoked)
     expect(await crawlerAuthority()).toEqual(before)
@@ -294,9 +289,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
 
   it('requires the actor to verify their own email before issuing an invitation', async () => {
     await db.update(user).set({ emailVerified: false }).where(eq(user.id, ids.bobId))
-    await expect(discover()).resolves.toMatchObject({
-      connectors: [{ connectorId: ids.connectorId, viewerMembership: 'unverified_email' }],
-    })
+    await expect(viewerMembership()).resolves.toBe('unverified_email')
     const before = await crawlerAuthority()
     await expect(enroll()).rejects.toThrow('Verify your email address')
     expect(await enrollments()).toEqual([])
@@ -315,7 +308,7 @@ describe('Confluence mirrored-identity self-enrollment', () => {
         .set(source)
         .where(eq(knowledgeConnector.id, ids.connectorId))
       const before = await crawlerAuthority()
-      await expect(discover()).resolves.toEqual({ connectors: [] })
+      await expect(viewerMembership()).resolves.toBeNull()
       await expect(enroll()).rejects.toMatchObject({ code: 'validation' })
       expect(await enrollments()).toEqual([])
       expect(await crawlerAuthority()).toEqual(before)
@@ -325,7 +318,6 @@ describe('Confluence mirrored-identity self-enrollment', () => {
   it('rejects another workspace actor and an asserted foreign workspace without changing grants', async () => {
     const outsider: Principal = { ...bob, userId: foreign.bobId }
     const before = await crawlerAuthority()
-    await expect(discover(outsider)).rejects.toThrow('Insufficient workspace permissions')
     await expect(enroll(outsider)).rejects.toThrow('Insufficient workspace permissions')
     await expect(
       startKnowledgeConnectorMemberEnrollment.execute({

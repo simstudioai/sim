@@ -4,7 +4,6 @@ import {
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import {
   knowledgeAvailabilityMock,
@@ -180,7 +179,6 @@ describe('refreshConnectorDirectory', () => {
   })
 
   it('skips previously queued Search directory refreshes before resolving credentials in live mode', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ isSearchIndex: true })])
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')

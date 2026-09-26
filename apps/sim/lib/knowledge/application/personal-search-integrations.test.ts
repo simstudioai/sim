@@ -128,6 +128,8 @@ beforeEach(() => {
   mockGetConnectorAccessAvailability.mockReturnValue({ members: true })
 })
 describe('personal Search inventory', () => {
+  beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: false }))
+
   it.each([
     [{}, 'connected', 'not_indexed'],
     [{ isSyncing: true }, 'connected', 'indexing'],

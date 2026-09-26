@@ -1,14 +1,15 @@
 import { resolveDbUrl } from '@sim/db'
 import {
   type KnowledgeProjectionProgress,
-  markUnfilledProjectionDocuments,
+  MARK_RELEASE_BUDGET_MS,
+  releaseSettledMarks,
   runKnowledgeProjection,
 } from '@sim/db/knowledge-projection'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { createLogger } from '@sim/logger'
 import postgres, { type Sql } from 'postgres'
 import { env, envNumber } from '@/lib/core/config/env'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 
 const logger = createLogger('KnowledgeProjectionPass')
 
@@ -36,22 +37,25 @@ async function workersFor(session: Sql): Promise<number> {
 }
 
 export interface KnowledgeProjectionPassResult extends KnowledgeProjectionProgress {
-  /** Documents the source and ACL fill marked during the pass. */
-  filled: number
+  /** Marks removed without a pass over their rows, since no pass was owed them. */
+  released: number
 }
 
 /**
- * One pass of the knowledge projector: converges every marked document, then, while time is
- * left and the fill is on, marks the documents of projection rows the source and ACL fill has not
- * reached and converges those too, keeping the outstanding marks under the fill's ceiling so fresh
- * writes never queue behind much of it and search keeps probing a small set of marks. The fill is
- * its own flag so an operator can pause its extra index writes.
+ * One pass of the knowledge projector: settles every marked document. Each round first releases,
+ * for no longer than a release's own short budget, the marks no pass is owed (see
+ * `releaseSettledMarks`), so a backlog of them shrinks every round without holding up the content
+ * behind it. What is left is projected: content a writer deferred, and, while indexed organization
+ * search is on, search-index documents, whose rows mirror their source and ACL.
  *
  * Workers project documents in parallel, each on a connection of its own that holds its
  * per-document advisory locks; a pass this long should not hold the pool's connections. Workers
  * read the same oldest marks and split them at those locks. A round ends when every worker found
  * nothing more it could take; the pass goes on while rounds settle documents, and `remaining`
- * reports marks it left or a fill it did not finish, so the caller can schedule another.
+ * reports marks it left for the next sweep.
+ *
+ * The pass writes Tin keyword rows only while indexed organization search is enabled: only that
+ * search reads them.
  */
 export async function runKnowledgeProjectionPass(options: {
   budgetMs: number
@@ -71,24 +75,31 @@ export async function runKnowledgeProjectionPass(options: {
     )
   )
   const deadline = Date.now() + options.budgetMs
+  const scope = { searchIndexes: isIndexedOrgSearchEnabled() }
   const result: KnowledgeProjectionPassResult = {
     settled: 0,
     deferred: 0,
     pages: 0,
     written: 0,
     remaining: false,
-    filled: 0,
+    released: 0,
   }
   try {
-    /** `null` ends the fill: it is off, or every unfilled row has been read. */
-    let fillCursor: Parameters<typeof markUnfilledProjectionDocuments>[1] | null =
-      (await isFeatureEnabled('knowledge-projection-fill')) ? undefined : null
     while (Date.now() < deadline) {
+      const release = await releaseSettledMarks(
+        sessions[0],
+        Math.min(deadline, Date.now() + MARK_RELEASE_BUDGET_MS),
+        scope
+      )
+      result.released += release.released
       const workers = sessions.slice(0, await workersFor(sessions[0]))
       /** Every worker finishes its document before a failure ends the pass, so none is cut off. */
       const outcomes = await Promise.allSettled(
         workers.map((session) =>
-          runKnowledgeProjection(session, { budgetMs: Math.max(0, deadline - Date.now()) })
+          runKnowledgeProjection(session, {
+            budgetMs: Math.max(0, deadline - Date.now()),
+            ...scope,
+          })
         )
       )
       const round: KnowledgeProjectionProgress[] = []
@@ -101,21 +112,11 @@ export async function runKnowledgeProjectionPass(options: {
       result.pages += round.reduce((sum, progress) => sum + progress.pages, 0)
       result.written += round.reduce((sum, progress) => sum + progress.written, 0)
       result.remaining = round.some((progress) => progress.remaining)
-      if (result.remaining) {
-        if (settled > 0) continue
-        result.deferred = round.reduce((most, progress) => Math.max(most, progress.deferred), 0)
-        break
-      }
-      /** The fill starts only inside the budget, and what it marks is left for a round to settle. */
-      if (fillCursor === null || Date.now() >= deadline) break
-      const fill = await markUnfilledProjectionDocuments(sessions[0], fillCursor)
-      result.filled += fill.marked
-      fillCursor = fill.cursor
-      if (fill.marked > 0) result.remaining = true
-      if (fill.marked === 0 && fillCursor === null) break
+      if (!result.remaining) break
+      if (settled > 0) continue
+      result.deferred = round.reduce((most, progress) => Math.max(most, progress.deferred), 0)
+      break
     }
-    /** A fill stopped partway by the budget has rows left to read, so another pass is owed. */
-    if (fillCursor) result.remaining = true
     logger.info('Knowledge projection pass finished', result)
     return result
   } finally {

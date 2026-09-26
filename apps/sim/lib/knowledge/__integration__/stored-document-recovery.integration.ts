@@ -26,6 +26,12 @@ const fixture = vi.hoisted(() => ({
   listRuns: vi.fn(),
   batchTrigger: vi.fn(),
 }))
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
 vi.mock('@/lib/core/config/trigger-runtime', () => ({
   isInsideTriggerRun: () => fixture.useTrigger,
 }))
@@ -78,7 +84,6 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
@@ -99,6 +104,7 @@ import {
   retryDocumentProcessing,
 } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
+import { searchScopedKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 import type { SyncResult } from '@/connectors/types'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []

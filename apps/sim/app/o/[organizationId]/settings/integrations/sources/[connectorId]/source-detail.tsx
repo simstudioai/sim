@@ -124,7 +124,7 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
   )
     return (
       <SettingsPanel back={back} title='Connection'>
-        <SettingsEmptyState variant='inline'>Loading connection…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading connection</SettingsEmptyState>
       </SettingsPanel>
     )
   if (
@@ -260,7 +260,7 @@ function SourceDetailContent({
           variant='inline'
         />
       ) : integrations.isPending ? (
-        <SettingsEmptyState variant='inline'>Loading integration status…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading integration status</SettingsEmptyState>
       ) : null}
       {integrations.data?.find((item) => item.connectorType === connector.connectorType)
         ?.approved === false && (

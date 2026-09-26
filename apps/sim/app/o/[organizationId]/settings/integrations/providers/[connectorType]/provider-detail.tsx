@@ -211,7 +211,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   if (overview.isPending)
     return (
       <SettingsPanel {...panel}>
-        <SettingsEmptyState variant='inline'>Loading integration…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading integration</SettingsEmptyState>
       </SettingsPanel>
     )
 
@@ -249,7 +249,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
           variant='inline'
         />
       ) : sources.isPending ? (
-        <SettingsEmptyState variant='inline'>Loading connections…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading connections</SettingsEmptyState>
       ) : (
         <div className={RESOURCE_LIST_STACK}>
           {sources.data

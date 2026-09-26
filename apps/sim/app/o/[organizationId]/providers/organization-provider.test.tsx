@@ -3,6 +3,7 @@
  */
 import { act } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,8 +40,10 @@ function ScimReader() {
 
 let host: HTMLDivElement
 let root: Root
+let client: QueryClient
 
 beforeEach(() => {
+  client = new QueryClient()
   resetDeploymentShape()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -49,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount())
+  client.clear()
   host.remove()
 })
 
@@ -69,9 +73,11 @@ describe('OrganizationProvider', () => {
 
     act(() =>
       root.render(
-        <OrganizationProvider context={context}>
-          <ScimReader />
-        </OrganizationProvider>
+        <QueryClientProvider client={client}>
+          <OrganizationProvider context={context}>
+            <ScimReader />
+          </OrganizationProvider>
+        </QueryClientProvider>
       )
     )
 

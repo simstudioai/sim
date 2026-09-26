@@ -36,7 +36,7 @@ import { Agent, type Dispatcher } from 'undici/index.js'
  *
  * Bun accepts only the boolean/zero form of `timeout`. Measured on Bun 1.3.14
  * against a server that withholds response headers, with the numeric behavior
- * rechecked on Bun 1.4.1, so the numbers below are the real deadline rather
+ * rechecked on Bun 1.4.2, so the numbers below are the real deadline rather
  * than an inferred one:
  *
  *   no option      -> THREW 300028ms (TimeoutError)   <- the 300s default

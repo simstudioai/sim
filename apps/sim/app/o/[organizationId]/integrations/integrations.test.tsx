@@ -104,7 +104,7 @@ vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => (
   },
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/hooks/use-member-enrollment', () => ({
+vi.mock('@/app/o/[organizationId]/integrations/indexed/use-member-enrollment', () => ({
   enrollmentActionLabel: (membership: string, waiting: boolean) =>
     waiting ? 'Open again' : membership === 'needs_reauth' ? 'Reconnect' : 'Connect',
   CONNECTABLE_MEMBERSHIPS: new Set(['invited', 'not_enrolled', 'needs_reauth']),
@@ -126,8 +126,8 @@ vi.mock('@/hooks/use-oauth-return', () => ({
   useOAuthReturnRouter: () => undefined,
 }))
 
+import { MemberIntegrationsList } from '@/app/o/[organizationId]/integrations/indexed'
 import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
-import { MemberIntegrationsList } from '@/app/o/[organizationId]/integrations/member-integrations-list'
 import {
   type RowAction,
   RowActionsMenu,
@@ -766,7 +766,7 @@ describe('grouped member integrations', () => {
       expect(mocks.nextPage).toHaveBeenCalledOnce()
       queryOverrides = { hasNextPage: true, isFetchingNextPage: true, isFetching: true }
       await render()
-      expect(buttons('Checking…')[0]).toBeDisabled()
+      expect(buttons('Checking')[0]).toBeDisabled()
       rows = [
         ...rows,
         { ...memberSource, connectorId: 'older-source', viewerMembership: membership },
@@ -803,8 +803,7 @@ describe('grouped member integrations', () => {
     await act(async () => buttons('Connect')[0].click())
     expect(mocks.connectSearchSource).toHaveBeenCalledWith(
       scope,
-      expect.objectContaining({ type: 'gmail' }),
-      undefined
+      expect.objectContaining({ type: 'gmail' })
     )
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
@@ -857,8 +856,7 @@ describe('grouped member integrations', () => {
       } else {
         expect(mocks.connectSearchSource).toHaveBeenCalledExactlyOnceWith(
           scope,
-          expect.objectContaining({ type: 'slack' }),
-          undefined
+          expect.objectContaining({ type: 'slack' })
         )
         expect(mocks.connect).not.toHaveBeenCalled()
       }

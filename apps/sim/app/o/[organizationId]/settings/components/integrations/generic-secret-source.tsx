@@ -89,7 +89,7 @@ export function GenericSecretSourceModal({
       <ChipModalFooter
         onCancel={close}
         primaryAction={{
-          label: update.isPending ? 'Saving…' : source ? 'Save' : 'Add source',
+          label: update.isPending ? 'Saving' : source ? 'Save' : 'Add source',
           disabled: update.isPending,
           onClick: () =>
             update.mutate(

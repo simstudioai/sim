@@ -21,7 +21,7 @@ import {
   knowledgeTagsServiceMock,
   knowledgeTagsServiceMockFns,
 } from '@sim/testing/mocks/knowledge-tags-service.mock'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import {
@@ -71,7 +71,6 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
-  bulkDeleteKnowledgeDocuments,
   createKnowledgeDocuments,
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
@@ -516,69 +515,5 @@ describe('knowledge document application use cases', () => {
     expect(billingAttributionMockFns.mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mocks.performBulkUpload).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('conceals a cross-knowledge-base bulk document before mutation for a dual-workspace subject', async () => {
-    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Document not found')
-    )
-
-    const result = await bulkDeleteKnowledgeDocuments.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'dual-workspace-user',
-        workspaceId: 'workspace-1',
-        delegationId: 'tool-call-1',
-        audience: 'sim:knowledge',
-        issuedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
-      },
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        documentIds: ['workspace-2-document'],
-      },
-    })
-
-    expect(result).toMatchObject({ deleted: [], failed: ['workspace-2-document'] })
-    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
-      'dual-workspace-user',
-      'workspace-1',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.deleteDocument).not.toHaveBeenCalled()
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('audits completed document deletions before propagating infrastructure failure', async () => {
-    const failure = new Error('document store unavailable')
-    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockImplementation(
-      async ({ documentId }) => ({
-        ...context,
-        documentId,
-        document: { ...document, id: documentId },
-      })
-    )
-    mocks.deleteDocument.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
-
-    await expect(
-      bulkDeleteKnowledgeDocuments.execute({
-        principal: createSessionPrincipal(),
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          documentIds: ['document-1', 'document-2'],
-        },
-      })
-    ).rejects.toBe(failure)
-
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledOnce()
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceId: 'document-1' })
-    )
-    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

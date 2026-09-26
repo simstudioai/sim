@@ -15,7 +15,6 @@ import {
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
   retryDocumentProcessing,
-  updateDocument,
 } from '@/lib/knowledge/documents/service'
 import type {
   DocumentProcessingOutcome,
@@ -370,61 +369,6 @@ export async function performUploadKnowledgeDocuments(
   }
 
   return { success: true, documents: created }
-}
-
-export interface PerformUpdateKnowledgeDocumentParams extends KnowledgeOperationContext {
-  knowledgeBase: KnowledgeBaseTarget
-  document: { id: string; filename: string }
-  updates: Parameters<typeof updateDocument>[1]
-}
-
-export type PerformUpdateKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
-  document: Awaited<ReturnType<typeof updateDocument>>
-}>
-
-/** Renames a document, toggles it, or edits its tags, and records the change. */
-export async function performUpdateKnowledgeDocument(
-  params: PerformUpdateKnowledgeDocumentParams
-): Promise<PerformUpdateKnowledgeDocumentResult> {
-  const { knowledgeBase, document, updates, request, source } = params
-  const requestId = params.requestId ?? generateRequestId()
-
-  const updatedFields = Object.keys(updates).filter(
-    (key) => updates[key as keyof typeof updates] !== undefined
-  )
-  if (updatedFields.length === 0) {
-    return fail('No updates specified', 'validation')
-  }
-
-  let updated: Awaited<ReturnType<typeof updateDocument>>
-  try {
-    updated = await updateDocument(document.id, updates, requestId)
-  } catch (error) {
-    return classifyKnowledgeFailure(error, requestId, `Update document ${document.id}`)
-  }
-
-  const filename = updates.filename ?? document.filename
-
-  recordAudit({
-    workspaceId: knowledgeBase.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.DOCUMENT_UPDATED,
-    resourceType: AuditResourceType.DOCUMENT,
-    resourceId: document.id,
-    resourceName: filename,
-    description: `Updated document "${filename}" in knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: knowledgeBase.id,
-      knowledgeBaseName: knowledgeBase.name,
-      fileName: filename,
-      updatedFields,
-      ...(updates.enabled !== undefined && { enabled: updates.enabled }),
-    },
-    ...(request ? { request } : {}),
-  })
-
-  return { success: true, document: updated }
 }
 
 export interface PerformDeleteKnowledgeDocumentParams extends KnowledgeOperationContext {

@@ -21,8 +21,12 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   v2RateLimits: { publicApi: { enforce: vi.fn().mockResolvedValue(null) } },
 }))
 vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
-vi.mock('@/lib/knowledge/application/read-indexed-document', () => ({
+vi.mock('@/lib/sim-search/indexed/documents/read-indexed-document', () => ({
   readIndexedKnowledgeDocument: { execute: hoisted.indexedRead },
+}))
+vi.mock('@/lib/sim-search/indexed', async () => ({
+  registerIndexedKnowledgeMcpTools: (await import('@/lib/sim-search/indexed/mcp/register-tools'))
+    .registerIndexedKnowledgeMcpTools,
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({
   searchLiveKnowledge: { execute: hoisted.liveSearch },

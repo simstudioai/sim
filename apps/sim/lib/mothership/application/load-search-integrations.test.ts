@@ -42,6 +42,8 @@ const emptyPage: InventoryPage = {
 describe('loadCopilotSearchIntegrations', () => {
   beforeEach(() => {
     resetEnvFlagsMock()
+    /** The paged inventory below is the indexed arm; the live test opts back in. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     authorizeChat.mockResolvedValue(undefined)
     listIntegrations.mockResolvedValue(emptyPage)
   })
@@ -162,7 +164,7 @@ describe('loadCopilotSearchIntegrations', () => {
       ...emptyPage,
       nextCursor: `page-${listIntegrations.mock.calls.length + 1}`,
     }))
-    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('pagination limit')
+    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('exceeded 100 pages')
     expect(listIntegrations).toHaveBeenCalledTimes(100)
   })
 

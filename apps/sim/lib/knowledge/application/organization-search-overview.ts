@@ -11,7 +11,7 @@ import {
 import { and, eq, exists, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
-import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
+import { sourceAclFreshnessCutoff } from '@/lib/knowledge/access/predicate'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -106,7 +106,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
         OR coalesce(${knowledgeConnector.nextMemberSyncAt} <= statement_timestamp(), false)
       ))
     )`
-    const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+    const cutoff = sourceAclFreshnessCutoff()
     /**
      * A member whose last run only had per-document content failures carries
      * {@link SOURCE_CONTENT_ERROR} as a marker so its next run lists fully; the

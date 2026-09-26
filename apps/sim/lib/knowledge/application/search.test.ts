@@ -17,6 +17,7 @@ import {
   billingUsageMonitorMock,
   billingUsageMonitorMockFns,
 } from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -40,7 +41,7 @@ import {
 import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const hoisted = vi.hoisted(() => ({
@@ -238,6 +239,7 @@ describe('knowledge search application use case', () => {
   describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
     beforeEach(() => {
       if (scope === 'organization') {
+        setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
         mocks.getKnowledgeBase.mockResolvedValue({
           ...knowledgeBase,
           workspaceId: null,
@@ -247,6 +249,7 @@ describe('knowledge search application use case', () => {
         queueTableRows(member, [{ role: 'member' }])
       }
     })
+    afterEach(resetEnvFlagsMock)
 
     it('meters only successful organization calls under the acting person', async () => {
       await searchKnowledge.execute({
@@ -292,6 +295,32 @@ describe('knowledge search application use case', () => {
     expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
+  describe('while indexed organization search is dormant', () => {
+    const principal = createSessionPrincipal()
+    beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: true }))
+    afterEach(resetEnvFlagsMock)
+
+    it.each([
+      ['an organization', { workspaceId: null, organizationId: 'org-canonical' }],
+      ['a workspace', {}],
+    ])('still searches %s search index named by id', async (_owner, owner) => {
+      mocks.getKnowledgeBase.mockResolvedValue({
+        ...knowledgeBase,
+        ...owner,
+        isSearchIndex: true,
+      })
+      queueTableRows(member, [{ role: 'member' }])
+      const result = await searchKnowledge.execute({
+        principal,
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+      })
+      expect(result.results).toHaveLength(1)
+      expect(mocks.executeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'], indexedRetrieval: false })
+      )
+    })
   })
 
   it('authorizes every canonical knowledge base before billing and search', async () => {

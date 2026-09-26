@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import {
   document,
   documentSecretProvenance,
@@ -53,7 +52,6 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -166,7 +164,6 @@ import {
 } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
@@ -2011,17 +2008,9 @@ export async function processDocumentAsync(
                 )
                 .limit(1)
               if (!sourceActive) return
-              /**
-               * While `knowledge-async-projection` is on, the chunks are committed with a mark on
-               * their document and no search projection rows; the knowledge projector writes those
-               * after the commit. Read before the transaction opens.
-               */
-              const deferProjection = await isFeatureEnabled('knowledge-async-projection')
               processingCommitted = await db
                 .transaction(async (tx) => {
                   signal.throwIfAborted()
-                  if (deferProjection)
-                    await tx.execute(sql.raw(`SELECT ${DEFER_KNOWLEDGE_PROJECTION}`))
                   /**
                    * Reads only the document row. Connector activity is checked by
                    * the completion write at the end instead: reading
@@ -2157,8 +2146,6 @@ export async function processDocumentAsync(
         logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
         return { outcome: 'skipped', reason: 'superseded' }
       }
-      /** The commit marked the document in either mode; a pass writes or verifies its rows. */
-      await requestKnowledgeProjection()
 
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)

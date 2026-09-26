@@ -4,6 +4,7 @@ import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -17,7 +18,7 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -31,12 +32,17 @@ vi.mock('@/lib/knowledge/search/activity-stats', () => ({
 }))
 
 import { readOrganizationSearchStats } from '@/lib/knowledge/application/organization-search-stats'
+import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 
 const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = { organizationId: 'organization', period: '7d', surface: 'mcp' } as const
 
+afterEach(resetEnvFlagsMock)
+
 beforeEach(() => {
   resetDbChainMock()
+  /** The Stats tab reports indexed organization search, so these cases run with it on. */
+  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
   knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
     organizationId: 'organization',
   })
@@ -66,6 +72,15 @@ describe('organization Search stats authorization', () => {
     expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).not.toHaveBeenCalled()
     expect(mocks.load).not.toHaveBeenCalled()
   })
+  it('refuses while indexed organization search is dormant, before aggregation', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(member, [{ role: 'admin' }])
+    await expect(readOrganizationSearchStats.execute({ principal, input })).rejects.toBeInstanceOf(
+      SearchIndexDormantError
+    )
+    expect(mocks.load).not.toHaveBeenCalled()
+  })
+
   it('fails closed when Search is disabled', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValueOnce(

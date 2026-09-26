@@ -12,7 +12,6 @@ import {
   booleanQueryFlagSchema,
   organizationIdSchema,
   resourceOwnerSchema,
-  workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { CONNECTOR_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
@@ -341,21 +340,6 @@ export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContra
   },
 })
 
-/** A source's personal account or mirrored-ACL identity connection for the current viewer. */
-export const workspaceMemberConnectorSchema = z.object({
-  knowledgeBaseId: z.string(),
-  knowledgeBaseName: z.string(),
-  knowledgeBaseIsSearchIndex: z.boolean().optional(),
-  sourceDescription: z.string().max(240).optional(),
-  connectorId: z.string(),
-  connectorType: z.string(),
-  memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
-  viewerMembership: viewerConnectorMembershipSchema,
-  /** Documents of this connector the viewer may read right now. */
-  viewerDocumentCount: z.number().int().nonnegative(),
-})
-export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
-
 const searchSourceSummaryFields = {
   knowledgeBaseId: knowledgeBaseParamsSchema.shape.id,
   connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
@@ -582,16 +566,6 @@ export const connectSimSearchConnectorContract = defineRouteContract({
         url: z.string().url(),
       }),
     }),
-  },
-})
-
-export const listWorkspaceMemberConnectorsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/knowledge/member-connectors',
-  query: z.object({ workspaceId: workspaceIdSchema }),
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.array(workspaceMemberConnectorSchema)),
   },
 })
 

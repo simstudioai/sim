@@ -45,8 +45,7 @@ function personalSetupFields(meta: MockConnectorMeta): MockConnectorConfigField[
  * - `mockConnectorDisplayName` returns the connector type unchanged.
  * - `mockSearchMemberAccountProvider` returns `null`.
  *
- * `mockGetConnectorAccessAvailability`, `mockSearchConnectorUnavailableReason`, and
- * `mockIsSearchConnectorAvailable` are bare.
+ * `mockGetConnectorAccessAvailability` and `mockIsSearchConnectorAvailable` are bare.
  *
  * @example
  * ```ts
@@ -92,7 +91,6 @@ export const simSearchConnectorsMockFns = {
   ),
   mockConnectorDisplayName: vi.fn((connectorType: string): string => connectorType),
   mockGetConnectorAccessAvailability: vi.fn(),
-  mockSearchConnectorUnavailableReason: vi.fn(),
   mockIsSearchConnectorAvailable: vi.fn(),
 }
 
@@ -123,6 +121,5 @@ export const simSearchConnectorsMock = {
   missingSetupFields: simSearchConnectorsMockFns.mockMissingSetupFields,
   connectorDisplayName: simSearchConnectorsMockFns.mockConnectorDisplayName,
   getConnectorAccessAvailability: simSearchConnectorsMockFns.mockGetConnectorAccessAvailability,
-  searchConnectorUnavailableReason: simSearchConnectorsMockFns.mockSearchConnectorUnavailableReason,
   isSearchConnectorAvailable: simSearchConnectorsMockFns.mockIsSearchConnectorAvailable,
 }

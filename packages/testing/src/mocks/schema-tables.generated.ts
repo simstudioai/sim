@@ -431,6 +431,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  organizationSearchHistory: ['organizationId', 'userId', 'sources', 'queries'],
   member: ['id', 'userId', 'organizationId', 'role', 'createdAt'],
   organizationMemberUsageLimit: [
     'id',
