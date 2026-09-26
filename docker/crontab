@@ -71,3 +71,7 @@ SHELL=/bin/sh
 # Billing-seat reconciliation. Only meaningful with billing enabled; harmless
 # otherwise, and kept so the job set matches the Helm chart exactly.
 0 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/reconcile-billing-seats"
+
+# On-prem usage telemetry: reports the trailing window of daily usage to the
+# configured Sim instance. A no-op unless ONPREM_TELEMETRY_ENABLED is set.
+15 */6 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/onprem-usage-report"
