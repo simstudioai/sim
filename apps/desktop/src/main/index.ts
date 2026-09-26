@@ -866,6 +866,7 @@ function main(): void {
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
+      installStatePath: join(userDataPath, 'update-install.json'),
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
       setRelaunchPending: (pending) => {
