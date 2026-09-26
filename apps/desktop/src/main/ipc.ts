@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import {
   BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS,
   type BrowserPanelAction,
@@ -31,6 +32,10 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
+import {
+  captureAccountDataGeneration,
+  isAccountDataGenerationCurrent,
+} from '@/main/account-data-generation'
 import {
   type BrowserToolQueueBoundary,
   cancelActiveTool,
@@ -81,6 +86,7 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
+import { type LocalFileAccess, LocalFilePermissions } from '@/main/local-file-permissions'
 import { executeLocalFileRequest } from '@/main/local-files'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
@@ -591,6 +597,7 @@ async function authorizeLocalFilesystemTool(
  * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
+  const localFilePermissions = new LocalFilePermissions()
   const browserScopeBySender = new WeakMap<WebContents, string>()
   const terminalScopeBySender = new WeakMap<WebContents, string>()
   const browserPendingScopesBySender = new WeakMap<WebContents, Set<string>>()
@@ -722,8 +729,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requiresAccountData: true,
       passSender: true,
       denied: { ok: false, error: 'Local file tools are unavailable from this page.' },
-      handler: (_sender, request, authorization) =>
-        executeLocalFileRequest(request, authorization as DesktopToolAuthorization),
+      handler: (_sender, request, authorization, access) =>
+        executeLocalFileRequest(
+          request,
+          authorization as DesktopToolAuthorization,
+          access as LocalFileAccess
+        ),
     },
     'desktop:local-filesystem': {
       kind: 'invoke',
@@ -2073,6 +2084,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           }
         }
         if (channel === 'desktop:local-files') {
+          const generation = captureAccountDataGeneration()
+          const origin = deps.appOrigin()
           const request = args[0]
           if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
           let failureStatus: number | undefined
@@ -2096,7 +2109,35 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             !['read_local_file', 'import_local_files'].includes(authorization.toolName)
           )
             return { ok: false, error: 'This is not an authorized pending local file tool call.' }
-          handlerArgs = [request, authorization]
+          if (
+            authorization.toolName === 'read_local_file'
+              ? request.operation !== 'read'
+              : request.operation !== 'manifest' && request.operation !== 'chunk'
+          )
+            return { ok: false, error: 'The operation does not match the pending tool call.' }
+          const parent = deps.getWindowForContents(event.sender)
+          if (!parent)
+            return { ok: false, error: 'A desktop window is required to approve file access.' }
+          try {
+            const access = await localFilePermissions.authorize(authorization, {
+              parent,
+              origin,
+              generation,
+              isCurrent: () =>
+                isAccountDataGenerationCurrent(generation) &&
+                deps.accountDataAvailable() &&
+                deps.appOrigin() === origin &&
+                isAppOriginSender(event, origin),
+              revalidate: async () =>
+                isDeepStrictEqual(
+                  authorization,
+                  await fetchDesktopToolAuthorization(event, deps, request.toolCallId)
+                ),
+            })
+            handlerArgs = [request, authorization, access]
+          } catch (error) {
+            return { ok: false, error: getErrorMessage(error) }
+          }
         }
         if (spec.passSender) {
           handlerArgs = [event.sender, ...handlerArgs]
