@@ -293,6 +293,49 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
+/** Headers that control the app origin or HTTP transport belong to the server. */
+const RESERVED_RESPONSE_HEADERS = new Set([
+  'alt-svc',
+  'clear-site-data',
+  'connection',
+  'content-disposition',
+  'content-encoding',
+  'content-length',
+  'content-location',
+  'content-range',
+  'document-policy',
+  'keep-alive',
+  'link',
+  'location',
+  'nel',
+  'origin-agent-cluster',
+  'permissions-policy',
+  'proxy-authenticate',
+  'referrer-policy',
+  'refresh',
+  'report-to',
+  'reporting-endpoints',
+  'set-cookie',
+  'set-cookie2',
+  'strict-transport-security',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'www-authenticate',
+  'x-frame-options',
+  'x-sendfile',
+  'x-xss-protection',
+])
+
+const RESERVED_RESPONSE_HEADER_PREFIXES = [
+  'access-control-',
+  'content-security-policy',
+  'cross-origin-',
+  'sec-',
+  'x-accel-',
+  'x-middleware-',
+] as const
+
 export const createHttpResponseFromBlock = async (
   executionResult: Pick<ExecutionResult, 'output'>,
   context?: ExecutionMaterializationContext
@@ -300,10 +343,19 @@ export const createHttpResponseFromBlock = async (
   const { data = {}, status = 200, headers = {} } = executionResult.output
   const responseData = await materializeInlineExecutionValue(data, context)
 
-  const responseHeaders = new Headers({
-    'Content-Type': 'application/json',
-    ...headers,
-  })
+  const responseHeaders = new Headers()
+  for (const [name, value] of new Headers(headers)) {
+    if (
+      !RESERVED_RESPONSE_HEADERS.has(name) &&
+      !RESERVED_RESPONSE_HEADER_PREFIXES.some((prefix) => name.startsWith(prefix))
+    ) {
+      responseHeaders.set(name, value)
+    }
+  }
+
+  // JSON serialization does not escape HTML; enforce the MIME type after normalizing header names.
+  responseHeaders.set('Content-Type', 'application/json')
+  responseHeaders.set('X-Content-Type-Options', 'nosniff')
 
   return NextResponse.json(responseData, {
     status: status,
