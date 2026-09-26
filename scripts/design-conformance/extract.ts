@@ -1012,12 +1012,19 @@ export function extract(
               0,
               key
             )
+          const contract = options?.contract?.(group.target)
+          const deferredStyle = /Style$/.test(key) && !contract && Boolean(group.componentRef)
           if (
             value.isJSXExpressionContainer() &&
             (key === 'style' ||
-              (/Style$/.test(key) && options?.contract?.(group.target)?.slots?.includes(key)))
-          )
+              (/Style$/.test(key) && contract?.slots?.includes(key)) ||
+              deferredStyle)
+          ) {
+            const start = group.atoms.length
             styles(value.get('expression'), new Set(), key)
+            if (deferredStyle)
+              for (const atom of group.atoms.slice(start)) atom.deferredStyle = true
+          }
           if (
             options?.conformance &&
             /^[a-z]/.test(group.target) &&

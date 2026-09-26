@@ -422,6 +422,7 @@ export class SourceIndex {
     const id = `${target}:${slot}`
     if (seen.has(id) || seen.size >= 12) return []
     if (this.contract(target)) return [{ target, slot }]
+    if (/^[a-z][a-z-]*$/.test(target) && slot === 'style') return [{ target, slot }]
     const next = new Set(seen).add(id)
     const resolved = this.resolve(target)
     const paths = resolved?.facts.syntax?.slots[resolved.name]?.[slot] ?? []

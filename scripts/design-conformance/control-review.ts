@@ -15,6 +15,7 @@ import { productScope } from '#control-analysis/scope'
 import { centralInventory, componentContract } from '#design-conformance/contracts'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import {
+  ambiguousStyling,
   canonical,
   type Finding,
   family,
@@ -837,6 +838,13 @@ export class ReviewCollector {
                 token,
                 family(property),
                 candidate.siteKey
+              )
+            else if (ambiguousStyling(slot, property))
+              this.note(
+                candidate.file,
+                candidate.line,
+                candidate.owner,
+                `Writing-mode-dependent styling may override component-owned chrome: ${property}`
               )
         }
     }

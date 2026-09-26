@@ -230,6 +230,18 @@ test('declared custom style channels warn on owned chrome and retain data-only p
   )
   expect(runtime.unchecked.some((note) => note.reason.includes('Computed style object'))).toBe(true)
 })
+test('custom styling forwarded by a product wrapper is checked at its caller', async () => {
+  const result = await diff(
+    '',
+    `import {Code} from '@sim/emcn';const Wrapper=({gutterStyle,dataStyle})=> <Code.Viewer code="x" gutterStyle={gutterStyle}/>;const A=()=> <Wrapper gutterStyle={{width:100}} dataStyle={{color:'#123456'}}/>`
+  )
+  expect(
+    result.findings.some(
+      (finding) => finding.rule === 'component-chrome' && finding.property === 'width'
+    )
+  ).toBe(true)
+  expect(result.findings.some((finding) => finding.value.includes('#123456'))).toBe(false)
+})
 test('Code.Viewer ownership works through namespace imports and inline styles', async () => {
   const report = await diff(
     '',

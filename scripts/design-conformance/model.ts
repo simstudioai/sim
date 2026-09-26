@@ -21,6 +21,7 @@ export const inspectionFailure = (reason: string) =>
 export const hash = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex')
 export const canonical = (value: unknown): string => JSON.stringify(value)
 export interface Atom {
+  deferredStyle?: boolean
   pendingRef?: string
   partial?: { expression: string; inputs: string[] }
   forwarded?: Route[]
@@ -276,4 +277,31 @@ export function ownsStyling(
   )
   const permits = slot.allowed?.some((rule) => rule === group || covers(rule, property))
   return protects && !permits
+}
+/** Physical/logical overlap depends on inherited writing mode; keep it visible without claiming a proof. */
+export function ambiguousStyling(
+  slot: { protected: string[]; allowed?: string[] } | undefined,
+  property: string
+): boolean {
+  if (!slot || ownsStyling(slot, property)) return false
+  if (
+    slot.allowed?.some((rule) => rule === '*' || rule === property || rule === category(property))
+  )
+    return false
+  const dimension = /^(min-|max-)?(width|height|inline-size|block-size)$/.exec(property)
+  const logical = /(?:^|-)(?:inline|block|start|end)(?:-|$)/
+  const physical = /(?:^|-)(?:top|right|bottom|left)(?:-|$)/
+  return slot.protected.some((rule) => {
+    const otherDimension = /^(min-|max-)?(width|height|inline-size|block-size)$/.exec(rule)
+    if (dimension && otherDimension)
+      return (
+        dimension[1] === otherDimension[1] &&
+        /size$/.test(dimension[2]) !== /size$/.test(otherDimension[2])
+      )
+    return (
+      family(rule) === family(property) &&
+      ((logical.test(rule) && physical.test(property)) ||
+        (physical.test(rule) && logical.test(property)))
+    )
+  })
 }

@@ -15,6 +15,7 @@ import { type DesignSystem, designSystem } from '#design-conformance/design-syst
 import { extract } from '#design-conformance/extract'
 import {
   type Atom,
+  ambiguousStyling,
   type Change,
   type Commits,
   canonical,
@@ -277,6 +278,18 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
                 d.category
               )
           )
+        if (
+          !protectedProperty &&
+          contracts.some(({ contract: c, slot: s }) =>
+            ambiguousStyling(c?.slotOwnership?.[s], d.property)
+          )
+        ) {
+          const reason = `Writing-mode-dependent styling may override component-owned chrome: ${d.property}`
+          if (
+            !out.unchecked.some((note) => note.context === atom.context && note.reason === reason)
+          )
+            out.unchecked.push({ line: atom.line, context: atom.context, reason })
+        }
         const protectedIcon = surface.iconSlot && ['dimensions', 'colours'].includes(d.category)
         const modalSpacing =
           ownsTarget &&
@@ -417,6 +430,22 @@ function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
         surface.componentRef && !index.contract(surface.target)
           ? index.forwarded(surface.componentRef, inputSlot(input))
           : []
+      if (
+        input.deferredStyle &&
+        !forwarded.some(
+          (route) =>
+            route.slot === 'style' ||
+            (/Style$/.test(route.slot) && index.contract(route.target)?.slots?.includes(route.slot))
+        )
+      ) {
+        if (surface.componentRef && !index.resolve(surface.componentRef))
+          unchecked.push({
+            line: input.line,
+            context: surface.owner,
+            reason: `Custom styling slot cannot be resolved: ${surface.target}.${inputSlot(input)}`,
+          })
+        return []
+      }
       const atom = forwarded.length ? { ...input, forwarded } : input
       if (!atom.pendingRef) return [atom]
       let value = index.value(atom.pendingRef)
