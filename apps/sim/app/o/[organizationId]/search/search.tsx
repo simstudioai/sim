@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { ComposerActionButton, toast } from '@sim/emcn'
-import { ArrowUp, Loader } from '@sim/emcn/icons'
+import { ArrowUp, StopFilled } from '@sim/emcn/icons'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -39,14 +39,13 @@ interface SearchFieldProps {
 function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
-  const isSearching =
-    useIsFetching({
-      queryKey: knowledgeKeys.searchQuery(
-        resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
-        initialValue.trim(),
-        userId
-      ),
-    }) > 0
+  const queryClient = useQueryClient()
+  const queryKey = knowledgeKeys.searchQuery(
+    resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
+    initialValue.trim(),
+    userId
+  )
+  const isSearching = useIsFetching({ queryKey }) > 0
   const latestDraftKey = `${userId}:organization:${organization.id}:search`
   const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
   const ownerQuery = initialValue || latestDraft?.searchQuery || ''
@@ -60,7 +59,6 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
     setDraft(draftKey, payload)
     setDraft(latestDraftKey, payload)
   }
-  const pending = isSearching && value.trim() === initialValue.trim()
   const submit = (text = value) => {
     if (!text.trim() || (isSearching && text.trim() === initialValue.trim())) return
     const { clearDraft } = useMothershipDraftsStore.getState()
@@ -99,14 +97,14 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       submitControl={
         <ComposerActionButton
           type='button'
-          onClick={() => submit()}
-          disabled={!canSubmit || pending}
-          aria-label={pending ? 'Searching' : 'Search'}
-          aria-busy={pending}
-          active={canSubmit}
+          onClick={() => (isSearching ? void queryClient.cancelQueries({ queryKey }) : submit())}
+          disabled={!canSubmit && !isSearching}
+          aria-label={isSearching ? 'Stop search' : 'Search'}
+          aria-busy={isSearching}
+          active={canSubmit || isSearching}
         >
-          {pending ? (
-            <Loader className='size-[16px] animate-spin text-white motion-reduce:animate-none dark:text-black' />
+          {isSearching ? (
+            <StopFilled className='block size-[14px] fill-white dark:fill-black' />
           ) : (
             <ArrowUp className='block size-[16px] text-white dark:text-black' />
           )}

@@ -272,6 +272,60 @@ describe('search refinement with the real query cache and URL state', () => {
 })
 
 describe('live search submission feedback', () => {
+  it.each(['launch', 'edited draft', ''])(
+    'cancels with draft %j, ignores late results, and allows a fresh submission',
+    async (draft) => {
+      const shape = resolveDeploymentShape()
+      seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+      await render({ organizationPage: true, params: '?q=launch' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests).toHaveLength(1)
+      await act(async () => {
+        const input = container.querySelector('textarea')!
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          draft
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
+        const stop = container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')
+        if (!stop) throw new Error('No stop control for the pending search')
+        stop.click()
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests[0].signal.aborted).toBe(true)
+      expect(container.querySelector('textarea')!.value).toBe(draft)
+      await complete(0, { title: 'Cancelled result' })
+      expect(
+        client
+          .getQueriesData({ queryKey: knowledgeKeys.searches() })
+          .every(([, data]) => data === undefined)
+      ).toBe(true)
+      await act(async () => {
+        const input = container.querySelector('textarea')!
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          'launch'
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')!.click()
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests).toHaveLength(2)
+      await complete(1, { title: 'Fresh result' })
+      expect(
+        client
+          .getQueriesData<WorkspaceKnowledgeSearchData>({ queryKey: knowledgeKeys.searches() })
+          .flatMap(([, data]) => data?.results.map((result) => result.documentId) ?? [])
+      ).toEqual(['Fresh result'])
+    }
+  )
+
   it('acknowledges the submitted query before exposing refinement controls', async () => {
     const shape = resolveDeploymentShape()
     seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
@@ -286,8 +340,8 @@ describe('live search submission feedback', () => {
       )
     ).toBe(false)
     expect(
-      container.querySelector<HTMLButtonElement>('button[aria-label="Searching"]')?.disabled
-    ).toBe(true)
+      container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')?.disabled
+    ).toBe(false)
     await complete(0)
     expect(
       container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')?.disabled

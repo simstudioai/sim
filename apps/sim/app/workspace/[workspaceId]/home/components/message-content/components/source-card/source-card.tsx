@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import {
   Chip,
+  chipGeometryClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipRadiusClass,
@@ -124,29 +125,38 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
 
   if (dense) {
     return (
-      <div className={cn(SOURCE_ROW_CLASSES, 'items-center py-1')}>
-        <span className={chipIconSlotClass}>
-          <SourceIcon source={source} />
-        </span>
-        <a
-          href={source.url}
-          target='_blank'
-          rel='noopener noreferrer'
-          data-source-link=''
-          onClick={navigate}
-          onAuxClick={navigate}
-          className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+      <div className='not-prose py-1'>
+        <div
+          className={cn(
+            chipGeometryClass,
+            chipHoverSurfaceClass,
+            'flex transition-colors focus-within:bg-[var(--surface-hover)]',
+            inter.className
+          )}
         >
+          <span className={chipIconSlotClass}>
+            <SourceIcon source={source} />
+          </span>
+          <a
+            href={source.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            data-source-link=''
+            onClick={navigate}
+            onAuxClick={navigate}
+            className='min-w-0 flex-1 text-[var(--text-body)] text-sm no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+          >
+            <OverflowText
+              label={source.title?.trim() || sourceLabel(source)}
+              focusTarget='nearest-interactive'
+            />
+          </a>
           <OverflowText
-            label={source.title?.trim() || sourceLabel(source)}
-            focusTarget='nearest-interactive'
+            label={meta.join(' · ')}
+            className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
           />
-        </a>
-        <OverflowText
-          label={meta.join(' · ')}
-          className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
-        />
-        <SourceActions source={source} />
+          <SourceActions source={source} />
+        </div>
       </div>
     )
   }
