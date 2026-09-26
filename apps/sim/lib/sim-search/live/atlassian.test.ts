@@ -59,7 +59,7 @@ describe('Confluence live documents', () => {
         if (path === '/oauth/token/accessible-resources') return [SITE]
         if (path === `${v2}/blogposts/9`)
           return { id: '9', title: 'Release notes', body: { view: { value: '<p>Shipped.</p>' } } }
-        throw new NativeSearchError('unavailable', 'Provider request failed (404).')
+        throw new NativeSearchError('unavailable', 'Provider request failed (404).', undefined, 404)
       }),
       text: vi.fn(),
     }
@@ -67,6 +67,24 @@ describe('Confluence live documents', () => {
       kind: 'blogpost',
       content: expect.stringContaining('Shipped.'),
     })
+  })
+
+  it('keeps a legacy reference page failure that is not a missing page', async () => {
+    const failure = new NativeSearchError(
+      'unavailable',
+      'Provider request failed (500).',
+      undefined,
+      500
+    )
+    const api: NativeClient = {
+      json: vi.fn(async (path: string) => {
+        if (path === '/oauth/token/accessible-resources') return [SITE]
+        if (path === `${v2}/pages/9`) throw failure
+        throw new Error(`Unexpected request: ${path}`)
+      }),
+      text: vi.fn(),
+    }
+    await expect(readAtlassian(api, 'confluence', '9', 'cloud')).rejects.toBe(failure)
   })
 
   it('reads a space result as its homepage, keeping the space as the document', async () => {

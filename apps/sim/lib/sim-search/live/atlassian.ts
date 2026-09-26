@@ -257,7 +257,7 @@ async function readConfluence(
   const row = object(
     kind === undefined
       ? await content('pages').catch((error: unknown) => {
-          if (error instanceof NativeSearchError && error.status === 'unavailable') {
+          if (error instanceof NativeSearchError && error.httpStatus === 404) {
             contentKind = 'blogpost'
             return content('blogposts')
           }
