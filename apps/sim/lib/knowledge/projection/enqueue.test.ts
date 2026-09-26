@@ -2,33 +2,32 @@ import {
   asyncJobsRegionMock,
   asyncJobsRegionMockFns,
 } from '@sim/testing/mocks/async-jobs-region.mock'
-import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { mockEnvObject } from '@sim/testing/mocks/env.mock'
 import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { tasks } from '@trigger.dev/sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   runPass: vi.fn(),
   insideRun: vi.fn(),
+  pending: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@sim/db/knowledge-projection', () => ({
+  releaseSettledMarks: async () => ({ released: 0, drained: true, empty: false }),
+  MARK_RELEASE_BUDGET_MS: 10_000,
+  hasKnowledgeProjectionWork: hoisted.pending,
+}))
 
 vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: hoisted.insideRun }))
 vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: hoisted.runPass }))
 
-import {
-  enqueueKnowledgeProjectionSweep,
-  requestKnowledgeProjection,
-} from '@/lib/knowledge/projection/enqueue'
+import { enqueueKnowledgeProjectionSweep } from '@/lib/knowledge/projection/enqueue'
 
 const mocks = {
   ...hoisted,
   resolveRegion: asyncJobsRegionMockFns.mockResolveTriggerRegion,
-  isFeatureEnabled: featureFlagsMockFns.mockIsFeatureEnabled,
 }
 
 setEnvFlags({ isTriggerDevEnabled: true })
@@ -41,8 +40,7 @@ describe('knowledge projection enqueue', () => {
     vi.setSystemTime(new Date('2026-09-23T12:34:45.000Z'))
     mocks.resolveRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
-    dbChainMockFns.execute.mockResolvedValue([{ pending: true }])
-    mocks.isFeatureEnabled.mockResolvedValue(false)
+    mocks.pending.mockResolvedValue(true)
     mockEnvObject.TRIGGER_SECRET_KEY = 'fixture-key'
     mocks.insideRun.mockReturnValue(false)
   })
@@ -64,24 +62,5 @@ describe('knowledge projection enqueue', () => {
       ttl: '5m',
     })
     expect(mocks.runPass).not.toHaveBeenCalled()
-  })
-
-  it('debounces prompt requests across processes and collapses them within one', async () => {
-    await requestKnowledgeProjection()
-    await requestKnowledgeProjection()
-    expect(mockTrigger).toHaveBeenCalledTimes(1)
-    expect(mockTrigger).toHaveBeenCalledWith('knowledge-projection', undefined, {
-      debounce: { key: 'knowledge-projection', delay: '5s', maxDelay: '1m' },
-      region: 'us-east-1',
-    })
-    vi.advanceTimersByTime(5_000)
-    await requestKnowledgeProjection()
-    expect(mockTrigger).toHaveBeenCalledTimes(2)
-  })
-
-  it('never fails the write that asked when the request is refused', async () => {
-    vi.advanceTimersByTime(60_000)
-    mockTrigger.mockRejectedValueOnce(new Error('trigger unavailable'))
-    await expect(requestKnowledgeProjection()).resolves.toBeUndefined()
   })
 })

@@ -9,7 +9,6 @@ import {
   resetDbChainMock as resetDatabaseMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
 import {
@@ -245,7 +244,6 @@ describe('connector content replacement processing state', () => {
   })
 
   it('refuses a queued live Search source before locking or indexing content', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
     queueTableRows(schemaMock.knowledgeBase, [{ isSearchIndex: true }])
     const result = await executeSync('connector-1', {

@@ -1,6 +1,5 @@
 import { resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -103,7 +102,6 @@ const document = {
 describe('authorized live retrieval', () => {
   beforeEach(() => {
     resetDbChainMock()
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mocks.service.mockResolvedValue(undefined)
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
       workspaceId: 'workspace',

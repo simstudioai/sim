@@ -7,7 +7,6 @@ import {
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
@@ -15,10 +14,6 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
-import {
-  knowledgeDocumentsServiceMock,
-  knowledgeDocumentsServiceMockFns,
-} from '@sim/testing/mocks/knowledge-documents-service.mock'
 import {
   knowledgeMemberAccessMock,
   knowledgeMemberAccessMockFns,
@@ -66,7 +61,6 @@ vi.mock('@/lib/knowledge/connectors/detachment', () => ({
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
-vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/connectors/registry.server', () => ({
@@ -126,7 +120,6 @@ const mockRevoke = knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCred
 const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 const mockIncrementStorage = billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
 const mockNotifyStorage = billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
-knowledgeDocumentsServiceMockFns.mockDeleteDocumentStorageFiles.mockResolvedValue(undefined)
 knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions.mockResolvedValue(undefined)
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
@@ -349,7 +342,6 @@ describe('performUpdateKnowledgeConnector', () => {
   afterAll(resetDbChainMock)
 
   it('saves live permissions without indexing while protecting stale indexed ACLs', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [
       {
         id: 'conn-1',

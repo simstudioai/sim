@@ -4,7 +4,6 @@ import {
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import {
   asyncJobsRegionMock,
@@ -76,7 +75,6 @@ describe('member sync queue', () => {
   })
 
   it('does not dispatch a live Search source to member indexing', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, isSearchIndex: true }])
     expect(await dispatchMemberSync('c-1', { billingAttribution: BILLING })).toEqual({
       queued: false,

@@ -26,7 +26,8 @@ export interface MockDeploymentShape {
 
 /**
  * Builds a deployment shape from the `env-flags` mock defaults (self-hosted, billing off, Chat on,
- * inbox/whitelabeling/session policies on, everything else off), with shallow `features` overrides.
+ * Live Search, inbox/whitelabeling/session policies on, everything else off), with shallow
+ * `features` overrides.
  */
 export function createMockDeploymentShape(
   overrides: Partial<Omit<MockDeploymentShape, 'features'>> & {
@@ -42,7 +43,7 @@ export function createMockDeploymentShape(
     cohereConfigured: false,
     ...rest,
     features: {
-      liveEnterpriseSearch: false,
+      liveEnterpriseSearch: true,
       accessControl: false,
       auditLogs: false,
       customBlocks: false,

@@ -639,9 +639,6 @@ export const env = createEnv({
     AGENT_MEMORY_HISTORY:                 z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
-    KNOWLEDGE_TIN_KEYWORD:                z.boolean().optional(),                 // Rank large-scope keyword retrieval through the Tin text index where it exists
-    KNOWLEDGE_ASYNC_PROJECTION:           z.boolean().optional(),                 // Knowledge writers leave search projection rows to the background projector
-    KNOWLEDGE_PROJECTION_FILL:            z.boolean().optional(),                 // The knowledge projector fills projection rows written before they carried a source and ACL
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

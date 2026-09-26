@@ -1,4 +1,4 @@
-import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags, workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { billingPlanHelpersMock } from '@sim/testing/mocks/billing-plan-helpers.mock'
 import {
@@ -613,7 +613,6 @@ describe('Assistant payload', () => {
   })
   it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
     vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
       {

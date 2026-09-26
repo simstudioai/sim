@@ -15,7 +15,6 @@ const m = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
-  sources: vi.fn(),
   persist: vi.fn(),
   dispatch: vi.fn(),
   post: vi.fn(),
@@ -52,9 +51,6 @@ vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
   },
 }))
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
-vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
-  getSlackSearchSourceStatus: { execute: m.sources },
-}))
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
   persistSlackSearchTurn: m.persist,
   requireSlackSearchTurnLease: m.lease,
@@ -145,7 +141,6 @@ beforeEach(() => {
   organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
     role: 'member',
   })
-  m.sources.mockResolvedValue({ hasSearchableDocuments: true })
   m.persist.mockResolvedValue('retry1')
   m.api.mockResolvedValue({ status: 200, data: { ok: true, permalink: state.slackUrl } })
   m.post.mockResolvedValue({ status: 200, data: { ok: true } })

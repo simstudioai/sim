@@ -4,14 +4,8 @@ import {
   readDocumentInputSchema,
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
-import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
-import {
-  searchOrganizationKnowledge,
-  searchWorkspaceKnowledge,
-} from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { createKnowledgeDocumentCitation, liveCitationId } from '@/lib/knowledge/search/citation'
@@ -31,6 +25,12 @@ import {
 } from '@/lib/mothership/application/execute-knowledge-use-case'
 import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import {
+  readSearchDocument,
+  searchOrganizationKnowledge,
+  searchWorkspaceKnowledge,
+} from '@/lib/sim-search/indexed'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
@@ -38,9 +38,9 @@ const logger = createLogger('WorkspaceSearchTool')
 
 const CITATION_INSTRUCTION =
   'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.' +
-  (isLiveEnterpriseSearchEnabled
-    ? ' When referring to a Slack conversation, link the returned sourceContainerName to its sourceContainerUrl when available.'
-    : '')
+  (isIndexedOrgSearchEnabled()
+    ? ''
+    : ' When referring to a Slack conversation, link the returned sourceContainerName to its sourceContainerUrl when available.')
 
 export const searchWorkspaceServerTool: BaseServerTool = {
   name: 'search_workspace',
@@ -78,7 +78,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
             resultSecretRegistry: registry,
             signal: context?.abortSignal,
           } as const
-          if (isLiveEnterpriseSearchEnabled) {
+          if (!isIndexedOrgSearchEnabled()) {
             const nativeProjection = projectResolvedSecretModelContent(
               nativeQueries ?? [],
               registry
@@ -237,7 +237,7 @@ export const readDocumentServerTool: BaseServerTool = {
           const input = readDocumentInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
-          if (isLiveEnterpriseSearchEnabled) {
+          if (!isIndexedOrgSearchEnabled()) {
             const liveInput = {
               ...input,
               filters: intersectWorkspaceSearchFilters(

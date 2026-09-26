@@ -3746,8 +3746,9 @@ export const embeddingKeywordTin = pgTable(
 /**
  * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
  * candidate scans from fetching full-precision TOAST values. Application writers only change
- * `embedding`: its trigger writes this projection in the writer's transaction, or, for a writer that
- * deferred it, the knowledge projector writes it after the commit (see {@link knowledgeProjectionDirty}).
+ * `embedding`: its trigger writes this projection in the writer's transaction. A chunk write that
+ * skipped the trigger, as releases that deferred projection did, is written by the knowledge
+ * projector after the commit (see {@link knowledgeProjectionDirty}).
  */
 export const embeddingSearch = pgTable(
   'embedding_search',
@@ -3816,8 +3817,10 @@ export const embeddingSearch = pgTable(
  * Documents whose search projection rows may lag their source rows. The `document` and `embedding`
  * triggers mark a document here whenever they change what its projection rows carry, in the
  * writer's transaction; the projector rewrites the rows and then removes the mark, but only on the
- * generation it read, so a change made while it ran leaves the mark in place. Search decides a
- * marked document's rows on the document itself, so a mark never widens what a reader sees.
+ * generation it read, so a change made while it ran leaves the mark in place. A workspace
+ * document's mark with no content to project is removed without a pass: its writer already wrote
+ * the rows its searches read. Search-index search decides a marked document's rows on the
+ * document itself, so a mark never widens what a reader sees.
  *
  * A side table rather than a column on `document`: a mark is written by the writer that already
  * holds the document row, but clearing it would otherwise take that row again, and readers probe

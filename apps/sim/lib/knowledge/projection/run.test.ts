@@ -1,10 +1,9 @@
 import { databaseMockFns } from '@sim/testing/mocks/database.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const hoisted = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   runProjection: vi.fn(),
-  markUnfilled: vi.fn(),
+  release: vi.fn(),
   end: vi.fn(),
   marks: vi.fn(),
 }))
@@ -15,21 +14,16 @@ await vi.hoisted(async () => {
 })
 
 vi.mock('@sim/db/knowledge-projection', () => ({
-  runKnowledgeProjection: hoisted.runProjection,
-  markUnfilledProjectionDocuments: hoisted.markUnfilled,
+  runKnowledgeProjection: mocks.runProjection,
+  releaseSettledMarks: mocks.release,
+  MARK_RELEASE_BUDGET_MS: 10_000,
 }))
 /** A session answering the backlog count; the projection itself is mocked above. */
 vi.mock('postgres', () => ({
-  default: () => Object.assign(async () => [{ marks: hoisted.marks() }], { end: hoisted.end }),
+  default: () => Object.assign(async () => [{ marks: mocks.marks() }], { end: mocks.end }),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { runKnowledgeProjectionPass } from '@/lib/knowledge/projection/run'
-
-const mocks = {
-  ...hoisted,
-  isFeatureEnabled: featureFlagsMockFns.mockIsFeatureEnabled,
-}
 
 databaseMockFns.mockResolveDbUrl.mockReturnValue('postgresql://fixture/sim_acl_test')
 
@@ -38,7 +32,7 @@ const drained = { settled: 1, deferred: 0, pages: 2, written: 3, remaining: fals
 describe('runKnowledgeProjectionPass', () => {
   beforeEach(() => {
     mocks.runProjection.mockResolvedValue(drained)
-    mocks.isFeatureEnabled.mockResolvedValue(false)
+    mocks.release.mockResolvedValue({ released: 0, drained: true, empty: false })
     mocks.marks.mockReturnValue(2)
   })
 
@@ -73,60 +67,6 @@ describe('runKnowledgeProjectionPass', () => {
     expect(settled).toBe(false)
     finishOther()
     await expect(pass).rejects.toThrow('connection lost')
-  })
-
-  it('marks unfilled documents and converges them until none are left', async () => {
-    mocks.isFeatureEnabled.mockResolvedValue(true)
-    mocks.markUnfilled
-      .mockResolvedValueOnce({ marked: 2, cursor: { projection: 0, afterId: 'row-2' } })
-      .mockResolvedValueOnce({ marked: 0, cursor: null })
-    const result = await runKnowledgeProjectionPass({ budgetMs: 60_000 })
-    expect(result).toMatchObject({ filled: 2, remaining: false })
-    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(1, expect.anything(), undefined)
-    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(2, expect.anything(), {
-      projection: 0,
-      afterId: 'row-2',
-    })
-  })
-
-  describe('at the budget', () => {
-    beforeEach(() => {
-      vi.useFakeTimers()
-      mocks.isFeatureEnabled.mockResolvedValue(true)
-    })
-
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('reports a fill the budget cut off as remaining once its marks are settled', async () => {
-      mocks.markUnfilled.mockResolvedValueOnce({
-        marked: 2,
-        cursor: { projection: 0, afterId: 'row-2' },
-      })
-      mocks.runProjection
-        .mockResolvedValueOnce(drained)
-        .mockResolvedValueOnce(drained)
-        .mockImplementation(async () => {
-          vi.advanceTimersByTime(60_001)
-          return drained
-        })
-      await expect(runKnowledgeProjectionPass({ budgetMs: 60_000 })).resolves.toMatchObject({
-        remaining: true,
-        filled: 2,
-      })
-      expect(mocks.markUnfilled).toHaveBeenCalledOnce()
-    })
-  })
-
-  it('does not fill while marks remain, so writers are converged first', async () => {
-    mocks.isFeatureEnabled.mockResolvedValue(true)
-    mocks.runProjection.mockResolvedValue({ ...drained, settled: 0, remaining: true })
-    await expect(runKnowledgeProjectionPass({ budgetMs: 60_000 })).resolves.toMatchObject({
-      remaining: true,
-      filled: 0,
-    })
-    expect(mocks.markUnfilled).not.toHaveBeenCalled()
   })
 
   it('closes its connections when a pass fails', async () => {

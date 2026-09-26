@@ -34,7 +34,6 @@ const hoisted = vi.hoisted(() => ({
   outcome: vi.fn(),
   lease: vi.fn(),
   stopped: vi.fn(),
-  sources: vi.fn(),
   onboarding: vi.fn(),
   title: vi.fn(),
   stoppedMessage: vi.fn((message: unknown) => message),
@@ -67,9 +66,6 @@ vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
   requireSlackSearchTurnLease: hoisted.lease,
   wasSlackSearchTurnStopped: hoisted.stopped,
-}))
-vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
-  getSlackSearchSourceStatus: { execute: hoisted.sources },
 }))
 vi.mock('@/lib/knowledge/application/slack-search/onboarding', () => ({
   sendSlackSearchOnboarding: hoisted.onboarding,
@@ -188,7 +184,6 @@ beforeEach(() => {
   m.run.mockResolvedValue({ success: true, content: 'Answer', contentBlocks: [], toolCalls: [] })
   m.finalize.mockResolvedValue({ appendedAssistant: true })
   m.stopped.mockResolvedValue(false)
-  m.sources.mockResolvedValue({ hasSearchableDocuments: true })
   m.onboarding.mockResolvedValue({
     text: 'Connect sources',
     url: 'https://sim.test/slack-search/connect/token',

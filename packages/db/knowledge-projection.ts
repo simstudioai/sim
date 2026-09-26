@@ -5,26 +5,27 @@ import type { Sql, TransactionSql } from 'postgres'
 const logger = createLogger('KnowledgeProjection')
 
 /**
- * The transaction setting a writer declares to leave its search projection rows to the projector.
- * Unset, which is every writer that predates it, keeps the synchronous triggers; either way the
+ * The transaction setting that skips the synchronous projection triggers. No application writer
+ * sets it: every writer's projection rows are written by those triggers in its own transaction.
+ * Releases that carried the `knowledge-async-projection` flag set it to leave a chunk write's rows
+ * to the projector, which is why a mark can still carry content to project. Either way the
  * triggers mark the document in `knowledge_projection_dirty`.
  */
 const KNOWLEDGE_PROJECTION_MODE_SETTING = 'sim.projection_mode'
 
 /**
- * The expression a knowledge writer selects in its transaction to leave its search projection rows
- * to the projector: `SELECT ${DEFER_KNOWLEDGE_PROJECTION}`. Transaction-local, so a pooled
- * connection never carries it into the next transaction. Writers resolve whether to run it from the
- * `knowledge-async-projection` flag before their transaction begins.
+ * Selected by every projector transaction. The projector writes each projection row's source and
+ * ACL itself, so the projection tables' own source and ACL triggers, which would re-read the
+ * document for every row, are skipped.
  */
-export const DEFER_KNOWLEDGE_PROJECTION = `set_config('${KNOWLEDGE_PROJECTION_MODE_SETTING}', 'async', true)`
+const SKIP_SYNCHRONOUS_PROJECTION = `set_config('${KNOWLEDGE_PROJECTION_MODE_SETTING}', 'async', true)`
 
-/** Whether the current transaction ran {@link DEFER_KNOWLEDGE_PROJECTION}, as trigger SQL reads it. */
+/** Whether the current transaction skips the synchronous projection triggers, as trigger SQL reads it. */
 export const KNOWLEDGE_PROJECTION_DEFERRED = `current_setting('${KNOWLEDGE_PROJECTION_MODE_SETTING}', true) IS NOT DISTINCT FROM 'async'`
 
 /**
  * The `WHEN` clause of every trigger that writes projection rows in the writer's transaction: it
- * fires unless the transaction deferred them.
+ * fires unless the transaction skips them.
  */
 export const SYNCHRONOUS_PROJECTION_WHEN = `NOT (${KNOWLEDGE_PROJECTION_DEFERRED})`
 
@@ -122,8 +123,9 @@ const PAGE_RESULT = `SELECT (SELECT count(*)::int FROM page) AS scanned,
     (SELECT max(chunk_index) FROM page) AS last_chunk`
 
 /**
- * Rewrites a page's projection rows from their chunks and the document, writing only the rows
- * that differ, so a document whose rows are already current costs reads and no index writes. The
+ * Rewrites a page's projection rows from their chunks and the document, for a mark whose chunk
+ * write skipped the synchronous triggers (only releases that deferred projection wrote those),
+ * writing only the rows that differ, so a document whose rows are already current costs reads and no index writes. The
  * source and ACL are the document's as this statement reads it; a change that commits after it
  * marks the document again, so the projector's settle leaves the mark for the next pass.
  */
@@ -196,7 +198,7 @@ function contentPageStatement(projection: KnowledgeProjection): string {
 
 /**
  * Copies the document's source and ACL onto a page's existing projection rows that differ,
- * including rows the source and ACL fill has not reached. Chunks are untouched, so their vectors
+ * including rows written before projections carried a source and ACL. Chunks are untouched, so their vectors
  * are never read; a row a chunk change has not projected yet is left to that change's own mark.
  */
 function sourceAclPageStatement(projection: KnowledgeProjection): string {
@@ -226,7 +228,7 @@ async function enterProjectorTransaction(tx: TransactionSql, lockTimeoutMs: numb
   await tx.unsafe(
     `SELECT set_config('lock_timeout', '${lockTimeoutMs}ms', true),
       set_config('statement_timeout', '${PROJECTION_PAGE_STATEMENT_TIMEOUT_MS}ms', true),
-      ${DEFER_KNOWLEDGE_PROJECTION}`
+      ${SKIP_SYNCHRONOUS_PROJECTION}`
   )
 }
 
@@ -244,6 +246,13 @@ export interface KnowledgeProjectionOptions {
    */
   budgetMs?: number
   pageSize?: number
+  /**
+   * Whether search-index rows are read, that is whether indexed organization search is on (see
+   * {@link MarkScope}). Only then is the Tin keyword projection written, since it holds only
+   * search-index rows; the other projections are written either way, and Tin is still skipped
+   * where it is not installed.
+   */
+  searchIndexes: boolean
   /** Called after each page commits, for tests that interleave writes with a run. */
   onPage?: (page: {
     documentId: string
@@ -435,13 +444,14 @@ async function projectMarkedDocument(
  */
 export async function runKnowledgeProjection(
   sql: Sql,
-  options: KnowledgeProjectionOptions = {}
+  options: KnowledgeProjectionOptions
 ): Promise<KnowledgeProjectionProgress> {
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + options.budgetMs
-  const projections = (await tinInstalled(sql))
-    ? KNOWLEDGE_PROJECTIONS
-    : KNOWLEDGE_PROJECTIONS.filter((projection) => projection !== 'embedding_keyword_tin')
+  const projections =
+    options.searchIndexes && (await tinInstalled(sql))
+      ? KNOWLEDGE_PROJECTIONS
+      : KNOWLEDGE_PROJECTIONS.filter((projection) => projection !== 'embedding_keyword_tin')
   const totals = { pages: 0, written: 0 }
   const skipped: string[] = []
   let settled = 0
@@ -467,67 +477,112 @@ export async function runKnowledgeProjection(
   return { settled, deferred: skipped.length, ...totals, remaining: true }
 }
 
-/** Unfilled rows the fill reads per round, from each projection's unfilled-rows index. */
-const FILL_SCAN_ROWS = 2_000
+/**
+ * How long one release of settled marks runs, wherever it is called from. A release is cleanup
+ * ahead of the real work, so it gets a short budget of its own rather than the caller's deadline;
+ * whatever it leaves, the next sweep releases.
+ */
+export const MARK_RELEASE_BUDGET_MS = 10_000
+
+/** Marks one release statement removes; a release repeats it while statements come back full. */
+const RELEASE_BATCH_SIZE = 1_000
 
 /**
- * Marks at most this many documents may be outstanding before the fill adds more. Marks are
- * projected oldest first, so this bounds how much fill work a fresh write can wait behind, and
- * search, which decides a marked document's rows on the document, keeps doing so for few of them.
+ * Which marks a pass is owed besides content: search-index documents, whose rows mirror their
+ * source and ACL, while indexed organization search reads them. With it off, a mark with no content
+ * to project is owed nothing, whatever its knowledge base.
  */
-export const FILL_MARK_CEILING = 100
+export interface MarkScope {
+  searchIndexes: boolean
+}
 
 /**
- * Marks the documents of projection rows the source and ACL fill has not reached, so the projector
- * fills them as it converges any other document. Rows are read off each projection's unfilled
- * index after `afterId`, and only while fewer than {@link FILL_MARK_CEILING} marks are outstanding;
- * a row whose document is gone is passed over. Documents are taken in the order of their first
- * row read, up to the room left under the ceiling, and the cursor moves only past rows of the
- * documents taken: when the room runs out, it stops before the first row of the first document
- * left out, so the next call starts there. A taken document is marked only once its row is locked
- * `FOR KEY SHARE`, so a deletion committing meanwhile can never fail the mark's foreign key; one
- * whose row a deletion or another writer holds is skipped rather than waited on, since that writer
- * removes or rewrites its rows itself, and the next pass reads whatever is still unfilled. Returns
- * how many documents were marked and the id to continue after, or `null` once every projection's
- * unfilled rows have been read.
+ * Whether any mark needs a projector pass: one carrying content to project, or, when `scope` owes
+ * search-index documents a pass, one on a search-index document. Every other mark is released by
+ * {@link releaseSettledMarks} without a pass.
+ *
+ * Asked right after a release. One that drained its marks left only the marks a pass is owed
+ * (and the few a writer held), so the join that tells a search-index mark apart walks a handful of
+ * rows. One cut short left a backlog the join would walk in full, so only the content marks are
+ * asked about: a search-index mark behind that backlog waits for the sweep whose release drains it.
  */
-export async function markUnfilledProjectionDocuments(
+export async function hasKnowledgeProjectionWork(
+  sql: Sql | TransactionSql,
+  release: { drained: boolean },
+  scope: MarkScope
+): Promise<boolean> {
+  const [row] =
+    release.drained && scope.searchIndexes
+      ? await sql<Array<{ pending: boolean }>>`
+          SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty WHERE content)
+            OR EXISTS (
+              SELECT 1 FROM knowledge_projection_dirty d
+              JOIN document doc ON doc.id = d.document_id
+              JOIN knowledge_base k ON k.id = doc.knowledge_base_id
+              WHERE k.is_search_index
+            ) AS pending`
+      : await sql<Array<{ pending: boolean }>>`
+          SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty WHERE content) AS pending`
+  return Boolean(row?.pending)
+}
+
+export interface SettledMarkRelease {
+  /** Marks removed. */
+  released: number
+  /** Whether the release ran out of marks to remove rather than out of time. */
+  drained: boolean
+  /** Whether no mark at all was found, so nothing is left for a pass either. */
+  empty: boolean
+}
+
+/**
+ * Transitional: removes the marks that carry no content to project and that `scope` owes no pass,
+ * until a follow-up migration scopes the mark triggers to search-index knowledge bases. Their
+ * synchronous writers already wrote every projection row a workspace search reads, and those
+ * searches decide nothing on a projection row's source, ACL, or mark, so a pass over them would
+ * only re-read rows it then leaves as they are. While indexed organization search is on, the marks
+ * of search-index documents, whose rows it reads by source and ACL, stay for a pass.
+ *
+ * An empty mark table costs one probe, and reports `empty` so its caller asks nothing further. Marks a writer holds are skipped rather than waited on,
+ * and a mark whose writer skipped the synchronous triggers carries content and stays for a pass.
+ * Stops once a statement comes back short or `deadline` passes.
+ */
+export async function releaseSettledMarks(
   sql: Sql,
-  cursor: { projection: number; afterId: string } = { projection: 0, afterId: '' }
-): Promise<{ marked: number; cursor: { projection: number; afterId: string } | null }> {
-  const [{ outstanding }] = await sql<Array<{ outstanding: number }>>`
-    SELECT count(*)::int AS outstanding FROM knowledge_projection_dirty`
-  if (outstanding >= FILL_MARK_CEILING) return { marked: 0, cursor }
-  for (let index = cursor.projection; index < SOURCE_ACL_PROJECTIONS.length; index++) {
-    const projection = SOURCE_ACL_PROJECTIONS[index]
-    const afterId = index === cursor.projection ? cursor.afterId : ''
-    const [row] = await sql.unsafe<Array<{ marked: number; last_id: string | null }>>(
-      `WITH unfilled AS MATERIALIZED (
-        SELECT id, document_id FROM ${projection} WHERE acl IS NULL AND id > $1
-        ORDER BY id LIMIT ${FILL_SCAN_ROWS}
-      ), documents AS MATERIALIZED (
-        SELECT u.document_id, min(u.id) AS first_id FROM unfilled u
-        WHERE EXISTS (SELECT 1 FROM document d WHERE d.id = u.document_id)
-        GROUP BY u.document_id
-      ), chosen AS MATERIALIZED (
-        SELECT document_id, first_id FROM documents ORDER BY first_id LIMIT $2
-      ), locked AS MATERIALIZED (
-        SELECT d.id FROM document d WHERE d.id IN (SELECT document_id FROM chosen)
-        FOR KEY SHARE SKIP LOCKED
-      ), held AS (
-        SELECT min(first_id) AS first_id FROM documents
-        WHERE document_id NOT IN (SELECT document_id FROM chosen)
-      ), marked AS (
-        INSERT INTO knowledge_projection_dirty (document_id)
-        SELECT id FROM locked ORDER BY id
-        ON CONFLICT (document_id) DO NOTHING RETURNING document_id
-      ) SELECT (SELECT count(*)::int FROM marked) AS marked,
-        (SELECT max(u.id) FROM unfilled u, held
-          WHERE held.first_id IS NULL OR u.id < held.first_id) AS last_id`,
-      [afterId, FILL_MARK_CEILING - outstanding]
-    )
-    if (row?.last_id)
-      return { marked: row.marked, cursor: { projection: index, afterId: row.last_id } }
+  deadline: number,
+  scope: MarkScope
+): Promise<SettledMarkRelease> {
+  const [marked] = await sql<Array<{ any: boolean }>>`
+    SELECT EXISTS (SELECT 1 FROM knowledge_projection_dirty) AS any`
+  if (!marked?.any) return { released: 0, drained: true, empty: true }
+  let released = 0
+  while (Date.now() < deadline) {
+    const count = await sql.begin(async (tx) => {
+      await enterProjectorTransaction(tx, SETTLE_LOCK_TIMEOUT_MS)
+      const settled = scope.searchIndexes
+        ? tx`
+            SELECT d.document_id FROM knowledge_projection_dirty d
+            JOIN document doc ON doc.id = d.document_id
+            JOIN knowledge_base k ON k.id = doc.knowledge_base_id
+            WHERE NOT d.content AND NOT k.is_search_index
+            LIMIT ${RELEASE_BATCH_SIZE}
+            FOR UPDATE OF d SKIP LOCKED`
+        : tx`
+            SELECT d.document_id FROM knowledge_projection_dirty d
+            WHERE NOT d.content
+            LIMIT ${RELEASE_BATCH_SIZE}
+            FOR UPDATE SKIP LOCKED`
+      const [row] = await tx<Array<{ released: number }>>`
+        WITH released AS (
+          DELETE FROM knowledge_projection_dirty m
+          WHERE m.document_id IN (${settled}) AND NOT m.content
+          RETURNING 1
+        )
+        SELECT count(*)::int AS released FROM released`
+      return row?.released ?? 0
+    })
+    released += count
+    if (count < RELEASE_BATCH_SIZE) return { released, drained: true, empty: false }
   }
-  return { marked: 0, cursor: null }
+  return { released, drained: false, empty: false }
 }
