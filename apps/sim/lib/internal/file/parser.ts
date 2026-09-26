@@ -35,10 +35,7 @@ import {
 } from '@/lib/internal/file/operations'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import {
-  ExternalUrlValidationError,
-  fetchExternalUrlToWorkspace,
-} from '@/lib/uploads/contexts/workspace'
+import { ExternalUrlValidationError, fetchExternalUrl } from '@/lib/uploads/contexts/workspace'
 import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
@@ -512,7 +509,7 @@ function assertParsedContentWithinLimit(content: string, maxBytes?: number): str
  * Validate file path for security - prevents null byte injection and path traversal attacks.
  *
  * External URLs (`http`/`https`) are fetched over HTTP — with SSRF protection applied
- * downstream in `fetchExternalUrlToWorkspace` (DNS resolution + private/reserved IP blocking)
+ * downstream in `fetchExternalUrl` (DNS resolution + private/reserved IP blocking)
  * — and are never resolved against the filesystem, so `..`/`~` are legal URL content and must
  * not be rejected. Providers such as Slack routinely emit slugs containing a literal `...`.
  *
@@ -560,8 +557,8 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
  *
  * Always fetches the URL fresh — there is no filename-based dedup. Distinct URLs
  * commonly share a path tail (e.g. every Slack clipboard paste is `image.png`),
- * so keying a cache by filename returns stale bytes. `fetchExternalUrlToWorkspace`
- * delegates to `uploadWorkspaceFile`, which suffix-disambiguates collisions on save.
+ * so keying a cache by filename returns stale bytes. The fetched bytes are never saved
+ * to workspace Files; with an execution context they are kept as an execution file only.
  *
  * URLs for our workspace and execution storage resolve through the authorized canonical
  * read path, keeping stored provenance bound to the same bytes the parser reads.
@@ -647,11 +644,8 @@ async function handleExternalUrl(
       )
     }
 
-    const { filename, buffer, mimeType } = await fetchExternalUrlToWorkspace({
+    const { filename, buffer, mimeType } = await fetchExternalUrl({
       url,
-      userId,
-      workspaceId: workspaceId || undefined,
-      saveToWorkspace: Boolean(workspaceId),
       headers,
       signal,
       maxDownloadBytes,

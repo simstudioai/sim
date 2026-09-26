@@ -75,7 +75,7 @@ interface MockFolderPathRow {
  */
 export const workspaceUploadsMockFns = {
   ...workspaceFileManagerMockFns,
-  mockFetchExternalUrlToWorkspace: vi.fn(),
+  mockFetchExternalUrl: vi.fn(),
   mockLoadWorkspaceFileOperationContext: vi.fn(),
   mockAssertWorkspaceFileItemsBelongToWorkspace: vi.fn(),
   mockNormalizeWorkspaceFileItemName: vi.fn((name: string, itemLabel: 'File' | 'Folder') => {
@@ -121,6 +121,7 @@ export const workspaceUploadsMockFns = {
   mockRelocateWorkspaceFileFolderByPath: vi.fn(),
   mockDeleteWorkspaceFileFolderByPath: vi.fn(),
   mockArchiveWorkspaceFileFolderIfEmpty: vi.fn(),
+  mockWorkspaceFileNameFolderCondition: vi.fn(),
 }
 
 const fns = workspaceUploadsMockFns
@@ -143,7 +144,7 @@ export const workspaceUploadsMock = {
   WorkspaceFileFolderConflictError: MockWorkspaceFileFolderConflictError,
   WorkspaceFileMoveConflictError: MockWorkspaceFileMoveConflictError,
   WorkspaceFileItemsNotFoundError: MockWorkspaceFileItemsNotFoundError,
-  fetchExternalUrlToWorkspace: fns.mockFetchExternalUrlToWorkspace,
+  fetchExternalUrl: fns.mockFetchExternalUrl,
   loadWorkspaceFileOperationContext: fns.mockLoadWorkspaceFileOperationContext,
   assertWorkspaceFileItemsBelongToWorkspace: fns.mockAssertWorkspaceFileItemsBelongToWorkspace,
   normalizeWorkspaceFileItemName: fns.mockNormalizeWorkspaceFileItemName,
@@ -165,4 +166,5 @@ export const workspaceUploadsMock = {
   relocateWorkspaceFileFolderByPath: fns.mockRelocateWorkspaceFileFolderByPath,
   deleteWorkspaceFileFolderByPath: fns.mockDeleteWorkspaceFileFolderByPath,
   archiveWorkspaceFileFolderIfEmpty: fns.mockArchiveWorkspaceFileFolderIfEmpty,
+  workspaceFileNameFolderCondition: fns.mockWorkspaceFileNameFolderCondition,
 }
