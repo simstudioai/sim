@@ -267,7 +267,6 @@ describe('POST /api/v2/chat', () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: SERVER_ISSUED_CHAT_ID,
       chat: chatRow(SERVER_ISSUED_CHAT_ID),
-      conversationHistory: [],
       isNew: true,
     })
   })
@@ -445,7 +444,6 @@ describe('POST /api/v2/chat', () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: OWNED_CONVERSATION_ID,
       chat: chatRow(OWNED_CONVERSATION_ID),
-      conversationHistory: [],
       isNew: false,
     })
 
@@ -470,38 +468,10 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
-  it('posts only the current turn on a resumed conversation, never the stored transcript', async () => {
-    mockResolveOrCreateChat.mockResolvedValue({
-      chatId: OWNED_CONVERSATION_ID,
-      chat: chatRow(OWNED_CONVERSATION_ID),
-      conversationHistory: [
-        { role: 'user', content: 'first' },
-        { role: 'assistant', content: 'first reply' },
-      ],
-      isNew: false,
-    })
-
-    const response = await callChat({
-      workspaceId: 'workspace-1',
-      message: 'and then?',
-      conversationId: OWNED_CONVERSATION_ID,
-    })
-
-    expect(response.status).toBe(200)
-    // Continuity is keyed by chatId downstream, exactly as the web send path
-    // and the Sim Chat block do. Replaying the transcript here would duplicate
-    // every prior turn.
-    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({
-      message: 'and then?',
-      chatId: OWNED_CONVERSATION_ID,
-    })
-  })
-
   it('answers 404 and runs nothing when the resolver refuses the named conversation', async () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: OWNED_CONVERSATION_ID,
       chat: null,
-      conversationHistory: [],
       isNew: false,
     })
 
