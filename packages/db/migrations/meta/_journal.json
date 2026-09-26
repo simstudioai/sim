@@ -2703,6 +2703,13 @@
       "when": 1790458840414,
       "tag": "0386_drop_redundant_and_unusable_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1790459930776,
+      "tag": "0387_date_tag_range_indexes",
+      "breakpoints": true
     }
   ]
 }

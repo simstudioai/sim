@@ -3496,6 +3496,9 @@ export const document = pgTable(
     number3Idx: index('doc_number3_idx').on(table.number3),
     number4Idx: index('doc_number4_idx').on(table.number4),
     number5Idx: index('doc_number5_idx').on(table.number5),
+    /** Date tag filters compile to half-open ranges on the raw column, which these serve. */
+    date1Idx: index('doc_date1_idx').on(table.date1).concurrently(),
+    date2Idx: index('doc_date2_idx').on(table.date2).concurrently(),
     // Boolean tag indexes (3 slots)
     boolean1Idx: index('doc_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('doc_boolean2_idx').on(table.boolean2),
@@ -3672,6 +3675,9 @@ export const embedding = pgTable(
     number3Idx: index('emb_number3_idx').on(table.number3),
     number4Idx: index('emb_number4_idx').on(table.number4),
     number5Idx: index('emb_number5_idx').on(table.number5),
+    /** Date tag filters compile to half-open ranges on the raw column, which these serve. */
+    date1Idx: index('emb_date1_idx').on(table.date1).concurrently(),
+    date2Idx: index('emb_date2_idx').on(table.date2).concurrently(),
     // Boolean tag indexes (3 slots)
     boolean1Idx: index('emb_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
