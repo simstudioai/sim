@@ -607,8 +607,11 @@ function TreatmentDetail({
       activeVariants[axis] = value
     }
   }
-  const stateAvailable =
-    requestedState === 'default' || Boolean(entry.states?.includes(requestedState))
+  const disabled = activeVariants.disabled === 'true'
+  const effectiveStates = disabled
+    ? (entry.states ?? []).filter((state) => state !== 'open' && state !== 'focus')
+    : (entry.states ?? [])
+  const stateAvailable = requestedState === 'default' || effectiveStates.includes(requestedState)
   const previewState = stateAvailable ? requestedState : 'default'
   const selectedKey = `${theme}-${size}${previewState === 'default' ? '' : `-${previewState}`}`
   const failedCount = entries.filter((item) => item.status !== 'ready').length
@@ -626,13 +629,17 @@ function TreatmentDetail({
         theme,
         size: String(size),
         state:
-          previewState === 'default' ? (entry.fixture.defaultState ?? previewState) : previewState,
+          previewState === 'default'
+            ? disabled && ['open', 'focus'].includes(entry.fixture.defaultState ?? '')
+              ? previewState
+              : (entry.fixture.defaultState ?? previewState)
+            : previewState,
         ...(entry.kind === 'component' ? { interactive: '1' } : {}),
         ...(Object.keys(activeVariants).length ? { variants: JSON.stringify(activeVariants) } : {}),
         ...(entry.fixture.sample ? { sample: JSON.stringify(entry.fixture.sample) } : {}),
         ...(entry.fixture.action ? { action: entry.fixture.action } : {}),
         ...(entry.fixture.requiredElement ? { required: entry.fixture.requiredElement } : {}),
-        ...(entry.states?.includes('open') ? { 'open-surface': '1' } : {}),
+        ...(effectiveStates.includes('open') ? { 'open-surface': '1' } : {}),
       }).toString()
     : null
 

@@ -139,6 +139,38 @@ test('refresh requires a fixture mapping for each variant axis', () => {
   )
 }, 60000)
 
+test('refresh keeps disabled variant previews without impossible interaction captures', () => {
+  const { repo, refresh } = guardedRefresh()
+  write(
+    repo,
+    'packages/emcn/src/components/example/example.tsx',
+    'export const Example = ({disabled}: {disabled?: boolean}) => <button disabled={disabled} />\n'
+  )
+  write(
+    repo,
+    'tools/design-studio/_components/fixture-contracts.json',
+    JSON.stringify({
+      variants: { Example: ['disabled'] },
+      states: { Example: ['open', 'focus', 'disabled'] },
+      defaultStates: { Example: 'open' },
+    })
+  )
+  const manifest = refresh()
+  const enabled = manifest.components.find(
+    (entry) => entry.id === 'component:Example:disabled=false'
+  )
+  const disabled = manifest.components.find(
+    (entry) => entry.id === 'component:Example:disabled=true'
+  )
+  assert.deepEqual(enabled.states, ['open', 'focus', 'disabled'])
+  assert.equal(enabled.fixture.defaultState, 'open')
+  assert.deepEqual(disabled.states, ['disabled'])
+  assert.equal(disabled.fixture.defaultState, undefined)
+  assert.deepEqual(disabled.fixture.variant, { axis: 'disabled', value: 'true' })
+  assert.equal(disabled.status, 'pending-capture')
+  assert.deepEqual(disabled.images, {})
+}, 60000)
+
 test('refresh publishes unresolved analysis and scanner limits separately from inspection failures', () => {
   const { refresh } = guardedRefresh()
   const manifest = refresh()

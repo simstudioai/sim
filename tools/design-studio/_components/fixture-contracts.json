@@ -90,7 +90,6 @@
     "ChipSelect": ["open"],
     "Combobox": ["open"],
     "TimePicker": ["open"],
-    "ChipTimePicker": ["open"],
     "ChipCombobox": ["open"]
   },
   "defaultStates": {

@@ -291,12 +291,21 @@ function componentInventory() {
         const supportsVariant = Boolean(
           fixture && fixtureContracts.variants?.[item.name]?.includes(axis.name)
         )
+        const disabled = axis.name === 'disabled' && value === 'true'
+        const variantFixture = supportsVariant
+          ? { ...fixture, variant: { axis: axis.name, value } }
+          : null
+        if (disabled && ['open', 'focus'].includes(variantFixture?.defaultState))
+          variantFixture.defaultState = undefined
         entries.push({
           ...base,
           id: `component:${item.name}:${axis.name}=${value}`,
           name: `${item.name} · ${axis.name}: ${value}`,
           variant: { axis: axis.name, value, defaultValue: axis.defaultValue },
-          fixture: supportsVariant ? { ...fixture, variant: { axis: axis.name, value } } : null,
+          fixture: variantFixture,
+          states: disabled
+            ? base.states.filter((state) => state !== 'open' && state !== 'focus')
+            : base.states,
           status: supportsVariant ? 'pending-capture' : 'needs-fixture',
           images: {},
         })
