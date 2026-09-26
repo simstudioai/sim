@@ -14,11 +14,10 @@ export const viewedSearchSourceSchema = z.object({
   siteName: z.string().trim().min(1).max(128).optional(),
   connectorType: z.string().trim().min(1).max(64).optional(),
 })
-export const recordSearchSourceSchema = viewedSearchSourceSchema.pick({ url: true })
-export type ViewedSearchSource = z.output<typeof recordSearchSourceSchema>
+export type ViewedSearchSource = z.output<typeof viewedSearchSourceSchema>
 
 export const recordSearchHistoryBodySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('source'), source: recordSearchSourceSchema }),
+  z.object({ kind: z.literal('source'), source: viewedSearchSourceSchema }),
   z.object({
     kind: z.literal('query'),
     query: z.string().trim().min(1, 'Search query is required').max(4000),

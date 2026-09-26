@@ -5,14 +5,11 @@ import {
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
-import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import {
-  readAccessibleHistorySources,
   readSearchHistory,
   type SearchHistoryEvent,
   updateSearchHistory,
 } from '@/lib/knowledge/search/history/repository'
-import { findSearchIndex } from '@/lib/knowledge/search/search-index'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 export const searchHistoryOperations = {
@@ -43,30 +40,15 @@ interface RecordSearchHistoryInput extends SearchHistoryInput {
   event: SearchHistoryEvent
 }
 
-/** Navigation history belongs to the current person, never to the connector or organization collectively. */
+/**
+ * Private navigation snapshots, not a current source catalog. Reading history does not grant
+ * source access; the destination enforces current permissions when the person opens it.
+ */
 export const listSearchHistory = defineAuthorizedOrganizationUseCase({
   operation: searchHistoryOperations.list,
   authorizeResource: ({ context }) => requireOrganizationSearchAvailable(context.organizationId),
-  async execute({ context, request }: OrganizationUseCaseContext<SearchHistoryInput>) {
-    const history = await readSearchHistory(context)
-    if (!history.sources.length) return { ...history, sources: [] }
-    const index = await findSearchIndex({
-      kind: 'organization',
-      organizationId: context.organizationId,
-    })
-    if (!index) return { ...history, sources: [] }
-    const access = createUserKnowledgeAccessProvider(context.userId, {
-      organizationId: context.organizationId,
-      knowledgeBaseIds: [index.id],
-      signal: request?.signal,
-    })
-    const sources = await readAccessibleHistorySources(
-      index.id,
-      history.sources,
-      access,
-      request?.signal
-    )
-    return { ...history, sources }
+  execute({ context }: OrganizationUseCaseContext<SearchHistoryInput>) {
+    return readSearchHistory(context)
   },
 })
 export const recordSearchHistory = defineAuthorizedOrganizationUseCase({

@@ -9,6 +9,7 @@ import {
   useMemo,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type { ViewedSearchSource } from '@/lib/api/contracts/knowledge/search-history'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
@@ -71,9 +72,18 @@ export function useSourceNavigation(source: SourceTagData) {
   return useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
       if (event.defaultPrevented || (event.button !== 0 && event.button !== 1)) return
-      recordSource({ url: source.url })
+      recordSource({
+        url: source.url,
+        title: source.title?.trim() ? truncateAtCodePoint(source.title.trim(), 512, '') : undefined,
+        siteName: source.siteName?.trim()
+          ? truncateAtCodePoint(source.siteName.trim(), 128, '')
+          : undefined,
+        connectorType: source.connectorType?.trim()
+          ? truncateAtCodePoint(source.connectorType.trim(), 64, '')
+          : undefined,
+      })
       handleExternalLinkClick(event, source.url)
     },
-    [source.url, recordSource]
+    [source.url, source.title, source.siteName, source.connectorType, recordSource]
   )
 }
