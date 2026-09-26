@@ -17,7 +17,7 @@ import { ResourceChanges } from '@/lib/mothership/generated/resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { routeExecution } from '@/lib/mothership/tools/server/router'
 
-/** Workspace services bind their target before dispatching authorized domain handlers. */
+/** Services select existing domain handlers; only workspace settings selects a workspace. */
 export async function executeAgentCliService(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
@@ -39,10 +39,7 @@ export async function executeAgentCliService(
   const scope =
     invocation.kind === 'service' && invocation.name === 'settings'
       ? invocation.input.scope
-      : invocation.kind === 'service' &&
-          (invocation.name === 'dashboards' || invocation.name === 'dashboard_folders')
-        ? 'workspace'
-        : 'organization'
+      : 'organization'
   if (
     invocation.kind === 'service' &&
     invocation.name !== 'list_workspaces' &&

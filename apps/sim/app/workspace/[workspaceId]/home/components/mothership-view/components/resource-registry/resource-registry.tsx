@@ -3,7 +3,6 @@
 import type { ElementType, ReactNode } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
-  ChartColumn,
   Connections,
   Database,
   File as FileIcon,
@@ -35,11 +34,15 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  /** `desktopScopeId` names the desktop browser scope a browser tab belongs to. */
+  /**
+   * `desktopScopeId` names the desktop browser scope a browser tab belongs to; `fileType` is a
+   * file's stored MIME type, which names extensionless files such as pages and dashboards.
+   */
   renderTabIcon: (
     resource: MothershipResource,
     className: string,
-    desktopScopeId?: string
+    desktopScopeId?: string,
+    fileType?: string
   ) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
@@ -65,7 +68,7 @@ function DefaultDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 function FileDropdownItem({ item }: DropdownItemRenderProps) {
-  const DocIcon = getDocumentIcon('', item.name)
+  const DocIcon = getDocumentIcon(typeof item.mimeType === 'string' ? item.mimeType : '', item.name)
   return (
     <>
       <DocIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
@@ -184,21 +187,12 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
-  dashboard: {
-    type: 'dashboard',
-    label: 'Dashboards',
-    icon: ChartColumn,
-    renderTabIcon: (_resource, className) => (
-      <ChartColumn className={cn(className, 'text-[var(--text-icon)]')} />
-    ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={ChartColumn} />,
-  },
   file: {
     type: 'file',
     label: 'Files',
     icon: FileIcon,
-    renderTabIcon: (resource, className) => {
-      const DocIcon = getDocumentIcon('', resource.title)
+    renderTabIcon: (resource, className, _desktopScopeId, fileType) => {
+      const DocIcon = getDocumentIcon(fileType ?? '', resource.title)
       return <DocIcon className={cn(className, 'text-[var(--text-icon)]')} />
     },
     renderDropdownItem: (props) => <FileDropdownItem {...props} />,
@@ -300,7 +294,6 @@ export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
   'table',
-  'dashboard',
   'file',
   'filefolder',
   'knowledgebase',

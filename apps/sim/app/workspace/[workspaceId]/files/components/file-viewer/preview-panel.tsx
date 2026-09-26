@@ -88,7 +88,15 @@ export const PreviewPanel = memo(function PreviewPanel({
   const previewType = resolvePreviewType(mimeType, filename)
 
   if (previewType === 'dashboard')
-    return (
+    return readOnly ? (
+      <DashboardPreview
+        content={content}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        isStreaming={isStreaming}
+        readOnly
+      />
+    ) : (
       <DashboardFeatureGate>
         <DashboardPreview
           content={content}

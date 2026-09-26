@@ -2,7 +2,11 @@
 
 import { init } from 'echarts'
 import { describe, expect, it } from 'vitest'
-import { buildChartRenderOption } from '@/lib/charts/option'
+import {
+  buildChartRenderOption,
+  CHART_BAR_MAX_WIDTH,
+  horizontalBarChartHeight,
+} from '@/lib/charts/option'
 
 describe('chart dataset injection', () => {
   it('injects empty results, ahead of authored datasets, without mutation', () => {
@@ -96,6 +100,104 @@ describe('rendered chart bounds', () => {
         if (!Array.isArray(center)) throw new Error('Expected a Cartesian coordinate')
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(center[1] - 14 - 6)
       }
+    } finally {
+      chart.dispose()
+    }
+  })
+
+  it('sizes horizontal bars so every above-bar label clears the neighbouring bars', () => {
+    const categories = Array.from(
+      { length: 10 },
+      (_, index) => `sim-production-us-east-1-alarm-number-${index}`
+    )
+    const option = {
+      animation: false,
+      xAxis: { type: 'value', name: 'Investigations' },
+      yAxis: { type: 'category', inverse: true, data: categories },
+      series: [{ type: 'bar', data: categories.map((_, index) => 100 - index * 9) }],
+    }
+    const height = horizontalBarChartHeight(option, categories.length)
+    const chart = init(null, undefined, { renderer: 'svg', ssr: true, width: 720, height })
+    try {
+      chart.setOption(buildChartRenderOption({ option }))
+      const labels = chart
+        .getZr()
+        .storage.getDisplayList(true)
+        .filter((element) => element.type === 'tspan')
+        .map((element) => {
+          const bounds = element.getBoundingRect().clone()
+          if (element.transform) bounds.applyTransform(element.transform)
+          return { text: String(element.style.text), bounds }
+        })
+      categories.forEach((category, index) => {
+        const label = labels.find(({ text }) => text === category)
+        if (!label) throw new Error(`Missing label for ${category}`)
+        const center = chart.convertToPixel({ seriesIndex: 0 }, [0, index])
+        if (!Array.isArray(center)) throw new Error('Expected a Cartesian coordinate')
+        expect(label.bounds.y + label.bounds.height, category).toBeLessThanOrEqual(
+          center[1] - CHART_BAR_MAX_WIDTH / 2
+        )
+        if (index === 0) return
+        const previous = chart.convertToPixel({ seriesIndex: 0 }, [0, index - 1])
+        if (!Array.isArray(previous)) throw new Error('Expected a Cartesian coordinate')
+        expect(label.bounds.y, category).toBeGreaterThanOrEqual(
+          previous[1] + CHART_BAR_MAX_WIDTH / 2
+        )
+      })
+      expect(horizontalBarChartHeight({ xAxis: { type: 'category' } }, 10)).toBeNull()
+    } finally {
+      chart.dispose()
+    }
+  })
+
+  it('keeps an authored left label column intact instead of blending it with inside labels', () => {
+    const chart = init(null, undefined, { renderer: 'svg', ssr: true, width: 720, height: 360 })
+    const rows = [
+      { alarm: 'sim-staging-us-east-1-integ-failure', investigations: 120 },
+      { alarm: 'sim-production-us-east-1-copilot-5xx-rate', investigations: 64 },
+      { alarm: 'trigger-dev-queue-depth', investigations: 9 },
+    ]
+    try {
+      chart.setOption(
+        buildChartRenderOption({
+          rows,
+          option: {
+            animation: false,
+            grid: { containLabel: true, left: 12, right: 45, top: 15, bottom: 25 },
+            xAxis: { type: 'value', name: 'Investigations', min: 0, minInterval: 1 },
+            yAxis: {
+              type: 'category',
+              inverse: true,
+              axisLabel: { width: 320, overflow: 'truncate', fontSize: 11 },
+            },
+            series: [
+              {
+                type: 'bar',
+                label: { show: true, position: 'right' },
+                encode: { x: 'investigations', y: 'alarm' },
+              },
+            ],
+          },
+        })
+      )
+      const labels = chart
+        .getZr()
+        .storage.getDisplayList(true)
+        .filter((element) => element.type === 'tspan')
+        .map((element) => {
+          const bounds = element.getBoundingRect().clone()
+          if (element.transform) bounds.applyTransform(element.transform)
+          return { text: String(element.style.text), bounds }
+        })
+      rows.forEach(({ alarm }, index) => {
+        const label = labels.find(({ text }) => alarm.startsWith(text.replace(/…$/, '')))
+        if (!label) throw new Error(`Missing label for ${alarm}`)
+        const origin = chart.convertToPixel({ seriesIndex: 0 }, [0, index])
+        if (!Array.isArray(origin)) throw new Error('Expected a Cartesian coordinate')
+        expect(label.bounds.x, alarm).toBeGreaterThanOrEqual(0)
+        expect(label.bounds.y, alarm).toBeGreaterThanOrEqual(0)
+        expect(label.bounds.x + label.bounds.width, alarm).toBeLessThanOrEqual(origin[0])
+      })
     } finally {
       chart.dispose()
     }

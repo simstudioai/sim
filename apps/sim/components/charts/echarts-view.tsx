@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EChartsType } from 'echarts'
 import { useTheme } from 'next-themes'
+import { installBarRowHighlight } from '@/lib/charts/bar-row-highlight'
 import { chartSummaryExtension } from '@/lib/charts/summary'
 import { applyChartTooltipDefaults, readEmcnChartTheme } from '@/lib/charts/theme'
 
@@ -36,6 +37,7 @@ export function EChartsView({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
   const controllerRef = useRef<EChartsController | null>(null)
+  const rowHighlightRef = useRef<(() => void) | null>(null)
   const { resolvedTheme } = useTheme()
   const [status, setStatus] = useState<{ theme: string | undefined; error?: string } | null>(null)
   const optionKey = JSON.stringify(option)
@@ -48,6 +50,8 @@ export function EChartsView({
       const parsed = applyChartTooltipDefaults(JSON.parse(nextOption))
       chart.setOption(controller ? controller.prepareOption(parsed) : parsed, { notMerge: true })
       controller?.afterUpdate()
+      rowHighlightRef.current?.()
+      rowHighlightRef.current = installBarRowHighlight(chart, parsed)
       setStatus({ theme: resolvedTheme })
     } catch (error) {
       controllerRef.current?.dispose()
@@ -94,6 +98,8 @@ export function EChartsView({
       })
     return () => {
       active = false
+      rowHighlightRef.current?.()
+      rowHighlightRef.current = null
       controllerRef.current?.dispose()
       controllerRef.current = null
       chartRef.current = null

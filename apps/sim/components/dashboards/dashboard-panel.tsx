@@ -15,7 +15,7 @@ import { EChartsView } from '@/components/charts/echarts-view'
 import { TimeSeriesChart } from '@/components/charts/time-series-chart'
 import { useDashboardInteractions } from '@/components/dashboards/dashboard-interactions'
 import type { QueryTableAnalyticsResponse } from '@/lib/api/contracts/table-analytics'
-import { buildChartRenderOption, isHorizontalBarOption } from '@/lib/charts/option'
+import { buildChartRenderOption, horizontalBarChartHeight } from '@/lib/charts/option'
 import { isTimeSeriesOption } from '@/lib/charts/time-series'
 import {
   type DashboardDataBlock,
@@ -87,7 +87,6 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
   const interactions = useDashboardInteractions()
   const source = resolveDashboardSource(defaults, block.source)
   const panelRange = source.range ? relativeDashboardRange(source.range, now) : range
-  const horizontalBars = 'chart' in block && isHorizontalBarOption(block.option)
   const timeSeries = 'chart' in block && isTimeSeriesOption(block.option)
   const query = useTableAnalytics({
     tableId: source.tableId,
@@ -110,6 +109,8 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
           rows: data.rows,
         })
       : null
+  const barChartHeight =
+    'chart' in block ? horizontalBarChartHeight(block.option, data?.rows.length ?? 10) : null
   const times =
     timeSeries && data
       ? data.rows
@@ -164,11 +165,12 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
             ('chart' in block
               ? timeSeries
                 ? 'relative h-[280px]'
-                : horizontalBars
-                  ? 'relative h-[360px]'
+                : barChartHeight !== null
+                  ? 'relative'
                   : 'relative h-[240px]'
               : 'relative h-[400px]')
         )}
+        style={!timeSeries && barChartHeight !== null ? { height: barChartHeight } : undefined}
       >
         {query.isError ? (
           <div
@@ -205,7 +207,7 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
               ) : (
                 <EChartsView
                   label={title}
-                  className={horizontalBars ? 'h-[360px]' : 'h-[240px]'}
+                  className={barChartHeight !== null ? 'h-full' : 'h-[240px]'}
                   option={option!}
                 />
               )}

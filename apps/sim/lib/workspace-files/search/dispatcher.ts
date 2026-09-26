@@ -31,7 +31,6 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { runDetached } from '@/lib/core/utils/background'
 import type { DbTransaction } from '@/lib/db/types'
-import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_CLEANUP_BACKLOG_ROWS,
@@ -211,7 +210,6 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
     .where(
       and(
         eq(workspaceFiles.context, 'workspace'),
-        fileDiscoveryCondition(),
         isNull(workspaceFiles.deletedAt),
         isNotNull(workspaceFiles.workspaceId),
         afterWorkspaceId && afterFileId
@@ -288,7 +286,6 @@ async function reapStaleClaims(
         eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
         eq(workspaceFiles.workspaceId, workspaceFileSearchRevision.workspaceId),
         eq(workspaceFiles.context, 'workspace'),
-        fileDiscoveryCondition(),
         isNull(workspaceFiles.deletedAt),
         eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )
@@ -377,7 +374,7 @@ async function claimQueuedWorkspaceJobs(
           SELECT 1 FROM workspace_files AS file
           WHERE file.id = search_index.file_id
             AND file.workspace_id = search_index.workspace_id
-            AND file.context = 'workspace' AND file.discovery = 'listed'
+            AND file.context = 'workspace'
             AND file.deleted_at IS NULL
             AND file.content_updated_at = search_index.source_content_updated_at
           LIMIT 1
@@ -414,7 +411,6 @@ async function claimQueuedWorkspaceJobs(
         eq(workspaceFiles.id, workspaceFileSearchRevision.fileId),
         eq(workspaceFiles.workspaceId, workspaceFileSearchDispatchQueue.workspaceId),
         eq(workspaceFiles.context, 'workspace'),
-        fileDiscoveryCondition(),
         isNull(workspaceFiles.deletedAt),
         eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchRevision.sourceContentUpdatedAt)
       )

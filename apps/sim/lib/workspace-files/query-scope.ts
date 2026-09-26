@@ -1,7 +1,7 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { eq, inArray, isNull } from 'drizzle-orm'
 
-/** Owned durable files, including unlisted resources. Discovery callers additionally filter membership. */
+/** Durable files available to workspace resource pickers, reference mappings, and fork copies. */
 export function activeWorkspaceFileConditions(workspaceIds: string[]) {
   return [
     inArray(workspaceFiles.workspaceId, workspaceIds),

@@ -1,27 +1,46 @@
 /** The built-in authoring skill ships alongside the parser, so models can learn the actual format. */
 export const DASHBOARD_AUTHORING_CONTENT = `# Create a dashboard
 
-Create a dashboard with dashboards.create, passing name and YAML content. Use dashboard_folders for its separate folder tree. dashboards.get returns the YAML and revision; dashboards.update takes content and expectedRevision. Open it with open_resource, type dashboard. Dashboards appear in the Dashboards page, separately from Files. Do not generate HTML, JavaScript, CSS, or a custom chart grammar.
+A dashboard is a workspace file of YAML over live table rows, rendered when opened. Inspect the table's columns first, then create a file named \`<Name>.dashboard\`: Sim drops the suffix and stores the dashboard type, so the result's type must be text/x-sim-dashboard. Later reads and edits use the returned file id. Never write HTML, JS, CSS, or a custom chart grammar; log queries are not supported.
 
-First inspect the real table and its column schema. Use a real tableId and stable column IDs where possible. Column names also work, but renaming a name-referenced column breaks that reference. This is a live view of current rows, not historical snapshots of mutable records. Log queries are not supported.
+\`\`\`yaml
+title: Support
+time: 7d                      # 1h | 24h | 7d | 30d | 90d
+source: {tableId: tbl_123}    # default for every panel; a panel's source shallowly overrides it
+blocks:
+  - text: Tickets opened this week.   # a leading text block is the subtitle
+  - row:
+      - stat: Tickets
+        source: {aggregate: {n: {op: count}}}
+      - stat: Resolved
+        unit: '%'
+        source: {aggregate: {pct: {op: percent, filter: {field: status, op: eq, value: resolved}}}}
+  - chart: Tickets per day
+    flex: 2
+    source: {groupBy: [createdAt], aggregate: {n: {op: count}}}
+    option:
+      xAxis: {type: time}
+      yAxis: {type: value}
+      series: [{type: line, name: Tickets, encode: {x: createdAt, y: n}}]
+  - tabs:
+      Recent:
+        - table: Latest tickets
+          source: {columns: [title, status, createdAt], sort: [{field: createdAt, direction: desc}]}
+\`\`\`
 
-Use the renderer's defaults for typography, spacing, bar thickness, axes, and neutral colors. Single-measure charts share the same neutral color across panels. Comparisons within a chart can use the shared palette or line patterns; add muted color only when needed to distinguish meaning. Explicit ECharts style overrides are available when the user asks for custom styling, not required boilerplate.
+## Layout
+Top-level keys: title, time, source, blocks. Blocks stack; row places up to 12 side by side (optional flex 1–12); tabs maps 1–8 labels to block lists. Text is plain. Keep text minimal — no authoring notes or instructions in the dashboard.
 
-Let the data and the user's question determine the layout. Text is optional: use concise titles, units, and at most a short introduction unless an annotation adds useful insight. Authoring rules, implementation details, date-control instructions, and demo setup belong outside the dashboard.
+## source
+- tableId; timeField (default createdAt; pick updatedAt or a date column when that fits). Every query is bounded to the viewer's range; range pins one panel to a preset.
+- filter: table conditions {field, op, value} or nested all/any. No SQL. Use stable column IDs over names where possible.
+- aggregate: 1–8 aliases → {op, field}. count (field optional), countDistinct, sum, avg, min, max. percent takes {op: percent, filter}: matching rows / all rows in the group × 100 — use it instead of 0/100 helper columns. A stat has exactly one aggregate and no groupBy; unit is a label only.
+- groupBy: up to 2 fields; include timeField for a time series. bucket: auto (default) or minute…year, UTC. Leave it auto so zoom can refine.
+- columns (instead of aggregate) for detail rows, with optional sort (≤3). limit 1–500; on aggregates it's top-N after grouping.
 
-The only top-level keys are title, time, source, blocks. time defaults to 7d; allowed presets are 1h, 24h, 7d, 30d, 90d. The viewer also has an arbitrary custom range and a timezone selector that defaults to the viewer's local timezone and offers UTC. Blocks stack vertically. row contains blocks side by side; optional integer flex weights from 1–12 set relative widths (default 1). Rows wrap on narrow panels. tabs maps labels to block lists. text is plain text; a leading text block becomes the description directly beneath the dashboard title.
+## Charts
+option is a plain ECharts option; results arrive as dataset 0, referenced via series.encode by groupBy field or aggregate alias. No functions, HTML tooltips, toolbox, or links. Bars: type bar with a category axis (swap axes for horizontal). Pie: encode {itemName, value}, radius pair for donut. Stack/area via standard ECharts. Time-axis charts get hover readout, synced crosshair, and drag-zoom for free — name series, set yAxis.axisLabel.formatter "{value}%" for percentages, and leave xAxis label formatters unset. Rely on renderer defaults for colors and styling unless the user asks.
 
-A stat, chart, or table block has its title as its value. Each uses source, inherited from the dashboard and shallowly overridden by the block. source.tableId selects the table. source.timeField defaults to createdAt; choose updatedAt or a date/TTL column explicitly when appropriate. Calendar date cells mean midnight UTC. Timestamp cells must have an offset. Every query filters [from, to), including stats and detail tables. source.range optionally fixes a panel to a preset instead of the global range; the viewer labels this override.
-
-source.filter uses the existing table condition {field, op, value} or nested all/any groups. No SQL or expressions. Prefer eq/in on hot filters. source.aggregate maps output aliases to measures. count (rows if field omitted, otherwise non-null values), countDistinct, sum, avg, min, max use {op, field?}; all except count require a field, and sum/avg/min/max require numeric columns. percent uses {op: percent, filter} with the same condition grammar and no field: 100 times matching rows divided by all rows remaining after source.filter and the time bounds, within each group. Only the numerator uses the measure filter; other measures are unaffected. An empty population returns null, zero matches in a nonempty population returns 0. Use percent on actual status/boolean conditions instead of storing redundant 100/0 helper columns. Each stat needs exactly one aggregate and no grouping. Optional unit appends a label such as ms or %; it does not convert values.
-
-source.groupBy takes up to two fields. Including timeField groups by time. source.bucket defaults to auto; minute/hour/day/week/month/year are supported, in UTC (weeks start Monday). Time range and bucket size are independent. The first and last buckets can be partial. A chart's option is a normal ECharts option, exactly as in .chart files. Query results are injected as datasetIndex 0, id table. Use series.encode with the group field or aggregate aliases. No functions, HTML tooltips, toolbox, or navigation links.
-
-Charts with one horizontal xAxis of type time automatically show hovered series values on the left and date/time on the right, show a floating tooltip at the cursor, synchronize hover with charts sharing the same range, and support drag-to-zoom. Choose a time-range preset to leave the zoomed interval. No interaction YAML is needed. When idle, the readout averages plotted samples for percentage axes (use the standard yAxis.axisLabel.formatter: "{value}%") and totals other numeric series. Missing values are excluded; zeros count. These summaries describe plotted buckets: do not interpret the average of bucket rates as a weighted overall rate, or the sum of bucket distinct counts as a distinct count over the whole range. Give series a name for a readable value label. Omit bucket or choose auto so zooming can query finer points. Omit xAxis.axisLabel.formatter for adaptive, timezone-aware date/time labels; an explicit formatter overrides that default. The timezone selector changes displayed timestamps and calendar inputs, not UTC query bounds or bucket boundaries. Fixed source.range panels keep their own range and do not drive global zoom.
-
-For detail rows, set source.columns instead of aggregate, and optionally sort: [{field, direction: asc|desc}]. The default is 50 recent rows, ordered by time descending. limit may be 1–500; aggregate limits apply AFTER aggregation (top N), never to source rows. Truncation is displayed. Without an explicit limit, more than 500 groups is an error. Missing numeric values remain null (displayed as an em dash); count of no matching rows is zero. Single-field time series fill missing buckets: count/countDistinct become zero, other aggregates remain null.
-
-For bar charts use type: bar and a category xAxis; for horizontal bars swap the axis types and encode. Horizontal category labels appear above their bars by default, using the plot width instead of a separate left column. Omit large grid.left values; ordinary ECharts yAxis.axisLabel options can override this layout. Pie/donut use type: pie, encode: {itemName: group_field, value: count_alias}, and radius (a pair for a donut). Area/stacked lines use ECharts areaStyle/stack. Scatter, heatmap, radar and other ECharts charts use their standard option/encode structures; choose a suitable query result shape. Do not invent a chart-type abstraction.
-
-Create and update validate YAML, shape, limits and chart option safety before storing it; they do not execute the queries or prove table columns exist. Open the preview to validate live table reads. Errors are shown, not converted to zero. Fix errors before saying the dashboard works. A public file link cannot query workspace tables: viewers must open the dashboard inside an authorized workspace.
+## Verify
+Nothing validates the file on write. Open it and fix any parse or panel errors before saying it works.
 `

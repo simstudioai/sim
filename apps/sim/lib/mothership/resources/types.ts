@@ -5,7 +5,6 @@ export const MothershipResourceType = {
   sources: 'sources',
   table: 'table',
   file: 'file',
-  dashboard: 'dashboard',
   workflow: 'workflow',
   knowledgebase: 'knowledgebase',
   folder: 'folder',
@@ -111,7 +110,6 @@ const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
   sources: { persisted: true },
   table: { persisted: true },
   file: { persisted: true },
-  dashboard: { persisted: true },
   workflow: { persisted: true },
   knowledgebase: { persisted: true },
   folder: { persisted: true },
@@ -328,7 +326,6 @@ export function mergePendingChatResourceUpdate(
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
-  dashboards: 'dashboard',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',

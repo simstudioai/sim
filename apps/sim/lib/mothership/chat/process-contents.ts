@@ -10,7 +10,6 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { readDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -67,7 +66,6 @@ type AgentContextType =
   | 'table'
   | 'table_selection'
   | 'file'
-  | 'dashboard'
   | 'file_selection'
   | 'workflow_block'
   | 'docs'
@@ -262,15 +260,6 @@ export async function processContextsServer(
           content: result.content,
           path: result.path,
         }
-      }
-      if (ctx.kind === 'dashboard' && ctx.fileId && currentWorkspaceId) {
-        const result = await resolveDashboardResource(
-          ctx.fileId,
-          currentWorkspaceId,
-          userId,
-          chatId
-        )
-        return { ...result, type: 'dashboard', tag: ctx.label ? `@${ctx.label}` : '@' }
       }
       if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
         const result = await resolveFileResource(ctx.fileId, currentWorkspaceId, userId, chatId)
@@ -819,9 +808,6 @@ export async function resolveActiveResourceContext(
           currentView
         )
       }
-      case 'dashboard': {
-        return await resolveDashboardResource(resourceId, workspaceId, userId, chatId)
-      }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
@@ -911,24 +897,6 @@ async function resolveTableResource(
             }
           : {}),
     }),
-  }
-}
-
-async function resolveDashboardResource(
-  dashboardId: string,
-  workspaceId: string,
-  userId: string,
-  chatId?: string
-): Promise<AgentContext> {
-  const principal = createCopilotChatFilePrincipal({ userId, workspaceId, chatId })
-  const { dashboard } = await readDashboard.execute({
-    principal,
-    input: { workspaceId, dashboardId },
-  })
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: JSON.stringify({ type: 'dashboard', dashboardId, workspaceId, name: dashboard.name }),
   }
 }
 

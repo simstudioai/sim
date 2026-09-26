@@ -1,7 +1,6 @@
 export type MothershipResourceType =
   | 'table'
   | 'file'
-  | 'dashboard'
   | 'workflow'
   | 'knowledgebase'
   | 'folder'
@@ -17,7 +16,6 @@ export interface MothershipResource {
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
-  dashboards: 'dashboard',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',
