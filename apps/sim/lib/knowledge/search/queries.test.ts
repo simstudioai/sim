@@ -226,8 +226,8 @@ describe('getStructuredTagFilters', () => {
       const { sql, params } = renderOne([
         { tagSlot: 'date1', fieldType: 'date', operator: 'eq', value: ' 2026-08-13' },
       ])
-      expect(sql).toBe('?::date = ?::date')
-      expect(params).toEqual(['date1', '2026-08-13'])
+      expect(sql).toBe('? >= ?::date::timestamp AND ? < (?::date + 1)::timestamp')
+      expect(params).toEqual(['date1', '2026-08-13', 'date1', '2026-08-13'])
     })
 
     it('escapes LIKE metacharacters so a typed % is not a wildcard', () => {
