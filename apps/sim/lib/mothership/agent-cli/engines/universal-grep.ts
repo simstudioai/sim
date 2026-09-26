@@ -589,7 +589,9 @@ export const universalGrepCommand: AgentCliEngine = {
     for (const resource of candidates) {
       if (resource.text === null) continue
       const lines = resource.text.split('\n')
-      const selected = new Set<number>()
+      const selected = new Map<number, boolean>()
+      const remainingLines = limit - out.length
+      let nextContextLine = 0
       for (let i = 0; i < lines.length; i++) {
         if (checkScan() - lastYieldAt >= SCAN_YIELD_INTERVAL_MS) {
           await sleep(0)
@@ -600,19 +602,20 @@ export const universalGrepCommand: AgentCliEngine = {
         perScope.set(resource.scope, (perScope.get(resource.scope) ?? 0) + 1)
         if (countOnly) continue
         for (
-          let j = Math.max(0, i - context.before);
-          j <= Math.min(lines.length - 1, i + context.after);
+          let j = Math.max(nextContextLine, i - context.before);
+          j <= Math.min(lines.length - 1, i + context.after) && selected.size < remainingLines;
           j++
         ) {
-          selected.add(j)
+          selected.set(j, false)
+          nextContextLine = j + 1
         }
+        if (selected.has(i)) selected.set(i, true)
       }
       if (countOnly || selected.size === 0 || out.length >= limit) continue
       const header = `${resource.scope}/${resource.label}${resource.label === resource.id ? '' : ` (${resource.id})`}`
-      for (const i of [...selected].sort((a, b) => a - b)) {
-        if (out.length >= limit) break
+      for (const [i, isMatch] of selected) {
         out.push(`${header}:${i + 1}: ${clip(lines[i])}`)
-        if (matches(lines[i])) shownMatches++
+        if (isMatch) shownMatches++
       }
     }
     checkScan()

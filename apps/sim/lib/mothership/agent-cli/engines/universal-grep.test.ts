@@ -98,6 +98,26 @@ describe('universal grep', () => {
     expect(result).toMatchObject({ exitCode: 0, stdout: '1 (files=1)' })
   })
 
+  it('bounds overlapping context windows while counting matches beyond the output limit', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'input' }], nextCursor: null },
+        '/api/v2/files/input/text': {
+          data: { text: ['header', ...Array.from({ length: 30_000 }, () => 'needle')].join('\n') },
+        },
+      }),
+      { scope: 'files', C: '30000', limit: '3' }
+    )
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout:
+        'files/input:1: header\nfiles/input:2: needle\nfiles/input:3: needle\n' +
+        '[2 of 30000 matching lines shown — narrow with --scope, --in, or a tighter pattern]',
+    })
+  }, 15_000)
+
   it('fails an exhausted scan budget instead of returning a complete count', async () => {
     vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValue(6_000)
     const result = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
