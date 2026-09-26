@@ -653,3 +653,75 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     expect(subBlocks.text?.value).toBe('true')
   })
 })
+
+describe('copyWorkflowStateIntoTarget fork-sync inheritance', () => {
+  const sourceState = {
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  } as never
+
+  /** `create` mode inserts the target row; capture exactly what it writes. */
+  function stubCreateTx(captured: Record<string, unknown>[]) {
+    return {
+      insert: () => ({
+        values: (row: Record<string, unknown>) => {
+          captured.push(row)
+          return Promise.resolve()
+        },
+      }),
+    } as unknown as DbOrTx
+  }
+
+  const createParams = (forkSyncExcluded: boolean) => ({
+    targetWorkflowId: 'wf-new',
+    targetWorkspaceId: 'ws-target',
+    userId: 'target-user',
+    mode: 'create' as const,
+    now: new Date('2026-07-01'),
+    sourceState,
+    sourceMeta: {
+      name: 'Prod',
+      description: null,
+      folderId: null,
+      sortOrder: 0,
+      forkSyncExcluded,
+    },
+    workflowIdMap: new Map(),
+    folderIdMap: new Map(),
+    nameRegistry: buildWorkflowNameRegistry([]),
+    resolveBlockId: (_targetWorkflowId: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
+  })
+
+  /**
+   * The regression the whole opt-in feature hinges on. A copy is the same logical workflow
+   * in another workspace, so it must inherit the SOURCE's participation - never the target
+   * workspace's new-workflow default. In an opt-in workspace the default is "excluded", so
+   * taking it here would land an explicitly-selected source's copy already excluded and
+   * sync would never update it again.
+   */
+  it('inherits a synced source so the copy keeps syncing', async () => {
+    const rows: Record<string, unknown>[] = []
+    await copyWorkflowStateIntoTarget({ ...createParams(false), tx: stubCreateTx(rows) } as never)
+    expect(rows[0].forkSyncExcluded).toBe(false)
+  })
+
+  it('inherits an unsynced source so an overridden copy does not start syncing back', async () => {
+    const rows: Record<string, unknown>[] = []
+    await copyWorkflowStateIntoTarget({ ...createParams(true), tx: stubCreateTx(rows) } as never)
+    expect(rows[0].forkSyncExcluded).toBe(true)
+  })
+
+  /**
+   * The field is required on the contract precisely so this can never be omitted: a copy
+   * that fell through to the column default would silently ATTACH itself to sync in an
+   * opt-in lineage, with no UI or audit signal.
+   */
+  it('always writes the column, never falling through to the DB default', async () => {
+    const rows: Record<string, unknown>[] = []
+    await copyWorkflowStateIntoTarget({ ...createParams(false), tx: stubCreateTx(rows) } as never)
+    expect('forkSyncExcluded' in rows[0]).toBe(true)
+  })
+})

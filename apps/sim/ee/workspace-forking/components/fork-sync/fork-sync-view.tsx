@@ -812,20 +812,20 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
     controller.inlineSecretCount > 0 ||
     controller.triggerUrlChanges.length > 0
 
-  // Excluded workflows render greyed in the change list. Orient each name's tooltip
-  // to WHERE it is excluded (that's the only place it can be re-included): the sync's
-  // source is this workspace on push and the other workspace on pull.
+  // Unsynced workflows render greyed in the change list. Orient each name's tooltip
+  // to WHERE it is unsynced (that's the only place it can be re-selected, under Synced
+  // workflows): the sync's source is this workspace on push and the other on pull.
   const excludedRows = [
     ...(controller.direction === 'push'
       ? controller.excludedSourceWorkflows
       : controller.excludedTargetWorkflows
-    ).map((name) => ({ name, tooltip: 'Excluded from sync' })),
+    ).map((name) => ({ name, tooltip: 'Not synced' })),
     ...(controller.direction === 'push'
       ? controller.excludedTargetWorkflows
       : controller.excludedSourceWorkflows
     ).map((name) => ({
       name,
-      tooltip: `Excluded from sync in "${controller.otherWorkspaceName}"`,
+      tooltip: `Not synced in "${controller.otherWorkspaceName}"`,
     })),
   ]
 
@@ -862,8 +862,8 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       {/* Always shown once the diff loads so the user sees the section even with nothing
           deployed - an empty change list means the source has no deployed workflows (every
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
-          Sync-excluded workflows list greyed at the end, with a tooltip naming where the
-          exclusion lives - the sync will not touch them. */}
+          Unsynced workflows list greyed at the end, with a tooltip naming which workspace
+          they are unsynced in - the sync will not touch them. */}
       {controller.hasDiff ? (
         <SettingsSection label='Deployed workflows'>
           {controller.workflowChanges.length + excludedRows.length > 0 ? (

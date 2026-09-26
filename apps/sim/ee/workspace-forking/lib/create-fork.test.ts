@@ -19,6 +19,7 @@ const {
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
   mockCollectReferencedFileFolderPaths,
+  mockResolveForkSyncExclusionForNewWorkflow,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
@@ -29,6 +30,8 @@ const {
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
+  // Historical opt-out default unless a test opts the lineage in.
+  mockResolveForkSyncExclusionForNewWorkflow: vi.fn(async () => false),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
@@ -72,6 +75,11 @@ vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
+vi.mock('@/ee/workspace-forking/lib/sync-default', () => ({
+  // The lineage root is resolved before the fork tx; a standalone source is its own root.
+  resolveForkLineageRootId: vi.fn(async (_executor: unknown, workspaceId: string) => workspaceId),
+  resolveForkSyncExclusionForNewWorkflow: mockResolveForkSyncExclusionForNewWorkflow,
+}))
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   reconcileForkBlockPairs: vi.fn(),
   toForkBlockPairs: vi.fn(() => []),
@@ -215,6 +223,21 @@ describe('createFork storage headroom gate', () => {
     expect(result.workspace.allowPersonalApiKeys).toBe(false)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ allowPersonalApiKeys: false })
+    )
+  })
+
+  /**
+   * The new-workflow fork-sync default is lineage-uniform, so a child that did not inherit
+   * it would disagree with its parent from the moment it exists - the one state the
+   * lineage-wide write exists to prevent.
+   */
+  it('inherits the source workspace fork-sync default in the child', async () => {
+    mockResolveForkSyncExclusionForNewWorkflow.mockResolvedValue(true)
+
+    await createFork(forkParams())
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ forkSyncNewWorkflowsExcluded: true })
     )
   })
 

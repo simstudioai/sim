@@ -497,6 +497,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'archivedAt',
     'organizationAssignedAt',
     'forkedFromWorkspaceId',
+    'forkSyncNewWorkflowsExcluded',
     'createdAt',
     'updatedAt',
   ],

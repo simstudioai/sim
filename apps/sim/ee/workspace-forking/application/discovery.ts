@@ -155,7 +155,12 @@ export const listWorkspaceForkResources = defineForkUseCase({
   async execute({
     input,
   }: {
-    input: PageInput & { kind: keyof Omit<ForkCopyableResources, 'deployedWorkflowCount'> }
+    input: PageInput & {
+      kind: keyof Omit<
+        ForkCopyableResources,
+        'deployedWorkflowCount' | 'unsyncedDeployedWorkflowCount'
+      >
+    }
   }) {
     const cursor = readCursor(input, { collection: 'copyable_resources', kind: input.kind })
     const rows = await listForkCopyableResourcePage(db, input.workspaceId, input.kind, {

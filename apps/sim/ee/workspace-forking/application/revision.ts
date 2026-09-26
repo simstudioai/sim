@@ -199,11 +199,21 @@ export async function assertForkSourceVersions(
   sourceWorkspaceId: string,
   expected: ReadonlyMap<string, { id: string; digest: string }>
 ): Promise<void> {
+  // Verify exactly the workflows that were ADMITTED, rather than re-deriving the source
+  // predicate here. Re-deriving it duplicated `listDeployedWorkflows`'s filter, so the day
+  // a caller admitted a different set - "Copy unsynced workflows" admits sync-excluded
+  // workflows - this query returned fewer rows and every such fork failed on a phantom
+  // size mismatch. Keying off `expected` cannot drift from the admitted set by construction.
+  if (expected.size === 0) return
+  const admittedIds = sql.join(
+    [...expected.keys()].map((id) => sql`${id}`),
+    sql`, `
+  )
   const rows = await tx.execute<{ workflowId: string; id: string; digest: string }>(sql`
     SELECT w.id AS "workflowId", d.id, md5(d.state::text) AS digest FROM ${workflow} w
     JOIN ${workflowDeploymentVersion} d ON d.workflow_id = w.id AND d.is_active = true
     WHERE w.workspace_id = ${sourceWorkspaceId} AND w.is_deployed = true
-      AND w.archived_at IS NULL AND w.fork_sync_excluded = false
+      AND w.archived_at IS NULL AND w.id IN (${admittedIds})
   `)
   if (
     rows.length !== expected.size ||

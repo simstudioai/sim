@@ -116,6 +116,25 @@ export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string):
 }
 
 /**
+ * Serialize writes that must see one consistent view of a whole fork lineage, keyed by
+ * the lineage ROOT so every member contends on the same key.
+ *
+ * Two writers need it: setting the new-workflow fork-sync default (which fans out to
+ * every member) and fork creation (which inherits the source's value). Without it a fork
+ * created while the default was being changed could inherit a stale value, and the
+ * "every member agrees" invariant would be merely likely rather than guaranteed.
+ *
+ * This is the COARSEST fork lock, so always acquire it BEFORE
+ * {@link acquireForkTargetLock} and {@link acquireForkEdgeLock} to keep lock ordering
+ * consistent across the feature.
+ */
+export async function acquireForkLineageLock(tx: DbOrTx, rootWorkspaceId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-lineage:${rootWorkspaceId}`}, 0))`
+  )
+}
+
+/**
  * Serialize every promote/rollback whose TARGET is this workspace. Sibling forks
  * promote into the same parent on different edge locks, so the edge lock alone does
  * not serialize them; this lock does, keeping concurrent syncs into one target from
