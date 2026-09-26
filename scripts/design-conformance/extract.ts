@@ -24,6 +24,7 @@ import {
   excludedCssProperty,
   normalizeValue,
 } from '#design-conformance/normalize'
+import { reactStyleValue, reactUnitlessProperty } from '#design-conformance/react-style'
 import {
   htmlArtwork,
   htmlSink,
@@ -611,35 +612,43 @@ export function extract(
         reference
       )
     }
-    const literal = (p: NodePath, active = new Set<t.Node>(), depth = 0): string | undefined => {
+    const scalarLiteral = (
+      p: NodePath,
+      active = new Set<t.Node>(),
+      depth = 0
+    ): string | number | undefined => {
       if (!p.node || depth > 12 || active.has(p.node)) return undefined
       const next = new Set(active).add(p.node)
-      if (p.isStringLiteral() || p.isNumericLiteral()) return String(p.node.value)
+      if (p.isStringLiteral() || p.isNumericLiteral()) return p.node.value
       if (p.isUnaryExpression({ operator: '-' })) {
-        const x = literal(p.get('argument'), next, depth + 1)
-        return x !== undefined ? `-${x}` : undefined
+        const x = scalarLiteral(p.get('argument'), next, depth + 1)
+        return typeof x === 'number' ? -x : undefined
       }
       if (p.isTSAsExpression() || p.isTSNonNullExpression() || p.isTSSatisfiesExpression())
-        return literal(p.get('expression') as NodePath, next, depth + 1)
+        return scalarLiteral(p.get('expression') as NodePath, next, depth + 1)
       if (p.isIdentifier()) {
         const b = p.scope.getBinding(p.node.name)
         if (b?.constant && b.path.isVariableDeclarator())
-          return literal(b.path.get('init') as NodePath, next, depth + 1)
+          return scalarLiteral(b.path.get('init') as NodePath, next, depth + 1)
       }
       if (p.isTemplateLiteral()) {
         let out = p.node.quasis[0].value.cooked ?? p.node.quasis[0].value.raw
         for (const [i, e] of (p.get('expressions') as NodePath[]).entries()) {
-          const v = literal(e, next, depth + 1)
+          const v = scalarLiteral(e, next, depth + 1)
           if (v === undefined) return undefined
           out += v + (p.node.quasis[i + 1].value.cooked ?? p.node.quasis[i + 1].value.raw)
         }
         return out
       }
       if (p.isBinaryExpression({ operator: '+' })) {
-        const a = literal(p.get('left'), next, depth + 1)
-        const b = literal(p.get('right'), next, depth + 1)
-        if (a !== undefined && b !== undefined && !(/^[-\d.]+$/.test(a) && /^[-\d.]+$/.test(b)))
-          return a + b
+        const a = scalarLiteral(p.get('left'), next, depth + 1)
+        const b = scalarLiteral(p.get('right'), next, depth + 1)
+        if (
+          a !== undefined &&
+          b !== undefined &&
+          !(/^[-\d.]+$/.test(String(a)) && /^[-\d.]+$/.test(String(b)))
+        )
+          return String(a) + String(b)
       }
       if (p.isMemberExpression() && !p.node.computed && p.get('object').isIdentifier()) {
         const b = p.scope.getBinding((p.node.object as t.Identifier).name)
@@ -670,11 +679,15 @@ export function extract(
                   !x.node.computed &&
                   name(x.get('key')) === name(p.get('property') as NodePath)
               )
-            if (prop?.isObjectProperty()) return literal(prop.get('value'), next, depth + 1)
+            if (prop?.isObjectProperty()) return scalarLiteral(prop.get('value'), next, depth + 1)
           }
         }
       }
       return undefined
+    }
+    const literal = (p: NodePath): string | undefined => {
+      const value = scalarLiteral(p)
+      return value === undefined ? undefined : String(value)
     }
     const classes = (p: NodePath, active = new Set<t.Node>(), depth = 0, context = ''): void => {
       if (!p.node) return
@@ -879,10 +892,12 @@ export function extract(
           note(prop, 'Style spread/computed property is unchecked', 'style')
           continue
         }
-        const key = kebab(name(prop.get('key')))
+        const property = name(prop.get('key'))
+        const key = kebab(property)
         const v = prop.get('value')
         const central = options?.conformance ? centralValue(v) : undefined
-        const value = central?.value ?? literal(v)
+        const scalar = scalarLiteral(v)
+        const value = central?.value ?? (scalar === undefined ? undefined : String(scalar))
         if (value === undefined) {
           const ref =
             options?.conformance && v.isIdentifier() ? imported(v, v.node.name) : undefined
@@ -909,18 +924,24 @@ export function extract(
           note(v, `Computed ${key} is unchecked`, 'style', key)
           continue
         }
-        const unitless =
-          /^(?:opacity|z-index|font-weight|line-height|flex(?:-grow|-shrink)?|order|scale|aspect-ratio)$/
+        if (
+          central &&
+          /^-?(?:\d*\.)?\d+$/.test(value) &&
+          value !== '0' &&
+          !property.startsWith('--') &&
+          !reactUnitlessProperty(property)
+        )
+          note(
+            v,
+            'Central numeric-looking style value has unknown scalar type; React units remain unchecked',
+            'style',
+            key
+          )
         emit(
           v,
           'style',
           key,
-          /^-?(?:\d*\.)?\d+$/.test(value) &&
-            !unitless.test(key) &&
-            !key.startsWith('--') &&
-            value !== '0'
-            ? `${value}px`
-            : value,
+          scalar === undefined ? value : reactStyleValue(property, scalar),
           context,
           central?.ref
         )

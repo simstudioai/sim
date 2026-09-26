@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, expect, test } from 'vitest'
 import { findingFingerprint } from '#control-analysis/review-ledger'
 import { ciRefs, warningExitCode } from '#design-conformance/ci'
@@ -306,6 +308,75 @@ throw new Error('Product source must not execute')
     expect(metadata.exports.Example.slots.className.protected).toEqual(protectedProperties)
   }
 )
+
+test.each([
+  ['grid line integer', 'gridColumnStart', 'grid-column-start', '1', 1, ''],
+  ['grid row integer', 'gridRowEnd', 'grid-row-end', '3', 3, ''],
+  ['animation count', 'animationIterationCount', 'animation-iteration-count', '2', 2, ''],
+  ['border image ratio', 'borderImageSlice', 'border-image-slice', '2', 2, ''],
+  ['vendor line clamp', 'WebkitLineClamp', '-webkit-line-clamp', '2', 2, ''],
+  ['font weight', 'fontWeight', 'font-weight', '600', 600, ''],
+  ['ordinary dimension', 'width', 'width', '1', 1, ''],
+  ['numeric string dimension', 'width', 'width', "'1'", '1', ''],
+  ['numeric alias dimension', 'height', 'height', 'size', 4, 'const size=4;'],
+  ['string member dimension', 'height', 'height', 'sizes.small', '4', "const sizes={small:'4'};"],
+  ['typed grid alias', 'gridColumnEnd', 'grid-column-end', 'line', 2, 'const line=2 as const;'],
+  ['numeric custom variable', '--reserve', '--reserve', '1', 1, ''],
+] as const)(
+  'React numeric style serialization survives the real CLI: %s',
+  (_name, property, cssProperty, value, runtimeValue, prefix) => {
+    const { repo } = fixture()
+    writeFileSync(path.join(repo, ui), 'const A=()=> <button/>')
+    const base = commit(repo)
+    writeFileSync(
+      path.join(repo, ui),
+      `${prefix}const A=()=> <button style={{'${property}':${value}}}/>`
+    )
+    const result = run([
+      '--repo',
+      repo,
+      '--base',
+      base,
+      '--working-tree',
+      '--policy',
+      'appearance',
+      '--format',
+      'json',
+    ])
+    expect(result.status, result.stderr).toBe(1)
+    const report = JSON.parse(result.stdout) as Report
+    expect(report.status).toBe('completed')
+    const rendered = renderToStaticMarkup(
+      createElement('button', { style: { [property]: runtimeValue } })
+    )
+    const reactValue = rendered.match(/style="[^:"]+:([^"]*)"/)?.[1]
+    expect(reactValue).toBeTypeOf('string')
+    expect(report.findings.find((finding) => finding.property === cssProperty)?.value).toBe(
+      JSON.stringify([reactValue])
+    )
+  }
+)
+
+test('central numeric-looking style references keep their scalar type ambiguity explicit through the real CLI', () => {
+  const { repo } = fixture()
+  mkdirSync(path.join(repo, 'packages/emcn/src'), { recursive: true })
+  writeFileSync(path.join(repo, 'packages/emcn/src/index.ts'), 'export const dimension=3')
+  writeFileSync(path.join(repo, ui), 'const A=()=> <button/>')
+  const base = commit(repo)
+  writeFileSync(
+    path.join(repo, ui),
+    "import {dimension} from '@sim/emcn';const A=()=> <button style={{width:dimension}}/>"
+  )
+  const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+  expect([0, 1], result.stderr).toContain(result.status)
+  const report = JSON.parse(result.stdout) as Report
+  expect(report.status).toBe('completed')
+  expect(
+    report.unchecked.some((note) =>
+      note.reason.includes('Central numeric-looking style value has unknown scalar type')
+    )
+  ).toBe(true)
+})
 
 test('working-tree mode includes a changed central contract registry', () => {
   const { repo } = fixture()
