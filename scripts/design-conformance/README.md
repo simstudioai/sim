@@ -1,6 +1,6 @@
 # Design conformance
 
-Tool/report **4.0.0**, policy **design-conformance/2.0.0**, generated facts **2.0.0**.
+Tool/report **4.1.0**, policy **design-conformance/2.0.0**, generated facts **2.1.0**.
 
 The diff check, full scanner and local Studio share the maintained analysis and source-generated contracts. They produce one `findings` list: detected styling and design decisions to review. Findings are warnings in CI. Unresolved inputs stay in `unchecked`; parsing/extraction failures are errors, not a clean check.
 
@@ -37,6 +37,8 @@ Each component's supported finite design props come from its public type and its
 
 Finite nested object lookups retain the selected recipe's properties. Barrel imports resolve to their implementation, and destructured inputs are excluded from rest forwarding. Studio fixture coverage follows each export separately: a family's adapter supports a variant only when that export actually receives the variant props. Nonvisual constants remain in the inventory without preview cards.
 
+Source discovery updates automatically when supported public components or global definitions are added, removed or changed. It is static analysis, so unsupported implementation paths retain a per-slot diagnostic rather than becoming permission to override chrome. Intentional ownership rules and fixture data/providers still require source metadata or an adapter; a newly discovered entry without an adapter remains visible as needing a fixture.
+
 ## Ownership metadata
 
 Ordinary layout remains local. Consumer changes to component-authored colours, typography, borders, radius, spacing, dimensions or effects are findings, including newly added components without registration. Use a supported component prop/variant first. Deliberate customization or ownership that cannot be inferred belongs in the component's existing TSDoc:
@@ -50,6 +52,8 @@ Ordinary layout remains local. Consumer changes to component-authored colours, t
 ```
 
 `@designProtect <slot> <properties>` adds explicit ownership. Properties are CSS property names or policy groups (`colours`, `typography`, `borders`, `dimensions`, `effects`, `spacing`, `radii`, `visibility`, `layout`); `*` means all properties. Nonexistent slots, malformed tags, invalid properties and contradictory allow/protect declarations fail generation. Permissions do not prove global-token provenance or suppress independent rules. Source and metadata changes remain design-system findings after regeneration.
+
+Permissions for longhands remain specific: allowing `padding-left` does not permit `padding-right` or a `padding` shorthand that also changes other sides. The check inspects declared style channels such as `gutterStyle`, as well as `className` and `style`; similarly named data-only props do not become styling inputs.
 
 ## Rule contract
 
