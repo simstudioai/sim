@@ -20,6 +20,7 @@ function makeDeps(origin = 'https://sim.ai'): MenuDeps {
     allowHttpLocalhost: vi.fn(() => false),
     openSettings: vi.fn(),
     openServerSettings: vi.fn(),
+    openFolderAccess: vi.fn(),
     newWindow: vi.fn(),
     newChat: vi.fn(),
     handleFocusedResourceShortcut: vi.fn(() => false),
