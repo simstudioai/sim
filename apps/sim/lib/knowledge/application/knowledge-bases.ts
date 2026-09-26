@@ -45,6 +45,7 @@ import {
   MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
 } from '@/lib/knowledge/constants'
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   performDeleteKnowledgeBase,
   performRestoreKnowledgeBase,
@@ -58,12 +59,16 @@ import {
   attachKnowledgeBaseConnectors,
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
-  getKnowledgeBaseById,
+  getActiveKnowledgeBaseReference,
   getWorkspaceKnowledgeBases,
   type KnowledgeBaseScope,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
-import type { ChunkingConfig, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import type {
+  ChunkingConfig,
+  KnowledgeBaseSummary,
+  KnowledgeBaseWithCounts,
+} from '@/lib/knowledge/types'
 
 const logger = createLogger('KnowledgeBaseApplication')
 
@@ -128,10 +133,12 @@ export interface CreateKnowledgeBaseInput {
 export interface ListInternalKnowledgeBasesInput {
   workspaceId?: string
   scope: KnowledgeBaseScope
+  /** Totals each base's documents the principal can see; only the surfaces that show them ask. */
+  includeCounts?: boolean
 }
 
 export interface ListInternalKnowledgeBasesResult {
-  knowledgeBases: KnowledgeBaseWithCounts[]
+  knowledgeBases: KnowledgeBaseSummary[]
 }
 
 export interface ReadKnowledgeBaseInput {
@@ -210,8 +217,8 @@ function throwKnowledgeOrchestrationFailure(
 
 async function loadInternalActiveKnowledgeBase(
   knowledgeBaseId: string
-): Promise<KnowledgeBaseWithCounts & { workspaceId: string }> {
-  const knowledgeBase = await getKnowledgeBaseById(knowledgeBaseId)
+): Promise<ActiveKnowledgeBaseReference & { workspaceId: string }> {
+  const knowledgeBase = await getActiveKnowledgeBaseReference(knowledgeBaseId)
   if (!knowledgeBase?.workspaceId || knowledgeBase.organizationId) {
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
@@ -260,7 +267,7 @@ async function executeListKnowledgeBases(args: {
     sortOrder: args.input.sortOrder,
     limit: args.input.limit,
     cursorKeys: args.input.cursorKeys,
-    access: createKnowledgeAccessProvider(args.principal, args.context),
+    countsFor: createKnowledgeAccessProvider(args.principal, args.context),
   })
   return {
     knowledgeBases: page.data.map((knowledgeBase) => ({
@@ -438,7 +445,7 @@ export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
         throwKnowledgeOrchestrationFailure(outcome, 'Failed to restore knowledge base')
       }
     }
-    const knowledgeBase = await getKnowledgeBaseById(context.knowledgeBaseId)
+    const knowledgeBase = await getActiveKnowledgeBaseReference(context.knowledgeBaseId)
     if (!knowledgeBase) throw new OrchestrationError('not_found', 'Knowledge base not found')
     const index = await loadActiveFolderPathIndex(
       context.workspaceId,
@@ -493,7 +500,11 @@ export const listInternalKnowledgeBases = {
     const { data: knowledgeBases } = await getWorkspaceKnowledgeBases(
       context.workspaceId,
       input.scope,
-      { access: createKnowledgeAccessProvider(principal, context) }
+      {
+        countsFor: input.includeCounts
+          ? createKnowledgeAccessProvider(principal, context)
+          : undefined,
+      }
     )
     return { knowledgeBases }
   },

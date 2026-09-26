@@ -23,10 +23,9 @@ import {
   getRestorableKnowledgeBase,
   type RestorableKnowledgeBase,
 } from '@/lib/knowledge/orchestration/restore'
-import { getActiveKnowledgeBaseReference, getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { getActiveKnowledgeBaseReference } from '@/lib/knowledge/service'
 import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import {
   loadActiveWorkspaceApplicationContext,
   loadWorkspaceApplicationContext,
@@ -85,7 +84,7 @@ export interface ActiveKnowledgeBaseContext
   extends KnowledgeWorkspaceContext,
     KnowledgeAccessBearingContext {
   knowledgeBaseId: string
-  knowledgeBase: KnowledgeBaseWithCounts
+  knowledgeBase: ActiveKnowledgeBaseReference
 }
 
 export type ActiveKnowledgeResourceBaseContext = KnowledgeResourceContext &
@@ -117,7 +116,7 @@ export type ActiveKnowledgeChunkContext = ActiveKnowledgeDocumentContext & {
 /**
  * A knowledge base loaded regardless of `deletedAt`, for the one operation that
  * targets an archived row. It carries the restorable identity rather than the
- * full {@link KnowledgeBaseWithCounts}, which is all the restore needs and all
+ * full {@link ActiveKnowledgeBaseReference}, which is all the restore needs and all
  * the archived read projects.
  */
 export type ArchivedKnowledgeBaseContext = KnowledgeWorkspaceContext & {
@@ -154,7 +153,7 @@ export async function resolveKnowledgeWorkspaceContext(input: {
  * search indexes from workspace operations are written once.
  */
 async function requireKnowledgeBase(knowledgeBaseId: string, workspaceId: string | undefined) {
-  const knowledgeBase = await getKnowledgeBaseById(knowledgeBaseId)
+  const knowledgeBase = await getActiveKnowledgeBaseReference(knowledgeBaseId)
   if (
     !knowledgeBase?.workspaceId ||
     (workspaceId !== undefined && knowledgeBase.workspaceId !== workspaceId)
