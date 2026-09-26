@@ -313,3 +313,301 @@ test('real working-tree and immutable checks discover ownership without registra
   expect(check('--working-tree').exit).toBe(2)
   expect(check('--working-tree').report.status).toBe('failed')
 }, 60000)
+
+test('lexical bindings keep unrelated local component and recipe names out of public ownership', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    `
+import {cva} from 'class-variance-authority'
+const recipe=cva('rounded-md')
+export function Example({className}:{className?:string}){return <button className={cn(recipe(),className)}/>}
+function helper(){const recipe='h-12';const Example=({className}:{className?:string})=><div className={cn('h-12',className)}/>;return {recipe,Example}}
+declare function cn(...args:unknown[]):string
+`
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.slots.className.protected).toEqual(['border-radius'])
+}, 60_000)
+
+test.each(['barrel', 'namespace'])(
+  'imported %s recipes retain ownership and defaults',
+  (mode) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/recipe.ts',
+      `import {cva} from 'class-variance-authority';export const recipe=cva('rounded-md',{variants:{variant:{plain:'border-0',filled:'border-2'}},defaultVariants:{variant:'filled'}})`
+    )
+    write(root, 'packages/emcn/src/components/recipes.ts', "export {recipe} from './recipe'")
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `${mode === 'barrel' ? "import {recipe} from './recipes'" : "import * as recipes from './recipes'"}
+export function Example({className,variant}:{className?:string;variant?:'plain'|'filled'}){return <button className={cn(${mode === 'barrel' ? 'recipe' : 'recipes.recipe'}({variant}),className)}/>}
+declare function cn(...args:unknown[]):string`
+    )
+    expect(run(root).status).toBe(0)
+    const entry = generated(root).exports.Example
+    expect(entry.slots.className.protected).toContain('border-radius')
+    expect(entry.variants.variant.default).toBe('filled')
+    expect(generated(root).diagnostics).toEqual([])
+  },
+  60_000
+)
+
+test.each(['jsx', 'bundle', 'createElement'])(
+  'finite %s aliases and bundles preserve ownership across class and style channels',
+  (mode) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `import {createElement} from 'react'
+interface Props{innerClassName?:string;innerStyle?:{color?:string}}
+export function Example({innerClassName,innerStyle}:Props){
+const classes=cn('rounded-md',innerClassName);const chrome={color:'red'};const styles={...chrome,...innerStyle};const attrs={className:classes,style:styles};
+return ${mode === 'jsx' ? '<div className={classes} style={styles}/>' : mode === 'bundle' ? '<div {...attrs}/>' : "createElement('div',attrs)"}
+}
+declare function cn(...args:unknown[]):string`
+    )
+    expect(run(root).status).toBe(0)
+    const slots = generated(root).exports.Example.slots
+    expect(slots.innerClassName.protected).toEqual(['border-radius', 'color'])
+    expect(slots.innerStyle.protected).toEqual(['border-radius', 'color'])
+  },
+  60_000
+)
+
+test('finite bound CVA config and spreads retain axes, chrome and recipe defaults', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    `import {cva} from 'class-variance-authority'
+const axes={variant:{plain:'border-0',filled:'border-2'}};const defaults={variant:'filled'} as const;const config={variants:{...axes},defaultVariants:{...defaults}} as const;const recipe=cva('rounded-md',config)
+export function Example({className,variant}:{className?:string;variant?:'plain'|'filled'}){return <div className={cn(recipe({variant}),className)}/>};declare function cn(...args:unknown[]):string`
+  )
+  expect(run(root).status).toBe(0)
+  const metadata = generated(root)
+  expect(metadata.exports.Example.variants.variant.default).toBe('filled')
+  expect(metadata.exports.Example.slots.className.protected).toContain('border-width')
+}, 60_000)
+
+test.each(['constant', 'body'])(
+  'component %s defaults override recipe defaults',
+  (mode) => {
+    const root = fixture()
+    const source = component().replace("variant:'plain',size:'sm'", "variant:'filled',size:'sm'")
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      mode === 'constant'
+        ? source.replace(
+            "export function Example({className,variant='plain'",
+            "const DEFAULT='plain' as const;export function Example({className,variant=DEFAULT"
+          )
+        : source.replace(
+            "export function Example({className,variant='plain',size='sm',...props}:Props){",
+            "export function Example(input:Props){const {className,variant='plain',size='sm',...props}=input;"
+          )
+    )
+    expect(run(root).status).toBe(0)
+    expect(generated(root).exports.Example.variants.variant.default).toBe('plain')
+  },
+  60_000
+)
+
+test('public declaration files participate in finite prop extraction and staleness', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/index.ts',
+    "export * from './components/example';export type {Props} from './components/props'"
+  )
+  write(
+    root,
+    'packages/emcn/src/components/props.d.ts',
+    "export interface Props{className?:string;variant?:'plain'|'filled'}"
+  )
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    "import type {Props} from './props';export function Example({className,variant='plain'}:Props){return <div className={cn('rounded-md',className)}/>};declare function cn(...args:unknown[]):string"
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.variants.variant.values).toEqual(['filled', 'plain'])
+  write(
+    root,
+    'packages/emcn/src/components/props.d.ts',
+    "export interface Props{className?:string;variant?:'plain'|'filled'|'new'}"
+  )
+  expect(run(root, '--check').status).toBe(1)
+}, 60_000)
+
+test.each(['missing', 'ambiguous'])(
+  'invalid %s public symbols fail extraction',
+  (mode) => {
+    const root = fixture()
+    write(root, 'packages/emcn/src/components/other.tsx', 'export const Example=()=> <div/>')
+    write(
+      root,
+      'packages/emcn/src/index.ts',
+      mode === 'missing'
+        ? "export {Missing} from './components/example'"
+        : "export * from './components/example';export * from './components/other'"
+    )
+    const result = run(root)
+    expect(result.status).toBe(2)
+    expect(result.stderr).toMatch(/public export/i)
+  },
+  60_000
+)
+
+test('unresolved styling calls remain explicit unchecked evidence', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    'export function Example({className}:{className?:string}){return <div className={cn(styleFactory(),className)}/>};declare function styleFactory():string;declare function cn(...args:unknown[]):string'
+  )
+  expect(run(root).status).toBe(0)
+  expect(
+    generated(root).diagnostics.some((d: { reason: string }) => /styling call/i.test(d.reason))
+  ).toBe(true)
+}, 60_000)
+
+test('ownership metadata rejects longhand permissions overlapping a protected family', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    component(
+      '\n * @designAllow className border-top-color\n * @designProtect className border-color\n'
+    )
+  )
+  const result = run(root)
+  expect(result.status).toBe(2)
+  expect(result.stderr).toMatch(/contradictory/i)
+}, 60_000)
+
+test('token cycles require matching finite CSS contexts and cross-context availability stays unchecked', () => {
+  const root = fixture()
+  write(
+    root,
+    'apps/sim/app/_styles/globals.css',
+    ':root{--a:var(--b);--b:red}.dark{--a:blue;--b:var(--a)}@theme{--bridge:var(--a)}'
+  )
+  expect(run(root).status).toBe(0)
+  const notes = generated(root)
+    .diagnostics.map((d: { reason: string }) => d.reason)
+    .join('\n')
+  expect(notes).not.toMatch(/alias cycle/i)
+  expect(notes).toMatch(/context.*unchecked/i)
+}, 60_000)
+
+test('mutated styling bindings remain unchecked instead of freezing their initializer', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    "export function Example({className}:{className?:string}){let classes='rounded-md';classes=styleFactory();return <div className={cn(classes,className)}/>};declare function styleFactory():string;declare function cn(...args:unknown[]):string"
+  )
+  expect(run(root).status).toBe(0)
+  expect(
+    generated(root).exports.Example.slots.className.unchecked.some((reason: string) =>
+      /mutable|mutated/i.test(reason)
+    )
+  ).toBe(true)
+}, 60_000)
+
+test('generated unresolved ownership reaches the consumer CLI after regeneration', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    'export function Example({className}:{className?:string}){return <div className={cn(styleFactory(),className)}/>};declare function styleFactory():string;declare function cn(...args:unknown[]):string'
+  )
+  write(
+    root,
+    'apps/sim/components/use-example.tsx',
+    "import {Example} from '@sim/emcn';export const View=()=> <Example className='rounded-full'/>"
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.slots.className.unchecked.join('\n')).toMatch(
+    /styling call/i
+  )
+  const result = spawnSync(
+    bun,
+    [
+      '--no-env-file',
+      checkCli,
+      '--repo',
+      root,
+      '--base',
+      'HEAD',
+      '--working-tree',
+      '--format',
+      'json',
+    ],
+    { encoding: 'utf8', timeout: 60000 }
+  )
+  expect(result.status).not.toBe(2)
+  const report = JSON.parse(result.stdout)
+  expect(report.infrastructure.fresh).toBe(true)
+  expect(
+    report.unchecked.some(
+      (note: { file: string; reason: string }) =>
+        note.file === 'apps/sim/components/use-example.tsx' && /styling call/i.test(note.reason)
+    )
+  ).toBe(true)
+}, 60_000)
+
+test.each(['private', 'delegated'])(
+  '%s unsupported styling ownership reaches the public slot',
+  (mode) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      mode === 'private'
+        ? "declare const Dynamic:(props:{className?:string})=>React.ReactNode;function Private({className}:{className?:string}){return <Dynamic className={className}/>};export function Example({className}:{className?:string}){return <Private className={className}/>};import type React from 'react'"
+        : "export declare function Example(props:{className?:string}):React.ReactNode;import type React from 'react'"
+    )
+    expect(run(root).status).toBe(0)
+    expect(generated(root).exports.Example.slots.className.unchecked?.length ?? 0).toBeGreaterThan(
+      0
+    )
+  },
+  60_000
+)
+
+test('source custom classes retain unchecked ownership when no declarative utility is known', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    "export function Example({className}:{className?:string}){return <div className={cn('custom-chrome',className)}/>};declare function cn(...args:unknown[]):string"
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.slots.className.unchecked?.join('\n') ?? '').toMatch(
+    /custom-chrome/
+  )
+}, 60_000)
+
+test('private lexical forwarding references stay stable across source line shifts', () => {
+  const root = fixture()
+  const source =
+    "export function Example({className}:{className?:string}){const Inner=({className}:{className?:string})=><div className={cn('rounded-md',className)}/>;return <Inner className={className}/>};declare function cn(...args:unknown[]):string"
+  write(root, 'packages/emcn/src/components/example.tsx', source)
+  expect(run(root).status).toBe(0)
+  const before = generated(root).exports.Example.slots.className
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    source.replace('const Inner', '\n\nconst Inner')
+  )
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.slots.className).toEqual(before)
+}, 60_000)

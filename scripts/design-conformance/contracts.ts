@@ -6,7 +6,7 @@ export interface ComponentContract {
   slots?: string[]
   protected?: string[]
   iconSlots?: string[]
-  slotOwnership?: Record<string, { protected: string[]; allowed: string[] }>
+  slotOwnership?: Record<string, { protected: string[]; allowed: string[]; unchecked?: string[] }>
 }
 export interface CentralRecipeModule {
   exports: Record<string, { property: string; source: string }>
@@ -71,4 +71,4 @@ export const centralInventory = (file: string) =>
   centralFile(file) ||
   registry.sources.includes(file) ||
   (/^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) &&
-    !/\.(?:test|spec|generated|d)\./.test(file))
+    !/\.(?:test|spec|generated)\./.test(file))

@@ -1,17 +1,18 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from '@babel/parser'
+import traverse, { type Scope } from '@babel/traverse'
 import * as t from '@babel/types'
 import { compareStrings } from '@sim/utils/string'
 import ts from '@typescript/typescript6'
 import { LRUCache } from 'lru-cache'
 import postcss from 'postcss'
+import { centralCompiler, centralCompilerDiagnostics } from '#design-conformance/design-system'
 import { canonical, category, family, hash, TOKEN_FILE } from '#design-conformance/model'
 import {
   type Compiler,
-  compiler,
+  compilerIdentity,
   declarations,
-  defaultTheme,
   variablesIn,
 } from '#design-conformance/normalize'
 import type { SystemInput } from '#design-conformance/system-snapshot'
@@ -22,6 +23,7 @@ export interface StylingSlot {
   allowed: string[]
   recipes: string[]
   forwards: { target: string; slot: string }[]
+  unchecked?: string[]
 }
 export interface VisualExport {
   source: { file: string; line: number; name: string }
@@ -37,7 +39,7 @@ export interface VisualExport {
   relationships: string[]
 }
 export interface GeneratedContracts {
-  version: '2.0.0'
+  version: '2.1.0'
   sourceHash: string
   exports: Record<string, VisualExport>
   recipes: Record<
@@ -69,11 +71,14 @@ interface ModuleFacts {
   bindings: Map<string, t.Node>
   functions: Map<string, t.Function>
   imports: Map<string, string>
+  exports: Map<string, string>
+  stars: string[]
+  references: WeakMap<t.Node, { name: string; node?: t.Node; imported?: string; mutable?: boolean }>
+  mutable: Set<string>
 }
 /** The complete source inventory is independent of consumer uses and policy registrations. */
 export const metadataSource = (file: string) =>
-  /^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) &&
-  !/\.(?:test|spec|generated|d)\./.test(file)
+  /^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) && !/\.(?:test|spec|generated)\./.test(file)
 
 export function infrastructureStatus(metadata: GeneratedContracts, actual?: string) {
   const expected = generatedBytes(metadata)
@@ -92,7 +97,7 @@ export function generatedBytes(result: GeneratedContracts): string {
       .join(',\n')
   return `{\n  "version": "${result.version}",\n  "sourceHash": "${result.sourceHash}",\n  "exports": {\n${objectLines(result.exports)}\n  },\n  "recipes": {\n${objectLines(result.recipes)}\n  },\n  "tokens": {\n${objectLines(result.tokens)}\n  },\n  "diagnostics": ${JSON.stringify(result.diagnostics)}\n}\n`
 }
-export function generateContracts(
+export async function generateContracts(
   input: SystemInput,
   compiled?: Compiler
 ): Promise<GeneratedContracts> {
@@ -101,11 +106,17 @@ export function generateContracts(
       .filter((e) => metadataSource(e.path) || e.path.endsWith('.css'))
       .map((e) => [e.path, input.read(e)])
   )
-  const identity = hash(canonical([...sources].sort(([a], [b]) => compareStrings(a, b))))
+  const system = compiled ?? (await centralCompiler(input))
+  const identity = hash(
+    canonical({
+      sources: [...sources].sort(([a], [b]) => compareStrings(a, b)),
+      compiler: compilerIdentity(system),
+    })
+  )
   const cacheKey = `${identity}:${hash(readFileSync(new URL('./generated-contracts.ts', import.meta.url)))}`
   const cached = caches.get(cacheKey)
   if (cached) return cached
-  const pending = generate(sources, identity, compiled)
+  const pending = generate(sources, identity, system)
   caches.set(cacheKey, pending)
   pending.catch(() => caches.delete(cacheKey))
   return pending
@@ -117,17 +128,21 @@ async function generate(
   compiled?: Compiler
 ): Promise<GeneratedContracts> {
   const out: GeneratedContracts = {
-    version: '2.0.0',
+    version: '2.1.0',
     sourceHash,
     exports: {},
     recipes: {},
     tokens: {},
-    diagnostics: [],
+    diagnostics: compiled ? [...centralCompilerDiagnostics(compiled)] : [],
   }
+  let stylingNotes: string[] | undefined
+  let acceptedStylingInput: ((file: string, node: t.Node) => boolean) | undefined
   const note = (file: string, line: number, reason: string) => {
+    stylingNotes?.push(reason)
     if (!out.diagnostics.some((d) => d.file === file && d.line === line && d.reason === reason))
       out.diagnostics.push({ file, line, reason })
   }
+  const tokenLocations = new Map<string, { file: string; line: number }>()
   const modules = new Map<string, ModuleFacts>()
   const resolveFile = (file: string, specifier: string) => {
     const base = specifier.startsWith('.')
@@ -137,9 +152,17 @@ async function generate(
         : specifier.startsWith('@sim/emcn/')
           ? `packages/emcn/src/${specifier.slice(10)}`
           : specifier
-    return [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((f) =>
-      sources.has(f)
-    )
+    const stem = base.replace(/\.[cm]?jsx?$/, '')
+    return [
+      base,
+      ...[base, stem].flatMap((name) =>
+        ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.d.mts', '.d.cts'].map(
+          (extension) => `${name}${extension}`
+        )
+      ),
+      `${base}/index.ts`,
+      `${base}/index.tsx`,
+    ].find((f) => sources.has(f))
   }
   for (const [file, source] of sources) {
     if (file.endsWith('.css')) {
@@ -156,6 +179,10 @@ async function generate(
         }
         const token = (out.tokens[d.prop] ??= { definitions: [], aliases: [] })
         const definition = { context: contexts.join(' > '), value: d.value }
+        tokenLocations.set(`${d.prop}#${canonical(definition)}`, {
+          file,
+          line: d.source?.start?.line ?? 1,
+        })
         if (!token.definitions.some((x) => canonical(x) === canonical(definition)))
           token.definitions.push(definition)
         token.aliases = sorted([...token.aliases, ...variablesIn(d.value)])
@@ -166,7 +193,10 @@ async function generate(
       throw new Error(`Extraction failure: ${file}: source exceeds 2 MiB`)
     let ast: t.File
     try {
-      ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] })
+      ast = parse(source, {
+        sourceType: 'module',
+        plugins: [['typescript', { dts: /\.d\.[cm]?ts$/.test(file) }], 'jsx'],
+      })
     } catch (error) {
       throw new Error(`Extraction failure: ${file}: ${String(error)}`)
     }
@@ -175,6 +205,10 @@ async function generate(
       bindings: new Map(),
       functions: new Map(),
       imports: new Map(),
+      exports: new Map(),
+      stars: [],
+      references: new WeakMap(),
+      mutable: new Set(),
     }
     for (const st of ast.program.body) {
       if (t.isImportDeclaration(st))
@@ -192,34 +226,99 @@ async function generate(
           `Extraction failure: unresolved public export ${file} -> ${st.source.value}`
         )
     }
-    t.traverseFast(ast, (n) => {
-      if (t.isFunctionDeclaration(n) && n.id) {
-        facts.functions.set(n.id.name, n)
-        facts.bindings.set(n.id.name, n)
+    for (const st of ast.program.body) {
+      if (t.isExportAllDeclaration(st)) {
+        const target = resolveFile(file, st.source.value)
+        if (target) facts.stars.push(target)
       }
-      if (!t.isVariableDeclarator(n) || !t.isIdentifier(n.id) || !n.init) return
-      facts.bindings.set(n.id.name, n.init)
-      const value = unwrap(n.init)
-      if (t.isFunctionExpression(value) || t.isArrowFunctionExpression(value))
-        facts.functions.set(n.id.name, value)
-      if (
-        t.isCallExpression(value) &&
-        (t.isIdentifier(value.callee)
-          ? /^(?:memo|forwardRef)$/.test(value.callee.name)
-          : t.isMemberExpression(value.callee) &&
-            /^(?:memo|forwardRef)$/.test(key(value.callee.property)))
-      ) {
-        const fn = value.arguments[0]
-        if (t.isFunctionExpression(fn) || t.isArrowFunctionExpression(fn))
-          facts.functions.set(n.id.name, fn)
+      if (t.isExportNamedDeclaration(st))
+        for (const spec of st.specifiers) {
+          const target = st.source ? (resolveFile(file, st.source.value) ?? st.source.value) : file
+          facts.exports.set(
+            key(spec.exported),
+            `${target}#${t.isExportSpecifier(spec) ? key(spec.local) : '*'}`
+          )
+        }
+      if (t.isExportDefaultDeclaration(st)) {
+        const declaration = st.declaration
+        if (
+          (t.isFunctionDeclaration(declaration) || t.isClassDeclaration(declaration)) &&
+          declaration.id
+        )
+          facts.exports.set('default', `${file}#${declaration.id.name}`)
+        else facts.bindings.set('default', declaration)
       }
+    }
+    const scopeIds = new WeakMap<Scope, string>()
+    const scopeChildren = new WeakMap<Scope, number>()
+    const scopeId = (scope: Scope): string => {
+      if (t.isProgram(scope.block)) return ''
+      const cached = scopeIds.get(scope)
+      if (cached) return cached
+      const parent = scope.parent
+      const prefix = parent ? scopeId(parent) : ''
+      const ordinal = parent ? (scopeChildren.get(parent) ?? 0) + 1 : 1
+      if (parent) scopeChildren.set(parent, ordinal)
+      const owner = scope.path.parentPath?.node
+      const hint =
+        t.isFunctionDeclaration(scope.block) || t.isFunctionExpression(scope.block)
+          ? scope.block.id?.name
+          : t.isVariableDeclarator(owner) && t.isIdentifier(owner.id)
+            ? owner.id.name
+            : t.isObjectMethod(scope.block) || t.isClassMethod(scope.block)
+              ? key(scope.block.key)
+              : undefined
+      const result = `${prefix ? `${prefix}/` : ''}${hint ?? `${scope.block.type}[${ordinal}]`}`
+      scopeIds.set(scope, result)
+      return result
+    }
+    traverse(ast, {
+      enter(p) {
+        if (p.isScope())
+          for (const binding of Object.values(p.scope.bindings)) {
+            const name = t.isProgram(binding.scope.block)
+              ? binding.identifier.name
+              : `${binding.identifier.name}@${scopeId(binding.scope)}`
+            const value = binding.path.isVariableDeclarator()
+              ? binding.path.node.init
+              : binding.path.isFunctionDeclaration()
+                ? binding.path.node
+                : undefined
+            if (!binding.constant) facts.mutable.add(name)
+            else if (value) facts.bindings.set(name, value)
+          }
+        if (!p.isIdentifier() && !p.isJSXIdentifier()) return
+        const binding = p.scope.getBinding(p.node.name)
+        if (!binding) return
+        const name = t.isProgram(binding.scope.block)
+          ? binding.identifier.name
+          : `${binding.identifier.name}@${scopeId(binding.scope)}`
+        const node = binding.path.isVariableDeclarator()
+          ? binding.path.node.init
+          : binding.path.isFunctionDeclaration()
+            ? binding.path.node
+            : undefined
+        const imported =
+          binding.path.isImportSpecifier() ||
+          binding.path.isImportDefaultSpecifier() ||
+          binding.path.isImportNamespaceSpecifier()
+            ? facts.imports.get(binding.identifier.name)
+            : undefined
+        facts.references.set(p.node, {
+          name,
+          ...(node && binding.constant ? { node } : {}),
+          ...(imported ? { imported } : {}),
+          ...(!binding.constant ? { mutable: true } : {}),
+        })
+      },
     })
     const functionOf = (raw: t.Node, seen = new Set<string>()): t.Function | undefined => {
       const node = unwrap(raw)
       if (t.isFunction(node)) return node
       if (seen.size >= 12) return
       if (t.isIdentifier(node)) {
-        const value = facts.bindings.get(node.name)
+        const ref = facts.references.get(node)
+        const value = ref ? ref.node : facts.bindings.get(node.name)
         return value && !seen.has(node.name)
           ? functionOf(value, new Set(seen).add(node.name))
           : undefined
@@ -244,18 +343,29 @@ async function generate(
   const locate = (
     file: string,
     name: string,
-    seen = new Set<string>()
+    seen = new Set<string>(),
+    reference?: t.Node
   ): { file: string; name: string; node: t.Node } | undefined => {
+    const scoped = reference && modules.get(file)?.references.get(reference)
+    if (scoped) name = scoped.name
     const id = `${file}#${name}`
     if (seen.has(id) || seen.size >= 12) {
       note(file, 1, `Unresolved or cyclic implementation reference: ${id}`)
       return
     }
     const facts = modules.get(file)
-    const node = facts?.bindings.get(name)
+    if (scoped?.mutable || facts?.mutable.has(name)) {
+      note(
+        file,
+        reference?.loc?.start.line ?? 1,
+        `Unresolved mutable styling binding: ${name.split('@')[0]}`
+      )
+      return
+    }
+    const node = scoped ? scoped.node : facts?.bindings.get(name)
     if (node) {
       const value = unwrap(node)
-      if (t.isIdentifier(value)) return locate(file, value.name, new Set(seen).add(id))
+      if (t.isIdentifier(value)) return locate(file, value.name, new Set(seen).add(id), value)
       if (
         t.isCallExpression(value) &&
         t.isMemberExpression(value.callee) &&
@@ -263,15 +373,37 @@ async function generate(
         key(value.callee.property) === 'assign' &&
         t.isIdentifier(value.arguments[0])
       )
-        return locate(file, value.arguments[0].name, new Set(seen).add(id))
+        return locate(file, value.arguments[0].name, new Set(seen).add(id), value.arguments[0])
       return { file, name, node: value }
     }
-    const ref = facts?.imports.get(name)
+    const ref = scoped ? scoped.imported : (facts?.imports.get(name) ?? facts?.exports.get(name))
     if (ref) {
       const [target, imported] = ref.split('#')
       return locate(target, imported, new Set(seen).add(id))
     }
+    if (!scoped)
+      for (const target of facts?.stars ?? []) {
+        const found = locate(target, name, new Set(seen).add(id))
+        if (found) return found
+      }
     return
+  }
+  const namespaceReference = (file: string, node: t.Node): string | undefined => {
+    if (!t.isIdentifier(node) && !t.isJSXIdentifier(node)) return
+    const facts = modules.get(file)
+    const scoped = facts?.references.get(node)
+    return scoped
+      ? scoped.imported
+      : (facts?.imports.get(node.name) ?? facts?.exports.get(node.name))
+  }
+  const expressionReference = (file: string, node: t.Node) => {
+    node = unwrap(node)
+    if (t.isIdentifier(node)) return locate(file, node.name, new Set(), node)
+    if (t.isMemberExpression(node) && (!node.computed || t.isStringLiteral(node.property))) {
+      const ref = namespaceReference(file, node.object)
+      if (ref?.endsWith('#*')) return locate(ref.slice(0, -2), key(node.property))
+    }
+    return undefined
   }
   const memberValues = (
     file: string,
@@ -282,7 +414,7 @@ async function generate(
     if (seen.size >= 12) return []
     if (t.isIdentifier(node)) {
       const ref = `${file}#${node.name}`
-      const found = locate(file, node.name)
+      const found = locate(file, node.name, new Set(), node)
       return found && !seen.has(ref)
         ? memberValues(found.file, found.node, new Set(seen).add(ref))
         : []
@@ -298,6 +430,8 @@ async function generate(
         !node.computed || t.isStringLiteral(node.property) || t.isNumericLiteral(node.property)
           ? key(node.property)
           : undefined
+      const reference = expressionReference(file, node)
+      if (reference) return memberValues(reference.file, reference.node, seen)
       return memberValues(file, node.object, seen).flatMap((object) =>
         t.isObjectExpression(object.node)
           ? object.node.properties.flatMap((property) =>
@@ -329,7 +463,9 @@ async function generate(
     }
     if (t.isIdentifier(node)) {
       const ref = `${file}#${node.name}`
-      const found = locate(file, node.name)
+      const found = locate(file, node.name, new Set(), node)
+      if (!found && !acceptedStylingInput?.(file, node))
+        note(file, node.loc?.start.line ?? 1, `Unresolved styling identifier: ${node.name}`)
       return found && !seen.has(ref) ? strings(found.file, found.node, new Set(seen).add(ref)) : []
     }
     if (t.isConditionalExpression(node))
@@ -340,7 +476,18 @@ async function generate(
       return node.elements.flatMap((n) => (n ? strings(file, n, seen) : []))
     if (t.isObjectExpression(node))
       return node.properties.flatMap((p) =>
-        t.isObjectProperty(p) ? strings(file, p.value, seen) : []
+        t.isObjectProperty(p)
+          ? [
+              ...(!t.isBooleanLiteral(p.value, { value: false }) ? [key(p.key)] : []),
+              ...(t.isStringLiteral(p.value) ||
+              t.isObjectExpression(unwrap(p.value)) ||
+              t.isArrayExpression(unwrap(p.value))
+                ? strings(file, p.value, seen)
+                : []),
+            ]
+          : t.isSpreadElement(p)
+            ? strings(file, p.argument, seen)
+            : []
       )
     if (t.isMemberExpression(node)) {
       const values = memberValues(file, node, seen)
@@ -357,62 +504,166 @@ async function generate(
       return returns.flatMap((n) => strings(file, n, seen))
     }
     if (t.isCallExpression(node)) {
-      const found = t.isIdentifier(node.callee) ? locate(file, node.callee.name) : undefined
+      const found = expressionReference(file, node.callee)
       const ref = found && `${found.file}#${found.name}`
+      if (ref && out.recipes[ref]) return out.recipes[ref].classes
+      const callee = t.isIdentifier(node.callee)
+        ? node.callee.name
+        : t.isMemberExpression(node.callee)
+          ? key(node.callee.property)
+          : ''
+      const combining =
+        /^(?:cn|clsx|classNames|twMerge)$/.test(callee) ||
+        (!!found && /^(?:cn|clsx|classNames|twMerge)$/.test(found.name))
+      const cva =
+        namespaceReference(file, node.callee) === 'class-variance-authority#cva' ||
+        (t.isMemberExpression(node.callee) &&
+          namespaceReference(file, node.callee.object) === 'class-variance-authority#*' &&
+          key(node.callee.property) === 'cva')
+      if (!found && !combining && !cva)
+        note(
+          file,
+          node.loc?.start.line ?? 1,
+          `Unresolved styling call: ${callee || 'dynamic callee'}`
+        )
       return [
         ...node.arguments.flatMap((a) => (t.isExpression(a) ? strings(file, a, seen) : [])),
-        ...(found && ref && !seen.has(ref)
+        ...(found && !combining && ref && !seen.has(ref)
           ? strings(found.file, found.node, new Set(seen).add(ref))
           : []),
       ]
     }
+    if (!t.isBooleanLiteral(node) && !t.isNumericLiteral(node) && !t.isNullLiteral(node))
+      note(file, node.loc?.start.line ?? 1, `Unsupported styling expression: ${node.type}`)
     return []
   }
+  const scalar = (
+    file: string,
+    raw: t.Node,
+    seen = new Set<t.Node>()
+  ): string | boolean | number | undefined => {
+    const node = unwrap(raw)
+    if (seen.has(node) || seen.size >= 12) return
+    if (t.isStringLiteral(node) || t.isNumericLiteral(node) || t.isBooleanLiteral(node))
+      return node.value
+    if (t.isUnaryExpression(node) && node.operator === '-' && t.isNumericLiteral(node.argument))
+      return -node.argument.value
+    const found = expressionReference(file, node)
+    return found ? scalar(found.file, found.node, new Set(seen).add(node)) : undefined
+  }
+  type Field = { file: string; name: string; value: t.Node }
+  const objectFields = (
+    file: string,
+    raw: t.Node,
+    seen = new Set<t.Node>()
+  ): { fields: Field[]; unknown: { file: string; node: t.Node }[] } => {
+    const node = unwrap(raw)
+    if (seen.has(node) || seen.size >= 12) return { fields: [], unknown: [{ file, node }] }
+    const next = new Set(seen).add(node)
+    const found = expressionReference(file, node)
+    if (found) return objectFields(found.file, found.node, next)
+    if (!t.isObjectExpression(node)) return { fields: [], unknown: [{ file, node }] }
+    const fields = new Map<string, Field>()
+    const unknown: { file: string; node: t.Node }[] = []
+    for (const property of node.properties) {
+      if (
+        t.isObjectProperty(property) &&
+        (!property.computed || t.isStringLiteral(property.key) || t.isNumericLiteral(property.key))
+      )
+        fields.set(key(property.key), { file, name: key(property.key), value: property.value })
+      else if (t.isSpreadElement(property)) {
+        const spread = objectFields(file, property.argument, next)
+        for (const field of spread.fields) fields.set(field.name, field)
+        unknown.push(...spread.unknown)
+      } else unknown.push({ file, node: property })
+    }
+    return { fields: [...fields.values()], unknown }
+  }
+  const recipeNotes = new Map<string, string[]>()
   for (const [file, facts] of modules)
     for (const [name, node] of facts.bindings) {
       const value = unwrap(node)
-      if (
-        !t.isCallExpression(value) ||
-        !t.isIdentifier(value.callee) ||
-        facts.imports.get(value.callee.name) !== 'class-variance-authority#cva'
-      )
-        continue
-      const config = value.arguments[1]
+      if (!t.isCallExpression(value)) continue
+      const imported = t.isIdentifier(value.callee)
+        ? namespaceReference(file, value.callee)
+        : t.isMemberExpression(value.callee) && key(value.callee.property) === 'cva'
+          ? namespaceReference(file, value.callee.object)?.replace(/#\*$/, '#cva')
+          : undefined
+      if (imported !== 'class-variance-authority#cva') continue
+      stylingNotes = []
       const recipe: GeneratedContracts['recipes'][string] = {
         classes: sorted(
-          value.arguments.flatMap((a) => (t.isExpression(a) ? strings(file, a) : []))
+          value.arguments[0] && t.isExpression(value.arguments[0])
+            ? strings(file, value.arguments[0])
+            : []
         ),
         variants: {},
         defaults: {},
       }
-      if (t.isObjectExpression(config))
-        for (const prop of config.properties) {
-          if (!t.isObjectProperty(prop) || !t.isObjectExpression(prop.value)) continue
-          if (key(prop.key) === 'variants')
-            for (const axis of prop.value.properties)
-              if (t.isObjectProperty(axis) && t.isObjectExpression(axis.value))
-                recipe.variants[key(axis.key)] = sorted(
-                  axis.value.properties.flatMap((v) => (t.isObjectProperty(v) ? [key(v.key)] : []))
+      const config = value.arguments[1]
+      if (config && t.isExpression(config)) {
+        const resolved = objectFields(file, config)
+        for (const unknown of resolved.unknown)
+          note(unknown.file, unknown.node.loc?.start.line ?? 1, 'Unresolved CVA configuration')
+        for (const field of resolved.fields) {
+          if (field.name === 'compoundVariants') {
+            const found = expressionReference(field.file, field.value)
+            const compounds = unwrap(found?.node ?? field.value)
+            const compoundFile = found?.file ?? field.file
+            if (t.isArrayExpression(compounds))
+              for (const compound of compounds.elements) {
+                if (!compound || !t.isExpression(compound)) continue
+                const fields = objectFields(compoundFile, compound)
+                for (const item of fields.fields)
+                  if (item.name === 'class' || item.name === 'className')
+                    recipe.classes.push(...strings(item.file, item.value))
+                for (const unknown of fields.unknown)
+                  note(
+                    unknown.file,
+                    unknown.node.loc?.start.line ?? 1,
+                    'Unresolved CVA compound variant'
+                  )
+              }
+            else
+              note(compoundFile, compounds.loc?.start.line ?? 1, 'Unresolved CVA compound variants')
+            continue
+          }
+          if (field.name !== 'variants' && field.name !== 'defaultVariants') continue
+          const axes = objectFields(field.file, field.value)
+          for (const unknown of axes.unknown)
+            note(unknown.file, unknown.node.loc?.start.line ?? 1, `Unresolved CVA ${field.name}`)
+          for (const axis of axes.fields)
+            if (field.name === 'variants') {
+              const values = objectFields(axis.file, axis.value)
+              recipe.variants[axis.name] = sorted(values.fields.map((v) => v.name))
+              for (const item of values.fields)
+                recipe.classes.push(...strings(item.file, item.value))
+              for (const unknown of values.unknown)
+                note(
+                  unknown.file,
+                  unknown.node.loc?.start.line ?? 1,
+                  `Unresolved CVA variant ${axis.name}`
                 )
-          if (key(prop.key) === 'defaultVariants')
-            for (const axis of prop.value.properties)
-              if (
-                t.isObjectProperty(axis) &&
-                (t.isStringLiteral(axis.value) ||
-                  t.isNumericLiteral(axis.value) ||
-                  t.isBooleanLiteral(axis.value))
-              )
-                recipe.defaults[key(axis.key)] = axis.value.value
+            } else {
+              const fallback = scalar(axis.file, axis.value)
+              if (fallback !== undefined) recipe.defaults[axis.name] = fallback
+              else
+                note(
+                  axis.file,
+                  axis.value.loc?.start.line ?? 1,
+                  `Unresolved CVA default ${axis.name}`
+                )
+            }
         }
+      }
+      recipe.classes = sorted(recipe.classes)
       out.recipes[`${file}#${name}`] = recipe
+      recipeNotes.set(`${file}#${name}`, sorted(stylingNotes))
+      stylingNotes = undefined
     }
-  const css = sources.get(TOKEN_FILE) ?? ''
-  const declarativeCss = postcss.parse(css)
-  declarativeCss.walkAtRules((r) => {
-    if (['import', 'plugin', 'source'].includes(r.name)) r.remove()
-  })
-  const tw = compiled ?? (await compiler(`${defaultTheme}\n${declarativeCss.toString()}`))
-  const protectedFor = (classes: string[]) =>
+  if (!compiled) throw new Error('Extraction failure: central compiler is missing')
+  const tw = compiled
+  const protectedFor = (classes: string[], file: string, line: number) =>
     sorted(
       classes.flatMap((value) => {
         const ds = declarations(
@@ -421,7 +672,10 @@ async function generate(
           {},
           true
         )
-        if (ds === null) return []
+        if (ds === null) {
+          note(file, line, `Unresolved central styling utility: ${value}`)
+          return []
+        }
         return ds.flatMap((d) => {
           const p = family(d.property)
           if (
@@ -491,6 +745,76 @@ async function generate(
       throw new Error(
         `Extraction failure: ${path.relative(virtualRoot, error.file.fileName)}: ${ts.flattenDiagnosticMessageText(error.messageText, ' ')}`
       )
+  const unaliased = (symbol: ts.Symbol) =>
+    symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
+  for (const file of program.getSourceFiles()) {
+    if (!paths.has(file.fileName)) continue
+    const explicit = new Set<string>()
+    const stars = new Map<string, ts.Symbol>()
+    for (const statement of file.statements) {
+      if (
+        ts.isExportDeclaration(statement) &&
+        statement.exportClause &&
+        ts.isNamedExports(statement.exportClause)
+      )
+        for (const specifier of statement.exportClause.elements) explicit.add(specifier.name.text)
+      if (
+        ts.canHaveModifiers(statement) &&
+        ts
+          .getModifiers(statement)
+          ?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
+        if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations)
+            if (ts.isIdentifier(declaration.name)) explicit.add(declaration.name.text)
+        } else if (
+          ts.isFunctionDeclaration(statement) ||
+          ts.isClassDeclaration(statement) ||
+          ts.isInterfaceDeclaration(statement) ||
+          ts.isTypeAliasDeclaration(statement) ||
+          ts.isEnumDeclaration(statement) ||
+          ts.isModuleDeclaration(statement)
+        ) {
+          if (statement.name && ts.isIdentifier(statement.name)) explicit.add(statement.name.text)
+        }
+      }
+    }
+    for (const statement of file.statements) {
+      if (!ts.isExportDeclaration(statement)) continue
+      const target =
+        statement.moduleSpecifier && checker.getSymbolAtLocation(statement.moduleSpecifier)
+      if (statement.moduleSpecifier && !target)
+        throw new Error(
+          `Extraction failure: invalid public export ${path.relative(virtualRoot, file.fileName)}: unresolved export module`
+        )
+      if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        for (const specifier of statement.exportClause.elements) {
+          const symbol = checker.getExportSpecifierLocalTargetSymbol(specifier)
+          if (!symbol || !unaliased(symbol).declarations?.length)
+            throw new Error(
+              `Extraction failure: invalid public export ${path.relative(virtualRoot, file.fileName)}: missing symbol ${specifier.propertyName?.text ?? specifier.name.text}`
+            )
+        }
+      } else if (!statement.exportClause && target)
+        for (const symbol of checker.getExportsOfModule(target)) {
+          if (symbol.name === 'default' || explicit.has(symbol.name)) continue
+          const actual = unaliased(symbol)
+          const previous = stars.get(symbol.name)
+          if (previous && previous !== actual)
+            throw new Error(
+              `Extraction failure: ambiguous public export ${path.relative(virtualRoot, file.fileName)}: ${symbol.name}`
+            )
+          stars.set(symbol.name, actual)
+        }
+    }
+  }
+  if (
+    [...sources.keys()].some((file) => file.startsWith('packages/emcn/src/')) &&
+    !sources.has('packages/emcn/src/index.ts')
+  )
+    throw new Error(
+      'Extraction failure: required public export barrel packages/emcn/src/index.ts is missing'
+    )
   const literalValues = (type: ts.Type): (string | boolean | number)[] | undefined => {
     const types = type.isUnion() ? type.types : [type]
     const values: (string | boolean | number)[] = []
@@ -505,6 +829,7 @@ async function generate(
       ? [...new Set(values)].sort((a, b) => compareStrings(String(a), String(b)))
       : undefined
   }
+  const defaultsUnknown = new Set<string>()
   const internalIds = new Map<string, string>()
   const metadataByExport = new Map<
     string,
@@ -525,14 +850,19 @@ async function generate(
     importSource: VisualExport['importSource'] = '@sim/emcn'
   ) => {
     const exportId = importSource === '@sim/emcn/icons' ? `icons:${publicName}` : publicName
-    if (depth > 3 || out.exports[exportId]) return
+    if (depth > 12) {
+      note('packages/emcn/src/index.ts', 1, `Public export resolution limit: ${publicName}`)
+      return
+    }
+    if (out.exports[exportId]) return
     if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
     const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0]
     if (!declaration || !(symbol.flags & ts.SymbolFlags.Value)) return
     const file = path.relative(virtualRoot, declaration.getSourceFile().fileName)
     const type = checker.getTypeOfSymbolAtLocation(symbol, declaration)
     const signatures = type.getCallSignatures()
-    if (/^[A-Z]/.test(publicName)) {
+    const visualName = /^[A-Z]/.test(publicName.split('.').at(-1) ?? publicName)
+    if (visualName) {
       let name = symbol.name
       const source = modules.get(file)
       if (ts.isShorthandPropertyAssignment(declaration)) {
@@ -575,17 +905,40 @@ async function generate(
         if (/^design(?:Allow|Protect)$/.test(tag.name))
           docParts.push(`@${tag.name} ${ts.displayPartsToString(tag.text)}`)
       if (fn) {
-        for (const param of fn.params)
-          if (t.isObjectPattern(param))
-            for (const p of param.properties)
-              if (
-                t.isObjectProperty(p) &&
-                t.isAssignmentPattern(p.value) &&
-                (t.isStringLiteral(p.value.right) ||
-                  t.isNumericLiteral(p.value.right) ||
-                  t.isBooleanLiteral(p.value.right))
-              )
-                defaults[key(p.key)] = p.value.right.value
+        const objectParams = new Set(
+          fn.params.flatMap((param) =>
+            t.isIdentifier(param)
+              ? [modules.get(sourceFile)?.references.get(param)?.name ?? param.name]
+              : []
+          )
+        )
+        const recordDefaults = (pattern: t.ObjectPattern) => {
+          for (const property of pattern.properties)
+            if (t.isObjectProperty(property) && t.isAssignmentPattern(property.value)) {
+              const value = scalar(sourceFile, property.value.right)
+              if (value !== undefined) defaults[key(property.key)] = value
+              else {
+                defaultsUnknown.add(`${exportId}#${key(property.key)}`)
+                note(
+                  sourceFile,
+                  property.loc?.start.line ?? 1,
+                  `Unresolved component default: ${publicName}.${key(property.key)}`
+                )
+              }
+            }
+        }
+        for (const param of fn.params) if (t.isObjectPattern(param)) recordDefaults(param)
+        t.traverseFast(fn.body, (node) => {
+          if (
+            t.isVariableDeclarator(node) &&
+            t.isObjectPattern(node.id) &&
+            t.isIdentifier(node.init) &&
+            objectParams.has(
+              modules.get(sourceFile)?.references.get(node.init)?.name ?? node.init.name
+            )
+          )
+            recordDefaults(node.id)
+        })
       }
       const isIcon = sourceFile.includes('/icons/') || sourceFile.includes('/illustrations/')
       const line =
@@ -615,15 +968,14 @@ async function generate(
         props,
         defaults,
       })
-      if (!fn && !isIcon && source)
-        note(
-          file,
-          line,
-          `Implementation of ${publicName} is delegated or unsupported; styling ownership remains unchecked`
-        )
+      if (!fn && !isIcon && (source || signatures.length || type.getConstructSignatures().length)) {
+        const reason = `Implementation of ${publicName} is delegated or unsupported; styling ownership remains unchecked`
+        note(file, line, reason)
+        for (const slot of Object.values(slots)) slot.unchecked = [reason]
+      }
     }
     // Object.assign compound exports expose public callable properties; never inventory HTML props.
-    if (/^[A-Z]/.test(publicName))
+    if (visualName || symbol.flags & (ts.SymbolFlags.Namespace | ts.SymbolFlags.ValueModule))
       for (const property of type.getProperties())
         if (/^[A-Z]/.test(property.name))
           walkSymbol(`${publicName}.${property.name}`, property, depth + 1, importSource)
@@ -678,22 +1030,24 @@ async function generate(
     const params = new Map<string, string>()
     const objects = new Set<string>()
     const rests = new Map<string, Set<string>>()
+    const bindingName = (node: t.Node) =>
+      modules.get(meta.file)?.references.get(node)?.name ?? key(node)
     const patternProps = (pattern: t.ObjectPattern) => {
       const consumed = new Set(
         pattern.properties.flatMap((p) => (t.isObjectProperty(p) ? [key(p.key)] : []))
       )
       for (const field of pattern.properties) {
         if (t.isRestElement(field) && t.isIdentifier(field.argument))
-          rests.set(field.argument.name, consumed)
+          rests.set(bindingName(field.argument), consumed)
         if (t.isObjectProperty(field)) {
           const value = t.isAssignmentPattern(field.value) ? field.value.left : field.value
-          if (t.isIdentifier(value)) params.set(value.name, key(field.key))
+          if (t.isIdentifier(value)) params.set(bindingName(value), key(field.key))
         }
       }
     }
     if (meta.fn) {
       for (const p of meta.fn.params) {
-        if (t.isIdentifier(p)) objects.add(p.name)
+        if (t.isIdentifier(p)) objects.add(bindingName(p))
         if (t.isObjectPattern(p)) patternProps(p)
       }
       t.traverseFast(meta.fn.body, (n) => {
@@ -701,135 +1055,218 @@ async function generate(
           t.isVariableDeclarator(n) &&
           t.isObjectPattern(n.id) &&
           t.isIdentifier(n.init) &&
-          objects.has(n.init.name)
+          objects.has(bindingName(n.init))
         )
           patternProps(n.id)
       })
-      const propOf = (n: t.Node) =>
-        t.isIdentifier(n)
-          ? params.get(n.name)
-          : t.isMemberExpression(n) && t.isIdentifier(n.object) && objects.has(n.object.name)
-            ? key(n.property)
-            : undefined
-      const bundles = new Map<string, Map<string, string>>()
-      t.traverseFast(meta.fn.body, (n) => {
-        if (t.isVariableDeclarator(n) && t.isIdentifier(n.id) && t.isObjectExpression(n.init)) {
-          const fields = new Map<string, string>()
-          for (const field of n.init.properties)
-            if (t.isObjectProperty(field)) {
-              const input = propOf(field.value)
-              if (input && entry.slots[input]) fields.set(key(field.key), input)
-            }
-          if (fields.size) bundles.set(n.id.name, fields)
+      const propOf = (file: string, n: t.Node) =>
+        file !== meta.file
+          ? undefined
+          : t.isIdentifier(n)
+            ? params.get(bindingName(n))
+            : t.isMemberExpression(n) &&
+                t.isIdentifier(n.object) &&
+                objects.has(bindingName(n.object)) &&
+                (!n.computed || t.isStringLiteral(n.property))
+              ? key(n.property)
+              : undefined
+      const visitValue = (
+        file: string,
+        raw: t.Node,
+        visit: (file: string, node: t.Node) => void,
+        seen = new Set<t.Node>()
+      ) => {
+        if (seen.has(raw)) return
+        if (seen.size >= 256) {
+          note(file, raw.loc?.start.line ?? 1, 'Styling alias resolution limit')
+          return
         }
-      })
-      t.traverseFast(meta.fn.body, (n) => {
-        if (!t.isJSXOpeningElement(n)) return
-        const tag = t.isJSXIdentifier(n.name)
-          ? n.name.name
-          : t.isJSXMemberExpression(n.name)
-            ? `${key(n.name.object)}.${key(n.name.property)}`
-            : ''
+        seen.add(raw)
+        t.traverseFast(raw, (node) => {
+          visit(file, node)
+          if (t.isIdentifier(node) || t.isMemberExpression(node)) {
+            const found = expressionReference(file, node)
+            if (found) visitValue(found.file, found.node, visit, seen)
+          }
+        })
+      }
+      const inputsOf = (file: string, node: t.Node) => {
+        const inputs = new Set<string>()
+        visitValue(file, node, (source, child) => {
+          const prop = propOf(source, child)
+          if (prop && entry.slots[prop]) inputs.add(prop)
+        })
+        return inputs
+      }
+      acceptedStylingInput = (file, node) => !!propOf(file, node)
+      t.traverseFast(meta.fn.body, (node) => {
+        let tag: string
+        let root: t.Node
+        const attributes: { name?: string; file: string; value: t.Node }[] = []
+        const spreadInputs = new Set<string>()
+        const unknownBundles: string[] = []
+        const spread = (file: string, value: t.Node) => {
+          if (file === meta.file && t.isIdentifier(value)) {
+            const name = bindingName(value)
+            if (rests.has(name) || objects.has(name)) {
+              for (const input of Object.keys(entry.slots))
+                if (!rests.get(name)?.has(input)) spreadInputs.add(input)
+              return
+            }
+          }
+          const resolved = objectFields(file, value)
+          attributes.push(
+            ...resolved.fields.map((field) => ({
+              name: field.name,
+              file: field.file,
+              value: field.value,
+            }))
+          )
+          for (const unknown of resolved.unknown) {
+            if (unknown.node === value) {
+              const reason = 'Unresolved rendered props bundle'
+              note(unknown.file, unknown.node.loc?.start.line ?? 1, reason)
+              unknownBundles.push(reason)
+            } else spread(unknown.file, unknown.node)
+          }
+        }
+        if (t.isJSXOpeningElement(node)) {
+          tag = t.isJSXIdentifier(node.name)
+            ? node.name.name
+            : t.isJSXMemberExpression(node.name)
+              ? `${key(node.name.object)}.${key(node.name.property)}`
+              : ''
+          root = t.isJSXMemberExpression(node.name) ? node.name.object : node.name
+          for (const attr of node.attributes)
+            if (t.isJSXSpreadAttribute(attr)) spread(meta.file, attr.argument)
+            else if (t.isJSXAttribute(attr) && attr.value)
+              attributes.push({
+                name: key(attr.name),
+                file: meta.file,
+                value: t.isJSXExpressionContainer(attr.value) ? attr.value.expression : attr.value,
+              })
+        } else if (
+          t.isCallExpression(node) &&
+          (t.isIdentifier(node.callee, { name: 'createElement' }) ||
+            (t.isMemberExpression(node.callee) && key(node.callee.property) === 'createElement'))
+        ) {
+          const target = node.arguments[0]
+          if (!target || !t.isExpression(target)) return
+          tag = t.isStringLiteral(target)
+            ? target.value
+            : t.isIdentifier(target)
+              ? target.name
+              : t.isMemberExpression(target)
+                ? `${key(target.object)}.${key(target.property)}`
+                : ''
+          root = t.isMemberExpression(target) ? target.object : target
+          const props = node.arguments[1]
+          if (props && t.isExpression(props) && !t.isNullLiteral(props)) spread(meta.file, props)
+        } else return
+        if (!tag) {
+          const reason = 'Unresolved rendered element target'
+          note(meta.file, node.loc?.start.line ?? 1, reason)
+          unknownBundles.push(reason)
+        }
         const [base, ...member] = tag.split('.')
-        const ref = modules.get(meta.file)?.imports.get(base) ?? `${meta.file}#${base}`
+        const ref =
+          namespaceReference(meta.file, root) ?? `${meta.file}#${bindingName(root) || base}`
         const [targetFile, targetName] = ref.split('#')
         const target = `${targetFile}#${member.length ? `${targetName === '*' ? '' : `${targetName}.`}${member.join('.')}` : targetName}`
         const native = /^[a-z]/.test(tag)
         if (!native) entry.relationships.push(target)
-        const iconProp = params.get(base)
-        if (
-          iconProp &&
-          /icon/i.test(iconProp) &&
-          n.attributes.some((a) => t.isJSXAttribute(a) && key(a.name) === 'className')
-        ) {
-          const classes = n.attributes.flatMap((a) =>
-            t.isJSXAttribute(a) && key(a.name) === 'className' && a.value
-              ? strings(
-                  meta.file,
-                  t.isJSXExpressionContainer(a.value) ? a.value.expression : a.value
-                )
-              : []
-          )
+        const iconProp = propOf(meta.file, root)
+        if (iconProp && /icon/i.test(iconProp) && attributes.some((a) => a.name === 'className')) {
+          const classes = attributes
+            .filter((a) => a.name === 'className')
+            .flatMap((a) => strings(a.file, a.value))
+          stylingNotes = []
+          const protectedProperties = protectedFor(classes, meta.file, node.loc?.start.line ?? 1)
           entry.slots[iconProp] = {
-            protected: protectedFor(classes),
+            protected: protectedProperties,
             allowed: [],
             recipes: [],
             forwards: [],
+            ...(stylingNotes.length ? { unchecked: sorted(stylingNotes) } : {}),
           }
+          stylingNotes = undefined
         }
-        const spreadInputs = new Set<string>()
-        for (const attribute of n.attributes) {
-          if (!t.isJSXSpreadAttribute(attribute) || !t.isIdentifier(attribute.argument)) continue
-          const name = attribute.argument.name
-          if (!rests.has(name) && !objects.has(name)) continue
-          for (const input of Object.keys(entry.slots))
-            if (!rests.get(name)?.has(input)) spreadInputs.add(input)
-        }
-        for (const attribute of n.attributes)
-          if (t.isJSXSpreadAttribute(attribute) && t.isIdentifier(attribute.argument)) {
-            const bundle = bundles.get(attribute.argument.name)
-            if (bundle && !native)
-              for (const [forwarded, input] of bundle)
-                entry.slots[input]?.forwards.push({ target, slot: forwarded })
-          }
         if (!native)
           for (const input of spreadInputs)
             entry.slots[input].forwards.push({ target, slot: input })
-        for (const attr of n.attributes) {
-          if (!t.isJSXAttribute(attr) || !attr.value) continue
-          const slotName = key(attr.name)
+        const nodeInputs = new Set<string>(native ? spreadInputs : [])
+        const nodeOwned: string[] = []
+        const nodeNotes: string[] = [...unknownBundles]
+        for (const attr of attributes) {
+          const slotName = attr.name ?? ''
           if (!/^(?:className|style|.*ClassName|.*Style)$/.test(slotName)) {
-            const forwardedInput = t.isJSXExpressionContainer(attr.value)
-              ? propOf(attr.value.expression)
-              : undefined
-            if (!native && forwardedInput && entry.slots[forwardedInput])
-              entry.slots[forwardedInput].forwards.push({ target, slot: slotName })
+            const forwarded = propOf(attr.file, attr.value)
+            if (!native && forwarded && entry.slots[forwarded])
+              entry.slots[forwarded].forwards.push({ target, slot: slotName })
             continue
           }
-          const value = t.isJSXExpressionContainer(attr.value) ? attr.value.expression : attr.value
-          const inputs = new Set<string>()
+          const inputs = inputsOf(attr.file, attr.value)
           const recipes = new Set<string>()
-          t.traverseFast(value, (child) => {
-            const p = propOf(child)
-            if (p && entry.slots[p]) inputs.add(p)
-            if (t.isCallExpression(child) && t.isIdentifier(child.callee)) {
-              const found = locate(meta.file, child.callee.name)
-              const id = found && `${found.file}#${found.name}`
-              if (id && out.recipes[id]) {
-                recipes.add(id)
-                usedRecipes.add(id)
-              }
+          visitValue(attr.file, attr.value, (file, child) => {
+            if (!t.isCallExpression(child)) return
+            const found = expressionReference(file, child.callee)
+            const id = found && `${found.file}#${found.name}`
+            if (id && out.recipes[id]) {
+              recipes.add(id)
+              usedRecipes.add(id)
             }
           })
           if (spreadInputs.has(slotName)) inputs.add(slotName)
-          const owned = protectedFor([
-            ...strings(meta.file, value),
-            ...[...recipes].flatMap((r) => out.recipes[r].classes),
-          ])
-          if (slotName === 'style')
-            t.traverseFast(value, (child) => {
-              if (t.isObjectProperty(child)) {
-                const property = key(child.key).replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
-                if (category(property)) owned.push(family(property))
-              }
-            })
-          if (
-            native &&
-            slotName === 'className' &&
-            inputs.has('className') &&
-            (spreadInputs.has('style') ||
-              n.attributes.some((a) => t.isJSXAttribute(a) && key(a.name) === 'style')) &&
-            entry.slots.style
+          stylingNotes = []
+          const classChannel = /(?:^className$|ClassName$)/.test(slotName)
+          const owned = protectedFor(
+            classChannel
+              ? [
+                  ...strings(attr.file, attr.value),
+                  ...[...recipes].flatMap((r) => out.recipes[r].classes),
+                ]
+              : [],
+            attr.file,
+            attr.value.loc?.start.line ?? 1
           )
-            inputs.add('style')
+          for (const recipe of recipes) stylingNotes.push(...(recipeNotes.get(recipe) ?? []))
+          if (/(?:^style$|Style$)/.test(slotName)) {
+            const resolved = objectFields(attr.file, attr.value)
+            for (const field of resolved.fields) {
+              const property = field.name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
+              if (category(property)) owned.push(family(property))
+            }
+            for (const unknown of resolved.unknown)
+              if (
+                !inputsOf(unknown.file, unknown.node).size &&
+                !t.isNullLiteral(unwrap(unknown.node))
+              )
+                note(unknown.file, unknown.node.loc?.start.line ?? 1, 'Unresolved styling object')
+          }
+          nodeOwned.push(...owned)
+          nodeNotes.push(...stylingNotes)
           for (const input of inputs) {
+            nodeInputs.add(input)
             const slot = entry.slots[input]
             slot.protected.push(...owned)
             slot.recipes.push(...recipes)
+            if (stylingNotes.length)
+              slot.unchecked = sorted([...(slot.unchecked ?? []), ...stylingNotes])
             if (!native) slot.forwards.push({ target, slot: slotName })
           }
+          stylingNotes = undefined
         }
+        if (native)
+          for (const input of nodeInputs) {
+            const slot = entry.slots[input]
+            slot.protected.push(...nodeOwned)
+            if (nodeNotes.length) slot.unchecked = sorted([...(slot.unchecked ?? []), ...nodeNotes])
+          }
+        if (unknownBundles.length)
+          for (const slot of Object.values(entry.slots))
+            slot.unchecked = sorted([...(slot.unchecked ?? []), ...unknownBundles])
       })
+      acceptedStylingInput = undefined
     }
     if (meta.props)
       for (const prop of meta.props.getProperties()) {
@@ -844,9 +1281,10 @@ async function generate(
         const recipes = [...usedRecipes].filter((r) => out.recipes[r].variants[prop.name])
         const supported = values
         if (!supported.length) continue
-        const fallback =
-          meta.defaults[prop.name] ??
-          recipes.map((r) => out.recipes[r].defaults[prop.name]).find((v) => v !== undefined)
+        const fallback = defaultsUnknown.has(`${publicName}#${prop.name}`)
+          ? undefined
+          : (meta.defaults[prop.name] ??
+            recipes.map((r) => out.recipes[r].defaults[prop.name]).find((v) => v !== undefined))
         entry.variants[prop.name] = {
           values: supported,
           ...(fallback !== undefined && supported.includes(fallback) ? { default: fallback } : {}),
@@ -891,7 +1329,13 @@ async function generate(
     for (const [name, decision] of declarationsBySlot) {
       const overlap = [...decision.allow].some((a) =>
         [...decision.protect].some(
-          (p) => a === p || a === '*' || p === '*' || category(a) === p || category(p) === a
+          (p) =>
+            a === p ||
+            a === '*' ||
+            p === '*' ||
+            family(a) === family(p) ||
+            category(a) === p ||
+            category(p) === a
         )
       )
       if (overlap)
@@ -951,6 +1395,17 @@ async function generate(
     targetCache.set(target, result)
     return result
   }
+  for (const entry of Object.values(out.exports)) {
+    for (const [slotName, slot] of Object.entries(entry.slots))
+      for (const forward of slot.forwards) {
+        const target = publicTarget(forward.target)
+        if (!target || !out.exports[target]?.slots[forward.slot]) {
+          const reason = `Unresolved styling forwarding: ${entry.exportName}.${slotName} -> ${forward.target}.${forward.slot}`
+          note(entry.source.file, entry.source.line, reason)
+          slot.unchecked = sorted([...(slot.unchecked ?? []), reason])
+        }
+      }
+  }
   for (let pass = 0; pass < 12; pass++) {
     let changed = false
     for (const entry of Object.values(out.exports))
@@ -962,6 +1417,10 @@ async function generate(
           const properties = next.protected.filter(
             (p) => !next.allowed.some((a) => a === '*' || a === p || a === category(p))
           )
+          const previousNotes = canonical(slot.unchecked ?? [])
+          const nextNotes = sorted([...(slot.unchecked ?? []), ...(next.unchecked ?? [])])
+          if (nextNotes.length) slot.unchecked = nextNotes
+          if (previousNotes !== canonical(nextNotes)) changed = true
           const result = sorted([...slot.protected, ...properties])
           if (canonical(result) !== canonical(slot.protected)) {
             slot.protected = result
@@ -969,53 +1428,79 @@ async function generate(
           }
         }
     if (!changed) break
-    if (pass === 11)
-      note('packages/emcn/src/index.ts', 1, 'Styling-slot forwarding resolution limit')
-  }
-  for (const [name, entry] of Object.entries(out.exports)) {
-    if (privateNames.has(name)) continue
-    for (const [slotName, slot] of Object.entries(entry.slots))
-      for (const forward of slot.forwards) {
-        const target = publicTarget(forward.target)
-        if (!target || !out.exports[target]?.slots[forward.slot])
-          note(
-            entry.source.file,
-            entry.source.line,
-            `Unresolved styling forwarding: ${entry.exportName}.${slotName} -> ${forward.target}.${forward.slot}`
-          )
-      }
+    if (pass === 11) {
+      const reason = 'Styling-slot forwarding resolution limit'
+      note('packages/emcn/src/index.ts', 1, reason)
+      for (const item of Object.values(out.exports))
+        for (const slot of Object.values(item.slots))
+          slot.unchecked = sorted([...(slot.unchecked ?? []), reason])
+    }
   }
   for (const name of privateNames) delete out.exports[name]
-  for (const [name, token] of Object.entries(out.tokens)) {
-    const visit = (current: string, seen: Set<string>) => {
-      if (seen.has(current)) {
-        note(TOKEN_FILE, 1, `Global token alias cycle: ${sorted(seen).join(' -> ')}`)
-        return
+  const contexts = new Map<
+    string,
+    Map<string, { aliases: string[]; literal: boolean; file: string; line: number }>
+  >()
+  for (const [name, token] of Object.entries(out.tokens))
+    for (const definition of token.definitions) {
+      const graph = contexts.get(definition.context) ?? new Map()
+      const previous = graph.get(name)
+      const aliases = variablesIn(definition.value)
+      const location = tokenLocations.get(`${name}#${canonical(definition)}`) ?? {
+        file: TOKEN_FILE,
+        line: 1,
       }
-      if (seen.size >= 12) {
-        note(TOKEN_FILE, 1, `Global token resolution limit: ${name}`)
-        return
+      graph.set(name, {
+        aliases: sorted([...(previous?.aliases ?? []), ...aliases]),
+        literal: previous?.literal || !aliases.length,
+        ...location,
+      })
+      contexts.set(definition.context, graph)
+    }
+  for (const [context, graph] of contexts)
+    for (const [name, token] of graph) {
+      const visit = (current: string, seen: Set<string>) => {
+        if (seen.has(current)) {
+          note(
+            token.file,
+            token.line,
+            `Global token alias cycle in CSS definition context ${context || '<root>'}: ${sorted(seen).join(' -> ')}`
+          )
+          return
+        }
+        if (seen.size >= 12) {
+          note(
+            token.file,
+            token.line,
+            `Global token resolution limit in CSS definition context ${context || '<root>'}: ${name}`
+          )
+          return
+        }
+        const value = graph.get(current)
+        if (!value) {
+          if (!out.tokens[current])
+            note(token.file, token.line, `Unresolved global token reference: ${name} -> ${current}`)
+          else {
+            const owner = [...seen].at(-1) ?? name
+            const source = graph.get(owner) ?? token
+            note(
+              source.file,
+              source.line,
+              `Global token reference crosses CSS definition contexts; availability remains unchecked: ${owner} -> ${current} (${context || '<root>'})`
+            )
+          }
+          return
+        }
+        for (const alias of value.aliases) {
+          if (alias === current && value.literal) continue
+          visit(alias, new Set(seen).add(current))
+        }
       }
-      const value = out.tokens[current]
-      if (!value) {
-        note(TOKEN_FILE, 1, `Unresolved global token reference: ${name} -> ${current}`)
-        return
-      }
-      for (const alias of value.aliases) {
-        if (
-          alias === current &&
-          value.definitions.some((d) => !variablesIn(d.value).includes(current))
-        )
-          continue
-        visit(alias, new Set(seen).add(current))
+      for (const alias of token.aliases) {
+        if (alias === name && token.literal) continue
+        visit(alias, new Set([name]))
       }
     }
-    for (const alias of token.aliases) {
-      if (alias === name && token.definitions.some((d) => !variablesIn(d.value).includes(name)))
-        continue
-      visit(alias, new Set([name]))
-    }
-  }
   out.exports = Object.fromEntries(
     Object.entries(out.exports).sort(([a], [b]) => compareStrings(a, b))
   )
