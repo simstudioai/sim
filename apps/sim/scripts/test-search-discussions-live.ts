@@ -30,6 +30,8 @@ import type { NativeClient, NativePage } from '@/lib/sim-search/live/types'
  * reviewer requires a submitted review by that login. approved independently checks whether a
  * submitted APPROVED review event exists, not current approval status or mergeability. Review
  * fixtures must have fewer than 100 records; a full oracle page is rejected as incomplete.
+ * commentFragment must occur in the same comment identified by a search match. Conversation
+ * and inline-comment fixtures each need fewer than 100 comments for complete oracle coverage.
  * Oracle queries describe equivalent logical branches. Explicit updated: qualifiers take
  * precedence over filters; otherwise both paths use inclusive GitHub candidate bounds.
  * Untyped oracle searches use separate ten-item issue and pull-request pages.
@@ -220,7 +222,7 @@ function latency(samples: number[]) {
   }
 }
 
-async function runQuery(test: QueryCase) {
+async function runQuery(test: QueryCase, repositoryId: string) {
   const native = { provider: 'github', kind: 'issues', query: test.query } as const
   const report: QueryReport = {
     name: test.name,
@@ -327,11 +329,17 @@ async function runQuery(test: QueryCase) {
     if (test.commentFragment) {
       const expected = page.documents.find((document) => document.id === test.expectedId)
       assert.ok(expected, 'Expected discussion result missing')
-      const oracle = oracleRows.find((row) => string(row.number) === test.expectedId)
-      const matches = array(oracle?.text_matches).filter((match) => {
-        const type = string(match.object_type)
-        return (type === 'IssueComment' || type === 'ReviewComment') && string(match.fragment)
-      })
+      const matches = oracleRows
+        .filter((row) => string(row.number) === test.expectedId)
+        .flatMap((row) => array(row.text_matches))
+        .filter((match) => {
+          const type = string(match.object_type)
+          return (
+            (type === 'IssueComment' || type === 'ReviewComment') &&
+            match.property === 'body' &&
+            string(match.fragment)
+          )
+        })
       assert.ok(matches.length, 'Oracle did not supply a matched discussion fragment')
       for (const match of matches) {
         assert.ok(
@@ -344,18 +352,52 @@ async function runQuery(test: QueryCase) {
           snippet: snippet(string(match.fragment)),
         })
       }
-      const comments = array(
-        await githubApi(
-          `/repos/${repository}/issues/${test.expectedId}/comments?per_page=100`,
-          'oracle'
+      let foundExpectedComment = false
+      for (const [type, resource] of [
+        ['IssueComment', 'issues'],
+        ['ReviewComment', 'pulls'],
+      ] as const) {
+        const typedMatches = matches.filter((match) => match.object_type === type)
+        if (!typedMatches.length) continue
+        const comments = array(
+          await githubApi(
+            `/repos/${repository}/${resource}/${test.expectedId}/comments?per_page=100`,
+            'oracle'
+          )
         )
-      )
-      assert.ok(
-        comments.some((row) =>
-          string(row.body).toLowerCase().includes(test.commentFragment!.toLowerCase())
-        ),
-        'Independent comment API did not contain expected evidence'
-      )
+        assert.ok(
+          comments.length < 100,
+          'Comment oracle coverage is incomplete; choose a fixture with fewer than 100 comments per collection'
+        )
+        for (const match of typedMatches) {
+          const url = new URL(string(match.object_url))
+          assert.ok(
+            url.origin === 'https://api.github.com' &&
+              !url.username &&
+              !url.password &&
+              !url.search &&
+              !url.hash,
+            'Unexpected matched comment URL'
+          )
+          const comment = comments.find((row) => {
+            const suffix = `/${resource}/comments/${string(row.id)}`
+            return (
+              url.pathname === `/repos/${repository}${suffix}` ||
+              url.pathname === `/repositories/${repositoryId}${suffix}`
+            )
+          })
+          assert.ok(comment, 'Matched comment was not found in the selected discussion')
+          if (string(comment.body).toLowerCase().includes(test.commentFragment.toLowerCase())) {
+            foundExpectedComment = true
+            report.evidence.push({
+              type: 'matched-comment-source',
+              url: string(comment.html_url),
+              snippet: snippet(string(comment.body)),
+            })
+          }
+        }
+      }
+      assert.ok(foundExpectedComment, 'Matched comment source did not contain expected evidence')
       report.evidence.push({
         type: 'query-semantics',
         snippet:
@@ -440,13 +482,16 @@ try {
   } finally {
     await file.close()
   }
+  const repositoryInfo = object(await githubApi(`/repos/${repository}`, 'oracle'))
   assert.equal(
-    object(await githubApi(`/repos/${repository}`, 'oracle')).private,
+    repositoryInfo.private,
     false,
     'Use a public repository for sanitized acceptance evidence'
   )
+  const repositoryId = string(repositoryInfo.id)
+  assert.match(repositoryId, /^[1-9]\d*$/, 'Repository metadata did not contain a valid ID')
   const fixture = object(await githubApi(`/repos/${repository}/issues/${number}`, 'oracle'))
-  for (const test of cases) await check(test.name, () => runQuery(test))
+  for (const test of cases) await check(test.name, () => runQuery(test, repositoryId))
   const readRequestsStart = requests.length
   const reference = queries.flatMap((query) => query.results).find((result) => result.id === number)
   assert.ok(
