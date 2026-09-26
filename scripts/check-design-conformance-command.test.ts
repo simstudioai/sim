@@ -163,6 +163,79 @@ export function ProtectedLeft({className,...props}:HTMLAttributes<HTMLDivElement
   ).toBe(false)
 }, 60_000)
 
+test.each([
+  ['overlapping rules', '.a{color:red}.b{color:blue}', '.b{color:blue}.a{color:red}', true],
+  [
+    'nested overlapping rules',
+    '@media(min-width:1px){.a{color:red}.b{color:blue}}',
+    '@media(min-width:1px){.b{color:blue}.a{color:red}}',
+    true,
+  ],
+  [
+    'shorthand overlap',
+    '.a{padding:1px}.b{padding-top:2px}',
+    '.b{padding-top:2px}.a{padding:1px}',
+    true,
+  ],
+  [
+    'disjoint element types',
+    'button{color:red}input{color:blue}',
+    'input{color:blue}button{color:red}',
+    false,
+  ],
+  ['independent properties', '.a{color:red}.b{padding:1px}', '.b{padding:1px}.a{color:red}', false],
+  [
+    'unequal importance',
+    '.a{color:red!important}.b{color:blue}',
+    '.b{color:blue}.a{color:red!important}',
+    false,
+  ],
+  [
+    'ordinary layout and interaction',
+    '.a{top:0;cursor:pointer}.b{left:0}',
+    '.b{left:7px}.a{cursor:wait;top:2px}',
+    false,
+  ],
+] as const)(
+  'anonymous layer source precedence survives the real CLI: %s',
+  (_name, before, after, notify) => {
+    const { repo } = fixture()
+    writeFileSync(path.join(repo, TOKEN_FILE), `@layer{${before}}`)
+    const base = commit(repo)
+    writeFileSync(path.join(repo, TOKEN_FILE), `@layer{${after}}`)
+    const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+    expect([0, 1], result.stderr).toContain(result.status)
+    const report = JSON.parse(result.stdout) as Report
+    expect(report.status).toBe('completed')
+    expect(
+      report.findings.some(
+        (finding) => finding.kind === 'system-change' && finding.file === TOKEN_FILE
+      ),
+      result.stdout
+    ).toBe(notify)
+  }
+)
+
+test('anonymous layer precedence limits remain explicit through the real CLI', () => {
+  const { repo } = fixture()
+  const rules = Array.from(
+    { length: 257 },
+    (_, index) => `.c${index}{color:${index % 2 ? 'red' : 'blue'}}`
+  )
+  writeFileSync(path.join(repo, TOKEN_FILE), `@layer{${rules.join('')}}`)
+  const base = commit(repo)
+  writeFileSync(path.join(repo, TOKEN_FILE), `@layer{${rules.reverse().join('')}}`)
+  const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+  expect([0, 1], result.stderr).toContain(result.status)
+  const report = JSON.parse(result.stdout) as Report
+  expect(report.status).toBe('completed')
+  expect(
+    report.unchecked.some((note) =>
+      note.reason.includes('256-entry layer precedence comparison limit')
+    )
+  ).toBe(true)
+})
+
 test('working-tree mode includes a changed central contract registry', () => {
   const { repo } = fixture()
   const file = 'scripts/design-conformance/contracts.json'

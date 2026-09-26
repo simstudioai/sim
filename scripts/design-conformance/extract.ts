@@ -18,7 +18,11 @@ import {
   type Surface,
   type UnresolvedInput,
 } from '#design-conformance/model'
-import { excludedCssProperty, normalizeValue } from '#design-conformance/normalize'
+import {
+  competingProperties,
+  excludedCssProperty,
+  normalizeValue,
+} from '#design-conformance/normalize'
 import {
   htmlArtwork,
   htmlSink,
@@ -168,7 +172,12 @@ export function extract(
       if (inline && current) record()
       else within(groupOf(d, context), record)
     })
-    const layers: { context: string; name: string; content?: string[][] }[] = []
+    const layers: {
+      context: string
+      name: string
+      content?: string[][]
+      precedence?: string[][][]
+    }[] = []
     root.walkAtRules((rule) => {
       const line = (rule.source?.start?.line ?? 1) + origin.line - 1
       const context = contextOf(rule)
@@ -186,20 +195,88 @@ export function extract(
         }
         if (!rule.params.trim()) {
           const content: string[][] = []
-          rule.walkDecls((decl) => {
-            if (excludedCssProperty(decl.prop)) return
-            content.push([
-              contextOf(decl),
-              decl.prop,
-              normalizeValue(decl.value) + (decl.important ? ' !important' : ''),
-            ])
-          })
-          rule.walkAtRules((nested) => {
-            content.push([contextOf(nested), `@${nested.name}`, normalizeValue(nested.params)])
+          const ordered: { input: string[]; selector?: string; important: boolean }[] = []
+          rule.walk((node) => {
+            let input: string[]
+            if (node.type === 'decl') {
+              if (excludedCssProperty(node.prop)) return
+              input = [
+                contextOf(node),
+                node.prop,
+                normalizeValue(node.value) + (node.important ? ' !important' : ''),
+              ]
+            } else if (node.type === 'atrule') {
+              input = [contextOf(node), `@${node.name}`, normalizeValue(node.params)]
+            } else return
+            content.push(input)
+            if (
+              node.type === 'atrule' &&
+              ![
+                'apply',
+                'plugin',
+                'custom-variant',
+                'source',
+                'import',
+                'charset',
+                'namespace',
+              ].includes(node.name)
+            )
+              return
+            let parent: postcss.Node | undefined = node.parent
+            while (parent && parent.type !== 'rule' && parent !== rule) parent = parent.parent
+            ordered.push({
+              input,
+              selector:
+                parent?.type === 'rule' && 'selector' in parent
+                  ? String(parent.selector)
+                  : undefined,
+              important: node.type === 'decl' && node.important,
+            })
           })
           layer.content = content.sort((left, right) =>
             compareStrings(JSON.stringify(left), JSON.stringify(right))
           )
+          if (ordered.length > 256)
+            facts.unchecked.push({
+              line,
+              context,
+              reason:
+                'Anonymous CSS layer exceeds the 256-entry layer precedence comparison limit; nested source order is unchecked',
+            })
+          else {
+            const disjointTypes = (left?: string, right?: string) => {
+              if (!left || !right) return false
+              const types = (selector: string) =>
+                selector
+                  .split(',')
+                  .map((part) =>
+                    /^([a-zA-Z][\w-]*)(?:[.#][\w-]+)*$/.exec(part.trim())?.[1].toLowerCase()
+                  )
+              return types(left).every((a) => a && types(right).every((b) => b && a !== b))
+            }
+            /** Preserve potentially competing source order without proving selector specificity. */
+            const precedence: string[][][] = []
+            for (let i = 0; i < ordered.length; i++)
+              for (let j = i + 1; j < ordered.length; j++) {
+                const left = ordered[i]
+                const right = ordered[j]
+                const a = left.input[1]
+                const b = right.input[1]
+                if (
+                  left.important === right.important &&
+                  !disjointTypes(left.selector, right.selector) &&
+                  (a.startsWith('@') ||
+                    b.startsWith('@') ||
+                    a === b ||
+                    competingProperties(a, b)) &&
+                  (a !== b || left.input[2] !== right.input[2])
+                )
+                  precedence.push([left.input, right.input])
+              }
+            layer.precedence = precedence.sort((left, right) =>
+              compareStrings(JSON.stringify(left), JSON.stringify(right))
+            )
+          }
         }
         layers.push(layer)
         return
