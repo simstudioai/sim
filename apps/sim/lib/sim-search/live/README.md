@@ -123,7 +123,7 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Calendar | CalendarList then `/calendars/{id}/events` | `/calendars/{id}/events/{eventId}` | Same-user delegation, selected calendars, event window/query |
 | Slack | `POST /api/assistant.search.context` | `conversations.replies` or `files.info` preview | Member only; Slack enforces the connected user's grant |
 | Jira | `POST /ex/jira/{cloudId}/rest/api/3/search/jql` | `/rest/api/3/issue/{key}` under that cloud site | Member only |
-| Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | `/wiki/rest/api/content/{id}` | Same site, spaces, current type/status/labels, source readability |
+| Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | v2 `/wiki/api/v2/pages/{id}` or `/blogposts/{id}` (`body-format=view`); a space reads as its homepage | Same site, spaces, current type/status/labels, source readability |
 | GitHub | `/search/issues`, `/search/code`, `/search/repositories`, `/search/commits` | Issue, repository, commit, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
 | GitLab | Configured `/api/v4/projects/{project}/search`, or supported date listing | Project issue/MR/wiki/file endpoint | Current request-local admin ACL evidence or saved CSV grants, plus content filters |
 | Coda | Personal MCP `search`; REST `/apis/v1/docs` title-search compatibility | MCP read allowlist; REST compatibility document/page reads | Selected parent doc and current source-token visibility; optional Enterprise org membership |

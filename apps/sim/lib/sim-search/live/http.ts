@@ -9,7 +9,9 @@ export class NativeSearchError extends Error {
   constructor(
     readonly status: 'reconnect' | 'rate_limited' | 'unavailable' | 'timeout',
     message: string,
-    readonly retryAfterSeconds?: number
+    readonly retryAfterSeconds?: number,
+    /** The provider's HTTP status, when the failure is a plain non-success response. */
+    readonly httpStatus?: number
   ) {
     super(message)
   }
@@ -104,7 +106,9 @@ export function createNativeClient(input: {
         'unavailable',
         response.status === 400 || response.status === 422
           ? `The provider rejected this query (${response.status}). Check its native query syntax and supported search scope.`
-          : `Provider request failed (${response.status}).`
+          : `Provider request failed (${response.status}).`,
+        undefined,
+        response.status
       )
     }
     return response
