@@ -10,6 +10,10 @@ import {
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import {
+  mothershipChatWorkspaceContextMock,
+  mothershipChatWorkspaceContextMockFns,
+} from '@sim/testing/mocks/mothership-chat-workspace-context.mock'
+import {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
@@ -57,6 +61,7 @@ const readTableUseCase = tableApplicationTablesMockFns.mockReadTableUseCase
 const isIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+const readWorkspaceContext = mothershipChatWorkspaceContextMockFns.mockReadWorkspaceContextExecute
 
 const {
   getSkillUseCase,
@@ -95,6 +100,10 @@ const {
 }))
 
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock(
+  '@/lib/mothership/chat/application/workspace-context',
+  () => mothershipChatWorkspaceContextMock
+)
 
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
@@ -1961,4 +1970,157 @@ it('does not treat a forged built-in identifier as a global template', async () 
   )
   expect(result).toEqual([])
   expect(getSkillUseCase).not.toHaveBeenCalled()
+})
+
+describe('organization resource mention targets', () => {
+  /**
+   * Resolves only for a principal and input both scoped to the authorized owner
+   * workspace, as the real use cases enforce, so a read addressed anywhere else
+   * yields no context.
+   */
+  const ownedBy =
+    (workspaceId: string, value: unknown) =>
+    async ({
+      principal,
+      input,
+    }: {
+      principal: { workspaceId?: string }
+      input: { workspaceId?: string; assertedWorkspaceId?: string }
+    }) => {
+      if (
+        principal.workspaceId !== workspaceId ||
+        (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
+      ) {
+        throw new DelegatedWorkspaceAuthorizationError()
+      }
+      return value
+    }
+
+  beforeEach(() => {
+    resolveInvocationWorkspace.mockReset()
+    resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
+      if (workspaceId !== 'workspace-a') throw new Error('denied')
+      return { workspaceId }
+    })
+    readWorkflowMetadata.mockReset()
+    readWorkflowMetadata.mockImplementation(
+      ownedBy('workspace-a', {
+        workflow: { id: 'workflow-1', workspaceId: 'workspace-a', name: 'Lead intake' },
+        folderPath: '/',
+      })
+    )
+    listWorkflowFolders.mockImplementation(
+      ownedBy('workspace-a', { folders: [{ id: 'folder-1', name: 'Leads', parentId: null }] })
+    )
+    readTableUseCase.mockImplementation(
+      ownedBy('workspace-a', {
+        table: { id: 'table-1', name: 'Accounts', workspaceId: 'workspace-a', schema: {} },
+        folderPath: '/',
+      })
+    )
+    readWorkspaceFileMetadata.mockImplementation(
+      ownedBy('workspace-a', { file: { name: 'Notes.md', folderPath: null } })
+    )
+    readKnowledgeBase.mockImplementation(
+      ownedBy('workspace-a', { knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' })
+    )
+  })
+
+  it.each<[string, ChatContext]>([
+    [
+      'workflow',
+      { kind: 'workflow', workflowId: 'workflow-1', label: 'Intake', workspaceId: 'workspace-a' },
+    ],
+    [
+      'folder',
+      { kind: 'folder', folderId: 'folder-1', label: 'Leads', workspaceId: 'workspace-a' },
+    ],
+    ['table', { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'workspace-a' }],
+    ['file', { kind: 'file', fileId: 'file-1', label: 'Notes', workspaceId: 'workspace-a' }],
+    [
+      'knowledge base',
+      { kind: 'knowledge', knowledgeId: 'kb-1', label: 'Docs', workspaceId: 'workspace-a' },
+    ],
+  ])('reads a tagged %s in its authorized owner workspace', async (_kind, context) => {
+    const result = await processContextsServer(
+      [context],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]?.content.startsWith('Workspace workspace-a:\n')).toBe(true)
+  })
+
+  it('reads nothing for a resource whose owner workspace is not authorized for the chat', async () => {
+    readWorkflowMetadata.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'foreign', name: 'Elsewhere' },
+      folderPath: '/',
+    })
+    const result = await processContextsServer(
+      [{ kind: 'workflow', workflowId: 'workflow-1', label: 'Foreign', workspaceId: 'foreign' }],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toEqual([])
+  })
+})
+
+describe('workspace mentions', () => {
+  const workspaceMention: ChatContext = {
+    kind: 'workspace',
+    workspaceId: 'workspace-a',
+    label: 'Sales',
+  }
+
+  beforeEach(() => {
+    readWorkspaceContext.mockReset()
+  })
+
+  it('describes the workspace through the authorized organization discovery', async () => {
+    readWorkspaceContext.mockImplementation(
+      async ({ input }: { input: { workspaceId: string } }) => ({
+        success: true,
+        workspaces:
+          input.workspaceId === 'workspace-a'
+            ? [{ id: 'workspace-a', name: 'Sales', role: 'write' }]
+            : [],
+        nextCursor: null,
+      })
+    )
+    const [context] = await processContextsServer(
+      [workspaceMention],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(context?.type).toBe('workspace')
+    expect(context?.tag).toBe('@Sales')
+    expect(context?.content).toContain('{"id":"workspace-a","name":"Sales","role":"write"}')
+  })
+
+  it('drops a workspace that organization discovery does not return', async () => {
+    readWorkspaceContext.mockResolvedValue({ success: true, workspaces: [], nextCursor: null })
+    expect(
+      await processContextsServer(
+        [workspaceMention],
+        'user',
+        '',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).toEqual([])
+  })
 })
