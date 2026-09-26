@@ -117,8 +117,9 @@ async function installDocumentTrigger(tx: TransactionSql): Promise<void> {
  * whichever mode runs. The document trigger stops firing on inserts and on updates that change
  * nothing it carries.
  *
- * Rows already written for other bases are left in place: removing them is a table owner's
- * maintenance, not a deploy's. All of it is installed in one transaction, so no marker change sees
+ * Rows already written for other bases, and those a rerun of `0016_backfill_search_vectors` writes
+ * before this reruns after it, are left in place: nothing reads them, and removing them is a table
+ * owner's maintenance, not a deploy's. All of it is installed in one transaction, so no marker change sees
  * the scoped chunk trigger without the base trigger that backfills it. Each attempt waits at most
  * {@link TRIGGER_LOCK_TIMEOUT} for the trigger DDL's locks and is retried within the budget.
  * Idempotent.
