@@ -317,6 +317,40 @@ test('native file tools remember folder consent across chats and restarts until 
         rmSync(otherParent, { recursive: true, force: true })
       }
     })
+    await test.step('a replaced directory cannot return a listing for its old contents', async () => {
+      const directory = join(realpathSync(source), 'replace-during-read')
+      const backup = join(realpathSync(source), 'previous-directory')
+      mkdirSync(directory)
+      writeFileSync(join(directory, 'old.txt'), 'old contents')
+      calls.directoryReplaced = { toolName: 'read_local_file', args: { path: directory } }
+      await app?.evaluate(
+        (_electron, paths) => {
+          const fs = process.getBuiltinModule(
+            'node:fs/promises'
+          ) as typeof import('node:fs/promises')
+          const original = fs.lstat
+          fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
+            const result = await original(...args)
+            if (args[0] === paths.directory) {
+              fs.lstat = original
+              await fs.rename(paths.directory, paths.backup)
+              await fs.mkdir(paths.directory)
+              await fs.writeFile(`${paths.directory}/new.txt`, 'new contents')
+            }
+            return result
+          }) as typeof fs.lstat
+        },
+        { directory, backup }
+      )
+      try {
+        expect(await invoke({ operation: 'read', toolCallId: 'directoryReplaced' })).toMatchObject({
+          ok: false,
+        })
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+        rmSync(backup, { recursive: true, force: true })
+      }
+    })
     await test.step('cancelling after a file opens prevents its contents from returning', async () => {
       await app?.evaluate(
         (_electron, path) => {
