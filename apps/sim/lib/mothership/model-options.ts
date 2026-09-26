@@ -38,17 +38,18 @@ export const MOTHERSHIP_SIMPLE_EFFORT_OPTIONS = MOTHERSHIP_EFFORT_OPTIONS.filter
  */
 export function resolveMothershipModelSettings(
   settings: { effort?: MothershipEffort; modelSelection?: ModelSelection },
-  advanced: boolean
+  advanced: boolean,
+  plan = false
 ): { effort: MothershipEffort; modelSelection: ModelSelection | undefined } {
   let effort = settings.effort ?? DEFAULT_MOTHERSHIP_EFFORT
   // No served model reasons at `none`; a pick stored before it was retired runs at the nearest effort.
   if (effort === 'none') effort = 'low'
   if (!advanced) {
-    if (effort === 'max') effort = 'xhigh'
-    return { effort, modelSelection: undefined }
+    if (!plan && effort === 'max') effort = 'xhigh'
+    return { effort, modelSelection: plan ? { model: 'claude-opus-5-5', fastMode: false } : undefined }
   }
   const modelSelection = normalizeModelSelection(
-    settings.modelSelection ?? { model: 'gpt-6-astra', fastMode: false }
+    settings.modelSelection ?? { model: plan ? 'claude-opus-5-5' : 'gpt-6-astra', fastMode: false }
   )
   return { effort, modelSelection }
 }

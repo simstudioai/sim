@@ -876,6 +876,626 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
+  it.each([false, true])(
+    'admits Plan only when its deployment flag is enabled (%s)',
+    async (enabled) => {
+      flags.plan.mockResolvedValue(enabled)
+      try {
+        const response = await handleUnifiedChatPost(
+          new NextRequest('http://localhost/api/mothership/chat', {
+            method: 'POST',
+            body: JSON.stringify({
+              message: 'Understand our triage',
+              organizationId: 'org-1',
+              mode: 'plan',
+            }),
+          })
+        )
+        expect(response.status).toBe(enabled ? 200 : 400)
+        if (enabled)
+          expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+            expect.objectContaining({ mode: 'plan' })
+          )
+        else expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
+      } finally {
+        flags.plan.mockResolvedValue(false)
+      }
+    }
+  )
+
+  afterAll(() => {
+    resetDbChainMock()
+    resetEnvironmentUtilsMock()
+  })
+
+  beforeEach(() => {
+    flags.models.mockResolvedValue(true)
+    flags.plan.mockResolvedValue(false)
+    resetDbChainMock()
+    atomicallyClaimChatSend.mockResolvedValue({
+      claimed: true,
+      normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+      storageMethod: 'database',
+      claimToken: 'claim-1',
+    })
+    admitTurn.mockResolvedValue({ id: 'run-1', status: 'active' })
+    releaseChatSendClaim.mockResolvedValue(undefined)
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    resolvePermissionGroupConfig.mockResolvedValue(null)
+    resolveWorkflowIdForUser.mockResolvedValue({
+      status: 'resolved',
+      workflowId: 'wf-1',
+      workspaceId: 'ws-1',
+      workflowName: 'Workflow One',
+    })
+    getUserEntityPermissions.mockResolvedValue('write')
+    resolveBillingAttribution.mockResolvedValue(billingAttribution)
+    resolveOrganizationBillingAttribution.mockResolvedValue({
+      ...billingAttribution,
+      workspaceId: null,
+    })
+    authorizeOrganizationChat.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'member',
+    })
+    readOrganizationAssistantImage.mockResolvedValue({
+      id: 'upload-1',
+      key: 'assistant/org-1/user-1/upload-1/image.png',
+      name: 'image.png',
+      contentType: 'image/png',
+      size: 5,
+      buffer: Buffer.from('image'),
+    })
+    getEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { API_KEY: 'encrypted-secret' },
+      workspaceEncrypted: {},
+      personalDecrypted: { API_KEY: 'secret' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+    processContextsServer.mockResolvedValue([])
+    resolveActiveResourceContext.mockResolvedValue(null)
+    buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)
+    createSSEStream.mockReturnValue(new ReadableStream())
+    acquirePendingChatStream.mockResolvedValue(true)
+    getPendingChatStreamId.mockResolvedValue(null)
+    releasePendingChatStream.mockResolvedValue(undefined)
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      isNew: true,
+    })
+    loadChatMcpServerIds.mockResolvedValue([])
+    finalizeAssistantTurn.mockResolvedValue({
+      found: true,
+      updated: true,
+      appendedAssistant: true,
+      workspaceId: 'ws-1',
+      outcome: 'appended_assistant',
+    })
+  })
+
+  it('denies removed organization membership before persisting a turn', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    authorizeOrganizationChat.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Organization not found')
+    )
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(403)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('admits organization agent mode without workspace scope or preloading personal secrets', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build across my workspaces',
+          organizationId: 'org-1',
+          mode: 'agent',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(resolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
+    )
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
+    )
+    expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { mode: 'agent', assistantFast: true },
+    { mode: 'agent', assistantSearchLevel: 'max' },
+    { mode: 'assistant', assistantSearchLevel: 'custom-provider' },
+    { mode: 'assistant', assistantSearchLevel: 'adaptive', assistantFast: false },
+    { mode: 'assistant', assistantSearchLevel: 'max', modelSelection: { model: 'gpt-6-astra' } },
+    { mode: 'assistant', assistantFast: true, modelSelection: { model: 'gpt-6-astra' } },
+  ])('refuses invalid Fast Search admission before creating a chat: %j', async (options) => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Find the policy', organizationId: 'org-1', ...options }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(admitTurn).not.toHaveBeenCalled()
+  })
+
+  it('runs a private organization Assistant with its own billing scope and no workspace authority', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(authorizeOrganizationChat).toHaveBeenCalledWith({
+      principal: createSessionPrincipal(),
+      input: { organizationId: 'org-1', mode: 'assistant' },
+    })
+    expect(resolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', type: 'mothership' })
+    )
+    expect(getUserEntityPermissions).not.toHaveBeenCalled()
+    expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    expect(listPersonal).not.toHaveBeenCalled()
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+    expect(resolveOrganizationBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      organizationId: 'org-1',
+    })
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'assistant', contexts: [] })
+    )
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({
+            organizationId: 'org-1',
+            userId: 'user-1',
+            requestMode: 'assistant',
+            billingAttribution: expect.objectContaining({
+              organizationId: 'org-1',
+              workspaceId: null,
+            }),
+          }),
+        }),
+      })
+    )
+  })
+
+  it.each([
+    ['Describe this image', false],
+    ['', false],
+    ['Describe with Fast', true],
+  ] as const)(
+    'prepares organization image bytes and persists canonical metadata (message: %s, fast: %s)',
+    async (message, assistantFast) => {
+      getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+      dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
+      const key = 'assistant/org-1/user-1/upload-1/image.png'
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message,
+            organizationId: 'org-1',
+            mode: 'assistant',
+            assistantFast,
+            fileAttachments: [
+              { id: 'forged-id', key, filename: 'forged.txt', media_type: 'text/plain', size: 0 },
+            ],
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(readOrganizationAssistantImage).toHaveBeenCalledWith({
+        principal: createSessionPrincipal(),
+        organizationId: 'org-1',
+        key,
+        signal: expect.any(AbortSignal),
+      })
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message,
+          assistantFast,
+          assistantImages: [
+            {
+              type: 'image',
+              filename: 'image.png',
+              source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' },
+            },
+          ],
+        })
+      )
+      expect(admitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            chatId: 'chat-1',
+            message: expect.objectContaining({
+              content: message,
+              fileAttachments: [
+                { id: 'upload-1', key, filename: 'image.png', media_type: 'image/png', size: 5 },
+              ],
+            }),
+          }),
+        })
+      )
+      expect(getUserEntityPermissions).not.toHaveBeenCalled()
+      expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects inaccessible images before creating or persisting a conversation', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    readOrganizationAssistantImage.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Image not found')
+    )
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '',
+          organizationId: 'org-1',
+          mode: 'assistant',
+          fileAttachments: [
+            {
+              id: 'image',
+              key: 'other-user-image',
+              filename: 'image.png',
+              media_type: 'image/png',
+              size: 5,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(403)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(appendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('continues rejecting empty messages without organization images', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: '', organizationId: 'org-1', mode: 'assistant' }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(readOrganizationAssistantImage).not.toHaveBeenCalled()
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace files unavailable in workspace Assistant mode', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Read this file',
+          workspaceId: 'ws-1',
+          mode: 'assistant',
+          fileAttachments: [
+            {
+              id: 'file-1',
+              key: 'workspace/file.png',
+              filename: 'file.png',
+              media_type: 'image/png',
+              size: 5,
+            },
+          ],
+        }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(readOrganizationAssistantImage).not.toHaveBeenCalled()
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+  })
+
+  it('broadcasts organization turn start, completion, and failure under its private owner', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: 'mothership' }])
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    const args = createSSEStream.mock.calls[0][0]
+    const owner = { organizationId: 'org-1', userId: 'user-1', workspaceId: undefined }
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          notifyWorkspaceStatus: true,
+          recovery: expect.objectContaining({
+            request: expect.objectContaining({ organizationId: 'org-1', mode: 'assistant' }),
+          }),
+        }),
+      })
+    )
+    await args.orchestrateOptions.onComplete({
+      success: true,
+      content: 'Answer',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
+    await args.orchestrateOptions.onError(new Error('provider failed'))
+    expect(mockPublishStatusChanged).toHaveBeenLastCalledWith(owner, {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: args.streamId,
+    })
+  })
+
+  it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }])(
+    'rejects mixed organization scope before persistence: %j',
+    async (extra) => {
+      getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Find the policy',
+            organizationId: 'org-1',
+            mode: 'assistant',
+            ...extra,
+          }),
+        })
+      )
+      expect(response.status).toBe(400)
+      expect(resolveOrCreateChat).not.toHaveBeenCalled()
+      expect(createSSEStream).not.toHaveBeenCalled()
+    }
+  )
+
+  it('builds Assistant from only personal accounts and the selected Search scope', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    listPersonal.mockResolvedValue({
+      credentials: [
+        {
+          id: 'mine',
+          providerId: 'google-drive',
+          displayName: 'My Drive',
+          type: 'managed_oauth',
+          connectedAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'gitlab-mine',
+          providerId: 'gitlab',
+          displayName: 'My GitLab',
+          type: 'personal_token',
+          instanceUrl: 'https://gitlab.example.com',
+        },
+      ],
+    })
+    const filters = { source: 'slack', documentIds: ['doc-1'] }
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find this',
+          workspaceId: 'ws-1',
+          mode: 'assistant',
+          assistantSearch: filters,
+          createNewChat: true,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+    expect(processContextsServer).not.toHaveBeenCalled()
+    expect(computeWorkspaceEntitlements).not.toHaveBeenCalled()
+    expect(listPersonal).toHaveBeenCalledWith({
+      principal: createSessionPrincipal(),
+      input: { workspaceId: 'ws-1' },
+    })
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'assistant',
+        assistantSearch: filters,
+        contexts: [],
+        workspaceContext: JSON.stringify({
+          credentials: [
+            { id: 'mine', providerId: 'google-drive', displayName: 'My Drive' },
+            {
+              id: 'gitlab-mine',
+              providerId: 'gitlab',
+              displayName: 'My GitLab',
+              instanceUrl: 'https://gitlab.example.com',
+            },
+          ],
+        }),
+      })
+    )
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({
+            requestMode: 'assistant',
+            assistantSearch: filters,
+            userId: 'user-1',
+          }),
+        }),
+      })
+    )
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          message: expect.objectContaining({ requestMode: 'assistant' }),
+        }),
+      })
+    )
+  })
+
+  it('loads personal accounts while the execution context is being prepared', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    const billing = Promise.withResolvers<typeof billingAttribution>()
+    const accountsStarted = Promise.withResolvers<void>()
+    resolveBillingAttribution.mockReturnValueOnce(billing.promise)
+    listPersonal.mockImplementationOnce(async () => {
+      accountsStarted.resolve()
+      return { credentials: [] }
+    })
+    const pending = handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Continue', workspaceId: 'ws-1', mode: 'assistant' }),
+      })
+    )
+    await accountsStarted.promise
+    expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
+    billing.resolve(billingAttribution)
+    expect((await pending).status).toBe(200)
+  })
+
+  it.each([
+    ['agent', 'assistant'],
+    ['assistant', 'agent'],
+  ] as const)('keeps the same chat when switching from %s to %s', async (_previousMode, mode) => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    listPersonal.mockResolvedValue({ credentials: [{ id: 'mine', providerId: 'google-drive' }] })
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      isNew: false,
+    })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Continue in this mode',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          mode,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({ requestMode: mode }),
+        }),
+      })
+    )
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          message: expect.objectContaining({ requestMode: mode }),
+        }),
+      })
+    )
+    if (mode === 'assistant') {
+      expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+      expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+      expect(listPersonal).toHaveBeenCalledOnce()
+    } else {
+      expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+      expect(getEffectiveEnvironmentSnapshot).toHaveBeenCalledOnce()
+      expect(listPersonal).not.toHaveBeenCalled()
+    }
+  })
+
+  it.each([
+    ['medium', 'medium'],
+    ['high', 'high'],
+    ['xhigh', 'xhigh'],
+    ['max', 'xhigh'],
+    ['low', 'medium'],
+    ['none', 'medium'],
+  ])(
+    'enforces the default model and effort range on submitted %s effort',
+    async (effort, expected) => {
+      flags.models.mockResolvedValue(false)
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Build',
+            workspaceId: 'ws-1',
+            effort,
+            modelSelection: { model: 'gpt-6-sol', fastMode: true },
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          effort: expected,
+          modelSelection: { model: 'gpt-6-astra', fastMode: false },
+        })
+      )
+    }
+  )
+
+  it.each([false, true])(
+    'defaults Plan admission to Opus Medium with model selection %s',
+    async (advanced) => {
+      flags.models.mockResolvedValue(advanced)
+      flags.plan.mockResolvedValue(true)
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Plan this automation',
+            workspaceId: 'ws-1',
+            mode: 'plan',
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'plan',
+          effort: 'medium',
+          modelSelection: { model: 'claude-opus-5-5', fastMode: false },
+        }),
+        expect.anything()
+      )
+    }
+  )
+
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
