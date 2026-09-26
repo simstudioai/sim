@@ -1,3 +1,4 @@
+import { compareStrings } from '@sim/utils/string'
 import { appearanceDiff } from '#design-conformance/appearance'
 import { extract } from '#design-conformance/extract'
 import {
@@ -354,12 +355,13 @@ export class Linter {
         }
       }
       report.findings.sort((a, b) =>
-        canonical([a.file, a.line, a.column, a.rule, a.property, a.value, a.context]).localeCompare(
+        compareStrings(
+          canonical([a.file, a.line, a.column, a.rule, a.property, a.value, a.context]),
           canonical([b.file, b.line, b.column, b.rule, b.property, b.value, b.context])
         )
       )
       report.unchecked = [...new Map(report.unchecked.map((x) => [canonical(x), x])).values()].sort(
-        (a, b) => canonical(a).localeCompare(canonical(b))
+        (a, b) => compareStrings(canonical(a), canonical(b))
       )
       report.flagged = report.findings.length > 0
       return report

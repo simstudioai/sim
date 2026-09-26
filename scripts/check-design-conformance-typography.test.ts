@@ -168,3 +168,9 @@ test('unreferenced marketing helpers remain outside typography inspection', () =
   })
   expect(result.ownership).toEqual([])
 })
+
+test('font-size tokens cannot approve a font-weight declaration', () => {
+  expect(
+    review({ 'apps/sim/components/a.css': '.a {font-weight:var(--text-sm)}' }).classifications
+  ).toEqual([])
+})

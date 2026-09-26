@@ -1,3 +1,4 @@
+import { compareStrings } from '@sim/utils/string'
 import valueParser from 'postcss-value-parser'
 import { productScope } from '#control-analysis/scope'
 import { appearanceDiff } from '#design-conformance/appearance'
@@ -24,6 +25,7 @@ import {
   family,
   hash,
   implementationHash,
+  inspectionFailure,
   type Report,
   TOKEN_FILE,
   VERSION,
@@ -559,7 +561,7 @@ export class ConformanceLinter {
           proposed.set(c.after.blob, read(c.after))
         }
       }
-      const nextEntries = [...entries.values()].sort((a, b) => a.path.localeCompare(b.path))
+      const nextEntries = [...entries.values()].sort((a, b) => compareStrings(a.path, b.path))
       const afterInput: SystemInput = {
         snapshot: {
           version: '1.0.0',
@@ -882,7 +884,7 @@ export class ConformanceLinter {
             side: 'before' as const,
           })),
           ...after.unchecked.map((n) => ({ ...n, file, side: 'after' as const })),
-        ].filter((n) => /^(?:Parser failure|Extraction failure|Source exceeds)/.test(n.reason))
+        ].filter((n) => inspectionFailure(n.reason))
         if (failures.length) {
           report.coverageFailures?.push(...failures)
           continue
@@ -912,12 +914,13 @@ export class ConformanceLinter {
         for (const note of index.notes)
           report.unchecked.push({ ...note, file: note.file ?? note.context.split('#')[0], side })
       report.findings.sort((a, b) =>
-        canonical([a.file, a.line, a.column, a.rule, a.property, a.value, a.context]).localeCompare(
+        compareStrings(
+          canonical([a.file, a.line, a.column, a.rule, a.property, a.value, a.context]),
           canonical([b.file, b.line, b.column, b.rule, b.property, b.value, b.context])
         )
       )
       report.unchecked = [...new Map(report.unchecked.map((n) => [canonical(n), n])).values()].sort(
-        (a, b) => canonical(a).localeCompare(canonical(b))
+        (a, b) => compareStrings(canonical(a), canonical(b))
       )
       report.coverage.violations = report.findings.filter(
         (f) => f.kind === 'usage-violation'

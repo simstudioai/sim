@@ -164,3 +164,10 @@ test('merge-base snapshots include registered recipes and support historical abs
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('block-local recipe aliases cannot shadow the following outer return', () => {
+  const first =
+    'const tier=7; export function choose(enabled:boolean){if(enabled){const tier=12;}return tier}'
+  expect(values(first)).not.toEqual(values(first.replace('tier=7', 'tier=8')))
+  expect(values(first)).toEqual(values(first.replace('tier=12', 'tier=13')))
+})

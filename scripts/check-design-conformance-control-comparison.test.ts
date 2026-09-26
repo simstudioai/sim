@@ -444,3 +444,17 @@ test('public diff checker separates layout allowances and exposes a later intern
   expect(changed.findings.some((f) => f.value === 'p-4')).toBe(true)
   expect(changed.findings.some((f) => f.value === 'flex-row')).toBe(false)
 })
+
+test('the public diff includes local custom-property writes despite legacy token-policy exemptions', async () => {
+  const repo = mkdtempSync(path.join(temp, 'local-writer-'))
+  git(repo, ['init', '-q'])
+  put(repo, 'apps/sim/app/_styles/globals.css', ':root{--text-body:#444}')
+  put(repo, ui, 'export const A=()=> <span>Label</span>')
+  const base = commit(repo)
+  put(repo, ui, 'export const A=()=> <span style={{"--text-body":"red"}}>Label</span>')
+  const head = commit(repo)
+  const report = await checkComparison({ repo, base, head, policy: 'conformance' })
+  expect(
+    report.findings.some((f) => f.rule === 'central-colour-assignment' && f.value.includes('red'))
+  ).toBe(true)
+})

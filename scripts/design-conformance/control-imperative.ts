@@ -209,7 +209,9 @@ export function inspectImperative(
             t.isStringLiteral(parent.node.arguments[0]) &&
             parent.node.arguments[1]
           ) {
-            e.inputs[parent.node.arguments[0].value] = value(parent.node.arguments[1], parent)
+            const attribute = parent.node.arguments[0].value
+            e.inputs[attribute] = value(parent.node.arguments[1], parent)
+            if (/^on/i.test(attribute)) e.handlers.push(attribute.toLowerCase())
           } else if (
             property === 'addEventListener' &&
             t.isStringLiteral(parent.node.arguments[0]) &&

@@ -229,3 +229,19 @@ test('a CSS-hidden programmatic trigger is not an unnamed visible button', () =>
     )
   ).toHaveLength(1)
 })
+
+test('generic descendant labels do not name a button; conditional hiding remains unknown', () => {
+  expect(
+    matching(run('<Button><span aria-label="Close"/></Button>'), 'control-accessible-name')
+  ).toHaveLength(1)
+  const result = run(
+    '<Button><svg aria-hidden={hidden} aria-label="Close"><path d="M0 0"/></svg></Button>'
+  )
+  expect(result.unchecked.some((n) => /name|label|content/i.test(n.reason))).toBe(true)
+  expect(
+    matching(
+      run('<Button><svg aria-hidden={false} aria-label="Close"/></Button>'),
+      'control-accessible-name'
+    )
+  ).toHaveLength(0)
+})

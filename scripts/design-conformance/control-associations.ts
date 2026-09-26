@@ -59,11 +59,23 @@ export function associateFindings(
         result.get(use.id)?.[exact ? 'direct' : 'potential'].push(f.id)
       }
     } else {
-      // Location unavailable (e.g. definition-generated findings): no direct attribution.
-      for (const use of elements.filter(
-        (u) => u.owner === parts[0] && f.line >= u.line && f.line <= u.endLine
-      ))
-        result.get(use.id)?.potential.push(f.id)
+      const exact = elements.filter(
+        (use) =>
+          use.owner === parts[0] &&
+          use.line === f.line &&
+          use.column === f.column &&
+          !!target &&
+          !!input &&
+          (use.slots ?? []).some(
+            (slot) => slot.name === input && targets(use.id, slot.name).includes(target)
+          )
+      )
+      if (exact.length === 1) result.get(exact[0].id)?.direct.push(f.id)
+      else
+        for (const use of elements.filter(
+          (u) => u.owner === parts[0] && f.line >= u.line && f.line <= u.endLine
+        ))
+          result.get(use.id)?.potential.push(f.id)
     }
   }
   for (const r of result.values()) {

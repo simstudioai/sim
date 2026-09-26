@@ -1,6 +1,7 @@
 import { posix } from 'node:path'
 import { parse } from '@babel/parser'
 import * as t from '@babel/types'
+import { compareStrings } from '@sim/utils/string'
 import postcss from 'postcss'
 import { extractCentralRecipes } from '#design-conformance/central-recipes'
 import { centralFile, contractsHash, registry } from '#design-conformance/contracts'
@@ -280,7 +281,7 @@ function moduleInfo(source: string, file: string): Module {
                   ? [keyName(p.key), materialize(p.value, seen, depth + 1)]
                   : ['<unresolved>', p.type]
               )
-              .sort(([a], [b]) => String(a).localeCompare(String(b)))
+              .sort(([a], [b]) => compareStrings(String(a), String(b)))
           )
         if (t.isArrayExpression(node))
           return node.elements.map((n) => (n ? materialize(n, seen, depth + 1) : null))

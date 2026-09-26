@@ -510,3 +510,20 @@ test('literal joins and unshadowed String.raw resolve class assignments without 
     }).length
   ).toBeGreaterThan(0)
 })
+
+test('a global shadow must contain a complete shadow recipe, not just a named variable', () => {
+  for (const definition of ['8px', 'red', 'var(--text-body)', '0 0 2px var(--missing)']) {
+    const report = inspect({
+      [tokens]: `${globals}:root{--shadow-card:${definition}}`,
+      [ui]: 'export const A=()=> <span style={{boxShadow:"var(--shadow-card)"}}/>',
+    })
+    expect(report.verifiedUsages).toEqual([])
+    expect([...report.findings, ...report.unchecked].length).toBeGreaterThan(0)
+  }
+  expect(
+    inspect({
+      [tokens]: `${globals}:root{--shadow-card:0 1px 2px #000}`,
+      [ui]: 'export const A=()=> <span style={{boxShadow:"var(--shadow-card)"}}/>',
+    }).assignments.some((a) => a.name === 'box-shadow' && a.status === 'verified')
+  ).toBe(true)
+})

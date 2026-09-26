@@ -171,7 +171,7 @@ if (workers > 1 && !args['worker-index']) {
     peakMemoryBytes: process.resourceUsage().maxRSS * 1024,
     metrics: linter.metrics,
   })
-  if (args['worker-index']) process.exit(rows.some((r) => r.status === 'failed') ? 2 : 0)
+  if (args['worker-index']) process.exit(0)
 }
 const parts = Array.from({ length: workers }, (_, i) =>
   JSON.parse(readFileSync(path.join(output, `worker-${i}.json`), 'utf8'))

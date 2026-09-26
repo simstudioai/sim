@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import type { ControlSource } from '#control-analysis/model'
@@ -408,4 +409,25 @@ test('syntax and extraction errors remain distinguishable', () => {
   expect(valid.unchecked.some((note) => /^(?:Parser|Extraction) failure/.test(note.reason))).toBe(
     false
   )
+})
+
+test('rendered CSS template substitutions remain visible as unchecked analysis', () => {
+  const report = inspect({
+    [ui]: 'const html=`<style>body{color:${color}}</style>`;new Blob([html],{type:"text/html"})',
+  })
+  expect(report.review.unchecked.some((n) => /CSS|substitut/i.test(n.reason))).toBe(true)
+})
+
+test('hidden false and runtime visibility cannot hide local control styling', () => {
+  for (const value of ['false', 'visible']) {
+    const report = inspect({
+      [ui]: `export const A=()=> <button hidden={${value}} className="rounded-xl bg-red-500">Go</button>`,
+    })
+    expect(report.review.findings.some((f) => f.rule === 'local-control')).toBe(true)
+  }
+  expect(
+    inspect({
+      [ui]: 'export const A=()=> <button hidden className="rounded-xl bg-red-500">Go</button>',
+    }).review.findings.some((f) => f.rule === 'local-control')
+  ).toBe(false)
 })

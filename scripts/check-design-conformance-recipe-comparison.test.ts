@@ -86,3 +86,9 @@ test('registered source definitions integrate with snapshots and system-change r
   expect(unresolved.flagged).toBe(false)
   expect(unresolved.unchecked.some((n) => n.reason.includes(name))).toBe(true)
 })
+
+test('removing an unresolved registered recipe still reports the source deletion', () => {
+  expect(recipeDiff(file, parse(source('unknown()')), parse(''))).toMatchObject([
+    { value: '(registered export removed)', before: 'unknown()' },
+  ])
+})

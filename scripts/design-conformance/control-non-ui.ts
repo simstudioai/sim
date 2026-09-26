@@ -9,6 +9,8 @@ function jsonTransport(node: t.Node, p: NodePath): boolean {
   if (!binding?.constant || !binding.path.isFunctionDeclaration()) return false
   const fn = binding.path.node
   if (
+    fn.async ||
+    fn.generator ||
     fn.params.length !== 1 ||
     !t.isIdentifier(fn.params[0]) ||
     fn.body.body.length !== 1 ||

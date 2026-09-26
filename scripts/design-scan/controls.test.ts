@@ -487,3 +487,26 @@ test('oversized nonimporting data does not cause marketing source inspection', (
   })
   expect(inspectTypography(f.source()).ownership).toEqual([])
 })
+
+test('inline DOM event attributes preserve interactivity', () => {
+  const f = fixture({
+    [location]: `export function widget(){const el=document.createElement('div');el.className='bg-red-500';el.setAttribute('onclick','doSomething()');return el}`,
+  })
+  const records = consumer(f.scan())
+  expect(records).toHaveLength(1)
+  expect(records[0].handlers).toContain('onclick')
+})
+
+test('async and generator serializers cannot prove a JSON-only script transport', () => {
+  for (const prefix of ['async function', 'function*']) {
+    const code =
+      String.raw`function serialize(env){return JSON.stringify(env).replace(/</g,'\\u003c')} export const A=({env})=> <script dangerouslySetInnerHTML={{__html:\`window.STATE = \${serialize(env)}\`}}/>`
+        .replace('function serialize', `${prefix} serialize`)
+        .replaceAll('\\`', '`')
+        .replaceAll('\\${', '${')
+    const f = fixture({ [location]: code })
+    const report = f.scan()
+    expect(report.nonUi).toEqual([])
+    expect(report.unchecked.some((n) => n.reason.includes('HTML sink'))).toBe(true)
+  }
+})

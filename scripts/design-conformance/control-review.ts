@@ -749,6 +749,13 @@ export class ReviewCollector {
         }
         const css = template.quasis.map((part) => part.value.cooked ?? part.value.raw).join('')
         if (!/<style[\s>]/i.test(css)) return
+        if (template.expressions.length)
+          this.note(
+            file,
+            template.loc?.start.line ?? site(p),
+            owner(p),
+            'Rendered HTML CSS template substitutions are unchecked'
+          )
         for (const match of css.matchAll(
           /(?:background(?:-color)?|color|border-color)\s*:\s*(#[\da-f]{3,8})\b/gi
         ))

@@ -498,6 +498,44 @@ test('CLI on synthetic repositories preserves 0/1/2, writes complete reports, an
   expect(f.git('status', '--porcelain')).toBe(status)
 }, 60_000)
 
+test.each([
+  ['broken syntax', 'export const View=()=> <button', 'Parser failure'],
+  ['source limit', `/*${'x'.repeat(2 * 1024 * 1024)}*/`, 'Source exceeds'],
+])(
+  'full scanner CLI fails incomplete inspection: %s',
+  (_label, code, reason) => {
+    const f = fixture({ [component]: code })
+    const output = path.join(f.base, 'incomplete')
+    const result = spawnSync(
+      process.env.DESIGN_TEST_BUN ?? 'bun',
+      [
+        '--no-env-file',
+        fileURLToPath(new URL('./scan.ts', import.meta.url)),
+        '--repo',
+        f.repo,
+        '--ref',
+        'HEAD',
+        '--output',
+        output,
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(result.status, result.stderr).toBe(2)
+    expect(JSON.parse(readFileSync(path.join(output, 'identity.json'), 'utf8')).status).toBe(
+      'incomplete'
+    )
+    expect(
+      JSON.parse(readFileSync(path.join(output, 'coverage-failures.json'), 'utf8')).some(
+        (n: { file: string; reason: string }) => n.file === component && n.reason.startsWith(reason)
+      )
+    ).toBe(true)
+    expect(readFileSync(path.join(output, 'summary.md'), 'utf8')).toContain(
+      'design-conformance/2.0.0'
+    )
+  },
+  60_000
+)
+
 test('scanner matches an external review ledger without hiding raw findings', async () => {
   const f = fixture({ [component]: text('text-[#123456]') })
   const raw = await inspectInventory(f.source())
@@ -690,4 +728,10 @@ test('public scanner reports layout separately while retaining chrome and unknow
   expect(
     JSON.parse(readFileSync(path.join(output, 'unchecked.json'), 'utf8')).length
   ).toBeGreaterThan(0)
+})
+
+test('central token resolution gaps remain visible even with no consumer findings', async () => {
+  const f = fixture({ [globals]: ':root{--a:var(--b);--b:var(--a)}' })
+  const result = await inspectInventory(f.source())
+  expect(result.unchecked.some((n) => n.file === globals && /cycle/i.test(n.reason))).toBe(true)
 })

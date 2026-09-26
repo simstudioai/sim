@@ -909,12 +909,16 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setMobileBrowse(true)
-        searchRef.current?.focus()
+        if (window.matchMedia('(min-width: 1024px)').matches) searchRef.current?.focus()
       }
     }
     window.addEventListener('keydown', focusSearch)
     return () => window.removeEventListener('keydown', focusSearch)
   }, [])
+
+  useEffect(() => {
+    if (mobileBrowse) searchRef.current?.focus()
+  }, [mobileBrowse])
 
   useEffect(() => {
     if (!ordered.length) return

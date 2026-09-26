@@ -27,6 +27,7 @@ import {
   inspectTypography,
   type TypographyReview,
 } from '#control-analysis/typography'
+import { inspectionFailure } from '#design-conformance/model'
 import { GitSource } from '#design-conformance/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
@@ -38,7 +39,7 @@ const requiredRuntime = JSON.parse(
 const usage = `Usage: bun run design:scan --repo <checkout-or-bare-repo> (--ref <commit-or-ref> | --working-tree) --output <new-external-directory>
 Optional: --order forward|reverse --batch-size 25 --reviews <external.json>
 Requires Bun ${requiredRuntime}. Working-tree mode includes non-ignored untracked source. No application code is executed.
-Exits: 0 complete without findings; 1 completed with findings; 2 operational failure.
+Exits: 0 complete without findings; 1 completed with findings; 2 inspection or operational failure.
 Batch size controls progress reporting only; it does not change resolution or findings.`
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -151,6 +152,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
             ...colourAssignments.unchecked,
             ...shadowExtras.unchecked,
             ...review.unchecked,
+            ...controls.unchecked.filter((n) => inspectionFailure(n.reason)),
           ],
         }
       },
@@ -186,6 +188,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     process.stdout.write(
       `${inventory.findings.length} styling rule findings; ${controls.records.length} control/source candidates; ${inventory.unchecked.length} styling and ${controls.unchecked.length} control analysis diagnostics. Results: ${JSON.stringify(output)}\n`
     )
+    if (inventory.status === 'incomplete') {
+      process.stderr.write(
+        `${inventory.coverageFailures.length} inspection failures; scan incomplete.\n`
+      )
+      return 2
+    }
     return inventory.findings.length ? 1 : 0
   } catch (error) {
     process.stderr.write(

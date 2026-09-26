@@ -567,6 +567,47 @@ export class ColourAssignments {
         }
       return combine(writers.map((writer) => checkAssignment(writer, next)))
     }
+    const completeShadow = (value: string, seen = new Set<string>()): boolean => {
+      const alias = /^var\(\s*(--[\w-]+)\s*\)$/.exec(value.trim())
+      if (alias) {
+        const name = alias[1]
+        if (seen.has(name) || seen.size >= 12 || (byName.get(name) ?? []).length) return false
+        const definitions = this.globals.get(name)?.filter((v) => v.trim() !== `var(${name})`)
+        return (
+          !!definitions?.length &&
+          definitions.every((v) => completeShadow(v, new Set(seen).add(name)))
+        )
+      }
+      const nodes = valueParser(value).nodes
+      const groups: valueParser.Node[][] = [[]]
+      for (const node of nodes) {
+        if (node.type === 'div' && node.value === ',') groups.push([])
+        else if (node.type !== 'space' && node.type !== 'comment') groups.at(-1)!.push(node)
+      }
+      return groups.every((group) => {
+        const lengths = group.filter(
+          (node) =>
+            node.type === 'word' &&
+            /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex))$/.test(node.value)
+        )
+        if (lengths.length < 2 || lengths.length > 4) return false
+        let colours = 0
+        let inset = 0
+        return group.every((node) => {
+          if (lengths.includes(node)) return true
+          if (node.type === 'word' && node.value === 'inset') return ++inset <= 1
+          const colour = valueParser.stringify(node)
+          const references = variablesIn(colour)
+          if (
+            references.some((name) => !this.globalColour(name) || (byName.get(name) ?? []).length)
+          )
+            return false
+          if (colour === 'transparent' || references.length > 0 || rawColours(colour))
+            return ++colours <= 1
+          return false
+        })
+      })
+    }
     const checkAssignment = (assignment: Assignment, seen: Set<string>): Check => {
       if (assignment.name === '*')
         return {
@@ -583,7 +624,10 @@ export class ColourAssignments {
           const definitions = this.globals
             .get(name)
             ?.filter((definition) => definition.trim() !== `var(${name})`)
-          if (definitions?.length && definitions.every((definition) => definition.trim())) {
+          if (
+            definitions?.length &&
+            definitions.every((definition) => completeShadow(definition))
+          ) {
             // A complete shadow recipe belongs to globals.css. A local writer
             // can replace its geometry/paint at runtime, so it is not approved.
             if ((byName.get(name) ?? []).length)

@@ -101,7 +101,10 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
   }
   let stale = false
   try {
-    const repo = path.resolve(process.cwd(), '../..')
+    const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: process.env.SIM_STUDIO_REPO ?? process.cwd(),
+      encoding: 'utf8',
+    }).trim()
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim()
     const diff = execFileSync('git', ['diff', '--binary', 'HEAD'], {
       cwd: repo,

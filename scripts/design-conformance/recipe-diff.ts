@@ -18,10 +18,11 @@ export function recipeDiff(file: string, before?: Recipes, after?: Recipes): Fin
     const previous = b.get(context)
     const next = a.get(context)
     if (after?.unresolvedExports.includes(name)) continue
-    if ((!previous && !next) || previous?.value === next?.value) continue
-    const current = next ?? previous
-    if (!current) continue
     const oldInput = before?.inputs[name]
+    const removedUnresolved = !!oldInput && before?.unresolvedExports.includes(name) && !next
+    if (!removedUnresolved && ((!previous && !next) || previous?.value === next?.value)) continue
+    const current = next ?? previous
+    if (!current && !removedUnresolved) continue
     const input = after?.inputs[name]
     findings.push({
       kind: 'system-change',
@@ -30,8 +31,8 @@ export function recipeDiff(file: string, before?: Recipes, after?: Recipes): Fin
       category: category(authority.property) ?? 'styling-infrastructure',
       property: authority.property,
       file,
-      line: current.line,
-      column: current.column,
+      line: current?.line ?? 1,
+      column: current?.column ?? 1,
       context,
       value: input ?? '(registered export removed)',
       ...(oldInput ? { before: oldInput } : {}),

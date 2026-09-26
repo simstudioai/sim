@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
+import { compareStrings } from '@sim/utils/string'
 import postcss from 'postcss'
 import { extract } from '#design-conformance/extract'
 import {
@@ -200,13 +201,13 @@ export async function seedCatalogue(repo: string): Promise<Catalogue> {
   result.provenance['font-weight=500'] = ['policy:documented-weight']
   result.provenance['font-weight=600'] = ['policy:documented-weight']
   result.allowed = Object.fromEntries(
-    Object.entries(result.allowed).sort(([a], [b]) => a.localeCompare(b))
+    Object.entries(result.allowed).sort(([a], [b]) => compareStrings(a, b))
   )
   result.variables = Object.fromEntries(
-    Object.entries(result.variables).sort(([a], [b]) => a.localeCompare(b))
+    Object.entries(result.variables).sort(([a], [b]) => compareStrings(a, b))
   )
   result.provenance = Object.fromEntries(
-    Object.entries(result.provenance).sort(([a], [b]) => a.localeCompare(b))
+    Object.entries(result.provenance).sort(([a], [b]) => compareStrings(a, b))
   )
   return result
 }

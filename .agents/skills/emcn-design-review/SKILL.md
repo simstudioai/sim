@@ -6,7 +6,9 @@ argument-hint: "[scope] [fix=true|false]"
 
 # EMCN design review
 
-Review the requested product UI scope (default: current changes). When `fix=false`, explain proposed changes without applying them.
+User arguments: $ARGUMENTS
+
+Interpret the arguments as the product UI scope (default: current changes) and an optional `fix=true|false` mode (default: `false`). When `fix=false`, explain proposed changes without applying them.
 
 1. When EMCN, global styles, recipes or design ownership metadata change, run `bun run design:generate` and commit `scripts/design-conformance/contracts.generated.json` with the source. `bun run check:design-generated` checks freshness without writing. Regeneration does not hide the originating design-system finding.
 2. During UI work, run `bun run check:design --base origin/staging --working-tree` from the repo root, substituting the actual PR target for `origin/staging`. After committing, use `--head HEAD` for the immutable PR comparison. Exit 1 means findings to review; exit 2 means the check failed and must be repaired or reported. CI is warning-only for findings and fails on incomplete analysis.

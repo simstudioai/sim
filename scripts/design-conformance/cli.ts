@@ -76,7 +76,6 @@ try {
     flagged: null,
     error: error instanceof Error ? error.message : 'Operational failure',
   }
-  if (output) writeJson(output, report)
-  else process.stderr.write(`${JSON.stringify(report)}\n`)
+  process.stderr.write(`${JSON.stringify(report)}\n`)
   process.exitCode = 2
 }

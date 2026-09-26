@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react'
-import '@/app/_styles/globals.css'
+import { season } from '@/app/_styles/fonts/season/season'
+import '@studio/app/studio.css'
 
 export default function StudioLayout({ children }: { children: ReactNode }) {
   return (
     <html lang='en'>
-      <body className='min-h-screen bg-[var(--bg)] text-[var(--text-primary)]'>{children}</body>
+      <body
+        className={`${season.variable} min-h-screen bg-[var(--bg)] font-season text-[var(--text-primary)]`}
+      >
+        {children}
+      </body>
     </html>
   )
 }

@@ -13,6 +13,7 @@ import {
 } from '#design-conformance/model'
 
 const require = createRequire(import.meta.url)
+const colourNames = new Set(Object.keys(require('color-name') as Record<string, unknown>))
 export const defaultTheme = readFileSync(
   path.join(path.dirname(require.resolve('tailwindcss/package.json')), 'theme.css'),
   'utf8'
@@ -186,7 +187,15 @@ export function rawColours(value: string): boolean {
   return (
     /#[\da-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(/i.test(
       value.replace(/(?:rgb|rgba|hsl|hsla)\(\s*var\([^)]*\)(?:\s*\/\s*[\d.%]+)?\s*\)/g, '')
-    ) || /^(?:black|white|red|blue|green|yellow|gray|grey|orange|pink|purple)$/i.test(value)
+    ) ||
+    (() => {
+      let found = false
+      valueParser(value).walk((node) => {
+        if (node.type === 'function' && node.value.toLowerCase() === 'url') return false
+        if (node.type === 'word' && colourNames.has(node.value.toLowerCase())) found = true
+      })
+      return found
+    })()
   )
 }
 export function variablesIn(value: string): string[] {

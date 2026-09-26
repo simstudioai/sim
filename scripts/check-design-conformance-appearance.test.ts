@@ -1,6 +1,7 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain literal proposed JavaScript templates. */
 import { existsSync } from 'node:fs'
 import { beforeAll, expect, test } from 'vitest'
+import { inspectControls } from '#control-analysis/inventory'
 import { extract } from '#design-conformance/extract'
 import { loadCatalogue } from '#design-conformance/io'
 import { Linter } from '#design-conformance/lint'
@@ -412,4 +413,38 @@ test('tag differences are not blanket-equated for text-bearing elements', () => 
   expect(
     diff('<span className="p-2">Label</span>', '<div className="p-2">Label</div>').flagged
   ).toBe(true)
+})
+
+test('changing one of repeated styled surfaces retains its previous appearance', () => {
+  const r = diff(
+    'export const A=()=> <><button className="p-2"/><button className="p-2"/></>',
+    'export const A=()=> <><button className="p-2"/><button className="p-4"/></>'
+  )
+  expect(r.findings.some((f) => f.rule === 'appearance-changed' && f.before !== null)).toBe(true)
+})
+
+test('appearance findings retain direct attribution to the cited consumer slot', () => {
+  const source = 'export const A=()=> <button className="p-4">Save</button>'
+  const report = diff(source.replace('p-4', 'p-2'), source)
+  const findings = report.findings.map((f, index) => ({
+    ...f,
+    id: String(index),
+    observedFrom: [ui],
+  }))
+  const result = inspectControls(
+    {
+      entries: [
+        {
+          path: ui,
+          blob: 'a'.repeat(40),
+          mode: '100644',
+          kind: 'blob',
+          bytes: Buffer.byteLength(source),
+        },
+      ],
+      read: () => source,
+    },
+    findings
+  )
+  expect(result.records[0].findingIds).toEqual(findings.map((f) => f.id))
 })

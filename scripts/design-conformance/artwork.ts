@@ -178,7 +178,7 @@ export function localArtworkDiff(
   central = false
 ): Finding[] {
   const counts = new Map<string, number>()
-  if (change.before?.path === change.after?.path)
+  if ((central && change.before) || change.before?.path === change.after?.path)
     for (const a of before.artwork ?? []) {
       const key = canonical([a.context, a.value])
       counts.set(key, (counts.get(key) ?? 0) + 1)

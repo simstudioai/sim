@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
@@ -170,9 +170,9 @@ test('single and multi-process evaluation match on synthetic stored data', () =>
     )
     expect(storedChanges(dataset, c)).toHaveLength(1)
   }
-  const run = (workers: number) => {
-    const out = path.join(repo, `evaluation-${workers}`)
-    execFileSync(
+  const run = (workers: number, expectedExit = 0) => {
+    const out = path.join(repo, `evaluation-${workers}-${expectedExit}`)
+    const result = spawnSync(
       'bun',
       [
         '--no-env-file',
@@ -188,6 +188,7 @@ test('single and multi-process evaluation match on synthetic stored data', () =>
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] }
     )
+    expect(result.status).toBe(expectedExit)
     return out
   }
   const one = run(1)
@@ -196,4 +197,33 @@ test('single and multi-process evaluation match on synthetic stored data', () =>
     expect(readFileSync(path.join(one, `${pr}.json`), 'utf8')).toBe(
       readFileSync(path.join(two, `${pr}.json`), 'utf8')
     )
+  writeFileSync(path.join(dataset, 'objects', `${blob}.gz`), gzipSync('tampered input'))
+  for (const workers of [1, 2]) {
+    const output = run(workers, 2)
+    const summary = JSON.parse(readFileSync(path.join(output, 'evaluation.json'), 'utf8'))
+    expect(summary.failed).toEqual([1, 2])
+    for (const pr of [1, 2])
+      expect(JSON.parse(readFileSync(path.join(output, `${pr}.json`), 'utf8')).status).toBe(
+        'failed'
+      )
+  }
+})
+
+test('unwritable CLI output remains an operational exit, not an uncaught retry', () => {
+  const result = spawnSync('bun', [
+    '--no-env-file',
+    cli,
+    '--policy',
+    'appearance',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--head',
+    head,
+    '--output',
+    repo,
+  ])
+  expect(result.status).toBe(2)
+  expect(result.stderr.toString()).toContain('failed')
 })

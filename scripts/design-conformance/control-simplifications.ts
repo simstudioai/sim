@@ -1,6 +1,7 @@
 import { parse } from '@babel/parser'
 import type { NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { type ARIARoleDefinitionKey, elementRoles, roles } from 'aria-query'
 import { extendTailwindMerge } from 'tailwind-merge'
 import {
   type ColourAssignmentReport,
@@ -672,10 +673,65 @@ export function inspectSimplifications(
     }
     const hidden = choices(statics.property(props, 'aria-hidden'), statics)
     if (hidden?.length && hidden.every((v) => v === true || v === 'true')) return 'empty'
+    if (!hidden || hidden.some((v) => v === true || v === 'true')) return 'unknown'
     const label = texts(statics.property(props, 'aria-label'))
-    if (label !== 'empty') return label
     const title = texts(statics.property(props, 'title'))
-    if (title !== 'empty') return title
+    if (label !== 'empty' || title !== 'empty') {
+      const explicit = choices(statics.property(props, 'role'), statics)
+      if (!explicit) return 'unknown'
+      const roleNames = explicit
+        .filter((v): v is string => typeof v === 'string' && !!v.trim())
+        .map((v) => v.split(/\s+/).find((r) => roles.has(r as ARIARoleDefinitionKey)))
+      if (!roleNames.length && content.target.startsWith('native:')) {
+        const tag = content.target.slice('native:'.length)
+        if (tag === 'svg') roleNames.push('graphics-document')
+        else {
+          const candidates: { specificity: number; names: string[] }[] = []
+          for (const [schema, names] of elementRoles.entries()) {
+            if (schema.name !== tag) continue
+            if (schema.constraints?.length) continue
+            let matches = true
+            for (const attr of schema.attributes ?? []) {
+              const values = choices(statics.property(props, attr.name), statics)
+              if (!values) return 'unknown'
+              const constraints: readonly string[] = attr.constraints ?? []
+              if (constraints.some((c) => c !== 'set' && c !== 'undefined' && c !== 'unset'))
+                return 'unknown'
+              if (
+                !values.every((v) =>
+                  attr.value !== undefined
+                    ? String(v) === attr.value
+                    : constraints.includes('set')
+                      ? v !== undefined && v !== null
+                      : v === undefined
+                )
+              )
+                matches = false
+            }
+            if (matches)
+              candidates.push({ specificity: schema.attributes?.length ?? 0, names: [...names] })
+          }
+          const mostSpecific = Math.max(...candidates.map((c) => c.specificity))
+          roleNames.push(
+            ...candidates.filter((c) => c.specificity === mostSpecific).flatMap((c) => c.names)
+          )
+        }
+      }
+      if (roleNames.length) {
+        const permits = roleNames.map((r) => {
+          const role = r ? roles.get(r as ARIARoleDefinitionKey) : undefined
+          return role && 'nameFrom' in role && Array.isArray(role.nameFrom)
+            ? role.nameFrom.includes('author')
+            : undefined
+        })
+        if (
+          permits.some((v) => v === undefined) ||
+          (permits.includes(true) && permits.includes(false))
+        )
+          return 'unknown'
+        if (permits.every(Boolean)) return label !== 'empty' ? label : title
+      } else if (!content.target.startsWith('native:')) return label !== 'empty' ? label : title
+    }
     if (content.target.startsWith('native:')) {
       if (['native:img', 'native:input'].includes(content.target))
         return texts(statics.property(content.props, 'alt'))

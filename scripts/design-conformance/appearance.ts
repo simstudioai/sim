@@ -1,3 +1,4 @@
+import { compareStrings } from '@sim/utils/string'
 import {
   type Catalogue,
   canonical,
@@ -95,15 +96,18 @@ export function appearanceDiff(
         source.kind,
         source.target,
         [...new Set(source.references)].sort(),
-        [...values].sort(([a], [b]) => a.localeCompare(b)),
+        [...values].sort(([a], [b]) => compareStrings(a, b)),
       ])
       return { source, values, signature }
     })
   const old = views(before)
   const next = views(after)
   const oldSignatures = new Set(old.map((x) => x.signature))
-  const nextSignatures = new Set(next.map((x) => x.signature))
-  const removed = old.filter((x) => !nextSignatures.has(x.signature))
+  const removed = [...old]
+  for (const current of next) {
+    const index = removed.findIndex((previous) => previous.signature === current.signature)
+    if (index >= 0) removed.splice(index, 1)
+  }
   const emit = (
     rule: string,
     value: Value,

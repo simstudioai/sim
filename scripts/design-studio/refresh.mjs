@@ -616,6 +616,7 @@ async function captureImages(manifest, runDir) {
       env: {
         ...process.env,
         NODE_ENV: 'development',
+        SIM_STUDIO_REPO: repo,
         DATABASE_URL:
           process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/simstudio',
         NEXT_PUBLIC_APP_URL: `http://localhost:${port}`,
@@ -829,7 +830,7 @@ async function captureImages(manifest, runDir) {
                   .count())
               )
                 await page.waitForTimeout(150)
-              const name = sha(`${cacheKey}:${key}`).slice(0, 24) + '.png'
+              const name = `${sha(`${cacheKey}:${key}`).slice(0, 24)}.png`
               await page.screenshot({ path: path.join(imageDir, name), animations: 'disabled' })
               entry.images[key] = name
             }
@@ -940,12 +941,16 @@ async function main() {
     'tools/design-studio/_components/component-fixtures.tsx',
     'tools/design-studio/_components/studio-fixture.tsx',
     'tools/design-studio/app/fixture/page.tsx',
+    'tools/design-studio/app/studio.css',
+    'tools/design-studio/app/layout.tsx',
   ]
   const fixtureHash = sha(
     fixtureSources.map((file) => `${file}:${sha(readFileSync(path.join(repo, file)))}`).join('\n')
   )
   const sampleStyleSources = [
     'apps/sim/app/_styles/globals.css',
+    'apps/sim/app/_styles/fonts/season/season.ts',
+    'apps/sim/app/_styles/fonts/season/SeasonSansUprightsVF.woff2',
     'apps/sim/app/layout.tsx',
     'apps/sim/postcss.config.mjs',
     'apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css',
@@ -998,10 +1003,10 @@ async function main() {
     extras: manifest.extras.length,
     missing: missing.length,
   }
-  writeFileSync(path.join(runDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+  writeFileSync(path.join(runDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   const pointer = path.join(outputRoot, 'latest.json')
   const temporary = path.join(outputRoot, `.latest-${process.pid}.json`)
-  writeFileSync(temporary, JSON.stringify({ runId, path: runDir }) + '\n')
+  writeFileSync(temporary, `${JSON.stringify({ runId, path: runDir })}\n`)
   renameSync(temporary, pointer)
   process.stdout.write(
     `Studio run: ${runDir}\nEntries: ${manifest.counts.components} EMCN exports and variants, ${manifest.counts.extras} detected Extras; ${missing.length} without complete captures.\n`

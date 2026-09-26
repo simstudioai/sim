@@ -837,7 +837,13 @@ export function inspectControls(
         if (attributes.has(name)) inputs[name] = value(node, p)
         if (/^on(?:Click|DoubleClick|Pointer|Mouse|Key|Change|Select)/.test(name))
           handlers.push(name)
-        if (name === 'hidden') hidden = true
+        if (name === 'hidden') {
+          const input = value(node, p)
+          hidden =
+            !input.unresolved &&
+            !!input.values?.length &&
+            input.values.every((v) => v === true || v === '')
+        }
         if (node && ['className', 'style'].includes(name)) recipes.push(...recipeRefs(node, p))
       }
       const object = (node: t.Node, depth = 0, seen = new Set<string>()) => {

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
+import { compareStrings } from '@sim/utils/string'
 import { centralInventory, registry } from '#design-conformance/contracts'
 import { git, manifest, options, storedText, verifiedText, writeJson } from '#design-conformance/io'
 import { canonical, type Entry, hash, TOKEN_FILE } from '#design-conformance/model'
@@ -44,7 +45,7 @@ export function gitSnapshot(repo: string, commit: string): SystemInput {
       const file = line.slice(tab + 1)
       return kind === 'blob' && centralInventory(file) ? [{ path: file, blob, mode }] : []
     })
-    .sort((a, b) => a.path.localeCompare(b.path))
+    .sort((a, b) => compareStrings(a.path, b.path))
   if (!entries.some((e) => e.path === TOKEN_FILE))
     throw new Error('Required central globals.css is missing')
   const recipeInventory = Object.keys(registry.centralRecipes ?? {}).sort()

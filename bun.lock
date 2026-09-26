@@ -11,6 +11,7 @@
         "@biomejs/biome": "2.0.6",
         "@octokit/rest": "^21.0.0",
         "@sim/utils": "workspace:*",
+        "@types/aria-query": "5.0.4",
         "@types/babel__traverse": "7.28.0",
         "@types/bun": "1.4.1",
         "@types/node": "24.2.1",
@@ -19,6 +20,8 @@
         "@typescript/typescript6": "^6.0.2",
         "@vercel/og": "0.6.8",
         "ajv": "8.18.0",
+        "aria-query": "5.3.2",
+        "color-name": "1.1.4",
         "commander": "^11.1.0",
         "concurrently": "10.0.5",
         "drizzle-orm": "^0.45.2",
@@ -2179,6 +2182,8 @@
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg=="],
 
     "@types/archiver": ["@types/archiver@8.0.0", "", { "dependencies": { "@types/node": "*", "@types/readdir-glob": "*" } }, "sha512-YpXPbEuv9+eUIPPQWUPahj3cvs9isWRuF+J4z+KbdYVDO3rWorWQFxUVHnwPu2AgKwvgpki5F2VMX0Xx+mX45A=="],
+
+    "@types/aria-query": ["@types/aria-query@5.0.4", "", {}, "sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw=="],
 
     "@types/babel__traverse": ["@types/babel__traverse@7.28.0", "", { "dependencies": { "@babel/types": "^7.28.2" } }, "sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q=="],
 

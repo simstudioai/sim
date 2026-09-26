@@ -10,7 +10,13 @@ import {
 } from '#design-conformance/contracts'
 import { designSystem } from '#design-conformance/design-system'
 import { extract } from '#design-conformance/extract'
-import { canonical, type Facts, type Finding, hash } from '#design-conformance/model'
+import {
+  canonical,
+  type Facts,
+  type Finding,
+  hash,
+  inspectionFailure,
+} from '#design-conformance/model'
 import { SourceIndex } from '#design-conformance/source-summary'
 import {
   compare,
@@ -31,12 +37,13 @@ export interface InventoryFinding extends Finding {
 }
 export interface Inventory {
   mode: 'snapshot' | 'working-tree'
-  status: 'completed'
+  status: 'completed' | 'incomplete'
   commit: string
   centralHash: string
   treeHash: string
   findings: InventoryFinding[]
   unchecked: Diagnostic[]
+  coverageFailures: Diagnostic[]
   coverage: {
     files: Record<string, number>
     governedInputs: number
@@ -78,6 +85,8 @@ export async function inspectInventory(
   const system = await designSystem(input)
   const notes = new Map<string, Diagnostic>()
   const note = (n: Diagnostic) => notes.set(canonical(n), n)
+  for (const diagnostic of system.unchecked)
+    note({ ...diagnostic, line: 1, context: 'central-theme' })
   const counts: Record<string, number> = {
     central: 0,
     excluded: 0,
@@ -237,14 +246,17 @@ export async function inspectInventory(
       canonical([b.file, b.line, b.column, b.rule, b.id])
     )
   )
+  const unchecked = [...notes.values()].sort((a, b) => compare(canonical(a), canonical(b)))
+  const coverageFailures = unchecked.filter((n) => inspectionFailure(n.reason))
   return {
     mode: source.mode,
-    status: 'completed',
+    status: coverageFailures.length ? 'incomplete' : 'completed',
     commit: source.commit,
     centralHash: input.snapshot.hash,
     treeHash: hash(canonical(source.entries)),
     findings: ordered,
-    unchecked: [...notes.values()].sort((a, b) => compare(canonical(a), canonical(b))),
+    unchecked,
+    coverageFailures,
     coverage: {
       files: counts,
       governedInputs: governed,

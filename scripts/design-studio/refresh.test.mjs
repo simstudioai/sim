@@ -29,6 +29,8 @@ test('refresh catalogs every detection independently of review decisions', () =>
   mkdirSync(repo)
   mkdirSync(scan)
   write(repo, 'package.json', '{}')
+  write(repo, 'tools/design-studio/app/studio.css', '')
+  write(repo, 'tools/design-studio/app/layout.tsx', '')
   write(
     repo,
     'packages/emcn/src/index.ts',

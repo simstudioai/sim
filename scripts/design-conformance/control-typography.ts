@@ -202,7 +202,7 @@ export function inspectTypography(source: ControlSource): TypographyReview {
     if (file === TOKEN_FILE) continue
     root.walkDecls('font-weight', (decl) => {
       const name = decl.value.match(/^var\(\s*(--[\w-]+)\s*\)$/)?.[1]
-      if (name && globalTokens.has(name))
+      if (name && name in weights && globalTokens.has(name))
         report.classifications.push({
           file,
           line: decl.source?.start?.line ?? 1,

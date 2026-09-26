@@ -925,3 +925,82 @@ test('moving unchanged artwork across the authoring boundary never grants centra
   )
   expect(within.flagged).toBe(false)
 })
+
+test('named colours inside gradients cannot bypass global colour ownership', async () => {
+  expect(
+    (
+      await diff(
+        '',
+        'export const A=()=> <div style={{backgroundImage:"linear-gradient(red, navy)"}}/>'
+      )
+    ).findings.some((f) => f.rule === 'central-colour')
+  ).toBe(true)
+})
+
+test('constant HTML prop alias chains remain inspectable', async () => {
+  const r = await diff(
+    '',
+    `const a={__html:'<p style="color:#abc">Text</p>'}; const b=a; const c=b; export const A=()=> <div dangerouslySetInnerHTML={c}/>`
+  )
+  expect(r.findings.some((f) => f.rule === 'central-colour' && f.value === '#abc')).toBe(true)
+})
+
+test('mutable or escaped style objects never gain proof from an obsolete initializer', async () => {
+  for (const operation of ['styles.color="red"', 'mutate(styles)']) {
+    const r = await diff(
+      '',
+      `const styles={color:"var(--text-body)"}; ${operation}; export const A=()=> <p style={styles}>Text</p>`
+    )
+    expect(r.unchecked.some((n) => /mutat|escap/i.test(n.reason))).toBe(true)
+  }
+})
+
+test('styled wrappers around media remain product chrome', async () => {
+  const r = await diff(
+    '',
+    'export const A=()=> <span className="rounded-[13px] bg-[#123456]"><svg><path d="M0 0"/></svg></span>'
+  )
+  expect(r.findings.some((f) => f.rule === 'central-radius')).toBe(true)
+  expect(r.findings.some((f) => f.rule === 'central-colour')).toBe(true)
+})
+
+test('generic constant component classes are handled by the primary analyzer', async () => {
+  const r = await diff(
+    '',
+    'import {Badge} from "@sim/emcn";const styling="bg-red-500";export const A=()=> <Badge className={styling}>Label</Badge>'
+  )
+  expect(r.findings.some((f) => f.rule === 'component-chrome' && f.value === 'bg-red-500')).toBe(
+    true
+  )
+})
+
+test('ChipModalField owns its rhythm while consumer margins and width stay local', async () => {
+  const r = await diff(
+    '',
+    shared('<ChipModalField type="input" title="Name" className="mt-4 w-full"/>')
+  )
+  expect(r.findings.filter((f) => f.rule === 'component-chrome')).toEqual([])
+  expect(
+    (
+      await diff('', shared('<ChipModalField type="input" title="Name" className="gap-4"/>'))
+    ).findings.some((f) => f.rule === 'component-chrome')
+  ).toBe(true)
+})
+
+test('central inline artwork deletions retain an explicit artwork removal finding', async () => {
+  const { localArtworkDiff } = await import('#design-conformance/artwork')
+  const file = 'packages/emcn/src/components/mark.tsx'
+  const before = (await import('#design-conformance/extract')).extract(
+    'export const Mark=()=> <svg><path d="M0 0"/></svg>',
+    file,
+    true,
+    { conformance: true, resolve: () => undefined }
+  )
+  const findings = localArtworkDiff(
+    before,
+    { atoms: [], unchecked: [] },
+    { status: 'D', before: { path: file, blob: 'a'.repeat(40), mode: '100644' }, after: null },
+    true
+  )
+  expect(findings.some((f) => f.value === '(removed)')).toBe(true)
+})

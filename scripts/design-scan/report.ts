@@ -16,6 +16,7 @@ import type { ReviewDecisions } from '#control-analysis/review-ledger'
 import type { ShadowExtrasReport } from '#control-analysis/shadow-extras'
 import type { SimplificationReport } from '#control-analysis/simplifications'
 import type { TypographyReview } from '#control-analysis/typography'
+import { registry } from '#design-conformance/contracts'
 import { canonical, hash } from '#design-conformance/model'
 import { compare } from '#design-conformance/worktree-source'
 import type { Inventory, InventoryFinding } from './inventory'
@@ -96,7 +97,7 @@ export function summary(inventory: Inventory, grouped = groups(inventory.finding
   return [
     '# Existing design-conformance inventory',
     '',
-    `Source: ${inventory.mode}; base commit: \`${inventory.commit}\`. Policy: design-conformance/1.3.0.`,
+    `Source: ${inventory.mode}; base commit: \`${inventory.commit}\`. Policy: ${registry.policy}. Inspection: ${inventory.status}.`,
     '',
     `**${inventory.findings.length} styling rule findings in ${inventory.coverage.filesWithFindings} files; ${inventory.unchecked.length} unchecked diagnostics.**`,
     '',
@@ -183,9 +184,7 @@ export function writeResults(
     json('findings.json', inventory.findings)
     json('groups.json', grouped)
     json('unchecked.json', inventory.unchecked)
-    const coverageFailures = inventory.unchecked.filter((note) =>
-      /^(?:Parser failure|Extraction failure|Source exceeds)/.test(note.reason)
-    )
+    const coverageFailures = inventory.coverageFailures
     json('coverage-failures.json', coverageFailures)
     if (reviewDecisions) json('review-decisions.json', reviewDecisions)
     json('coverage.json', inventory.coverage)

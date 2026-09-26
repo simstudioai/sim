@@ -1,5 +1,6 @@
 import { parse } from '@babel/parser'
 import * as t from '@babel/types'
+import { compareStrings } from '@sim/utils/string'
 import { type CentralRecipeModule, registry } from '#design-conformance/contracts'
 import { type Atom, canonical } from '#design-conformance/model'
 
@@ -138,7 +139,7 @@ export function extractCentralRecipes(
                     n(p.value),
                   ]
                 })
-                .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+                .sort((a, b) => compareStrings(String(a[0]), String(b[0]))),
             ]
           if (t.isArrayExpression(node))
             return ['array', ...node.elements.map((e) => (e && t.isExpression(e) ? n(e) : fail()))]
@@ -183,11 +184,16 @@ export function extractCentralRecipes(
           active.delete(node)
         }
       }
-      const statements = (body: t.Statement[], scope: Bindings, depth: number): Value => {
+      const statements = (
+        body: t.Statement[],
+        scope: Bindings,
+        depth: number,
+        continuation: () => Value = () => ['undefined']
+      ): Value => {
         if (++steps > 4096 || depth > registry.limits.resolutionDepth * 4) return fail()
-        if (!body.length) return ['undefined']
+        if (!body.length) return continuation()
         const [first, ...rest] = body
-        if (t.isEmptyStatement(first)) return statements(rest, scope, depth + 1)
+        if (t.isEmptyStatement(first)) return statements(rest, scope, depth + 1, continuation)
         if (t.isReturnStatement(first))
           return first.argument ? normalize(first.argument, scope, depth + 1) : ['undefined']
         if (t.isVariableDeclaration(first) && first.kind === 'const') {
@@ -196,17 +202,15 @@ export function extractCentralRecipes(
             if (!t.isIdentifier(d.id) || !d.init) return fail()
             next.set(d.id.name, normalize(d.init, next, depth + 1))
           }
-          return statements(rest, next, depth + 1)
+          return statements(rest, next, depth + 1, continuation)
         }
         if (t.isIfStatement(first)) {
           const branch = (s: t.Statement | null | undefined) =>
             s
-              ? statements(
-                  [...(t.isBlockStatement(s) ? s.body : [s]), ...rest],
-                  new Map(scope),
-                  depth + 1
+              ? statements(t.isBlockStatement(s) ? s.body : [s], new Map(scope), depth + 1, () =>
+                  statements(rest, scope, depth + 1, continuation)
                 )
-              : statements(rest, new Map(scope), depth + 1)
+              : statements(rest, scope, depth + 1, continuation)
           return [
             'if',
             normalize(first.test, scope, depth + 1),

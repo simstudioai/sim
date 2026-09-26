@@ -4,6 +4,7 @@ import traverse, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { type DefaultTreeAdapterMap, parse as parseHtml } from 'parse5'
 import postcss from 'postcss'
+import { immutable } from '#control-analysis/static-inputs'
 import { artworkSyntax } from '#design-conformance/artwork'
 import type { ComponentContract } from '#design-conformance/contracts'
 import type { Reference } from '#design-conformance/design-system'
@@ -628,6 +629,10 @@ export function extract(
       if (p.isIdentifier()) {
         const b = p.scope.getBinding(p.node.name)
         if (b?.constant && b.path.isVariableDeclarator()) {
+          if (!immutable(b)) {
+            note(p, 'Mutable or escaped style object is unchecked', 'style')
+            return
+          }
           styles(b.path.get('init') as NodePath, next, context)
           return
         }

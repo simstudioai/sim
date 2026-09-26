@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { compareStrings } from '@sim/utils/string'
 import {
   removedColourAliasFindings,
   withoutVerifiedColourUsages,
@@ -14,7 +15,13 @@ import { classifyTypography } from '#control-analysis/typography'
 import { centralInventory } from '#design-conformance/contracts'
 import { generateContracts } from '#design-conformance/generated-contracts'
 import { git, verifiedText } from '#design-conformance/io'
-import { type Change, canonical, type Finding, type Report } from '#design-conformance/model'
+import {
+  type Change,
+  canonical,
+  type Finding,
+  inspectionFailure,
+  type Report,
+} from '#design-conformance/model'
 import { snapshotHash } from '#design-conformance/system-snapshot'
 
 /** Source is immutable Git data, including unchanged dependencies; never loaded as modules. */
@@ -165,13 +172,7 @@ export async function addControlComparison(
       ...analysis.colourAssignments.unchecked,
       ...analysis.review.unchecked,
     ]) {
-      if (
-        !paths.has(note.file) ||
-        !/^(?:Parser failure|Extraction failure|Source exceeds|CSS (?:colour assignments|parse)|Native-control CSS review could not parse)/.test(
-          note.reason
-        )
-      )
-        continue
+      if (!paths.has(note.file) || !inspectionFailure(note.reason)) continue
       report.coverageFailures ??= []
       if (
         !report.coverageFailures.some(
@@ -231,7 +232,8 @@ export async function addControlComparison(
     ...afterAnalysis.shadowExtras.unchecked.map((n) => ({ ...n, side: 'after' }))
   )
   report.findings.sort((x, y) =>
-    canonical([x.file, x.line, x.column, x.rule, x.value]).localeCompare(
+    compareStrings(
+      canonical([x.file, x.line, x.column, x.rule, x.value]),
       canonical([y.file, y.line, y.column, y.rule, y.value])
     )
   )

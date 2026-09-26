@@ -47,10 +47,12 @@ export function htmlSink(p: NodePath): NodePath | undefined {
     const value = p.get('value')
     if (!value.isJSXExpressionContainer()) return undefined
     let expression = value.get('expression') as NodePath
-    if (expression.isIdentifier()) {
+    const seen = new Set<t.Node>()
+    while (expression.isIdentifier() && seen.size < 12 && !seen.has(expression.node)) {
+      seen.add(expression.node)
       const binding = expression.scope.getBinding(expression.node.name)
-      if (binding?.constant && binding.path.isVariableDeclarator())
-        expression = binding.path.get('init') as NodePath
+      if (!binding?.constant || !binding.path.isVariableDeclarator()) break
+      expression = binding.path.get('init') as NodePath
     }
     if (expression.isObjectExpression()) {
       const entry = expression
@@ -60,6 +62,7 @@ export function htmlSink(p: NodePath): NodePath | undefined {
         )
       if (entry?.isObjectProperty()) return entry.get('value')
     }
+    return expression
   }
   if (
     p.isObjectProperty() &&

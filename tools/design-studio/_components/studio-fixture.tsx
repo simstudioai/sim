@@ -144,7 +144,18 @@ function GenericSample({ sample }: { sample: StudioSample }) {
         </label>
       )
     }
-    if (tag.includes('input') || tag === 'textarea') {
+    if (tag === 'textarea') {
+      return (
+        <textarea
+          aria-label='Sample textarea'
+          readOnly
+          value='Example text'
+          style={authoredStyle}
+          className={`max-w-60 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)] ${visualClasses}`}
+        />
+      )
+    }
+    if (tag.includes('input')) {
       return (
         <input
           aria-label='Sample input'
