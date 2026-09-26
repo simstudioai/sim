@@ -2,7 +2,7 @@ import { EMBEDDING_KEYWORD_TIN_INDEX } from '@sim/db/schema'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import { type ScriptMigration, ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('TinKeywordProjection')
 const BATCH_SIZE = 500
@@ -37,6 +37,17 @@ async function createTinExtension(sql: Sql): Promise<boolean> {
 async function tinAvailable(sql: Sql): Promise<boolean> {
   const rows = await sql`SELECT 1 FROM pg_available_extensions WHERE name = 'tin'`
   return rows.length > 0
+}
+
+/**
+ * The advisory lock key that serializes a knowledge base's keyword projection writers with a change
+ * of its search-index marker (see {@link installProjection}).
+ */
+export async function installMembershipKey(tx: Sql | TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE FUNCTION knowledge_tin_membership_key(knowledge_base_id text)
+    RETURNS bigint LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+      SELECT hashtextextended('embedding_keyword_tin:' || knowledge_base_id, 0)
+    $$`)
 }
 
 /**
@@ -75,10 +86,7 @@ export async function installProjection(sql: Sql): Promise<void> {
       RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
         SELECT 'zkb' || md5(knowledge_base_id)
       $$`)
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION knowledge_tin_membership_key(knowledge_base_id text)
-      RETURNS bigint LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-        SELECT hashtextextended('embedding_keyword_tin:' || knowledge_base_id, 0)
-      $$`)
+    await installMembershipKey(tx)
     await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_keyword_tin()
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN

@@ -151,11 +151,9 @@ describe('bounded embedding insert transactions', () => {
         .from(embedding)
         .where(eq(embedding.documentId, file.documentId))
     ).toEqual([{ id: previousId }])
-    for (const table of ['embedding_search', 'embedding_keyword_search']) {
-      expect(
-        await db.$client.unsafe(`SELECT id FROM ${table} WHERE document_id = $1`, [file.documentId])
-      ).toEqual([{ id: previousId }])
-    }
+    expect(
+      await db.$client`SELECT id FROM embedding_search WHERE document_id = ${file.documentId}`
+    ).toEqual([{ id: previousId }])
     expect(
       await db
         .select()
@@ -175,13 +173,18 @@ describe('bounded embedding insert transactions', () => {
     expect(await db.select().from(document).where(eq(document.id, file.documentId))).toMatchObject([
       { processingStatus: 'completed', chunkCount: 205, processingError: null },
     ])
-    for (const table of ['embedding', 'embedding_search', 'embedding_keyword_search']) {
+    /** A workspace knowledge base keeps no keyword projection rows: its keywords rank on `embedding`. */
+    for (const [table, count] of [
+      ['embedding', 205],
+      ['embedding_search', 205],
+      ['embedding_keyword_search', 0],
+    ] as const) {
       expect(
         await db.$client.unsafe(
           `SELECT count(*)::int AS count FROM ${table} WHERE document_id = $1`,
           [file.documentId]
         )
-      ).toEqual([{ count: 205 }])
+      ).toEqual([{ count }])
     }
     expect(
       await db.$client`SELECT count(*)::int AS count FROM embedding_secret_provenance p
