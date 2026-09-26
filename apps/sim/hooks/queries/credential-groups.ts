@@ -22,6 +22,7 @@ import {
 import { startOrganizationSlackConfigurationContract } from '@/lib/api/contracts/organization-accounts'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   CREDENTIAL_GROUP_ACCESS_STALE_TIME,
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
@@ -235,7 +236,7 @@ export function useUpdateCredentialGroupMcpConnector() {
     }: {
       workspaceId: string
       groupId: string
-      connectorId: 'fireflies' | 'granola' | 'databricks' | 'coda'
+      connectorId: ManagedMcpConnectorId
       body: ContractBodyInput<typeof updateCredentialGroupMcpConnectorContract>
     }) =>
       requestJson(updateCredentialGroupMcpConnectorContract, {
@@ -257,7 +258,7 @@ export function useDeleteCredentialGroupMcpConnector() {
     }: {
       workspaceId: string
       groupId: string
-      connectorId: 'fireflies' | 'granola' | 'databricks' | 'coda'
+      connectorId: ManagedMcpConnectorId
     }) =>
       requestJson(deleteCredentialGroupMcpConnectorContract, {
         params: { id: workspaceId, groupId, connectorId },

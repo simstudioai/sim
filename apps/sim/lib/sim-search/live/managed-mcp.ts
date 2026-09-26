@@ -1,0 +1,155 @@
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import type { ResourceOwner } from '@/lib/core/resource-scope'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
+import { mcpService } from '@/lib/mcp/service'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
+import type { McpToolResult } from '@/lib/mcp/types'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
+import {
+  MANAGED_SEARCH_MCP_READ_TOOLS,
+  type ManagedSearchMcpProvider,
+} from '@/lib/sim-search/live/managed-mcp-config'
+import { loadOwnManagedMcpRuntime } from '@/lib/sim-search/live/mcp-accounts'
+
+const MAX_SEARCH_MCP_PAYLOAD_BYTES = 4 * 1024 * 1024
+
+export interface ManagedSearchMcpClient {
+  call(name: string, args: Record<string, unknown>): Promise<unknown>
+  /** Optional provider features are used only when the current server advertises them. */
+  hasTool?(name: string): boolean
+  hasArgument?(name: string, path: string): boolean
+}
+
+/** Fixed provider, member grant, read allowlist, current schemas, and bounded calls share one owner. */
+export async function createManagedSearchMcpClient(
+  owner: ResourceOwner,
+  userId: string,
+  credentialId: string,
+  provider: ManagedSearchMcpProvider,
+  signal: AbortSignal,
+  searches = 1
+): Promise<ManagedSearchMcpClient> {
+  signal.throwIfAborted()
+  const label = MANAGED_MCP_CONNECTORS[provider].name
+  const initial = await loadOwnManagedMcpRuntime(owner, userId, credentialId, provider)
+  const loadCurrent = async () => {
+    signal.throwIfAborted()
+    const current = await loadOwnManagedMcpRuntime(owner, userId, credentialId, provider)
+    if (
+      current.mcpServerId !== initial.mcpServerId ||
+      current.oauthConfigVersion !== initial.oauthConfigVersion ||
+      current.grantedAt.getTime() !== initial.grantedAt.getTime()
+    )
+      throw new NativeSearchError('reconnect', `${label} connection changed. Search again.`)
+    return current
+  }
+  const loadProvider = async () => createManagedMcpAuthProvider(await loadCurrent())
+  const tools = await mcpService.discoverManagedMcpTools(
+    initial.mcpServerId,
+    initial.scope,
+    { credentialId, loadProvider },
+    signal,
+    { requireComplete: true }
+  )
+  const allowed: readonly string[] = MANAGED_SEARCH_MCP_READ_TOOLS[provider]
+  const byName = new Map(
+    tools.filter((tool) => allowed.includes(tool.name)).map((tool) => [tool.name, tool])
+  )
+  const budget = 12 * Math.min(4, Math.max(1, searches))
+  let requests = 0
+  return {
+    hasTool: (name) => byName.has(name),
+    hasArgument(name, path) {
+      let schema: Record<string, unknown> = toRecord(byName.get(name)?.inputSchema)
+      for (const key of path.split('.')) {
+        const property = toRecord(schema.properties)[key]
+        if (!isRecordLike(property)) return false
+        schema = property
+      }
+      return true
+    },
+    async call(name, args) {
+      signal.throwIfAborted()
+      if (!allowed.includes(name))
+        throw new NativeSearchError('unavailable', `${label} Search permits read-only tools.`)
+      if (++requests > budget)
+        throw new NativeSearchError(
+          'unavailable',
+          `${label} read request limit reached. Narrow the query.`
+        )
+      const tool = byName.get(name)
+      if (!tool)
+        throw new NativeSearchError(
+          'unavailable',
+          `${label} no longer advertises ${name}. Reconnect or update the connector.`
+        )
+      if (!compileMcpToolSchema(tool.inputSchema)(args))
+        throw new NativeSearchError(
+          'unavailable',
+          `${label} rejected these search arguments. Its current tool schema is incompatible with this query.`
+        )
+      await loadCurrent()
+      const result = await mcpService.executeManagedMcpTool({
+        connectionId: credentialId,
+        serverId: initial.mcpServerId,
+        scope: initial.scope,
+        toolCall: { name, arguments: args },
+        loadAuthProvider: loadProvider,
+        signal,
+        timeoutMs: 10_000,
+      })
+      await loadCurrent()
+      return managedMcpPayload(result, label)
+    },
+  }
+}
+
+/** MCP text is untrusted provider data; malformed structured search output is never an empty success. */
+export function managedMcpPayload(result: McpToolResult, label: string): unknown {
+  if (Buffer.byteLength(JSON.stringify(result), 'utf8') > MAX_SEARCH_MCP_PAYLOAD_BYTES)
+    throw new NativeSearchError(
+      'unavailable',
+      `${label} response exceeded the search size limit. Narrow the query.`
+    )
+  if (result.isError) {
+    if (
+      label === 'Granola' &&
+      result.content?.some(
+        (block) =>
+          block.type === 'text' &&
+          /Unauthorized: user has not created a Granola account yet\./i.test(block.text ?? '')
+      )
+    )
+      throw new NativeSearchError(
+        'reconnect',
+        'Reconnect using an existing Granola account. Check the account email in the Granola app.'
+      )
+    const quota = result.content?.some(
+      (block) =>
+        block.type === 'text' &&
+        /(?:rate.?limit|quota|weekly limit of \d+ MCP requests)/i.test(block.text ?? '')
+    )
+    throw new NativeSearchError(
+      quota ? 'rate_limited' : 'unavailable',
+      quota
+        ? `${label} MCP request limit reached. Try again when it resets.`
+        : `${label} could not complete this read. Check the query and your access.`
+    )
+  }
+  const unwrap = (value: unknown) =>
+    isRecordLike(value) && typeof value.toolName === 'string' && 'result' in value
+      ? value.result
+      : value
+  if (result.structuredContent !== undefined) return unwrap(result.structuredContent)
+  const text = (result.content ?? [])
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text ?? '')
+    .join('\n')
+  if (!text) throw new NativeSearchError('unavailable', `${label} returned no readable content.`)
+  try {
+    return unwrap(JSON.parse(text))
+  } catch {
+    return { text }
+  }
+}

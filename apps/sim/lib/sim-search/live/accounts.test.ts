@@ -25,7 +25,7 @@ vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({
   listAdminGitLabAccounts: hoisted.admin,
   resolveAdminGitLabAccount: hoisted.resolveAdmin,
 }))
-vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listCodaMcpSearchAccounts: hoisted.mcp }))
+vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listManagedMcpSearchAccounts: hoisted.mcp }))
 vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: hoisted.personal }))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
   getPersonalTokenCredentials: hoisted.tokens,

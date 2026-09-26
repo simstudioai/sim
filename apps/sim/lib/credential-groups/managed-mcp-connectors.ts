@@ -1,4 +1,10 @@
-export const MANAGED_MCP_CONNECTOR_IDS = ['fireflies', 'granola', 'databricks', 'coda'] as const
+export const MANAGED_MCP_CONNECTOR_IDS = [
+  'fireflies',
+  'granola',
+  'databricks',
+  'coda',
+  'notion',
+] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
@@ -25,6 +31,13 @@ export const MANAGED_MCP_CONNECTORS = {
     name: 'Coda',
     description: 'Search and read Superhuman Docs (Coda) using each person’s OAuth account',
     url: 'https://docs.superhuman.com/apis/mcp',
+    oauthClientRegistration: 'dynamic',
+  },
+  notion: {
+    id: 'notion',
+    name: 'Notion',
+    description: 'Search and read Notion using each person’s OAuth account',
+    url: 'https://mcp.notion.com/mcp',
     oauthClientRegistration: 'dynamic',
   },
   fireflies: {

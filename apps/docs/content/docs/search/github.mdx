@@ -3,7 +3,7 @@ title: GitHub
 description: Search GitHub with member accounts or an App restricted to selected repositories
 ---
 
-GitHub supports **Member accounts** and **GitHub App**. Each person connects their own GitHub account in both modes. Live Search calls GitHub's APIs for issues, code, and repositories on `github.com`.
+GitHub supports **Member accounts** and **GitHub App**. Each person connects their own GitHub account in both modes. Live Search calls GitHub's APIs for issues, pull requests, code, repositories, and commits on `github.com`.
 
 ## Member accounts
 
@@ -33,6 +33,23 @@ Search queries GitHub using the member's connected token. In App mode, Sim scope
 Document reads use the member token and repeat the same boundary checks. A personal repository outside the selected sources is excluded even when the member can read it. Removing a repository from the App or revoking the member's access blocks later requests once GitHub reflects the change.
 
 There is no content crawl, PDF/Office extraction, embedding, or indexed-document retry in live GitHub Search. Provider search freshness, API limits, and supported search types determine coverage. Code search is not a complete inventory of every file.
+
+## Pull requests, comments, and reviews
+
+Reading an issue includes its conversation comments. Reading a pull request also includes submitted review events and inline review comments. Each entry retains its author, timestamp, and GitHub link; inline comments include file/line context, review and reply identifiers, and the relevant diff excerpt. Review states describe individual historical events, so an earlier approval does not establish the current merge approval status.
+
+Use native searches with **kind `issues`** for both issues and pull requests:
+
+| Question | Example query |
+| --- | --- |
+| Where was a migration discussed? | `repo:org/repo is:pr migration in:comments` |
+| Which PRs need changes? | `repo:org/repo is:pr review:changes_requested` |
+| Which PRs did someone review? | `repo:org/repo is:pr reviewed-by:octocat` |
+| Which PRs are awaiting someone's review? | `repo:org/repo is:pr review-requested:octocat` |
+
+GitHub searches title, body, and conversation comments when `in:` is omitted. Search previews use matching passages when GitHub supplies them, including comment matches. Inline review text is available when reading a matching PR; do not treat issue search as an exhaustive search across inline reviews. First locate the PR by repository, title, participant, or review state, then read its discussion.
+
+Reads retrieve up to three pages of 50 entries for each GitHub discussion category, in provider order, with a 120,000-character limit per category. When an endpoint fails or a limit is reached, the document starts with an incomplete-coverage notice while retaining the available content. Open the GitHub source for remaining history. Large reads can also require continuing through the returned document offsets.
 
 ## Manage repositories
 
