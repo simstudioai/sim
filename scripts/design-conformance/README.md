@@ -75,6 +75,8 @@ Monaco theme/syntax presentation, provider branding and every block/trigger cata
 
 Static analysis handles bounded immutable constants/imports, finite alternatives, supported helper returns, JSX/CSS/HTML strings and known runtime overrides. Arbitrary JS, dynamic cascade, unsupported parsers/forwarding and ambiguous data flow cannot be approved. Limits include 2 MiB per source, resolution depth 12 and bounded branch/summary caches. Generator diagnostics preserve unresolved token aliases, cycles and delegated implementation gaps. A token definition proves source provenance; it does not prove that the token exists under every runtime selector or theme. Context-dependent token availability and dynamic cascade still need visual review. CSS comparison tracks `@apply` changes but does not expand its runtime cascade position relative to ordinary declarations.
 
+Exported object class inputs are classified from same-file and supplied central consumers. The diff check does not search unchanged arbitrary product consumers; without use evidence, object keys and values remain unchecked rather than being guessed as class maps or variant tables.
+
 Inline React styles preserve strings and custom variables. Only proven numeric values receive React's dimensional `px` conversion; unitless properties follow the pinned React serializer. A numeric-looking central reference without scalar type evidence remains explicitly unchecked.
 
 ## Debt and review records
