@@ -1048,7 +1048,6 @@ export {
   workspaceForkingMappingStoreMockFns,
 } from './workspace-forking-mapping-store.mock'
 export {
-  MockExternalUrlValidationError,
   MockWorkspaceFileFolderConflictError,
   MockWorkspaceFileItemsNotFoundError,
   MockWorkspaceFileMoveConflictError,
