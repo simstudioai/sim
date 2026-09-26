@@ -59,7 +59,10 @@ import {
 import { buildForkWorkflowIdMap } from '@/ee/workspace-forking/lib/copy/workflow-id-map'
 import { copyForkWorkflowMcpAttachments } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
-import { setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
+import {
+  acquireForkLineageLock,
+  setForkLockTimeout,
+} from '@/ee/workspace-forking/lib/lineage/lineage'
 import {
   type ForkBlockPair,
   reconcileForkBlockPairs,
@@ -72,6 +75,10 @@ import {
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { deriveForkBlockId } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { createForkBootstrapTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
+import {
+  resolveForkLineageRootId,
+  resolveForkSyncExclusionForNewWorkflow,
+} from '@/ee/workspace-forking/lib/sync-default'
 
 const logger = createLogger('WorkspaceForkCreate')
 
@@ -107,6 +114,12 @@ export interface CreateForkParams {
   actorName?: string
   name?: string
   selection?: ForkResourceSelection
+  /**
+   * Also copy deployed workflows the source has not opted into fork sync (the fork
+   * modal's "Copy unsynced workflows"). Each copy still inherits its source's
+   * `forkSyncExcluded`, so an overridden copy lands excluded and never syncs back.
+   */
+  copyUnsyncedWorkflows?: boolean
   requestId?: string
 }
 
@@ -139,7 +152,7 @@ const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType
  * all credential references) are cleared; env-var references are preserved.
  */
 export async function createFork(params: CreateForkParams): Promise<CreateForkResult> {
-  const { source, policy, userId, requestId = 'unknown' } = params
+  const { source, policy, userId, requestId = 'unknown', copyUnsyncedWorkflows = false } = params
   const admission = params.admission
   if (admission) {
     const receipt = await findWorkspaceOperationReceipt(
@@ -167,11 +180,17 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     bytes: copyBytes,
   })
 
+  // Resolved out here for the same reason as the deployed-state reads below: the lineage
+  // walk is several round trips, and issuing them from inside the fork tx would hold that
+  // connection while checking out more.
+  const lineageRootId = await resolveForkLineageRootId(db, source.id)
+
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // global-pool reads don't check out a second pooled connection from inside the
   // fork tx (which can deadlock the pool at saturation).
   const { deployedWorkflows, sourceStates, sourceVersionIds } = await loadSourceDeployedStates(
-    source.id
+    source.id,
+    { includeSyncExcluded: copyUnsyncedWorkflows }
   )
 
   // Documents the copied workflows reference (document-selector values + nested documentId
@@ -209,10 +228,29 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         admission.requestId,
         admission.requestHash
       )
+      // Returned BEFORE the lineage lock: replaying a completed fork copies nothing, so
+      // making it queue behind an in-flight fork of the same lineage would let an
+      // idempotent retry fail on the lock timeout instead of serving its receipt.
       if (receipt?.forkResult) return { replay: receipt }
       await lockForkRevision(tx, { sourceWorkspaceId: source.id })
       await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
       await assertForkSourceVersions(tx, source.id, sourceVersionIds)
+    }
+    // The child inherits the lineage's new-workflow fork-sync default below, and
+    // `setForkSyncDefault` fans that value out across the lineage under this same key.
+    // Without it a fork created mid-change could inherit a stale default and break the
+    // "every member agrees" invariant.
+    await acquireForkLineageLock(tx, lineageRootId)
+    // The root was resolved before this transaction, so an unlink committing in between
+    // would leave us holding the OLD lineage's key while inserting into the new one - a
+    // concurrent policy write rooted at the new lineage could then miss this child
+    // entirely. Re-check under the lock and refuse if it moved, exactly as
+    // `setForkSyncDefault` does. The caller retries against the new lineage.
+    if ((await resolveForkLineageRootId(tx, source.id)) !== lineageRootId) {
+      throw new ForkError(
+        'The source workspace changed fork lineage while this fork was being created. Try again.',
+        409
+      )
     }
     /**
      * The lock alone is not enough: `policy.organizationId` was captured by
@@ -271,6 +309,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     const now = new Date()
 
+    // The new-workflow fork-sync policy is uniform across a lineage, so the child
+    // inherits the source's value at creation (like `allowPersonalApiKeys` below).
+    // Read here rather than off `source` so the widely-consumed `WorkspaceWithOwner`
+    // does not have to carry a field only fork code reads.
+    const forkSyncNewWorkflowsExcluded = await resolveForkSyncExclusionForNewWorkflow(tx, source.id)
+
     await tx.insert(workspace).values({
       id: childWorkspaceId,
       name: childName,
@@ -279,6 +323,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       workspaceMode: policy.workspaceMode,
       billedAccountUserId: policy.billedAccountUserId,
       allowPersonalApiKeys: source.allowPersonalApiKeys,
+      forkSyncNewWorkflowsExcluded,
       forkedFromWorkspaceId: source.id,
       createdAt: now,
       updatedAt: now,
@@ -425,6 +470,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           description: wf.description,
           folderId: wf.folderId,
           sortOrder: wf.sortOrder,
+          forkSyncExcluded: wf.forkSyncExcluded,
         },
         workflowIdMap,
         folderIdMap,
@@ -488,6 +534,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         isDeployed: false,
         runCount: 0,
         variables: {},
+        // A genuinely new workflow, not a copy, so it takes the child's inherited policy.
+        forkSyncExcluded: forkSyncNewWorkflowsExcluded,
       })
       const { workflowState } = buildDefaultWorkflowArtifacts()
       await saveWorkflowToNormalizedTables(

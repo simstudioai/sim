@@ -191,6 +191,7 @@ const AuditAction = {
   WORKSPACE_FORK_PROMOTED: 'workspace.fork_promoted',
   WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork_rolled_back',
   WORKSPACE_FORK_UNLINKED: 'workspace.fork_unlinked',
+  WORKSPACE_FORK_SYNC_DEFAULT_CHANGED: 'workspace.fork_sync_default_changed',
   WORKSPACE_EXPORTED: 'workspace.exported',
   SCIM_CONNECTION_ENABLED: 'scim_connection.enabled',
   SCIM_CONNECTION_DISABLED: 'scim_connection.disabled',

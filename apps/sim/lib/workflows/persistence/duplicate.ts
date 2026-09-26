@@ -29,6 +29,7 @@ import {
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 
@@ -213,6 +214,10 @@ export async function duplicateWorkflow(
       isDeployed: false,
       runCount: 0,
       locked: false,
+      // A duplicate is a NEW workflow, so it takes the target workspace's new-workflow
+      // fork-sync policy rather than inheriting the source's participation. Only a
+      // fork/promote copy - the same logical workflow in another workspace - inherits.
+      forkSyncExcluded: await resolveForkSyncExclusionForNewWorkflow(tx, targetWorkspaceId),
       // Duplicate variables with new IDs and new workflowId
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}

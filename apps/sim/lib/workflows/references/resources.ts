@@ -655,6 +655,12 @@ export interface ForkCopyableResources {
    * workflow so the child is still a usable workspace.
    */
   deployedWorkflowCount: number
+  /**
+   * Count of deployed workflows the workspace has NOT opted into fork sync. Drives the fork
+   * modal's "Copy unsynced workflows" override, which copies these too. 0 in a workspace
+   * that never excluded anything, where the override is a no-op.
+   */
+  unsyncedDeployedWorkflowCount: number
 }
 
 /**
@@ -683,17 +689,20 @@ export async function listForkCopyableResources(
         )
         .limit(CANDIDATE_LIMIT),
       executor
-        .select({ value: count() })
+        // Both counts in one pass, split by sync participation. Match listDeployedWorkflows:
+        // a workflow only counts as copyable when it has an actually-active deployment
+        // version, not just the isDeployed flag, so the fork modal's preflight count never
+        // over-reports "ghost" deployed workflows. `synced` is what a fork copies by
+        // default; `unsynced` is what the "Copy unsynced workflows" override adds.
+        .select({
+          value: count(sql`case when ${workflow.forkSyncExcluded} = false then 1 end`),
+          unsyncedValue: count(sql`case when ${workflow.forkSyncExcluded} = true then 1 end`),
+        })
         .from(workflow)
-        // Match listDeployedWorkflows: a workflow only counts as copyable when it has an
-        // actually-active deployment version, not just the isDeployed flag, so the fork
-        // modal's preflight count never over-reports "ghost" deployed workflows. Sync-excluded
-        // workflows are likewise omitted so the count matches what createFork actually copies.
         .where(
           and(
             eq(workflow.workspaceId, workspaceId),
             eq(workflow.isDeployed, true),
-            eq(workflow.forkSyncExcluded, false),
             isNull(workflow.archivedAt),
             exists(
               executor
@@ -726,6 +735,7 @@ export async function listForkCopyableResources(
     mcpServers: externalServers,
     workflowMcpServers: servers,
     deployedWorkflowCount: deployed[0]?.value ?? 0,
+    unsyncedDeployedWorkflowCount: deployed[0]?.unsyncedValue ?? 0,
   }
 }
 
@@ -888,7 +898,10 @@ export async function classifyCredentialResourceType(
 export async function listForkCopyableResourcePage(
   executor: DbOrTx,
   workspaceId: string,
-  kind: keyof Omit<ForkCopyableResources, 'deployedWorkflowCount'>,
+  kind: keyof Omit<
+    ForkCopyableResources,
+    'deployedWorkflowCount' | 'unsyncedDeployedWorkflowCount'
+  >,
   page: { after?: string; limit: number }
 ): Promise<
   Array<

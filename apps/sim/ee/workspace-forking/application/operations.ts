@@ -98,4 +98,20 @@ export const forkOperations = {
     id: 'workspaces.fork.exclusions',
     oauthScope: 'api:write',
   }),
+  /**
+   * Admin on the CALLING workspace is sufficient, and the write then fans out to every
+   * ancestor and descendant, because the default is meaningless unless it is uniform
+   * across a lineage. Flipping it to "sync new workflows" restores the historical
+   * behaviour rather than granting anything new, and it never moves an existing workflow
+   * in or out of sync - so each member records its own audit entry rather than the write
+   * being restricted to one workspace.
+   *
+   * permission-group-exempt: the new-workflow fork-sync default is workspace configuration governed by the admin role.
+   */
+  syncDefault: defineWorkspaceOperation({
+    ...adminPolicy,
+    capability: 'none',
+    id: 'workspaces.fork.sync_default',
+    oauthScope: 'api:write',
+  }),
 } as const

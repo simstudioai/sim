@@ -42,6 +42,8 @@ export interface ForkPromotePlanItem {
     sortOrder: number
     /** Source's public-API flag, carried onto the written target (see copyWorkflowStateIntoTarget). */
     isPublicApi: boolean
+    /** Source's fork-sync participation, inherited by a promote-created target. */
+    forkSyncExcluded: boolean
   }
 }
 
@@ -213,6 +215,7 @@ export function buildForkPromotePlanItems(params: {
         folderId: source.folderId,
         sortOrder: source.sortOrder,
         isPublicApi: source.isPublicApi,
+        forkSyncExcluded: source.forkSyncExcluded,
       },
     })
   }

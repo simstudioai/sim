@@ -8,22 +8,15 @@ import {
   loadWorkflowDeploymentVersionState,
   materializeDeploymentState,
 } from '@/lib/workflows/persistence/utils'
+import { MAX_FORK_DEPLOYED_WORKFLOWS } from '@/ee/workspace-forking/lib/limits'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
+
+export { MAX_FORK_DEPLOYED_WORKFLOWS }
+
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 
 const logger = createLogger('WorkspaceForkDeployBridge')
-
-/**
- * Hard ceiling on how many deployed workflows one fork/promote loads into memory at
- * once (each as a full `WorkflowState`). There is no per-workspace workflow cap in
- * the product, so this is the safety valve: real workspaces hold tens to low
- * hundreds, making this ~5-10x headroom that never blocks legitimate use, it sits
- * below the fork feature's other item caps (resource selection 2000, mapping
- * entries 5000 - both lighter-weight than full states), and it bounds a pathological
- * workspace to a few hundred MB of transient state instead of an unbounded load.
- */
-export const MAX_FORK_DEPLOYED_WORKFLOWS = 1000
 
 /** Aggregate serialized source state admitted before any graph materialization. */
 export const MAX_FORK_STATE_BYTES = 64 * 1024 * 1024
@@ -36,6 +29,12 @@ export interface DeployedWorkflowSummary {
   sortOrder: number
   /** Whether the deployed API accepts unauthenticated calls; carried onto sync targets. */
   isPublicApi: boolean
+  /**
+   * The source's own fork-sync participation. A copy inherits it verbatim
+   * (`copy-workflows.ts`), because a copied workflow is the same logical workflow in
+   * another workspace - never the workspace's new-workflow default.
+   */
+  forkSyncExcluded: boolean
 }
 
 /**
@@ -49,10 +48,18 @@ export interface DeployedWorkflowSummary {
  * `forkSyncExcluded` never participate as a source: this one predicate keeps them
  * out of the diff preview, promote (both directions), fork creation, and the
  * mapping-view reference scan.
+ *
+ * `includeSyncExcluded` lifts only that one predicate. **Fork creation is the only
+ * permitted caller.** It backs the fork modal's "Copy unsynced workflows" override, a
+ * one-time copy of workflows the workspace has not opted into sync. Passing it anywhere
+ * else breaks the exclusion contract the diff preview, promote in both directions, and
+ * `getForkMappingView` all depend on. Copies still inherit the source's
+ * `forkSyncExcluded`, so an overridden copy lands excluded and never syncs back.
  */
 export async function listDeployedWorkflows(
   executor: DbOrTx,
-  workspaceId: string
+  workspaceId: string,
+  options?: { includeSyncExcluded?: boolean }
 ): Promise<DeployedWorkflowSummary[]> {
   return executor
     .select({
@@ -62,13 +69,14 @@ export async function listDeployedWorkflows(
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
       isPublicApi: workflow.isPublicApi,
+      forkSyncExcluded: workflow.forkSyncExcluded,
     })
     .from(workflow)
     .where(
       and(
         eq(workflow.workspaceId, workspaceId),
         eq(workflow.isDeployed, true),
-        eq(workflow.forkSyncExcluded, false),
+        ...(options?.includeSyncExcluded ? [] : [eq(workflow.forkSyncExcluded, false)]),
         isNull(workflow.archivedAt),
         exists(
           db
@@ -176,12 +184,15 @@ export async function getActiveDeploymentVersionNumbers(
  * workflow count) - the apply step needs each state to write its target inside the
  * single atomic transaction, so it cannot stream them one at a time.
  */
-export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promise<{
+export async function loadSourceDeployedStates(
+  sourceWorkspaceId: string,
+  options?: { includeSyncExcluded?: boolean }
+): Promise<{
   deployedWorkflows: DeployedWorkflowSummary[]
   sourceStates: Map<string, WorkflowState>
   sourceVersionIds: Map<string, { id: string; digest: string }>
 }> {
-  const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
+  const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId, options)
   // Fail fast on the cheap count before loading any heavy state into memory.
   if (deployedWorkflows.length > MAX_FORK_DEPLOYED_WORKFLOWS) {
     throw new ForkError(
