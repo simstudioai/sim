@@ -202,7 +202,8 @@ export function createPolicyVerifier(
       }
       /** v2 reads, like document reads, so the check needs only the granular read scopes. */
       const api = `/ex/confluence/${segment(document.container)}/wiki/api/v2`
-      let spaceKey = document.kind === 'space' ? document.id : ''
+      /** The search response names each hit's space; only reads without that evidence look it up. */
+      let spaceKey = document.kind === 'space' ? document.id : string(providerMetadata?.spaceKey)
       if (!spaceKey) {
         const row = object(
           await json(

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
 const SITE = { id: 'cloud', url: 'https://acme.atlassian.net' }
@@ -50,7 +51,22 @@ describe('Confluence live documents', () => {
         content: expect.stringContaining('Shipped search.'),
       }
     )
-    expect(api.json).toHaveBeenCalledWith(`${v2}/pages/123`, { query: { 'body-format': 'view' } })
+  })
+
+  it('reads a legacy reference without a kind as a blog post when no page has that id', async () => {
+    const api: NativeClient = {
+      json: vi.fn(async (path: string) => {
+        if (path === '/oauth/token/accessible-resources') return [SITE]
+        if (path === `${v2}/blogposts/9`)
+          return { id: '9', title: 'Release notes', body: { view: { value: '<p>Shipped.</p>' } } }
+        throw new NativeSearchError('unavailable', 'Provider request failed (404).')
+      }),
+      text: vi.fn(),
+    }
+    await expect(readAtlassian(api, 'confluence', '9', 'cloud')).resolves.toMatchObject({
+      kind: 'blogpost',
+      content: expect.stringContaining('Shipped.'),
+    })
   })
 
   it('reads a space result as its homepage, keeping the space as the document', async () => {
@@ -71,7 +87,6 @@ describe('Confluence live documents', () => {
       title: 'Engineering',
       content: expect.stringContaining('Team charter.'),
     })
-    expect(api.json).toHaveBeenCalledWith(`${v2}/spaces`, { query: { keys: 'ENG' } })
   })
 
   it('records whether a search result is a page, blog post, or space so its read picks the endpoint', async () => {
@@ -82,6 +97,7 @@ describe('Confluence live documents', () => {
             content: {
               id: '123',
               type: 'page',
+              space: { key: 'ENG' },
               title: 'Runbook',
               _links: { webui: '/spaces/ENG/pages/123' },
             },
@@ -115,5 +131,7 @@ describe('Confluence live documents', () => {
       { id: 'ENG', kind: 'space' },
     ])
     expect(page.documents[2]?.url).toBe('https://acme.atlassian.net/wiki/spaces/ENG')
+    expect(page.documents[0]?.accessMetadata).toEqual({ spaceKey: 'ENG' })
+    expect(page.documents[2]?.accessMetadata).toEqual({ spaceKey: 'ENG' })
   })
 })

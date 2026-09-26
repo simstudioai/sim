@@ -71,6 +71,7 @@ function page(row: Record<string, unknown>, cloudId: string, site: string): Nati
     return {
       id: string(space.key),
       kind: 'space',
+      accessMetadata: { spaceKey: string(space.key) },
       container: cloudId,
       title: string(row.title) || string(space.name),
       url: `${site}/wiki${string(row.url) || `/spaces/${segment(string(space.key))}`}`,
@@ -81,9 +82,11 @@ function page(row: Record<string, unknown>, cloudId: string, site: string): Nati
   const content = Object.keys(object(row.content)).length ? object(row.content) : row
   const links = object(content._links)
   const version = object(content.version)
+  const spaceKey = string(object(content.space).key)
   return {
     id: string(content.id),
     kind: string(content.type) === 'blogpost' ? 'blogpost' : 'page',
+    ...(spaceKey ? { accessMetadata: { spaceKey } } : {}),
     container: cloudId,
     title: string(content.title) || string(row.title),
     url: `${site}/wiki${string(links.webui) || `/pages/${segment(string(content.id))}`}`,
@@ -174,7 +177,7 @@ export async function searchAtlassian(
               order
             ),
             limit: String(input.limit),
-            expand: 'content.version',
+            expand: 'content.version,content.space',
             ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
           },
         })
@@ -248,11 +251,19 @@ async function readConfluence(
     contentId = string(space.homepageId)
     contentKind = 'page'
   }
+  const content = (type: string) =>
+    client.json(`${api}/${type}/${segment(contentId)}`, { query: { 'body-format': 'view' } })
+  /** A reference issued before kinds were recorded may name a blog post; its page read is a 404. */
   const row = object(
-    await client.json(
-      `${api}/${contentKind === 'blogpost' ? 'blogposts' : 'pages'}/${segment(contentId)}`,
-      { query: { 'body-format': 'view' } }
-    )
+    kind === undefined
+      ? await content('pages').catch((error: unknown) => {
+          if (error instanceof NativeSearchError && error.status === 'unavailable') {
+            contentKind = 'blogpost'
+            return content('blogposts')
+          }
+          throw error
+        })
+      : await content(contentKind === 'blogpost' ? 'blogposts' : 'pages')
   )
   const pageTitle = string(row.title)
   return {

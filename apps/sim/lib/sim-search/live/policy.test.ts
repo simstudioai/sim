@@ -204,6 +204,15 @@ describe('organization search scope enforcement', () => {
       ).toBe(false)
     }
   )
+  it('checks a Confluence search hit by the space its search response named, without requests', async () => {
+    const verify = createPolicyVerifier('confluence', selected(['ENG']), client({}), '')
+    expect(await verify({ id: '123', container: 'site', kind: 'page' }, { spaceKey: 'ENG' })).toBe(
+      true
+    )
+    expect(await verify({ id: '124', container: 'site', kind: 'page' }, { spaceKey: 'HR' })).toBe(
+      false
+    )
+  })
   it('checks Confluence spaces by key and blog posts through their own endpoint', async () => {
     const api = client({
       '/ex/confluence/site/wiki/api/v2/blogposts/9': { id: '9', spaceId: '7' },
