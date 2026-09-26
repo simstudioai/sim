@@ -42,7 +42,9 @@ const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
  * the available space. Their 112px minimum leaves 50px for the title beside a
  * 16px icon and visible close button, including OverflowText's fade. Keep the
  * same minimum in every interaction state so revealing actions never shifts
- * tabs beneath the pointer. Crowded rows then scroll.
+ * tabs beneath the pointer. Touch layouts reserve both action slots even when
+ * no activity indicator is present, so activity changes cannot resize tabs.
+ * Crowded rows then scroll.
  */
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
@@ -356,8 +358,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
         tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
         closeable && 'pr-8',
         closeable &&
-          tab.attention &&
-          !tab.active &&
+          (variant === 'floating' || (tab.attention && !tab.active)) &&
           '[@media(any-pointer:coarse)]:pr-[62px] [@media(hover:none)]:pr-[62px]',
         TAB_SHAPE[variant],
         tab.selected && !tab.active && TAB_SELECTED[variant],
@@ -408,7 +409,6 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
         tab.pinned ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none' : TAB_WIDTH[variant],
         variant === 'floating' &&
           closeable &&
-          tab.attention &&
           '[@media(any-pointer:coarse)]:min-w-36 [@media(hover:none)]:min-w-36',
         dragging && 'opacity-30'
       )}

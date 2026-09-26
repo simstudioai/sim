@@ -194,6 +194,30 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
               .evaluate((element) => element.getBoundingClientRect().width)
           )
           .toBeGreaterThanOrEqual(48)
+        const attentionItem = page.locator('[data-tab-strip-item="tab-1"]')
+        const indicator = attentionItem.locator('[data-row-action-indicator]')
+        const controls = attentionItem.locator('[data-row-action-controls]')
+        await expect(indicator).toBeVisible()
+        await expect(indicator).toHaveCSS('opacity', '1')
+        await expect(controls).toHaveCSS('opacity', '1')
+        await attentionItem.getByRole('button', { name: /^Close / }).click({ trial: true })
+        expect(
+          await attentionItem.evaluate((element) => {
+            const title = element.querySelector('[data-overflow-text]')?.getBoundingClientRect()
+            const indicator = element
+              .querySelector('[data-row-action-indicator]')
+              ?.getBoundingClientRect()
+            const close = element.querySelector('[aria-label^="Close "]')?.getBoundingClientRect()
+            return (
+              title &&
+              indicator &&
+              close &&
+              title.right <= indicator.left &&
+              indicator.right <= close.left &&
+              close.right <= element.getBoundingClientRect().right
+            )
+          })
+        ).toBe(true)
         await page.screenshot({ path: testInfo.outputPath('crowded-tabs-touch.png') })
         const beforeSelection = await attention.evaluate(
           (element: HTMLElement) => element.offsetWidth
@@ -203,6 +227,27 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
         expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
           beforeSelection
         )
+        await page.locator('#toggle-activity').click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          beforeSelection
+        )
+        await page.locator('#toggle-activity').click()
+        await page.locator('#medium-tabs').click()
+        await page.getByRole('tab').first().click()
+        const intrinsicWidth = await attention.evaluate(
+          (element: HTMLElement) => element.offsetWidth
+        )
+        expect(intrinsicWidth).toBeGreaterThan(144)
+        expect(intrinsicWidth).toBeLessThan(200)
+        await attention.click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          intrinsicWidth
+        )
+        await page.locator('#toggle-activity').click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          intrinsicWidth
+        )
+        await page.locator('#toggle-activity').click()
       } finally {
         await session.send('Emulation.setTouchEmulationEnabled', { enabled: false })
         await session.detach()
