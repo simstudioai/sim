@@ -112,6 +112,7 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
           title: shortTitles ? 'A' : `Example resource ${index + 1} with a descriptive title`,
           icon: <File className='size-[16px] shrink-0' />,
           active: selected === `tab-${index}`,
+          attention: index === 1,
         }))}
         variant='floating'
         onSelect={setSelected}
