@@ -26,8 +26,10 @@ const logger = createLogger('ReportingUsageCache')
  * above the limit is a refusal the true sum would also give. Thirty seconds keeps that overrun
  * small against a year-long allowance while turning a per-event scan into one per window.
  *
- * A sum is held both in Redis, shared by every process, and in each process that reads it, so a
- * served sum can be up to twice this old (plus the Redis expiry's jitter).
+ * A sum is held both in Redis, shared by every process, and in each process that reads it. It
+ * reflects the ledger as of the moment its sum began, so a served sum can omit usage written over
+ * the sum's own duration, plus up to this TTL and its jitter in Redis, plus up to this TTL again
+ * in the reading process.
  */
 export const REPORTING_USAGE_CACHE_TTL_MS = 30_000
 
@@ -57,9 +59,9 @@ function sharedReportingUsageKey(key: string): string {
  * sums the ledger, so the cache can cost a read its latency but never its answer.
  */
 async function readSharedReportingUsageCost(key: string): Promise<number | undefined> {
-  const redis = getRedisClient()
-  if (!redis) return undefined
   try {
+    const redis = getRedisClient()
+    if (!redis) return undefined
     const stored = await withinDeadline(
       () => redis.get(sharedReportingUsageKey(key)),
       Date.now() + SHARED_READ_TIMEOUT_MS
@@ -76,14 +78,26 @@ async function readSharedReportingUsageCost(key: string): Promise<number | undef
   return undefined
 }
 
-/** Fire-and-forget: a read never waits on, or fails because of, the shared write. */
+function warnSharedWriteFailed(error: unknown): void {
+  logger.warn('Shared reporting usage write failed', { error: getErrorMessage(error) })
+}
+
+/**
+ * Fire-and-forget: a read never waits on, or fails because of, the shared write. The write only
+ * lands when no sum is stored (`NX`), so a slow, older sum can never replace a fresher one or
+ * extend its expiry.
+ */
 function writeSharedReportingUsageCost(key: string, cost: number): void {
-  const redis = getRedisClient()
-  if (!redis) return
-  const ttlMs = REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
-  redis.set(sharedReportingUsageKey(key), String(cost), 'PX', ttlMs).catch((error: unknown) => {
-    logger.warn('Shared reporting usage write failed', { error: getErrorMessage(error) })
-  })
+  try {
+    const redis = getRedisClient()
+    if (!redis) return
+    const ttlMs = REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
+    redis
+      .set(sharedReportingUsageKey(key), String(cost), 'PX', ttlMs, 'NX')
+      .catch(warnSharedWriteFailed)
+  } catch (error) {
+    warnSharedWriteFailed(error)
+  }
 }
 
 /**
@@ -153,9 +167,10 @@ async function readCachedReportingUsageCost(
 /**
  * Period usage for a soft reader: an admission check, a display, or a level-triggered
  * notification that tolerates the cache's bounded under-count. Enterprise reporting windows are
- * served from the shared cache for up to twice {@link REPORTING_USAGE_CACHE_TTL_MS}, since their
- * year-long sum is the expensive one; every other period is summed exactly, as before. A read on
- * a caller's own executor (a transaction or a replica) keeps its own snapshot and is never shared.
+ * served from the shared cache, within the lag {@link REPORTING_USAGE_CACHE_TTL_MS} describes,
+ * since their year-long sum is the expensive one; every other period is summed exactly, as
+ * before. A read on a caller's own executor (a transaction or a replica) keeps its own snapshot
+ * and is never shared.
  * Never use it for invoicing, cycle close, an edge-triggered decision, or a read that must see its
  * own write.
  */

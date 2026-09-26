@@ -40,17 +40,28 @@ const SEPTEMBER = new Date('2026-09-01T00:00:00.000Z')
 const OCTOBER = new Date('2026-10-01T00:00:00.000Z')
 
 let organizationId: string
+let adminId: string
 
-function notify(currentUsage: number, periodStart = SEPTEMBER) {
+/** One completion that leaves the organization at `usage`, having recorded `costDelta` of it. */
+function notify(
+  usage: number,
+  { periodStart = SEPTEMBER, limit = 100, costDelta = 1 } = {}
+): Promise<void> {
   return maybeSendUsageThresholdEmail({
     scope: 'organization',
     organizationId,
     planName: 'Enterprise',
     periodStart,
     workspaceId: 'workspace',
-    currentUsage,
-    limit: 100,
+    usageBefore: usage - costDelta,
+    costDelta,
+    limit,
   })
+}
+
+async function setNotificationsEnabled(enabled: boolean): Promise<void> {
+  await connection`INSERT INTO settings VALUES (${adminId}, ${adminId}, ${enabled})
+    ON CONFLICT (id) DO UPDATE SET billing_usage_notifications_enabled = ${enabled}`
 }
 
 beforeAll(async () => {
@@ -60,7 +71,6 @@ beforeAll(async () => {
     CREATE TABLE "user" (id text PRIMARY KEY, email text, name text);
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text);
     CREATE TABLE settings (id text PRIMARY KEY, user_id text, billing_usage_notifications_enabled boolean);
-    INSERT INTO "user" VALUES ('admin', 'admin@example.com', 'Admin');
   `)
   select.mockImplementation((fields) => database.select(fields))
   update.mockImplementation((table) => database.update(table))
@@ -70,8 +80,10 @@ beforeAll(async () => {
 beforeEach(async () => {
   mockSendEmail.mockClear()
   organizationId = generateId()
+  adminId = generateId()
   await connection`INSERT INTO organization (id) VALUES (${organizationId})`
-  await connection`INSERT INTO member VALUES (${generateId()}, ${organizationId}, 'admin', 'owner')`
+  await connection`INSERT INTO "user" VALUES (${adminId}, ${`${adminId}@example.com`}, 'Admin')`
+  await connection`INSERT INTO member VALUES (${generateId()}, ${organizationId}, ${adminId}, 'owner')`
 })
 
 afterAll(async () => {
@@ -97,12 +109,37 @@ describe('usage threshold email', () => {
     expect(mockSendEmail).toHaveBeenCalledTimes(2)
   })
 
-  it('re-arms both thresholds in the next billing period', async () => {
+  it('re-arms both thresholds whenever the billing period changes, even to an earlier one', async () => {
     await notify(100)
-    await notify(85, OCTOBER)
-    await notify(100, OCTOBER)
+    await notify(85, { periodStart: OCTOBER })
+    await notify(100, { periodStart: OCTOBER })
     await notify(85)
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(3)
+    expect(mockSendEmail).toHaveBeenCalledTimes(4)
+  })
+
+  it('warns again at a raised limit after the old one was reached', async () => {
+    await notify(100)
+    await notify(100, { limit: 125 })
+    await notify(110, { limit: 125 })
+
+    expect(mockSendEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the claim for a later completion when nobody can be notified', async () => {
+    await setNotificationsEnabled(false)
+    await notify(90)
+    await setNotificationsEnabled(true)
+    await notify(90)
+
+    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the claim when a completion recorded no cost', async () => {
+    await notify(90, { costDelta: 0 })
+    expect(mockSendEmail).not.toHaveBeenCalled()
+
+    await notify(90)
+    expect(mockSendEmail).toHaveBeenCalledTimes(1)
   })
 })

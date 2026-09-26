@@ -334,7 +334,8 @@ describe('maybeSendUsageThresholdEmail', () => {
   it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
     await maybeSendUsageThresholdEmail({
       ...paidUser,
-      currentUsage: 20,
+      usageBefore: 19,
+      costDelta: 1,
     })
 
     expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
@@ -359,7 +360,8 @@ describe('maybeSendUsageThresholdEmail', () => {
       organizationId: 'org-1',
       workspaceId: 'ws-1',
       periodStart: new Date('2026-09-01T00:00:00.000Z'),
-      currentUsage: 500,
+      usageBefore: 499,
+      costDelta: 1,
       limit: 500,
     })
 

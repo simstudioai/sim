@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, type SQL, sql } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
@@ -16,9 +16,6 @@ const logger = createLogger('LimitNotifications')
 
 /** Limit categories that send per-category threshold emails (credits has its own path). */
 export type LimitCategory = Extract<UpgradeReason, 'storage' | 'tables' | 'seats'>
-
-/** Every category whose emailed threshold is persisted, including credits. */
-type ClaimCategory = LimitCategory | Extract<UpgradeReason, 'credits'>
 
 const WARN_THRESHOLD = 80
 const REACH_THRESHOLD = 100
@@ -36,6 +33,32 @@ function thresholdFor(percent: number): 0 | 80 | 100 {
 }
 
 /**
+ * Replace the account's `limitNotifications` with `next` when `condition` holds, returning
+ * whether the row was updated.
+ */
+async function writeLimitNotifications(
+  scope: 'user' | 'organization',
+  id: string,
+  next: SQL,
+  condition: SQL
+): Promise<boolean> {
+  const written =
+    scope === 'user'
+      ? await db
+          .update(userStats)
+          .set({ limitNotifications: next })
+          .where(and(eq(userStats.userId, id), condition))
+          .returning({ id: userStats.userId })
+      : await db
+          .update(organization)
+          .set({ limitNotifications: next })
+          .where(and(eq(organization.id, id), condition))
+          .returning({ id: organization.id })
+
+  return written.length > 0
+}
+
+/**
  * Atomically claim a threshold for a category: advance the stored value to
  * `threshold` only if it is currently lower, returning whether THIS call won the
  * advance. A single conditional UPDATE is race-free — concurrent crossings can't
@@ -44,7 +67,7 @@ function thresholdFor(percent: number): 0 | 80 | 100 {
 async function claimThreshold(
   scope: 'user' | 'organization',
   id: string,
-  category: ClaimCategory,
+  category: LimitCategory,
   threshold: number
 ): Promise<boolean> {
   const setExpr = sql`jsonb_set(coalesce(${scope === 'user' ? userStats.limitNotifications : organization.limitNotifications}, '{}'::jsonb), ARRAY[${category}], to_jsonb(${threshold}::int))`
@@ -53,38 +76,37 @@ async function claimThreshold(
       ? sql`coalesce((${userStats.limitNotifications} ->> ${category})::int, 0) < ${threshold}`
       : sql`coalesce((${organization.limitNotifications} ->> ${category})::int, 0) < ${threshold}`
 
-  const claimed =
-    scope === 'user'
-      ? await db
-          .update(userStats)
-          .set({ limitNotifications: setExpr })
-          .where(and(eq(userStats.userId, id), onlyIfLower))
-          .returning({ id: userStats.userId })
-      : await db
-          .update(organization)
-          .set({ limitNotifications: setExpr })
-          .where(and(eq(organization.id, id), onlyIfLower))
-          .returning({ id: organization.id })
-
-  return claimed.length > 0
+  return writeLimitNotifications(scope, id, setExpr, onlyIfLower)
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * Claim a credits threshold (80 or 100) once per billing period, returning whether THIS call won
- * it. The stored value is the period's start day followed by the threshold, so it only grows: a
- * later period outranks every claim of an earlier one and re-arms both thresholds with no reset
- * write, while within a period a claim of 100 also retires 80, and never the reverse.
+ * Claim a credits threshold (80 or 100), returning whether THIS call won it. The claim is keyed
+ * on the billing period and the limit: `credits` holds the highest threshold emailed while
+ * `creditsPeriod` (the period's start day) and `creditsLimit` (the limit in cents) still match,
+ * so a new period or a changed limit — in either direction — re-arms both thresholds with no
+ * reset write, while within one a claim of 100 also retires 80, and never the reverse.
  */
-export function claimCreditsThreshold(
-  scope: 'user' | 'organization',
-  id: string,
-  periodStart: Date,
+export function claimCreditsThreshold(params: {
+  scope: 'user' | 'organization'
+  id: string
+  periodStart: Date
+  limit: number
   threshold: 80 | 100
-): Promise<boolean> {
-  const periodDay = Math.floor(periodStart.getTime() / DAY_MS)
-  return claimThreshold(scope, id, 'credits', periodDay * 1000 + threshold)
+}): Promise<boolean> {
+  const { scope, id, threshold } = params
+  const periodDay = Math.floor(params.periodStart.getTime() / DAY_MS)
+  const limitCents = Math.round(params.limit * 100)
+  const column = scope === 'user' ? userStats.limitNotifications : organization.limitNotifications
+  const next = sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${threshold}::int, 'creditsPeriod', ${periodDay}::bigint, 'creditsLimit', ${limitCents}::bigint)`
+  const unclaimed = sql`not (
+    (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodDay}::bigint
+    and (${column} ->> 'creditsLimit')::bigint is not distinct from ${limitCents}::bigint
+    and coalesce((${column} ->> 'credits')::int, 0) >= ${threshold}::int
+  )`
+
+  return writeLimitNotifications(scope, id, next, unclaimed)
 }
 
 /** Re-arm a category (reset its stored threshold to 0) once usage falls back into the low band. */
@@ -129,7 +151,7 @@ async function isUnsubscribed(email: string): Promise<boolean> {
  * Returning an empty list means "nobody to notify" — the caller then skips the
  * claim so the dedup state isn't burned without an email going out.
  */
-async function resolveRecipients(
+export async function resolveLimitEmailRecipients(
   scope: 'user' | 'organization',
   params: { userId?: string; userEmail?: string; userName?: string; organizationId?: string }
 ): Promise<LimitEmailRecipient[]> {
@@ -228,7 +250,7 @@ export async function maybeSendLimitThresholdEmail(params: {
 
     if (params.rearmOnly || desired === 0) return
 
-    const recipients = await resolveRecipients(scope, params)
+    const recipients = await resolveLimitEmailRecipients(scope, params)
     if (recipients.length === 0) return
 
     if (!(await claimThreshold(scope, stateId, category, desired))) return

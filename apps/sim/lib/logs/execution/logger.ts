@@ -1357,7 +1357,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           userName: usr.name,
           planName: getDisplayPlanName(sub?.plan),
           periodStart: exactBillingContext.billingPeriod.start,
-          before: await checkResolvedUsageStatus(usr.id, sub),
+          before: await checkResolvedUsageStatus(usr.id, sub, exactBillingContext),
         }
       }
 
@@ -1384,7 +1384,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           planName: emailContext.planName,
           periodStart: emailContext.periodStart,
           workspaceId: updatedLog.workspaceId,
-          currentUsage: emailContext.before.currentUsage + costDelta,
+          usageBefore: emailContext.before.currentUsage,
+          costDelta,
           limit: emailContext.before.limit,
         })
       } else if (emailContext?.scope === 'organization') {
@@ -1394,7 +1395,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           planName: emailContext.planName,
           periodStart: emailContext.periodStart,
           workspaceId: updatedLog.workspaceId,
-          currentUsage: emailContext.orgUsageBefore + costDelta,
+          usageBefore: emailContext.orgUsageBefore,
+          costDelta,
           limit: emailContext.orgLimit,
         })
       }

@@ -1358,8 +1358,9 @@ export const userStats = pgTable('user_stats', {
    * `{ storage: 80, tables: 100 }`). Prevents re-spamming the same warning;
    * re-arms when usage drops back below the re-arm band. Keyed by limit
    * category ('storage' | 'tables'); seats live on `organization`. `credits`
-   * holds the billing period's start day times 1000 plus the threshold, so each
-   * period re-arms it without a reset (see `claimCreditsThreshold`).
+   * instead holds the threshold emailed for the billing period and limit in
+   * `creditsPeriod` (start day) and `creditsLimit` (cents), so a new period or a
+   * changed limit re-arms it without a reset (see `claimCreditsThreshold`).
    *
    * Dedup granularity is per billing account per category — intentionally NOT
    * per table, so a user hitting the row limit on several tables gets one
@@ -1722,7 +1723,8 @@ export const organization = pgTable('organization', {
    * Highest usage-limit threshold already emailed per category for this org
    * (e.g. `{ seats: 80, storage: 100 }`). Mirrors `user_stats.limitNotifications`
    * for org-scoped (pooled) limits. Re-arms when usage drops below the re-arm band;
-   * `credits` instead re-arms each billing period (see `claimCreditsThreshold`).
+   * `credits` instead re-arms with a new billing period or a changed limit (see
+   * `claimCreditsThreshold`).
    */
   limitNotifications: jsonb('limit_notifications')
     .$type<Record<string, number>>()

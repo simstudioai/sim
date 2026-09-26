@@ -95,11 +95,30 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     expect(ttl).toBeLessThanOrEqual(35_000)
   })
 
-  it('treats an unreadable stored sum as a miss and overwrites it', async () => {
+  it('treats an unreadable stored sum as a miss', async () => {
     await redis.set(sharedKey(payer), 'not-a-number', 'PX', 30_000)
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
-    await vi.waitFor(async () => expect(await redis.get(sharedKey(payer))).toBe('5.75'))
+    expect(transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('never lets a slower, older sum replace one stored while it ran', async () => {
+    transaction.mockImplementationOnce(async (callback) => {
+      const result = await database.transaction(callback)
+      await redis.set(sharedKey(payer), '9.99', 'PX', 30_000)
+      return result
+    })
+
+    await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
+    expect(await redis.get(sharedKey(payer))).toBe('9.99')
+  })
+
+  it('sums the ledger when the Redis client cannot be built', async () => {
+    redisConfigMockFns.mockGetRedisClient.mockImplementation(() => {
+      throw new Error('Invalid Redis configuration')
+    })
+
+    await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
   })
 
   it('sums the ledger promptly when Redis is unreachable', async () => {
