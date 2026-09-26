@@ -26,6 +26,7 @@ import {
   hash,
   implementationHash,
   inspectionFailure,
+  ownsStyling,
   type Report,
   TOKEN_FILE,
   VERSION,
@@ -218,6 +219,25 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
         /^(?:prop:|default:|@)/.test(atom.property)
       )
         continue
+      const slot = inputSlot(atom)
+      const contracts = [
+        { contract, slot, target: surface.target },
+        ...(atom.forwarded ?? []).map((route) => ({
+          contract: componentContract(route.target, system.metadata),
+          slot: route.slot,
+          target: route.target,
+        })),
+      ]
+      for (const route of contracts)
+        for (const reason of route.contract?.slotOwnership?.[route.slot]?.unchecked ?? []) {
+          const diagnostic = `Unresolved component styling ${route.target}.${route.slot}: ${reason}`
+          if (
+            !out.unchecked.some(
+              (note) => note.context === atom.context && note.reason === diagnostic
+            )
+          )
+            out.unchecked.push({ line: atom.line, context: atom.context, reason: diagnostic })
+        }
       const ds = declarations(compilationAtom(atom, system), system.compiler, {}, true)
       if (ds === null) {
         out.unchecked.push({
@@ -230,7 +250,6 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
       const emitted = new Set<string>()
       for (const d of expanded(ds, system)) {
         const property = family(d.property)
-        const slot = inputSlot(atom)
         if (
           contract &&
           !contract.slots?.includes(slot) &&
@@ -247,23 +266,15 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
         const ownsTarget = !/(?:^|:)(?:before|after|\*|\*\*):|\[&[_>+~ ]|&::(?:before|after)/.test(
           variants
         )
-        const contracts = [
-          { contract, slot },
-          ...(atom.forwarded ?? []).map((r) => ({
-            contract: componentContract(r.target, system.metadata),
-            slot: r.slot,
-          })),
-        ]
         const protectedProperty =
           ownsTarget &&
           contracts.some(
             ({ contract: c, slot: s }) =>
               c?.slots?.includes(s) &&
-              (c.slotOwnership?.[s]?.protected ?? c.protected)?.some(
-                (p) => p === '*' || p === property || p === d.category
-              ) &&
-              !c.slotOwnership?.[s]?.allowed.some(
-                (p) => p === '*' || p === property || p === d.category
+              ownsStyling(
+                c.slotOwnership?.[s] ?? (c.protected ? { protected: c.protected } : undefined),
+                d.property,
+                d.category
               )
           )
         const protectedIcon = surface.iconSlot && ['dimensions', 'colours'].includes(d.category)
@@ -671,7 +682,7 @@ export class ConformanceLinter {
         ['after', next],
       ] as const)
         for (const note of system.unchecked)
-          report.unchecked.push({ ...note, line: 1, context: 'central-theme', side })
+          report.unchecked.push({ ...note, line: note.line ?? 1, context: 'central-theme', side })
       for (const change of changes) {
         const file = (change.after ?? change.before)?.path as string
         if (isRegistry(file)) {

@@ -14,7 +14,14 @@ import {
 import { productScope } from '#control-analysis/scope'
 import { centralInventory, componentContract } from '#design-conformance/contracts'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
-import { canonical, type Finding, hash, TOKEN_FILE } from '#design-conformance/model'
+import {
+  canonical,
+  type Finding,
+  family,
+  hash,
+  ownsStyling,
+  TOKEN_FILE,
+} from '#design-conformance/model'
 import { utility } from '#design-conformance/normalize'
 
 export interface ReviewItem {
@@ -166,7 +173,22 @@ const supplementalProperties = (token: string): { property: string; category: st
   if (/^font-(?:thin|light|normal|medium|semibold|bold|extrabold|black|\[\d)/.test(base))
     return [{ property: 'font-weight', category: 'font-weight' }]
   if (/^font-/.test(base)) return [{ property: 'font-family', category: 'font-family' }]
-  if (/^p(?:[xytrblse])?-/.test(base)) return [{ property: 'padding', category: 'padding' }]
+  const padding = /^p([xytrblse])?-/.exec(base)
+  if (padding) {
+    const sides: Record<string, string> = {
+      x: 'inline',
+      y: 'block',
+      t: 'top',
+      r: 'right',
+      b: 'bottom',
+      l: 'left',
+      s: 'inline-start',
+      e: 'inline-end',
+    }
+    return [
+      { property: padding[1] ? `padding-${sides[padding[1]]}` : 'padding', category: 'spacing' },
+    ]
+  }
   if (/^gap(?:-[xy])?-/.test(base)) return [{ property: 'gap', category: 'gap' }]
   if (/^size-/.test(base))
     return [
@@ -805,18 +827,15 @@ export class ReviewCollector {
           const variants = utility(token).variants
           if (/(?:^|:)(?:before|after|\*|\*\*):|\[&[_>+~ ]|&::(?:before|after)/.test(variants))
             continue
-          for (const { property, category } of supplementalProperties(token))
-            if (
-              slot.protected.some((p) => p === '*' || p === property || p === category) &&
-              !slot.allowed.some((p) => p === '*' || p === property || p === category)
-            )
+          for (const { property } of supplementalProperties(token))
+            if (ownsStyling(slot, property))
               this.componentFinding(
                 candidate.file,
                 candidate.line,
                 candidate.owner,
                 `@sim/emcn#${name}`,
                 token,
-                property,
+                family(property),
                 candidate.siteKey
               )
         }

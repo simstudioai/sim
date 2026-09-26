@@ -101,6 +101,43 @@ test('working-tree mode ignores unrelated tracked and untracked files', () => {
   expect(report.status).toBe('completed')
   expect(report.findings).toHaveLength(0)
 })
+test('longhand ownership and permissions preserve sibling properties through the real CLI', () => {
+  const { repo } = fixture()
+  const write = (file: string, source: string) => {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    writeFileSync(path.join(repo, file), source)
+  }
+  write('packages/emcn/src/index.ts', "export * from './components/example'")
+  write(
+    'packages/emcn/src/components/example.tsx',
+    `
+import type {HTMLAttributes} from 'react'
+declare function cn(...args:unknown[]):string
+/** @designAllow className padding-left */
+export function AllowedLeft({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('p-2',className)}/>}
+/** @designProtect className padding-left */
+export function ProtectedLeft({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={className}/>}
+`
+  )
+  const base = commit(repo)
+  for (const [name, classes, expected] of [
+    ['AllowedLeft', 'pl-4', false],
+    ['AllowedLeft', 'pr-4', true],
+    ['AllowedLeft', 'p-4', true],
+    ['ProtectedLeft', 'pl-4', true],
+    ['ProtectedLeft', 'pr-4', false],
+    ['ProtectedLeft', 'p-4', true],
+  ] as const) {
+    write(ui, `import {${name}} from '@sim/emcn';const A=()=> <${name} className="${classes}"/>`)
+    const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+    expect([0, 1], result.stderr).toContain(result.status)
+    const report = JSON.parse(result.stdout) as Report
+    expect(
+      report.findings.some((finding) => finding.rule === 'component-chrome'),
+      `${name} ${classes}`
+    ).toBe(expected)
+  }
+}, 60_000)
 
 test('working-tree mode includes a changed central contract registry', () => {
   const { repo } = fixture()

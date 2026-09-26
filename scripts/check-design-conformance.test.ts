@@ -213,6 +213,23 @@ test('contextual appearance and unrelated lookalikes remain available', async ()
   )
   expect(local.findings.filter((finding) => finding.rule === 'component-chrome')).toEqual([])
 })
+test('declared custom style channels warn on owned chrome and retain data-only props', async () => {
+  const result = await diff(
+    '',
+    `import {Code} from '@sim/emcn';const A=()=> <Code.Viewer code="x" gutterStyle={{width:100,marginLeft:20}} dataStyle={{color:'#123456'}} />`
+  )
+  expect(
+    result.findings
+      .filter((finding) => finding.rule === 'component-chrome')
+      .map((finding) => finding.property)
+  ).toEqual(expect.arrayContaining(['width', 'margin']))
+  expect(result.findings.some((finding) => finding.value.includes('#123456'))).toBe(false)
+  const runtime = await diff(
+    '',
+    `import {Code} from '@sim/emcn';const A=({style})=> <Code.Viewer code="x" gutterStyle={style} />`
+  )
+  expect(runtime.unchecked.some((note) => note.reason.includes('Computed style object'))).toBe(true)
+})
 test('Code.Viewer ownership works through namespace imports and inline styles', async () => {
   const report = await diff(
     '',

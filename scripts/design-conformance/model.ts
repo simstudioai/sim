@@ -262,3 +262,18 @@ export function family(property: string): string {
       'border-$1'
     )
 }
+/** Longhand permissions cover that property; shorthand overrides can still affect protected siblings. */
+export function ownsStyling(
+  slot: { protected: string[]; allowed?: string[] } | undefined,
+  property: string,
+  group = category(property)
+): boolean {
+  if (!slot) return false
+  const covers = (rule: string, target: string) =>
+    rule === '*' || rule === target || rule === family(target) || target.startsWith(`${rule}-`)
+  const protects = slot.protected.some(
+    (rule) => rule === group || covers(rule, property) || covers(property, rule)
+  )
+  const permits = slot.allowed?.some((rule) => rule === group || covers(rule, property))
+  return protects && !permits
+}

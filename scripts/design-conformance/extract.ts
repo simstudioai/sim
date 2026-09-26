@@ -1012,8 +1012,12 @@ export function extract(
               0,
               key
             )
-          if (key === 'style' && value.isJSXExpressionContainer())
-            styles(value.get('expression'), new Set(), 'style')
+          if (
+            value.isJSXExpressionContainer() &&
+            (key === 'style' ||
+              (/Style$/.test(key) && options?.contract?.(group.target)?.slots?.includes(key)))
+          )
+            styles(value.get('expression'), new Set(), key)
           if (
             options?.conformance &&
             /^[a-z]/.test(group.target) &&
