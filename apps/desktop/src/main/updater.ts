@@ -1,9 +1,13 @@
 import { execFile } from 'node:child_process'
+import { unlinkSync } from 'node:fs'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import type { BrowserWindow } from 'electron'
 import { app, net, autoUpdater as squirrelUpdater } from 'electron'
+import { readFileWithinLimitSync, writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 import { showShellDialog } from '@/main/dialogs'
 import { isSafeExternalUrl, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -249,6 +253,8 @@ export interface UpdaterDeps {
   beforeInstall?: () => Promise<void>
   /** Bypasses renderer unload guards only after the user confirms a relaunch. */
   setRelaunchPending?: (pending: boolean) => void
+  /** Persists the natively staged version so the next process can verify installation. */
+  installStatePath?: string
 }
 
 export interface UpdaterHandle {
@@ -355,6 +361,38 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
   }
 
   const currentVersion = app.getVersion()
+  const clearInstallState = () => {
+    if (!deps.installStatePath) return
+    try {
+      unlinkSync(deps.installStatePath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not clear update installation checkpoint', { error })
+      }
+    }
+  }
+  if (deps.installStatePath) {
+    try {
+      const pending: unknown = JSON.parse(
+        readFileWithinLimitSync(deps.installStatePath, 1024).toString('utf8')
+      )
+      const expected = toStringOrNull(toRecord(pending).version)
+      if (expected && parseSemver(expected) && parseSemver(currentVersion)) {
+        deps.events.record('update_install_result', {
+          expected,
+          installed: currentVersion,
+          success:
+            resolveUpdateChannel(expected) === resolveUpdateChannel(currentVersion) &&
+            !isNewerVersion(expected, currentVersion),
+        })
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not read update installation checkpoint', { error })
+      }
+    }
+    clearInstallState()
+  }
   let state: DesktopUpdateState = { status: 'idle' }
   const listeners = new Set<(state: DesktopUpdateState) => void>()
   const setState = (next: DesktopUpdateState) => {
@@ -394,13 +432,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     autoUpdater.logger = null
     let installInFlight = false
     let installConfirmationInFlight = false
-    /**
-     * True once Squirrel.Mac holds a verified bundle it will install on exit.
-     * It keeps that bundle through any later failed check, download, or
-     * restage, so only a failure before staging or during relaunch leaves
-     * nothing installable.
-     */
-    let squirrelStaged = false
+    /** The version verified by the current native updater, before its feed is replaced. */
+    let stagedVersion: string | null = null
     let relaunchRequested = false
 
     /**
@@ -414,12 +447,15 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         .then(() => deps.beforeInstall?.())
         .then(() => {
           if (state.status !== 'ready') {
-            autoUpdater.autoInstallOnAppQuit = false
             installInFlight = false
             return
           }
           deps.setRelaunchPending?.(true)
           relaunchRequested = true
+          deps.events.record('update_install', {
+            from: currentVersion,
+            version: state.version ?? '',
+          })
           autoUpdater.quitAndInstall()
         })
         .catch((error) => {
@@ -472,13 +508,10 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     let nextUpdaterCheckId = 0
     let updaterCheckTimeout: ReturnType<typeof setTimeout> | null = null
     let updaterRequestId: number | null = null
-    /**
-     * The validated version whose download is in flight. While `ready`, a
-     * non-null value means a newer build is replacing the staged one.
-     */
+    /** The validated version offered or currently downloading. */
     let acceptedUpdateVersion: string | null = null
-    /** A downloaded replacement that becomes `ready` once Squirrel stages it. */
-    let pendingReplacementVersion: string | null = null
+    /** A downloaded archive awaiting native verification and staging. */
+    let pendingStagingVersion: string | null = null
 
     /**
      * A staged (`ready`) or offered (`available`) update keeps being re-checked
@@ -489,12 +522,33 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     const isRefreshingOffer = () => state.status === 'ready' || state.status === 'available'
 
     const canRefreshStagedUpdate = () =>
-      squirrelStaged &&
+      stagedVersion !== null &&
       autoDownloadEnabled &&
       !installInFlight &&
       !installConfirmationInFlight &&
       acceptedUpdateVersion === null &&
-      pendingReplacementVersion === null
+      pendingStagingVersion === null
+
+    const failDownload = (version: string, error: unknown) => {
+      if (acceptedUpdateVersion !== version && pendingStagingVersion !== version) return
+      acceptedUpdateVersion = null
+      pendingStagingVersion = null
+      const message = getErrorMessage(error, 'unknown')
+      logger.warn('Update download failed', { message })
+      deps.events.record('update_error', { message })
+      if (stagedVersion !== null) {
+        setState({ status: 'ready', version: stagedVersion })
+      } else {
+        autoUpdater.autoInstallOnAppQuit = false
+        setState({ status: 'error', version })
+      }
+    }
+
+    const download = (version: string) => {
+      acceptedUpdateVersion = version
+      setState({ status: 'downloading', version })
+      void autoUpdater.downloadUpdate().catch((error) => failDownload(version, error))
+    }
 
     const finishProbe = (probeId: number) => {
       if (activeProbeId !== probeId) return
@@ -544,26 +598,16 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (state.status === 'ready') {
         // Only a strictly newer validated release replaces the staged one; the
         // download reuses the update info this check just stored.
-        const stagedVersion = state.version ?? currentVersion
+        const previousVersion = state.version ?? currentVersion
         if (
           !validCandidate ||
           !autoDownloadEnabled ||
-          !isNewerVersion(info.version, stagedVersion)
+          !isNewerVersion(info.version, previousVersion)
         ) {
           return
         }
-        acceptedUpdateVersion = info.version
-        deps.events.record('update_check', { available: info.version, replacing: stagedVersion })
-        const replacementVersion = info.version
-        // Cancellation rejects without an `error` event, so the promise owns
-        // clearing its replacement for every failure mode.
-        void autoUpdater.downloadUpdate().catch((error) => {
-          if (acceptedUpdateVersion === replacementVersion) acceptedUpdateVersion = null
-          if (pendingReplacementVersion === replacementVersion) pendingReplacementVersion = null
-          logger.warn('Replacement update download failed; keeping the staged update', {
-            message: getErrorMessage(error, 'unknown'),
-          })
-        })
+        deps.events.record('update_check', { available: info.version, replacing: previousVersion })
+        download(info.version)
         return
       }
       // An offer mirrors the feed's latest release, even after a rollback: the
@@ -586,16 +630,10 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }
       acceptedUpdateVersion = info.version
       deps.events.record('update_check', { available: info.version })
-      setState({
-        status: autoDownloadEnabled ? 'downloading' : 'available',
-        version: info.version,
-      })
       if (autoDownloadEnabled) {
-        void autoUpdater.downloadUpdate().catch((error) => {
-          logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
-          deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
-          setState({ status: 'error', version: info.version })
-        })
+        download(info.version)
+      } else {
+        setState({ status: 'available', version: info.version })
       }
     })
 
@@ -609,15 +647,10 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     })
 
     autoUpdater.on('update-downloaded', (info) => {
-      if (state.status === 'ready') {
-        if (acceptedUpdateVersion !== info.version) return
-        acceptedUpdateVersion = null
-        // electron-updater hands the file to Squirrel after this event; the
-        // staged update switches over when Squirrel reports it staged.
-        pendingReplacementVersion = info.version
-        return
-      }
       if (state.status !== 'downloading') return
+      // MacUpdater has replaced the native feed before emitting this event.
+      stagedVersion = null
+      clearInstallState()
       if (
         acceptedUpdateVersion !== info.version ||
         !isValidUpdateCandidate(info.version, currentVersion)
@@ -629,16 +662,23 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         return
       }
       acceptedUpdateVersion = null
+      pendingStagingVersion = info.version
       autoUpdater.autoInstallOnAppQuit = true
-      deps.events.record('update_downloaded', { version: info.version })
-      setState({ status: 'ready', version: info.version })
+      setState({ status: 'downloading', version: info.version, percent: 100 })
     })
 
     squirrelUpdater.on('update-downloaded', () => {
-      squirrelStaged = true
-      const version = pendingReplacementVersion
-      if (version === null || state.status !== 'ready') return
-      pendingReplacementVersion = null
+      const version = pendingStagingVersion
+      if (version === null || state.status !== 'downloading') return
+      pendingStagingVersion = null
+      stagedVersion = version
+      if (deps.installStatePath) {
+        try {
+          writeJsonFileAtomicallySync(deps.installStatePath, { version })
+        } catch (error) {
+          logger.warn('Could not persist update installation checkpoint', { error })
+        }
+      }
       deps.events.record('update_downloaded', { version })
       setState({ status: 'ready', version })
     })
@@ -650,10 +690,11 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         if (updaterRequestId === checkId) updaterRequestId = null
       }
       const message = getErrorMessage(error, 'unknown')
-      if (state.status === 'ready' && squirrelStaged && !relaunchRequested) {
+      if (stagedVersion !== null && !installInFlight && !relaunchRequested) {
         acceptedUpdateVersion = null
-        pendingReplacementVersion = null
+        pendingStagingVersion = null
         logger.warn('Update refresh failed; keeping the staged update', { message })
+        if (state.status !== 'ready') setState({ status: 'ready', version: stagedVersion })
         return
       }
       if (state.status === 'available') {
@@ -670,6 +711,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }
       installInFlight = false
       relaunchRequested = false
+      stagedVersion = null
+      acceptedUpdateVersion = null
+      pendingStagingVersion = null
       deps.setRelaunchPending?.(false)
       autoUpdater.autoInstallOnAppQuit = false
       deps.events.record('update_error', { message })
@@ -806,12 +850,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         })
       },
       advance() {
-        setState({ status: 'downloading', version: state.version })
-        autoUpdater.downloadUpdate().catch((error) => {
-          logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
-          deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
-          setState({ status: 'error', version: state.version })
-        })
+        if (acceptedUpdateVersion !== null) download(acceptedUpdateVersion)
       },
       install() {
         confirmAndInstall()
