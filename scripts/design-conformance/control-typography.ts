@@ -178,6 +178,7 @@ export function inspectTypography(source: ControlSource): TypographyReview {
         })
       }
     }
+  const completeCss = !report.unchecked.some((note) => note.file.endsWith('.css'))
   const globalTokens = new Set<string>()
   for (const [name, expected] of Object.entries({ ...weights, '--text-sm': '0.875rem' })) {
     const definitions: { file: string; decl: postcss.Declaration }[] = []
@@ -186,6 +187,7 @@ export function inspectTypography(source: ControlSource): TypographyReview {
         definitions.push({ file, decl })
       })
     if (
+      completeCss &&
       definitions.length === 1 &&
       definitions[0].file === TOKEN_FILE &&
       definitions[0].decl.value === expected &&

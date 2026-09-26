@@ -571,7 +571,7 @@ function TreatmentDetail({
   const activeVariants: Record<string, string> = {}
   for (const [axis, options] of axes) {
     const value = requestedVariants[axis]
-    if (value && options.some((option) => option.variant?.value === value)) {
+    if (value && options.some((option) => option.variant?.value === value && !!option.fixture)) {
       activeVariants[axis] = value
     }
   }
@@ -692,8 +692,13 @@ function TreatmentDetail({
                       : ''}
                   </option>
                   {options.map((option) => (
-                    <option key={option.id} value={option.variant?.value}>
+                    <option
+                      key={option.id}
+                      value={option.variant?.value}
+                      disabled={!option.fixture}
+                    >
                       {option.variant?.value}
+                      {!option.fixture ? ' · Needs fixture' : ''}
                     </option>
                   ))}
                 </select>

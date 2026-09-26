@@ -766,6 +766,10 @@ export function inspectSimplifications(
     if (use.file.startsWith('packages/emcn/') || use.syntax !== 'jsx' || use.hidden) continue
     const isButton =
       use.target === 'native:button' ||
+      (use.target.startsWith('native:') &&
+        !use.inputs.role?.unresolved &&
+        !!use.inputs.role?.values?.length &&
+        use.inputs.role.values.every((value) => value === 'button')) ||
       (direct(use).length > 0 &&
         direct(use).every((ref) =>
           /^packages\/emcn\/src\/components\/(button|chip)\/[^#]+#(?:Button|Chip)@/.test(ref)

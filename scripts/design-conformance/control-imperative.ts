@@ -255,7 +255,7 @@ export function inspectImperative(
     e.uncertain ||
     [...e.parents].some((p) => uncertainAncestry(p, new Set(seen).add(e)))
   const interactive = (e: Element) =>
-    ['button', 'a', 'select', 'summary', 'input'].includes(e.tag) ||
+    ['button', 'a', 'select', 'summary', 'input', 'textarea'].includes(e.tag) ||
     e.handlers.length > 0 ||
     Object.keys(e.inputs).some((k) =>
       ['role', 'tabIndex', 'tabindex', 'href', 'contenteditable'].includes(k)

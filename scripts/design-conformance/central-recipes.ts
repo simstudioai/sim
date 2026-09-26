@@ -164,7 +164,7 @@ export function extractCentralRecipes(
             t.isArrowFunctionExpression(node)
           ) {
             if (node.async || node.generator) return fail()
-            const inner = new Map(bindings)
+            const inner = new Map(scope)
             const defaults: Value[] = []
             node.params.forEach((p, i) => {
               const id = t.isAssignmentPattern(p) ? p.left : p

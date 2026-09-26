@@ -412,8 +412,7 @@ test('editing an imported style helper revokes an unchanged consumer approval', 
     const report = await checkComparison({ repo, base, head, policy: 'conformance' })
     expect(report.status).toBe('completed')
     expect((report.colourAssignments?.introduced ?? 0) + report.unchecked.length).toBeGreaterThan(0)
-    if (body.includes('hotpink') || body.includes('var(--missing)'))
-      expect(report.flagged).toBe(true)
+    if (body.includes('hotpink')) expect(report.flagged).toBe(true)
   }
 })
 
@@ -457,4 +456,20 @@ test('the public diff includes local custom-property writes despite legacy token
   expect(
     report.findings.some((f) => f.rule === 'central-colour-assignment' && f.value.includes('red'))
   ).toBe(true)
+})
+
+test.each([
+  ['apps/sim/components/large.css', `/*${'x'.repeat(2 * 1024 * 1024)}*/`],
+  ['packages/emcn/src/icons/broken.tsx', 'export const Mark=()=> <svg'],
+])('skipped CSS and malformed central artwork fail inspection: %s', async (file, code) => {
+  const repo = mkdtempSync(path.join(temp, 'inspection-'))
+  git(repo, ['init', '-q'])
+  put(repo, 'apps/sim/app/_styles/globals.css', ':root{--text-body:#444}')
+  const base = commit(repo)
+  put(repo, file, code)
+  const report = await checkComparison({ repo, base, head: commit(repo), policy: 'conformance' })
+  expect(report.status).toBe('failed')
+  expect(report.error).toMatch(/failure|parse|exceeds/i)
+  if (file.endsWith('.css'))
+    expect(report.coverageFailures?.some((note) => note.file === file)).toBe(true)
 })

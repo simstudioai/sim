@@ -61,27 +61,6 @@ const attributes = new Set([
   'aria-checked',
   'aria-expanded',
 ])
-const centralControls = new Set([
-  'Button',
-  'Badge',
-  'Input',
-  'PopoverContent',
-  'ChipTextarea',
-  'Chip',
-  'ChipLink',
-  'ChipSwitch',
-  'ChipButtonGroupItem',
-  'DropdownMenuItem',
-  'DropdownMenuCheckboxItem',
-  'DropdownMenuRadioItem',
-  'DropdownMenuTrigger',
-  'DropdownMenuSubTrigger',
-  'Checkbox',
-  'Switch',
-  'Tab',
-  'TabTrigger',
-  'CalendarDayCell',
-])
 const key = (node: t.Node) =>
   t.isIdentifier(node) || t.isJSXIdentifier(node)
     ? node.name
@@ -222,7 +201,7 @@ const merge = (into: Proof, from: Proof) => {
 const nativeRole = (tag: string, values: Record<string, ControlInput>) => {
   const role = values.role?.values?.filter((v) => typeof v === 'string' && roles.has(v)).join('|')
   if (role) return role
-  if (tag === 'button' || tag === 'select' || tag === 'summary') return tag
+  if (tag === 'button' || tag === 'select' || tag === 'summary' || tag === 'textarea') return tag
   if (tag === 'a') return 'navigation-link'
   if (
     tag === 'input' &&
@@ -316,6 +295,10 @@ export function inspectControls(
       coverage.excludedFiles.push(file)
       continue
     }
+    if (!/\.[cm]?[jt]sx?$|\.html?$/.test(file)) {
+      coverage.skippedNonCode++
+      continue
+    }
     if (!regular(entry) || entry.bytes > registry.limits.sourceBytes) {
       coverage.sourceLimits++
       note(
@@ -328,10 +311,6 @@ export function inspectControls(
       )
       continue
     }
-    if (!/\.[cm]?[jt]sx?$|\.html?$/.test(file)) {
-      coverage.skippedNonCode++
-      continue
-    }
     const code = source.read(entry)
     const addHtml = (html: string, line: number, owner: string) => {
       const fragment = parseFragment(html, { sourceCodeLocationInfo: true })
@@ -339,11 +318,19 @@ export function inspectControls(
         if ('tagName' in n) {
           const inputs: Record<string, ControlInput> = {}
           for (const a of n.attrs)
-            inputs[a.name] = { expression: a.value, values: [a.value], unresolved: false }
+            inputs[a.name === 'tabindex' ? 'tabIndex' : a.name] = {
+              expression: a.value,
+              values: [a.value],
+              unresolved: false,
+            }
           const handlers = n.attrs
             .filter((a) => /^on(?:click|pointer|mouse|key)/.test(a.name))
             .map((a) => a.name)
-          if (nativeRole(n.tagName, inputs) || handlers.length) {
+          if (
+            nativeRole(n.tagName, inputs) ||
+            handlers.length ||
+            inputs.tabIndex?.values?.some((value) => Number(value) >= 0)
+          ) {
             const at = line + (n.sourceCodeLocation?.startLine ?? 1) - 1
             raw.push({
               id: hash(
@@ -1233,7 +1220,8 @@ export function inspectControls(
     } else if (ref.startsWith('unknown:') || ref.startsWith('?')) out.unknown.add(ref)
     else if (ref.startsWith('native:')) {
       const tag = ref.slice(7)
-      if (['button', 'a', 'input-control', 'select', 'summary'].includes(tag)) out.controls.add(ref)
+      if (['button', 'a', 'input-control', 'select', 'summary', 'textarea'].includes(tag))
+        out.controls.add(ref)
     } else if (ref.startsWith('semantic:')) out.controls.add(ref)
     else if (ref.startsWith('!')) {
       const [module, name] = ref.slice(1).split('#')
@@ -1291,9 +1279,6 @@ export function inspectControls(
             out.relationships.add('composition')
           else for (const p of proofs) for (const u of p.unknown) out.unknown.add(u)
         }
-      } else if (info.file.startsWith('packages/emcn/') && centralControls.has(info.name)) {
-        out.central.add(ref)
-        out.controls.add(`central:${info.name}`)
       } else if (info.kind === 'unknown') out.unknown.add(`Unsupported renderer: ${ref}`)
       else for (const target of info.targets) merge(out, prove(target, next, props, children))
       if (out.controls.size) {
@@ -1331,8 +1316,7 @@ export function inspectControls(
       for (const r of refs) targets.push(...sourceIndex.forwarded(r, slot).map((p) => p.target))
     for (const r of resolved) {
       const info = symbols.get(r)
-      if (info?.file.startsWith('packages/emcn/') && centralControls.has(info.name))
-        targets.push(`@sim/emcn#${info.name}`)
+      if (info?.file.startsWith('packages/emcn/')) targets.push(`@sim/emcn#${info.name}`)
     }
     return [...new Set([...targets, use.tag])]
   })
@@ -1383,14 +1367,16 @@ export function inspectControls(
     // CVA defaults come from source, and only direct renderer uses inherit them.
     for (const terminal of resolveExport(use.target)) {
       const info = symbols.get(terminal)
-      if (!info?.file.startsWith('packages/emcn/') || !centralControls.has(info.name)) continue
+      if (!info?.file.startsWith('packages/emcn/')) continue
       const definitions = raw.filter((r) => r.file === info.file && r.owner === info.name)
       for (const definition of definitions)
         for (const recipe of definition.recipes)
           for (const r of resolveExport(recipe)) {
             const config = defaults.get(r)
             if (!config) continue
-            for (const prop of ['variant', 'size', 'shape', 'active', 'fullWidth']) {
+            for (const prop of Object.keys(
+              staticInputs.input(config, 'central defaults').properties ?? {}
+            )) {
               const d = staticInputs.input(staticInputs.property(config, prop), 'central default')
               if (!d.values?.length || d.unresolved) continue
               const input = use.inputs[prop] ?? {

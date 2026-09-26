@@ -510,3 +510,37 @@ test('async and generator serializers cannot prove a JSON-only script transport'
     expect(report.unchecked.some((n) => n.reason.includes('HTML sink'))).toBe(true)
   }
 })
+
+test('attached imperative textarea is a local native control', () => {
+  const f = fixture({
+    [location]:
+      "export function widget(){const root=document.createElement('div');const input=document.createElement('textarea');input.className='rounded-lg';root.append(input);return root}",
+  })
+  expect(consumer(f.scan()).map((r) => [r.tag, r.syntax, r.origin])).toEqual([
+    ['textarea', 'imperative', 'local-control'],
+  ])
+})
+test('literal HTML tabindex discovers focusable controls but excludes negative tabindex', () => {
+  const file = 'apps/sim/components/example.html'
+  const f = fixture({
+    [file]: "<div tabindex='0'>One</div><div tabindex='-1'>Two</div><div tabindex='1'>Three</div>",
+  })
+  expect(f.scan().records.filter((r) => r.file === file)).toHaveLength(2)
+})
+
+test('central controls are discovered from rendering, not a component name registry', () => {
+  const plain = fixture({
+    'packages/emcn/src/components/button/button.tsx': 'export const Button=()=> <p>Text</p>',
+    [location]: "import {Button} from '@sim/emcn';export const A=()=> <Button/>",
+  })
+  expect(consumer(plain.scan())).toEqual([])
+  const control = fixture({
+    'packages/emcn/src/index.ts': "export * from './components/new-control'",
+    'packages/emcn/src/components/new-control.tsx':
+      "import {cva} from 'class-variance-authority';const recipe=cva('',{variants:{density:{compact:'p-1',large:'p-4'}},defaultVariants:{density:'compact'}});export const NewControl=({density,className})=> <button className={recipe({density})}/>",
+    [location]: "import {NewControl} from '@sim/emcn';export const A=()=> <NewControl/>",
+  })
+  const record = consumer(control.scan())[0]
+  expect(record.origin).toBe('emcn-component')
+  expect(record.inputs.density.effectiveValues).toEqual(['compact'])
+})

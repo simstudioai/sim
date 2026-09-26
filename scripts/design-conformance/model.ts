@@ -15,7 +15,7 @@ export const SEED = '463fa05b27fe170cbb58bca89cc955313df5af84'
 export const TOKEN_FILE = 'apps/sim/app/_styles/globals.css'
 /** Failed inspection is distinct from an unresolved styling flow. */
 export const inspectionFailure = (reason: string) =>
-  /^(?:Parser failure|Extraction failure|Source exceeds|CSS (?:colour assignments|parse)|Native-control CSS review could not parse|Non-regular source|Symlink\/submodule is not followed)/.test(
+  /^(?:Parser failure|Extraction failure|Source exceeds|CSS (?:colour assignments|assignment source|parse)|Artwork (?:parser failure|source exceeds|symlink\/submodule)|Native-control CSS review could not parse|Non-regular source|Symlink\/submodule is not followed)/.test(
     reason
   )
 export const hash = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex')

@@ -1,13 +1,15 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import type { ControlSource } from '#control-analysis/model'
+import { associateFindings } from '#control-analysis/associations'
+import type { ControlSource, InventoryFinding } from '#control-analysis/model'
 import { ReviewCollector } from '#control-analysis/review'
 import { findingFingerprint, matchReviews } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { inspectSimplifications } from '#control-analysis/simplifications'
 import { extract } from '#design-conformance/extract'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
+import { inspectionFailure } from '#design-conformance/model'
 
 const globals = 'apps/sim/app/_styles/globals.css'
 const ui = 'apps/sim/components/example.tsx'
@@ -430,4 +432,56 @@ test('hidden false and runtime visibility cannot hide local control styling', ()
       [ui]: 'export const A=()=> <button hidden className="rounded-xl bg-red-500">Go</button>',
     }).review.findings.some((f) => f.rule === 'local-control')
   ).toBe(false)
+})
+
+test.each([
+  'export const View=()=> <style>{".label {color: #abc}"}</style>',
+  'export const View=()=> <style>.label &#123;color: #abc&#125;</style>',
+])('literal JSX styles remain visible: %s', (code) => {
+  const report = inspect({ [ui]: code })
+  expect(report.review.findings.some((f) => f.rule === 'runtime-style')).toBe(true)
+  expect(report.review.unchecked.some((n) => n.file === ui && n.reason.includes('style'))).toBe(
+    true
+  )
+})
+
+test('conditional input branches remain directly associated with their control', () => {
+  const finding: InventoryFinding = {
+    id: 'branch',
+    rule: 'component-chrome',
+    category: 'colours',
+    property: 'color',
+    file: ui,
+    line: 1,
+    column: 10,
+    context: 'View / @sim/emcn#Button / className/then',
+    value: 'text-white',
+    reason: 'owned chrome',
+    observedFrom: [ui],
+  }
+  const uses = [
+    {
+      id: 'control',
+      file: ui,
+      line: 1,
+      column: 1,
+      endLine: 1,
+      endColumn: 40,
+      owner: 'View',
+      tag: 'Button',
+      slots: [{ name: 'className', line: 1, column: 5, endLine: 1, endColumn: 30 }],
+    },
+  ]
+  expect(associateFindings(uses, [finding], () => ['@sim/emcn#Button']).get('control')).toEqual({
+    direct: ['branch'],
+    potential: [],
+  })
+})
+test.each([
+  'CSS assignment source is nonregular or exceeds the parsing limit',
+  'Artwork parser failure; only blob change is known',
+  'Artwork source exceeds the 2 MiB parsing limit',
+  'Artwork symlink/submodule is not followed',
+])('inspection failures are not unresolved styling: %s', (reason) => {
+  expect(inspectionFailure(reason)).toBe(true)
 })

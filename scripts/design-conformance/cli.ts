@@ -56,12 +56,19 @@ try {
   } catch (error) {
     report = linter.report(null, error instanceof Error ? error.message : 'Operational failure')
   }
-  if (args.reviews && report.status === 'completed')
-    report.reviewDecisions = matchReviews(
-      readReviewLedger(args.reviews as string, args.repo as string),
-      report.findings,
-      []
-    )
+  if (args.reviews && report.status === 'completed') {
+    try {
+      report.reviewDecisions = matchReviews(
+        readReviewLedger(args.reviews as string, args.repo as string),
+        report.findings,
+        []
+      )
+    } catch (error) {
+      report.status = 'failed'
+      report.flagged = null
+      report.error = error instanceof Error ? error.message : 'Review ledger inspection failed'
+    }
+  }
   if (output) writeJson(output, report)
   else process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   process.exitCode = report.status === 'failed' ? 2 : report.flagged ? 1 : 0

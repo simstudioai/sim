@@ -88,6 +88,7 @@ export function normalizeValue(
 const internal: Record<string, string> = {
   '--tw-shadow': 'box-shadow',
   '--tw-ring-color': 'outline-color',
+  '--tw-ring-offset-color': 'outline-color',
   '--tw-ring-shadow': 'box-shadow',
   '--tw-inset-shadow': 'box-shadow',
   '--tw-blur': 'filter',

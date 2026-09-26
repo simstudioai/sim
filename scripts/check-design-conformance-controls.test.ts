@@ -229,3 +229,11 @@ test('a CSS-hidden programmatic trigger is not an unnamed visible button', () =>
     )
   ).toHaveLength(1)
 })
+
+test('statically resolved ARIA buttons require a name', () => {
+  expect(matching(run('<div role="button"/>'), 'control-accessible-name')).toHaveLength(1)
+  expect(
+    matching(run('<div role="button" aria-label="Run"/>'), 'control-accessible-name')
+  ).toHaveLength(0)
+  expect(matching(run('<div role={role}/>'), 'control-accessible-name')).toHaveLength(0)
+})

@@ -200,7 +200,7 @@ export class Linter {
           if (
             !referenced.length &&
             !approvedNamed &&
-            !/^(?:none|inherit|initial|unset|currentColor|transparent)$/.test(d.value) &&
+            !/^(?:none|inherit|initial|unset|currentColor|transparent)$/i.test(d.value) &&
             d.property !== 'background-image'
           )
             fail(
@@ -268,7 +268,17 @@ export class Linter {
         }
         report.coverage.checkedFiles++
         const get = (entry: Change['before']): Facts => {
-          if (!entry || scope(entry.path) !== 'check') return { atoms: [], unchecked: [] }
+          if (!entry) return { atoms: [], unchecked: [] }
+          if (scope(entry.path) === 'unsupported') {
+            report.coverage.unsupportedFiles++
+            return {
+              atoms: [],
+              unchecked: [
+                { line: 1, context: '', reason: 'Unsupported file format; no styles inspected' },
+              ],
+            }
+          }
+          if (scope(entry.path) !== 'check') return { atoms: [], unchecked: [] }
           if (!/^100(?:644|755)$/.test(entry.mode))
             return {
               atoms: [],

@@ -47,7 +47,7 @@ export function associateFindings(
       .sort((a, b) => width(a.slot) - width(b.slot))
     const parts = f.context.split(' / ')
     const target = parts[1]
-    const input = parts[2]?.split(/[ .]/)[0]
+    const input = parts[2]?.split(/[ ./]/)[0]
     if (slots.length) {
       const best = slots.filter((s) => width(s.slot) === width(slots[0].slot))
       for (const { use, slot } of best) {

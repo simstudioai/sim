@@ -264,3 +264,32 @@ describe('only introduced violations', () => {
     expect(existsSync(marker)).toBe(false)
   })
 })
+
+test('checked-to-unsupported renames preserve coverage diagnostics', () => {
+  const report = diff(
+    element('text-[#123456]'),
+    element('text-[#123456]'),
+    'apps/sim/components/view.md',
+    ui
+  )
+  expect(report.coverage.unsupportedFiles).toBe(1)
+  expect(
+    report.unchecked.some(
+      (n) =>
+        n.file === 'apps/sim/components/view.md' &&
+        n.side === 'after' &&
+        n.reason.includes('Unsupported file format')
+    )
+  ).toBe(true)
+})
+test.each(['currentcolor', 'CURRENTCOLOR', 'currentColor'])(
+  'CSS current color is case insensitive: %s',
+  (value) => {
+    expect(diff('', `.label{color:${value}}`, 'apps/sim/components/a.css').findings).toEqual([])
+  }
+)
+test('literal ring offset colours are inspected', () => {
+  expect(
+    diff('', element('ring-offset-[#123456]')).findings.some((f) => f.category === 'colours')
+  ).toBe(true)
+})

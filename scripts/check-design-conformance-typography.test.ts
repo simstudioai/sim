@@ -174,3 +174,12 @@ test('font-size tokens cannot approve a font-weight declaration', () => {
     review({ 'apps/sim/components/a.css': '.a {font-weight:var(--text-sm)}' }).classifications
   ).toEqual([])
 })
+
+test('uninspected CSS cannot establish global weight token ownership', () => {
+  const result = review({
+    'apps/sim/components/gap.css': '.gap{',
+    'apps/sim/components/a.css': '.a{font-weight:var(--font-weight-semibold)}',
+  })
+  expect(result.classifications).toEqual([])
+  expect(result.unchecked.some((n) => n.file === 'apps/sim/components/gap.css')).toBe(true)
+})

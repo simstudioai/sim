@@ -301,12 +301,16 @@ test('local overrides of global tokens are checked too', () => {
   expect(result.findings).toHaveLength(1)
 })
 
-test('a missing token cannot evade checking when its external CSS use is outside the source snapshot', () => {
+test('a missing token remains unchecked when its consumer is outside the source snapshot', () => {
   for (const body of [
     `<span className='[--rest:var(--missing)]'/>`,
     `<span style={{'--rest':'var(--missing)'}}/>`,
   ])
-    expect(flagged({ [ui]: `export const View=()=>${body}` })).toHaveLength(1)
+    expect(
+      inspect({ [ui]: `export const View=()=>${body}` }).unchecked.some((note) =>
+        note.reason.includes('--rest')
+      )
+    ).toBe(true)
   expect(
     issues({ [css]: '.label { --a: var(--b); --b: var(--a); }' }).length
   ).toBeGreaterThanOrEqual(2)

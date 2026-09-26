@@ -565,10 +565,14 @@ export class ReviewCollector {
         if (!t.isJSXIdentifier(p.node.openingElement.name, { name: 'style' })) return
         const dynamic = p.node.children.find(
           (child): child is t.JSXExpressionContainer =>
-            t.isJSXExpressionContainer(child) && !t.isStringLiteral(child.expression)
+            t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)
         )
-        if (!dynamic) return
-        const expr = dynamic.expression
+        const text = p.node.children
+          .filter((child): child is t.JSXText => t.isJSXText(child))
+          .map((child) => child.value)
+          .join('')
+        if (!dynamic && !text.trim()) return
+        const expr = dynamic?.expression ?? t.stringLiteral(text)
         const binding = t.isIdentifier(expr) ? p.scope.getBinding(expr.name)?.path.node : undefined
         const initializer = t.isVariableDeclarator(binding) ? binding.init : expr
         const css = t.isTemplateLiteral(initializer)

@@ -171,3 +171,9 @@ test('block-local recipe aliases cannot shadow the following outer return', () =
   expect(values(first)).not.toEqual(values(first.replace('tier=7', 'tier=8')))
   expect(values(first)).toEqual(values(first.replace('tier=12', 'tier=13')))
 })
+
+test('returned closures retain captured lexical recipe values', () => {
+  const code = 'export function choose(){const local=7;return ()=>local}'
+  expect(values(code)).not.toEqual(values(code.replace('local=7', 'local=8')))
+  expect(extract(code).unchecked).toEqual([])
+})

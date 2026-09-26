@@ -339,12 +339,16 @@ test('local overrides of global tokens are checked too', () => {
   expect(result.findings).toHaveLength(1)
 })
 
-test('a missing token cannot evade checking when its external CSS use is outside the source snapshot', () => {
+test('a missing token remains unchecked when its consumer is outside the source snapshot', () => {
   for (const body of [
     `<span className='[--rest:var(--missing)]'/>`,
     `<span style={{'--rest':'var(--missing)'}}/>`,
   ])
-    expect(flagged({ [ui]: `export const View=()=>${body}` })).toHaveLength(1)
+    expect(
+      inspect({ [ui]: `export const View=()=>${body}` }).unchecked.some((note) =>
+        note.reason.includes('--rest')
+      )
+    ).toBe(true)
   expect(
     issues({ [css]: '.label { --a: var(--b); --b: var(--a); }' }).length
   ).toBeGreaterThanOrEqual(2)
@@ -526,4 +530,11 @@ test('a global shadow must contain a complete shadow recipe, not just a named va
       [ui]: 'export const A=()=> <span style={{boxShadow:"var(--shadow-card)"}}/>',
     }).assignments.some((a) => a.name === 'box-shadow' && a.status === 'verified')
   ).toBe(true)
+})
+
+test('unresolved layout-only aliases are not colour findings', () => {
+  const report = inspect({ [css]: '.label{--layout:var(--missing);width:var(--layout)}' })
+  expect(report.findings).toEqual([])
+  expect(report.unchecked.some((n) => n.file === css && n.reason.includes('--layout'))).toBe(true)
+  expect(flagged({ [css]: '.label{--ink:var(--missing);color:var(--ink)}' })).toHaveLength(1)
 })

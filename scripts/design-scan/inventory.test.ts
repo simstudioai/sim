@@ -499,6 +499,40 @@ test('CLI on synthetic repositories preserves 0/1/2, writes complete reports, an
 }, 60_000)
 
 test.each([
+  ['apps/sim/blocks/CLAUDE.md', 0, 'completed'],
+  ['apps/sim/components/link.tsx', 2, 'incomplete'],
+])(
+  'full scanner only treats inspectable source symlinks as failures: %s',
+  (file, status, state) => {
+    const f = fixture({ [component]: text('font-mono') })
+    mkdirSync(path.dirname(path.join(f.repo, file)), { recursive: true })
+    symlinkSync('../components/example.tsx', path.join(f.repo, file))
+    f.git('add', '.')
+    f.git('commit', '-qm', 'synthetic source symlink')
+    const output = path.join(f.base, 'symlink-scope')
+    const result = spawnSync(
+      process.env.DESIGN_TEST_BUN ?? 'bun',
+      [
+        '--no-env-file',
+        fileURLToPath(new URL('./scan.ts', import.meta.url)),
+        '--repo',
+        f.repo,
+        '--ref',
+        'HEAD',
+        '--output',
+        output,
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(result.status, result.stderr).toBe(status)
+    expect(JSON.parse(readFileSync(path.join(output, 'identity.json'), 'utf8')).status).toBe(state)
+    const failures = JSON.parse(readFileSync(path.join(output, 'coverage-failures.json'), 'utf8'))
+    expect(failures.some((n: { file: string }) => n.file === file)).toBe(status === 2)
+  },
+  60_000
+)
+
+test.each([
   ['broken syntax', 'export const View=()=> <button', 'Parser failure'],
   ['source limit', `/*${'x'.repeat(2 * 1024 * 1024)}*/`, 'Source exceeds'],
 ])(

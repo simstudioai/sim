@@ -492,7 +492,7 @@ export class ColourAssignments {
       )
         this.colours.add(assignment.name)
     }
-    /** Missing/cyclic references cannot disappear from the audit merely because their colour use is opaque. */
+    /** Unknown aliases have no proven colour provenance until a colour sink or literal establishes it. */
     const defined = (name: string, seen = new Set<string>()): boolean => {
       if (seen.has(name) || seen.size >= 20) return false
       const global = this.globals.get(name)?.filter((value) => value.trim() !== `var(${name})`)
@@ -510,7 +510,12 @@ export class ColourAssignments {
           (value) => !dimensional(value) && variablesIn(value).some((name) => !defined(name))
         )
       )
-        this.colours.add(assignment.name)
+        this.notes.push({
+          file: assignment.file,
+          line: assignment.line,
+          context: assignment.context,
+          reason: `Unresolved custom-property alias ${assignment.name}; colour ownership is unknown; input: ${assignment.input.slice(0, 240)}`,
+        })
     /** Colour use propagates backwards through aliases, never from spelling like '--colour'. */
     let changed = true
     while (changed) {

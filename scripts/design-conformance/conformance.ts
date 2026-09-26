@@ -721,6 +721,11 @@ export class ConformanceLinter {
           report.unchecked.push(
             ...result.unchecked.map((n) => ({ ...n, file, side: 'comparison' }))
           )
+          report.coverageFailures?.push(
+            ...result.unchecked
+              .filter((note) => inspectionFailure(note.reason))
+              .map((note) => ({ ...note, file, side: 'after' as const }))
+          )
           if (afterArtwork || !change.after) {
             report.coverage.checkedFiles++
             continue

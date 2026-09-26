@@ -227,3 +227,30 @@ test('unwritable CLI output remains an operational exit, not an uncaught retry',
   expect(result.status).toBe(2)
   expect(result.stderr.toString()).toContain('failed')
 })
+
+test.each(['missing', 'invalid'])(
+  'invalid review ledger still writes a failed CLI artifact: %s',
+  (kind) => {
+    const ledger = path.join(repo, `ledger-${kind}.json`)
+    if (kind === 'invalid') writeFileSync(ledger, '{')
+    const output = path.join(repo, `ledger-report-${kind}.json`)
+    const result = spawnSync('bun', [
+      '--no-env-file',
+      cli,
+      '--policy',
+      'appearance',
+      '--repo',
+      repo,
+      '--base',
+      base,
+      '--head',
+      head,
+      '--reviews',
+      ledger,
+      '--output',
+      output,
+    ])
+    expect(result.status).toBe(2)
+    expect(JSON.parse(readFileSync(output, 'utf8')).status).toBe('failed')
+  }
+)
