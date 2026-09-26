@@ -1,5 +1,5 @@
-import { open, readdir, realpath, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { constants } from 'node:fs'
+import { lstat, open, readdir, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
   DesktopLocalFileEntry,
@@ -11,6 +11,7 @@ import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { PDFDocument } from 'pdf-lib'
+import type { LocalFileAccess } from '@/main/local-file-permissions'
 
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
@@ -19,16 +20,6 @@ const MAX_READ_BYTES = 64_000
 export interface LocalFileAuthorization {
   toolName: string
   args: Record<string, unknown>
-}
-
-/** Resolve normal native paths; macOS, not Sim folder grants, owns filesystem access. */
-function nativePath(value: unknown): string {
-  if (typeof value !== 'string' || value.length > 4096 || value.includes('\0'))
-    throw new Error('A native absolute path or ~/ path is required.')
-  const path =
-    value === '~' ? homedir() : value.startsWith('~/') ? join(homedir(), value.slice(2)) : value
-  if (!isAbsolute(path)) throw new Error('Use an absolute path or ~/ path.')
-  return resolve(path)
 }
 
 function revision(info: Awaited<ReturnType<typeof stat>>): string {
@@ -48,7 +39,35 @@ function assertImportPath(root: string, candidate: string): void {
     throw new Error('The file is outside this import source.')
 }
 
-async function inspect(path: string, args: Record<string, unknown>): Promise<DesktopLocalFileRead> {
+async function openApprovedFile(path: string, access: LocalFileAccess) {
+  const canonical = await access.resolve(path)
+  const file = await open(
+    canonical,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+  )
+  try {
+    const info = await file.stat()
+    const verified = await access.resolve(path)
+    const current = await lstat(verified)
+    if (
+      !info.isFile() ||
+      canonical !== verified ||
+      info.dev !== current.dev ||
+      info.ino !== current.ino
+    )
+      throw new Error('The local file changed while it was being opened. Try again.')
+    return file
+  } catch (error) {
+    await file.close()
+    throw error
+  }
+}
+
+async function inspect(
+  path: string,
+  args: Record<string, unknown>,
+  access: LocalFileAccess
+): Promise<DesktopLocalFileRead> {
   const info = await stat(path)
   if (info.isDirectory()) {
     const entries = await readdir(path, { withFileTypes: true })
@@ -73,8 +92,9 @@ async function inspect(path: string, args: Record<string, unknown>): Promise<Des
     }
   }
   if (!info.isFile()) throw new Error('The path is not a regular file or directory.')
-  const file = await open(path, 'r')
+  const file = await openApprovedFile(path, access)
   try {
+    const info = await file.stat()
     const header = Buffer.alloc(16)
     await file.read(header, 0, header.length, 0)
     const mediaType = header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
@@ -169,17 +189,18 @@ async function inspect(path: string, args: Record<string, unknown>): Promise<Des
 
 async function manifest(
   path: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  access: LocalFileAccess
 ): Promise<DesktopLocalFileManifest> {
   if (typeof args.targetWorkspaceId !== 'string') throw new Error('A target workspace is required.')
-  const root = await realpath(path)
+  const root = await access.resolve(path)
   const entries: DesktopLocalFileEntry[] = []
   async function walk(current: string, ancestors: ReadonlySet<string>): Promise<void> {
     if (entries.length >= MAX_ENTRIES)
       throw new Error(
         'The directory exceeds 1,000 entries. Import smaller subdirectories separately.'
       )
-    const canonical = await realpath(current)
+    const canonical = await access.resolve(current)
     assertImportPath(root, canonical)
     const info = await stat(canonical)
     if (!info.isDirectory() && !info.isFile())
@@ -210,20 +231,27 @@ async function manifest(
   }
 }
 
-/** Calls have already been authorized against the pending server record by the IPC boundary. */
+/** Requires both a pending server call and a main-process grant before returning local data. */
 export async function executeLocalFileRequest(
   request: unknown,
-  authorization: LocalFileAuthorization
+  authorization: LocalFileAuthorization,
+  access: LocalFileAccess
 ): Promise<DesktopLocalFileResponse> {
   try {
     if (!isRecordLike(request)) throw new Error('Invalid local file request.')
-    const path = nativePath(authorization.args.path)
-    if (request.operation === 'read' && authorization.toolName === 'read_local_file')
-      return { ok: true, data: await inspect(path, authorization.args) }
+    const path = await access.resolve(access.path)
+    if (request.operation === 'read' && authorization.toolName === 'read_local_file') {
+      const data = await inspect(path, authorization.args, access)
+      await access.resolve(path)
+      return { ok: true, data }
+    }
     if (authorization.toolName !== 'import_local_files')
       throw new Error('The operation does not match the pending tool call.')
-    if (request.operation === 'manifest')
-      return { ok: true, data: await manifest(path, authorization.args) }
+    if (request.operation === 'manifest') {
+      const data = await manifest(path, authorization.args, access)
+      await access.resolve(path)
+      return { ok: true, data }
+    }
     if (
       request.operation !== 'chunk' ||
       typeof request.relativePath !== 'string' ||
@@ -232,11 +260,11 @@ export async function executeLocalFileRequest(
       throw new Error('Invalid file chunk request.')
     const child = resolve(path, request.relativePath)
     assertImportPath(path, child)
-    const root = await realpath(path)
-    const canonical = await realpath(child)
+    const root = await access.resolve(path)
+    const canonical = await access.resolve(child)
     assertImportPath(root, canonical)
     const offset = boundedInteger(request.offset, 0, Number.MAX_SAFE_INTEGER)
-    const file = await open(canonical, 'r')
+    const file = await openApprovedFile(canonical, access)
     try {
       const info = await file.stat()
       if (!info.isFile() || revision(info) !== request.revision)
@@ -248,6 +276,7 @@ export async function executeLocalFileRequest(
       const { bytesRead } = await file.read(buffer, 0, buffer.length, offset)
       if (revision(await file.stat()) !== request.revision)
         throw new Error('The source file changed during import.')
+      await access.resolve(child)
       return {
         ok: true,
         data: {
