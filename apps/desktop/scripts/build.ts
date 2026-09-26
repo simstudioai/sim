@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { cpSync, readFileSync, rmSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { type BuildOptions, build } from 'esbuild'
 import postcss from 'postcss'
 import loadPostcssConfig from 'postcss-load-config'
@@ -33,52 +33,6 @@ const generatedIcon = 'build/generated-icon.icon'
 rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
-
-function compileNativeHelpSearch(): void {
-  const outputDirectory = 'dist/native'
-  rmSync(outputDirectory, { force: true, recursive: true })
-  if (process.platform !== 'darwin') return
-
-  const nodeExecutable = execFileSync('node', ['-p', 'process.execPath'], {
-    encoding: 'utf8',
-  }).trim()
-  const nodeIncludeDirectory = join(dirname(nodeExecutable), '..', 'include', 'node')
-  const nodeApiHeader = join(nodeIncludeDirectory, 'node_api.h')
-  if (!existsSync(nodeApiHeader)) {
-    throw new Error(`Could not find Node-API headers at ${nodeApiHeader}`)
-  }
-
-  mkdirSync(outputDirectory, { recursive: true })
-  execFileSync(
-    'xcrun',
-    [
-      'clang++',
-      '-std=c++17',
-      '-DNAPI_VERSION=8',
-      '-fobjc-arc',
-      '-fblocks',
-      '-bundle',
-      '-undefined',
-      'dynamic_lookup',
-      '-mmacosx-version-min=12.0',
-      '-arch',
-      'arm64',
-      '-arch',
-      'x86_64',
-      '-I',
-      nodeIncludeDirectory,
-      '-framework',
-      'AppKit',
-      '-framework',
-      'Foundation',
-      '-o',
-      join(outputDirectory, 'help-search.node'),
-      'native/help-search.mm',
-    ],
-    { stdio: 'inherit' }
-  )
-  console.log('• Compiled native macOS documentation Help search')
-}
 
 const common = {
   bundle: true,
@@ -138,7 +92,7 @@ const renderer: BuildOptions = {
 }
 
 async function run(): Promise<void> {
-  compileNativeHelpSearch()
+  execFileSync(process.execPath, ['run', 'scripts/build-native.ts'], { stdio: 'inherit' })
   if (watch) {
     const { context } = await import('esbuild')
     const rendererCtx = await context(renderer)
