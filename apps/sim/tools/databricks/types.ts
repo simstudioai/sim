@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 /** Base parameters shared by all Databricks tools */
 export interface DatabricksBaseParams {
@@ -239,6 +239,226 @@ export interface DatabricksListWarehousesResponse extends ToolResponse {
   }
 }
 
+/** Genie: a message flattened into its answer, generated SQL, and follow-ups */
+export interface DatabricksGenieMessage {
+  conversationId: string
+  messageId: string
+  status: string
+  content: string
+  answer: string | null
+  followUpQuestion: string | null
+  queryTitle: string | null
+  sql: string | null
+  queryDescription: string | null
+  queryAttachmentId: string | null
+  statementId: string | null
+  rowCount: number | null
+  thoughts: Array<{ type: string | null; content: string }>
+  suggestedQuestions: string[]
+  visualizations: Array<{
+    attachmentId: string
+    title: string | null
+    queryAttachmentId: string | null
+  }>
+  error: string | null
+  errorType: string | null
+  createdTimestamp: number | null
+}
+
+/** Genie: the SQL result of a query attachment */
+export interface DatabricksStatementResult {
+  statementId: string
+  status: string
+  columns: Array<{ name: string; position: number; typeName: string }> | null
+  data: Array<Array<string | null>> | null
+  totalRows: number | null
+  truncated: boolean
+}
+
+/** Genie: a space (Genie agent) */
+export interface DatabricksGenieSpace {
+  spaceId: string
+  title: string
+  description: string | null
+  warehouseId: string | null
+  parentPath: string | null
+  createTime: string | null
+  updateTime: string | null
+}
+
+interface DatabricksGenieSpaceParams extends DatabricksBaseParams {
+  spaceId: string
+}
+
+/** Genie: parameters addressing one message in a conversation */
+export interface DatabricksGenieMessageParams extends DatabricksGenieSpaceParams {
+  conversationId: string
+  messageId: string
+}
+
+/** Genie: parameters addressing one attachment on a message */
+export interface DatabricksGenieAttachmentParams extends DatabricksGenieMessageParams {
+  attachmentId: string
+}
+
+/** Genie Ask (start or continue a chat-mode conversation and wait for the answer) */
+export interface DatabricksGenieAskParams extends DatabricksGenieSpaceParams {
+  content: string
+  conversationId?: string
+  enableVisualization?: boolean
+}
+
+export interface DatabricksGenieAskResponse extends ToolResponse {
+  output: DatabricksGenieMessage & {
+    columns: DatabricksStatementResult['columns']
+    data: DatabricksStatementResult['data']
+    totalRows: number | null
+    truncated: boolean | null
+  }
+}
+
+export interface DatabricksGenieGetMessageResponse extends ToolResponse {
+  output: DatabricksGenieMessage
+}
+
+/** Genie List Messages */
+export interface DatabricksGenieListMessagesParams extends DatabricksGenieSpaceParams {
+  conversationId: string
+  pageSize?: number
+  pageToken?: string
+}
+
+export interface DatabricksGenieListMessagesResponse extends ToolResponse {
+  output: {
+    messages: DatabricksGenieMessage[]
+    nextPageToken: string | null
+  }
+}
+
+/** Genie Get Query Result / Execute Query */
+export interface DatabricksGenieQueryResultResponse extends ToolResponse {
+  output: DatabricksStatementResult
+}
+
+/** Genie Download Visualization */
+export interface DatabricksGenieDownloadVisualizationResponse extends ToolResponse {
+  output: {
+    file: ToolFileData
+  }
+}
+
+/** Genie Send Feedback */
+export interface DatabricksGenieSendFeedbackParams extends DatabricksGenieMessageParams {
+  rating: 'POSITIVE' | 'NEGATIVE' | 'NONE'
+  comment?: string
+}
+
+/** Genie List Conversations */
+export interface DatabricksGenieListConversationsParams extends DatabricksGenieSpaceParams {
+  includeAll?: boolean
+  pageSize?: number
+  pageToken?: string
+}
+
+export interface DatabricksGenieListConversationsResponse extends ToolResponse {
+  output: {
+    conversations: Array<{
+      conversationId: string
+      title: string | null
+      createdTimestamp: number | null
+      agentType: string | null
+    }>
+    nextPageToken: string | null
+  }
+}
+
+/** Genie Delete Conversation */
+export interface DatabricksGenieDeleteConversationParams extends DatabricksGenieSpaceParams {
+  conversationId: string
+}
+
+/** Genie mutations with an empty response body (feedback, deletes) */
+export interface DatabricksGenieSuccessResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+/** Genie List Spaces */
+export interface DatabricksGenieListSpacesParams extends DatabricksBaseParams {
+  pageSize?: number
+  pageToken?: string
+}
+
+export interface DatabricksGenieListSpacesResponse extends ToolResponse {
+  output: {
+    spaces: DatabricksGenieSpace[]
+    nextPageToken: string | null
+  }
+}
+
+/** Genie Get Space */
+export interface DatabricksGenieGetSpaceParams extends DatabricksGenieSpaceParams {
+  includeSerializedSpace?: boolean
+}
+
+export interface DatabricksGenieGetSpaceResponse extends ToolResponse {
+  output: DatabricksGenieSpace & {
+    serializedSpace: string | null
+  }
+}
+
+/** Genie agent mode: one item in a response or conversation */
+export interface DatabricksGenieAgentItem {
+  type: string
+  id: string
+  status: string | null
+  role: string | null
+  text: string | null
+  callId: string | null
+  name: string | null
+  arguments: string | null
+  output: string | null
+}
+
+/** Genie agent mode: Ask Agent */
+export interface DatabricksGenieAgentAskParams extends DatabricksGenieSpaceParams {
+  content: string
+  conversationId?: string
+  enableVisualization?: boolean
+}
+
+export interface DatabricksGenieAgentAskResponse extends ToolResponse {
+  output: {
+    responseId: string
+    conversationId: string
+    status: string
+    report: string | null
+    queries: Array<{ callId: string; title: string | null; sql: string | null }>
+    items: DatabricksGenieAgentItem[]
+    createdAt: number | null
+    error: string | null
+  }
+}
+
+/** Genie agent mode: List Conversation Items */
+export interface DatabricksGenieAgentListItemsParams extends DatabricksGenieSpaceParams {
+  conversationId: string
+  limit?: number
+  after?: string
+  order?: 'asc' | 'desc'
+}
+
+export interface DatabricksGenieAgentListItemsResponse extends ToolResponse {
+  output: {
+    items: DatabricksGenieAgentItem[]
+    firstId: string | null
+    lastId: string | null
+    hasMore: boolean
+    status: string | null
+  }
+}
+
 /** Union type for all Databricks responses */
 export type DatabricksResponse =
   | DatabricksExecuteSqlResponse
@@ -252,3 +472,14 @@ export type DatabricksResponse =
   | DatabricksListClustersResponse
   | DatabricksGetClusterResponse
   | DatabricksListWarehousesResponse
+  | DatabricksGenieAskResponse
+  | DatabricksGenieGetMessageResponse
+  | DatabricksGenieListMessagesResponse
+  | DatabricksGenieQueryResultResponse
+  | DatabricksGenieDownloadVisualizationResponse
+  | DatabricksGenieListConversationsResponse
+  | DatabricksGenieSuccessResponse
+  | DatabricksGenieListSpacesResponse
+  | DatabricksGenieGetSpaceResponse
+  | DatabricksGenieAgentAskResponse
+  | DatabricksGenieAgentListItemsResponse
