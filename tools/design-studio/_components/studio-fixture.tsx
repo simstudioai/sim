@@ -396,7 +396,14 @@ export function StudioFixture({
       if (!trigger || activated) return
       activated = true
       observer.disconnect()
-      trigger.click()
+      trigger.focus()
+      if (trigger.getAttribute('aria-haspopup') === 'menu') {
+        trigger.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+        )
+      } else {
+        trigger.click()
+      }
     }
     const observer = new MutationObserver(activate)
     observer.observe(document.body, { childList: true, subtree: true })

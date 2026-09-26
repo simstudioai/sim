@@ -41,6 +41,9 @@ try {
     ['tooltip', { state: 'open', export: 'Tooltip.Content' }, '[role=tooltip]'],
     ['dropdown-menu-sub-content', { action: 'open-submenu' }, '[data-studio-submenu]'],
     ['popover', { action: 'open-folder' }, '[data-studio-back-button]'],
+    ['chip-dropdown', { state: 'open' }, '[role=menu]'],
+    ['chip-select', { state: 'open' }, '[role=menu]'],
+    ['combobox', { state: 'open', axis: 'editable', value: 'true' }, '[role=listbox]'],
   ])
     for (const theme of ['light', 'dark'])
       for (const size of [16, 20]) {
