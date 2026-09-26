@@ -74,7 +74,10 @@ async function readApprovedDirectory(path: string, access: LocalFileAccess) {
   const handle = await openApprovedPath(path, access, true)
   try {
     const listing = await readNativeDirectory(handle.fd, MAX_ENTRIES)
-    if ((await access.resolve(path)) !== path)
+    const canonical = await access.resolve(path)
+    const current = await lstat(canonical)
+    const opened = await handle.stat()
+    if (canonical !== path || current.dev !== opened.dev || current.ino !== opened.ino)
       throw new Error('The local directory changed while it was being read. Try again.')
     listing.entries.sort((left, right) => compareStrings(left.name, right.name))
     return listing
