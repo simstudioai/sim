@@ -498,12 +498,15 @@ export class LocalFilesystemService {
               'Local filesystem operation is not supported.'
             )
         }
+        if (grant) {
+          if (this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
+          await this.assertMountCurrent(grant)
+        }
       } finally {
         if (requestId) {
           this.activeRequests.delete(requestId)
         }
       }
-      if (grant && this.mounts.get(grant.id)?.rootPath !== grant.rootPath) throw mountNotFound()
       return { ok: true, data }
     } catch (error) {
       const safe = safeError(error)
@@ -1073,6 +1076,7 @@ export class LocalFilesystemService {
         'The requested path is outside the selected folder.'
       )
     }
+    await this.assertMountCurrent(mount)
     return { mount, relativePath, lexicalPath, realPath }
   }
 
