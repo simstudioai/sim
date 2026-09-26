@@ -32,6 +32,28 @@ const element = (classes: string) =>
 const shared = (props = '', body = '') =>
   `import {ChipInput, Chip, DropdownMenuItem, Button} from '@sim/emcn'; const A=()=> <><ChipInput ${props}/>${body}</>`
 
+test('embedded HTML CSS annotations point to the authored declaration', () => {
+  for (const source of [
+    '<div style="color: #abc; background: #def"></div>',
+    '<div\n style =\n "color: #abc;\n background: #def"></div>',
+    '<style>.a { color: #abc; }</style>',
+    '<style\n type="text/css">\n.a { color: #abc; }\n</style>',
+    '.a { color: #abc; }',
+  ]) {
+    const facts = extract(source, source.startsWith('.') ? 'example.css' : 'example.html')
+    for (const atom of facts.atoms.filter(
+      (a) => a.property === 'color' || a.property === 'background'
+    )) {
+      const prefix = source.slice(0, source.indexOf(`${atom.property}:`)).split('\n')
+      expect({ line: atom.line, column: atom.column }).toEqual({
+        line: prefix.length,
+        column: prefix.at(-1)!.length + 1,
+      })
+    }
+    expect(facts.atoms.some((a) => a.property === 'color')).toBe(true)
+  }
+})
+
 for (const [category, before, after] of [
   ['colours', 'text-[var(--text-body)]', 'text-[var(--text-muted)]'],
   ['spacing', 'p-2', 'p-4'],

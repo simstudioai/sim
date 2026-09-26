@@ -136,6 +136,8 @@ test('text, screen-reader text, labels, titles and resolvable labelledby name bu
     `<Button aria-label='Save'><X/></Button>`,
     `<Button title='Save'><X/></Button>`,
     `<div><span id='label'>Save</span><Button aria-labelledby='label'><X/></Button></div>`,
+    `<div><span id='label'/><Button aria-labelledby='label'>Save</Button></div>`,
+    `<div><span id='label'/><Button aria-labelledby='label' aria-label='Save'><X/></Button></div>`,
   ])
     expect(matching(run(body), 'control-accessible-name')).toHaveLength(0)
 })

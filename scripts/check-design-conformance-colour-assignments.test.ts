@@ -572,6 +572,9 @@ test('imperative paint properties inspect literals, tokens and unresolved values
 test('imperative neutral paint and border geometry do not become colour findings', () => {
   for (const expression of [
     "node.style.background='transparent'",
+    "node.style.background='none'",
+    "node.style.fill='none'",
+    "node.style.boxShadow='none'",
     "node.style.border='0'",
     "node.style.border='2px solid var(--text-body)'",
   ]) {
@@ -580,4 +583,15 @@ test('imperative neutral paint and border geometry do not become colour findings
   expect(
     flagged({ [ui]: `export function update(node){node.style.border='2px solid #ff00ff'}` }).length
   ).toBeGreaterThan(0)
+})
+
+test('none is not approved as a colour or a context-free local colour alias', () => {
+  for (const property of ['color', 'borderColor', 'backgroundColor', 'caretColor']) {
+    expect(
+      flagged({ [ui]: `export function update(node){node.style.${property}='none'}` })
+    ).not.toEqual([])
+  }
+  const result = inspect({ [css]: '.a{--paint:none;color:var(--paint)}' })
+  expect(result.variables.find((v) => v.name === '--paint')?.status).not.toBe('verified')
+  expect(result.unchecked.length + result.findings.length).toBeGreaterThan(0)
 })

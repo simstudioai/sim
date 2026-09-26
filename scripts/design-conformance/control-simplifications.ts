@@ -828,6 +828,7 @@ export function inspectSimplifications(
         })
       )
     }
+    if (state === 'empty') state = label
     if (state === 'empty' && imageInput) state = texts(statics.property(props, 'alt'))
     if (state === 'empty')
       state = siblings(detail.content.children.map((c) => contentName(c, detail)))

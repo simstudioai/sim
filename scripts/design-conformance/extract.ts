@@ -100,7 +100,7 @@ export function extract(
     facts.atoms.push(atom)
     current?.atoms.push(atom)
   }
-  const css = (source: string, lineOffset = 0, inline = false) => {
+  const css = (source: string, origin = { line: 1, column: 1 }, inline = false) => {
     const root = postcss.parse(inline ? `x{${source}}` : source)
     const groups = new Map<unknown, Surface>()
     root.walkDecls((d) => {
@@ -116,8 +116,9 @@ export function extract(
           d.prop.startsWith('--') ? 'token' : 'style',
           d.prop,
           d.value + (d.important ? ' !important' : ''),
-          (d.source?.start?.line ?? 1) + lineOffset,
-          d.source?.start?.column ?? 1,
+          (d.source?.start?.line ?? 1) + origin.line - 1,
+          (d.source?.start?.column ?? 1) +
+            ((d.source?.start?.line ?? 1) === 1 ? origin.column - 1 - (inline ? 2 : 0) : 0),
           context.join(' > ')
         )
       if (inline && current) record()
@@ -128,7 +129,7 @@ export function extract(
             'definition',
             'css',
             context.join(' > '),
-            (d.source?.start?.line ?? 1) + lineOffset
+            (d.source?.start?.line ?? 1) + origin.line - 1
           )
           groups.set(d.parent, group)
         }
@@ -169,7 +170,24 @@ export function extract(
               if (a.name === 'class')
                 for (const value of a.value.split(/\s+/).filter(Boolean))
                   add('class', 'class', value, loc?.startLine, loc?.startCol)
-              if (a.name === 'style') css(a.value, (loc?.startLine ?? 1) - 1, true)
+              if (a.name === 'style') {
+                const prefix = loc
+                  ? (text.slice(loc.startOffset, loc.endOffset).match(/^[^=]+?=\s*['"]?/)?.[0] ??
+                    '')
+                  : ''
+                const lines = prefix.split(/\r\n|\r|\n/)
+                css(
+                  a.value,
+                  {
+                    line: (loc?.startLine ?? 1) + lines.length - 1,
+                    column:
+                      lines.length === 1
+                        ? (loc?.startCol ?? 1) + prefix.length
+                        : lines.at(-1)!.length + 1,
+                  },
+                  true
+                )
+              }
               const property = options?.conformance ? presentationProperty(a.name) : undefined
               if (
                 property &&
@@ -184,11 +202,13 @@ export function extract(
                   'attribute'
                 )
             }
-            if (element.tagName === 'style')
-              css(
-                (element.childNodes ?? []).map((n) => ('value' in n ? n.value : '')).join(''),
-                (element.sourceCodeLocation?.startLine ?? 1) - 1
-              )
+            if (element.tagName === 'style') {
+              const start = element.sourceCodeLocation?.startTag
+              css((element.childNodes ?? []).map((n) => ('value' in n ? n.value : '')).join(''), {
+                line: start?.endLine ?? 1,
+                column: start?.endCol ?? 1,
+              })
+            }
           })
         }
         for (const child of 'childNodes' in node ? node.childNodes : [])

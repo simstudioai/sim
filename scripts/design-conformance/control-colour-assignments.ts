@@ -655,6 +655,16 @@ export class ColourAssignments {
             )
           )
         }
+        if (assignment.direct && /^none$/i.test(value.trim()))
+          return /^(?:background(?:-image)?|fill|stroke|box-shadow|text-shadow|text-decoration)$/.test(
+            assignment.name
+          )
+            ? { status: 'verified', reason: 'No authored paint colour', references: [] }
+            : {
+                status: 'invalid',
+                reason: `none is not a colour for ${assignment.name}`,
+                references: [],
+              }
         const shadow = shadowSink ? /^var\((--shadow-[\w-]+)\)$/.exec(value.trim()) : null
         if (shadow) {
           const name = shadow[1]
@@ -865,8 +875,14 @@ function checkColourValue(
   shadowGeometry = false,
   channelContext = false
 ): Check {
-  if (/^(?:none|transparent)$/i.test(text.trim()))
+  if (/^transparent$/i.test(text.trim()))
     return { status: 'verified', reason: 'No authored paint colour', references: [] }
+  if (/^none$/i.test(text.trim()))
+    return {
+      status: 'unresolved',
+      reason: 'none requires a known paint property context',
+      references: [],
+    }
   if (/^(?:currentColor|inherit|unset|revert|revert-layer)$/i.test(text.trim()))
     return {
       status: 'unresolved',
