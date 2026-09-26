@@ -75,12 +75,18 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
       const encoded = toRecord(toRecord(entry).encode).value
       return Array.isArray(encoded) ? encoded[0] : encoded
     })
-    /** Native formatting handles automatic encodings; table charts supply named measures. */
-    if (!valueFields.every((field): field is string => typeof field === 'string')) return option
+    /**
+     * Native formatting handles automatic encodings. Table charts name their measure; indexed
+     * encodings resolve through the encode and dimension names ECharts passes the formatter.
+     */
+    if (!valueFields.every((field) => typeof field === 'string' || typeof field === 'number'))
+      return option
     option.tooltip = mapTooltipEntries(option.tooltip, (tooltip) => ({
       trigger: 'item',
-      formatter: (params: unknown) =>
-        formatPieTooltip(params, valueFields[Number(toRecord(params).seriesIndex)]),
+      formatter: (params: unknown) => {
+        const field = valueFields[Number(toRecord(params).seriesIndex)]
+        return formatPieTooltip(params, typeof field === 'string' ? field : undefined)
+      },
       ...tooltip,
     }))
   }

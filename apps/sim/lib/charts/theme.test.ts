@@ -1,4 +1,5 @@
 /** @vitest-environment node */
+import { toRecord } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import { applyChartTooltipDefaults, formatBarTooltip, formatPieTooltip } from '@/lib/charts/theme'
 
@@ -75,6 +76,24 @@ describe('pie tooltips', () => {
         tooltip: { formatter: '{b}: {d}%' },
       }).tooltip
     ).toMatchObject({ formatter: '{b}: {d}%' })
+  })
+
+  it('formats pies encoded by dimension index with the encoded measure', () => {
+    const option = applyChartTooltipDefaults({
+      series: [{ type: 'pie', encode: { itemName: 0, value: 1 } }],
+    })
+    const formatter = toRecord(option.tooltip).formatter
+    if (typeof formatter !== 'function') throw new Error('Expected the pie tooltip formatter')
+    expect(
+      formatter({
+        seriesIndex: 0,
+        name: 'Human resolved',
+        value: ['Human resolved', 437],
+        dimensionNames: ['topic', 'tickets'],
+        encode: { value: [1] },
+        percent: 25,
+      })
+    ).toBe('Human resolved: 437 (25%)')
   })
 
   it('keeps native formatting for pies with automatic encodings', () => {
