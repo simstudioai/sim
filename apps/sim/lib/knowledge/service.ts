@@ -168,12 +168,6 @@ function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
     : isNull(knowledgeBase.deletedAt)
 }
 
-/** A knowledge-base row before its connector summary is attached. */
-type KnowledgeBaseRow = Omit<
-  KnowledgeBaseSummary,
-  'connectorTypes' | 'hasPermissionScopedConnector'
->
-
 /**
  * The base's own columns, without reading a single document. Every list shares this projection
  * so a column added to one can never be missing from another.
@@ -182,7 +176,7 @@ async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
   limit?: number
-): Promise<KnowledgeBaseRow[]> {
+): Promise<ActiveKnowledgeBaseReference[]> {
   const query = db
     .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
     .from(knowledgeBase)
@@ -202,7 +196,7 @@ async function readCountedKnowledgeBaseRows(
   limit: number | undefined,
   access: KnowledgeReadAccess
 ): Promise<
-  Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
+  Array<ActiveKnowledgeBaseReference & Pick<KnowledgeBaseWithCounts, 'docCount' | 'tokenCount'>>
 > {
   const scope = 'get' in access ? await access.get() : access
   const query = db
@@ -311,7 +305,7 @@ async function readLiveSourceDocumentCounts(
   return counts
 }
 
-async function attachConnectorTypes<Row extends KnowledgeBaseRow>(
+async function attachConnectorTypes<Row extends ActiveKnowledgeBaseReference>(
   knowledgeBases: Row[]
 ): Promise<
   Array<Row & Pick<KnowledgeBaseSummary, 'connectorTypes' | 'hasPermissionScopedConnector'>>
@@ -419,7 +413,7 @@ export async function getWorkspaceKnowledgeBases(
    */
   const readLimit = limit === undefined ? undefined : limit + 1
 
-  const rows: KnowledgeBaseRow[] = countsFor
+  const rows: ActiveKnowledgeBaseReference[] = countsFor
     ? await readCountedKnowledgeBaseRows(where, orderBy, readLimit, countsFor)
     : await readKnowledgeBaseRows(where, orderBy, readLimit)
   const page = keysetPage(keys, rows, limit)
@@ -433,7 +427,7 @@ export async function getWorkspaceKnowledgeBases(
 export async function findActiveKnowledgeBasesByExactName(
   workspaceId: string,
   name: string
-): Promise<KnowledgeBaseRow[]> {
+): Promise<ActiveKnowledgeBaseReference[]> {
   return readKnowledgeBaseRows(
     and(
       eq(knowledgeBase.workspaceId, workspaceId),
@@ -984,7 +978,7 @@ export async function getActiveKnowledgeBaseReferences(
  * operation that only resolves its context pays for neither the count nor the connector read.
  */
 export async function attachKnowledgeBaseConnectors(
-  knowledgeBase: KnowledgeBaseRow,
+  knowledgeBase: ActiveKnowledgeBaseReference,
   access: KnowledgeReadAccess
 ): Promise<KnowledgeBaseWithCounts> {
   const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
