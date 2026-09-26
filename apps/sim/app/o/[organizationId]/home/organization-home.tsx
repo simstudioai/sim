@@ -16,7 +16,6 @@ import {
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
-import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
@@ -408,18 +407,9 @@ function OrganizationHomeContent({
                   : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
             </h1>
             <div className='relative w-full max-w-chat'>
-              {requestMode === 'assistant' && searchAccess.memberScoped && userId ? (
-                <SearchLandingHistory
-                  organizationId={organization.id}
-                  userId={userId}
-                  onSearch={(query) => submit(query)}
-                >
-                  {composer}
-                </SearchLandingHistory>
-              ) : (
-                composer
-              )}
-              <div className={requestMode === 'agent' ? 'absolute inset-x-0 top-full' : 'mt-4'}>
+              {composer}
+              {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
+              <div className='absolute inset-x-0 top-full'>
                 {requestMode === 'agent' ? (
                   <SuggestedActions
                     organizationId={organization.id}
