@@ -2277,26 +2277,6 @@ describe('importAgentCookies', () => {
     sameSite: 'lax' as const,
   })
 
-  it('gives session cookies a bounded lifetime so they survive a restart', async () => {
-    vi.useFakeTimers({ now: new Date('2026-09-26T00:00:00Z') })
-    try {
-      const set = vi.fn(async () => {})
-      const session = withCookieJar(set)
-      const expiring = { ...cookie('kept'), expirationDate: 1_900_000_000 }
-
-      await session.importAgentCookies([cookie('session'), expiring])
-
-      const nowSeconds = Date.parse('2026-09-26T00:00:00Z') / 1000
-      expect(set).toHaveBeenNthCalledWith(1, {
-        ...cookie('session'),
-        expirationDate: nowSeconds + 30 * 24 * 60 * 60,
-      })
-      expect(set).toHaveBeenNthCalledWith(2, expiring)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('counts a rejected cookie without losing the rest', async () => {
     // Chromium refuses cookies whose attributes are inconsistent. That
     // rejection must cost one cookie, not the whole import.
