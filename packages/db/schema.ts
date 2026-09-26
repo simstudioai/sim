@@ -3403,12 +3403,22 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    /** Bounded oldest-first recovery scans only retained, live connector processing inputs. */
+    /** Superseded by the per-source recovery index; drop in a follow-up migration once that deploy has shipped. */
     processingRecoveryIdx: index('doc_processing_recovery_idx')
       .on(table.uploadedAt, table.id)
       .where(
         sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
       ),
+    /**
+     * Oldest-first recovery pages per eligible source. Recovery walks only the sources it may
+     * admit, so retained inputs of paused or federated sources are never read.
+     */
+    connectorProcessingRecoveryIdx: index('doc_connector_processing_recovery_idx')
+      .on(table.connectorId, table.uploadedAt, table.id)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      )
+      .concurrently(),
     /**
      * Per-source processing probes (any failed, pending or processing document) behind the
      * source status, progress and overview reads. Partial on the rare non-terminal states so a
