@@ -21,12 +21,23 @@ export const omitted: Expr = { kind: 'undefined' }
 const key = (n: t.Node) => (t.isIdentifier(n) ? n.name : t.isStringLiteral(n) ? n.value : '')
 
 /** const protects the binding, not its object. Reject writes and unmodelled escapes. */
-export function immutable(binding: Binding, seen = new Set<Binding>()): boolean {
+export function immutable(
+  binding: Binding,
+  seen = new Set<Binding>(),
+  readOnlyReference?: (reference: NodePath) => boolean
+): boolean {
   if (!binding.constant || seen.has(binding)) return false
   const next = new Set(seen).add(binding)
   return binding.referencePaths.every((p) => {
+    if (readOnlyReference?.(p)) return true
     let q = p
-    while (q.parentPath?.isMemberExpression() && q.parentPath.get('object') === q) q = q.parentPath
+    while (
+      (q.parentPath?.isMemberExpression() && q.parentPath.get('object') === q) ||
+      q.parentPath?.isTSAsExpression() ||
+      q.parentPath?.isTSSatisfiesExpression() ||
+      q.parentPath?.isTSNonNullExpression()
+    )
+      q = q.parentPath
     const parent = q.parentPath
     if (!parent) return false
     if (parent.isObjectProperty()) {
@@ -66,7 +77,7 @@ export function immutable(binding: Binding, seen = new Set<Binding>()): boolean 
       t.isIdentifier(parent.node.id)
     ) {
       const alias = parent.scope.getBinding(parent.node.id.name)
-      return !!alias && immutable(alias, next)
+      return !!alias && immutable(alias, next, readOnlyReference)
     }
     return true
   })

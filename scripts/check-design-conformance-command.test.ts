@@ -469,6 +469,128 @@ test.each([
 )
 
 test.each([
+  [
+    'inline variant change',
+    '',
+    "{variants:{size:{small:'bg-red-500'}}}",
+    "{variants:{size:{small:'bg-blue-500'}}}",
+    true,
+    false,
+  ],
+  [
+    'local const config',
+    "const config={variants:{size:{small:'bg-red-500'}}} as const;",
+    'config',
+    'config',
+    true,
+    false,
+  ],
+  [
+    'local config alias',
+    "const original={variants:{size:{small:'bg-red-500'}}};const config=(original as typeof original);",
+    'config',
+    'config',
+    true,
+    false,
+  ],
+  [
+    'compound literal array',
+    '',
+    "{compoundVariants:[{size:['small'],class:'rounded-lg'}]}",
+    "{compoundVariants:[{size:['large'],class:'rounded-lg'}]}",
+    true,
+    false,
+  ],
+  [
+    'compound array alias',
+    "const sizes=['small'] as const;",
+    "{compoundVariants:[{'size':sizes,class:'rounded-lg'}]}",
+    "{compoundVariants:[{'size':sizes,class:'rounded-lg'}]}",
+    true,
+    false,
+  ],
+  [
+    'compound array order',
+    '',
+    "{compoundVariants:[{size:['small','large'],class:'rounded-lg'}]}",
+    "{compoundVariants:[{size:['large','small'],class:'rounded-lg'}]}",
+    false,
+    false,
+  ],
+  ['opaque configuration', '', 'loadConfig()', 'otherConfig()', false, true],
+  [
+    'mutated configuration',
+    "const config={variants:{size:{small:'bg-red-500'}}};const escaped=(config as typeof config);escaped.variants.size.small=external;",
+    'config',
+    'config',
+    false,
+    true,
+  ],
+  [
+    'opaque compound condition',
+    '',
+    "{compoundVariants:[{size:[current],class:'rounded-lg'}]}",
+    "{compoundVariants:[{size:[other],class:'rounded-lg'}]}",
+    false,
+    true,
+  ],
+  [
+    'compound array limit',
+    '',
+    `{compoundVariants:[{size:[${Array(65).fill("'small'").join(',')}],class:'rounded-lg'}]}`,
+    `{compoundVariants:[{size:[${Array(65).fill("'large'").join(',')}],class:'rounded-lg'}]}`,
+    false,
+    true,
+  ],
+] as const)(
+  'source-only CVA config and compound evidence survives the real CLI: %s',
+  (name, declarations, beforeConfig, afterConfig, notify, unchecked) => {
+    const { repo } = fixture()
+    const sourceFile = 'packages/emcn/src/components/recipe.ts'
+    const write = (file: string, source: string) => {
+      mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+      writeFileSync(path.join(repo, file), source)
+    }
+    write('packages/emcn/src/index.ts', "export {recipe} from './components/recipe'")
+    const source = (config: string, after: boolean) =>
+      `import {cva} from 'class-variance-authority';${after ? declarations.replace('bg-red-500', 'bg-blue-500').replace("['small']", "['large']").replace('=external', '=other') : declarations}export const recipe=cva('p-2',${config.replace('{compoundVariants:', "{variants:{size:{small:'',large:''}},compoundVariants:")});throw new Error('Source must not execute')`
+    write(sourceFile, source(beforeConfig, false))
+    write(
+      ui,
+      "import {recipe} from '@sim/emcn';const A=()=> <div className={recipe({size:'small'})}/>"
+    )
+    const base = commit(repo)
+    write(sourceFile, source(afterConfig, true))
+    const child = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+    expect([0, 1], child.stderr).toContain(child.status)
+    const report = JSON.parse(child.stdout) as Report
+    expect(report.status, child.stdout).toBe('completed')
+    expect(
+      report.findings.some(
+        (finding) => finding.file === sourceFile && finding.rule === 'central-definition'
+      ),
+      child.stdout
+    ).toBe(notify)
+    expect(
+      report.unchecked.some(
+        (note) => note.file === sourceFile && /CVA.*unchecked|unchecked.*CVA/i.test(note.reason)
+      ),
+      child.stdout
+    ).toBe(unchecked)
+    if (name === 'compound literal array' || name === 'compound array alias')
+      expect(
+        report.findings.some(
+          (finding) =>
+            finding.file === sourceFile &&
+            finding.context.includes('compound:') &&
+            finding.context.includes('large')
+        ),
+        child.stdout
+      ).toBe(true)
+  }
+)
+
+test.each([
   ['grid line integer', 'gridColumnStart', 'grid-column-start', '1', 1, ''],
   ['grid row integer', 'gridRowEnd', 'grid-row-end', '3', 3, ''],
   ['animation count', 'animationIterationCount', 'animation-iteration-count', '2', 2, ''],

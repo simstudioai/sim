@@ -996,18 +996,102 @@ export function extract(
       }
       return { expression: out.join(''), inputs }
     }
-    const variantValues = (p: NodePath, context = ''): void => {
-      if (p.isObjectExpression())
-        for (const prop of p.get('properties')) {
-          if (!prop.isObjectProperty()) {
-            note(prop, 'Variant spread is unchecked')
-            continue
-          }
-          const value = prop.get('value')
-          const branch = `${context}/${name(prop.get('key'))}`
-          if (value.isObjectExpression()) variantValues(value, branch)
-          else classes(value, new Set(), 0, branch)
+    // The known CVA input sink reads these declarations; other writes/escapes stay rejected.
+    const recipeRead = (reference: NodePath): boolean => {
+      let path = reference
+      for (let depth = 0; depth < 12; depth++) {
+        const parent = path.parentPath
+        if (!parent) return false
+        if (
+          parent.isTSAsExpression() ||
+          parent.isTSSatisfiesExpression() ||
+          parent.isTSNonNullExpression() ||
+          (parent.isMemberExpression() && parent.get('object') === path) ||
+          parent.isArrayExpression()
+        )
+          path = parent
+        else if (
+          parent.isObjectProperty() &&
+          parent.get('value') === path &&
+          !parent.node.computed &&
+          parent.parentPath.isObjectExpression()
+        )
+          path = parent.parentPath
+        else
+          return (
+            parent.isCallExpression() &&
+            parent.get('arguments').some((argument) => argument.node === path.node) &&
+            helper(parent.get('callee')) === 'cva'
+          )
+      }
+      return false
+    }
+    const recipeInput = (p: NodePath, active = new Set<t.Node>()): NodePath | undefined => {
+      if (!p.node || active.has(p.node) || active.size >= 12) return undefined
+      const next = new Set(active).add(p.node)
+      if (p.isTSAsExpression() || p.isTSSatisfiesExpression() || p.isTSNonNullExpression())
+        return recipeInput(p.get('expression') as NodePath, next)
+      if (p.isIdentifier()) {
+        const binding = p.scope.getBinding(p.node.name)
+        if (
+          !binding?.path.isVariableDeclarator() ||
+          !binding.path.parentPath.isVariableDeclaration({ kind: 'const' }) ||
+          !immutable(binding, new Set(), recipeRead)
+        )
+          return undefined
+        return recipeInput(binding.path.get('init') as NodePath, next)
+      }
+      return p
+    }
+    const conditionValue = (
+      p: NodePath,
+      depth = 0
+    ): string | number | boolean | null | (string | number | boolean | null)[] | undefined => {
+      if (depth >= 12) return undefined
+      const value = recipeInput(p)
+      if (!value) return undefined
+      if (value.isStringLiteral() || value.isNumericLiteral() || value.isBooleanLiteral())
+        return value.node.value
+      if (value.isNullLiteral()) return null
+      if (value.isUnaryExpression({ operator: '-' }) && value.get('argument').isNumericLiteral())
+        return -(value.node.argument as t.NumericLiteral).value
+      if (!value.isArrayExpression() || value.node.elements.length > 64) return undefined
+      const values = value
+        .get('elements')
+        .map((element) =>
+          element.node ? conditionValue(element as NodePath, depth + 1) : undefined
+        )
+      if (values.some((item) => item === undefined || Array.isArray(item))) return undefined
+      // CVA uses array membership, so order and duplicates do not change the condition.
+      return [
+        ...new Map(
+          values.map((item) => [JSON.stringify(item), item as string | number | boolean | null])
+        ).entries(),
+      ]
+        .sort(([a], [b]) => compareStrings(a, b))
+        .map(([, item]) => item)
+    }
+    const variantValues = (raw: NodePath, context = '', active = new Set<t.Node>()): void => {
+      const p = recipeInput(raw)
+      if (!p?.isObjectExpression() || active.has(p.node) || active.size >= 12) {
+        note(
+          raw,
+          'CVA variant table is unchecked: opaque, mutable, cyclic or beyond the 12-node resolution limit'
+        )
+        return
+      }
+      const next = new Set(active).add(p.node)
+      for (const prop of p.get('properties')) {
+        if (!prop.isObjectProperty() || prop.node.computed) {
+          note(prop, 'CVA variant spread/computed field is unchecked')
+          continue
         }
+        const rawValue = prop.get('value')
+        const value = recipeInput(rawValue)
+        const branch = `${context}/${name(prop.get('key'))}`
+        if (value?.isObjectExpression()) variantValues(value, branch, next)
+        else classes(rawValue, new Set(), 0, branch)
+      }
     }
     const elements = new WeakMap<t.Node, Surface>()
     const svgText = new WeakMap<t.Node, boolean>()
@@ -1308,64 +1392,76 @@ export function extract(
         within(surface('recipe', owner(p), 'cva', p.node.loc?.start.line), () => {
           const args = p.get('arguments')
           if (args[0]) classes(args[0] as NodePath)
-          if (args[1]?.isObjectExpression())
-            for (const prop of args[1].get('properties')) {
-              if (!prop.isObjectProperty()) continue
-              const key = name(prop.get('key'))
-              const value = prop.get('value')
-              if (key === 'variants') variantValues(value, 'variants')
-              if (key === 'defaultVariants' && value.isObjectExpression())
-                for (const item of value.get('properties')) {
-                  if (!item.isObjectProperty()) {
-                    note(item, 'Computed default variant is unchecked')
-                    continue
-                  }
-                  const v = literal(item.get('value'))
-                  if (v !== undefined) emit(item, 'style', `default:${name(item.get('key'))}`, v)
-                  else note(item, 'Computed default variant is unchecked')
-                }
-              if (key === 'compoundVariants' && value.isArrayExpression())
-                for (const item of value.get('elements')) {
-                  if (item.isObjectExpression()) {
-                    const conditions = item.node.properties
-                      .filter(
-                        (x) =>
-                          t.isObjectProperty(x) &&
-                          !['class', 'className'].includes(
-                            t.isIdentifier(x.key)
-                              ? x.key.name
-                              : t.isStringLiteral(x.key)
-                                ? x.key.value
-                                : ''
-                          )
-                      )
-                      .map((x) => {
-                        if (!t.isObjectProperty(x)) return ''
-                        const value = x.value
-                        return [
-                          t.isIdentifier(x.key) ? x.key.name : '',
-                          t.isStringLiteral(value) ||
-                          t.isBooleanLiteral(value) ||
-                          t.isNumericLiteral(value)
-                            ? value.value
-                            : '<unchecked>',
-                        ]
-                      })
-                      .sort()
-                    for (const cp of item.get('properties'))
-                      if (
-                        cp.isObjectProperty() &&
-                        ['class', 'className'].includes(name(cp.get('key')))
-                      )
-                        classes(
-                          cp.get('value'),
-                          new Set(),
-                          0,
-                          `compound:${JSON.stringify(conditions)}`
-                        )
-                  }
-                }
+          if (!args[1]) return
+          const config = recipeInput(args[1] as NodePath)
+          if (!config?.isObjectExpression()) {
+            note(
+              args[1] as NodePath,
+              'CVA configuration is unchecked: opaque, mutable, cyclic or beyond the 12-node resolution limit'
+            )
+            return
+          }
+          for (const prop of config.get('properties')) {
+            if (!prop.isObjectProperty() || prop.node.computed) {
+              note(prop, 'CVA configuration spread/computed field is unchecked')
+              continue
             }
+            const key = name(prop.get('key'))
+            const rawValue = prop.get('value')
+            const value = recipeInput(rawValue)
+            if (key === 'variants') variantValues(rawValue, 'variants')
+            if (key === 'defaultVariants') {
+              if (!value?.isObjectExpression()) {
+                note(rawValue, 'CVA default variants are unchecked')
+                continue
+              }
+              for (const item of value.get('properties')) {
+                if (!item.isObjectProperty() || item.node.computed) {
+                  note(item, 'Computed CVA default variant is unchecked')
+                  continue
+                }
+                const v = literal(item.get('value'))
+                if (v !== undefined) emit(item, 'style', `default:${name(item.get('key'))}`, v)
+                else note(item, 'Computed CVA default variant is unchecked')
+              }
+            }
+            if (key !== 'compoundVariants') continue
+            if (!value?.isArrayExpression()) {
+              note(rawValue, 'CVA compound variants are unchecked')
+              continue
+            }
+            for (const rawItem of value.get('elements')) {
+              const item = rawItem.node ? recipeInput(rawItem as NodePath) : undefined
+              if (!item?.isObjectExpression()) {
+                note(rawItem as NodePath, 'CVA compound variant is unchecked')
+                continue
+              }
+              const conditions: [string, unknown][] = []
+              for (const condition of item.get('properties')) {
+                if (!condition.isObjectProperty() || condition.node.computed) {
+                  note(condition, 'CVA compound condition spread/computed field is unchecked')
+                  continue
+                }
+                const key = name(condition.get('key'))
+                if (['class', 'className'].includes(key)) continue
+                const value = conditionValue(condition.get('value'))
+                if (value === undefined)
+                  note(
+                    condition.get('value'),
+                    'CVA compound condition is unchecked: opaque, mutable, cyclic or beyond the 12-node / 64-element finite-array limit'
+                  )
+                conditions.push([key, value === undefined ? '<unchecked>' : value])
+              }
+              conditions.sort(([a], [b]) => compareStrings(a, b))
+              for (const cp of item.get('properties'))
+                if (
+                  cp.isObjectProperty() &&
+                  !cp.node.computed &&
+                  ['class', 'className'].includes(name(cp.get('key')))
+                )
+                  classes(cp.get('value'), new Set(), 0, `compound:${JSON.stringify(conditions)}`)
+            }
+          }
         })
       },
       ExportNamedDeclaration(p) {
