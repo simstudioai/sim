@@ -67,9 +67,15 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
-import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import {
   readQueuedSendHandoffState,
   writeQueuedSendHandoffState,
@@ -495,6 +501,164 @@ describe('useChat remount send recovery', () => {
     }
     queryClient?.clear()
     resetDeploymentShape()
+  })
+
+  it.each([false, true])(
+    'keeps Search citations in the answer without replacing user panels (existing search: %s)',
+    async (hasSearchPanel) => {
+      const shape = resolveDeploymentShape()
+      seedDeploymentShape({
+        ...shape,
+        features: { ...shape.features, liveEnterpriseSearch: true },
+      })
+      const history: MothershipChatHistory = {
+        id: 'chat-cited-search',
+        title: 'Search',
+        messages: [],
+        activeStreamId: null,
+        resources: hasSearchPanel
+          ? [
+              {
+                type: 'search',
+                id: 'search:workspace:ws-1',
+                title: 'Search results',
+                workspaceId: 'ws-1',
+                search: { query: 'policy', scope: { kind: 'workspace', workspaceId: 'ws-1' } },
+              },
+              {
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId: 'previous-answer' },
+              },
+            ]
+          : [],
+      }
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const sent = JSON.parse(String(init.body))
+        const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
+        const events: MothershipStreamV1EventEnvelope[] = [
+          {
+            ...envelope,
+            seq: 1,
+            type: 'tool',
+            payload: {
+              phase: 'call',
+              executor: 'go',
+              mode: 'sync',
+              toolName: 'search_workspace',
+              toolCallId: 'search-policy',
+              arguments: { query: 'policy' },
+            },
+          },
+          {
+            ...envelope,
+            seq: 2,
+            type: 'tool',
+            payload: {
+              phase: 'result',
+              toolName: 'search_workspace',
+              toolCallId: 'search-policy',
+              success: true,
+              output: {
+                results: [
+                  {
+                    citationId: 'policy',
+                    citationUrl: 'https://example.com/policy',
+                    documentName: 'Policy',
+                    content: 'Policy evidence',
+                  },
+                ],
+              },
+            },
+          },
+          {
+            ...envelope,
+            seq: 3,
+            type: 'text',
+            payload: {
+              channel: 'assistant',
+              text: 'Here is the policy. <source>{"id":"policy"}</source>',
+            },
+          },
+          {
+            ...envelope,
+            seq: 4,
+            type: 'resource',
+            payload: {
+              op: 'upsert',
+              resource: {
+                type: 'search',
+                id: 'search:workspace:ws-1',
+                title: 'Search results',
+                workspaceId: 'ws-1',
+                search: { query: 'policy', scope: { kind: 'workspace', workspaceId: 'ws-1' } },
+              },
+            },
+          },
+          { ...envelope, seq: 5, type: 'complete', payload: { status: 'complete' } },
+        ]
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': history.id },
+        })
+      })
+      const selectedId = history.resources[0]
+        ? getChatResourceSelectionId(history.resources[0])
+        : undefined
+      const { getResult } = renderUseChatInChat(
+        history.id,
+        history,
+        undefined,
+        selectedId,
+        'assistant'
+      )
+      expect(getResult().resources).toEqual(history.resources)
+      await act(async () => {
+        await getResult().sendMessage('Find the policy')
+      })
+      const answer = getResult().messages.find((message) => message.role === 'assistant')
+      const sources = collectCitedMessageSources(answer?.contentBlocks ?? [], answer?.content ?? '')
+      expect(sources.map((source) => source.url)).toEqual(['https://example.com/policy'])
+      expect(getResult().resources).toEqual(history.resources)
+      expect(getResult().activeResourceId).toBe(selectedId ?? null)
+      expect(getResult().isSending).toBe(false)
+    }
+  )
+
+  it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    const history: MothershipChatHistory = {
+      id: 'chat-reconnecting-search',
+      title: 'Search',
+      activeStreamId: 'accepted-search',
+      messages: [{ id: 'accepted-search', role: 'user', content: 'Find the policy' }],
+      resources: [
+        {
+          type: 'search',
+          id: 'search:workspace:ws-1',
+          title: 'Search',
+          workspaceId: 'ws-1',
+          search: { query: 'policy', scope: { kind: 'workspace', workspaceId: 'ws-1' } },
+        },
+        {
+          type: 'sources',
+          id: 'cited-sources',
+          title: 'Sources',
+          sources: { messageId: 'previous-answer' },
+        },
+      ],
+    }
+    const selected = getChatResourceSelectionId(history.resources[0])
+    const { getResult } = renderUseChatInChat(history.id, history, undefined, selected, 'assistant')
+    expect(getResult().resources).toEqual(history.resources)
+    expect(getResult().activeResourceId).toBe(selected)
+    await act(async () => {})
+    expect(getResult().resources).toEqual(history.resources)
+    expect(getResult().activeResourceId).toBe(selected)
   })
 
   it.each(['workspace', 'organization'] as const)(

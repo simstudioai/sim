@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useContext } from 'react'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { SourceHistoryProvider } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SocketProvider } from '@/app/workspace/providers/socket-provider'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
@@ -43,7 +44,12 @@ export function OrganizationProvider({ children, context }: OrganizationProvider
             : undefined
         }
       >
-        {children}
+        <SourceHistoryProvider
+          organizationId={context.searchAccess.memberScoped ? context.organization.id : undefined}
+          userId={session?.user?.id}
+        >
+          {children}
+        </SourceHistoryProvider>
       </SocketProvider>
     </OrganizationContextValue.Provider>
   )

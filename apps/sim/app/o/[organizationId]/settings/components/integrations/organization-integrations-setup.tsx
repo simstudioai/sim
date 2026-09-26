@@ -125,12 +125,12 @@ export function OrganizationIntegrationsSetup() {
             onSelect: () => void setSetup({ addConnector: '', 'source-access': null }),
           },
         ]}
-        search={{ value: search, onChange: setSearch, placeholder: 'Search sources...' }}
+        search={{ value: search, onChange: setSearch, placeholder: 'Search sources' }}
       >
         {setup.addConnector !== '' && feedback}
         <div className={RESOURCE_LIST_STACK}>
           {overview.isError ? null : overview.isPending ? (
-            <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>Loading sources</SettingsEmptyState>
           ) : visible.length === 0 ? (
             <SettingsEmptyState variant='inline'>
               {query ? 'No matching sources' : 'No sources yet. Add a source to get started.'}

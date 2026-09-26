@@ -127,7 +127,7 @@ export function MemberIntegrationsList({
           </>
         ) : overview.isPending || integrations.isPending ? (
           <>
-            <SettingsEmptyState variant='inline'>Loading integrations…</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>Loading integrations</SettingsEmptyState>
             {githubRow}
           </>
         ) : (
@@ -178,7 +178,7 @@ export function MemberIntegrationsList({
                 <SettingsEmptyState variant='inline'>
                   {!availability.isIntegrationAvailabilityReady ||
                   (approved.has('slack') && 'slack'.includes(query) && slackInventory.isPending)
-                    ? 'Loading integrations…'
+                    ? 'Loading integrations'
                     : search
                       ? 'No matching integrations.'
                       : 'No integrations are available to connect.'}

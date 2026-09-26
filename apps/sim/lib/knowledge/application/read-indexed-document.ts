@@ -14,8 +14,8 @@ import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { ChunkQueryResult } from '@/lib/knowledge/chunks/types'
 import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
-import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { findSearchIndex } from '@/lib/knowledge/search/search-index'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 import {
   createKnowledgeDocumentSourceValue,
   importKnowledgePersistedResponseSecretProvenance,

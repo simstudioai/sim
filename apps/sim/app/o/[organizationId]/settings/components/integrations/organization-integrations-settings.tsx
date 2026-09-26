@@ -126,7 +126,7 @@ function IndexedOrganizationIntegrationsSettings() {
                 variant='inline'
               />
             ) : !accounts.data ? (
-              <SettingsEmptyState variant='inline'>Loading connected accounts…</SettingsEmptyState>
+              <SettingsEmptyState variant='inline'>Loading connected accounts</SettingsEmptyState>
             ) : !accounts.data.credentialGroup ? (
               <div className='flex flex-col items-start gap-4'>
                 <SettingsEmptyState variant='inline'>

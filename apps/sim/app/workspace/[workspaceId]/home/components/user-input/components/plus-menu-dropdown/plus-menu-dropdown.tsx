@@ -404,7 +404,7 @@ export const PlusMenuDropdown = React.memo(
           {!isMention && (
             <DropdownMenuSearchInput
               ref={searchRef}
-              placeholder='Search resources...'
+              placeholder='Search resources'
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)

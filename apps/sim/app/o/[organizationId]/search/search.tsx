@@ -2,21 +2,26 @@
 
 import { useEffect, useRef } from 'react'
 import { ComposerActionButton, toast } from '@sim/emcn'
-import { ArrowUp } from '@sim/emcn/icons'
+import { ArrowUp, Loader } from '@sim/emcn/icons'
+import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
+import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
 import { SearchResultsView } from '@/app/o/[organizationId]/search/search-results-view'
+import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
@@ -34,6 +39,14 @@ interface SearchFieldProps {
 function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
+  const isSearching =
+    useIsFetching({
+      queryKey: knowledgeKeys.searchQuery(
+        resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
+        initialValue.trim(),
+        userId
+      ),
+    }) > 0
   const latestDraftKey = `${userId}:organization:${organization.id}:search`
   const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
   const ownerQuery = initialValue || latestDraft?.searchQuery || ''
@@ -47,12 +60,16 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
     setDraft(draftKey, payload)
     setDraft(latestDraftKey, payload)
   }
-  const submit = () => {
-    if (!value.trim()) return
+  const pending = isSearching && value.trim() === initialValue.trim()
+  const submit = (text = value) => {
+    if (!text.trim() || (isSearching && text.trim() === initialValue.trim())) return
     const { clearDraft } = useMothershipDraftsStore.getState()
-    clearDraft(draftKey)
-    if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
-    onSubmit(value)
+    if (text.trim() === value.trim()) {
+      clearDraft(draftKey)
+      if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
+    }
+    clearDraft(`${latestDraftKey}:query:${encodeURIComponent(text.trim())}`)
+    onSubmit(text)
   }
   const voice = useVoiceInput({
     organizationId: organization.id,
@@ -63,35 +80,53 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
 
   useEffect(() => inputRef.current?.focus(), [])
 
+  const field = (
+    <SearchInputBar
+      inputRef={inputRef}
+      value={value}
+      onChange={setValue}
+      onSubmit={() => submit()}
+      floating={!initialValue.trim()}
+      voiceControl={
+        voice.isSupported && (
+          <MicButton
+            audioLevelsRef={voice.audioLevelsRef}
+            isListening={voice.isListening}
+            onToggle={voice.toggleListening}
+          />
+        )
+      }
+      submitControl={
+        <ComposerActionButton
+          type='button'
+          onClick={() => submit()}
+          disabled={!canSubmit || pending}
+          aria-label={pending ? 'Searching' : 'Search'}
+          aria-busy={pending}
+          active={canSubmit}
+        >
+          {pending ? (
+            <Loader className='size-[16px] animate-spin text-white motion-reduce:animate-none dark:text-black' />
+          ) : (
+            <ArrowUp className='block size-[16px] text-white dark:text-black' />
+          )}
+        </ComposerActionButton>
+      }
+    />
+  )
   return (
     <>
-      <SearchInputBar
-        inputRef={inputRef}
-        value={value}
-        onChange={setValue}
-        onSubmit={submit}
-        floating={!initialValue.trim()}
-        voiceControl={
-          voice.isSupported && (
-            <MicButton
-              audioLevelsRef={voice.audioLevelsRef}
-              isListening={voice.isListening}
-              onToggle={voice.toggleListening}
-            />
-          )
-        }
-        submitControl={
-          <ComposerActionButton
-            type='button'
-            onClick={submit}
-            disabled={!canSubmit}
-            aria-label='Search'
-            active={canSubmit}
-          >
-            <ArrowUp className='block size-[16px] text-white dark:text-black' />
-          </ComposerActionButton>
-        }
-      />
+      {!initialValue.trim() ? (
+        <SearchLandingHistory
+          organizationId={organization.id}
+          userId={userId}
+          onSearch={(query) => submit(query)}
+        >
+          {field}
+        </SearchLandingHistory>
+      ) : (
+        field
+      )}
       <MicrophonePermissionHelp
         open={voice.permissionHelpOpen}
         onOpenChange={voice.setPermissionHelpOpen}
@@ -109,7 +144,9 @@ export function OrganizationSearch({ userId }: OrganizationSearchProps) {
 
 function OrganizationSearchContent({ userId }: OrganizationSearchProps) {
   const { organization, mothershipAvailable } = useOrganizationContext()
+  const { recordQuery } = useSearchHistoryActions()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
   const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
     if (!mothershipAvailable) {
@@ -124,7 +161,19 @@ function OrganizationSearchContent({ userId }: OrganizationSearchProps) {
   }
   const submit = (draft: string) => {
     const next = draft.trim()
-    if (next) void setParams({ q: next })
+    if (!next) return
+    recordQuery(next)
+    if (next === q.trim()) {
+      void queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.searchQuery(
+          resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
+          next,
+          userId
+        ),
+      })
+    } else {
+      void setParams({ q: next })
+    }
   }
   return (
     <SearchResultsView

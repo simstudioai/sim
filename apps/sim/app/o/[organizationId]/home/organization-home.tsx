@@ -16,12 +16,14 @@ import {
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
+import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
+import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
@@ -223,6 +225,7 @@ function OrganizationHomeContent({
   useEffect(() => {
     if (chat.error) toast.error(chat.error)
   }, [chat.error])
+  const { recordQuery } = useSearchHistoryActions()
   const { sendMessage } = chat
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
   const firstName = userName?.split(' ')[0] ?? ''
@@ -263,6 +266,7 @@ function OrganizationHomeContent({
     assistantSearch?: WorkspaceSearchFilters
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
+    if (requestMode === 'assistant') recordQuery(message)
     setSelectedMode(requestMode)
     if (requestMode !== 'assistant') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
@@ -334,6 +338,14 @@ function OrganizationHomeContent({
     <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
       {hasChat ? (
         <MothershipChat
+          onViewSources={(messageId, requestId) =>
+            addResource({
+              type: 'sources',
+              id: 'cited-sources',
+              title: 'Sources',
+              sources: { messageId, ...(requestId ? { requestId } : {}) },
+            })
+          }
           SearchConnectionComponent={SearchIntegrationConnection}
           messages={chat.messages}
           isSending={chat.isSending}
@@ -396,9 +408,18 @@ function OrganizationHomeContent({
                   : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
             </h1>
             <div className='relative w-full max-w-chat'>
-              {composer}
-              {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-              <div className='absolute inset-x-0 top-full'>
+              {requestMode === 'assistant' && searchAccess.memberScoped && userId ? (
+                <SearchLandingHistory
+                  organizationId={organization.id}
+                  userId={userId}
+                  onSearch={(query) => submit(query)}
+                >
+                  {composer}
+                </SearchLandingHistory>
+              ) : (
+                composer
+              )}
+              <div className={requestMode === 'agent' ? 'absolute inset-x-0 top-full' : 'mt-4'}>
                 {requestMode === 'agent' ? (
                   <SuggestedActions
                     organizationId={organization.id}

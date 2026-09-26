@@ -2264,7 +2264,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
               />
             </button>
           </Tooltip.Trigger>
-          <Tooltip.Content>{isSaving ? 'Saving…' : 'Save'}</Tooltip.Content>
+          <Tooltip.Content>{isSaving ? 'Saving' : 'Save'}</Tooltip.Content>
         </Tooltip.Root>
       }
     />
@@ -2376,7 +2376,7 @@ function FolderAccessDisplay({ data }: { data: CredentialItemData }) {
     >
       <FolderGrantIcon className='size-[16px] shrink-0' />
       <span className='flex-1 text-[var(--text-body)] text-sm'>
-        {picking ? 'Choose a folder…' : label}
+        {picking ? 'Choose a folder' : label}
       </span>
       {grantedName === null && (
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -2587,9 +2587,9 @@ function CredentialLinkDisplay({
   const displayLabel = connected
     ? `Connected ${integrationName}`
     : !isReady
-      ? `Checking ${integrationName} connections…`
+      ? `Checking ${integrationName} connections`
       : status === 'pending'
-        ? `Waiting for ${integrationName} connection…`
+        ? `Waiting for ${integrationName} connection`
         : status === 'failed'
           ? retryLabel
           : label
@@ -2646,9 +2646,9 @@ function PersonalCredentialLinkDisplay({
     : connection.hasMetadataError
       ? `Retry checking ${name} connections`
       : !connection.isReady
-        ? `Checking ${name} connections…`
+        ? `Checking ${name} connections`
         : connection.status === 'pending'
-          ? `Waiting for ${name} connection…`
+          ? `Waiting for ${name} connection`
           : connection.status === 'failed'
             ? `Not connected — connect ${name}`
             : `Connect ${name}`

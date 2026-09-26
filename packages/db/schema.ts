@@ -1736,6 +1736,39 @@ export const organization = pgTable('organization', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+/** Private navigation snapshots, scoped to the person and organization that recorded them. */
+export const organizationSearchHistory = pgTable(
+  'organization_search_history',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sources: jsonb('sources')
+      .$type<
+        Array<{
+          url: string
+          title?: string
+          siteName?: string
+          connectorType?: string
+          viewedAt: string
+        }>
+      >()
+      .notNull()
+      .default([]),
+    queries: jsonb('queries')
+      .$type<Array<{ query: string; searchedAt: string }>>()
+      .notNull()
+      .default([]),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.userId] }),
+    index('organization_search_history_user_idx').on(table.userId),
+  ]
+)
+
 export const member = pgTable(
   'member',
   {

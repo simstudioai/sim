@@ -467,6 +467,14 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           </div>
         ) : (
           <MothershipChat
+            onViewSources={(messageId, requestId) =>
+              addResourceFromUser({
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId, ...(requestId ? { requestId } : {}) },
+              })
+            }
             workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}

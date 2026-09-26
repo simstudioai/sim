@@ -34,7 +34,7 @@ function DeletedChatRow({ organizationId, chat }: DeletedChatRowProps) {
           disabled={isPending}
           onClick={() => restoreChat(chat.id, { onError: (error) => toast.error(error.message) })}
         >
-          {isPending ? 'Restoring...' : 'Restore'}
+          {isPending ? 'Restoring' : 'Restore'}
         </Chip>
       }
     />
@@ -64,7 +64,7 @@ export function OrganizationRecentlyDeleted({ organizationId }: OrganizationRece
 
   return (
     <SettingsPanel
-      search={{ value: search, onChange: setSearch, placeholder: 'Search deleted chats...' }}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search deleted chats' }}
     >
       {error ? (
         <SettingsEmptyState tone='error'>{error.message}</SettingsEmptyState>
