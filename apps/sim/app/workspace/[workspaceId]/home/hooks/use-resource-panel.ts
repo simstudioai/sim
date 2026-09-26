@@ -92,10 +92,6 @@ export function useResourcePanelController() {
   const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    if (options?.revealCitedSources) {
-      resourceCollapseOwnedByUserRef.current = false
-      resourceSelectionOwnedByUserRef.current = false
-    }
     const activeResourceId = effectiveActiveResourceIdRef.current
     const presentation = resolveResourceEventPresentation({
       activeResourceId,
