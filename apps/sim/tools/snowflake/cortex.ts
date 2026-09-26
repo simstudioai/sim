@@ -90,25 +90,75 @@ function assertStagePath(value: string): void {
   }
 }
 
-const UNQUOTED_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/
+/** An unquoted identifier, or a double-quoted one with `""` escapes, as Execute SQL accepts. */
+const CONTEXT_IDENTIFIER = /^(?:[A-Za-z_][A-Za-z0-9_$]*|"(?:[^"]|"")+")$/
+
+/** Splits a qualified name on the dots outside double-quoted identifiers. */
+function splitQualifiedName(name: string): string[] {
+  const parts: string[] = []
+  let current = ''
+  let quoted = false
+  for (const char of name) {
+    if (char === '"') quoted = !quoted
+    if (char === '.' && !quoted) {
+      parts.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  parts.push(current)
+  return parts
+}
+
+/** Database and schema of a `DB.SCHEMA.VIEW` view name or an `@DB.SCHEMA.STAGE/file` stage path. */
+function sourceContext(
+  kind: 'semantic_view' | 'semantic_model_file',
+  value: string
+): { database: string; schema: string } | null {
+  const name = kind === 'semantic_view' ? value.trim() : value.trim().slice(1).split('/')[0]
+  const parts = splitQualifiedName(name)
+  if (parts.length !== 3) return null
+  const [database, schema] = parts
+  if (!CONTEXT_IDENTIFIER.test(database) || !CONTEXT_IDENTIFIER.test(schema)) return null
+  return { database, schema }
+}
 
 /**
- * Database and schema to run the generated SQL in, read from a fully qualified semantic view
- * (`DB.SCHEMA.VIEW`) or stage path (`@DB.SCHEMA.STAGE/file.yaml`). Generated SQL can reference
- * the semantic view unqualified, so it has to run in that view's schema. Quoted identifiers are
- * left to the credential's default context rather than re-quoted.
+ * Database and schema to run the generated SQL in. Generated SQL can reference the semantic
+ * view unqualified, so it runs in the fully qualified view's (or staged model's) schema. With
+ * several sources, Snowflake does not document how `semantic_model_selection` names the chosen
+ * one, so the context is set only when every source shares the same database and schema;
+ * otherwise the credential's default context applies.
  */
 export function cortexAnalystSqlContext(
-  params: Pick<SnowflakeCortexAnalystAskParams, 'semanticView' | 'semanticModelFile'>
+  params: Pick<
+    SnowflakeCortexAnalystAskParams,
+    'semanticView' | 'semanticModelFile' | 'semanticModels'
+  >
 ): { database?: string; schema?: string } {
-  const name = hasValue(params.semanticView)
-    ? String(params.semanticView).trim()
+  const contexts = hasValue(params.semanticView)
+    ? [sourceContext('semantic_view', String(params.semanticView))]
     : hasValue(params.semanticModelFile)
-      ? String(params.semanticModelFile).trim().slice(1).split('/')[0]
-      : ''
-  const parts = name.split('.')
-  if (parts.length !== 3 || !parts.every((part) => UNQUOTED_IDENTIFIER.test(part))) return {}
-  return { database: parts[0], schema: parts[1] }
+      ? [sourceContext('semantic_model_file', String(params.semanticModelFile))]
+      : hasValue(params.semanticModels)
+        ? parseSemanticModels(params.semanticModels).map((entry) =>
+            entry.semantic_view !== undefined
+              ? sourceContext('semantic_view', entry.semantic_view)
+              : sourceContext('semantic_model_file', entry.semantic_model_file)
+          )
+        : []
+  const [first] = contexts
+  if (
+    !first ||
+    contexts.some(
+      (context) =>
+        !context || context.database !== first.database || context.schema !== first.schema
+    )
+  ) {
+    return {}
+  }
+  return { database: first.database, schema: first.schema }
 }
 
 /** The request's user turn, appended after any history. */
@@ -182,8 +232,10 @@ function stringArray(value: unknown): string[] {
  * `suggestion` and `suggestions`, and types the field as a string while its examples return an
  * array, so every form is read.
  *
- * The analyst turn is echoed into `conversation` in the documented request shape (text blocks
- * and `sql` statements only), so it can be replayed as history on the next ask.
+ * The analyst turn is echoed into `conversation` so it can be replayed as history on the next
+ * ask: text, `sql` statements without their confidence metadata, and suggestion lists, so a
+ * follow-up can refer to a suggested question. Snowflake's own Cortex Analyst client replays
+ * suggestion blocks the same way.
  */
 export function mapCortexAnalystResponse(
   data: CortexAnalystResponsePayload,
@@ -221,6 +273,10 @@ export function mapCortexAnalystResponse(
       if (block.type === 'text' && block.text) return [{ type: 'text', text: block.text }]
       if (block.type === 'sql' && block.statement) {
         return [{ type: 'sql', statement: block.statement }]
+      }
+      if (block.type === 'suggestions' || block.type === 'suggestion') {
+        const suggested = stringArray(block.suggestions)
+        return suggested.length > 0 ? [{ type: block.type, suggestions: suggested }] : []
       }
       return []
     }),
