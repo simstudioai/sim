@@ -1043,6 +1043,8 @@ describe('code placeholder compiler', () => {
     'let values[{{KEY}}]=1',
     "builtin let 'x={{KEY}}'",
     'let "x=$(printf %s "{{KEY}}")"',
+    'let >/dev/null "x={{KEY}}"',
+    'echo "$(( $(let "x=1" > /dev/{{KEY}}; printf 1) ))"',
     'values[ 1 + {{KEY}} ]=x',
     'values[$(printf %s "{{KEY}}")]=x',
     'values=([{{KEY}}]=x)',
@@ -1146,6 +1148,18 @@ describe('code placeholder compiler', () => {
     })
     expect(executeShell(compiled.code, compiled.bindings)).toBe('two words\ntwo words\n')
   })
+
+  it.each(['> /dev/{{KEY}}', '> "/dev/{{KEY}}"', '> "$(printf /dev/%s "{{KEY}}")"'])(
+    'keeps let redirection targets out of arithmetic context: %s',
+    async (redirect) => {
+      const compiled = await compileCodePlaceholders({
+        code: `let "x=1" ${redirect}; printf "%s\\n" "$x"`,
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: 'null' },
+      })
+      expect(executeShell(compiled.code, compiled.bindings)).toBe('1\n')
+    }
+  )
 
   it.each([
     ['unquoted', "cat <<EOF >/dev/null\nToday's report\nEOF"],

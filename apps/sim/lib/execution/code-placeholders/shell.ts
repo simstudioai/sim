@@ -91,9 +91,9 @@ function shellArithmeticCommandStarts(code: string, index: number): boolean {
 }
 
 function getShellArithmeticFrame(frame: ShellScanFrame | undefined): ShellScanFrame | undefined {
-  return frame?.kind === 'arithmetic'
-    ? frame
-    : (frame?.commandArithmetic ?? frame?.arithmeticParent)
+  if (frame?.kind === 'arithmetic') return frame
+  if (!frame?.redirectionTarget && frame?.commandArithmetic) return frame.commandArithmetic
+  return frame?.arithmeticParent
 }
 
 function pushShellFrame(frames: ShellScanFrame[], frame: ShellScanFrame): void {
