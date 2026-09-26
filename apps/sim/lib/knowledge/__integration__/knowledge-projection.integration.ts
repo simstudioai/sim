@@ -1,8 +1,8 @@
 /**
  * The knowledge projector and the readers that must stay correct while it lags. A GitHub member
  * source's document in a search index is changed by a writer in either projection mode —
- * synchronous, as every writer now is, or deferred, as writers of releases that carried the
- * `knowledge-async-projection` flag were, leaving only a mark — and search is checked before the
+ * synchronous, as every writer now is, or deferred, as writers of earlier releases could be,
+ * leaving only a mark — and search is checked before the
  * projector runs: a revoked member is refused and a granted one is served, on the vector and
  * keyword legs and under the source filter, and a disabled or deleted chunk is gone at once. The
  * projector's own contract follows: it converges the rows and removes the mark, keeps a mark that
