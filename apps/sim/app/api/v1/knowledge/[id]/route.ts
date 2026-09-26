@@ -87,6 +87,8 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     )
     if (result instanceof NextResponse) return result
 
+    /** Resolved before the write, so a reader that cannot be resolved changes nothing. */
+    const access = await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId)
     const outcome = await performUpdateKnowledgeBase({
       knowledgeBaseId: id,
       workspaceId,
@@ -103,10 +105,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
       )
     }
 
-    const knowledgeBase = await attachKnowledgeBaseConnectors(
-      outcome.knowledgeBase,
-      await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId)
-    )
+    const knowledgeBase = await attachKnowledgeBaseConnectors(outcome.knowledgeBase, access)
     return NextResponse.json({
       success: true,
       data: {

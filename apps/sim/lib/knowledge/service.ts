@@ -544,7 +544,8 @@ export async function createAuthorizedKnowledgeBase(
 }
 
 /**
- * Update a knowledge base
+ * Updates a knowledge base and returns it without document totals; a surface that shows them
+ * reads them through {@link attachKnowledgeBaseConnectors} as its caller.
  */
 export async function updateKnowledgeBase(
   knowledgeBaseId: string,
@@ -557,7 +558,7 @@ export async function updateKnowledgeBase(
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
-): Promise<KnowledgeBaseWithCounts> {
+): Promise<ActiveKnowledgeBaseReference> {
   if (updates.workspaceId !== undefined && !updates.workspaceId) {
     throw new OrchestrationError('validation', 'Workspace ID is required')
   }
@@ -890,35 +891,9 @@ export async function updateKnowledgeBase(
     }
   }
 
-  const updatedKb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      isSearchIndex: knowledgeBase.isSearchIndex,
-      description: knowledgeBase.description,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      organizationId: knowledgeBase.organizationId,
-      folderId: knowledgeBase.folderId,
-      docCount: count(document.knowledgeBaseId),
-    })
+  const [updated] = await db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
     .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
     .where(
       and(
         eq(knowledgeBase.id, knowledgeBaseId),
@@ -928,23 +903,15 @@ export async function updateKnowledgeBase(
           : undefined
       )
     )
-    .groupBy(knowledgeBase.id)
     .limit(1)
 
-  if (updatedKb.length === 0) {
+  if (!updated) {
     throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
   logger.info(`[${requestId}] Updated knowledge base: ${knowledgeBaseId}`)
 
-  const [withConnectors] = await attachConnectorTypes([
-    {
-      ...updatedKb[0],
-      chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
-      docCount: Number(updatedKb[0].docCount),
-    },
-  ])
-  return withConnectors
+  return toActiveKnowledgeBaseReference(updated)
 }
 
 /**
