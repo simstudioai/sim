@@ -100,8 +100,10 @@ async function sendChatTurn(
     },
   }
 
+  // A redirect would forward X-API-Key to another host and turn the POST into a GET.
   const response = await fetch(url, {
     method: 'POST',
+    redirect: 'error',
     headers,
     body: JSON.stringify({ input }),
     signal: AbortSignal.timeout(CHAT_LOG_TIMEOUT_MS),
