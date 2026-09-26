@@ -36,6 +36,7 @@ import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
 } from '@/lib/mothership/chat/assistant-images'
+import type { ChatTurnLogContext } from '@/lib/mothership/chat/chat-log'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
@@ -985,6 +986,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
   let requestId = ''
   const executionId = generateId()
   const runId = generateId()
+  const startedAt = Date.now()
 
   try {
     const session = await getSession()
@@ -1485,6 +1487,22 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
         sendClaim = undefined
       }
+      const requestMode =
+        body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent'
+      /** Workspace and organization Chat feed the operator chat log; the workflow panel does not. */
+      const chatLog: ChatTurnLogContext | undefined =
+        branch.kind !== 'workflow' && actualChatId
+          ? {
+              chatId: actualChatId,
+              messageId: userMessageId,
+              requestId,
+              userId: authenticatedUserId,
+              ...(authenticatedUserEmail ? { userEmail: authenticatedUserEmail } : {}),
+              userMessage: body.message,
+              mode: requestMode,
+              startedAt,
+            }
+          : undefined
       const stream = createSSEStream({
         requestPayload,
         admittedRun,
@@ -1526,9 +1544,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyChatStatus: branch.notifyChatStatus,
             organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
             userId: authenticatedUserId,
-            requestMode:
-              body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
+            requestMode,
             otelRoot,
+            chatLog,
           }),
           onError: buildOnError({
             runController,
@@ -1539,8 +1557,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyChatStatus: branch.notifyChatStatus,
             organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
             userId: authenticatedUserId,
-            requestMode:
-              body.mode === 'plan' ? 'plan' : body.mode === 'assistant' ? 'assistant' : 'agent',
+            requestMode,
+            chatLog,
           }),
         },
       })
