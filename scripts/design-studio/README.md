@@ -10,7 +10,7 @@
 
 - `variants` lists the axes that the adapter forwards to that export. New values on a covered axis appear automatically. A new axis requires review and a mapping; spreading variant props does not establish coverage. Axes requiring different data shapes need their own fixture data before being listed.
 - `states` lists supported focus, disabled, error, and open states. Open captures require a visible popup or dialog.
-- Disabled variant values retain their default preview but omit open and focus states; combined live selections apply the same restriction.
+- Disabled variants omit open and focus states; explicitly closed variants omit open states. Both retain their default preview, and combined live selections apply the same restrictions.
 - `defaultStates` opens otherwise hidden exports, such as tooltip content or a wizard step, for their default specimen.
 - `requiredElements` identifies a visible element belonging to a hidden or nested export. Use a unique fixture marker when a generic role could match its parent.
 

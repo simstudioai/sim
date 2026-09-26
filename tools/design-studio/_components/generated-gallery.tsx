@@ -608,9 +608,12 @@ function TreatmentDetail({
     }
   }
   const disabled = activeVariants.disabled === 'true'
-  const effectiveStates = disabled
-    ? (entry.states ?? []).filter((state) => state !== 'open' && state !== 'focus')
-    : (entry.states ?? [])
+  const closed = activeVariants.open === 'false'
+  const applicable = (state: string) =>
+    !((disabled || closed) && state === 'open') && !(disabled && state === 'focus')
+  const effectiveStates = (entry.states ?? []).filter(applicable)
+  const defaultState = entry.fixture?.defaultState
+  const effectiveDefaultState = defaultState && applicable(defaultState) ? defaultState : 'default'
   const stateAvailable = requestedState === 'default' || effectiveStates.includes(requestedState)
   const previewState = stateAvailable ? requestedState : 'default'
   const selectedKey = `${theme}-${size}${previewState === 'default' ? '' : `-${previewState}`}`
@@ -628,12 +631,7 @@ function TreatmentDetail({
         id: entry.fixture.id,
         theme,
         size: String(size),
-        state:
-          previewState === 'default'
-            ? disabled && ['open', 'focus'].includes(entry.fixture.defaultState ?? '')
-              ? previewState
-              : (entry.fixture.defaultState ?? previewState)
-            : previewState,
+        state: previewState === 'default' ? effectiveDefaultState : previewState,
         ...(entry.kind === 'component' ? { interactive: '1' } : {}),
         ...(Object.keys(activeVariants).length ? { variants: JSON.stringify(activeVariants) } : {}),
         ...(entry.fixture.sample ? { sample: JSON.stringify(entry.fixture.sample) } : {}),

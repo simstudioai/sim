@@ -34,7 +34,7 @@ try {
   })
   const page = await context.newPage()
   await page.clock.install({ time: new Date('2026-09-23T12:00:00Z') })
-  for (const [id, extra, selector] of [
+  for (const [id, extra, selector, visible = true] of [
     ['wizard', { state: 'open' }, '[role=dialog]'],
     ['chip-modal', { state: 'open' }, '[role=dialog]'],
     ['chip-modal', { axis: 'open', value: 'true' }, '[role=dialog]'],
@@ -44,6 +44,9 @@ try {
     ['chip-dropdown', { state: 'open' }, '[role=menu]'],
     ['chip-select', { state: 'open' }, '[role=menu]'],
     ['combobox', { state: 'open', axis: 'editable', value: 'true' }, '[role=listbox]'],
+    ['chip-modal', { state: 'default', axis: 'size', value: 'sm' }, '[role=dialog]', false],
+    ['chip-modal', { state: 'open', axis: 'size', value: 'sm' }, '[role=dialog]'],
+    ['chip-modal', { state: 'open', axis: 'open', value: 'false' }, '[role=dialog]', false],
   ])
     for (const theme of ['light', 'dark'])
       for (const size of [16, 20]) {
@@ -53,7 +56,7 @@ try {
         )
           continue
         const scenario = extra.axis
-          ? `${extra.axis}=${extra.value}`
+          ? `${extra.axis}=${extra.value}-${extra.state ?? 'default'}`
           : extra.export
             ? `${extra.export}-${extra.state}`
             : (extra.action ?? `state=${extra.state}`)
@@ -75,7 +78,15 @@ try {
           })
           assert.equal(response?.status(), 200)
           await page.locator('[data-studio-fixture]').waitFor()
-          await page.locator(`${selector}:visible`).first().waitFor({ timeout: 3000 })
+          if (id === 'chip-modal')
+            await page.getByText('Open full dialog', { exact: true }).waitFor()
+          await page
+            .locator(selector)
+            .first()
+            .waitFor({
+              state: visible ? 'visible' : 'hidden',
+              timeout: 3000,
+            })
           await page.evaluate(() => document.fonts.ready)
           await page.waitForTimeout(150)
           const rootSize = await page.evaluate(

@@ -171,6 +171,31 @@ test('refresh keeps disabled variant previews without impossible interaction cap
   assert.deepEqual(disabled.images, {})
 }, 60000)
 
+test('refresh keeps explicitly closed variants out of open-state captures', () => {
+  const { repo, refresh } = guardedRefresh()
+  write(
+    repo,
+    'packages/emcn/src/components/example/example.tsx',
+    'export const Example = ({open}: {open?: boolean}) => <button data-open={open} />\n'
+  )
+  write(
+    repo,
+    'tools/design-studio/_components/fixture-contracts.json',
+    JSON.stringify({
+      variants: { Example: ['open'] },
+      states: { Example: ['open', 'focus'] },
+      defaultStates: { Example: 'open' },
+    })
+  )
+  const manifest = refresh()
+  const closed = manifest.components.find((entry) => entry.id === 'component:Example:open=false')
+  const opened = manifest.components.find((entry) => entry.id === 'component:Example:open=true')
+  assert.deepEqual(closed.states, ['focus'])
+  assert.equal(closed.fixture.defaultState, undefined)
+  assert.deepEqual(opened.states, ['open', 'focus'])
+  assert.equal(opened.fixture.defaultState, 'open')
+}, 60000)
+
 test('refresh publishes unresolved analysis and scanner limits separately from inspection failures', () => {
   const { refresh } = guardedRefresh()
   const manifest = refresh()

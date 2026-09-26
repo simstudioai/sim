@@ -451,7 +451,6 @@ export function ComponentPreview({
       )
     }
     case 'chip-modal': {
-      const sizeSelected = Boolean(selections.size)
       return (
         <div className='flex w-full max-w-72 flex-col items-center gap-3'>
           <ChipModalSurface className='w-full'>
@@ -491,10 +490,9 @@ export function ComponentPreview({
             srTitle='Example settings'
             {...variantProps}
             open={
-              state === 'open' ||
-              (selections.open === 'false'
+              selections.open === 'false'
                 ? false
-                : selections.open === 'true' || sizeSelected || hasVariants || open)
+                : state === 'open' || selections.open === 'true' || open
             }
           >
             <ChipModalHeader onClose={() => setOpen(false)}>Example settings</ChipModalHeader>
