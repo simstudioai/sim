@@ -62,6 +62,7 @@ export default async function FixturePage({ searchParams }: FixturePageProps) {
       theme={value('theme') === 'light' ? 'light' : 'dark'}
       rootSize={value('size') === '20' ? 20 : 16}
       state={value('state')}
+      action={value('action')}
       variants={parseVariants(value('variants'))}
       interactive={value('interactive') === '1'}
       sample={parseSample(value('sample'))}

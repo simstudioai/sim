@@ -29,7 +29,19 @@ interface StudioFixtureProps {
   interactive?: boolean
   state?: string
   sample?: StudioSample
+  action?: string
 }
+
+const CLICK_OPEN_FIXTURES = new Set([
+  'lightbox',
+  'chip-dropdown',
+  'chip-date-picker',
+  'chip-select',
+  'combobox',
+  'time-picker',
+  'chip-time-picker',
+  'chip-combobox',
+])
 
 function GenericSample({ sample }: { sample: StudioSample }) {
   const authoredStyle: CSSProperties = {}
@@ -348,6 +360,7 @@ export function StudioFixture({
   interactive,
   state,
   sample,
+  action,
 }: StudioFixtureProps) {
   const [ready, setReady] = useState(false)
   useEffect(() => {
@@ -362,6 +375,34 @@ export function StudioFixture({
       root.classList.toggle('dark', previousDark)
     }
   }, [theme, rootSize])
+  useEffect(() => {
+    if (!ready || state !== 'focus') return
+    document
+      .querySelector<HTMLElement>(
+        '[data-studio-fixture] button:not([disabled]), [data-studio-fixture] input:not([disabled]), [data-studio-fixture] textarea:not([disabled])'
+      )
+      ?.focus()
+  }, [ready, state])
+  useEffect(() => {
+    if (!ready || (action !== 'open-folder' && !(state === 'open' && CLICK_OPEN_FIXTURES.has(id))))
+      return
+    const selector =
+      action === 'open-folder'
+        ? '[data-studio-folder-trigger]'
+        : '[data-studio-fixture] [role=combobox], [data-studio-fixture] [role=button], [data-studio-fixture] button, [data-studio-fixture] input'
+    let activated = false
+    const activate = () => {
+      const trigger = document.querySelector<HTMLElement>(selector)
+      if (!trigger || activated) return
+      activated = true
+      observer.disconnect()
+      trigger.click()
+    }
+    const observer = new MutationObserver(activate)
+    observer.observe(document.body, { childList: true, subtree: true })
+    activate()
+    return () => observer.disconnect()
+  }, [ready, state, id, action])
   // biome-ignore lint/performance/noDynamicNamespaceImportAccess: The source-discovered icon catalog needs one generic adapter.
   const Icon = kind === 'icon' ? Icons[id as keyof typeof Icons] : null
   const supportedKind = ['component', 'sample', 'icon', 'extra'].includes(kind)

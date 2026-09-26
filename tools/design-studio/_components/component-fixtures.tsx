@@ -465,7 +465,6 @@ export function ComponentPreview({
                 title='Name'
                 value='Example'
                 onChange={() => undefined}
-                {...(sizeSelected ? {} : variantProps)}
               />
               <ChipModalError>Example validation error</ChipModalError>
               <ChipModalTabs
@@ -488,10 +487,15 @@ export function ComponentPreview({
           </ChipModalSurface>
           <Button onClick={() => setOpen(true)}>Open full dialog</Button>
           <ChipModal
-            open={sizeSelected || open}
             onOpenChange={setOpen}
             srTitle='Example settings'
-            {...(sizeSelected ? variantProps : {})}
+            {...variantProps}
+            open={
+              state === 'open' ||
+              (selections.open === 'false'
+                ? false
+                : selections.open === 'true' || sizeSelected || hasVariants || open)
+            }
           >
             <ChipModalHeader onClose={() => setOpen(false)}>Example settings</ChipModalHeader>
             <ChipModalBody>
@@ -899,9 +903,9 @@ export function ComponentPreview({
               <Button>Open menu</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuSub>
+              <DropdownMenuSub open>
                 <DropdownMenuSubTrigger>More choices</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
+                <DropdownMenuSubContent data-studio-submenu>
                   <DropdownMenuItem>Nested action</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -920,8 +924,8 @@ export function ComponentPreview({
             <PopoverScrollArea>
               <PopoverSection>Recent</PopoverSection>
               <PopoverItem onClick={() => undefined}>First action</PopoverItem>
-              <PopoverFolder id='examples' title='Examples'>
-                <PopoverBackButton>Back</PopoverBackButton>
+              <PopoverFolder id='examples' title='Examples' data-studio-folder-trigger>
+                <PopoverBackButton data-studio-back-button>Back</PopoverBackButton>
                 <PopoverItem onClick={() => undefined}>Nested item</PopoverItem>
               </PopoverFolder>
               <PopoverDivider />
@@ -964,7 +968,12 @@ export function ComponentPreview({
       return (
         <>
           <Button onClick={() => setOpen(true)}>Open wizard</Button>
-          <Wizard open={open} onOpenChange={setOpen} currentStep={step} onStepChange={setStep}>
+          <Wizard
+            open={state === 'open' || open}
+            onOpenChange={setOpen}
+            currentStep={step}
+            onStepChange={setStep}
+          >
             <Wizard.Step title='Configure'>Choose your settings.</Wizard.Step>
             <Wizard.Step title='Review'>Review the configuration.</Wizard.Step>
           </Wizard>
@@ -995,7 +1004,7 @@ export function ComponentPreview({
       return (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button>Hover for tooltip</Button>
+            <Button autoFocus={state === 'open'}>Hover for tooltip</Button>
           </Tooltip.Trigger>
           <Tooltip.Content>Helpful detail</Tooltip.Content>
         </Tooltip.Root>

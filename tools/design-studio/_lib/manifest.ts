@@ -39,6 +39,9 @@ export interface StudioEntry {
     id: string
     variant?: { axis: string; value: string }
     sample?: StudioSample
+    defaultState?: string
+    requiredElement?: string
+    action?: string
   } | null
   previewKind?: 'source-component' | 'source-style-sample' | 'indicative-sample'
   previewFingerprint?: string
@@ -65,6 +68,11 @@ export interface StudioManifest {
     ambiguous: { fingerprint: string; status?: string; rationale?: string; evidence?: string }[]
   }
   coverageFailures: { file: string; reason: string }[]
+  analysis?: {
+    stylingUnchecked: { file: string; line?: number; reason: string }[]
+    controlUnchecked: { file: string; line?: number; reason: string }[]
+    limitations: string[]
+  }
   counts: { components: number; extras: number; missing: number }
 }
 

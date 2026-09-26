@@ -181,19 +181,13 @@ function fixtureInventory() {
   walk(ast, (node) => {
     if (node.type !== 'SwitchCase' || node.test?.type !== 'StringLiteral') return
     const names = new Set()
-    const variantNames = new Set()
     for (const statement of node.consequent)
       walk(statement, (part) => {
         if (part.type !== 'JSXOpeningElement') return
         const name = jsxName(part.name)
         names.add(name)
-        for (const attribute of part.attributes)
-          walk(attribute, (value) => {
-            if (value.type === 'Identifier' && ['variantProps', 'variant'].includes(value.name))
-              variantNames.add(name)
-          })
       })
-    cases.set(node.test.value, { names, variantNames })
+    cases.set(node.test.value, { names })
   })
   return cases
 }
@@ -225,25 +219,10 @@ function componentInventory() {
     new Set(iconExports.map((item) => item.name))
   )
   const fixtureCases = fixtureInventory()
+  const fixtureContracts = JSON.parse(
+    readFileSync(path.join(repo, 'tools/design-studio/_components/fixture-contracts.json'), 'utf8')
+  )
   const entries = []
-  const focusable = new Set(['Button', 'Input', 'Checkbox', 'Chip', 'ChipInput', 'Textarea'])
-  const openable = new Set([
-    'DropdownMenu',
-    'Popover',
-    'Modal',
-    'ChipModal',
-    'ChipConfirmModal',
-    'Tooltip',
-    'Lightbox',
-    'Wizard',
-    'ChipDropdown',
-    'ChipDatePicker',
-    'ChipSelect',
-    'Combobox',
-    'TimePicker',
-    'ChipTimePicker',
-    'ChipCombobox',
-  ])
   const nonvisualNames = new Map(
     discovered
       .filter((item) => item.facts.kind === 'nonvisual')
@@ -276,6 +255,10 @@ function componentInventory() {
           : null
     if (fixture && item.name === 'DropdownMenuSubContent') fixture.action = 'open-submenu'
     if (fixture && item.name === 'PopoverBackButton') fixture.action = 'open-folder'
+    if (fixture && fixtureContracts.defaultStates?.[item.name])
+      fixture.defaultState = fixtureContracts.defaultStates[item.name]
+    if (fixture && fixtureContracts.requiredElements?.[item.name])
+      fixture.requiredElement = fixtureContracts.requiredElements[item.name]
     const base = {
       id: `${item.kind}:${item.name}`,
       kind: item.kind,
@@ -285,14 +268,7 @@ function componentInventory() {
       rationale: nonvisualNames.get(item.name),
       usages: uses.get(`${item.kind}:${item.name}`) ?? [],
       fixture,
-      states:
-        item.kind === 'component' && focusable.has(item.name)
-          ? item.name === 'Input'
-            ? ['focus', 'disabled', 'error']
-            : ['focus', 'disabled']
-          : item.kind === 'component' && openable.has(item.name)
-            ? ['open']
-            : [],
+      states: fixtureContracts.states?.[item.name] ?? [],
       status: fixture ? 'pending-capture' : 'needs-fixture',
       images: {},
     }
@@ -304,22 +280,22 @@ function componentInventory() {
       values: axis.values.map(String),
       defaultValue: axis.default === undefined ? undefined : String(axis.default),
     }))
-    const supportsVariants = Boolean(
-      fixture && fixtureCases.get(fixture.id)?.variantNames.has(item.name)
-    )
     for (const axis of axes)
       for (const value of axis.values) {
         if (value === axis.defaultValue) continue
         const identity = `${axis.name}=${value}`
         if (seenVariants.has(identity)) continue
         seenVariants.add(identity)
+        const supportsVariant = Boolean(
+          fixture && fixtureContracts.variants?.[item.name]?.includes(axis.name)
+        )
         entries.push({
           ...base,
           id: `component:${item.name}:${axis.name}=${value}`,
           name: `${item.name} · ${axis.name}: ${value}`,
           variant: { axis: axis.name, value, defaultValue: axis.defaultValue },
-          fixture: supportsVariants ? { ...fixture, variant: { axis: axis.name, value } } : null,
-          status: supportsVariants ? 'pending-capture' : 'needs-fixture',
+          fixture: supportsVariant ? { ...fixture, variant: { axis: axis.name, value } } : null,
+          status: supportsVariant ? 'pending-capture' : 'needs-fixture',
           images: {},
         })
       }
@@ -735,6 +711,7 @@ async function captureImages(manifest, runDir) {
         size: '16',
       })
       if (entry.fixture.sample) params.set('sample', JSON.stringify(entry.fixture.sample))
+      if (entry.fixture.action) params.set('action', entry.fixture.action)
       if (entry.fixture.variant) {
         params.set('axis', entry.fixture.variant.axis)
         params.set('value', entry.fixture.variant.value)
@@ -743,7 +720,8 @@ async function captureImages(manifest, runDir) {
         if (process.env.SIM_STUDIO_TEST_CAPTURE_FAILURE === entry.id)
           throw new Error('Injected fixture failure for capture regression')
         for (const state of ['default', ...(entry.states ?? [])]) {
-          params.set('state', state)
+          const effectiveState = state === 'default' ? (entry.fixture.defaultState ?? state) : state
+          params.set('state', effectiveState)
           const response = await page.goto(`http://localhost:${port}/fixture?${params}`, {
             waitUntil: 'domcontentloaded',
             timeout: 30000,
@@ -754,51 +732,55 @@ async function captureImages(manifest, runDir) {
           if (await target.locator('[data-studio-unavailable]').count())
             throw new Error('Fixture returned unavailable placeholder')
           if (
-            (await target.locator('*').count()) === 0 &&
-            (await page.locator('[role=dialog], [role=menu], [role=tooltip]').count()) === 0
+            (await target.locator('*:visible').count()) === 0 &&
+            (await page
+              .locator('[role=dialog]:visible, [role=menu]:visible, [role=tooltip]:visible')
+              .count()) === 0
           )
             throw new Error('Fixture mounted no visible source element')
           await page.evaluate(() => document.fonts.ready)
-          if (entry.fixture.action === 'open-folder')
-            await page.getByText('Examples', { exact: true }).first().click()
           if (entry.fixture.action === 'open-submenu')
             await page.getByText('More choices', { exact: true }).first().hover()
-          if (state === 'open' && entry.name === 'Tooltip') {
+          if (effectiveState === 'open' && entry.fixture.id === 'tooltip') {
             await target.getByRole('button').first().hover()
             await page.getByRole('tooltip').waitFor({ state: 'visible', timeout: 10000 })
           }
-          if (
-            state === 'open' &&
-            [
-              'Lightbox',
-              'ChipDropdown',
-              'ChipDatePicker',
-              'ChipSelect',
-              'Combobox',
-              'TimePicker',
-              'ChipTimePicker',
-              'ChipCombobox',
-            ].includes(entry.name)
-          ) {
-            const trigger = target
-              .locator('[role="combobox"], [role="button"], button, input')
+          if (state === 'focus') {
+            const control = target
+              .locator('button:not([disabled]), input:not([disabled]), textarea:not([disabled])')
               .first()
-            if ((await trigger.count()) === 0)
-              throw new Error('Open-state fixture has no interactive trigger')
-            await trigger.click()
+            await control.focus()
+            if (!(await control.evaluate((element) => element === document.activeElement)))
+              throw new Error('Focus state fixture did not focus a control')
           }
-          if (state === 'focus')
-            await page.locator('button:not([disabled]), input:not([disabled])').first().focus()
           if (
             state === 'disabled' &&
-            (await target.locator('[disabled], [aria-disabled="true"]').count()) === 0
+            (await target.locator('[disabled]:visible, [aria-disabled="true"]:visible').count()) ===
+              0
           )
             throw new Error('Disabled state fixture did not disable a control')
           if (state === 'error' && (await target.locator('[aria-invalid=true]').count()) === 0)
             throw new Error('Error state fixture did not mark an invalid control')
+          const expectsOpen =
+            effectiveState === 'open' ||
+            (entry.states?.includes('open') &&
+              entry.fixture.variant?.axis === 'open' &&
+              entry.fixture.variant.value === 'true')
+          if (expectsOpen)
+            await page
+              .locator(
+                '[role=dialog]:visible, [role=menu]:visible, [role=listbox]:visible, [role=tooltip]:visible, [data-radix-popper-content-wrapper]:visible'
+              )
+              .first()
+              .waitFor({ timeout: 10000 })
+          if (entry.fixture.requiredElement)
+            await page
+              .locator(`${entry.fixture.requiredElement}:visible`)
+              .first()
+              .waitFor({ timeout: 10000 })
           if (
             entry.fixture.action !== 'open-submenu' &&
-            !(state === 'open' && entry.name === 'Tooltip')
+            !(effectiveState === 'open' && entry.fixture.id === 'tooltip')
           )
             await page.mouse.move(0, 0)
           for (const theme of ['light', 'dark'])
@@ -897,6 +879,7 @@ async function main() {
         'Design infrastructure freshness check failed; run bun run design:generate'
     )
   const initialLedgerHash = ledger ? sha(readFileSync(ledger)) : ''
+  const initialSourceRevision = sourceRevision()
   mkdirSync(outputRoot, { recursive: true })
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${git(['rev-parse', '--short=10', 'HEAD'])}`
   const runDir = path.join(outputRoot, `run-${runId}`)
@@ -946,6 +929,7 @@ async function main() {
   )
   const fixtureSources = [
     'tools/design-studio/_components/component-fixtures.tsx',
+    'tools/design-studio/_components/fixture-contracts.json',
     'tools/design-studio/_components/studio-fixture.tsx',
     'tools/design-studio/app/fixture/page.tsx',
     'tools/design-studio/app/studio.css',
@@ -954,30 +938,17 @@ async function main() {
   const fixtureHash = sha(
     fixtureSources.map((file) => `${file}:${sha(readFileSync(path.join(repo, file)))}`).join('\n')
   )
-  const sampleStyleSources = [
-    'packages/emcn/src/lib/cn.ts',
-    'apps/sim/app/_styles/globals.css',
-    'apps/sim/app/_styles/fonts/season/season.ts',
-    'apps/sim/app/_styles/fonts/season/SeasonSansUprightsVF.woff2',
-    'apps/sim/app/layout.tsx',
-    'apps/sim/postcss.config.mjs',
-    'apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css',
-    'bun.lock',
-  ]
-  const sampleRenderHash = sha(
-    [
-      fixtureHash,
-      ...sampleStyleSources.map((file) => {
-        const fullPath = path.join(repo, file)
-        return `${file}:${existsSync(fullPath) ? sha(readFileSync(fullPath)) : '<missing>'}`
-      }),
-    ].join('\n')
-  )
+  // Until rendering dependencies have a complete graph, every checkout change invalidates samples.
+  const sampleRenderHash = sha(JSON.stringify([fixtureHash, initialSourceRevision]))
+  const diagnostics = (name) => {
+    const file = path.join(scanDir, name)
+    return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : []
+  }
   const manifest = {
     version: 2,
     runId,
     identity,
-    sourceRevision: sourceRevision(),
+    sourceRevision: initialSourceRevision,
     ledgerHash: initialLedgerHash,
     fixtureHash,
     sampleRenderHash,
@@ -987,6 +958,11 @@ async function main() {
     extras: extras.entries,
     decisions: { stale: extras.decisions.stale, ambiguous: extras.decisions.ambiguous },
     coverageFailures: [...scannerFailures, ...components.failures],
+    analysis: {
+      stylingUnchecked: diagnostics('unchecked.json'),
+      controlUnchecked: diagnostics('control-unchecked.json'),
+      limitations: identity.limitations ?? [],
+    },
   }
   if (capture) {
     await captureImages(manifest, runDir)

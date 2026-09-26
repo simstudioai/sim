@@ -20,6 +20,138 @@ function command(root, executable, args) {
   assert.equal(result.status, 0, result.stderr)
 }
 
+/** Exercises publication guards through the real CLI against a disposable Git repository. */
+function guardedRefresh() {
+  const root = mkdtempSync(path.join(tmpdir(), 'sim-studio-guards-'))
+  const repo = path.join(root, 'repo')
+  const scan = path.join(root, 'scan')
+  const output = path.join(root, 'output')
+  mkdirSync(repo)
+  mkdirSync(scan)
+  for (const file of [
+    'package.json',
+    'packages/emcn/src/lib/cn.ts',
+    'packages/emcn/src/icons/index.ts',
+    'packages/emcn/src/components/charts/index.ts',
+    'tools/design-studio/app/studio.css',
+    'tools/design-studio/app/layout.tsx',
+    'tools/design-studio/app/fixture/page.tsx',
+    'tools/design-studio/_components/studio-fixture.tsx',
+  ])
+    write(repo, file, file === 'package.json' ? '{}' : '')
+  write(repo, 'packages/emcn/src/index.ts', "export * from './components'\n")
+  write(
+    repo,
+    'packages/emcn/src/components/index.ts',
+    "export { Example } from './example/example'\n"
+  )
+  write(
+    repo,
+    'packages/emcn/src/components/example/example.tsx',
+    "export const Example = ({size, variant}: {size?: 'sm' | 'lg'; variant?: 'plain' | 'filled'}) => <button />\n"
+  )
+  write(
+    repo,
+    'tools/design-studio/_components/component-fixtures.tsx',
+    "export function ComponentPreview({id}) { switch(id) { case 'example': return <Example {...variantProps} />; default: return null } }\n"
+  )
+  write(
+    repo,
+    'tools/design-studio/_components/fixture-contracts.json',
+    JSON.stringify({ variants: { Example: ['variant'] } })
+  )
+  write(repo, 'apps/sim/app/_styles/globals.css', '@import "./tailwind.css";\n:root{--brand:#abc}')
+  write(repo, 'apps/sim/app/_styles/tailwind.css', '@theme { --color-example: red; }')
+  write(scan, 'findings.json', '[]')
+  write(scan, 'controls.json', JSON.stringify({ records: [] }))
+  write(scan, 'coverage-failures.json', '[]')
+  write(
+    scan,
+    'unchecked.json',
+    JSON.stringify([{ file: 'example.tsx', line: 1, reason: 'Computed styling is unchecked' }])
+  )
+  write(
+    scan,
+    'control-unchecked.json',
+    JSON.stringify([{ file: 'example.tsx', line: 2, reason: 'Unknown spread' }])
+  )
+  write(
+    scan,
+    'identity.json',
+    JSON.stringify({
+      commit: 'test',
+      treeHash: 'test',
+      scanner: {},
+      limitations: ['Runtime cascade is unsupported.'],
+    })
+  )
+  command(repo, 'git', ['init', '-q'])
+  command(repo, 'git', ['add', '.'])
+  command(repo, 'git', [
+    '-c',
+    'user.name=Studio Test',
+    '-c',
+    'user.email=studio@example.test',
+    'commit',
+    '-qm',
+    'fixture',
+  ])
+  const refresh = () => {
+    command(repo, process.env.DESIGN_TEST_BUN ?? 'bun', [
+      '--no-env-file',
+      path.resolve('scripts/generate-design-contracts.ts'),
+      '--repo',
+      repo,
+    ])
+    const result = spawnSync('node', [script, '--inventory-only'], {
+      env: {
+        ...process.env,
+        SIM_STUDIO_REPO: repo,
+        SIM_STUDIO_SCAN_DIR: scan,
+        SIM_STUDIO_OUTPUT: output,
+      },
+      encoding: 'utf8',
+    })
+    assert.equal(result.status, 1, result.stderr)
+    const pointer = JSON.parse(readFileSync(path.join(output, 'latest.json'), 'utf8'))
+    return JSON.parse(readFileSync(path.join(pointer.path, 'manifest.json'), 'utf8'))
+  }
+  return { repo, refresh }
+}
+
+test('refresh invalidates sample captures when an imported stylesheet changes', () => {
+  const { repo, refresh } = guardedRefresh()
+  const first = refresh()
+  write(repo, 'apps/sim/app/_styles/tailwind.css', '@theme { --color-example: blue; }')
+  const changed = refresh()
+  assert.notEqual(changed.sampleRenderHash, first.sampleRenderHash)
+}, 60000)
+
+test('refresh requires a fixture mapping for each variant axis', () => {
+  const { refresh } = guardedRefresh()
+  const manifest = refresh()
+  assert.ok(
+    manifest.components.find((entry) => entry.id === 'component:Example:variant=filled').fixture
+  )
+  assert.equal(
+    manifest.components.find((entry) => entry.id === 'component:Example:size=lg').fixture,
+    null
+  )
+}, 60000)
+
+test('refresh publishes unresolved analysis and scanner limits separately from inspection failures', () => {
+  const { refresh } = guardedRefresh()
+  const manifest = refresh()
+  assert.deepEqual(manifest.analysis.stylingUnchecked, [
+    { file: 'example.tsx', line: 1, reason: 'Computed styling is unchecked' },
+  ])
+  assert.deepEqual(manifest.analysis.controlUnchecked, [
+    { file: 'example.tsx', line: 2, reason: 'Unknown spread' },
+  ])
+  assert.deepEqual(manifest.analysis.limitations, ['Runtime cascade is unsupported.'])
+  assert.deepEqual(manifest.coverageFailures, [])
+}, 60000)
+
 test('refresh catalogs every detection independently of review decisions', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'sim-studio-'))
   const repo = path.join(root, 'repo')
@@ -54,6 +186,11 @@ test('refresh catalogs every detection independently of review decisions', () =>
     repo,
     'tools/design-studio/_components/component-fixtures.tsx',
     "export function ComponentPreview({ id }) { switch (id) { case 'example': return <><Example {...variantProps} /><Compound.Part /></>; default: return null } }\n"
+  )
+  write(
+    repo,
+    'tools/design-studio/_components/fixture-contracts.json',
+    JSON.stringify({ variants: { Example: ['variant', 'size'] } })
   )
   write(
     repo,
@@ -292,7 +429,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   )
   const changed = refresh()
   assert.notEqual(changed.sourceRevision, first.sourceRevision)
-  assert.equal(changed.sampleRenderHash, first.sampleRenderHash)
+  assert.notEqual(changed.sampleRenderHash, first.sampleRenderHash)
   assert.equal(changed.components.find((entry) => entry.name === 'Example').usages.length, 3)
 
   write(

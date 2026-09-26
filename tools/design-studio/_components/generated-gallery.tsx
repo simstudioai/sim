@@ -435,7 +435,37 @@ function PreviewSurface({ entry, fixtureUrl }: PreviewSurfaceProps) {
         setFailedUrl(url)
         return
       }
-      if (document?.querySelector('[data-studio-fixture]')) {
+      const fixture = document?.querySelector('[data-studio-fixture]')
+      const params = new URL(url, window.location.href).searchParams
+      const variants = JSON.parse(params.get('variants') ?? '{}') as Record<string, string>
+      const expectsOpen =
+        params.get('state') === 'open' ||
+        (params.get('open-surface') === '1' && variants.open === 'true')
+      const visible = (element: Element) => {
+        const bounds = element.getBoundingClientRect()
+        return (
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          frame.contentWindow?.getComputedStyle(element).visibility !== 'hidden'
+        )
+      }
+      const openSurface =
+        document &&
+        [
+          ...document.querySelectorAll(
+            '[role=dialog], [role=menu], [role=listbox], [role=tooltip], [data-radix-popper-content-wrapper]'
+          ),
+        ].some(visible)
+      const requiredElement = params.get('required')
+      const requiredVisible =
+        !requiredElement ||
+        (document && [...document.querySelectorAll(requiredElement)].some(visible))
+      if (
+        document &&
+        fixture &&
+        requiredVisible &&
+        (expectsOpen ? openSurface : [...fixture.children].some(visible))
+      ) {
         void document.fonts.ready.then(
           () => {
             if (frame.isConnected) setReadyFrame({ frame, url })
@@ -515,6 +545,7 @@ interface TreatmentDetailProps {
   selectedVariants?: Record<string, string>
   onSelectEntry: (id: string) => void
   onSelectVariant: (axis: string, value: string) => void
+  captureStale: boolean
 }
 
 function previewProvenance(entry: StudioEntry): string {
@@ -547,6 +578,7 @@ function TreatmentDetail({
   selectedVariants,
   onSelectEntry,
   onSelectVariant,
+  captureStale,
 }: TreatmentDetailProps) {
   const { entries } = treatment
   const exports = entries.filter((item) => !item.variant)
@@ -593,10 +625,14 @@ function TreatmentDetail({
         id: entry.fixture.id,
         theme,
         size: String(size),
-        state: previewState,
+        state:
+          previewState === 'default' ? (entry.fixture.defaultState ?? previewState) : previewState,
         ...(entry.kind === 'component' ? { interactive: '1' } : {}),
         ...(Object.keys(activeVariants).length ? { variants: JSON.stringify(activeVariants) } : {}),
         ...(entry.fixture.sample ? { sample: JSON.stringify(entry.fixture.sample) } : {}),
+        ...(entry.fixture.action ? { action: entry.fixture.action } : {}),
+        ...(entry.fixture.requiredElement ? { required: entry.fixture.requiredElement } : {}),
+        ...(entry.states?.includes('open') ? { 'open-surface': '1' } : {}),
       }).toString()
     : null
 
@@ -634,19 +670,21 @@ function TreatmentDetail({
           ) : null}
         </div>
         <span className='rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[var(--text-secondary)] text-xs'>
-          {entry.status !== 'ready'
-            ? entry.status === 'needs-fixture'
-              ? 'Needs fixture'
-              : 'Fixture check failed'
-            : failedCount
-              ? `${failedCount} fixture gaps`
-              : 'Fixture ready'}
+          {captureStale
+            ? 'Last capture needs refresh'
+            : entry.status !== 'ready'
+              ? entry.status === 'needs-fixture'
+                ? 'Last capture needs fixture'
+                : 'Last capture check incomplete'
+              : failedCount
+                ? `${failedCount} fixture gaps`
+                : 'Last capture ready'}
         </span>
       </div>
 
       <section id={`${anchor}-preview`} className='mt-10 scroll-mt-8'>
         <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
-          <h3 className='font-season text-xl'>Preview</h3>
+          <h3 className='font-season text-xl'>Live preview</h3>
           {fixtureQuery ? (
             <a
               href={`/fixture?${fixtureQuery}`}
@@ -716,6 +754,12 @@ function TreatmentDetail({
           entry={entry}
           fixtureUrl={fixtureQuery ? `/fixture?${fixtureQuery}` : null}
         />
+        <p className='mt-3 text-[var(--text-muted)] text-xs'>
+          Rendered from the current checkout.{' '}
+          {captureStale
+            ? 'The published capture and options come from an older source revision; refresh to verify this version.'
+            : 'Capture status describes the last published refresh.'}
+        </p>
         <div className='mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 text-[var(--text-muted)] text-xs'>
           <span>{previewProvenance(entry)}</span>
           {!isExtra ? (
@@ -1161,6 +1205,16 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
               ? 'Browse live previews of styling detected outside EMCN. Open the source and evidence panels when you want to trace a treatment back to code.'
               : 'Browse EMCN components and icons. Component options come from the latest source scan; each section links to its definition and product uses.'}
           </p>
+          {stale || ledgerStale ? (
+            <p
+              className='mt-4 rounded-lg border border-[var(--border)] px-4 py-3 text-[var(--text-body)] text-sm'
+              role='status'
+            >
+              {stale
+                ? 'Source changed since the last capture. Live previews use the current checkout; refresh the catalog and capture evidence.'
+                : 'Review notes changed since the last refresh.'}
+            </p>
+          ) : null}
           <div className='mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 border-[var(--border)] border-b pb-5 text-[var(--text-muted)] text-xs'>
             <span>
               {entries.length} {mode === 'extras' ? 'scanner signals' : 'exports and variants'}
@@ -1226,6 +1280,7 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                   className={`scroll-mt-24 border-[var(--border)] border-b py-12 ${mode === 'components' ? '[contain-intrinsic-size:auto_1000px] [content-visibility:auto]' : ''}`}
                 >
                   <TreatmentDetail
+                    captureStale={stale}
                     treatment={treatment}
                     theme={theme}
                     size={size}
@@ -1279,7 +1334,8 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
             </p>
             <div className='mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[var(--text-muted)] text-xs'>
               <span>
-                {entries.filter((entry) => entry.status === 'ready').length} fixtures verified
+                {entries.filter((entry) => entry.status === 'ready').length} successful captures in
+                this publication
               </span>
               <span>{manifest.coverageFailures.length} inspection failures</span>
               {mode === 'components' ? (
@@ -1292,6 +1348,48 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                 </span>
               )}
             </div>
+            {manifest.analysis ? (
+              <details className='mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-muted)] text-xs'>
+                <summary className='cursor-pointer text-[var(--text-secondary)]'>
+                  Analysis limits · {manifest.analysis.stylingUnchecked.length} unresolved styling
+                  inputs · {manifest.analysis.controlUnchecked.length} unresolved control inputs
+                </summary>
+                <p className='mt-3'>
+                  Successful capture means a fixture rendered. Unresolved analysis remains separate
+                  from inspection failures and capture status.
+                </p>
+                <ul className='mt-3 list-disc space-y-2 pl-4'>
+                  {manifest.analysis.limitations.map((limitation) => (
+                    <li key={limitation}>{limitation}</li>
+                  ))}
+                </ul>
+                {(['stylingUnchecked', 'controlUnchecked'] as const).map((kind) => (
+                  <details key={kind} className='mt-4'>
+                    <summary className='cursor-pointer'>
+                      {kind === 'stylingUnchecked' ? 'Styling' : 'Control'} diagnostics (
+                      {manifest.analysis?.[kind].length})
+                    </summary>
+                    <p className='mt-2'>
+                      Showing up to 20 diagnostics. The full list is in the publication's scan/
+                      {kind === 'stylingUnchecked' ? 'unchecked.json' : 'control-unchecked.json'}.
+                    </p>
+                    {manifest.analysis?.[kind].slice(0, 20).map((diagnostic, index) => (
+                      <p
+                        key={`${diagnostic.file}:${diagnostic.line}:${index}`}
+                        className='mt-2 break-all'
+                      >
+                        {diagnostic.file}:{diagnostic.line ?? 1} · {diagnostic.reason}
+                      </p>
+                    ))}
+                  </details>
+                ))}
+              </details>
+            ) : (
+              <p className='mt-4 text-[var(--text-muted)] text-xs'>
+                Analysis diagnostics are unavailable in this older publication; refresh to include
+                them.
+              </p>
+            )}
             <details className='mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-muted)] text-xs'>
               <summary className='cursor-pointer text-[var(--text-secondary)]'>
                 Run identity and provenance
