@@ -33,6 +33,7 @@ import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billi
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
@@ -1786,7 +1787,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           await tx.execute(
             sql`select set_config('lock_timeout', ${`${USAGE_RECONCILE_LOCK_TIMEOUT_MS}ms`}, true)`
           )
-          await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${executionId}, 0))`)
+          await acquireAdvisoryXactLock(tx, 'execution_usage_reconcile', executionId)
 
           // Already-billed for this execution, scoped to the rows this path owns
           // (source='workflow') so a same-executionId row from another source

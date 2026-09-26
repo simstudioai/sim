@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 const USER_BILLING_IDENTITY_LOCK_TIMEOUT_MS = 5_000
@@ -12,7 +13,5 @@ export async function acquireUserBillingIdentityLock(tx: DbOrTx, userId: string)
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${USER_BILLING_IDENTITY_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`user-billing-identity:${userId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'user_billing_identity', `user-billing-identity:${userId}`)
 }

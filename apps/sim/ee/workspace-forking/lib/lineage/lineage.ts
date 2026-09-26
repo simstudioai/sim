@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 export interface ForkLineageNode {
@@ -110,9 +111,7 @@ export async function setForkLockTimeout(tx: DbOrTx): Promise<void> {
  * unnecessary serialization, never a correctness issue.
  */
 export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-edge:${childWorkspaceId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'fork_edge', `fork-edge:${childWorkspaceId}`)
 }
 
 /**
@@ -123,7 +122,5 @@ export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string):
  * this BEFORE {@link acquireForkEdgeLock} so the two are taken in a consistent order.
  */
 export async function acquireForkTargetLock(tx: DbOrTx, targetWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-target:${targetWorkspaceId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'fork_target', `fork-target:${targetWorkspaceId}`)
 }

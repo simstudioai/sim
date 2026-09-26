@@ -51,6 +51,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { isRetryableTransactionError } from '@/lib/db/transaction'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -83,8 +84,10 @@ export async function acquireOrganizationMutationLock(
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${organizationId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    tx,
+    'organization_mutation',
+    `organization-mutation:${organizationId}`
   )
 }
 
@@ -108,9 +111,7 @@ export async function acquireOrgMembershipLock(
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${organizationId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'organization_membership', `${userId}:${organizationId}`)
 }
 
 /**

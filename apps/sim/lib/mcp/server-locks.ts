@@ -1,5 +1,6 @@
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 const MCP_SERVER_LOCK_TIMEOUT_MS = 3_000
@@ -13,7 +14,7 @@ export async function setWorkflowMcpTransactionLockTimeout(tx: DbOrTx): Promise<
 
 export async function acquireWorkflowMcpServerLock(tx: DbOrTx, serverId: string): Promise<void> {
   await setWorkflowMcpTransactionLockTimeout(tx)
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${serverId}, 0))`)
+  await acquireAdvisoryXactLock(tx, 'workflow_mcp_server', serverId)
 }
 
 export function isWorkflowMcpServerLockTimeout(error: unknown): boolean {
