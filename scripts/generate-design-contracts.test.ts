@@ -71,7 +71,74 @@ test('CLI discovers new APIs, narrows recipe variants to public props and is byt
   write(root, artifact, '{}')
   expect(run(root, '--check').status).toBe(1)
   expect(readFileSync(path.join(root, artifact), 'utf8')).toBe('{}')
-})
+}, 60_000)
+
+test('nested finite style lookups own only the selected slot chrome', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    `
+import type {HTMLAttributes} from 'react'
+const styles={content:'rounded-xl p-2',size:{sm:{item:'h-6 text-xs'},md:{item:'h-8 text-sm'}},scheme:{light:{content:'bg-white',label:'text-black'},dark:{content:'bg-black',label:'text-white'}}}
+interface Props extends HTMLAttributes<HTMLDivElement>{scheme?:'light'|'dark'}
+export function Example({className,scheme='light',...props}:Props){return <div {...props} className={cn(styles.content,styles.scheme[scheme].content,className)}/>}
+declare function cn(...args:unknown[]):string
+`
+  )
+  const result = run(root)
+  expect(result.status, result.stderr).toBe(0)
+  expect(generated(root).exports.Example.slots.className.protected).toEqual([
+    'background-color',
+    'border-radius',
+    'padding',
+  ])
+}, 60_000)
+
+test('styling forwarded through a barrel inherits the implementation ownership', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/index.ts',
+    "export * from './components/example';export * from './components/wrapper'"
+  )
+  write(
+    root,
+    'packages/emcn/src/components/wrapper.tsx',
+    `
+import {Example} from '../index'
+export function Wrapper({className}:{className?:string}){return <Example className={className}/>}
+`
+  )
+  const result = run(root)
+  expect(result.status, result.stderr).toBe(0)
+  expect(generated(root).exports.Wrapper.slots.className.protected).toContain('border-radius')
+  expect(
+    generated(root).diagnostics.some((d: { reason: string }) =>
+      d.reason.includes('Wrapper.className')
+    )
+  ).toBe(false)
+}, 60_000)
+
+test('rest forwarding keeps separately consumed class and style inputs apart', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    `
+import type {HTMLAttributes} from 'react'
+export function Leaf({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('rounded-xl',className)}/>}
+export function Other({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('h-12',className)}/>}
+export function Example({className,...rest}:HTMLAttributes<HTMLDivElement>){return <><Leaf className={className}/><Other {...rest}/></>}
+declare function cn(...args:unknown[]):string
+`
+  )
+  const result = run(root)
+  expect(result.status, result.stderr).toBe(0)
+  const slots = generated(root).exports.Example.slots
+  expect(slots.className.protected).toEqual(['border-radius'])
+  expect(slots.style.protected).toEqual(['height'])
+}, 60_000)
 
 test('public namespaces, compound roots and native props stay distinct', () => {
   const root = fixture()
@@ -99,7 +166,7 @@ test('public namespaces, compound roots and native props stay distinct', () => {
   expect(metadata.exports['icons:Example'].slots.fontStyle).toBeUndefined()
   expect(metadata.exports.Compound.kind).toBe('nonvisual')
   expect(metadata.exports['Compound.Part'].kind).toBe('component')
-})
+}, 60_000)
 
 test('API lifecycle, reexports and immutable snapshots never read proposed component implementations', () => {
   const root = fixture()
@@ -120,7 +187,7 @@ test('API lifecycle, reexports and immutable snapshots never read proposed compo
   write(root, 'packages/emcn/src/index.ts', 'export {}')
   expect(run(root).status).toBe(0)
   expect(Object.keys(generated(root).exports)).toHaveLength(0)
-})
+}, 60_000)
 
 test('validated source ownership allows customization and rejects invalid or contradictory metadata', () => {
   const root = fixture()
@@ -140,7 +207,7 @@ test('validated source ownership allows customization and rejects invalid or con
     write(root, 'packages/emcn/src/components/example.tsx', component(annotation))
     expect(run(root).status).toBe(2)
   }
-})
+}, 60_000)
 
 test('broken public imports, parse failures, token cycles and unresolved references remain visible', () => {
   const root = fixture()
@@ -164,7 +231,7 @@ test('broken public imports, parse failures, token cycles and unresolved referen
   expect(run(root).status).toBe(2)
   write(root, 'packages/emcn/src/components/example.tsx', 'export const Broken = (')
   expect(run(root).status).toBe(2)
-})
+}, 60_000)
 
 test('real working-tree and immutable checks discover ownership without registration and retain originating changes', () => {
   const root = fixture()

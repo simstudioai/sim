@@ -35,6 +35,8 @@ CI uses immutable event base/head revisions. It publishes file/line warnings, a 
 
 Each component's supported finite design props come from its public type and its implementation/defaults, rather than every value in an underlying shared recipe. For example Chip does not inherit ChipDropdown-only variants. Styling inputs are separate slots; forwarded chrome is traced to its actual owner. The generator never imports or runs product modules.
 
+Finite nested object lookups retain the selected recipe's properties. Barrel imports resolve to their implementation, and destructured inputs are excluded from rest forwarding. Studio fixture coverage follows each export separately: a family's adapter supports a variant only when that export actually receives the variant props. Nonvisual constants remain in the inventory without preview cards.
+
 ## Ownership metadata
 
 Ordinary layout remains local. Consumer changes to component-authored colours, typography, borders, radius, spacing, dimensions or effects are findings, including newly added components without registration. Use a supported component prop/variant first. Deliberate customization or ownership that cannot be inferred belongs in the component's existing TSDoc:

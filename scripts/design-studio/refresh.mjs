@@ -116,7 +116,8 @@ function usageIndex(componentNames, iconNames) {
             const kind =
               from === '@sim/emcn/icons'
                 ? 'icon'
-                : componentNames.has(name)
+                : componentNames.has(name) ||
+                    [...componentNames].some((n) => n.startsWith(`${name}.`))
                   ? 'component'
                   : iconNames.has(name)
                     ? 'icon'
@@ -132,18 +133,20 @@ function usageIndex(componentNames, iconNames) {
         const tag = jsxName(node.name)
         const parts = tag.split('.')
         const from = namespaces.get(parts[0])
-        const record = from
+        let record = from
           ? {
-              name: parts[1],
+              name: parts.slice(1).join('.'),
               kind:
                 from === '@sim/emcn/icons'
                   ? 'icon'
-                  : componentNames.has(parts[1])
+                  : componentNames.has(parts.slice(1).join('.'))
                     ? 'component'
                     : 'icon',
             }
           : imported.get(parts[0])
         if (!record) return
+        if (!from && parts.length > 1)
+          record = { ...record, name: `${record.name}.${parts.slice(1).join('.')}` }
         const key = `${record.kind}:${record.name}`
         if (!(record.kind === 'component' ? componentNames : iconNames).has(record.name)) return
         const site = {
@@ -171,20 +174,19 @@ function fixtureInventory() {
   walk(ast, (node) => {
     if (node.type !== 'SwitchCase' || node.test?.type !== 'StringLiteral') return
     const names = new Set()
-    let acceptsVariant = false
+    const variantNames = new Set()
     for (const statement of node.consequent)
       walk(statement, (part) => {
-        if (part.type === 'JSXOpeningElement') names.add(jsxName(part.name).split('.')[0])
-        if (part.type === 'JSXSpreadAttribute')
-          walk(part.argument, (value) => {
-            if (value.type === 'Identifier' && value.name === 'variantProps') acceptsVariant = true
-          })
-        if (part.type === 'JSXAttribute' && part.value)
-          walk(part.value, (value) => {
-            if (value.type === 'Identifier' && value.name === 'variant') acceptsVariant = true
+        if (part.type !== 'JSXOpeningElement') return
+        const name = jsxName(part.name)
+        names.add(name)
+        for (const attribute of part.attributes)
+          walk(attribute, (value) => {
+            if (value.type === 'Identifier' && ['variantProps', 'variant'].includes(value.name))
+              variantNames.add(name)
           })
       })
-    cases.set(node.test.value, { names, acceptsVariant })
+    cases.set(node.test.value, { names, variantNames })
   })
   return cases
 }
@@ -203,7 +205,7 @@ function componentInventory() {
     source: path.join(repo, facts.source.file),
     facts,
   }))
-  const componentExports = discovered.filter((item) => item.facts.kind !== 'icon')
+  const componentExports = discovered.filter((item) => item.facts.kind === 'component')
   const iconExports = discovered.filter((item) => item.facts.kind === 'icon')
   const byName = new Map()
   for (const item of componentExports)
@@ -295,7 +297,9 @@ function componentInventory() {
       values: axis.values.map(String),
       defaultValue: axis.default === undefined ? undefined : String(axis.default),
     }))
-    const supportsVariants = Boolean(fixture && fixtureCases.get(fixture.id)?.acceptsVariant)
+    const supportsVariants = Boolean(
+      fixture && fixtureCases.get(fixture.id)?.variantNames.has(item.name)
+    )
     for (const axis of axes)
       for (const value of axis.values) {
         if (value === axis.defaultValue) continue

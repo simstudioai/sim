@@ -290,6 +290,11 @@ interface DropdownMenuContentProps
   onOpenAutoFocus?: (event: Event) => void
 }
 
+/**
+ * Menu dimensions adapt to the consumer's content and viewport.
+ * @designAllow className dimensions
+ * @designAllow style dimensions
+ */
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   DropdownMenuContentProps

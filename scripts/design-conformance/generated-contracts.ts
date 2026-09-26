@@ -273,6 +273,44 @@ async function generate(
     }
     return
   }
+  const memberValues = (
+    file: string,
+    node: t.Node,
+    seen = new Set<string>()
+  ): { file: string; node: t.Node }[] => {
+    node = unwrap(node)
+    if (seen.size >= 12) return []
+    if (t.isIdentifier(node)) {
+      const ref = `${file}#${node.name}`
+      const found = locate(file, node.name)
+      return found && !seen.has(ref)
+        ? memberValues(found.file, found.node, new Set(seen).add(ref))
+        : []
+    }
+    if (t.isConditionalExpression(node) || t.isLogicalExpression(node)) {
+      const branches = t.isConditionalExpression(node)
+        ? [node.consequent, node.alternate]
+        : [node.left, node.right]
+      return branches.flatMap((branch) => memberValues(file, branch, seen))
+    }
+    if (t.isMemberExpression(node)) {
+      const selected =
+        !node.computed || t.isStringLiteral(node.property) || t.isNumericLiteral(node.property)
+          ? key(node.property)
+          : undefined
+      return memberValues(file, node.object, seen).flatMap((object) =>
+        t.isObjectExpression(object.node)
+          ? object.node.properties.flatMap((property) =>
+              t.isObjectProperty(property) &&
+              (selected === undefined || key(property.key) === selected)
+                ? memberValues(object.file, property.value, seen)
+                : []
+            )
+          : []
+      )
+    }
+    return [{ file, node }]
+  }
   const strings = (file: string, node: t.Node, seen = new Set<string>()): string[] => {
     node = unwrap(node)
     if (seen.size >= 12) {
@@ -304,16 +342,10 @@ async function generate(
       return node.properties.flatMap((p) =>
         t.isObjectProperty(p) ? strings(file, p.value, seen) : []
       )
-    if (t.isMemberExpression(node) && t.isIdentifier(node.object)) {
-      const found = locate(file, node.object.name)
-      if (!found && modules.get(file)?.imports.has(node.object.name))
-        note(
-          file,
-          node.loc?.start.line ?? 1,
-          `Unresolved imported styling: ${node.object.name}.${key(node.property)}`
-        )
-      if (found)
-        return strings(found.file, found.node, new Set(seen).add(`${file}#${node.object.name}`))
+    if (t.isMemberExpression(node)) {
+      const values = memberValues(file, node, seen)
+      if (!values.length) note(file, node.loc?.start.line ?? 1, 'Unresolved styling member lookup')
+      return values.flatMap((value) => strings(value.file, value.node, seen))
     }
     if (t.isFunction(node)) {
       const returns: t.Node[] = []
@@ -645,19 +677,24 @@ async function generate(
     const usedRecipes = new Set<string>()
     const params = new Map<string, string>()
     const objects = new Set<string>()
-    const rests = new Set<string>()
+    const rests = new Map<string, Set<string>>()
+    const patternProps = (pattern: t.ObjectPattern) => {
+      const consumed = new Set(
+        pattern.properties.flatMap((p) => (t.isObjectProperty(p) ? [key(p.key)] : []))
+      )
+      for (const field of pattern.properties) {
+        if (t.isRestElement(field) && t.isIdentifier(field.argument))
+          rests.set(field.argument.name, consumed)
+        if (t.isObjectProperty(field)) {
+          const value = t.isAssignmentPattern(field.value) ? field.value.left : field.value
+          if (t.isIdentifier(value)) params.set(value.name, key(field.key))
+        }
+      }
+    }
     if (meta.fn) {
       for (const p of meta.fn.params) {
         if (t.isIdentifier(p)) objects.add(p.name)
-        if (t.isObjectPattern(p))
-          for (const field of p.properties) {
-            if (t.isRestElement(field) && t.isIdentifier(field.argument))
-              rests.add(field.argument.name)
-            if (t.isObjectProperty(field)) {
-              const value = t.isAssignmentPattern(field.value) ? field.value.left : field.value
-              if (t.isIdentifier(value)) params.set(value.name, key(field.key))
-            }
-          }
+        if (t.isObjectPattern(p)) patternProps(p)
       }
       t.traverseFast(meta.fn.body, (n) => {
         if (
@@ -666,14 +703,7 @@ async function generate(
           t.isIdentifier(n.init) &&
           objects.has(n.init.name)
         )
-          for (const field of n.id.properties) {
-            if (t.isRestElement(field) && t.isIdentifier(field.argument))
-              rests.add(field.argument.name)
-            if (t.isObjectProperty(field)) {
-              const value = t.isAssignmentPattern(field.value) ? field.value.left : field.value
-              if (t.isIdentifier(value)) params.set(value.name, key(field.key))
-            }
-          }
+          patternProps(n.id)
       })
       const propOf = (n: t.Node) =>
         t.isIdentifier(n)
@@ -727,12 +757,14 @@ async function generate(
             forwards: [],
           }
         }
-        const spread = n.attributes.some(
-          (a) =>
-            t.isJSXSpreadAttribute(a) &&
-            t.isIdentifier(a.argument) &&
-            (rests.has(a.argument.name) || objects.has(a.argument.name))
-        )
+        const spreadInputs = new Set<string>()
+        for (const attribute of n.attributes) {
+          if (!t.isJSXSpreadAttribute(attribute) || !t.isIdentifier(attribute.argument)) continue
+          const name = attribute.argument.name
+          if (!rests.has(name) && !objects.has(name)) continue
+          for (const input of Object.keys(entry.slots))
+            if (!rests.get(name)?.has(input)) spreadInputs.add(input)
+        }
         for (const attribute of n.attributes)
           if (t.isJSXSpreadAttribute(attribute) && t.isIdentifier(attribute.argument)) {
             const bundle = bundles.get(attribute.argument.name)
@@ -740,9 +772,9 @@ async function generate(
               for (const [forwarded, input] of bundle)
                 entry.slots[input]?.forwards.push({ target, slot: forwarded })
           }
-        if (spread && !native)
-          for (const [name, slot] of Object.entries(entry.slots))
-            slot.forwards.push({ target, slot: name })
+        if (!native)
+          for (const input of spreadInputs)
+            entry.slots[input].forwards.push({ target, slot: input })
         for (const attr of n.attributes) {
           if (!t.isJSXAttribute(attr) || !attr.value) continue
           const slotName = key(attr.name)
@@ -769,7 +801,7 @@ async function generate(
               }
             }
           })
-          if (spread && entry.slots[slotName]) inputs.add(slotName)
+          if (spreadInputs.has(slotName)) inputs.add(slotName)
           const owned = protectedFor([
             ...strings(meta.file, value),
             ...[...recipes].flatMap((r) => out.recipes[r].classes),
@@ -781,7 +813,14 @@ async function generate(
                 if (category(property)) owned.push(family(property))
               }
             })
-          if (slotName === 'className' && inputs.has('className') && entry.slots.style)
+          if (
+            native &&
+            slotName === 'className' &&
+            inputs.has('className') &&
+            (spreadInputs.has('style') ||
+              n.attributes.some((a) => t.isJSXAttribute(a) && key(a.name) === 'style')) &&
+            entry.slots.style
+          )
             inputs.add('style')
           for (const input of inputs) {
             const slot = entry.slots[input]
@@ -871,8 +910,47 @@ async function generate(
     }
   }
   // Resolve slot forwarding to a fixed point. Unknown routes stay diagnostics, never permission.
-  const publicTarget = (target: string) =>
-    target.startsWith('@sim/emcn#') ? target.slice(10) : internalIds.get(target)
+  const targetCache = new Map<string, string | undefined>()
+  const publicTarget = (target: string): string | undefined => {
+    if (target.startsWith('@sim/emcn#')) return target.slice(10)
+    if (internalIds.has(target)) return internalIds.get(target)
+    if (targetCache.has(target)) return targetCache.get(target)
+    const [file, name] = target.split('#')
+    const module = program.getSourceFile(path.join(virtualRoot, file))
+    const moduleSymbol = module && checker.getSymbolAtLocation(module)
+    const [root, ...members] = (name ?? '').split('.')
+    let symbol =
+      moduleSymbol && checker.getExportsOfModule(moduleSymbol).find((s) => s.name === root)
+    for (const member of members) {
+      if (!symbol) break
+      if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
+      const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0]
+      symbol = declaration
+        ? checker.getTypeOfSymbolAtLocation(symbol, declaration).getProperty(member)
+        : undefined
+    }
+    if (symbol?.flags && symbol.flags & ts.SymbolFlags.Alias)
+      symbol = checker.getAliasedSymbol(symbol)
+    let declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0]
+    if (declaration && ts.isShorthandPropertyAssignment(declaration)) {
+      symbol = checker.getShorthandAssignmentValueSymbol(declaration)
+      declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0]
+    }
+    const sourceName =
+      declaration &&
+      ts.isPropertyAssignment(declaration) &&
+      ts.isIdentifier(declaration.initializer)
+        ? declaration.initializer.text
+        : symbol?.name
+    const result =
+      declaration && sourceName
+        ? internalIds.get(
+            `${path.relative(virtualRoot, declaration.getSourceFile().fileName)}#${sourceName}`
+          )
+        : undefined
+    targetCache.set(target, result)
+    return result
+  }
   for (let pass = 0; pass < 12; pass++) {
     let changed = false
     for (const entry of Object.values(out.exports))

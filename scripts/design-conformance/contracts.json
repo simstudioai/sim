@@ -75,7 +75,7 @@
         "height",
         "colour"
       ],
-      "permission": "Registered field icon slots own geometry; no universal icon size is inferred",
+      "permission": "Source-derived field icon slots own geometry; no universal icon size is inferred",
       "source": ".claude/rules/sim-styling.md#Chip Components (consumer usage)"
     },
     "central-definition": {

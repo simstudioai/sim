@@ -400,6 +400,56 @@ export function ComponentPreview({
           />
         </div>
       )
+    case 'chip-modal-field': {
+      if (selections.type === 'dropdown')
+        return (
+          <ChipModalField
+            type='dropdown'
+            title='Mode'
+            value={selection}
+            onChange={setSelection}
+            options={[
+              { value: 'alpha', label: 'First option' },
+              { value: 'beta', label: 'Second option' },
+            ]}
+            {...variantProps}
+          />
+        )
+      if (selections.type === 'emails')
+        return (
+          <ChipModalField
+            type='emails'
+            title='Recipients'
+            value={emails}
+            onChange={setEmails}
+            {...variantProps}
+          />
+        )
+      if (selections.type === 'file')
+        return (
+          <ChipModalField
+            type='file'
+            title='Attachment'
+            onChange={() => undefined}
+            {...variantProps}
+          />
+        )
+      if (selections.type === 'custom')
+        return (
+          <ChipModalField type='custom' title='Custom field' {...variantProps}>
+            <p>Example content</p>
+          </ChipModalField>
+        )
+      return (
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={secret}
+          onChange={setSecret}
+          {...variantProps}
+        />
+      )
+    }
     case 'chip-modal': {
       const sizeSelected = Boolean(selections.size)
       return (

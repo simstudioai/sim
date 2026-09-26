@@ -37,7 +37,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   write(
     repo,
     'packages/emcn/src/components/index.ts',
-    "export { Example } from './example/example'\n"
+    "export { Example, SPACING, Compound } from './example/example'\n"
   )
   write(repo, 'packages/emcn/src/components/charts/index.ts', '')
   write(repo, 'packages/emcn/src/icons/index.ts', "export { StarIcon } from './star'\n")
@@ -45,12 +45,12 @@ test('refresh catalogs every detection independently of review decisions', () =>
   write(
     repo,
     'packages/emcn/src/components/example/example.tsx',
-    "import {cva} from 'class-variance-authority'\nconst exampleVariants = cva('', { variants: { size: { sm: '', lg: '' } }, defaultVariants: { size: 'sm' } })\ninterface ExampleProps { variant?: 'plain' | 'filled' }\nexport const Example = ({variant, size}: ExampleProps & {size?: 'sm' | 'lg'}) => <button className={exampleVariants({size})} />\n"
+    "import {cva} from 'class-variance-authority'\nconst exampleVariants = cva('', { variants: { size: { sm: '', lg: '' } }, defaultVariants: { size: 'sm' } })\ninterface ExampleProps { variant?: 'plain' | 'filled' }\nexport const Example = ({variant, size}: ExampleProps & {size?: 'sm' | 'lg'}) => <button className={exampleVariants({size})} />\nexport const SPACING=8;export const Compound={Part:({size='sm'}:{size?:'sm'|'lg'})=> <div/>}\n"
   )
   write(
     repo,
     'tools/design-studio/_components/component-fixtures.tsx',
-    "export function ComponentPreview({ id }) { switch (id) { case 'example': return <Example />; default: return null } }\n"
+    "export function ComponentPreview({ id }) { switch (id) { case 'example': return <><Example {...variantProps} /><Compound.Part /></>; default: return null } }\n"
   )
   write(
     repo,
@@ -65,17 +65,17 @@ test('refresh catalogs every detection independently of review decisions', () =>
   write(
     repo,
     'apps/sim/app/product/page.tsx',
-    "import { Example } from '@sim/emcn'\nexport default function Page() { return <Example /> }\n"
+    "import { Example, Compound } from '@sim/emcn'\nexport default function Page() { return <><Example /><Compound.Part /></> }\n"
   )
   write(
     repo,
     'apps/sim/app/(landing)/page.tsx',
-    "import { Example } from '@sim/emcn'\nexport default function Page() { return <Example /> }\n"
+    "import { Example, Compound } from '@sim/emcn'\nexport default function Page() { return <><Example /><Compound.Part /></> }\n"
   )
   write(
     repo,
     'apps/sim/docs/page.tsx',
-    "import { Example } from '@sim/emcn'\nexport default function Page() { return <Example /> }\n"
+    "import { Example, Compound } from '@sim/emcn'\nexport default function Page() { return <><Example /><Compound.Part /></> }\n"
   )
   write(repo, 'apps/sim/app/_styles/globals.css', ':root{--brand:#abc}')
   command(repo, 'git', ['init', '-q'])
@@ -184,6 +184,27 @@ test('refresh catalogs every detection independently of review decisions', () =>
   }
 
   const first = refresh()
+  assert.equal(
+    first.components.some((e) => e.name === 'SPACING' || e.name === 'Compound'),
+    false
+  )
+  assert.equal(
+    first.nonvisualExports.some((e) => e.name === 'SPACING'),
+    true
+  )
+  assert.equal(first.components.find((e) => e.name === 'Compound.Part').fixture.id, 'example')
+  assert.equal(
+    first.components.find((e) => e.id === 'component:Compound.Part:size=lg').fixture,
+    null
+  )
+
+  assert.equal(
+    first.components
+      .find((e) => e.name === 'Compound.Part')
+      .usages.filter((u) => u.relationship === 'direct').length,
+    1
+  )
+
   const again = refresh()
   assert.deepEqual(first.components, again.components)
   assert.equal(first.sourceRevision, again.sourceRevision)
@@ -191,6 +212,8 @@ test('refresh catalogs every detection independently of review decisions', () =>
   assert.deepEqual(
     first.components.map((entry) => entry.id),
     [
+      'component:Compound.Part',
+      'component:Compound.Part:size=lg',
       'component:Example',
       'component:Example:variant=filled',
       'component:Example:variant=plain',
@@ -199,7 +222,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
     ]
   )
   assert.deepEqual(
-    first.components[0].usages.map((site) => site.relationship),
+    first.components
+      .find((entry) => entry.name === 'Example')
+      .usages.map((site) => site.relationship),
     ['direct', 'via Wrapper']
   )
   assert.equal(first.extras.length, 2)
@@ -241,7 +266,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   write(
     repo,
     'packages/emcn/src/components/index.ts',
-    "export { Example } from './example/example'\nexport * from './cycle-a'\n"
+    "export { Example, SPACING, Compound } from './example/example'\nexport * from './cycle-a'\n"
   )
   assert.deepEqual(
     refresh().components.map((entry) => entry.id),
@@ -256,12 +281,12 @@ test('refresh catalogs every detection independently of review decisions', () =>
   const changed = refresh()
   assert.notEqual(changed.sourceRevision, first.sourceRevision)
   assert.equal(changed.sampleRenderHash, first.sampleRenderHash)
-  assert.equal(changed.components[0].usages.length, 3)
+  assert.equal(changed.components.find((entry) => entry.name === 'Example').usages.length, 3)
 
   write(
     repo,
     'packages/emcn/src/components/index.ts',
-    "export { Example } from './example/example'\nexport { NewControl } from './new-control/new-control'\n"
+    "export { Example, SPACING, Compound } from './example/example'\nexport { NewControl } from './new-control/new-control'\n"
   )
   write(
     repo,

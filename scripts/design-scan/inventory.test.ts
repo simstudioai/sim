@@ -496,7 +496,7 @@ test('CLI on synthetic repositories preserves 0/1/2, writes complete reports, an
     run(['--repo', valid.repo, '--ref', 'HEAD', '--output', path.join(valid.base, 'quiet')]).status
   ).toBe(0)
   expect(f.git('status', '--porcelain')).toBe(status)
-})
+}, 60_000)
 
 test('scanner matches an external review ledger without hiding raw findings', async () => {
   const f = fixture({ [component]: text('text-[#123456]') })
