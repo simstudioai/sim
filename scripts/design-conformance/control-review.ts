@@ -187,7 +187,7 @@ const supplementalProperties = (token: string): { property: string; category: st
       e: 'inline-end',
     }
     return [
-      { property: padding[1] ? `padding-${sides[padding[1]]}` : 'padding', category: 'spacing' },
+      { property: padding[1] ? `padding-${sides[padding[1]]}` : 'padding', category: 'padding' },
     ]
   }
   if (/^gap(?:-[xy])?-/.test(base)) return [{ property: 'gap', category: 'gap' }]

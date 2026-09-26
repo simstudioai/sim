@@ -123,6 +123,7 @@
     "type-check": "bun run type-check:design && bun run type-check:studio && turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
     "test:scripts": "vitest run --config scripts/vitest.config.ts",
+    "test:studio:e2e": "bun --no-env-file scripts/design-studio/test-fixtures-e2e.mjs",
     "check:design": "bun --no-env-file scripts/check-design-conformance.ts",
     "design:scan": "bun --no-env-file scripts/design-scan/scan.ts",
     "studio:refresh": "bun --no-env-file scripts/design-studio/refresh.mjs",
