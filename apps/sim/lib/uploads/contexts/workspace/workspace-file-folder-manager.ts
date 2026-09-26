@@ -224,11 +224,6 @@ function folderParentCondition(parentId?: string | null) {
   return normalized ? eq(folderTable.parentId, normalized) : isNull(folderTable.parentId)
 }
 
-function fileFolderCondition(folderId?: string | null) {
-  const normalized = normalizeParentId(folderId)
-  return normalized ? eq(workspaceFiles.folderId, normalized) : isNull(workspaceFiles.folderId)
-}
-
 /**
  * Folder predicate for active-name lookups, spelled exactly as the
  * `workspace_files_workspace_folder_name_active_unique` index expression so the
@@ -1059,7 +1054,7 @@ export async function moveWorkspaceFileItems(params: {
             eq(workspaceFiles.workspaceId, params.workspaceId),
             eq(workspaceFiles.originalName, file.name),
             eq(workspaceFiles.context, 'workspace'),
-            fileFolderCondition(targetFolderId),
+            workspaceFileNameFolderCondition(targetFolderId),
             isNull(workspaceFiles.deletedAt)
           )
         )

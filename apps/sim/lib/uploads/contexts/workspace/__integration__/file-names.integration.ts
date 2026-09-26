@@ -66,7 +66,7 @@ describe('workspace file names in PostgreSQL', () => {
     })
   }
 
-  it('parses an external URL without saving a copy to workspace Files', async () => {
+  async function parseExternalUrl(executionId?: string) {
     const fixture = await seedWorkspace()
     const url = 'https://example.com/page.txt'
     vi.spyOn(inputValidation, 'validateUrlWithDNS').mockResolvedValue({
@@ -96,9 +96,11 @@ describe('workspace file names in PostgreSQL', () => {
           subjectUserId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           delegationId: generateId(),
+          executionId,
         }),
         workspaceId: fixture.workspaceId,
         workflowId: generateId(),
+        executionId,
         attributedUserId: fixture.aliceId,
         fileAccessUserId: fixture.aliceId,
       }
@@ -107,11 +109,18 @@ describe('workspace file names in PostgreSQL', () => {
 
     expect(response.status).toBe(200)
     expect(body.output.content).toContain('fetched page body')
-    const rows = await db
-      .select({ id: workspaceFiles.id })
+    return db
+      .select({ context: workspaceFiles.context })
       .from(workspaceFiles)
       .where(eq(workspaceFiles.workspaceId, fixture.workspaceId))
-    expect(rows).toEqual([])
+  }
+
+  it('parses an external URL without saving a copy to workspace Files', async () => {
+    expect(await parseExternalUrl()).toEqual([])
+  })
+
+  it('keeps an external URL parsed during an execution as an execution file only', async () => {
+    expect(await parseExternalUrl(generateId())).toEqual([{ context: 'execution' }])
   })
 
   it('scopes name lookups to root or folder through the unique name index', async () => {
