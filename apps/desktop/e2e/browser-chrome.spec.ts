@@ -137,7 +137,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
         .poll(() => label.evaluate((element) => element.getBoundingClientRect().width))
         .toBeGreaterThanOrEqual(48)
       const neighbor = page.getByRole('tab').nth(2)
-      const beforeHover = await neighbor.evaluate((element) => ({
+      const beforeHover = await neighbor.evaluate((element: HTMLElement) => ({
         left: element.offsetLeft,
         width: element.offsetWidth,
       }))
@@ -150,7 +150,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
         )
         .toBeGreaterThanOrEqual(48)
       expect(
-        await neighbor.evaluate((element) => ({
+        await neighbor.evaluate((element: HTMLElement) => ({
           left: element.offsetLeft,
           width: element.offsetWidth,
         }))
@@ -195,6 +195,14 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           )
           .toBeGreaterThanOrEqual(48)
         await page.screenshot({ path: testInfo.outputPath('crowded-tabs-touch.png') })
+        const beforeSelection = await attention.evaluate(
+          (element: HTMLElement) => element.offsetWidth
+        )
+        await attention.click()
+        await expect(attention).toHaveAttribute('aria-selected', 'true')
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          beforeSelection
+        )
       } finally {
         await session.send('Emulation.setTouchEmulationEnabled', { enabled: false })
         await session.detach()
