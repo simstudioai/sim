@@ -27,6 +27,13 @@ const outputRoot = path.resolve(
 const bun = process.execPath
 const bunDirectory = path.dirname(bun)
 const capture = !process.argv.includes('--inventory-only')
+// Keep rounded-edge rasterization stable across fresh browser processes.
+const captureArgs = [
+  '--deterministic-mode',
+  '--disable-gpu',
+  '--disable-skia-runtime-opts',
+  '--disable-partial-raster',
+]
 const sha = (value) => createHash('sha256').update(value).digest('hex')
 const relative = (file) => path.relative(repo, file).split(path.sep).join('/')
 
@@ -639,8 +646,8 @@ async function captureImages(manifest, runDir) {
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
     if (!ready) throw new Error('Fixture server did not become ready')
-    browser = await chromium.launch({ headless: true })
-    manifest.browser = `Chromium ${browser.version()} (Playwright ${require('playwright/package.json').version})`
+    browser = await chromium.launch({ headless: true, args: captureArgs })
+    manifest.browser = `Chromium ${browser.version()} (Playwright ${require('playwright/package.json').version}; ${captureArgs.join(' ')})`
     const context = await browser.newContext({
       viewport: { width: 460, height: 320 },
       deviceScaleFactor: 1,
@@ -948,6 +955,7 @@ async function main() {
     fixtureSources.map((file) => `${file}:${sha(readFileSync(path.join(repo, file)))}`).join('\n')
   )
   const sampleStyleSources = [
+    'packages/emcn/src/lib/cn.ts',
     'apps/sim/app/_styles/globals.css',
     'apps/sim/app/_styles/fonts/season/season.ts',
     'apps/sim/app/_styles/fonts/season/SeasonSansUprightsVF.woff2',

@@ -79,7 +79,7 @@ Optional `--reviews /absolute/external/reviews.json` attaches source-fingerprint
 
 Refresh checks infrastructure freshness, scans the working tree, inventories EMCN public visual exports/variants and all detected Extras, then captures source-backed fixtures or clearly labeled indicative source-style samples. Fixed props/data/providers enable deterministic previews; product modules are only executed by the isolated browser fixture app, never by the analyzer. Missing adapters and failed captures stay visible. Opening Studio reads the latest publication and never starts a scan.
 
-Reports, manifests and browser images live outside the checkout (default Studio output: `~/.local/state/sim2/design-studio`). All four light/dark, 16px/20px combinations are captured with pinned Playwright, viewport, locale, time, fonts and disabled animation. A run publishes atomically, carries source/scanner/fixture/ledger identities and reports incomplete coverage. Review decisions add context only.
+Reports, manifests and browser images live outside the checkout (default Studio output: `~/.local/state/sim2/design-studio`). All four light/dark, 16px/20px combinations are captured with pinned Playwright, viewport, locale, time, fonts and disabled animation. The recorded browser identity includes the fixed software-rendering flags; changing that profile invalidates cached captures. Indicative samples also invalidate when the shared class-merging implementation changes. Hash reproducibility is checked within the same browser and operating-system environment. A run publishes atomically, carries source/scanner/fixture/ledger identities and reports incomplete coverage. Review decisions add context only.
 
 ## Verification
 

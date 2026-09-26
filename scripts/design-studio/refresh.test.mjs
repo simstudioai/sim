@@ -29,6 +29,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   mkdirSync(repo)
   mkdirSync(scan)
   write(repo, 'package.json', '{}')
+  write(repo, 'packages/emcn/src/lib/cn.ts', '')
   write(repo, 'tools/design-studio/app/studio.css', '')
   write(repo, 'tools/design-studio/app/layout.tsx', '')
   write(
@@ -211,6 +212,15 @@ test('refresh catalogs every detection independently of review decisions', () =>
   assert.deepEqual(first.components, again.components)
   assert.equal(first.sourceRevision, again.sourceRevision)
   assert.equal(first.sampleRenderHash, again.sampleRenderHash)
+
+  write(
+    repo,
+    'packages/emcn/src/lib/cn.ts',
+    'export const cn = (...values) => values.filter(Boolean).join(" " )\n'
+  )
+  const changedClassMerger = refresh()
+  assert.notEqual(changedClassMerger.sampleRenderHash, first.sampleRenderHash)
+  write(repo, 'packages/emcn/src/lib/cn.ts', '')
   assert.deepEqual(
     first.components.map((entry) => entry.id),
     [
