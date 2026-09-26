@@ -74,7 +74,7 @@ const mocks = {
   createRecord: knowledgeServiceMockFns.mockCreateAuthorizedKnowledgeBase,
   updateRecord: knowledgeServiceMockFns.mockUpdateKnowledgeBase,
   deleteRecord: knowledgeServiceMockFns.mockDeleteKnowledgeBase,
-  getRecord: knowledgeServiceMockFns.mockGetKnowledgeBaseById,
+  getRecord: knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReference,
   listRecords: knowledgeServiceMockFns.mockGetWorkspaceKnowledgeBases,
   attachConnectors: knowledgeServiceMockFns.mockAttachKnowledgeBaseConnectors,
 }
@@ -152,7 +152,7 @@ describe('knowledge base application use cases', () => {
   it('authorizes a canonical workspace before listing its internal knowledge bases', async () => {
     await listInternalKnowledgeBases.execute({
       principal: createSessionPrincipal(),
-      input: { workspaceId: 'workspace-1', scope: 'archived' },
+      input: { workspaceId: 'workspace-1', scope: 'archived', includeCounts: true },
     })
 
     expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).toHaveBeenCalledWith({
@@ -166,7 +166,7 @@ describe('knowledge base application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived', {
-      access: expect.objectContaining({ get: mocks.resolveAccess }),
+      countsFor: expect.objectContaining({ get: mocks.resolveAccess }),
     })
   })
 

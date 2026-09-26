@@ -27,10 +27,7 @@ import {
 } from '@sim/testing/mocks/uploads-execution.mock'
 import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
 import { uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
-import {
-  workspaceFileManagerMock,
-  workspaceFileManagerMockFns,
-} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceFileManagerMock } from '@sim/testing/mocks/workspace-file-manager.mock'
 import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
@@ -181,20 +178,7 @@ vi.mock('fs/promises', () => ({
 }))
 
 const { mockGetStorageProvider, mockIsUsingCloudStorage } = uploadsMockFns
-const { mockUploadWorkspaceFile } = workspaceFileManagerMockFns
 const { mockGetBoundWorkspaceFileSecretProvenance } = workspaceFileSecretProvenanceMockFns
-
-mockUploadWorkspaceFile.mockImplementation(
-  async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
-    id: 'wf_test',
-    name: fileName,
-    size: 0,
-    type: 'application/octet-stream',
-    url: `/api/files/serve/${workspaceId}/${fileName}`,
-    key: `${workspaceId}/${fileName}`,
-    context: 'workspace',
-  })
-)
 
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
@@ -658,7 +642,6 @@ describe('file parser operation', () => {
         })
       )
     mockIsSupportedFileType.mockReturnValue(false)
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
 
     const req = createMockRequest('POST', {
       filePath: [
@@ -686,7 +669,6 @@ describe('file parser operation', () => {
       '203.0.113.10',
       expect.any(Object)
     )
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(2)
     expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
   })
 

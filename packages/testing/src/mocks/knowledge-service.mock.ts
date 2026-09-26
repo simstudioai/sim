@@ -49,7 +49,7 @@ export class MockKnowledgeBaseNotFoundError extends Error {
  * ```ts
  * import { knowledgeServiceMockFns } from '@sim/testing/mocks/knowledge-service.mock'
  *
- * knowledgeServiceMockFns.mockGetKnowledgeBaseById.mockResolvedValue({ id: 'kb-1' })
+ * knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReference.mockResolvedValue({ id: 'kb-1' })
  * ```
  */
 export const knowledgeServiceMockFns = {
@@ -61,7 +61,6 @@ export const knowledgeServiceMockFns = {
   mockGetKnowledgeBaseNames: vi.fn(),
   mockGetActiveKnowledgeBaseReference: vi.fn(),
   mockGetActiveKnowledgeBaseReferences: vi.fn(),
-  mockGetKnowledgeBaseById: vi.fn(),
   mockAttachKnowledgeBaseConnectors: vi.fn(),
   mockDeleteKnowledgeBase: vi.fn(),
   mockRestoreKnowledgeBase: vi.fn(),
@@ -90,7 +89,6 @@ export const knowledgeServiceMock = {
   getKnowledgeBaseNames: knowledgeServiceMockFns.mockGetKnowledgeBaseNames,
   getActiveKnowledgeBaseReference: knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReference,
   getActiveKnowledgeBaseReferences: knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReferences,
-  getKnowledgeBaseById: knowledgeServiceMockFns.mockGetKnowledgeBaseById,
   attachKnowledgeBaseConnectors: knowledgeServiceMockFns.mockAttachKnowledgeBaseConnectors,
   deleteKnowledgeBase: knowledgeServiceMockFns.mockDeleteKnowledgeBase,
   restoreKnowledgeBase: knowledgeServiceMockFns.mockRestoreKnowledgeBase,

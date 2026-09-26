@@ -1,3 +1,7 @@
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
 import { resetEnvMock } from '@sim/testing/mocks/env.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -43,10 +47,7 @@ vi.mock('@azure/communication-email', () => {
   }
 })
 
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  isUnsubscribed: vi.fn(),
-  generateUnsubscribeToken: vi.fn(),
-}))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 
 vi.mock('@/lib/auth/access-control', () => ({
   getAccessControlConfig: vi.fn().mockResolvedValue({
@@ -68,7 +69,8 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 
 import { isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { sendEmail } from './mailer'
-import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+
+const { mockGenerateUnsubscribeToken, mockIsUnsubscribed } = emailUnsubscribeMockFns
 
 urlsMockFns.mockGetEmailDomain.mockReturnValue('sim.ai')
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://test.sim.ai')
@@ -87,8 +89,8 @@ describe('mailer', () => {
 
   beforeEach(() => {
     ;(isEmailBlockedByAccessControl as Mock).mockReturnValue(false)
-    ;(isUnsubscribed as Mock).mockResolvedValue(false)
-    ;(generateUnsubscribeToken as Mock).mockReturnValue('mock-token-123')
+    mockIsUnsubscribed.mockResolvedValue(false)
+    mockGenerateUnsubscribeToken.mockReturnValue('mock-token-123')
 
     mockSend.mockResolvedValue({
       data: { id: 'test-email-id' },
@@ -112,7 +114,7 @@ describe('mailer', () => {
 
   describe('sendEmail', () => {
     it('should skip sending if user has unsubscribed', async () => {
-      ;(isUnsubscribed as Mock).mockResolvedValue(true)
+      mockIsUnsubscribed.mockResolvedValue(true)
 
       const result = await sendEmail({
         ...testEmailOptions,
@@ -164,7 +166,7 @@ describe('mailer', () => {
       expect(result.message).toBe('Email skipped (recipient on access-control ban list)')
       expect(result.data).toEqual({ id: 'skipped-banned' })
       expect(mockSend).not.toHaveBeenCalled()
-      expect(isUnsubscribed).not.toHaveBeenCalled()
+      expect(mockIsUnsubscribed).not.toHaveBeenCalled()
     })
 
     it('should drop only the banned recipients from a multi-recipient send', async () => {

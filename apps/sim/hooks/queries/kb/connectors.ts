@@ -376,7 +376,7 @@ export function useUpdateConnector() {
           queryKey: knowledgeKeys.detail(knowledgeBaseId),
           exact: true,
         })
-        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.countedLists() })
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
       }
     },
