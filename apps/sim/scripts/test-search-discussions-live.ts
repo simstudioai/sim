@@ -32,6 +32,7 @@ import type { NativeClient, NativePage } from '@/lib/sim-search/live/types'
  * fixtures must have fewer than 100 records; a full oracle page is rejected as incomplete.
  * Oracle queries describe equivalent logical branches. Explicit updated: qualifiers take
  * precedence over filters; otherwise both paths use inclusive GitHub candidate bounds.
+ * Untyped oracle searches use separate ten-item issue and pull-request pages.
  * The application search layer applies the exclusive end-date filter and is not exercised here.
  * Keep real identities and source content in the external case file. Timings include gh process
  * and network costs, not model selection or the authorized application/UI boundary.
@@ -242,7 +243,13 @@ async function runQuery(test: QueryCase) {
       ? new Date(test.filters.startDate).toISOString()
       : undefined
     const end = test.filters?.endDate ? new Date(test.filters.endDate).toISOString() : undefined
-    for (const query of test.oracleQueries) {
+    const oracleQueries = test.oracleQueries.flatMap((query) => {
+      const typed = (query.match(/"[^"]*"|\S+/g) ?? []).some((token) =>
+        /^(?:is|type):(?:issue|pr|pull-request)$/i.test(token)
+      )
+      return typed ? [query] : [`${query} is:issue`, `${query} is:pr`]
+    })
+    for (const query of oracleQueries) {
       const nativeDateRange = (query.match(/"[^"]*"|\S+/g) ?? []).some((token) =>
         /^updated:/i.test(token)
       )
