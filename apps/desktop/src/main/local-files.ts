@@ -1,5 +1,5 @@
-import { constants } from 'node:fs'
-import { lstat, open, readdir, stat } from 'node:fs/promises'
+import { constants, type Dirent } from 'node:fs'
+import { lstat, open, opendir, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
   DesktopLocalFileEntry,
@@ -10,6 +10,7 @@ import type {
 import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { PDFDocument } from 'pdf-lib'
 import type { LocalFileAccess } from '@/main/local-filesystem'
 
@@ -39,18 +40,23 @@ function assertImportPath(root: string, candidate: string): void {
     throw new Error('The file is outside this import source.')
 }
 
-async function openApprovedFile(path: string, access: LocalFileAccess) {
+async function openApprovedPath(path: string, access: LocalFileAccess, directory = false) {
   const canonical = await access.resolve(path)
+  if (canonical !== path)
+    throw new Error('The local path changed while it was being opened. Try again.')
   const file = await open(
     canonical,
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+    constants.O_RDONLY |
+      constants.O_NOFOLLOW |
+      constants.O_NONBLOCK |
+      (directory ? constants.O_DIRECTORY : 0)
   )
   try {
     const info = await file.stat()
     const verified = await access.resolve(path)
     const current = await lstat(verified)
     if (
-      !info.isFile() ||
+      (directory ? !info.isDirectory() : !info.isFile()) ||
       canonical !== verified ||
       info.dev !== current.dev ||
       info.ino !== current.ino
@@ -63,6 +69,53 @@ async function openApprovedFile(path: string, access: LocalFileAccess) {
   }
 }
 
+async function readApprovedDirectory(path: string, access: LocalFileAccess) {
+  const handle = await openApprovedPath(path, access, true)
+  try {
+    const before = await handle.stat({ bigint: true })
+    const verify = async () => {
+      const canonical = await access.resolve(path)
+      const current = await lstat(canonical, { bigint: true })
+      const after = await handle.stat({ bigint: true })
+      if (
+        canonical !== path ||
+        !current.isDirectory() ||
+        current.dev !== before.dev ||
+        current.ino !== before.ino ||
+        current.ctimeNs !== before.ctimeNs ||
+        current.mtimeNs !== before.mtimeNs ||
+        after.ctimeNs !== before.ctimeNs ||
+        after.mtimeNs !== before.mtimeNs
+      ) {
+        throw new Error('The local directory changed while it was being read. Try again.')
+      }
+    }
+    const directory = await opendir(path)
+    try {
+      await verify()
+      const entries: Dirent[] = []
+      let count = 0
+      const sort = () => entries.sort((left, right) => compareStrings(left.name, right.name))
+      for (let entry = await directory.read(); entry; entry = await directory.read()) {
+        entries.push(entry)
+        count++
+        if (entries.length === MAX_ENTRIES * 2) {
+          sort()
+          entries.length = MAX_ENTRIES
+          await access.resolve(path)
+        }
+      }
+      await verify()
+      sort()
+      return { entries: entries.slice(0, MAX_ENTRIES), truncated: count > MAX_ENTRIES }
+    } finally {
+      await directory.close()
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
 async function inspect(
   path: string,
   args: Record<string, unknown>,
@@ -70,29 +123,26 @@ async function inspect(
 ): Promise<DesktopLocalFileRead> {
   const info = await stat(path)
   if (info.isDirectory()) {
-    const entries = await readdir(path, { withFileTypes: true })
+    const { entries, truncated } = await readApprovedDirectory(path, access)
     return {
       kind: 'read',
       path,
       representation: 'directory',
-      truncated: entries.length > MAX_ENTRIES,
-      entries: entries
-        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-        .slice(0, MAX_ENTRIES)
-        .map((entry) => ({
-          name: entry.name,
-          kind: entry.isFile()
-            ? 'file'
-            : entry.isDirectory()
-              ? 'directory'
-              : entry.isSymbolicLink()
-                ? 'symlink'
-                : 'other',
-        })),
+      truncated,
+      entries: entries.map((entry) => ({
+        name: entry.name,
+        kind: entry.isFile()
+          ? 'file'
+          : entry.isDirectory()
+            ? 'directory'
+            : entry.isSymbolicLink()
+              ? 'symlink'
+              : 'other',
+      })),
     }
   }
   if (!info.isFile()) throw new Error('The path is not a regular file or directory.')
-  const file = await openApprovedFile(path, access)
+  const file = await openApprovedPath(path, access)
   try {
     const info = await file.stat()
     const header = Buffer.alloc(16)
@@ -218,7 +268,12 @@ async function manifest(
     })
     if (info.isDirectory()) {
       const next = new Set([...ancestors, canonical])
-      for (const name of (await readdir(current)).sort()) await walk(join(current, name), next)
+      const children = await readApprovedDirectory(canonical, access)
+      if (children.truncated)
+        throw new Error(
+          'The directory exceeds 1,000 entries. Import smaller subdirectories separately.'
+        )
+      for (const entry of children.entries) await walk(join(current, entry.name), next)
     }
   }
   await walk(path, new Set())
@@ -264,7 +319,7 @@ export async function executeLocalFileRequest(
     const canonical = await access.resolve(child)
     assertImportPath(root, canonical)
     const offset = boundedInteger(request.offset, 0, Number.MAX_SAFE_INTEGER)
-    const file = await openApprovedFile(canonical, access)
+    const file = await openApprovedPath(canonical, access)
     try {
       const info = await file.stat()
       if (!info.isFile() || revision(info) !== request.revision)

@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   open,
+  readFile,
   realpath,
   rename,
   rm,
@@ -16,7 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...actual, open: vi.fn(actual.open) }
+  return {
+    ...actual,
+    open: vi.fn(actual.open),
+    realpath: vi.fn(actual.realpath),
+    readFile: vi.fn(actual.readFile),
+  }
 })
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
@@ -334,6 +340,34 @@ describe('LocalFilesystemService', () => {
         await opened?.close()
         await rm(outside, { recursive: true, force: true })
       }
+    }
+  )
+
+  it.each(['resolution', 'read'] as const)(
+    'returns no VFS contents when access is revoked during %s',
+    async (stage) => {
+      const granted = await mount(service)
+      const revoke = () => service.handle({ operation: 'forget_mount', uri: granted.uri })
+      if (stage === 'resolution') {
+        const original = vi.mocked(realpath).getMockImplementation()
+        if (!original) throw new Error('Missing real filesystem implementation')
+        vi.mocked(realpath).mockImplementationOnce(async (...args) => {
+          const result = await original(...args)
+          await revoke()
+          return result
+        })
+      } else {
+        const original = vi.mocked(readFile).getMockImplementation()
+        if (!original) throw new Error('Missing real filesystem implementation')
+        vi.mocked(readFile).mockImplementationOnce(async (...args) => {
+          const result = await original(...args)
+          await revoke()
+          return result
+        })
+      }
+      expect(
+        await service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+      ).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
     }
   )
 

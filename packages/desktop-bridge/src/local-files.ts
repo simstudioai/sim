@@ -2,7 +2,7 @@ export const MAX_DESKTOP_IMPORT_FILE_BYTES = 64 * 1024 * 1024
 
 /** Native desktop file operations require local consent and canonical pending chat calls. */
 export type DesktopLocalFileRequest =
-  | { operation: 'read' | 'manifest'; toolCallId: string }
+  | { operation: 'read' | 'manifest' | 'cancel'; toolCallId: string }
   | {
       operation: 'chunk'
       toolCallId: string

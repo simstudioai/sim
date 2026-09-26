@@ -13,6 +13,7 @@ interface LocalFilePermissionContext {
   parent: BrowserWindow
   origin: string
   generation: number
+  signal: AbortSignal
   isCurrent: () => boolean
   revalidate: () => Promise<boolean>
 }
@@ -27,6 +28,7 @@ function nativePath(value: unknown): string {
 }
 
 function assertCurrent(context: LocalFilePermissionContext): void {
+  context.signal.throwIfAborted()
   if (context.parent.isDestroyed() || !context.isCurrent())
     throw new Error('This local file request expired. Ask again in the current chat.')
 }
@@ -89,11 +91,12 @@ export class LocalFilePermissions {
     const root = await lstat(folder)
     if (!root.isDirectory()) throw new Error('The folder is no longer available.')
     const displayedPath = JSON.stringify(folder).replace(
-      /[\u202a-\u202e\u2066-\u2069]/g,
+      /\p{Bidi_Control}/gu,
       (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
     )
     assertCurrent(context)
     const result = await showShellDialog(context.parent, {
+      signal: context.signal,
       title: 'Allow access to this folder?',
       message: displayedPath,
       detail: `Sim can read files in this folder and its subfolders, use them across chats, and import them into your workspaces on ${context.origin}.\n\nManage or remove access in File → Folder Access.`,

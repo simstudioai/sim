@@ -429,8 +429,12 @@ export class LocalFilesystemService {
         this.activeRequests.set(requestId, controller)
       }
 
+      let accessedMount: GrantedMount | undefined
       let data: LocalFilesystemData
       try {
+        if (['list', 'glob', 'read', 'grep', 'stat'].includes(request.operation)) {
+          accessedMount = this.parseUri(this.requiredUri(request)).mount
+        }
         switch (request.operation) {
           case 'mount_directory':
             data = await this.mountDirectory()
@@ -475,6 +479,7 @@ export class LocalFilesystemService {
               'Local filesystem operation is not supported.'
             )
         }
+        if (accessedMount) await this.assertMountCurrent(accessedMount)
       } finally {
         if (requestId) {
           this.activeRequests.delete(requestId)
@@ -1054,6 +1059,7 @@ export class LocalFilesystemService {
         'The requested path is outside the selected folder.'
       )
     }
+    await this.assertMountCurrent(mount)
     return { mount, relativePath, lexicalPath, realPath }
   }
 

@@ -222,6 +222,98 @@ test('native file tools remember folder consent across chats and restarts until 
         expect(await stale.result).toMatchObject({ ok: false })
       }
     })
+    await test.step('a symlink replacement cannot redirect an inspected file', async () => {
+      const file = realpathSync(join(source, 'report.txt'))
+      const backup = join(source, 'original-report.txt')
+      const other = join(source, 'other.txt')
+      writeFileSync(other, 'different file contents')
+      await app?.evaluate(
+        (_electron, paths) => {
+          const fs = process.getBuiltinModule(
+            'node:fs/promises'
+          ) as typeof import('node:fs/promises')
+          const original = fs.stat
+          fs.stat = (async (...args: Parameters<typeof fs.stat>) => {
+            const result = await original(...args)
+            if (args[0] === paths.file) {
+              fs.stat = original
+              await fs.rename(paths.file, paths.backup)
+              await fs.symlink(paths.other, paths.file)
+            }
+            return result
+          }) as typeof fs.stat
+        },
+        { file, backup, other }
+      )
+      try {
+        expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: false })
+      } finally {
+        rmSync(file)
+        renameSync(backup, file)
+        rmSync(other)
+      }
+    })
+    await test.step('a directory swapped out and back cannot leak outside entries', async () => {
+      await app?.evaluate(
+        (_electron, paths) => {
+          const fs = process.getBuiltinModule(
+            'node:fs/promises'
+          ) as typeof import('node:fs/promises')
+          const originalOpen = fs.opendir
+          const originalRead = fs.readdir
+          const swapped = async <T>(operation: () => Promise<T>): Promise<T> => {
+            fs.opendir = originalOpen
+            fs.readdir = originalRead
+            await fs.rename(paths.source, paths.backup)
+            await fs.symlink(paths.outside, paths.source)
+            try {
+              return await operation()
+            } finally {
+              await fs.rm(paths.source)
+              await fs.rename(paths.backup, paths.source)
+            }
+          }
+          fs.opendir = (path, options) =>
+            path === paths.source
+              ? swapped(() => originalOpen(path, options))
+              : originalOpen(path, options)
+          fs.readdir = ((...args: Parameters<typeof fs.readdir>) =>
+            args[0] === paths.source
+              ? swapped(() => originalRead(...args))
+              : originalRead(...args)) as typeof fs.readdir
+        },
+        { source: realpathSync(source), backup: join(root, 'reports-backup'), outside }
+      )
+      expect(await invoke({ operation: 'read', toolCallId: 'directory' })).toMatchObject({
+        ok: false,
+      })
+    })
+    await test.step('cancelling in the renderer closes consent without remembering access', async () => {
+      calls.cancelled = {
+        toolName: 'read_local_file',
+        args: { path: join(outside, 'private.txt') },
+      }
+      const cancelled = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
+      const closed = cancelled.prompt.waitForEvent('close', { timeout: 5000 })
+      await window.evaluate(async () => {
+        const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        await api.localFiles?.({ operation: 'cancel', toolCallId: 'cancelled' })
+      })
+      await closed
+      expect(await cancelled.result).toMatchObject({ ok: false })
+      const again = await requestPermission({ operation: 'read', toolCallId: 'cancelled' })
+      await again.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      expect(await again.result).toMatchObject({ ok: false })
+    })
+    await test.step('consent escapes direction controls in folder names', async () => {
+      const folder = join(root, 'Bidi\u061c\u200e\u200f')
+      mkdirSync(folder)
+      calls.bidi = { toolName: 'read_local_file', args: { path: folder } }
+      const bidi = await requestPermission({ operation: 'read', toolCallId: 'bidi' })
+      await expect(bidi.prompt.getByRole('dialog')).toContainText('Bidi\\u061c\\u200e\\u200f')
+      await bidi.prompt.getByRole('button', { name: "Don't allow", exact: true }).click()
+      expect(await bidi.result).toMatchObject({ ok: false })
+    })
     await test.step('an unanswered prompt does not block approved folders', async () => {
       calls.blocker = { toolName: 'read_local_file', args: { path: join(outside, 'private.txt') } }
       const blocker = await requestPermission({ operation: 'read', toolCallId: 'blocker' })

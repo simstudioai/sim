@@ -598,6 +598,8 @@ async function authorizeLocalFilesystemTool(
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
   const localFilePermissions = new LocalFilePermissions(deps.localFilesystem)
+  const activeLocalFiles = new Map<string, Set<AbortController>>()
+  let activeLocalFileCount = 0
   const browserScopeBySender = new WeakMap<WebContents, string>()
   const terminalScopeBySender = new WeakMap<WebContents, string>()
   const browserPendingScopesBySender = new WeakMap<WebContents, Set<string>>()
@@ -2087,42 +2089,59 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           const generation = captureAccountDataGeneration()
           const origin = deps.appOrigin()
           const request = args[0]
-          if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
-          let failureStatus: number | undefined
-          const authorization = await fetchDesktopToolAuthorization(
-            event,
-            deps,
-            request.toolCallId,
-            request.operation === 'manifest',
-            (status) => {
-              failureStatus = status
-            }
-          )
-          if (failureStatus === 409)
+          if (!isRecordLike(request) || !isDesktopToolCallId(request.toolCallId))
+            return { ok: false, error: 'Invalid local file request.' }
+          const key = JSON.stringify([event.sender.id, request.toolCallId])
+          if (request.operation === 'cancel') {
+            for (const pending of activeLocalFiles.get(key) ?? []) pending.abort()
+            return { ok: false, error: 'Local file operation cancelled.' }
+          }
+          if (activeLocalFileCount >= 128)
             return {
               ok: false,
-              code: 'ALREADY_STARTED',
-              error: 'This import is already running or was already started.',
+              error: 'Too many local file operations are running. Try again later.',
             }
-          if (
-            !authorization ||
-            !['read_local_file', 'import_local_files'].includes(authorization.toolName)
-          )
-            return { ok: false, error: 'This is not an authorized pending local file tool call.' }
-          if (
-            authorization.toolName === 'read_local_file'
-              ? request.operation !== 'read'
-              : request.operation !== 'manifest' && request.operation !== 'chunk'
-          )
-            return { ok: false, error: 'The operation does not match the pending tool call.' }
-          const parent = deps.getWindowForContents(event.sender)
-          if (!parent)
-            return { ok: false, error: 'A desktop window is required to approve file access.' }
+          const controller = new AbortController()
+          const controllers = activeLocalFiles.get(key) ?? new Set<AbortController>()
+          controllers.add(controller)
+          activeLocalFiles.set(key, controllers)
+          activeLocalFileCount++
           try {
+            let failureStatus: number | undefined
+            const authorization = await fetchDesktopToolAuthorization(
+              event,
+              deps,
+              request.toolCallId,
+              request.operation === 'manifest',
+              (status) => {
+                failureStatus = status
+              }
+            )
+            if (failureStatus === 409)
+              return {
+                ok: false,
+                code: 'ALREADY_STARTED',
+                error: 'This import is already running or was already started.',
+              }
+            if (
+              !authorization ||
+              !['read_local_file', 'import_local_files'].includes(authorization.toolName)
+            )
+              return { ok: false, error: 'This is not an authorized pending local file tool call.' }
+            if (
+              authorization.toolName === 'read_local_file'
+                ? request.operation !== 'read'
+                : request.operation !== 'manifest' && request.operation !== 'chunk'
+            )
+              return { ok: false, error: 'The operation does not match the pending tool call.' }
+            const parent = deps.getWindowForContents(event.sender)
+            if (!parent)
+              return { ok: false, error: 'A desktop window is required to approve file access.' }
             const access = await localFilePermissions.authorize(authorization, {
               parent,
               origin,
               generation,
+              signal: controller.signal,
               isCurrent: () =>
                 isAccountDataGenerationCurrent(generation) &&
                 deps.accountDataAvailable() &&
@@ -2134,9 +2153,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
                   await fetchDesktopToolAuthorization(event, deps, request.toolCallId)
                 ),
             })
-            handlerArgs = [request, authorization, access]
+            return await spec.handler(event.sender, request, authorization, access)
           } catch (error) {
             return { ok: false, error: getErrorMessage(error) }
+          } finally {
+            controllers.delete(controller)
+            if (controllers.size === 0) activeLocalFiles.delete(key)
+            activeLocalFileCount--
           }
         }
         if (spec.passSender) {
