@@ -24,15 +24,23 @@ export interface ChatTurnLogContext {
 
 export type ChatTurnStatus = 'success' | 'error' | 'aborted'
 
-/** The user's email for a recovered turn, whose send-time session is gone; skipped when the log is off. */
+/**
+ * The user's email for a recovered turn, whose send-time session is gone. Skipped when the
+ * log is off; best-effort, so it never fails the recovery it enriches.
+ */
 export async function readChatLogEmail(userId: string): Promise<string | undefined> {
   if (!env.SIM_LOGGING_WORKFLOW_URL) return undefined
-  const [row] = await db
-    .select({ email: user.email })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-  return row?.email
+  try {
+    const [row] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+    return row?.email
+  } catch (error) {
+    logger.warn('Chat log email lookup failed', { userId, error: getErrorMessage(error) })
+    return undefined
+  }
 }
 
 /**
