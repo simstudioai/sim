@@ -14,7 +14,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn'
+import {
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+  SCROLL_FADE_BAND_PX,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+} from '@sim/emcn'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
@@ -24,36 +31,6 @@ import { TabStripAction } from './tab-strip-action'
 
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
-/**
- * Width of the scroll-edge fades, and so the margin a tab has to clear to be
- * genuinely visible. Keep in step with the `w-4` on the gradients below: a tab
- * revealed flush against the container edge lands under its gradient and reads
- * as half-faded, which is indistinguishable from "there is more to scroll".
- */
-const EDGE_FADE_PX = 24
-
-/**
- * Edge fades, as a mask rather than a tinted gradient laid over the tabs.
- *
- * Tabs paint their own fills, and an overlay tinted with the surface colour
- * washes a pill's edge toward that colour instead of dissolving it — and it is
- * only correct while whatever sits behind the strip is exactly that colour. A
- * mask fades pill and label together to real transparency, over any background.
- * This is how the command palette fades its results, and how every other
- * horizontal fade in the app is drawn.
- *
- * The four combinations are spelled out because Tailwind scans for literal class
- * strings; a template built at runtime would never be generated. Keep the 24px
- * stops in step with {@link EDGE_FADE_PX}, which is how far `revealActiveTab`
- * insets a tab so it lands clear of the fade rather than under it.
- */
-const SCROLL_FADE = {
-  none: '',
-  start:
-    '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px)]',
-  end: '[-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)]',
-  both: '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)]',
-} as const
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
 
 /**
@@ -62,13 +39,16 @@ const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
  * the basis and left every tab sized by its own title.
  *
  * Floating tabs start at their content width, capped at 200px, then shrink with
- * the available space. Floating tabs stop at a 64px control footprint; attached
- * tabs retain their 96px label minimum. Crowded rows then scroll, and clipped
- * titles remain available through tooltips.
+ * the available space. Their 112px minimum leaves 50px for the title beside a
+ * 16px icon and visible close button, including OverflowText's fade. Keep the
+ * same minimum in every interaction state so revealing actions never shifts
+ * tabs beneath the pointer. Touch layouts reserve both action slots even when
+ * no activity indicator is present, so activity changes cannot resize tabs.
+ * Crowded rows then scroll.
  */
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
-  floating: 'min-w-[64px] max-w-[var(--tab-strip-max-tab-width,200px)] shrink',
+  floating: 'min-w-28 max-w-[var(--tab-strip-max-tab-width,200px)] shrink',
 }
 
 /** The resting shape of a tab that is not the active one. */
@@ -378,8 +358,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
         tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
         closeable && 'pr-8',
         closeable &&
-          tab.attention &&
-          !tab.active &&
+          (variant === 'floating' || (tab.attention && !tab.active)) &&
           '[@media(any-pointer:coarse)]:pr-[62px] [@media(hover:none)]:pr-[62px]',
         TAB_SHAPE[variant],
         tab.selected && !tab.active && TAB_SELECTED[variant],
@@ -427,9 +406,10 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       className={cn(
         'group relative select-none',
         rowActionsGroupClass,
-        // `shrink` lets a crowded strip squeeze tabs to their floor before it
-        // starts scrolling.
         tab.pinned ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none' : TAB_WIDTH[variant],
+        variant === 'floating' &&
+          closeable &&
+          '[@media(any-pointer:coarse)]:min-w-36 [@media(hover:none)]:min-w-36',
         dragging && 'opacity-30'
       )}
       data-tab-strip-item={tab.id}
@@ -584,16 +564,15 @@ export function TabStrip({
     const nodeRect = node.getBoundingClientRect()
     const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
     const tabRight = tabLeft + tabRect.width
-    // Inset by the fade on both sides so the tab comes to rest clear of the
-    // gradient rather than beneath it.
-    const viewLeft = node.scrollLeft + EDGE_FADE_PX
-    const viewRight = node.scrollLeft + node.clientWidth - EDGE_FADE_PX
+    /** Keep the active tab clear of the canonical scroll fade. */
+    const viewLeft = node.scrollLeft + SCROLL_FADE_BAND_PX
+    const viewRight = node.scrollLeft + node.clientWidth - SCROLL_FADE_BAND_PX
     const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
     const target =
       tabLeft < viewLeft
-        ? tabLeft - EDGE_FADE_PX
+        ? tabLeft - SCROLL_FADE_BAND_PX
         : tabRight > viewRight
-          ? tabRight - node.clientWidth + EDGE_FADE_PX
+          ? tabRight - node.clientWidth + SCROLL_FADE_BAND_PX
           : null
     if (target === null) return
     // The clamp is what lets the first and last tabs sit flush: there is no
@@ -926,18 +905,11 @@ export function TabStrip({
         <div className='flex min-w-0 shrink'>
           <div
             ref={scrollNodeRef}
+            {...scrollFadeAttributes({ left: canScrollLeft, right: canScrollRight })}
             className={cn(
               'flex min-w-0 shrink select-none gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
               variant === 'attached' ? 'items-end' : 'items-center gap-2',
-              SCROLL_FADE[
-                canScrollLeft
-                  ? canScrollRight
-                    ? 'both'
-                    : 'start'
-                  : canScrollRight
-                    ? 'end'
-                    : 'none'
-              ]
+              scrollFadeXClass
             )}
           >
             <AnimatePresence initial={false} mode='popLayout'>

@@ -55,7 +55,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
         response.end(
           path.endsWith('.js')
             ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
-            : css.css
+            : `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
         )
         return
       }
@@ -75,7 +75,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       response.end(
         path === '/page'
           ? '<!doctype html><html><body style="background:#192b40;color:white;font:24px system-ui;padding:25px"><h1>Browser fixture</h1><p>A live page behind the application chrome.</p><button>Page action</button></body></html>'
-          : '<!doctype html><html class="dark"><head><link rel="stylesheet" href="/fixture.css"></head><body style="margin:0;background:#191919;color:#eee"><div id="root"></div><script src="/fixture.js"></script></body></html>'
+          : '<!doctype html><html class="dark"><head><link rel="stylesheet" href="/fixture.css"></head><body style="margin:0;background:var(--bg);color:var(--text-primary)"><div id="root"></div><script src="/fixture.js"></script></body></html>'
       )
     })
     await new Promise<void>((resolve) => server?.listen(0, resolve))
@@ -116,31 +116,150 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           return { width: bounds.width, right: bounds.right }
         })
       )
-      expect(geometry.every((tab) => tab.width >= 64 && tab.width < 160)).toBe(true)
+      expect(geometry.every((tab) => tab.width < 160)).toBe(true)
       expect(geometry.at(-1)?.right).toBeLessThan(1070)
       await page.screenshot({ path: testInfo.outputPath('tabs.png') })
     })
-    await test.step('Short labels keep their compact intrinsic width', async () => {
-      await page.locator('#short-tabs').click()
-      const widths = await page
-        .locator('[data-tab-strip-item]')
-        .evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().width))
-      expect(widths.every((width) => width >= 64 && width < 96)).toBe(true)
-      await page.locator('#eight-tabs').click()
-    })
-    await test.step('Crowded tabs preserve controls and scroll', async () => {
+    await test.step('Crowded tabs keep readable labels when selected, hovered, and focused', async () => {
       await page.locator('#many-tabs').click()
       await expect(page.locator('[data-tab-strip-item]')).toHaveCount(18)
       const overflow = await page
         .locator('[data-tab-strip-item]')
         .first()
         .evaluate((tab) => ({
-          width: tab.getBoundingClientRect().width,
           scrollWidth: tab.parentElement?.scrollWidth ?? 0,
           clientWidth: tab.parentElement?.clientWidth ?? 0,
         }))
-      expect(overflow.width).toBeGreaterThanOrEqual(64)
       expect(overflow.scrollWidth).toBeGreaterThan(overflow.clientWidth)
+      const active = page.getByRole('tab', { selected: true })
+      const label = active.locator('[data-overflow-text]')
+      await expect
+        .poll(() => label.evaluate((element) => element.getBoundingClientRect().width))
+        .toBeGreaterThanOrEqual(48)
+      const neighbor = page.getByRole('tab').nth(2)
+      const beforeHover = await neighbor.evaluate((element: HTMLElement) => ({
+        left: element.offsetLeft,
+        width: element.offsetWidth,
+      }))
+      await neighbor.hover()
+      await expect
+        .poll(() =>
+          neighbor
+            .locator('[data-overflow-text]')
+            .evaluate((element) => element.getBoundingClientRect().width)
+        )
+        .toBeGreaterThanOrEqual(48)
+      expect(
+        await neighbor.evaluate((element: HTMLElement) => ({
+          left: element.offsetLeft,
+          width: element.offsetWidth,
+        }))
+      ).toEqual(beforeHover)
+      await neighbor.click()
+      await expect(neighbor).toHaveAttribute('aria-selected', 'true')
+      await page.keyboard.press('End')
+      const last = page.getByRole('tab').last()
+      await expect(last).toBeFocused()
+      await expect(last).toHaveAttribute('aria-selected', 'true')
+      await expect(last).toBeInViewport({ ratio: 1 })
+      await expect
+        .poll(() => label.evaluate((element) => element.getBoundingClientRect().width))
+        .toBeGreaterThanOrEqual(48)
+      await page.mouse.move(200, 180)
+      await page.screenshot({
+        path: testInfo.outputPath('crowded-tabs.png'),
+        animations: 'disabled',
+      })
+      await page.evaluate(() => document.documentElement.classList.remove('dark'))
+      await page.screenshot({
+        path: testInfo.outputPath('crowded-tabs-light.png'),
+        animations: 'disabled',
+      })
+      await page.evaluate(() => document.documentElement.classList.add('dark'))
+      await page.keyboard.press('Home')
+      await expect(page.getByRole('tab').first()).toBeInViewport({ ratio: 1 })
+      await page.locator('#eight-tabs').click()
+    })
+    await test.step('Touch tabs leave room for both attention and close controls', async () => {
+      const session = await page.context().newCDPSession(page)
+      try {
+        await session.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+        expect(await page.evaluate(() => matchMedia('(any-pointer: coarse)').matches)).toBe(true)
+        await page.locator('#many-tabs').click()
+        const attention = page.getByRole('tab').nth(1)
+        await expect
+          .poll(() =>
+            attention
+              .locator('[data-overflow-text]')
+              .evaluate((element) => element.getBoundingClientRect().width)
+          )
+          .toBeGreaterThanOrEqual(48)
+        const attentionItem = page.locator('[data-tab-strip-item="tab-1"]')
+        const indicator = attentionItem.locator('[data-row-action-indicator]')
+        const controls = attentionItem.locator('[data-row-action-controls]')
+        await expect(indicator).toBeVisible()
+        await expect(indicator).toHaveCSS('opacity', '1')
+        await expect(controls).toHaveCSS('opacity', '1')
+        await attentionItem.getByRole('button', { name: /^Close / }).click({ trial: true })
+        expect(
+          await attentionItem.evaluate((element) => {
+            const title = element.querySelector('[data-overflow-text]')?.getBoundingClientRect()
+            const indicator = element
+              .querySelector('[data-row-action-indicator]')
+              ?.getBoundingClientRect()
+            const close = element.querySelector('[aria-label^="Close "]')?.getBoundingClientRect()
+            return (
+              title &&
+              indicator &&
+              close &&
+              title.right <= indicator.left &&
+              indicator.right <= close.left &&
+              close.right <= element.getBoundingClientRect().right
+            )
+          })
+        ).toBe(true)
+        await page.screenshot({ path: testInfo.outputPath('crowded-tabs-touch.png') })
+        const beforeSelection = await attention.evaluate(
+          (element: HTMLElement) => element.offsetWidth
+        )
+        await attention.click()
+        await expect(attention).toHaveAttribute('aria-selected', 'true')
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          beforeSelection
+        )
+        await page.locator('#toggle-activity').click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          beforeSelection
+        )
+        await page.locator('#toggle-activity').click()
+        await page.locator('#medium-tabs').click()
+        await page.getByRole('tab').first().click()
+        const intrinsicWidth = await attention.evaluate(
+          (element: HTMLElement) => element.offsetWidth
+        )
+        expect(intrinsicWidth).toBeGreaterThan(144)
+        expect(intrinsicWidth).toBeLessThan(200)
+        await attention.click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          intrinsicWidth
+        )
+        await page.locator('#toggle-activity').click()
+        expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
+          intrinsicWidth
+        )
+        await page.locator('#toggle-activity').click()
+      } finally {
+        await session.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+        await session.detach()
+      }
+      await page.locator('#eight-tabs').click()
+    })
+    await test.step('Short labels stay below the maximum tab width', async () => {
+      await page.locator('#short-tabs').click()
+      const widths = await page
+        .locator('[data-tab-strip-item]')
+        .evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().width))
+      expect(widths.every((width) => width < 120)).toBe(true)
       await page.locator('#eight-tabs').click()
     })
     await test.step('An open menu recovers when no native page was available for its initial capture', async () => {

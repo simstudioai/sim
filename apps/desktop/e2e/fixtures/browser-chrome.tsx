@@ -46,7 +46,8 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [selected, setSelected] = useState('tab-0')
   const [tabCount, setTabCount] = useState(8)
-  const [shortTitles, setShortTitles] = useState(false)
+  const [titleLength, setTitleLength] = useState<'short' | 'medium' | 'long'>('long')
+  const [attention, setAttention] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
   const { snapshot, snapshotLayer, onSnapshotError } = useOcclusion(
@@ -93,7 +94,7 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
           id='eight-tabs'
           onClick={() => {
             setTabCount(8)
-            setShortTitles(false)
+            setTitleLength('long')
           }}
         >
           Eight tabs
@@ -101,17 +102,35 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
         <Button id='many-tabs' onClick={() => setTabCount(18)}>
           Many tabs
         </Button>
-        <Button id='short-tabs' onClick={() => setShortTitles(true)}>
+        <Button id='short-tabs' onClick={() => setTitleLength('short')}>
           Short titles
+        </Button>
+        <Button
+          id='medium-tabs'
+          onClick={() => {
+            setTitleLength('medium')
+            setTabCount(4)
+          }}
+        >
+          Medium titles
+        </Button>
+        <Button id='toggle-activity' onClick={() => setAttention((value) => !value)}>
+          Toggle activity
         </Button>
       </div>
       {error && <p role='alert'>{error}</p>}
       <TabStrip
         tabs={Array.from({ length: tabCount }, (_, index) => ({
           id: `tab-${index}`,
-          title: shortTitles ? 'A' : `Example resource ${index + 1} with a descriptive title`,
+          title:
+            titleLength === 'short'
+              ? 'A'
+              : titleLength === 'medium'
+                ? 'Medium title'
+                : `Example resource ${index + 1} with a descriptive title`,
           icon: <File className='size-[16px] shrink-0' />,
           active: selected === `tab-${index}`,
+          attention: attention && index === 1,
         }))}
         variant='floating'
         onSelect={setSelected}
