@@ -34,6 +34,7 @@ export interface Atom {
   context: string
 }
 export interface Note {
+  deferredStyle?: { target: string; slot: string }
   reason: string
   line: number
   context: string
@@ -69,6 +70,7 @@ export interface Surface {
   unresolved?: UnresolvedInput[]
 }
 export interface UnresolvedInput {
+  deferredStyle?: { target: string; slot: string }
   channel: 'class' | 'style' | 'prop' | 'spread'
   property: string
   expression: string

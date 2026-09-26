@@ -150,6 +150,17 @@ export function ProtectedLeft({className,...props}:HTMLAttributes<HTMLDivElement
       classes
     ).toBe(true)
   }
+  write(
+    ui,
+    `import {ProtectedLeft} from '@sim/emcn';const A=()=> <ProtectedLeft className="[&_span]:ps-4"/>`
+  )
+  const descendant = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+  expect([0, 1], descendant.stderr).toContain(descendant.status)
+  expect(
+    (JSON.parse(descendant.stdout) as Report).unchecked.some((note) =>
+      note.reason.includes('Writing-mode-dependent')
+    )
+  ).toBe(false)
 }, 60_000)
 
 test('working-tree mode includes a changed central contract registry', () => {

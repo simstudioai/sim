@@ -1021,9 +1021,16 @@ export function extract(
               deferredStyle)
           ) {
             const start = group.atoms.length
+            const noteStart = facts.unchecked.length
+            const unresolvedStart = group.unresolved?.length ?? 0
             styles(value.get('expression'), new Set(), key)
-            if (deferredStyle)
+            if (deferredStyle && group.componentRef) {
               for (const atom of group.atoms.slice(start)) atom.deferredStyle = true
+              const route = { target: group.componentRef, slot: key }
+              for (const note of facts.unchecked.slice(noteStart)) note.deferredStyle = route
+              for (const input of group.unresolved?.slice(unresolvedStart) ?? [])
+                input.deferredStyle = route
+            }
           }
           if (
             options?.conformance &&

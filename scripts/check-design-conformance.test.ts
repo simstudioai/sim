@@ -242,6 +242,20 @@ test('custom styling forwarded by a product wrapper is checked at its caller', a
   ).toBe(true)
   expect(result.findings.some((finding) => finding.value.includes('#123456'))).toBe(false)
 })
+test('dynamic data-only wrapper props do not become styling diagnostics', async () => {
+  const result = await diff(
+    '',
+    `const Data=({dataStyle})=> <p data-value={JSON.stringify(dataStyle)}>Data</p>;const A=({value})=> <Data dataStyle={value}/>`
+  )
+  expect(result.unchecked.some((note) => note.reason.includes('Computed style object'))).toBe(false)
+  const rendered = await diff(
+    '',
+    `const Visual=({surfaceStyle})=> <div style={surfaceStyle}/>;const A=({value})=> <Visual surfaceStyle={value}/>`
+  )
+  expect(rendered.unchecked.some((note) => note.reason.includes('Computed style object'))).toBe(
+    true
+  )
+})
 test('Code.Viewer ownership works through namespace imports and inline styles', async () => {
   const report = await diff(
     '',

@@ -71,7 +71,7 @@ Scope is product browser UI, including browser `app/desktop` screens and workspa
 
 Monaco theme/syntax presentation, provider branding and every block/trigger catalogue identity palette are deliberately excluded. This does not exempt unrelated product controls in those files. Customer-selected branding and user content are distinguished from authored product colours; unresolved flows remain visible.
 
-Static analysis handles bounded immutable constants/imports, finite alternatives, supported helper returns, JSX/CSS/HTML strings and known runtime overrides. Arbitrary JS, dynamic cascade, unsupported parsers/forwarding and ambiguous data flow cannot be approved. Limits include 2 MiB per source, resolution depth 12 and bounded branch/summary caches. Generator diagnostics preserve unresolved token aliases, cycles and delegated implementation gaps.
+Static analysis handles bounded immutable constants/imports, finite alternatives, supported helper returns, JSX/CSS/HTML strings and known runtime overrides. Arbitrary JS, dynamic cascade, unsupported parsers/forwarding and ambiguous data flow cannot be approved. Limits include 2 MiB per source, resolution depth 12 and bounded branch/summary caches. Generator diagnostics preserve unresolved token aliases, cycles and delegated implementation gaps. A token definition proves source provenance; it does not prove that the token exists under every runtime selector or theme. Context-dependent token availability and dynamic cascade still need visual review.
 
 ## Debt and review records
 

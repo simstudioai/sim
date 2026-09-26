@@ -279,6 +279,7 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
               )
           )
         if (
+          ownsTarget &&
           !protectedProperty &&
           contracts.some(({ contract: c, slot: s }) =>
             ambiguousStyling(c?.slotOwnership?.[s], d.property)
@@ -416,8 +417,28 @@ function displayInput(atom: Atom | undefined, value: string): string {
     : value
 }
 function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
-  const unchecked = [...facts.unchecked]
-  const surfaces = (facts.surfaces ?? []).map((surface) => {
+  const visibleDeferredStyle = (route: { target: string; slot: string }) =>
+    !index.resolve(route.target) ||
+    index
+      .forwarded(route.target, route.slot)
+      .some(
+        (forwarded) =>
+          forwarded.slot === 'style' ||
+          (/Style$/.test(forwarded.slot) &&
+            index.contract(forwarded.target)?.slots?.includes(forwarded.slot))
+      )
+  const unchecked = facts.unchecked
+    .filter((note) => !note.deferredStyle || visibleDeferredStyle(note.deferredStyle))
+    .map(({ deferredStyle: _, ...note }) => note)
+  const surfaces = (facts.surfaces ?? []).map((original) => {
+    const surface = original.unresolved?.some((input) => input.deferredStyle)
+      ? {
+          ...original,
+          unresolved: original.unresolved
+            .filter((input) => !input.deferredStyle || visibleDeferredStyle(input.deferredStyle))
+            .map(({ deferredStyle: _, ...input }) => input),
+        }
+      : original
     if (!surface.atoms.length && !surface.fieldContainer && !surface.structuralViolation)
       return { ...surface, target: index.canonicalTarget(surface.target) }
     const renderContexts = index.contexts(surface, file)
