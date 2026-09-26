@@ -1,26 +1,27 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  assertAccess: vi.fn(),
-  download: vi.fn(),
-  process: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.process,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.download,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { resolveVantaUploadFile } from '@/lib/internal/vanta/file-input'
 import { VANTA_MAX_TRANSFER_BYTES } from '@/lib/internal/vanta/input'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 
 const baseInput = {
   clientId: 'client',
@@ -31,13 +32,16 @@ const file = { key: 'workspace/file.txt', name: 'file.txt', size: 4 }
 
 describe('resolveVantaUploadFile', () => {
   beforeEach(() => {
-    mocks.process.mockReturnValue([{ ...file, type: 'text/plain' }])
-    mocks.assertAccess.mockResolvedValue(null)
-    mocks.download.mockResolvedValue({ buffer: Buffer.from('test'), contentType: 'text/plain' })
+    mockProcessFilesToUserFiles.mockReturnValue([{ ...file, type: 'text/plain' }])
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
+      buffer: Buffer.from('test'),
+      contentType: 'text/plain',
+    })
   })
 
   it('fails closed on denied stored-file access', async () => {
-    mocks.assertAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
 
@@ -47,11 +51,11 @@ describe('resolveVantaUploadFile', () => {
       status: 404,
       body: { success: false, error: 'File not found' },
     })
-    expect(mocks.download).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
   })
 
   it('preserves exact size errors for declared and streamed oversized files', async () => {
-    mocks.process.mockReturnValueOnce([
+    mockProcessFilesToUserFiles.mockReturnValueOnce([
       { ...file, size: VANTA_MAX_TRANSFER_BYTES + 1, type: 'text/plain' },
     ])
     await expect(
@@ -61,7 +65,7 @@ describe('resolveVantaUploadFile', () => {
       body: { success: false, error: 'File size (100.00MB) exceeds upload limit of 100MB' },
     })
 
-    mocks.download.mockRejectedValueOnce(
+    mockDownloadServableFileFromStorage.mockRejectedValueOnce(
       new PayloadSizeLimitError({
         label: 'file',
         maxBytes: VANTA_MAX_TRANSFER_BYTES,

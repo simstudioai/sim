@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_KNOWLEDGE_BUNDLE_DOCUMENTS } from '@/lib/knowledge/constants'
-import {
-  decodeVectorBase64,
-  encodeVectorBase64,
-  KnowledgeBundleVectorError,
-  knowledgeBundleManifestSchema,
-} from '@/lib/knowledge/transfer/bundle'
+import { knowledgeBundleManifestSchema } from '@/lib/knowledge/transfer/bundle'
 
 const DOCUMENT_ID = 'a2f1c3d4-1111-4222-8333-444455556666'
 
@@ -121,22 +116,5 @@ describe('knowledgeBundleManifestSchema', () => {
       })
     )
     expect(knowledgeBundleManifestSchema.safeParse(manifest({ documents })).success).toBe(false)
-  })
-})
-
-describe('vector codec', () => {
-  it('refuses a payload whose width differs from the declared dimension', () => {
-    expect(() => decodeVectorBase64(encodeVectorBase64([1, 2, 3]), 4)).toThrow(
-      KnowledgeBundleVectorError
-    )
-  })
-
-  it('refuses non-finite values', () => {
-    expect(() => decodeVectorBase64(encodeVectorBase64([1, Number.NaN]), 2)).toThrow(
-      KnowledgeBundleVectorError
-    )
-    expect(() => decodeVectorBase64(encodeVectorBase64([Number.POSITIVE_INFINITY, 1]), 2)).toThrow(
-      KnowledgeBundleVectorError
-    )
   })
 })

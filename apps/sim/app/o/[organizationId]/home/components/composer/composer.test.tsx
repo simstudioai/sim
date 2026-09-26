@@ -1,5 +1,14 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, useState } from 'react'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -35,14 +44,7 @@ const mocks = vi.hoisted(() => ({
   ],
 }))
 
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({
-    features: {
-      liveEnterpriseSearch: mocks.live,
-    },
-  }),
-  getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
@@ -81,13 +83,19 @@ vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () => 'Ask Sim to' }))
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({ organization: { id: 'organization-a' } }),
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
 import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+
+const liveShape = () =>
+  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(liveShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(liveShape)
+organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organization: { id: 'organization-a' },
+})
 
 let root: Root
 let container: HTMLDivElement
@@ -182,8 +190,6 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   queryClient.clear()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 async function render(

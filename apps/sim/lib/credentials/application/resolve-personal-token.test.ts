@@ -1,42 +1,54 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
-  access: vi.fn(),
-  permission: vi.fn(),
   decrypt: vi.fn(),
-  audit: vi.fn(),
   enrollment: vi.fn(),
-  policy: vi.fn(),
-  available: vi.fn(),
 }))
 vi.mock('@/lib/credentials/application/credential-context', () => ({
-  resolveCredentialApplicationContext: mocks.context,
+  resolveCredentialApplicationContext: hoisted.context,
 }))
-vi.mock('@/lib/credentials/access', () => ({ getCredentialActorContext: mocks.access }))
-vi.mock('@/lib/credentials/gitlab-personal-token', () => ({ decryptPersonalToken: mocks.decrypt }))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+vi.mock('@/lib/credentials/gitlab-personal-token', () => ({
+  decryptPersonalToken: hoisted.decrypt,
+}))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  requirePersonalTokenEnrollment: mocks.enrollment,
+  requirePersonalTokenEnrollment: hoisted.enrollment,
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (p: string | null) => p !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_ACCESSED: 'credential.accessed' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/resource-policies/repository', () => ({ requireResourcePolicy: mocks.policy }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { resolvePersonalToken } from '@/lib/credentials/application/resolve-personal-token'
 
-const principal = { kind: 'session', userId: 'owner', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  access: credentialsAccessMockFns.mockGetCredentialActorContext,
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  audit: auditMockFns.mockRecordAudit,
+}
+
+const principal = createSessionPrincipal({ userId: 'owner', sessionId: 'session' })
 const input = { credentialId: 'token', assertedWorkspaceId: 'ws', expectedProviderId: 'gitlab' }
 const current = {
   id: 'token',

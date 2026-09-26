@@ -6,7 +6,7 @@
  * variables / deployment stores, guarding against superseded responses.
  */
 import { QueryClient } from '@tanstack/react-query'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 const { sharedQueryClient } = vi.hoisted(() => ({
   sharedQueryClient: { current: null as unknown },
@@ -79,10 +79,14 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
  * namespaces is the only wiring that composes — and vi.mock here would leak
  * this file's fixtures into later files that share those consumers.
  */
-const mockRequestJson = vi.spyOn(requestModule, 'requestJson')
-const getQueryClientSpy = vi
-  .spyOn(getQueryClientModule, 'getQueryClient')
-  .mockImplementation(() => sharedQueryClient.current as QueryClient)
+let mockRequestJson: MockInstance<typeof requestModule.requestJson>
+let getQueryClientSpy: MockInstance<typeof getQueryClientModule.getQueryClient>
+beforeEach(() => {
+  mockRequestJson = vi.spyOn(requestModule, 'requestJson')
+  getQueryClientSpy = vi
+    .spyOn(getQueryClientModule, 'getQueryClient')
+    .mockImplementation(() => sharedQueryClient.current as QueryClient)
+})
 
 afterAll(() => {
   mockRequestJson.mockRestore()

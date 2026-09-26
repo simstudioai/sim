@@ -1,22 +1,19 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelectExportRowPage, mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } =
-  vi.hoisted(() => ({
-    mockSelectExportRowPage: vi.fn(),
-    mockCreateMultipartUpload: vi.fn(),
-    mockHeadObject: vi.fn(),
-    mockDeleteFile: vi.fn(),
-  }))
-
-vi.mock('@/lib/table/jobs/service', () => ({ selectExportRowPage: mockSelectExportRowPage }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  createMultipartUpload: mockCreateMultipartUpload,
-  headObject: mockHeadObject,
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { getOrCreateTableSnapshot, TableSnapshotTooLargeError } from '@/lib/table/snapshot-cache'
+
+const mockSelectExportRowPage = tableJobsServiceMockFns.mockSelectExportRowPage
+
+const { mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } = storageServiceMockFns
 
 const table = {
   id: 'tbl_1',

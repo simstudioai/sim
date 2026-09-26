@@ -6,43 +6,51 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
-  mockCheckInternalApiKey,
   mockCheckAttributedUsageLimits,
-  mockCheckServerSideUsageLimits,
-  mockDeriveBillingContext,
-  mockGetHighestPrioritySubscription,
-  mockIsEnterprisePlan,
   mockRequireBillingAttributionHeader,
   mockRequireBillingRequestIdHeader,
   mockResolveLegacyV0BillingAttribution,
   mockResolveBillingAttribution,
   mockSerializeAccountBillingDecisionHeader,
   mockSerializeBillingAttributionHeader,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockAuthorizeOrganizationChat,
   mockAuthorizeCallback,
   mockCheckContinuationBilling,
 } = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
-  mockCheckServerSideUsageLimits: vi.fn(),
-  mockDeriveBillingContext: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockIsEnterprisePlan: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockRequireBillingRequestIdHeader: vi.fn(),
   mockResolveLegacyV0BillingAttribution: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockSerializeAccountBillingDecisionHeader: vi.fn(),
   mockSerializeBillingAttributionHeader: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockAuthorizeOrganizationChat: vi.fn(),
   mockAuthorizeCallback: vi.fn(),
   mockCheckContinuationBilling: vi.fn(),
 }))
@@ -106,54 +114,42 @@ vi.mock('@/lib/billing/core/billing-attribution', async (importOriginal) => ({
   serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkServerSideUsageLimits: mockCheckServerSideUsageLimits,
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isEnterprisePlan: mockIsEnterprisePlan,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  deriveBillingContext: mockDeriveBillingContext,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   authorizeCopilotChatCallback: mockAuthorizeCallback,
   checkCopilotContinuationBilling: mockCheckContinuationBilling,
 }))
 
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mockAuthorizeOrganizationChat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: unknown,
-    _span: unknown,
-    _attrs: unknown,
-    fn: (span: { setAttribute: () => void; setAttributes: () => void }) => unknown
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat } =
+  mothershipOrganizationChatsMockFns
+const { mockDeriveBillingContext } = billingUsageLogMockFns
+const { mockGetHighestPrioritySubscription } = billingPlanMockFns
+const { mockCheckServerSideUsageLimits } = billingUsageMonitorMockFns
+
+const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 afterAll(resetEnvFlagsMock)
 

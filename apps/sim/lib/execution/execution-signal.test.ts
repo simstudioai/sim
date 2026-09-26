@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { connection, mockRedisUrl, mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
@@ -32,22 +33,17 @@ vi.mock('ioredis', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getConfiguredRedisUrl: () => {
-    if (mockRedisUrl.error) throw mockRedisUrl.error
-    return mockRedisUrl.value
-  },
-  // Realistic defaults: the readiness budget derives from these. The literals
-  // are inherent to mocking the module that exports the real constants.
-  getRedisConnectionDefaults: () => ({ connectTimeout: 10_000, disconnectTimeout: 2_000 }),
-}))
-
 import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 import {
   connectExecutionSignalHub,
   getExecutionSignalHub,
   publishLocalExecutionSignal,
 } from '@/lib/execution/execution-signal'
+
+redisConfigMockFns.mockGetConfiguredRedisUrl.mockImplementation(() => {
+  if (mockRedisUrl.error) throw mockRedisUrl.error
+  return mockRedisUrl.value
+})
 
 /** The readiness budget production derives from the options the subscriber was built with. */
 function readyBudgetMs(): number {

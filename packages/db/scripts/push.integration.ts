@@ -3,13 +3,14 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
-describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
+describe('patched Drizzle push against PostgreSQL', () => {
   const databaseName = `push_policy_${generateId().replaceAll('-', '')}`
   let admin: Sql
   let sql: Sql
@@ -17,9 +18,9 @@ describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
   let directory: string
 
   beforeAll(async () => {
-    admin = postgres(databaseUrl!, { max: 1, onnotice: () => {} })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => {} })
     await admin`CREATE DATABASE ${admin(databaseName)}`
-    const url = new URL(databaseUrl!)
+    const url = new URL(databaseUrl)
     url.pathname = `/${databaseName}`
     fixtureUrl = url.toString()
     sql = postgres(fixtureUrl, { max: 1, onnotice: () => {} })

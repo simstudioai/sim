@@ -1,28 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 describe('validateMondayServiceAccount', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('sends the raw token with the pinned API version', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         data: {
           me: { id: '12345', name: 'Jane Ops', email: 'jane@example.com' },
           account: { id: 987, name: 'Acme', slug: 'acme' },
@@ -49,7 +39,7 @@ describe('validateMondayServiceAccount', () => {
   it.each([{ errors: [{ message: 'Not Authenticated' }] }, { error_message: 'Not Authenticated' }])(
     'throws invalid_credentials on a 200 auth error body %#',
     async (body) => {
-      mockFetch.mockResolvedValueOnce(jsonResponse(200, body))
+      mockFetch.mockResolvedValueOnce(jsonResponse(body))
 
       const error = await validateMondayServiceAccount({ apiToken: 'stale' }).catch((e) => e)
 
@@ -61,7 +51,7 @@ describe('validateMondayServiceAccount', () => {
 
   it('throws provider_unavailable on 200 with INTERNAL_SERVER_ERROR extensions', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         errors: [
           {
             message: 'Internal server error',
@@ -80,7 +70,7 @@ describe('validateMondayServiceAccount', () => {
 
   it('throws provider_unavailable when the provider-side error is not first in the array', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         errors: [
           { message: 'Field deprecation warning' },
           {
@@ -100,7 +90,7 @@ describe('validateMondayServiceAccount', () => {
 
   it('accepts a valid token when warnings accompany successful me data', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         data: { me: { id: 77, name: 'Bot User' }, account: { id: 5, name: 'Acme', slug: 'acme' } },
         errors: [{ message: 'Deprecated field usage', extensions: { code: 'DEPRECATED' } }],
       })

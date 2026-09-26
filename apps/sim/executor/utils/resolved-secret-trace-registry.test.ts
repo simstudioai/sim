@@ -1,17 +1,8 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockLogger } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -23,6 +14,9 @@ import {
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const mockLogger = getMockLogger('ResolvedSecretTraceRegistry')
 
 describe('provenance absence classification', () => {
   it.each([

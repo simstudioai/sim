@@ -1,20 +1,20 @@
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IntegrationAvailability } from '@/lib/integrations/availability'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 
-const { getBlockMock, getIntegrationAvailabilityMock } = vi.hoisted(() => ({
-  getBlockMock: vi.fn(),
-  getIntegrationAvailabilityMock: vi.fn(),
-}))
-
-vi.mock('@/blocks/registry', () => ({ getBlock: getBlockMock }))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  getIntegrationAvailability: getIntegrationAvailabilityMock,
-  isOAuthServiceDeploymentAvailable: vi.fn(() => true),
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 import { resolveIntegrationAvailability } from '@/lib/integrations/availability'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { getBlock } from '@/blocks/registry'
+
+const getBlockMock = vi.mocked(getBlock)
+const getIntegrationAvailabilityMock =
+  integrationsAvailabilityMockFns.mockGetIntegrationAvailability
 
 const SERVICES: readonly OAuthServiceMetadata[] = [
   {
@@ -54,7 +54,7 @@ function availability(
 
 describe('integration credential visibility', () => {
   beforeEach(() => {
-    getBlockMock.mockImplementation((type: string) => ({ type }))
+    getBlockMock.mockImplementation((type: string) => ({ type }) as never)
     getIntegrationAvailabilityMock.mockReturnValue([
       availability('notion_v2', 'limited', {
         oauthAvailable: false,
@@ -98,7 +98,7 @@ describe('integration credential visibility', () => {
     expect(visibility(new Set(['coda']), false).isCredentialVisible(identity)).toBe(true)
     expect(visibility(new Set(['slack_v2']), false).isCredentialVisible(identity)).toBe(false)
     expect(visibility(null, true).isCredentialVisible(identity)).toBe(false)
-    getBlockMock.mockReturnValue({ type: 'coda', preview: true })
+    getBlockMock.mockReturnValue({ type: 'coda', preview: true } as never)
     expect(visibility(null, false).isCredentialVisible(identity)).toBe(false)
   })
 

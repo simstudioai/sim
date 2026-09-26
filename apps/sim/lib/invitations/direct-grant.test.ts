@@ -1,72 +1,54 @@
 import { auditMock, auditMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
-const {
-  mockAcquireInvitationMutationLocks,
-  mockAcquireOrganizationUserMutationLocks,
-  mockGetUserOrganization,
-  mockGetEffectiveWorkspacePermission,
-  mockGetWorkspaceWithOwner,
-  mockRevokeInvitationWorkspaceGrantTx,
-  mockSyncWorkspaceEnvCredentials,
-  mockSendWorkspaceAddedEmail,
-  mockCaptureServerEvent,
-  mockWorkspaceMemberAdded,
-  mockEnqueueOutboxEvent,
-} = vi.hoisted(() => ({
+const { mockAcquireInvitationMutationLocks } = vi.hoisted(() => ({
   mockAcquireInvitationMutationLocks: vi.fn(),
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockRevokeInvitationWorkspaceGrantTx: vi.fn(),
-  mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockSendWorkspaceAddedEmail: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockWorkspaceMemberAdded: vi.fn(),
-  mockEnqueueOutboxEvent: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
 }))
 
-vi.mock('@/lib/invitations/core', () => ({
-  revokeInvitationWorkspaceGrantTx: mockRevokeInvitationWorkspaceGrantTx,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { workspaceMemberAdded: mockWorkspaceMemberAdded },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mockEnqueueOutboxEvent,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
-vi.mock('@/lib/invitations/send', () => ({
-  sendWorkspaceAddedEmail: mockSendWorkspaceAddedEmail,
-}))
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockWorkspaceMemberAdded = getMockPlatformEvent('workspaceMemberAdded')
 
 import {
   DirectGrantContextChangedError,
@@ -74,6 +56,16 @@ import {
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
+
+const { mockAcquireOrganizationUserMutationLocks, mockGetUserOrganization } =
+  organizationMembershipMockFns
+const { mockGetEffectiveWorkspacePermission, mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockRevokeInvitationWorkspaceGrantTx =
+  invitationsCoreMockFns.mockRevokeInvitationWorkspaceGrantTx
+const mockSyncWorkspaceEnvCredentials =
+  credentialsEnvironmentMockFns.mockSyncWorkspaceEnvCredentials
+const mockSendWorkspaceAddedEmail = invitationsSendMockFns.mockSendWorkspaceAddedEmail
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
 
 const baseInput = {
   userId: 'user-2',

@@ -1,46 +1,48 @@
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    loadContext: vi.fn(),
+const { hoisted } = vi.hoisted(() => ({
+  hoisted: {
     flag: vi.fn(),
-    resolvePermission: vi.fn(),
     getById: vi.fn(),
     update: vi.fn(),
-    audit: vi.fn(),
   },
 }))
 
-vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: mocks.flag }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SKILL_CREATED: 'skill.created',
-    SKILL_UPDATED: 'skill.updated',
-    SKILL_DELETED: 'skill.deleted',
-  },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: hoisted.flag }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/skills/orchestration', () => ({
   createSkill: vi.fn(),
   deleteSkillRecord: vi.fn(),
-  updateSkill: mocks.update,
+  updateSkill: hoisted.update,
 }))
 vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: mocks.getById,
+  getSkillById: hoisted.getById,
   listSkills: vi.fn(),
   listSkillsForUser: vi.fn(),
 }))
 
 import { getSkillUseCase, updateSkillUseCase } from '@/lib/skills/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -85,7 +87,7 @@ describe('skill application use cases', () => {
     async (skillId) => {
       mocks.getById.mockResolvedValueOnce({ ...skill, id: skillId })
       const result = await getSkillUseCase.execute({
-        principal: { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'reader' }),
         input: { workspaceId: workspace.workspaceId, skillId },
       })
       expect(result.skill.id).toBe(skillId)
@@ -109,7 +111,7 @@ describe('skill application use cases', () => {
     mocks.resolvePermission.mockResolvedValueOnce(null)
     await expect(
       getSkillUseCase.execute({
-        principal: { kind: 'session', userId: 'reader' },
+        principal: createSessionPrincipal({ userId: 'reader' }),
         input: { workspaceId: workspace.workspaceId, skillId: skill.id },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -117,7 +119,7 @@ describe('skill application use cases', () => {
 
   it('distinguishes an absent scoped skill from a lookup outage', async () => {
     const args = {
-      principal: { kind: 'session' as const, userId: 'reader' },
+      principal: createSessionPrincipal({ userId: 'reader' }),
       input: { workspaceId: workspace.workspaceId, skillId: 'foreign' },
     }
     mocks.getById.mockResolvedValueOnce(null)
@@ -129,11 +131,7 @@ describe('skill application use cases', () => {
   it('rejects workspace keys before resolving protected skill state', async () => {
     await expect(
       updateSkillUseCase.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: workspace.workspaceId,
-          keyId: 'workspace-key-1',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
         input: { workspaceId: workspace.workspaceId, skillId: skill.id, content: '# Updated' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -144,17 +142,11 @@ describe('skill application use cases', () => {
   })
 
   it('uses the subject identity and semantic audit for delegated Copilot updates', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot' as const,
-      subjectUserId: 'user-1',
-      workspaceId: workspace.workspaceId,
+    const principal = createDelegatedPrincipal({
       delegationId: 'copilot-tool:call-1',
       audience: 'sim:skills',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2099-01-01T00:00:00Z'),
       resourceScope: { chatId: 'chat-1' },
-    }
+    })
 
     await updateSkillUseCase.execute({
       principal,

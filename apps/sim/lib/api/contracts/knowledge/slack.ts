@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { SLACK_APP_CREATION_URL_MAX_LENGTH } from '@/lib/integrations/slack-manifest'
 
 export const slackSearchOrganizationQuerySchema = z.object({ organizationId: organizationIdSchema })
 export const slackSearchInstallationSchema = z.object({
@@ -71,7 +72,7 @@ export const prepareSlackSearchContract = defineRouteContract({
       existingApp: z
         .object({ appId: z.string().min(1).max(200), teamId: z.string().min(1).max(200) })
         .nullable(),
-      createAppUrl: z.string().url().max(30_000),
+      createAppUrl: z.string().url().max(SLACK_APP_CREATION_URL_MAX_LENGTH),
     }),
   },
 })

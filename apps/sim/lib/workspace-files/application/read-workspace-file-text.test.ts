@@ -1,46 +1,56 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
-const mocks = vi.hoisted(() => ({
-  provenance: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
-  fetchBuffer: vi.fn(),
-  parseBuffer: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveReferencedWorkspaceFileContext: mocks.resolveContext,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: (extension: string) =>
-    ['txt', 'pdf', 'doc', 'docx', 'pptx'].includes(extension),
-  parseBuffer: mocks.parseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+
+const mocks = {
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  fetchBuffer: workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer,
+  ...hoisted,
+  parseBuffer: fileParsersMockFns.mockParseBuffer,
+  resolveContext: workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_doc'
@@ -54,9 +64,9 @@ const fileContext = {
 }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-  { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-workspace' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'key-personal' }),
+  createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'key-workspace' }),
 ]
 
 function fileRecord(overrides: Record<string, unknown> = {}) {
@@ -306,6 +316,7 @@ describe('readWorkspaceFileText', () => {
   })
 })
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)

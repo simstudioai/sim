@@ -1,17 +1,19 @@
-/** @vitest-environment node */
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from '@/app/api/table/[tableId]/analytics/route'
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn(), limit: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mocks.limit,
-  RateLimiter: class {},
-}))
+const hoisted = vi.hoisted(() => ({ execute: vi.fn() }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/table/application/analytics', () => ({
-  readTableAnalytics: { operation: { id: 'tables.rows.analytics' }, execute: mocks.execute },
+  readTableAnalytics: { operation: { id: 'tables.rows.analytics' }, execute: hoisted.execute },
 }))
+const mocks = {
+  ...hoisted,
+  session: authMockFns.mockGetSession,
+  limit: rateLimiterMockFns.mockEnforceUserRateLimit,
+}
 const context = { params: Promise.resolve({ tableId: 'tbl_test' }) }
 const body = {
   workspaceId: 'workspace_test',
@@ -28,7 +30,6 @@ const request = (value: unknown) =>
     body: JSON.stringify(value),
   })
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.session.mockResolvedValue({ user: { id: 'viewer' }, session: { id: 'session' } })
   mocks.limit.mockResolvedValue(null)
   mocks.execute.mockResolvedValue({

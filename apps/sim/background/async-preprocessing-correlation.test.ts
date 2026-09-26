@@ -1,8 +1,12 @@
 import {
-  dbChainMock,
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
   dbChainMockFns,
+  executionLimitsMock,
+  executionLimitsMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  humanInTheLoopManagerMock,
   LoggingSessionMock,
   loggerMock,
   loggingSessionMock,
@@ -11,26 +15,26 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
 const {
-  mockTask,
   mockExecuteWorkflowCore,
   mockExecutionSnapshot,
   mockWasExecutionFinalizedByCore,
   mockHasExecutionResult,
-  mockRefreshExecutionSlotExpiry,
   mockIsWorkflowTimedOut,
   mockGetScheduleTimeValues,
   mockGetSubBlockValue,
 } = vi.hoisted(() => ({
-  mockTask: vi.fn((config) => config),
   mockExecuteWorkflowCore: vi.fn(),
   mockExecutionSnapshot: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockHasExecutionResult: vi.fn(),
-  mockRefreshExecutionSlotExpiry: vi.fn().mockResolvedValue(true),
   mockIsWorkflowTimedOut: vi.fn(() => false),
   mockGetScheduleTimeValues: vi.fn(),
   mockGetSubBlockValue: vi.fn(),
@@ -39,45 +43,13 @@ const {
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, timeout: { None: 'none' } }))
-
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: {},
-  workflowSchedule: {},
-}))
-
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  refreshExecutionSlotExpiry: mockRefreshExecutionSlotExpiry,
-  releaseExecutionSlot: vi.fn(),
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  ExecutionTimeoutError: class ExecutionTimeoutError extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = 'TimeoutError'
-    }
-  },
-  capExecutionTimeoutMs: vi.fn((policyTimeoutMs, requestedTimeoutMs) =>
-    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
-  ),
-  createTimeoutAbortController: vi.fn(() => ({
-    signal: new AbortController().signal,
-    cleanup: vi.fn(),
-    isTimedOut: mockIsWorkflowTimedOut,
-    timeoutMs: 120_000,
-  })),
-  getAsyncExecutionTimeoutForBillingAttribution: vi.fn(() => 120_000),
-  getExecutionDeadlineAt: vi.fn(() => new Date(Date.now() + 120_000)),
-  getExecutionTimeout: vi.fn(() => 120_000),
-  getTimeoutErrorMessage: vi.fn(() => 'Execution timed out after 2 minutes'),
-  RESERVATION_TTL_BUFFER_MS: 300_000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: vi.fn(() => ({ traceSpans: [] })),
@@ -88,12 +60,7 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
   wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
 }))
 
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    persistPauseResult: vi.fn(),
-    processQueuedResumes: vi.fn(),
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
@@ -113,6 +80,20 @@ vi.mock('@/executor/utils/errors', () => ({
 
 import { executeScheduleJob } from './schedule-execution'
 import { executeWorkflowJob } from './workflow-execution'
+
+billingUsageReservationMockFns.mockRefreshExecutionSlotExpiry.mockResolvedValue(true)
+executionLimitsMockFns.mockGetAsyncExecutionTimeoutForBillingAttribution.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionTimeout.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionDeadlineAt.mockImplementation(
+  () => new Date(Date.now() + 120_000)
+)
+executionLimitsMockFns.mockCreateTimeoutAbortController.mockImplementation(() => ({
+  signal: new AbortController().signal,
+  cleanup: vi.fn(),
+  abort: vi.fn(),
+  isTimedOut: mockIsWorkflowTimedOut,
+  timeoutMs: 120_000,
+}))
 
 const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'TriggerWorkflowExecution'
@@ -138,7 +119,7 @@ const billingAttribution = {
 
 const principal = {
   version: 1 as const,
-  principal: { kind: 'session' as const, userId: 'actor-1', sessionId: 'session-1' },
+  principal: createSessionPrincipal({ userId: 'actor-1' }),
 }
 
 describe('async preprocessing correlation threading', () => {
@@ -213,7 +194,7 @@ describe('async preprocessing correlation threading', () => {
     )
     expect(mockExecutionSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: { kind: 'session', userId: 'actor-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal({ userId: 'actor-1' }),
       }),
       expect.anything(),
       undefined,
@@ -227,11 +208,7 @@ describe('async preprocessing correlation threading', () => {
       name: 'workspace API key',
       serializedPrincipal: {
         version: 1 as const,
-        principal: {
-          kind: 'workspace_api_key' as const,
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key-1',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       },
       isPublicApiAccess: false,
     },
@@ -323,11 +300,10 @@ describe('async preprocessing correlation threading', () => {
 
     expect(mockExecutionSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: {
-          kind: 'session',
+        principal: createSessionPrincipal({
           userId: 'actor-1',
           sessionId: 'legacy-queued-workflow',
-        },
+        }),
       }),
       expect.anything(),
       undefined,

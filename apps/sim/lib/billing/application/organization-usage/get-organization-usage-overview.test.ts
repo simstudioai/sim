@@ -1,40 +1,47 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
-import { setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorizeOrganizationOperation: vi.fn(),
-  isOrganizationFeatureEntitled: vi.fn(),
-  getOrganizationSubscription: vi.fn(),
-  getOrgUsageLimit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readUsageDays: vi.fn(),
   readUsageGroups: vi.fn(),
   readUsageEntities: vi.fn(),
 }))
 
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganizationOperation,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.isOrganizationFeatureEntitled,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mocks.getOrganizationSubscription,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({ getOrgUsageLimit: mocks.getOrgUsageLimit }))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
-  readUsageDays: mocks.readUsageDays,
-  readUsageGroups: mocks.readUsageGroups,
-  readUsageEntities: mocks.readUsageEntities,
+  readUsageDays: hoisted.readUsageDays,
+  readUsageGroups: hoisted.readUsageGroups,
+  readUsageEntities: hoisted.readUsageEntities,
 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFromModel: () => 'openai',
-  PROVIDER_DEFINITIONS: {},
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
 import { getOrganizationUsageOverview } from '@/lib/billing/application/organization-usage/get-organization-usage-overview'
 
-const session: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  getOrganizationSubscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  getOrgUsageLimit: billingUsageMockFns.mockGetOrgUsageLimit,
+  authorizeOrganizationOperation:
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  isOrganizationFeatureEntitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+}
+
+const session = createSessionPrincipal({ userId: 'admin-1' })
 const NOW = new Date()
 const day = NOW.toISOString().slice(0, 10)
 const today = `${day}T00:00:00`

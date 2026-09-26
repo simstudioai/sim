@@ -1,7 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,10 +52,7 @@ vi.mock('@sim/emcn', () => ({
   languages: { javascript: {}, python: {}, bash: {} },
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Check: () => null,
-  Wand: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock('react-simple-code-editor', () => ({
   default: ({
@@ -79,9 +79,7 @@ vi.mock('react-simple-code-editor', () => ({
   ),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -164,6 +162,8 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 }))
 
 import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/code'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 let container: HTMLDivElement
 let root: Root

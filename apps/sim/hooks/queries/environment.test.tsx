@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWorkspaceEnvironment } = vi.hoisted(() => ({
   mockFetchWorkspaceEnvironment: vi.fn(),
@@ -16,10 +16,6 @@ vi.mock('@/lib/environment/api', () => ({
 }))
 
 import { environmentKeys, useWorkspaceEnvironment } from '@/hooks/queries/environment'
-
-afterEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('useWorkspaceEnvironment', () => {
   it('does not retain decrypted values while a different workspace loads', () => {

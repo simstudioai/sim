@@ -1,12 +1,10 @@
 import { encryptionMockFns } from '@sim/testing'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-}))
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   PI_SEARCH_BUDGET_MESSAGE,
@@ -19,6 +17,8 @@ import {
 } from '@/executor/handlers/pi/search/tool'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 function executionContext(
   registry: ResolvedSecretTraceRegistry | undefined = new ResolvedSecretTraceRegistry()

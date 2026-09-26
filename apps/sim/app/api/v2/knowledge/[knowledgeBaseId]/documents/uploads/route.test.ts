@@ -1,10 +1,14 @@
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   createUpload: vi.fn(),
 }))
 
@@ -19,18 +23,9 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () => ({
   toV2KnowledgeDocumentUpload: (session: Record<string, unknown>) => ({
@@ -49,11 +44,7 @@ vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () =
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const PRINCIPAL = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
@@ -62,26 +53,27 @@ const AUTH = {
 }
 
 function request(body: Record<string, unknown>) {
-  const request = new NextRequest('http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads', {
+  const request = createMockRequest({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': 'secret' },
-    body: JSON.stringify(body),
+    url: 'http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads',
+    headers: { 'x-api-key': 'secret' },
+    body,
   })
   return {
     request,
-    response: POST(request, { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) }),
+    response: POST(request, createRouteContext({ knowledgeBaseId: 'kb-1' })),
   }
 }
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads', () => {
   beforeEach(() => {
-    mocks.authenticateV2ApiKey.mockResolvedValue(AUTH)
-    mocks.checkRateLimitDirect.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
       remaining: 599,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+    v2RouteMocks.operationRate.mockResolvedValue({
       allowed: true,
       remaining: 99,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
@@ -103,7 +95,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads', () => {
       authBinding: {
         version: 1,
         workspaceId: WORKSPACE_ID,
-        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'forged' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'forged' }),
       },
     }).response
 

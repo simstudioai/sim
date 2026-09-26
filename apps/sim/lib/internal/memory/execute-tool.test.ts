@@ -1,8 +1,11 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   add: vi.fn(),
   list: vi.fn(),
   get: vi.fn(),
@@ -10,9 +13,7 @@ const mocks = vi.hoisted(() => ({
   createResponse: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/memory/operations', () => ({
   executeMemoryAdd: mocks.add,
@@ -27,6 +28,8 @@ vi.mock('@/lib/internal/memory/provenance', () => ({
 }))
 
 import { executeMemoryTool } from '@/lib/internal/memory/execute-tool'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -73,7 +76,7 @@ const MEMORY = {
 
 describe('executeMemoryTool', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(PRINCIPAL)
     mocks.add.mockResolvedValue({ body: { success: true, data: MEMORY } })
     mocks.list.mockResolvedValue({
       body: { success: true, data: { memories: [MEMORY] } },
@@ -104,7 +107,9 @@ describe('executeMemoryTool', () => {
         currentWorkflow: ACTORLESS_DEPLOYED_PRINCIPAL.delegationContext?.currentWorkflow,
       },
     }
-    mocks.createPrincipal.mockResolvedValueOnce(ACTORLESS_DEPLOYED_PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(
+      ACTORLESS_DEPLOYED_PRINCIPAL
+    )
     mocks.list.mockResolvedValueOnce({
       body: { success: true, data: { memories: [MEMORY] } },
       provenance: [],

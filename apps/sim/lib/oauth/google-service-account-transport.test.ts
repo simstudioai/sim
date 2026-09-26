@@ -1,10 +1,8 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
 
-const { warn } = vi.hoisted(() => ({ warn: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
+const { warn } = getMockLogger('GoogleServiceAccountTransport')
 
 const TOKEN_URI = 'https://oauth2.googleapis.com/token'
 const ASSERTION = 'private-jwt-assertion'
@@ -18,7 +16,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 

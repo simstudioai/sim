@@ -1,13 +1,18 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  accounts: vi.fn(),
   ensure: vi.fn(),
-  prepare: vi.fn(),
   modal: vi.fn(),
   setProvider: vi.fn(),
   setReturnSource: vi.fn(),
@@ -21,18 +26,18 @@ vi.mock('nuqs', () => ({
     throw new Error(`Unexpected query key: ${key}`)
   },
 }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: mocks.context,
-}))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccounts: mocks.accounts,
-  useEnsureOrganizationAccounts: mocks.prepare,
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
   SlackManagedUsersModal: mocks.modal,
 }))
 
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
+
+const mockUseOrganizationContext = organizationProviderMockFns.mockUseOrganizationContext
+const mockUseOrganizationAccounts = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
+const mockUseEnsureOrganizationAccounts =
+  organizationAccountsQueriesMockFns.mockUseEnsureOrganizationAccounts
 
 describe('organization Slack setup continuation', () => {
   let root: Root
@@ -40,13 +45,16 @@ describe('organization Slack setup continuation', () => {
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
-    mocks.accounts.mockReturnValue({
+    mockUseOrganizationContext.mockReturnValue({
+      organization: { id: 'org-a' },
+      viewer: { isAdmin: true },
+    })
+    mockUseOrganizationAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: null },
       error: null,
     })
-    mocks.prepare.mockReturnValue({
+    mockUseEnsureOrganizationAccounts.mockReturnValue({
       mutate: mocks.ensure,
       isIdle: true,
       isPending: false,
@@ -61,7 +69,6 @@ describe('organization Slack setup continuation', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   async function render() {
@@ -73,11 +80,15 @@ describe('organization Slack setup continuation', () => {
     expect(mocks.ensure).toHaveBeenCalledExactlyOnceWith({ organizationId: 'org-a' })
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.modal).not.toHaveBeenCalled()
-    mocks.prepare.mockReturnValue({ mutate: mocks.ensure, isIdle: false, isPending: true })
+    mockUseEnsureOrganizationAccounts.mockReturnValue({
+      mutate: mocks.ensure,
+      isIdle: false,
+      isPending: true,
+    })
     await render()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.ensure).toHaveBeenCalledOnce()
-    mocks.prepare.mockReturnValue({
+    mockUseEnsureOrganizationAccounts.mockReturnValue({
       mutate: mocks.ensure,
       isIdle: false,
       isPending: false,
@@ -91,7 +102,7 @@ describe('organization Slack setup continuation', () => {
   })
 
   it('does not open a temporary modal while discovering accounts', async () => {
-    mocks.accounts.mockReturnValue({ isSuccess: false, isPending: true })
+    mockUseOrganizationAccounts.mockReturnValue({ isSuccess: false, isPending: true })
     await render()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.ensure).not.toHaveBeenCalled()
@@ -101,13 +112,13 @@ describe('organization Slack setup continuation', () => {
   it.each(['discovery', 'preparation'])('keeps %s errors recoverable', async (stage) => {
     const retry = vi.fn()
     if (stage === 'discovery') {
-      mocks.accounts.mockReturnValue({
+      mockUseOrganizationAccounts.mockReturnValue({
         isSuccess: false,
         error: new Error('Could not load Slack setup'),
         refetch: retry,
       })
     } else {
-      mocks.prepare.mockReturnValue({
+      mockUseEnsureOrganizationAccounts.mockReturnValue({
         mutate: mocks.ensure,
         isIdle: false,
         error: new Error('Could not prepare Slack setup'),
@@ -125,16 +136,19 @@ describe('organization Slack setup continuation', () => {
   })
 
   it('does not prepare accounts or open admin setup for an ordinary member', async () => {
-    mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: false } })
+    mockUseOrganizationContext.mockReturnValue({
+      organization: { id: 'org-a' },
+      viewer: { isAdmin: false },
+    })
     await render()
     expect(mocks.ensure).not.toHaveBeenCalled()
     expect(mocks.modal).not.toHaveBeenCalled()
-    expect(mocks.accounts).toHaveBeenCalledWith(undefined)
+    expect(mockUseOrganizationAccounts).toHaveBeenCalledWith(undefined)
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('reuses the current container and resumes the original source after closing', async () => {
-    mocks.accounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: { id: 'group-a', options: [] } },
       error: null,
@@ -152,7 +166,7 @@ describe('organization Slack setup continuation', () => {
   })
 
   it('does not adopt a prepared container from another organization', async () => {
-    mocks.prepare.mockReturnValue({
+    mockUseEnsureOrganizationAccounts.mockReturnValue({
       mutate: mocks.ensure,
       data: { credentialGroup: { id: 'foreign-group', organizationId: 'org-b', options: [] } },
       isIdle: true,

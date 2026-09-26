@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
   parseProviderJson,
@@ -27,10 +27,6 @@ async function expectValidationError(
 describe('token service-account error helpers', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   describe('fetchProvider', () => {

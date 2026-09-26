@@ -1,6 +1,7 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { loggerInfo, loggerWarn, mockSql } = vi.hoisted(() => {
+const { mockSql } = vi.hoisted(() => {
   const taggedSql = Object.assign(
     vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
     {
@@ -8,11 +9,7 @@ const { loggerInfo, loggerWarn, mockSql } = vi.hoisted(() => {
       raw: vi.fn((value: string) => ({ raw: value })),
     }
   )
-  return {
-    loggerInfo: vi.fn(),
-    loggerWarn: vi.fn(),
-    mockSql: taggedSql,
-  }
+  return { mockSql: taggedSql }
 })
 
 vi.mock('@sim/db/schema', () => ({
@@ -60,15 +57,6 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: loggerInfo,
-    warn: loggerWarn,
-  }),
-}))
-
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => conditions),
   asc: vi.fn((field: unknown) => ({ field, order: 'asc' })),
@@ -83,6 +71,8 @@ import {
   changeWorkspaceStoragePayersInTx,
 } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
+
+const { warn: loggerWarn } = getMockLogger('WorkspaceStoragePayerTransfer')
 
 interface FakeTable {
   __table: string

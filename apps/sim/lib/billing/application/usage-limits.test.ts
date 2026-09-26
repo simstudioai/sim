@@ -1,53 +1,54 @@
-import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import {
-  auditMock,
-  auditMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-  setEnvFlags,
-} from '@sim/testing'
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   userRead: vi.fn(),
   userUpdate: vi.fn(),
-  orgRead: vi.fn(),
-  orgUpdate: vi.fn(),
-  admin: vi.fn(),
   summary: vi.fn(),
-  memberRead: vi.fn(),
-  memberUpdate: vi.fn(),
-  usage: vi.fn(),
-  subscription: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/billing', () => ({
-  getUserUsageLimitInfo: mocks.userRead,
-  updateUserUsageLimit: mocks.userUpdate,
+  getUserUsageLimitInfo: hoisted.userRead,
+  updateUserUsageLimit: hoisted.userUpdate,
 }))
-vi.mock('@/lib/billing/core/organization', () => ({
-  getOrganizationBillingData: mocks.orgRead,
-  updateOrganizationUsageLimit: mocks.orgUpdate,
-  isOrganizationOwnerOrAdmin: mocks.admin,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 vi.mock(
   '@/lib/billing/application/organization-billing-summary/get-organization-billing-summary',
-  () => ({ getOrganizationBillingSummary: { execute: mocks.summary } })
+  () => ({ getOrganizationBillingSummary: { execute: hoisted.summary } })
 )
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  isOrgMemberUsageLimitTarget: vi.fn().mockResolvedValue(true),
-  getOrgMemberUsageLimit: mocks.memberRead,
-  setOrgMemberUsageLimit: mocks.memberUpdate,
-  getOrgMemberUsageForCurrentPeriod: mocks.usage,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { updateOrganizationMemberUsageLimit } from '@/lib/billing/application/member-usage-limits/use-cases'
 import { readUsageLimit, updateUsageLimit } from '@/lib/billing/application/usage-limits'
+
+const mocks = {
+  ...hoisted,
+  memberRead: organizationMemberLimitsMockFns.mockGetOrgMemberUsageLimit,
+  memberUpdate: organizationMemberLimitsMockFns.mockSetOrgMemberUsageLimit,
+  usage: organizationMemberLimitsMockFns.mockGetOrgMemberUsageForCurrentPeriod,
+}
+organizationMemberLimitsMockFns.mockIsOrgMemberUsageLimitTarget.mockResolvedValue(true)
+const mockGetOrganizationBillingData = billingOrganizationMockFns.mockGetOrganizationBillingData
+const mockUpdateOrganizationUsageLimit = billingOrganizationMockFns.mockUpdateOrganizationUsageLimit
+const mockIsOrganizationOwnerOrAdmin = billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
 
 const principal = (): OrganizationDelegatedPrincipal => ({
   kind: 'organization_delegated',
@@ -60,21 +61,21 @@ const principal = (): OrganizationDelegatedPrincipal => ({
   expiresAt: new Date(Date.now() + 60000),
   resourceScope: { chatId: 'chat' },
 })
-const session: Principal = { kind: 'session', userId: 'actor', sessionId: 'session' }
+const session = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 function membership(role = 'admin') {
   queueTableRows(schemaMock.member, [{ role }])
 }
 beforeEach(() => {
   resetDbChainMock()
   setEnvFlags({ isHosted: true })
-  mocks.admin.mockResolvedValue(true)
+  mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
   mocks.userUpdate.mockResolvedValue({ success: true })
-  mocks.orgUpdate.mockResolvedValue({ success: true })
-  mocks.orgRead.mockResolvedValue(null)
+  mockUpdateOrganizationUsageLimit.mockResolvedValue({ success: true })
+  mockGetOrganizationBillingData.mockResolvedValue(null)
   mocks.userRead.mockResolvedValue({ limit: 20 })
   mocks.memberRead.mockResolvedValue(2)
   mocks.usage.mockResolvedValue(1)
-  mocks.subscription.mockResolvedValue(null)
+  mockGetOrganizationSubscription.mockResolvedValue(null)
 })
 describe('budget settings application boundaries', () => {
   it('rejects ordinary members before updating', async () => {
@@ -85,7 +86,7 @@ describe('budget settings application boundaries', () => {
         input: { context: 'organization', organizationId: 'org', limit: 100 },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.orgUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateOrganizationUsageLimit).not.toHaveBeenCalled()
   })
   it.each([
     { organizationId: 'other' },
@@ -99,17 +100,20 @@ describe('budget settings application boundaries', () => {
         input: { context: 'organization', organizationId: 'org', limit: 100 },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.orgUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateOrganizationUsageLimit).not.toHaveBeenCalled()
   })
   it('preserves plan/minimum failure messages without reading a success response', async () => {
-    mocks.orgUpdate.mockResolvedValue({ success: false, error: 'Enterprise limits are fixed' })
+    mockUpdateOrganizationUsageLimit.mockResolvedValue({
+      success: false,
+      error: 'Enterprise limits are fixed',
+    })
     await expect(
       updateUsageLimit.execute({
         principal: session,
         input: { context: 'organization', organizationId: 'org', limit: 100 },
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'Enterprise limits are fixed' })
-    expect(mocks.orgRead).not.toHaveBeenCalled()
+    expect(mockGetOrganizationBillingData).not.toHaveBeenCalled()
   })
   it('does not allow a different account read', async () => {
     await expect(

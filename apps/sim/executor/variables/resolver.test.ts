@@ -1,3 +1,8 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileCodePlaceholders } from '@/lib/execution/code-placeholders'
 import { CodeLanguage } from '@/lib/execution/languages'
@@ -20,16 +25,15 @@ import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-const { mockStoreLargeValue } = vi.hoisted(() => ({ mockStoreLargeValue: vi.fn() }))
+const { mockStoreLargeValue } = executionPayloadStoreMockFns
 
-vi.mock('@/lib/execution/payloads/store', () => ({
-  storeLargeValue: mockStoreLargeValue,
-  materializeLargeValueRef: vi.fn(),
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 function createBlock(id: string, name: string, type: string, params = {}): SerializedBlock {
   return {

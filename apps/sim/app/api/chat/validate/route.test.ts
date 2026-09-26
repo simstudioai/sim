@@ -1,22 +1,23 @@
 /**
  * Tests for the chat identifier availability endpoint.
  */
+
 import { authMockFns, resetDbChainMock } from '@sim/testing'
-import { NextRequest, NextResponse } from 'next/server'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnforceUserRateLimit } = vi.hoisted(() => ({
-  mockEnforceUserRateLimit: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mockEnforceUserRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { GET } from '@/app/api/chat/validate/route'
 
+const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
+
 function request(identifier: string) {
-  return new NextRequest(`http://localhost:3000/api/chat/validate?identifier=${identifier}`)
+  return createMockRequest({
+    url: `http://localhost:3000/api/chat/validate?identifier=${identifier}`,
+  })
 }
 
 describe('chat identifier validation route', () => {

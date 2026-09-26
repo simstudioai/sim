@@ -54,8 +54,6 @@ function legacySubBlocks(subBlocks: Record<string, any>): any {
   return subBlocks
 }
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
 const { mockSanitizeAgentToolsInBlocks } = vi.hoisted(() => ({
   mockSanitizeAgentToolsInBlocks: vi.fn(),
 }))

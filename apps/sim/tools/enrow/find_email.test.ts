@@ -1,12 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-/**
- * Only `sleep` is stubbed because it is the sole `@sim/utils/helpers` export the
- * enrow tools import. `vi.importActual` is banned by CLAUDE.md, so the module is
- * replaced wholesale; if an enrow tool ever imports another helper the import
- * will be `undefined` and these tests fail loudly rather than silently.
- */
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { enrowFindEmailTool } from '@/tools/enrow/find_email'
 import type {
@@ -39,15 +35,6 @@ const DOCUMENTED_FIND_BODY = {
   custom: {},
 }
 
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response
-}
-
 const findParams: EnrowFindEmailParams = {
   apiKey: 'test-key',
   fullname: 'John Doe',
@@ -72,12 +59,8 @@ const submittedFindResult: EnrowFindEmailResponse = {
 const MAX_POLLS = 40
 
 describe('enrow_find_email', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('maps the documented nested `info` payload onto the flat output', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(DOCUMENTED_FIND_BODY))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await enrowFindEmailTool.postProcess!(
@@ -103,8 +86,8 @@ describe('enrow_find_email', () => {
   it('keeps polling on a 202 in-progress body', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(202, { qualification: 'ongoing' }))
-      .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
+      .mockResolvedValueOnce(jsonResponse({ qualification: 'ongoing' }, 202))
+      .mockResolvedValueOnce(jsonResponse(DOCUMENTED_FIND_BODY))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await enrowFindEmailTool.postProcess!(
@@ -121,8 +104,8 @@ describe('enrow_find_email', () => {
   it('throws with the status and body when a poll returns a non-2xx status', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(202, { qualification: 'ongoing' }))
-      .mockResolvedValueOnce(jsonResponse(401, { message: 'invalid api key' }))
+      .mockResolvedValueOnce(jsonResponse({ qualification: 'ongoing' }, 202))
+      .mockResolvedValueOnce(jsonResponse({ message: 'invalid api key' }, 401))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
@@ -133,7 +116,7 @@ describe('enrow_find_email', () => {
   })
 
   it('gives up after the polling window when every poll stays 202', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(202, { qualification: 'ongoing' }))
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ qualification: 'ongoing' }, 202))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
@@ -145,16 +128,10 @@ describe('enrow_find_email', () => {
 })
 
 describe('enrow_verify_email', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('reads the FLAT documented verify body — there is no `info` level here', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        jsonResponse(200, { email: 'john.doe@stripe.com', qualification: 'valid' })
-      )
+      .mockResolvedValue(jsonResponse({ email: 'john.doe@stripe.com', qualification: 'valid' }))
     vi.stubGlobal('fetch', fetchMock)
 
     const submitted: EnrowVerifyEmailResponse = {

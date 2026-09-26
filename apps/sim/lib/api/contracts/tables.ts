@@ -664,7 +664,7 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
  * `data` is never NULL, so an absent or null cell makes the containment test
  * false and the negation true — the same include-nulls behaviour as every other
- * negation. Pinned by `__tests__/sql.test.ts`.
+ * negation. Pinned by `sql.test.ts`.
  */
 const PREDICATE_LIMITS_DESCRIPTION = `Limits: ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels, and ${MAX_PREDICATE_NODES} nodes.`
 const PREDICATE_NEGATION_DESCRIPTION =

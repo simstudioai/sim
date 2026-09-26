@@ -1,4 +1,22 @@
 import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+import {
+  LoggingSessionMock,
+  loggingSessionMock,
+  loggingSessionMockFns,
+} from '@sim/testing/mocks/logging-session.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -16,78 +34,49 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
+const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const { mockGetCustomBlockAuthority } = customBlockOperationsMockFns
+const { mockGetUserEmailById } = usersQueriesMockFns
 const {
-  mockExecutorExecute,
-  mockCreateSnapshot,
-  mockResolveBillingAttribution,
-  mockGetCustomBlockAuthority,
-  mockGetUserEmailById,
-  mockAdmitCustomBlockChildExecution,
-  mockTrackChildRun,
-  mockBuildTraceSpans,
   mockSafeStart,
   mockSafeComplete,
   mockSafeCompleteWithError,
   mockSafeCompleteWithCancellation,
   mockSetResolvedSecretTraceRegistry,
   mockSetExecutionDeadlineAt,
-  mockSetTraceLargeValueAccess,
+  mockProjectTraceSpansForLiveDisplay,
+} = loggingSessionMockFns
+mockProjectTraceSpansForLiveDisplay.mockReturnValue(undefined as never)
+authInternalMockFns.mockGenerateInternalToken.mockResolvedValue('test-token')
+
+const {
+  mockExecutorExecute,
+  mockCreateSnapshot,
+  mockAdmitCustomBlockChildExecution,
+  mockTrackChildRun,
+  mockBuildTraceSpans,
   mockDispose,
   mockReadWorkflowDefinitionAsExecutor,
-  mockCheckWorkspaceAccess,
-  mockProjectTraceSpansForLiveDisplay,
   executorOptions,
-  loggingSessionArgs,
 } = vi.hoisted(() => ({
   mockExecutorExecute: vi.fn(),
   mockCreateSnapshot: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockGetCustomBlockAuthority: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockProjectTraceSpansForLiveDisplay: vi.fn(),
-  mockGetUserEmailById: vi.fn(),
   mockAdmitCustomBlockChildExecution: vi.fn(),
   mockTrackChildRun: vi.fn(),
   mockBuildTraceSpans: vi.fn(),
-  mockSafeStart: vi.fn(),
-  mockSafeComplete: vi.fn(),
-  mockSafeCompleteWithError: vi.fn(),
-  mockSafeCompleteWithCancellation: vi.fn(),
-  mockSetResolvedSecretTraceRegistry: vi.fn(),
-  mockSetExecutionDeadlineAt: vi.fn(),
-  mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
   mockReadWorkflowDefinitionAsExecutor: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
-  loggingSessionArgs: [] as Array<any[]>,
 }))
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: class {
-    constructor(...args: any[]) {
-      loggingSessionArgs.push(args)
-    }
-    safeStart = mockSafeStart
-    safeComplete = mockSafeComplete
-    safeCompleteWithError = mockSafeCompleteWithError
-    safeCompleteWithCancellation = mockSafeCompleteWithCancellation
-    setExecutionDeadlineAt = mockSetExecutionDeadlineAt
-    setResolvedSecretTraceRegistry = mockSetResolvedSecretTraceRegistry
-    setTraceLargeValueAccess = mockSetTraceLargeValueAccess
-    projectTraceSpansForLiveDisplay = mockProjectTraceSpansForLiveDisplay
-    onBlockStart = vi.fn()
-    onBlockComplete = vi.fn()
-  },
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: mockBuildTraceSpans,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-  encryptSecret: encryptionMockFns.mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/workflows/custom-blocks/child-execution', () => ({
   admitCustomBlockChildExecution: mockAdmitCustomBlockChildExecution,
@@ -111,23 +100,15 @@ vi.mock('@/executor', () => ({
   },
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mockResolveBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  getCustomBlockAuthority: mockGetCustomBlockAuthority,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailById: mockGetUserEmailById,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 vi.mock('@/lib/internal/workflows/read-definition', () => ({
   readWorkflowDefinitionAsExecutor: mockReadWorkflowDefinitionAsExecutor,
@@ -182,9 +163,7 @@ vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: { createSnapshotWithDeduplication: mockCreateSnapshot },
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: vi.fn().mockResolvedValue('test-token'),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 describe('WorkflowBlockHandler', () => {
   let handler: WorkflowBlockHandler
@@ -219,19 +198,19 @@ describe('WorkflowBlockHandler', () => {
       workflowId: 'parent-workflow-id',
       executionId: 'parent-execution-id',
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       executorDelegationOrigin: {
         subjectUserId: 'user-1',
         workflowId: 'parent-workflow-id',
         executionId: 'parent-execution-id',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
       },
       blockStates: new Map(),
       blockLogs: [],
       metadata: {
         duration: 0,
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
       },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
@@ -246,11 +225,7 @@ describe('WorkflowBlockHandler', () => {
         loops: {},
       },
     }
-
-    // Reset all mocks
-    vi.clearAllMocks()
     executorOptions.length = 0
-    loggingSessionArgs.length = 0
     mockSafeStart.mockResolvedValue(true)
     mockAdmitCustomBlockChildExecution.mockResolvedValue(undefined)
     mockBuildTraceSpans.mockReturnValue({ traceSpans: [], totalDuration: 0 })
@@ -389,7 +364,7 @@ describe('WorkflowBlockHandler', () => {
             subjectUserId: 'user-1',
             workflowId: 'parent-workflow-id',
             executionId: 'parent-execution-id',
-            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            principal: createSessionPrincipal(),
             currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
           },
         })
@@ -511,7 +486,7 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
         workflowId: 'source-workflow-id',
-        executionId: loggingSessionArgs[0][1],
+        executionId: LoggingSessionMock.mock.calls[0][1],
         currentWorkflow: {
           workflowId: 'source-workflow-id',
           mode: 'deployment',
@@ -602,7 +577,7 @@ describe('WorkflowBlockHandler', () => {
       const ctx = {
         ...mockContext,
         userId: 'consumer-1',
-        principal: { kind: 'session', userId: 'consumer-1', sessionId: 'session-consumer' },
+        principal: createSessionPrincipal({ userId: 'consumer-1', sessionId: 'session-consumer' }),
         workspaceId: 'workspace-consumer',
         executionId: 'exec-1',
       } as ExecutionContext
@@ -1021,7 +996,7 @@ describe('WorkflowBlockHandler', () => {
       await expect(handler.execute(customBlockContext(), customBlock(), {})).rejects.toThrow()
 
       expect(mockExecutorExecute).not.toHaveBeenCalled()
-      expect(loggingSessionArgs).toHaveLength(0)
+      expect(LoggingSessionMock.mock.calls).toHaveLength(0)
     })
 
     it('fails before execution when the source child log row cannot be opened', async () => {

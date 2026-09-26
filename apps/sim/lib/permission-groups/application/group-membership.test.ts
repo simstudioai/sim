@@ -1,15 +1,13 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLock: vi.fn(),
-}))
-
-vi.mock('@/lib/permission-groups/locks', () => ({
-  acquirePermissionGroupOrgLock: mocks.acquireLock,
-}))
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 
 import {
   addPermissionGroupMemberTx,
@@ -20,6 +18,8 @@ import {
   PermissionGroupScopeConflictError,
   removePermissionGroupMemberTx,
 } from '@/lib/permission-groups/application/group-membership'
+
+const mocks = { acquireLock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock }
 
 afterAll(resetDbChainMock)
 

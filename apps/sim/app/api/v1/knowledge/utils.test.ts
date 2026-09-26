@@ -1,14 +1,18 @@
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import { knowledgeServiceMock } from '@sim/testing/mocks/knowledge-service.mock'
+import { v1MiddlewareMock } from '@sim/testing/mocks/v1-middleware.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { createUserProvider } = vi.hoisted(() => ({ createUserProvider: vi.fn() }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createUserKnowledgeAccessProvider: createUserProvider,
-  WORKSPACE_ACCESS_SCOPE: { kind: 'workspace', tokens: ['pub', 'ws'] },
-}))
-vi.mock('@/lib/knowledge/service', () => ({ getKnowledgeBaseById: vi.fn() }))
-vi.mock('@/app/api/v1/middleware', () => ({ validateWorkspaceAccess: vi.fn() }))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 import { resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
+
+const createUserProvider = knowledgeAccessScopeMockFns.mockCreateUserKnowledgeAccessProvider
 
 describe('v1 knowledge reader identity', () => {
   it.each(['personal', 'oauth_access_token'] as const)(

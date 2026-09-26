@@ -1,11 +1,12 @@
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  process: vi.fn(),
   recover: vi.fn(),
   reap: vi.fn(),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({ processOutboxEvents: mocks.process }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/knowledge/documents/processing-recovery', () => ({
   recoverKnowledgeDocumentProcessing: mocks.recover,
 }))
@@ -22,7 +23,7 @@ vi.mock('@/lib/billing/enterprise-provisioning', () => ({ enterpriseIssuanceOutb
 vi.mock('@/lib/billing/organizations/membership-reconciliation', () => ({
   membershipBillingOutboxHandlers: {},
 }))
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({ billingOutboxHandlers: {} }))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 vi.mock('@/lib/invitations/direct-grant', () => ({ directGrantOutboxHandlers: {} }))
 vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
   slackSearchOutboxHandlers: {},
@@ -52,13 +53,15 @@ vi.mock('@/ee/workspace-forking/application/content-outbox', () => ({
 
 import { runOutboxProcessor } from '@/lib/core/outbox/processor'
 
+const mockProcessOutboxEvents = outboxServiceMockFns.mockProcessOutboxEvents
+
 describe('outbox processor recovery', () => {
   const result = { processed: 5, retried: 1, deadLettered: 0, leaseLost: 0, reaped: 0 }
 
   beforeEach(() => {
     vi.resetAllMocks()
     vi.useFakeTimers()
-    mocks.process.mockResolvedValue(result)
+    mockProcessOutboxEvents.mockResolvedValue(result)
     mocks.recover.mockResolvedValue(2)
     mocks.reap.mockResolvedValue(3)
   })
@@ -83,7 +86,7 @@ describe('outbox processor recovery', () => {
   })
 
   it('skips document recovery after the processing budget is exhausted', async () => {
-    mocks.process.mockImplementationOnce(async () => {
+    mockProcessOutboxEvents.mockImplementationOnce(async () => {
       vi.advanceTimersByTime(770_000)
       return result
     })
@@ -96,7 +99,7 @@ describe('outbox processor recovery', () => {
   })
 
   it('propagates delivery failures to the worker instead of reporting success', async () => {
-    mocks.process.mockRejectedValueOnce(new Error('database unavailable'))
+    mockProcessOutboxEvents.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(runOutboxProcessor()).rejects.toThrow('database unavailable')
     expect(mocks.recover).not.toHaveBeenCalled()
     expect(mocks.reap).not.toHaveBeenCalled()

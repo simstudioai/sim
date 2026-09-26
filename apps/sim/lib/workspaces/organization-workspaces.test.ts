@@ -1,30 +1,23 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEnsureUserInOrganizationTx,
-  mockSyncUsageLimitsFromSubscription,
-  mockReapplyPaidOrgJoinBillingForExistingMemberTx,
-  mockAcquireOrganizationMutationLock,
-  mockAcquireInvitationMutationLocks,
-  mockChangeWorkspaceStoragePayersInTx,
-  mockInvalidateWorkspaceTableLimitsCache,
-} = vi.hoisted(() => ({
-  mockEnsureUserInOrganizationTx: vi.fn(),
-  mockSyncUsageLimitsFromSubscription: vi.fn(),
-  mockReapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
-  mockAcquireInvitationMutationLocks: vi.fn(),
-  mockChangeWorkspaceStoragePayersInTx: vi.fn(),
-  mockInvalidateWorkspaceTableLimitsCache: vi.fn(),
-}))
+const { mockAcquireInvitationMutationLocks, mockChangeWorkspaceStoragePayersInTx } = vi.hoisted(
+  () => ({
+    mockAcquireInvitationMutationLocks: vi.fn(),
+    mockChangeWorkspaceStoragePayersInTx: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-  ensureUserInOrganizationTx: mockEnsureUserInOrganizationTx,
-  reapplyPaidOrgJoinBillingForExistingMemberTx: mockReapplyPaidOrgJoinBillingForExistingMemberTx,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
   changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
@@ -34,18 +27,12 @@ vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
 }))
 
-vi.mock('@/lib/table/billing', () => ({
-  invalidateWorkspaceTableLimitsCache: mockInvalidateWorkspaceTableLimitsCache,
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn().mockReturnValue('generated-id'),
-  generateShortId: vi.fn().mockReturnValue('short-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   attachOwnedWorkspacesToOrganization,
@@ -53,6 +40,17 @@ import {
   detachOrganizationWorkspacesTx,
   WorkspaceOrganizationMembershipConflictError,
 } from '@/lib/workspaces/organization-workspaces'
+
+const {
+  mockEnsureUserInOrganizationTx,
+  mockReapplyPaidOrgJoinBillingForExistingMemberTx,
+  mockAcquireOrganizationMutationLock,
+} = organizationMembershipMockFns
+const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
+const { mockInvalidateWorkspaceTableLimitsCache } = tableBillingMockFns
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+idMockFns.mockGenerateShortId.mockReturnValue('short-id')
 
 describe('organization workspace helpers', () => {
   beforeEach(() => {

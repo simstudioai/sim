@@ -5,32 +5,21 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      readRow: vi.fn(),
-      updateRow: vi.fn(),
-      deleteRow: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  readTableRow: { operation: { id: 'tables.rows.read' }, execute: mocks.readRow },
-  updateTableRow: { operation: { id: 'tables.rows.update' }, execute: mocks.updateRow },
-  deleteTableRow: { operation: { id: 'tables.rows.delete' }, execute: mocks.deleteRow },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { GET, PATCH } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
+
+const { mockReadTableRow, mockUpdateTableRow, mockDeleteTableRow } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -76,9 +65,9 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.readRow.mockResolvedValue({ table: TABLE, row: ROW })
-    mocks.updateRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
-    mocks.deleteRow.mockResolvedValue({ table: TABLE, deletedRowId: ROW.id })
+    mockReadTableRow.mockResolvedValue({ table: TABLE, row: ROW })
+    mockUpdateTableRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
+    mockDeleteTableRow.mockResolvedValue({ table: TABLE, deletedRowId: ROW.id })
   })
 
   it('reads through the shared use case and strips storage internals', async () => {
@@ -92,7 +81,7 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
     })
-    expect(mocks.readRow).toHaveBeenCalledWith({
+    expect(mockReadTableRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -109,7 +98,7 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     const response = await PATCH(req, CONTEXT)
 
     expect(response.status).toBe(200)
-    expect(mocks.updateRow).toHaveBeenCalledWith({
+    expect(mockUpdateTableRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -124,7 +113,7 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
   })
 
   it('returns not found when the row disappears before update', async () => {
-    mocks.updateRow.mockRejectedValueOnce(new TableRowNotFoundError())
+    mockUpdateTableRow.mockRejectedValueOnce(new TableRowNotFoundError())
 
     const response = await PATCH(
       request('PATCH', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } }),

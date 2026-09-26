@@ -1,4 +1,14 @@
 import { Buffer } from 'buffer'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,23 +23,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty, mockNotify } =
-  vi.hoisted(() => ({
-    store: {
-      folderIdByPath: new Map<string, string>(),
-      fileKeys: new Set<string>(),
-      blockedFolderIds: new Set<string>(),
-      /** Paths passed to the folder-delete operation, in call order. */
-      deletedFolderPaths: [] as string[],
-      sequence: 0,
-    },
-    mockUpload: vi.fn(),
-    mockPurge: vi.fn(),
-    mockEnsureFolder: vi.fn(),
-    mockArchiveFolderIfEmpty: vi.fn(),
-    mockNotify: vi.fn(),
-  }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
+const { store, mockUpload, mockEnsureFolder } = vi.hoisted(() => ({
+  store: {
+    folderIdByPath: new Map<string, string>(),
+    fileKeys: new Set<string>(),
+    blockedFolderIds: new Set<string>(),
+    /** Paths passed to the folder-delete operation, in call order. */
+    deletedFolderPaths: [] as string[],
+    sequence: 0,
+  },
+  mockUpload: vi.fn(),
+  mockEnsureFolder: vi.fn(),
+}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
@@ -38,12 +44,11 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
     execute: mockUpload,
   },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  purgeCreatedWorkspaceFile: mockPurge,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  archiveWorkspaceFileFolderIfEmpty: mockArchiveFolderIfEmpty,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 import {
   buildFolderPath,
@@ -57,11 +62,13 @@ import {
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
 
-const TEST_PRINCIPAL = {
-  kind: 'session',
-  userId: 'u',
-  sessionId: 'session-1',
-} as const
+const mockArchiveFolderIfEmpty = workspaceFileFoldersMockFns.mockArchiveWorkspaceFileFolderIfEmpty
+
+const mockPurge = workspaceFileManagerMockFns.mockPurgeCreatedWorkspaceFile
+
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+
+const TEST_PRINCIPAL = createSessionPrincipal({ userId: 'u' })
 
 async function buildZip(
   files: Record<string, string | Buffer>,

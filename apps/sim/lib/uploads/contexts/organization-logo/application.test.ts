@@ -1,19 +1,25 @@
-import { recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ config: vi.fn(), create: vi.fn() }))
-vi.mock('@/lib/uploads/upload-session/service', () => ({ createUploadSession: mocks.create }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/uploads/config', () => ({ getServeStoragePrefix: () => 's3' }))
-vi.mock('@sim/audit', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/audit')>()),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@sim/audit', () => auditMock)
 
+import { recordAudit } from '@sim/audit'
 import { createInternalFileUploadBodySchema } from '@/lib/api/contracts/upload-sessions'
 import {
   authorizeOrganizationLogoControl,
@@ -22,7 +28,12 @@ import {
 } from '@/lib/uploads/contexts/organization-logo/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  create: uploadSessionMockFns.mockCreateUploadSession,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+
+const principal = createSessionPrincipal()
 const input = {
   organizationId: 'org-1',
   name: 'logo.png',
@@ -69,16 +80,16 @@ describe('organization logo uploads', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const,
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' } as const,
-  ])('rejects other principal kinds before protected reads', async (caller) => {
-    await expect(createOrganizationLogoUpload(caller, input)).rejects.toMatchObject({
-      code: 'forbidden',
-    })
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-    expect(mocks.create).not.toHaveBeenCalled()
-  })
+  it.each([createPersonalApiKeyPrincipal(), createWorkspaceApiKeyPrincipal()])(
+    'rejects other principal kinds before protected reads',
+    async (caller) => {
+      await expect(createOrganizationLogoUpload(caller, input)).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+      expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+      expect(mocks.create).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     { ...principal, sessionId: 'other-session' },

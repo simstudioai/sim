@@ -1,18 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({ mcpUrl: undefined as string | undefined }))
-
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: (name: string) => (name === 'SIM_MCP_URL' ? mocks.mcpUrl : undefined),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.ai' }))
-
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.ai')
+
+afterAll(() => {
+  resetEnvMock()
+  resetUrlsMock()
+})
+
 describe('Sim MCP host routing', () => {
   beforeEach(() => {
-    mocks.mcpUrl = undefined
+    setEnv({ SIM_MCP_URL: undefined })
   })
 
   it('serves the MCP server from the app origin by default', () => {
@@ -24,7 +25,7 @@ describe('Sim MCP host routing', () => {
 
   describe('on a dedicated host', () => {
     beforeEach(() => {
-      mocks.mcpUrl = 'https://mcp.sim.ai/mcp/'
+      setEnv({ SIM_MCP_URL: 'https://mcp.sim.ai/mcp/' })
     })
 
     it.each([
@@ -55,7 +56,7 @@ describe('Sim MCP host routing', () => {
     )
 
     it('tells the MCP host from an app on the same hostname but another port', () => {
-      mocks.mcpUrl = 'http://localhost:3001/mcp'
+      setEnv({ SIM_MCP_URL: 'http://localhost:3001/mcp' })
       expect(resolveSimMcpHostPath('localhost:3000', '/workspace')).toBeNull()
       expect(resolveSimMcpHostPath('localhost:3001', '/mcp')).toBe('/api/mcp')
       expect(resolveSimMcpHostPath('localhost:3001', '/workspace')).toBe('not_found')

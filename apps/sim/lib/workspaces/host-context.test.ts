@@ -1,41 +1,37 @@
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockGetWorkspaceOwnerSubscriptionAccess,
-  mockGetOrganizationSettingsAccess,
-  mockResolveKnowledgeAccessAvailability,
-  mockIsKnowledgeMemberAccessAvailable,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceOwnerSubscriptionAccess: vi.fn(),
+const { mockGetOrganizationSettingsAccess } = vi.hoisted(() => ({
   mockGetOrganizationSettingsAccess: vi.fn(),
-  mockResolveKnowledgeAccessAvailability: vi.fn(),
-  mockIsKnowledgeMemberAccessAvailable: vi.fn(),
 }))
 
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/organizations/settings-access', () => ({
   getOrganizationSettingsAccess: mockGetOrganizationSettingsAccess,
 }))
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mockGetWorkspaceOwnerSubscriptionAccess,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockResolveKnowledgeAccessAvailability,
-  isKnowledgeMemberAccessAvailable: mockIsKnowledgeMemberAccessAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+
+const { mockCheckWorkspaceAccess } = permissionsMockFns
+const { mockGetWorkspaceOwnerSubscriptionAccess } = billingWorkspaceAccessMockFns
+const { mockResolveKnowledgeAccessAvailability, mockIsKnowledgeMemberAccessAvailable } =
+  knowledgeAvailabilityMockFns
 
 const OWNER_BILLING = {
   plan: 'enterprise',

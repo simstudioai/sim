@@ -5,50 +5,48 @@
  */
 
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockPerformActivateVersion,
-  mockFindPreviousDeploymentVersion,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockPerformActivateVersion: vi.fn(),
-  mockFindPreviousDeploymentVersion: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  findPreviousDeploymentVersion: mockFindPreviousDeploymentVersion,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performActivateVersion: mockPerformActivateVersion,
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { POST } from '@/app/api/v1/workflows/[id]/rollback/route'
+
+const { mockPerformActivateVersion } = workflowsOrchestrationMockFns
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCreateRateLimitResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
+}))
+
+const mockFindPreviousDeploymentVersion =
+  workflowsPersistenceUtilsMockFns.mockFindPreviousDeploymentVersion
 
 const WORKFLOW_ID = 'wf-1'
 const WORKFLOW_RECORD = {
@@ -59,7 +57,7 @@ const WORKFLOW_RECORD = {
 }
 
 function makeContext(id = WORKFLOW_ID) {
-  return { params: Promise.resolve({ id }) }
+  return createRouteContext({ id })
 }
 
 function makeRequest(body?: unknown) {

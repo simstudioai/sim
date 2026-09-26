@@ -1,8 +1,35 @@
 import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   copilotRequestPrincipal,
@@ -13,87 +40,63 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveSystemAttribution: vi.fn(),
-  resolveAttribution: vi.fn(),
-  checkUsageStatus: vi.fn(),
-  checkAttributedBlocks: vi.fn(),
-  toUsageLimitSubscription: vi.fn(),
-  getSubscription: vi.fn(),
-  deriveBillingContext: vi.fn(),
-  checkBillingBlocked: vi.fn(),
-  checkBillingEntityBlocked: vi.fn(),
-  resolveStorageContext: vi.fn(),
-  getStorageLimitForContext: vi.fn(),
-  getStorageUsageForContext: vi.fn(),
-  getUserStorageLimit: vi.fn(),
-  getUserStorageUsage: vi.fn(),
-  getUsageLogs: vi.fn(),
-  getWorkspaceUsageLogs: vi.fn(),
-  recordAudit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   canUserManageWorkspaceBilling: vi.fn(),
   canUserManageBillingEntity: vi.fn(),
   isCapabilityWithheldForUser: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
-  isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
+  isCapabilityWithheldForUser: hoisted.isCapabilityWithheldForUser,
 }))
 
 vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
-  canUserManageWorkspaceBilling: mocks.canUserManageWorkspaceBilling,
-  canUserManageBillingEntity: mocks.canUserManageBillingEntity,
+  canUserManageWorkspaceBilling: hoisted.canUserManageWorkspaceBilling,
+  canUserManageBillingEntity: hoisted.canUserManageBillingEntity,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveSystemBillingAttribution: mocks.resolveSystemAttribution,
-  resolveBillingAttribution: mocks.resolveAttribution,
-  checkAttributedBillingBlocks: mocks.checkAttributedBlocks,
-  toUsageLimitSubscription: mocks.toUsageLimitSubscription,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkUsageStatus: mocks.checkUsageStatus,
-  checkBillingBlocked: mocks.checkBillingBlocked,
-  checkBillingEntityBlocked: mocks.checkBillingEntityBlocked,
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mocks.getSubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  deriveBillingContext: mocks.deriveBillingContext,
-  getUserUsageLogs: mocks.getUsageLogs,
-  getWorkspaceUsageLogs: mocks.getWorkspaceUsageLogs,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  resolveStorageBillingContext: mocks.resolveStorageContext,
-  getStorageLimitForBillingContext: mocks.getStorageLimitForContext,
-  getStorageUsageForBillingContext: mocks.getStorageUsageForContext,
-  getUserStorageLimit: mocks.getUserStorageLimit,
-  getUserStorageUsage: mocks.getUserStorageUsage,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { getBillingStatus } from '@/lib/billing/application/get-billing-status'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
 import { PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  ...hoisted,
+  checkUsageStatus: billingUsageMonitorMockFns.mockCheckUsageStatus,
+  checkBillingBlocked: billingUsageMonitorMockFns.mockCheckBillingBlocked,
+  checkBillingEntityBlocked: billingUsageMonitorMockFns.mockCheckBillingEntityBlocked,
+  deriveBillingContext: billingUsageLogMockFns.mockDeriveBillingContext,
+  getUsageLogs: billingUsageLogMockFns.mockGetUserUsageLogs,
+  getWorkspaceUsageLogs: billingUsageLogMockFns.mockGetWorkspaceUsageLogs,
+  resolveStorageContext: billingStorageMockFns.mockResolveStorageBillingContext,
+  getStorageLimitForContext: billingStorageMockFns.mockGetStorageLimitForBillingContext,
+  getStorageUsageForContext: billingStorageMockFns.mockGetStorageUsageForBillingContext,
+  getUserStorageLimit: billingStorageMockFns.mockGetUserStorageLimit,
+  getUserStorageUsage: billingStorageMockFns.mockGetUserStorageUsage,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  resolveSystemAttribution: billingAttributionMockFns.mockResolveSystemBillingAttribution,
+  resolveAttribution: billingAttributionMockFns.mockResolveBillingAttribution,
+  checkAttributedBlocks: billingAttributionMockFns.mockCheckAttributedBillingBlocks,
+  toUsageLimitSubscription: billingAttributionMockFns.mockToUsageLimitSubscription,
+  getSubscription: billingSubscriptionMockFns.mockGetHighestPrioritySubscription,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -101,16 +104,8 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'personal-key-1',
-}
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'workspace-key-1',
-}
+const personalPrincipal = createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' })
+const workspacePrincipal = createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })
 const oauthPrincipal = {
   kind: 'oauth_access_token' as const,
   userId: 'user-1',
@@ -122,7 +117,6 @@ const oauthPrincipal = {
 
 describe('billing application use cases', () => {
   it('rejects an OAuth grant without API access before loading billing or workspace state', async () => {
-    vi.clearAllMocks()
     const principal = {
       kind: 'oauth_access_token',
       userId: 'user-1',

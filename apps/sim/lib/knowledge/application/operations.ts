@@ -82,10 +82,6 @@ const ALL_PRINCIPAL_POLICY = {
   ],
   delegatedServices: ['copilot'],
 } as const
-const COPILOT_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
-  delegatedServices: ['copilot'],
-} as const
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   principalKinds: [
@@ -396,42 +392,6 @@ export const knowledgeOperations = {
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
-  renameByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.rename',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  moveByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.move',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  manageVfsFolders: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.folders.manage',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  deleteByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.delete',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
   search: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search',
@@ -538,16 +498,6 @@ export const knowledgeOperations = {
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-    })
-  ),
-  bulkDeleteDocuments: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.documents.bulk_delete',
-      oauthScope: 'api:write',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
   updateDocument: defineKnowledgeOperation(
@@ -873,16 +823,6 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     }),
     { organizationDelegation: 'allow' }
-  ),
-  /** Sources with a personal connection, including identities used by mirrored ACLs. */
-  listWorkspaceMemberConnectors: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.connectors.members.list',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
   ),
   /**
    * A workspace reader connecting their own account for a member crawl or a

@@ -4,6 +4,11 @@
  * without explicit effort keep a reasoning-free payload, and the
  * unverified-organization 400 falls back to a summary-free retry.
  */
+
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { BlockTokens } from '@/executor/types'
@@ -14,36 +19,27 @@ import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
 import { executeTool } from '@/tools'
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+providersMock.MAX_TOOL_ITERATIONS = 5
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: (model: string) => ['gpt-5.5', 'o3'].includes(model),
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
+providersUtilsMockFns.mockSupportsReasoningEffort.mockImplementation((model) =>
+  ['gpt-5.5', 'o3'].includes(model)
+)
 
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/providers', () => providersMock)
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+vi.mock('@/providers/utils', () => providersUtilsMock)
+
+vi.mock('@/tools', () => toolsMock)
 
 function sseResponse(events: unknown[]) {
   const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')

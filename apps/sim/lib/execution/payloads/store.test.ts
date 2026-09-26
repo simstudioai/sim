@@ -1,3 +1,17 @@
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -20,49 +34,16 @@ import {
 } from '@/lib/execution/payloads/store'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
-const {
-  mockAddLargeValueReference,
-  mockDeleteFileMetadata,
-  mockDeleteFiles,
-  mockDownloadFile,
-  mockRegisterLargeValueOwner,
-  mockUploadFile,
-  mockVerifyFileAccess,
-} = vi.hoisted(() => ({
-  mockAddLargeValueReference: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockDeleteFiles: vi.fn(),
-  mockDownloadFile: vi.fn(),
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-  mockVerifyFileAccess: vi.fn(),
-}))
+const { mockAddLargeValueReference, mockRegisterLargeValueOwner } = largeValueMetadataMockFns
+const { mockDeleteFiles, mockDownloadFile, mockUploadFile } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+const { mockVerifyFileAccess } = filesAuthorizationMockFns
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    deleteFiles: mockDeleteFiles,
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-  downloadFile: mockDownloadFile,
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
-
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  addLargeValueReference: mockAddLargeValueReference,
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 describe('large execution payload store', () => {
   beforeEach(() => {

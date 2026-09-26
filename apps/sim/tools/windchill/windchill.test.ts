@@ -1,3 +1,7 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchill'
 import { WindchillBlock } from '@/blocks/blocks/windchill'
@@ -15,14 +19,7 @@ import {
   windchillReadHeaders,
 } from '@/tools/windchill/utils'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createWindchillSession,
@@ -30,6 +27,8 @@ import {
   uploadWindchillContent,
   windchillMutationRequest,
 } from '@/lib/internal/windchill/client'
+
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
 
 const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
 

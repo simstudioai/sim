@@ -2,6 +2,7 @@
  * The column-update guards. These used to live in four callers (UI route, v1,
  * v2, copilot tool) and had drifted apart; they are asserted here once.
  */
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -11,21 +12,15 @@ const {
   mockUpdateColumnOptions,
   mockUpdateColumnConstraints,
   mockUpdateColumnCurrency,
-  mockRecordAudit,
 } = vi.hoisted(() => ({
   mockRenameColumn: vi.fn(),
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockUpdateColumnConstraints: vi.fn(),
   mockUpdateColumnCurrency: vi.fn(),
-  mockRecordAudit: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/table/columns/service', () => ({
   renameColumn: mockRenameColumn,
@@ -37,6 +32,8 @@ vi.mock('@/lib/table/columns/service', () => ({
 
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { performUpdateTableColumn } from '@/lib/table/orchestration/columns'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const SELECT_COLUMN = {
   id: 'col-1',

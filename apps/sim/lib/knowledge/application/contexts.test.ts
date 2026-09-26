@@ -1,55 +1,52 @@
 import type { Principal } from '@sim/auth/principal'
 import { member, organization } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getKnowledgeBase: vi.fn(),
-  getKnowledgeBaseWithCounts: vi.fn(),
-  getDocument: vi.fn(),
-  getDocumentById: vi.fn(),
-  getTag: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getConnector: vi.fn(),
-  loadWorkspace: vi.fn(),
-  loadWorkspaceIncludingArchived: vi.fn(),
-  getOrganizationPermissionConfig: vi.fn(),
-  createAccessProvider: vi.fn(() => ({
-    get: async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] }),
-    getForDocuments: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
-    getForConnectors: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
-  })),
 }))
 
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createKnowledgeAccessProvider: mocks.createAccessProvider,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getActiveKnowledgeBaseReference: mocks.getKnowledgeBase,
-  getKnowledgeBaseById: mocks.getKnowledgeBaseWithCounts,
-}))
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  getKnowledgeDocument: mocks.getDocument,
-  getKnowledgeDocumentById: mocks.getDocumentById,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getTagDefinitionById: mocks.getTag,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 vi.mock('@/lib/knowledge/connectors/service', () => ({
-  getActiveKnowledgeConnectorReference: mocks.getConnector,
+  getActiveKnowledgeConnectorReference: hoisted.getConnector,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-  loadWorkspaceApplicationContext: mocks.loadWorkspaceIncludingArchived,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.getOrganizationPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -62,6 +59,21 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
+const mocks = {
+  ...hoisted,
+  getKnowledgeBase: knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReference,
+  getKnowledgeBaseWithCounts: knowledgeServiceMockFns.mockGetKnowledgeBaseById,
+  getDocument: knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocument,
+  getDocumentById: knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocumentById,
+  getTag: knowledgeTagsServiceMockFns.mockGetTagDefinitionById,
+  createAccessProvider: knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider,
+}
+mocks.createAccessProvider.mockImplementation(() => ({
+  get: async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] }),
+  getForDocuments: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
+  getForConnectors: vi.fn(async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] })),
+}))
+
 const workspace = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -69,20 +81,22 @@ const workspace = {
   billedAccountUserId: 'billing-user-1',
 }
 const knowledgeBase = { id: 'knowledge-1', workspaceId: 'workspace-1' }
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 
 describe('knowledge application contexts', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.getOrganizationPermissionConfig.mockResolvedValue(null)
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(
+      null
+    )
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
     mocks.getKnowledgeBaseWithCounts.mockResolvedValue({
       ...knowledgeBase,
       docCount: 3,
       tokenCount: 1536,
     })
-    mocks.loadWorkspace.mockResolvedValue(workspace)
-    mocks.loadWorkspaceIncludingArchived.mockResolvedValue(workspace)
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(workspace)
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValue(workspace)
   })
 
   it('selects only chunk identity before document authorization and never hydrates a denied chunk', async () => {
@@ -109,7 +123,7 @@ describe('knowledge application contexts', () => {
     await expect(
       resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'archived' }, principal)
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext).not.toHaveBeenCalled()
     expect(mocks.createAccessProvider).not.toHaveBeenCalled()
   })
 
@@ -154,7 +168,7 @@ describe('knowledge application contexts', () => {
     await expect(
       resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'unscoped-knowledge' }, principal)
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext).not.toHaveBeenCalled()
     expect(mocks.createAccessProvider).not.toHaveBeenCalled()
   })
 
@@ -248,7 +262,9 @@ describe('knowledge application contexts', () => {
         await expect(
           useCase.execute({ principal, input: { assertedOrganizationId: organizationId } })
         ).resolves.toBe('authorized')
-        expect(mocks.getOrganizationPermissionConfig).toHaveBeenLastCalledWith(organizationId)
+        expect(
+          permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+        ).toHaveBeenLastCalledWith(organizationId)
       }
       expect(execute).toHaveBeenCalledTimes(2)
       vi.clearAllMocks()
@@ -261,7 +277,9 @@ describe('knowledge application contexts', () => {
       expect(kind === 'tag' ? mocks.getTag : mocks.getConnector).toHaveBeenCalledWith(`${kind}-1`)
       expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('org-index')
       expect(mocks.createAccessProvider).not.toHaveBeenCalled()
-      expect(mocks.getOrganizationPermissionConfig).not.toHaveBeenCalled()
+      expect(
+        permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+      ).not.toHaveBeenCalled()
       expect(execute).not.toHaveBeenCalled()
     })
   })

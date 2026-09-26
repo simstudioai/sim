@@ -1,31 +1,26 @@
+import { terminalConsoleMockFns } from '@sim/testing'
+import {
+  workflowRegistryStoreMock,
+  workflowRegistryStoreMockFns,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockConsolePersist,
-  mockConsoleReset,
-  mockClearAllExecutionPointers,
   mockGetQueryClient,
   mockMothershipQueueReset,
   mockMothershipDraftsReset,
   mockOperationQueueReset,
   mockResetRegisteredUserData,
-  mockRegistrySetState,
   mockSubBlockSetState,
-  mockWaitForConsoleHydration,
   mockWorkflowSetState,
 } = vi.hoisted(() => ({
-  mockClearAllExecutionPointers: vi.fn(),
-  mockConsolePersist: vi.fn(),
-  mockConsoleReset: vi.fn(),
   mockGetQueryClient: vi.fn(),
   mockMothershipQueueReset: vi.fn(),
   mockMothershipDraftsReset: vi.fn(),
   mockOperationQueueReset: vi.fn(),
   mockResetRegisteredUserData: vi.fn(),
-  mockRegistrySetState: vi.fn(),
   mockSubBlockSetState: vi.fn(),
-  mockWaitForConsoleHydration: vi.fn(),
   mockWorkflowSetState: vi.fn(),
 }))
 
@@ -47,15 +42,7 @@ vi.mock('@/stores/mothership-queue/store', () => ({
 vi.mock('@/stores/operation-queue/store', () => ({
   useOperationQueueStore: { getState: () => ({ reset: mockOperationQueueReset }) },
 }))
-vi.mock('@/stores/terminal', () => ({
-  clearAllExecutionPointers: mockClearAllExecutionPointers,
-  consolePersistence: { persist: mockConsolePersist, reset: mockConsoleReset },
-  useTerminalConsoleStore: { setState: vi.fn() },
-  waitForConsoleHydration: mockWaitForConsoleHydration,
-}))
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: { setState: mockRegistrySetState },
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: { setState: mockSubBlockSetState },
 }))
@@ -64,6 +51,13 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 }))
 
 import { resetAllStores } from '@/stores/reset-all-stores'
+
+const mockRegistrySetState = workflowRegistryStoreMockFns.mockSetState
+const {
+  mockClearAllExecutionPointers,
+  mockWaitForConsoleHydration,
+  mockConsolePersistence: { persist: mockConsolePersist, reset: mockConsoleReset },
+} = terminalConsoleMockFns
 
 describe('resetAllStores', () => {
   let queryClient: QueryClient

@@ -4,63 +4,15 @@
  * build. A refused line or a name collision builds nothing, so it must not
  * consume the budget a real build needs.
  */
+import { backgroundTaskMock } from '@sim/testing/mocks/background-task.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockInsert, mockUpdate, calls } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockInsert: vi.fn(),
-  mockUpdate: vi.fn(),
-  calls: [] as string[],
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mockSelect, insert: mockInsert, update: mockUpdate, delete: vi.fn() },
-}))
-vi.mock('@sim/db/schema', () => ({
-  workspaceSandbox: {
-    id: 'id',
-    workspaceId: 'workspace_id',
-    name: 'name',
-    language: 'language',
-    dependencies: 'dependencies',
-    cliTools: 'cli_tools',
-    systemPackages: 'system_packages',
-    specHash: 'spec_hash',
-    createdBy: 'created_by',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-  sandboxImage: {
-    provider: 'provider',
-    specHash: 'spec_hash',
-    status: 'status',
-    errorCode: 'error_code',
-    errorMessage: 'error_message',
-    errorDetail: 'error_detail',
-    updatedAt: 'updated_at',
-  },
-}))
-vi.mock('drizzle-orm', () => {
-  const sql = Object.assign((strings: TemplateStringsArray) => ({ sql: strings.join('?') }), {
-    param: (value: unknown) => value,
-    raw: (value: unknown) => value,
-  })
-  return {
-    and: (...args: unknown[]) => args,
-    eq: (...args: unknown[]) => args,
-    gt: (...args: unknown[]) => args,
-    lt: (...args: unknown[]) => args,
-    or: (...args: unknown[]) => args,
-    ilike: (...args: unknown[]) => args,
-    inArray: (...args: unknown[]) => args,
-    asc: (value: unknown) => value,
-    desc: (value: unknown) => value,
-    sql,
-  }
-})
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({ id: 'e2b', dependencyStrategy: 'runtime' }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/cli-tools.server', () => ({
   assertSandboxCliToolsSupported: vi.fn(),
 }))
@@ -71,9 +23,7 @@ vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
 vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
   invalidateSandboxResolution: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/background', () => ({
-  runDetached: vi.fn(),
-}))
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
 
 import {
   createWorkspaceSandbox,
@@ -81,6 +31,14 @@ import {
   updateWorkspaceSandbox,
   WorkspaceSandboxNameConflictError,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+
+const { select: mockSelect, insert: mockInsert, update: mockUpdate } = dbChainMockFns
+const calls: string[] = []
+
+remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+  id: 'e2b',
+  dependencyStrategy: 'runtime',
+})
 
 const WORKSPACE_ID = 'workspace-1'
 const ROW = {

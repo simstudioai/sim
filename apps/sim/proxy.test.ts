@@ -1,15 +1,13 @@
-import { createEnvMock } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { NextRequest } from 'next/server'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
-    SIM_MCP_URL: 'https://mcp.sim.test/mcp',
-  })
-)
-
+import { afterAll, describe, expect, it } from 'vitest'
 import { proxy, resolveApiCorsPolicy } from '@/proxy'
+
+setEnv({
+  NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
+  SIM_MCP_URL: 'https://mcp.sim.test/mcp',
+})
+afterAll(resetEnvMock)
 
 const EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'

@@ -1,13 +1,13 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  rateLimit: vi.fn(async () => null),
   revoke: vi.fn(),
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/auth/oauth-token-family', () => ({ revokeOAuthToken: mocks.revoke }))
 
 import { POST } from '@/app/api/auth/oauth2/revoke/route'

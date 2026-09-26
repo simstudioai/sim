@@ -2,25 +2,13 @@
  * @vitest-environment jsdom
  */
 import { act, useContext } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockListOrganizations, mockSetActive } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockListOrganizations: vi.fn(),
-  mockSetActive: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    getSession: mockGetSession,
-    organization: {
-      list: mockListOrganizations,
-      setActive: mockSetActive,
-    },
-  },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('posthog-js', () => ({
   default: {
@@ -39,16 +27,10 @@ import {
 } from '@/app/_shell/providers/session-provider'
 import { sessionKeys } from '@/hooks/queries/session'
 
-/** Deferred promise: lets a test resolve a mocked async call at a chosen moment. */
-function defer<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
+const {
+  getSession: mockGetSession,
+  organization: { list: mockListOrganizations, setActive: mockSetActive },
+} = authClientMockFns.mockClient
 
 /** Set the jsdom URL search string before rendering the provider. */
 function setSearch(search: string) {
@@ -151,10 +133,6 @@ describe('SessionProvider', () => {
     setSearch('')
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('does not auto-select an organization for an external-only user during recovery', async () => {
     setSearch('?upgraded=true')
     mockGetSession.mockResolvedValue({ data: NO_ACTIVE_ORGANIZATION_SESSION })
@@ -192,8 +170,8 @@ describe('SessionProvider', () => {
   it('upgrade path: fresh disableCookieCache read wins even when the stale mount query resolves LAST', async () => {
     setSearch('?upgraded=true')
 
-    const mount = defer<{ data: AppSession }>()
-    const upgrade = defer<{ data: AppSession }>()
+    const mount = createDeferred<{ data: AppSession }>()
+    const upgrade = createDeferred<{ data: AppSession }>()
 
     mockGetSession.mockImplementation((arg?: unknown) => {
       if (isUpgradeCall(arg)) return upgrade.promise
@@ -229,8 +207,8 @@ describe('SessionProvider', () => {
   it('upgrade path: a failed fresh read keeps the user signed in and still reconciles plan surfaces', async () => {
     setSearch('?upgraded=true')
 
-    const mount = defer<{ data: AppSession }>()
-    const upgrade = defer<{ data: AppSession }>()
+    const mount = createDeferred<{ data: AppSession }>()
+    const upgrade = createDeferred<{ data: AppSession }>()
     mockGetSession.mockImplementation((arg?: unknown) =>
       isUpgradeCall(arg) ? upgrade.promise : mount.promise
     )

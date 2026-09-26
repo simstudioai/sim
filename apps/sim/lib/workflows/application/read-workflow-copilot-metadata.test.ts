@@ -1,32 +1,25 @@
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
 const mocks = vi.hoisted(() => ({
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  loadDraft: vi.fn(),
-  getBlock: vi.fn(),
   outputPaths: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadDraft,
-}))
-
-vi.mock('@/blocks/registry', () => ({ getBlock: mocks.getBlock }))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
   getEffectiveBlockOutputPaths: mocks.outputPaths,
@@ -51,6 +44,14 @@ vi.mock('@/lib/workflows/triggers/trigger-utils', () => ({
 
 import { readCopilotWorkflowBlockOutputs } from '@/lib/workflows/application/read-workflow-copilot-metadata'
 
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(undefined)
+
+const mockLoadDraft = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
 const principal = {
   kind: 'delegated' as const,
   serviceId: 'copilot' as const,
@@ -64,7 +65,7 @@ const principal = {
 
 describe('Copilot workflow metadata application queries', () => {
   beforeEach(() => {
-    mocks.resolveContext.mockResolvedValue({
+    mockResolveContext.mockResolvedValue({
       workflowId: 'workflow-1',
       workflow: {
         id: 'workflow-1',
@@ -78,8 +79,8 @@ describe('Copilot workflow metadata application queries', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.loadDraft.mockResolvedValue({
+    mockResolvePermission.mockResolvedValue('read')
+    mockLoadDraft.mockResolvedValue({
       blocks: {
         'agent-1': { type: 'agent', name: 'Support Agent', subBlocks: {} },
       },
@@ -87,12 +88,12 @@ describe('Copilot workflow metadata application queries', () => {
       loops: {},
       parallels: {},
     })
-    mocks.getBlock.mockReturnValue({ category: 'core' })
+    mockGetBlock.mockReturnValue({ category: 'core' })
     mocks.outputPaths.mockReturnValue(['content'])
   })
 
   it('rechecks current permission before loading workflow state', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    mockResolvePermission.mockResolvedValue(null)
 
     await expect(
       readCopilotWorkflowBlockOutputs.execute({
@@ -101,7 +102,7 @@ describe('Copilot workflow metadata application queries', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.loadDraft).not.toHaveBeenCalled()
+    expect(mockLoadDraft).not.toHaveBeenCalled()
   })
 
   it('rejects oversized block selections before loading workflow state', async () => {
@@ -115,6 +116,6 @@ describe('Copilot workflow metadata application queries', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.loadDraft).not.toHaveBeenCalled()
+    expect(mockLoadDraft).not.toHaveBeenCalled()
   })
 })

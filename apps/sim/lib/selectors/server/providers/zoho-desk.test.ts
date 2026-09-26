@@ -1,22 +1,27 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveSelectorCredentialBundle, mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockResolveSelectorCredentialBundle: vi.fn(),
-  mockSecureFetchWithValidation: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-}))
-
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveSelectorCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { zohoDeskSelectorAttachments } from '@/lib/selectors/server/providers/zoho-desk'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
+
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
 
 function organizationArgs(signal: AbortSignal): ExecuteServerSelectorArgs {
   return {
@@ -25,7 +30,7 @@ function organizationArgs(signal: AbortSignal): ExecuteServerSelectorArgs {
     request: { kind: 'list' },
     scope: { kind: 'workspace', workspaceId: 'workspace-1' },
     workspaceId: 'workspace-1',
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    principal: createSessionPrincipal(),
     requesterUserId: 'user-1',
     credential: { suppliedId: 'credential-1' },
     references: new Map(),

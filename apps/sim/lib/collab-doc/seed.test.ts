@@ -1,26 +1,25 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { getSchema } from '@tiptap/core'
 import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import * as collabState from '@/lib/collab-doc/collab-state'
 
-const { mockGetWorkspaceFile, mockFetchBuffer, mockLoadState, mockCommitState } = vi.hoisted(
-  () => ({
-    mockGetWorkspaceFile: vi.fn(),
-    mockFetchBuffer: vi.fn(),
-    mockLoadState: vi.fn(),
-    mockCommitState: vi.fn(),
-  })
-)
+const { mockGetWorkspaceFile, mockFetchWorkspaceFileBuffer: mockFetchBuffer } =
+  workspaceUploadsMockFns
+const mockLoadState = vi.fn()
+const mockCommitState = vi.fn()
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  fetchWorkspaceFileBuffer: mockFetchBuffer,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
-vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+beforeEach(() => {
+  vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
+  vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+})
 
 import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
 import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'

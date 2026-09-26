@@ -1,4 +1,4 @@
-import { migrationTestDatabaseUrl } from '@sim/db/scripts/migration-fixture'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { classifyDatabaseFailure } from '@sim/utils/errors'
 import { sql as statement } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 /** A port on the database host with nothing listening, so a connection is refused at once. */
 function closedPortUrl(): string {
-  const url = new URL(migrationTestDatabaseUrl!)
+  const url = new URL(readTestDatabaseUrl())
   url.port = '1'
   return url.toString()
 }
@@ -26,10 +26,10 @@ async function rejectionOf(work: () => Promise<unknown>): Promise<unknown> {
  * a transaction that loses its connection is rejected with the driver's bare connection error,
  * with no query attached and no Drizzle wrapper, and must still read as a connection failure.
  */
-describe.skipIf(!migrationTestDatabaseUrl)('database failure classification', () => {
+describe('database failure classification', () => {
   it('reads a connection terminated mid-transaction as a connection failure', async () => {
-    const admin = postgres(migrationTestDatabaseUrl!, { max: 1 })
-    const client = postgres(migrationTestDatabaseUrl!, { max: 1 })
+    const admin = postgres(readTestDatabaseUrl(), { max: 1 })
+    const client = postgres(readTestDatabaseUrl(), { max: 1 })
     try {
       const error = await rejectionOf(() =>
         drizzle(client).transaction(async (tx) => {
@@ -63,7 +63,7 @@ describe.skipIf(!migrationTestDatabaseUrl)('database failure classification', ()
   })
 
   it('reads a transaction begun on an ending pool as a connection failure', async () => {
-    const client = postgres(migrationTestDatabaseUrl!, { max: 1 })
+    const client = postgres(readTestDatabaseUrl(), { max: 1 })
     await client`SELECT 1`
     const ending = client.end({ timeout: 5 })
     const error = await rejectionOf(() =>

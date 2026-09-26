@@ -25,7 +25,6 @@ describe('workspace integration grant editor', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
   async function render(
     access: OrganizationAccountWorkspaceAccess['grants'][number]['access'] | null = { mode: 'all' },

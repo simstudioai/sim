@@ -1,43 +1,30 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
-  loadNormalized: vi.fn(),
   replace: vi.fn(),
   requireMutable: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_UPDATED: 'workflow.updated',
-    WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
-  },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
   replaceWorkflowNormalizedState: mocks.replace,
 }))
@@ -49,6 +36,13 @@ import {
   applyWorkflowVariableOperations,
   setWorkflowBlockEnabled,
 } from '@/lib/workflows/application/update-workflow-content'
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const context = {
   workflowId: 'workflow-1',
@@ -72,8 +66,8 @@ const principal = {
 describe('applyWorkflowVariableOperations', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     dbChainMockFns.for.mockResolvedValue([{ variables: {} }])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'workflow-1' }])
   })
@@ -111,7 +105,7 @@ describe('applyWorkflowVariableOperations', () => {
         }),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.variables_updated',
         resourceId: 'workflow-1',
@@ -122,8 +116,8 @@ describe('applyWorkflowVariableOperations', () => {
         }),
       })
     )
-    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
-    expect(dbChainMockFns.returning).toHaveBeenCalledBefore(mocks.notify)
+    expect(mockNotify).toHaveBeenCalledWith('workflow-1')
+    expect(dbChainMockFns.returning).toHaveBeenCalledBefore(mockNotify)
   })
 
   it('does not write, audit, or notify an authoritative no-op', async () => {
@@ -138,8 +132,8 @@ describe('applyWorkflowVariableOperations', () => {
     ).resolves.toEqual({ updated: 0, changed: false })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('rejects a delegated service the operation does not accept, before canonical loading', async () => {
@@ -159,7 +153,7 @@ describe('applyWorkflowVariableOperations', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 })
 
@@ -177,10 +171,10 @@ describe('setWorkflowBlockEnabled', () => {
 
   beforeEach(() => {
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     mocks.requireMutable.mockResolvedValue(undefined)
-    mocks.loadNormalized.mockResolvedValue({
+    mockLoadNormalized.mockResolvedValue({
       blocks: { 'block-1': BLOCK },
       edges: [],
       loops: {},
@@ -207,13 +201,13 @@ describe('setWorkflowBlockEnabled', () => {
     const { state } = mocks.replace.mock.calls[0]![0]
     expect(typeof state).toBe('function')
 
-    mocks.loadNormalized.mockClear()
+    mockLoadNormalized.mockClear()
     const tx = Symbol('tx')
     await expect(state(tx)).resolves.toEqual({
       blocks: { 'block-1': { ...BLOCK, enabled: false } },
       edges: [],
     })
-    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1', tx)
+    expect(mockLoadNormalized).toHaveBeenCalledWith('workflow-1', tx)
   })
 
   /** The returned state is what was persisted, not what was proposed. */

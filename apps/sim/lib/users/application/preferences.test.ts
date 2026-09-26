@@ -1,12 +1,13 @@
 import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { mothershipAgentUrlMock } from '@sim/testing/mocks/mothership-agent-url.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ authorize: vi.fn(), invalidate: vi.fn() }))
+const mocks = vi.hoisted(() => ({ authorize: vi.fn() }))
 vi.mock('@/lib/users/application/preferences-authorization', () => ({
   authorizeAccountPreferences: mocks.authorize,
 }))
-vi.mock('@/lib/mothership/server/agent-url', () => ({ invalidateSuperUserGate: mocks.invalidate }))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import {
   delegatedAccountPreferencesSchema,

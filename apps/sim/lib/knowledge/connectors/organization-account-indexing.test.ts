@@ -5,14 +5,17 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { validateBinding } = vi.hoisted(() => ({ validateBinding: vi.fn() }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  validateKnowledgeConnectorMembersBinding: validateBinding,
-}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 
 import { setOrganizationAccountIndexing } from '@/lib/knowledge/connectors/organization-account-indexing'
+
+const validateBinding = knowledgeMemberAccessMockFns.mockValidateKnowledgeConnectorMembersBinding
 
 const input = {
   organizationId: 'org-1',

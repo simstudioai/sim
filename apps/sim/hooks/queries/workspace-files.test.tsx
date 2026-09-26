@@ -7,7 +7,12 @@
  * setups replace this module, so without this file the passthrough itself would be exercised by
  * nothing but the type-checker.
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
@@ -27,9 +32,9 @@ import {
   workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
-const { mockRequestJson } = vi.hoisted(() => ({ mockRequestJson: vi.fn() }))
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 let fetchCount = 0
 
@@ -43,10 +48,6 @@ beforeEach(() => {
       return new Response('# content', { status: 200 })
     })
   )
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 function renderContentHook(options?: {

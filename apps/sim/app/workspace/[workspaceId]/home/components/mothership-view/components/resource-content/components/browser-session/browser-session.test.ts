@@ -37,7 +37,6 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
-  vi.restoreAllMocks()
 })
 
 describe('claimPermissionResponse', () => {

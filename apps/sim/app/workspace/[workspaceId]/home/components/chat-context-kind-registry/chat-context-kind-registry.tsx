@@ -8,6 +8,7 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Workspaces,
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -101,6 +102,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
+  },
+  workspace: {
+    label: 'Workspace',
+    renderIcon: ({ className }) => <Workspaces className={className} />,
   },
   past_chat: {
     label: 'Past chat',

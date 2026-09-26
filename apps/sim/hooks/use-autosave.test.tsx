@@ -140,7 +140,6 @@ describe('useAutosave', () => {
   afterEach(() => {
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
-    vi.restoreAllMocks()
   })
 
   it('keeps saving and local recovery tied to the committed draft after a suspended render', async () => {

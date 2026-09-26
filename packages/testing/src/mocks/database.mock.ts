@@ -1,8 +1,12 @@
 import { vi } from 'vitest'
+import { schemaMock } from './schema.mock'
+import { GENERATED_DB_CONSTANTS } from './schema-tables.generated'
 
 /**
  * Creates mock SQL template literal function.
- * Mimics drizzle-orm's sql tagged template.
+ * Mimics drizzle-orm's sql tagged template. `sql` itself and `sql.raw` / `sql.join` /
+ * `sql.param` are `vi.fn` spies with the fragment-building default, so a test inspects
+ * `vi.mocked(sql).mock.calls` (strings + interpolated values) without re-mocking `drizzle-orm`.
  *
  * The `Date` guards below are a best-effort backstop, not the gate: tests that
  * override the `drizzle-orm` mock bypass them entirely. `bun run check:sql-date-binding`
@@ -14,7 +18,7 @@ import { vi } from 'vitest'
  * options are irrelevant to this failure.
  */
 export function createMockSql() {
-  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+  const sqlFn = vi.fn((strings: TemplateStringsArray, ...values: any[]) => {
     if (values.some((value) => value instanceof Date)) {
       throw new Error(
         `sql\`…\${date}\` interpolates a Date without an encoder, so drizzle never runs ` +
@@ -33,28 +37,28 @@ export function createMockSql() {
       mapWith: (decoder: unknown) => ({ ...fragment, decoder }),
     }
     return fragment
-  }
-
-  sqlFn.raw = (rawSql: string) => ({
-    rawSql,
-    toSQL: () => ({ sql: rawSql, params: [] }),
   })
 
-  sqlFn.join = (fragments: any[], separator: any) => ({
+  const raw = vi.fn((rawSql: string) => ({
+    rawSql,
+    toSQL: () => ({ sql: rawSql, params: [] }),
+  }))
+
+  const join = vi.fn((fragments: any[], separator: any) => ({
     fragments,
     separator,
     toSQL: () => ({
       sql: fragments.map((f) => f?.toSQL?.()?.sql || String(f)).join(separator?.rawSql || ', '),
       params: fragments.flatMap((f) => f?.toSQL?.()?.params || []),
     }),
-  })
+  }))
 
   // Binds a value as a single parameter. Rejecting arrays here is the only place
   // the unit suite can see this bug class: the app pools set `fetch_types: false`
   // (packages/db/db.ts), which leaves postgres-js with no array serializer, so an
   // array bound as ONE parameter fails at execution with `22P02`. Rendered SQL
   // looks perfect (`ANY($1::text[])`), so no assertion on query text can catch it.
-  sqlFn.param = (value: any, encoder?: any) => {
+  const param = vi.fn((value: any, encoder?: any) => {
     if (encoder === undefined && Array.isArray(value)) {
       throw new Error(
         'sql.param(array) binds an array as one parameter, which fails under ' +
@@ -71,9 +75,9 @@ export function createMockSql() {
       )
     }
     return { value, toSQL: () => ({ sql: '?', params: [value] }) }
-  }
+  })
 
-  return sqlFn
+  return Object.assign(sqlFn, { raw, join, param })
 }
 
 /**
@@ -322,6 +326,7 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   const builder = lazyRowsThenable(getRows)
   builder.where = spyOrDefault(where, () => terminalBuilder(getRows, fields))
   builder.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  builder.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
   builder.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   builder.innerJoin = spyOrDefault(innerJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
@@ -436,10 +441,37 @@ export const dbChainMock = {
 }
 
 /**
+ * Mirrors `resolveDbUrl` from `@sim/db` (pure): the role-keyed variant
+ * (`DATABASE_URL_TRIGGER`) wins, falling back to the shared base variable.
+ */
+function resolveDbUrl(
+  base: 'DATABASE_URL' | 'DATABASE_REPLICA_URL',
+  role: string
+): string | undefined {
+  return process.env[`${base}_${role.toUpperCase()}`] ?? process.env[base]
+}
+
+/**
+ * Controllable mock functions for the non-query exports of `@sim/db`.
+ * `mockResolveDbUrl` is the real (pure) env lookup; the row-count trigger helpers are bare.
+ */
+export const databaseMockFns = {
+  mockResolveDbUrl: vi.fn(resolveDbUrl),
+  mockEnsureRowCountTriggers: vi.fn(async (): Promise<void> => {}),
+  mockVerifyRowCountTriggers: vi.fn(async () => ({
+    incrementTrigger: true,
+    decrementTrigger: true,
+  })),
+}
+
+/**
  * Mock module for `@sim/db` installed globally in vitest.setup.ts. Shares its
  * `db` instance (and therefore all chain spies and table queues) with
- * `dbChainMock`; additionally exposes the `sql` template tag and operator
- * exports the real module provides.
+ * `dbChainMock`, and re-exports everything else the real barrel does: every
+ * schema table/enum (the SAME objects as `schemaMock`, so `queueTableRows`
+ * routing is identical whichever specifier the code imports a table from),
+ * `resolveDbUrl`, `DB_POOL_PROFILES`, the row-count trigger SQL and helpers,
+ * plus the `sql` template tag and operator exports.
  *
  * @example
  * ```ts
@@ -447,7 +479,12 @@ export const dbChainMock = {
  * ```
  */
 export const databaseMock = {
+  ...schemaMock,
+  ...GENERATED_DB_CONSTANTS,
   ...dbChainMock,
+  resolveDbUrl: databaseMockFns.mockResolveDbUrl,
+  ensureRowCountTriggers: databaseMockFns.mockEnsureRowCountTriggers,
+  verifyRowCountTriggers: databaseMockFns.mockVerifyRowCountTriggers,
   sql: createMockSql(),
   ...createMockSqlOperators(),
 }

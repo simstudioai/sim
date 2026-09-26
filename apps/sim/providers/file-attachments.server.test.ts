@@ -1,3 +1,17 @@
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -16,27 +30,21 @@ import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
 
-const {
-  mockDownloadServableFileFromStorage,
-  mockGeneratePresignedDownloadUrl,
-  mockHasCloudStorage,
-  mockVerifyFileAccess,
-  mockCreateExecutorPrincipal,
-  mockAssertUserFileContentAccess,
-  mockGoogleUpload,
-} = vi.hoisted(() => ({
-  mockDownloadServableFileFromStorage: vi.fn(),
-  mockGeneratePresignedDownloadUrl: vi.fn(),
-  mockHasCloudStorage: vi.fn(),
-  mockVerifyFileAccess: vi.fn(),
-  mockCreateExecutorPrincipal: vi.fn(),
+const mockCreateExecutorPrincipal =
+  executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+
+const mockVerifyFileAccess = filesAuthorizationMockFns.mockVerifyFileAccess
+const mockDownloadServableFileFromStorage =
+  fileUtilsServerMockFns.mockDownloadServableFileFromStorage
+const mockHasCloudStorage = storageServiceMockFns.mockHasCloudStorage
+const mockGeneratePresignedDownloadUrl = storageServiceMockFns.mockGeneratePresignedDownloadUrl
+
+const { mockAssertUserFileContentAccess, mockGoogleUpload } = vi.hoisted(() => ({
   mockAssertUserFileContentAccess: vi.fn(),
   mockGoogleUpload: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   assertUserFileContentAccess: mockAssertUserFileContentAccess,
@@ -49,20 +57,11 @@ vi.mock('@google/genai', () => ({
   },
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    hasCloudStorage: mockHasCloudStorage,
-    generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 /** The exact file from the reported failure: 9,591,617 bytes — over 6 MiB, under 50 MB. */
 const CSV_BYTES = 9_591_617

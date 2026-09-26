@@ -3,6 +3,12 @@
  * even when the child workflow has a Response block.
  */
 
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
@@ -11,19 +17,9 @@ import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 import type { ExecutionResult } from '@/lib/workflows/types'
 import { createHttpResponseFromBlock } from '@/lib/workflows/utils'
 
-const {
-  mockAddLargeValueReference,
-  mockDownloadFile,
-  mockRegisterLargeValueOwner,
-  mockUploadFile,
-  uploadedFiles,
-} = vi.hoisted(() => ({
-  mockAddLargeValueReference: vi.fn(),
-  mockDownloadFile: vi.fn(),
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-  uploadedFiles: new Map<string, Buffer>(),
-}))
+const { mockAddLargeValueReference, mockRegisterLargeValueOwner } = largeValueMetadataMockFns
+const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
+const uploadedFiles = new Map<string, Buffer>()
 
 const MATERIALIZATION_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -32,17 +28,9 @@ const MATERIALIZATION_CONTEXT = {
   userId: 'user-1',
 }
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  addLargeValueReference: mockAddLargeValueReference,
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 function buildExecutionResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
   return {

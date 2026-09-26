@@ -1,24 +1,25 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const { mockDeleteFile, mockDeleteMetadata, mockGetBindings } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
-  mockDeleteMetadata: vi.fn(),
-  mockGetBindings: vi.fn(),
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: mockDeleteMetadata,
-  getFileMetadataByKeys: mockGetBindings,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
   KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteMetadata = uploadsMetadataMockFns.mockDeleteFileMetadataByIdentity
+const mockGetBindings = uploadsMetadataMockFns.mockGetFileMetadataByKeys
 
 const version = new Date('2026-09-08T00:00:00.123Z')
 const binding = {

@@ -6,6 +6,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/oauth/terminal-errors', () => ({ clearDeadFlag: mocks.clearDeadFlag }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   handleCreateCredentialFromDraft,

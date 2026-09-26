@@ -1,8 +1,27 @@
 import { credential, member, user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => {
+const hoisted = vi.hoisted(() => {
   const values = new Map<string, { value: string; expires: number }>()
   return {
     values,
@@ -48,61 +67,36 @@ const m = vi.hoisted(() => {
     reader: vi.fn(),
     receipt: vi.fn(),
     provision: vi.fn(),
-    enrollment: vi.fn(),
-    oauthContext: vi.fn(),
     oauthStart: vi.fn(),
     oauthComplete: vi.fn(),
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => ({ get: m.get, set: m.set, eval: m.eval }),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/knowledge/application/github-installations', () => ({
-  listGitHubSearchInstallations: { execute: m.list },
-  connectGitHubSearchInstallation: { execute: m.connect },
-  findGitHubSearchReaderCredential: m.reader,
+  listGitHubSearchInstallations: { execute: hoisted.list },
+  connectGitHubSearchInstallation: { execute: hoisted.connect },
+  findGitHubSearchReaderCredential: hoisted.reader,
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  provisionKnowledgeConnectorMembersBinding: m.provision,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: m.enrollment,
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: m.oauthContext,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: m.oauthStart }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.oauthStart }))
 vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
-  completePublicCredentialGroupOAuth: { execute: m.oauthComplete },
+  completePublicCredentialGroupOAuth: { execute: hoisted.oauthComplete },
 }))
 vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
-  readSearchConnectionCompletion: m.receipt,
+  readSearchConnectionCompletion: hoisted.receipt,
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
     github: { name: 'GitHub', auth: { mode: 'oauth', provider: 'github-repositories' } },
   },
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  ManagedOAuthCredentialError: class extends Error {},
-}))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {},
-  getGitHubInstallationConfiguration: () => ({
-    configured: true,
-    installUrl: 'https://github.com/apps/test-search/installations/new',
-  }),
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 
 import {
   cancelGitHubSearchSetup,
@@ -119,7 +113,26 @@ import {
   saveGitHubSetupAttempt,
 } from '@/lib/knowledge/github-setup-state'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'browser-1' } as const
+const m = {
+  ...hoisted,
+  enrollment: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  oauthContext: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+}
+
+githubInstallationMockFns.mockGetGitHubInstallationConfiguration.mockReturnValue({
+  configured: true,
+  installUrl: 'https://github.com/apps/test-search/installations/new',
+})
+
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => ({
+  get: m.get,
+  set: m.set,
+  eval: m.eval,
+}))
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'browser-1' })
 const input = { organizationId: 'organization', setupId: '550e8400-e29b-41d4-a716-446655440000' }
 const scope = { ...input, userId: principal.userId, sessionId: principal.sessionId }
 const installation = {
@@ -359,19 +372,11 @@ describe('GitHub setup reader OAuth continuation', () => {
   })
 })
 
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((complete) => {
-    resolve = complete
-  })
-  return { promise, resolve }
-}
-
 describe('GitHub setup atomic claims', () => {
   it('a claimed final grant survives cancellation and concurrent callback replay without a duplicate grant', async () => {
     const state = new URL((await start()).url).searchParams.get('state')!
-    const entered = deferred<void>()
-    const connected = deferred<{ credential: typeof resultCredential }>()
+    const entered = createDeferred<void>()
+    const connected = createDeferred<{ credential: typeof resultCredential }>()
     m.connect.mockImplementationOnce(() => {
       entered.resolve()
       return connected.promise

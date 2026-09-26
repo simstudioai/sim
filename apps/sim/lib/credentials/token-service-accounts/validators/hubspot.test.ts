@@ -1,20 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 
 const TOKEN_INFO_URL = 'https://api.hubapi.com/oauth/v2/private-apps/get/access-token-info'
 const ACCOUNT_INFO_URL = 'https://api.hubapi.com/account-info/v3/details'
 
 const FIELDS = { apiToken: 'pat-na1-aaaa-bbbb' }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 function htmlResponse(status: number, body: string): Response {
   return {
@@ -52,14 +43,10 @@ describe('validateHubspotServiceAccount', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('falls back to account-info on primary 404 and succeeds with portalId', async () => {
     mockFetch
       .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
-      .mockResolvedValueOnce(jsonResponse(200, { portalId: 123, uiDomain: 'app.hubspot.com' }))
+      .mockResolvedValueOnce(jsonResponse({ portalId: 123, uiDomain: 'app.hubspot.com' }))
 
     const result = await validateHubspotServiceAccount(FIELDS)
 
@@ -77,7 +64,7 @@ describe('validateHubspotServiceAccount', () => {
     mockFetch
       .mockResolvedValueOnce(htmlResponse(404, '<html><body>404 Not Found</body></html>'))
       .mockResolvedValueOnce(
-        jsonResponse(401, { status: 'error', category: 'INVALID_AUTHENTICATION' })
+        jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
       )
 
     await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
@@ -89,8 +76,8 @@ describe('validateHubspotServiceAccount', () => {
 
   it('treats primary 400 with fallback 403 as a live token without account-info access', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(400, { status: 'error', message: 'bad request' }))
-      .mockResolvedValueOnce(jsonResponse(403, { status: 'error', category: 'MISSING_SCOPES' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'error', message: 'bad request' }, 400))
+      .mockResolvedValueOnce(jsonResponse({ status: 'error', category: 'MISSING_SCOPES' }, 403))
 
     const result = await validateHubspotServiceAccount(FIELDS)
 
@@ -103,7 +90,7 @@ describe('validateHubspotServiceAccount', () => {
 
   it('throws invalid_credentials on primary 401 without calling the fallback', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(401, { status: 'error', category: 'INVALID_AUTHENTICATION' })
+      jsonResponse({ status: 'error', category: 'INVALID_AUTHENTICATION' }, 401)
     )
 
     await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({

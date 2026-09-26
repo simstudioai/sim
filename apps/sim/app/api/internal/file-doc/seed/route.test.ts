@@ -1,22 +1,24 @@
 import { createMockRequest } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckInternalApiKey, mockBuildFileDocSeed } = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
+const { mockBuildFileDocSeed } = vi.hoisted(() => ({
   mockBuildFileDocSeed: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-  createUnauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/collab-doc/seed', () => ({
   buildFileDocSeed: mockBuildFileDocSeed,
 }))
 
 import { POST } from '@/app/api/internal/file-doc/seed/route'
+
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+copilotHttpMockFns.mockCreateUnauthorizedResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
 
 function seedRequest(body: unknown) {
   return createMockRequest('POST', body, { 'x-api-key': 'internal' })

@@ -29,7 +29,6 @@ const base = {
 }
 const dialect = new PgDialect()
 beforeEach(() => {
-  vi.clearAllMocks()
   guards.mockImplementation((cb) => cb({ execute }))
   execute.mockResolvedValue([{ data: { total: 0 } }])
 })

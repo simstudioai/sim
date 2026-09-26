@@ -1,3 +1,4 @@
+import { backgroundTaskMock } from '@sim/testing/mocks/background-task.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFinishBackgroundWork, mockCopyForkResourceContent, mockExecuteForkFileBlobCopies } =
@@ -7,8 +8,7 @@ const { mockFinishBackgroundWork, mockCopyForkResourceContent, mockExecuteForkFi
     mockExecuteForkFileBlobCopies: vi.fn(),
   }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: vi.fn() }))
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   finishBackgroundWork: mockFinishBackgroundWork,
 }))

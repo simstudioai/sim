@@ -1,4 +1,5 @@
-import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -6,10 +7,8 @@ const {
   mockGetStorageUsageForBillingContext,
   mockGetUserStorageLimit,
   mockGetUserStorageUsage,
-  mockLoggerError,
   mockMaybeNotifyLimit,
   mockOrderedLockRows,
-  mockSql,
   mockTxFor,
   mockTxFrom,
   mockTxLimit,
@@ -26,10 +25,8 @@ const {
   mockGetStorageUsageForBillingContext: vi.fn(),
   mockGetUserStorageLimit: vi.fn(),
   mockGetUserStorageUsage: vi.fn(),
-  mockLoggerError: vi.fn(),
   mockMaybeNotifyLimit: vi.fn(),
   mockOrderedLockRows: { queue: [] as unknown[][] },
-  mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
   mockTxFor: vi.fn(),
   mockTxFrom: vi.fn(),
   mockTxLimit: vi.fn(),
@@ -54,32 +51,6 @@ const mockTx = {
   update: mockTxUpdate,
 }
 
-vi.mock('@sim/db/schema', () => ({
-  organization: {
-    id: 'organization.id',
-    storageUsedBytes: 'organization.storageUsedBytes',
-  },
-  userStats: {
-    storageUsedBytes: 'userStats.storageUsedBytes',
-    userId: 'userStats.userId',
-  },
-  workspace: {
-    billedAccountUserId: 'workspace.billedAccountUserId',
-    id: 'workspace.id',
-    organizationId: 'workspace.organizationId',
-    storageUsedBytes: 'workspace.storageUsedBytes',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => conditions),
-  asc: vi.fn((field: unknown) => ({ field, order: 'asc' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  gte: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  inArray: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  sql: mockSql,
-}))
-
 vi.mock('@/lib/billing/core/limit-notifications', () => ({
   maybeNotifyLimit: mockMaybeNotifyLimit,
 }))
@@ -94,14 +65,6 @@ vi.mock('@/lib/billing/storage/limits', () => ({
   isStorageEnforcementEnabled: () => envFlagsMock.isBillingEnabled,
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    error: mockLoggerError,
-    info: vi.fn(),
-    warn: vi.fn(),
-  }),
-}))
-
 import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import {
   applyStorageUsageDeltasInTx,
@@ -109,6 +72,8 @@ import {
   incrementStorageUsageForBillingContextInTx,
 } from '@/lib/billing/storage/tracking'
 import type { DbOrTx } from '@/lib/db/types'
+
+const { error: mockLoggerError } = getMockLogger('StorageTracking')
 
 const ORG_CONTEXT: StorageBillingContext = {
   workspaceId: 'workspace-1',
@@ -414,8 +379,8 @@ describe('workspace storage counter mutations', () => {
             table = tableName(source)
             return chain
           },
-          where(condition: { value: string[] }) {
-            ids = condition.value
+          where(condition: { values: string[] }) {
+            ids = condition.values
             return chain
           },
           orderBy() {

@@ -1,79 +1,55 @@
 import { resetDbChainMock } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  abortUpload: vi.fn(),
-  assertBinding: vi.fn(),
-  checkUsage: vi.fn(),
-  completeUpload: vi.fn(),
-  createDocument: vi.fn(),
-  createPartUrls: vi.fn(),
-  createUpload: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   findBound: vi.fn(),
-  getUpload: vi.fn(),
-  processQueue: vi.fn(),
-  recordAudit: vi.fn(),
-  recordOwnership: vi.fn(),
-  resolveBilling: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
   validateFileType: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { DOCUMENT_UPLOADED: 'document.uploaded' },
-  AuditResourceType: { DOCUMENT: 'document' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mocks.checkUsage,
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveSystemBillingAttribution: mocks.resolveBilling,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: mocks.createDocument,
-  processDocumentsWithQueue: mocks.processQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
-  findBoundKnowledgeDocument: mocks.findBound,
+  findBoundKnowledgeDocument: hoisted.findBound,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  recordKnowledgeBaseFileOwnership: mocks.recordOwnership,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
   requestOrigin: () => 'http://localhost:3000',
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  abortUploadSession: mocks.abortUpload,
-  assertUploadSessionAuthBinding: mocks.assertBinding,
-  completeUploadSession: mocks.completeUpload,
-  createUploadPartUrls: mocks.createPartUrls,
-  createUploadSession: mocks.createUpload,
-  getPrincipalKnowledgeDocumentUploadSession: mocks.getUpload,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
-  validateFileType: mocks.validateFileType,
+  validateFileType: hoisted.validateFileType,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -85,6 +61,22 @@ import {
 } from '@/lib/knowledge/application/upload-sessions'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
+const mocks = {
+  ...hoisted,
+  createDocument: knowledgeDocumentsServiceMockFns.mockCreateSingleDocument,
+  processQueue: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+  abortUpload: uploadSessionMockFns.mockAbortUploadSession,
+  assertBinding: uploadSessionMockFns.mockAssertUploadSessionAuthBinding,
+  completeUpload: uploadSessionMockFns.mockCompleteUploadSession,
+  createPartUrls: uploadSessionMockFns.mockCreateUploadPartUrls,
+  createUpload: uploadSessionMockFns.mockCreateUploadSession,
+  getUpload: uploadSessionMockFns.mockGetPrincipalKnowledgeDocumentUploadSession,
+}
+
+billingAttributionMockFns.mockResolveSystemBillingAttribution.mockImplementation(
+  (...args: unknown[]) => billingAttributionMockFns.mockResolveBillingAttribution(...args)
+)
+
 const CONTEXT = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -93,11 +85,7 @@ const CONTEXT = {
   knowledgeBaseId: 'knowledge-1',
   knowledgeBase: { id: 'knowledge-1', name: 'Docs', workspaceId: 'workspace-1' },
 }
-const PRINCIPAL = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const BILLING = {
   actorUserId: 'user-1',
   workspaceId: 'workspace-1',
@@ -134,7 +122,7 @@ const SESSION: UploadSessionRecord = {
     authBinding: {
       version: 1,
       workspaceId: 'workspace-1',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     },
   },
   uploadToken: 'token',
@@ -170,16 +158,18 @@ const REQUEST = { headers: new Headers() }
 describe('knowledge-document upload application lifecycle', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(CONTEXT)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveBilling.mockResolvedValue(BILLING)
-    mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(CONTEXT)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue(BILLING)
+    billingAttributionMockFns.mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: false,
+    })
     mocks.validateFileType.mockReturnValue(null)
     mocks.createUpload.mockResolvedValue({
       ...SESSION,
       transfer: { method: 'multipart', partSize: SESSION.partSize, partCount: 1 },
     })
-    mocks.recordOwnership.mockResolvedValue(undefined)
+    uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
     mocks.getUpload.mockResolvedValue(SESSION)
     mocks.createPartUrls.mockResolvedValue([
       {
@@ -196,7 +186,7 @@ describe('knowledge-document upload application lifecycle', () => {
   })
 
   it('rejects insufficient role before allocating provider state', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
 
     await expect(
       createKnowledgeDocumentUpload.execute({
@@ -232,7 +222,7 @@ describe('knowledge-document upload application lifecycle', () => {
       expect.objectContaining({ principal: PRINCIPAL, uploadId: 'upload-1' })
     )
     expect(mocks.assertBinding).toHaveBeenCalledWith(SESSION, PRINCIPAL)
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(2)
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledTimes(2)
     expect(mocks.createPartUrls).toHaveBeenCalledWith(
       expect.objectContaining({ session: SESSION, partNumbers: [1] })
     )
@@ -287,7 +277,9 @@ describe('knowledge-document upload application lifecycle', () => {
     })
 
     expect(result.value.created).toBe(true)
-    expect(mocks.resolvePermission.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.calls.length
+    ).toBeGreaterThanOrEqual(4)
     expect(mocks.createDocument).toHaveBeenCalledWith(
       expect.any(Object),
       'knowledge-1',
@@ -297,7 +289,7 @@ describe('knowledge-document upload application lifecycle', () => {
       undefined,
       { expectedWorkspaceId: 'workspace-1' }
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'document.uploaded',
         resourceId: 'upload-1',
@@ -334,10 +326,10 @@ describe('knowledge-document upload application lifecycle', () => {
     })
 
     expect(result.value.created).toBe(false)
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
     expect(mocks.processQueue).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('converges a finalization retry after durable bind without duplicate document or audit', async () => {
@@ -402,11 +394,14 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(retry.value.created).toBe(false)
     expect(mocks.createDocument).not.toHaveBeenCalled()
     expect(mocks.processQueue).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast when billing ownership changes before durable registration', async () => {
-    mocks.resolveBilling.mockResolvedValue({ ...BILLING, billedAccountUserId: 'stale-owner' })
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
+      ...BILLING,
+      billedAccountUserId: 'stale-owner',
+    })
     mocks.completeUpload.mockImplementation(
       async (params: {
         session: UploadSessionRecord
@@ -431,7 +426,7 @@ describe('knowledge-document upload application lifecycle', () => {
   })
 
   it('conceals an asserted workspace mismatch as not found', async () => {
-    mocks.resolveContext.mockRejectedValue(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockRejectedValue(
       new OrchestrationError('not_found', 'Knowledge base not found')
     )
 

@@ -1,39 +1,27 @@
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDeleteFiles, mockDeleteFileMetadata } = vi.hoisted(() => ({
-  mockDeleteFiles: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  task: vi.fn((config) => config),
-  queue: vi.fn((config) => config),
-}))
 vi.mock('@/lib/billing/cleanup-dispatcher', () => ({ runCleanupWithLimits: vi.fn() }))
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  LIVE_PAUSED_REFERENCE_STATUSES: ['paused', 'partially_resumed', 'cancelling'],
-  markLargeValuesDeleted: vi.fn(),
-  pruneLargeValueMetadata: vi.fn(async () => ({
-    referencesDeleted: 0,
-    dependenciesDeleted: 0,
-    tombstonesDeleted: 0,
-  })),
-  unreferencedLargeValuePredicate: vi.fn(),
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: { cleanupOrphanedSnapshots: vi.fn() },
 }))
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: vi.fn(() => true),
-  StorageService: { deleteFiles: mockDeleteFiles },
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { runCleanupLogs } from '@/background/cleanup-logs'
+
+const { mockDeleteFiles } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+uploadsMockFns.mockIsUsingCloudStorage.mockReturnValue(true)
 
 const payload = {
   label: 'free/1',

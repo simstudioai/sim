@@ -1,19 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   artifact: vi.fn(),
   history: vi.fn(),
-  redact: vi.fn(),
   prefix: vi.fn(),
 }))
-vi.mock('@/lib/memory/retrieval-prefix', () => ({ readMemoryRetrievalPrefix: mocks.prefix }))
+vi.mock('@/lib/memory/retrieval-prefix', () => ({ readMemoryRetrievalPrefix: hoisted.prefix }))
 vi.mock('@/lib/memory/artifacts', () => ({
   MAX_MEMORY_ARTIFACT_BYTES: 8 * 1024 * 1024,
-  readMemoryArtifactByHandle: mocks.artifact,
+  readMemoryArtifactByHandle: hoisted.artifact,
 }))
 vi.mock('@/lib/memory/artifact-handle', () => ({ getMemoryArtifactHandle: () => 'b'.repeat(64) }))
-vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: mocks.history }))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: mocks.redact }))
+vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: hoisted.history }))
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 
 import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 import {
@@ -23,6 +23,12 @@ import {
   type RetrieveMemoryInput,
   retrieveMemory,
 } from '@/lib/memory/retrieval'
+
+const mocks = {
+  ...hoisted,
+  redact: piiRedactionMockFns.mockRedactObjectStrings as Mock<(value: unknown) => Promise<unknown>>,
+}
+
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const artifactId = 'a'.repeat(64)

@@ -1,67 +1,41 @@
-import { createMockRequest } from '@sim/testing'
-import { NextResponse } from 'next/server'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import { MockTableConflictError } from '@sim/testing/mocks/table-service.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableConflictError } = vi.hoisted(() => {
-  class MockTableConflictError extends Error {
-    constructor(name: string) {
-      super(`A table named "${name}" already exists in this workspace`)
-      this.name = 'TableConflictError'
-    }
-  }
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-  return {
-    mocks: {
-      checkRateLimit: vi.fn(),
-      validateWorkspaceAccess: vi.fn(),
-      createTable: vi.fn(),
-      getWorkspaceTableLimits: vi.fn(),
-      orchestrationErrorResponse: vi.fn(),
-    },
-    MockTableConflictError,
-  }
-})
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
+vi.mock('@/lib/table/wire', () => tableWireMock)
+vi.mock('@/lib/table', () => tableMock)
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mocks.checkRateLimit,
-  createRateLimitResponse: () => NextResponse.json({ error: 'Rate limited' }, { status: 429 }),
-  validateWorkspaceAccess: mocks.validateWorkspaceAccess,
-  v1ValidationErrorResponse: (error: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 }),
-  v1ValidationErrorResponseFromError: vi.fn(() => null),
-}))
-
-vi.mock('@/app/api/table/utils', () => ({
-  orchestrationErrorResponse: mocks.orchestrationErrorResponse,
-}))
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: (column: unknown) => column,
-}))
-
-vi.mock('@/lib/table', () => ({
-  createTable: mocks.createTable,
-  getWorkspaceTableLimits: mocks.getWorkspaceTableLimits,
-  listTables: vi.fn(),
-  TableConflictError: MockTableConflictError,
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_CREATED: 'table.created' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { POST } from '@/app/api/v1/tables/route'
 
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockV1ValidationErrorResponseFromError.mockReturnValue(null)
+
+const mockCreateTable = tableMockFns.mockCreateTable
+const mockGetWorkspaceTableLimits = tableMockFns.mockGetWorkspaceTableLimits
+const mockOrchestrationErrorResponse = tableRouteUtilsMockFns.mockOrchestrationErrorResponse
+
 describe('POST /api/v1/tables', () => {
   beforeEach(() => {
-    mocks.checkRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
-    mocks.validateWorkspaceAccess.mockResolvedValue(null)
-    mocks.getWorkspaceTableLimits.mockResolvedValue({ maxTables: 10 })
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
+    mockValidateWorkspaceAccess.mockResolvedValue(null)
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 10 })
   })
 
   it('preserves the legacy 400 response for a duplicate table name', async () => {
-    mocks.createTable.mockRejectedValue(new MockTableConflictError('Reports'))
+    mockCreateTable.mockRejectedValue(new MockTableConflictError('Reports'))
 
     const response = await POST(
       createMockRequest('POST', {
@@ -75,6 +49,6 @@ describe('POST /api/v1/tables', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'A table named "Reports" already exists in this workspace',
     })
-    expect(mocks.orchestrationErrorResponse).not.toHaveBeenCalled()
+    expect(mockOrchestrationErrorResponse).not.toHaveBeenCalled()
   })
 })

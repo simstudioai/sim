@@ -1,23 +1,27 @@
 import { account } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchProviderJson, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetchProviderJson } = vi.hoisted(() => ({
   mockFetchProviderJson: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
   fetchProviderJson: mockFetchProviderJson,
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 const SCOPED_ACCOUNT_ID = 'slack-usr_U12345678-123e4567-e89b-12d3-a456-426614174000'
 

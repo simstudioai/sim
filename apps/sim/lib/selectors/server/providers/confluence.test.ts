@@ -1,14 +1,15 @@
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveCredentialBundle, mockResolveCloudId } = vi.hoisted(() => ({
+const { mockFetch, mockResolveCloudId } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveCredentialBundle: vi.fn(),
   mockResolveCloudId: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 vi.mock('@/lib/selectors/server/providers/atlassian', () => ({
   resolveSelectorAtlassianCloudId: mockResolveCloudId,
@@ -19,6 +20,9 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
 import * as providerHttp from '@/lib/selectors/server/providers/provider-http'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
 function pageDetailArgs(): ExecuteServerSelectorArgs {
   return {

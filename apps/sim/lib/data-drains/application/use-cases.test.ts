@@ -1,54 +1,47 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  enterprise: vi.fn(),
-  config: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   test: vi.fn(),
   encrypt: vi.fn(),
   decrypt: vi.fn(),
-  enqueue: vi.fn(),
   outbound: vi.fn(),
-  flags: { isBillingEnabled: true, isDataDrainsEnabled: true },
 }))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  ...mocks.flags,
-  get isBillingEnabled() {
-    return mocks.flags.isBillingEnabled
-  },
-  get isDataDrainsEnabled() {
-    return mocks.flags.isDataDrainsEnabled
-  },
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isHosted: true,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/data-drains/encryption', () => ({
-  encryptCredentials: mocks.encrypt,
-  decryptCredentials: mocks.decrypt,
+  encryptCredentials: hoisted.encrypt,
+  decryptCredentials: hoisted.decrypt,
 }))
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: async () => ({ enqueue: mocks.enqueue }) }))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/core/network/context.server', () => ({
-  runWithOutboundOrganization: mocks.outbound,
+  runWithOutboundOrganization: hoisted.outbound,
 }))
 vi.mock('@/lib/data-drains/destinations/registry', () => ({
   getDestination: () => ({
     configSchema: z.record(z.string(), z.unknown()),
     credentialsSchema: z.record(z.string(), z.unknown()),
-    test: mocks.test,
+    test: hoisted.test,
   }),
 }))
 
@@ -68,6 +61,16 @@ import {
   testDataDrain,
   updateDataDrain,
 } from '@/lib/data-drains/application/use-cases'
+
+setEnvFlags({ isHosted: true })
+
+const mocks = {
+  ...hoisted,
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  enqueue: asyncJobsMockFns.mockJobQueue.enqueue,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -106,8 +109,7 @@ beforeEach(() => {
   resetDbChainMock()
   mocks.enterprise.mockResolvedValue(true)
   mocks.config.mockResolvedValue(null)
-  mocks.flags.isBillingEnabled = true
-  mocks.flags.isDataDrainsEnabled = true
+  setEnvFlags({ isBillingEnabled: true, isDataDrainsEnabled: true })
   mocks.decrypt.mockResolvedValue({ token: 'secret' })
   mocks.encrypt.mockResolvedValue('encrypted-secret')
   mocks.enqueue.mockResolvedValue('job')
@@ -143,8 +145,7 @@ describe('organization data drain application boundary', () => {
   )
   it('preserves deployment gate precedence over role refusal', async () => {
     allow('member')
-    mocks.flags.isBillingEnabled = false
-    mocks.flags.isDataDrainsEnabled = false
+    setEnvFlags({ isBillingEnabled: false, isDataDrainsEnabled: false })
     await expect(getDataDrain.execute({ principal, input })).rejects.toMatchObject({
       code: 'not_found',
       message: 'Data Drains are not enabled on this deployment',

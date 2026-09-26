@@ -74,7 +74,6 @@ async function advance(ms = 2000) {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.clearAllMocks()
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   file = FILE
   streamingContent = undefined

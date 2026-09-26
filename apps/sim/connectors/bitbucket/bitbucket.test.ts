@@ -5,7 +5,8 @@
  * Every path that shortens the listing has to leave `syncContext.listingCapped` set,
  * because the sync engine hard-deletes whatever a full listing omits.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { bitbucketConnector } from '@/connectors/bitbucket/bitbucket'
 
 const ACCESS_TOKEN = 'bitbucket-token'
@@ -14,13 +15,6 @@ const CONFIG = { workspaceSlug: 'acme', repoSlug: 'widgets' }
 const PR_CONFIG = { ...CONFIG, contentTypes: 'pullrequests' }
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const REPOSITORY = {
   full_name: 'acme/widgets',
@@ -79,10 +73,6 @@ function requestedUrls(pattern: RegExp): string[] {
 
 beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('bitbucket repository file listing', () => {

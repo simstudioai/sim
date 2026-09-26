@@ -1,134 +1,132 @@
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
 import type { BlockState } from '@sim/workflow-types/workflow'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { createBlockFromParams } from '@/lib/workflows/editing/builders'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { applyOperationsToWorkflowState } from './engine'
 
-vi.mock('@/blocks/registry', () => {
-  const blocks: Record<string, any> = {
-    conditional_format: {
-      type: 'conditional_format',
-      name: 'Conditional Format',
-      subBlocks: [
-        { id: 'mode', type: 'short-input', value: () => 'compact' },
-        {
-          id: 'format',
-          type: 'dropdown',
-          condition: () => ({ field: 'mode', value: ['compact'] }),
-          options: [{ id: 'json', label: 'JSON' }],
-        },
-        {
-          id: 'format',
-          type: 'dropdown',
-          condition: { field: 'mode', value: 'tabular' },
-          options: [{ id: 'csv', label: 'CSV' }],
-        },
-      ],
-    },
-    condition: {
-      type: 'condition',
-      name: 'Condition',
-      subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-    },
-    agent: {
-      type: 'agent',
-      name: 'Agent',
-      subBlocks: [
-        { id: 'systemPrompt', type: 'long-input' },
-        { id: 'model', type: 'combobox' },
-        { id: 'tools', type: 'tool-input' },
-      ],
-    },
-    mothership: {
-      type: 'mothership',
-      name: 'Sim Chat',
-      subBlocks: [{ id: 'tools', type: 'tool-input' }],
-    },
-    function: {
-      type: 'function',
-      name: 'Function',
-      subBlocks: [
-        { id: 'code', type: 'code' },
-        { id: 'language', type: 'dropdown' },
-      ],
-    },
-    slack: {
-      type: 'slack',
-      name: 'Slack',
-      tools: {
-        access: ['slack_message', 'slack_canvas'],
-        config: {
-          tool: ({ operation }: { operation?: string }) =>
-            operation === 'canvas' ? 'slack_canvas' : 'slack_message',
-        },
+const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
+  conditional_format: {
+    type: 'conditional_format',
+    name: 'Conditional Format',
+    subBlocks: [
+      { id: 'mode', type: 'short-input', value: () => 'compact' },
+      {
+        id: 'format',
+        type: 'dropdown',
+        condition: () => ({ field: 'mode', value: ['compact'] }),
+        options: [{ id: 'json', label: 'JSON' }],
       },
-      subBlocks: [
-        {
-          id: 'operation',
-          type: 'dropdown',
-          options: [
-            { label: 'Send Message', id: 'send' },
-            { label: 'Create Canvas', id: 'canvas' },
-          ],
-        },
-        { id: 'channel', type: 'short-input' },
-        { id: 'triggerConfig', type: 'trigger-config' },
-      ],
+      {
+        id: 'format',
+        type: 'dropdown',
+        condition: { field: 'mode', value: 'tabular' },
+        options: [{ id: 'csv', label: 'CSV' }],
+      },
+    ],
+  },
+  condition: {
+    type: 'condition',
+    name: 'Condition',
+    subBlocks: [{ id: 'conditions', type: 'condition-input' }],
+  },
+  agent: {
+    type: 'agent',
+    name: 'Agent',
+    subBlocks: [
+      { id: 'systemPrompt', type: 'long-input' },
+      { id: 'model', type: 'combobox' },
+      { id: 'tools', type: 'tool-input' },
+    ],
+  },
+  mothership: {
+    type: 'mothership',
+    name: 'Sim Chat',
+    subBlocks: [{ id: 'tools', type: 'tool-input' }],
+  },
+  function: {
+    type: 'function',
+    name: 'Function',
+    subBlocks: [
+      { id: 'code', type: 'code' },
+      { id: 'language', type: 'dropdown' },
+    ],
+  },
+  slack: {
+    type: 'slack',
+    name: 'Slack',
+    tools: {
+      access: ['slack_message', 'slack_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_canvas' : 'slack_message',
+      },
     },
-    jira: {
-      type: 'jira',
-      name: 'Jira',
-      tools: { access: ['jira_get_issue'] },
-      subBlocks: [
-        { id: 'credential', type: 'oauth-input' },
-        {
-          id: 'projectId',
-          type: 'project-selector',
-          canonicalParamId: 'projectId',
-          mode: 'basic',
-          dependsOn: ['credential'],
-        },
-        {
-          id: 'manualProjectId',
-          type: 'short-input',
-          canonicalParamId: 'projectId',
-          mode: 'advanced',
-          dependsOn: ['credential'],
-        },
-        {
-          id: 'issueKey',
-          type: 'file-selector',
-          canonicalParamId: 'issueKey',
-          mode: 'basic',
-          dependsOn: ['projectId'],
-        },
-        {
-          id: 'manualIssueKey',
-          type: 'short-input',
-          canonicalParamId: 'issueKey',
-          mode: 'advanced',
-          dependsOn: ['projectId'],
-        },
-        {
-          id: 'transitionId',
-          type: 'short-input',
-          dependsOn: ['issueKey'],
-        },
-      ],
-    },
-  }
+    subBlocks: [
+      {
+        id: 'operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+      { id: 'channel', type: 'short-input' },
+      { id: 'triggerConfig', type: 'trigger-config' },
+    ],
+  },
+  jira: {
+    type: 'jira',
+    name: 'Jira',
+    tools: { access: ['jira_get_issue'] },
+    subBlocks: [
+      { id: 'credential', type: 'oauth-input' },
+      {
+        id: 'projectId',
+        type: 'project-selector',
+        canonicalParamId: 'projectId',
+        mode: 'basic',
+        dependsOn: ['credential'],
+      },
+      {
+        id: 'manualProjectId',
+        type: 'short-input',
+        canonicalParamId: 'projectId',
+        mode: 'advanced',
+        dependsOn: ['credential'],
+      },
+      {
+        id: 'issueKey',
+        type: 'file-selector',
+        canonicalParamId: 'issueKey',
+        mode: 'basic',
+        dependsOn: ['projectId'],
+      },
+      {
+        id: 'manualIssueKey',
+        type: 'short-input',
+        canonicalParamId: 'issueKey',
+        mode: 'advanced',
+        dependsOn: ['projectId'],
+      },
+      {
+        id: 'transitionId',
+        type: 'short-input',
+        dependsOn: ['issueKey'],
+      },
+    ],
+  },
+}
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlock = getBlock as Mock
+mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_REGISTRY_BLOCKS))
+mockGetBlock.mockImplementation((type: string) => MOCK_REGISTRY_BLOCKS[type])
 
-  return {
-    getAllBlocks: () => Object.values(blocks),
-    getBlock: (type: string) => blocks[type],
-  }
-})
-
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: () => true,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 function makeLoopWorkflow() {
   return {

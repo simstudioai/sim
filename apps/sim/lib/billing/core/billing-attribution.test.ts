@@ -1,36 +1,17 @@
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckBillingBlocked,
-  mockCheckBillingEntityBlocked,
-  mockCheckOrganizationMemberUsageLimit,
-  mockCheckUsageStatus,
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetOrganizationSubscription,
-} = vi.hoisted(() => ({
-  mockCheckBillingBlocked: vi.fn(),
-  mockCheckBillingEntityBlocked: vi.fn(),
-  mockCheckOrganizationMemberUsageLimit: vi.fn(),
-  mockCheckUsageStatus: vi.fn(),
-  mockGetHighestPriorityPersonalSubscription: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkBillingBlocked: mockCheckBillingBlocked,
-  checkBillingEntityBlocked: mockCheckBillingEntityBlocked,
-  checkOrganizationMemberUsageLimit: mockCheckOrganizationMemberUsageLimit,
-  checkUsageStatus: mockCheckUsageStatus,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
 import {
   assertBillingAttributionOwner,
@@ -47,6 +28,15 @@ import {
   serializeBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+
+const {
+  mockCheckBillingBlocked,
+  mockCheckBillingEntityBlocked,
+  mockCheckOrganizationMemberUsageLimit,
+  mockCheckUsageStatus,
+} = billingUsageMonitorMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+const { mockGetHighestPriorityPersonalSubscription } = billingPlanMockFns
 
 afterAll(() => {
   resetDbChainMock()

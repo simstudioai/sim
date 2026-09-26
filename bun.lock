@@ -708,6 +708,7 @@
       "name": "@sim/testing",
       "version": "0.1.0",
       "dependencies": {
+        "@sim/auth": "workspace:*",
         "@sim/utils": "workspace:*",
       },
       "devDependencies": {
@@ -720,7 +721,7 @@
       "peerDependencies": {
         "next": ">=15 <17",
         "stripe": ">=18 <19",
-        "vitest": "^3.0.0 || >=4.1.0 <6.0.0",
+        "vitest": "^5.0.1",
       },
       "optionalPeers": [
         "stripe",

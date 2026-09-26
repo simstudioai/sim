@@ -1,16 +1,13 @@
 import { Readable } from 'node:stream'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFileStream } = vi.hoisted(() => ({
-  mockDownloadFileStream: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mockDownloadFileStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getCsvPreviewSlice } from '@/lib/file-parsers/csv-preview-slice'
+
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
 
 function streamOf(text: string): Readable {
   // Array-wrapped so the whole text is one chunk (a bare Buffer/string is iterated element-wise).

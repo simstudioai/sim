@@ -1,6 +1,7 @@
 /**
  * Tests for chat API utils
  */
+
 import {
   authMockFns,
   createMockRequest,
@@ -10,6 +11,7 @@ import {
   requestUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -18,21 +20,15 @@ const {
   mockReadDeploymentAuthToken,
   mockSetDeploymentAuthCookie,
   mockIsEmailAllowed,
-  mockCheckRateLimitDirect,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
   mockReadDeploymentAuthToken: vi.fn().mockResolvedValue(null),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
-  mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
@@ -66,6 +62,8 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { validateChatAuth } from '@/app/api/chat/utils'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
+mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
 
 describe('Chat API Utils', () => {
   beforeEach(() => {

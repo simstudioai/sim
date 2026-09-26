@@ -1,10 +1,13 @@
 import { db } from '@sim/db'
 import { type ScimUserAttributes, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLocks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   suspend: vi.fn(),
   unsuspend: vi.fn(),
   revokeSessions: vi.fn(),
@@ -19,31 +22,29 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.acquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  suspendMemberTx: mocks.suspend,
-  unsuspendMemberTx: mocks.unsuspend,
+  suspendMemberTx: hoistedMocks.suspend,
+  unsuspendMemberTx: hoistedMocks.unsuspend,
 }))
 vi.mock('@/lib/organizations/members/revocation', () => ({
-  revokeUserSessionsTx: mocks.revokeSessions,
-  invalidateAfterSessionRevocation: mocks.invalidate,
+  revokeUserSessionsTx: hoistedMocks.revokeSessions,
+  invalidateAfterSessionRevocation: hoistedMocks.invalidate,
 }))
 vi.mock('@/ee/scim/lib/identity/account-identity', () => ({
-  syncAccountIdentityTx: mocks.syncIdentity,
+  syncAccountIdentityTx: hoistedMocks.syncIdentity,
 }))
 vi.mock('@/ee/scim/lib/identity/resolve-user', () => ({
-  assertDomainOwned: mocks.assertDomainOwned,
+  assertDomainOwned: hoistedMocks.assertDomainOwned,
 }))
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
-  reconcileUserProjection: mocks.reconcile,
+  reconcileUserProjection: hoistedMocks.reconcile,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  findScimUserById: mocks.findScimUserById,
-  assertUserNameAvailable: mocks.assertUserNameAvailable,
-  updateScimUser: mocks.updateScimUser,
-  loadGroupsForScimUsers: mocks.loadGroups,
+  findScimUserById: hoistedMocks.findScimUserById,
+  assertUserNameAvailable: hoistedMocks.assertUserNameAvailable,
+  updateScimUser: hoistedMocks.updateScimUser,
+  loadGroupsForScimUsers: hoistedMocks.loadGroups,
   toUserResourceRow: (record: Record<string, unknown>) => ({
     id: record.id,
     externalId: record.externalId,
@@ -57,13 +58,18 @@ vi.mock('@/ee/scim/lib/repository/users', () => ({
   }),
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { patchScimUser, replaceScimUser } from '@/ee/scim/lib/application/users/update-user'
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLocks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',

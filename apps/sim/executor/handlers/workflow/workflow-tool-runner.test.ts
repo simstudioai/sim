@@ -1,9 +1,9 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecute, mockDecryptSecret, mockEncryptSecret } = vi.hoisted(() => ({
+const { mockExecute } = vi.hoisted(() => ({
   mockExecute: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockEncryptSecret: vi.fn(),
 }))
 
 vi.mock('@/executor/handlers/workflow/workflow-handler', () => ({
@@ -12,10 +12,7 @@ vi.mock('@/executor/handlers/workflow/workflow-handler', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
@@ -24,6 +21,9 @@ import { runWorkflowTool } from '@/executor/handlers/workflow/workflow-tool-runn
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 
 describe('runWorkflowTool execution context', () => {
   beforeEach(() => {
@@ -56,18 +56,10 @@ describe('runWorkflowTool execution context', () => {
   })
 
   it('accepts the execution principal only through trusted runner options', async () => {
-    const trustedPrincipal = {
-      kind: 'session' as const,
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const trustedPrincipal = createSessionPrincipal()
     const modelSuppliedContext = {
       workspaceId: 'ws-1',
-      principal: {
-        kind: 'session' as const,
-        userId: 'attacker',
-        sessionId: 'attacker-session',
-      },
+      principal: createSessionPrincipal({ userId: 'attacker', sessionId: 'attacker-session' }),
     }
 
     await runWorkflowTool(

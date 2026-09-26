@@ -1,88 +1,41 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockRecordUsage,
-  mockCapture,
-  mockCreate,
-  openAIArgs,
-  mockOpenAI,
-  mockExecuteTool,
-  mockPrepareTools,
-  mockCheckForced,
-  mockCreateStream,
-  mockValidateUrlWithDNS,
-  mockCreatePinnedFetch,
-  pinnedFetchFn,
-} = vi.hoisted(() => {
-  const openAIArgs: Array<Record<string, unknown>> = []
-  const mockCreate = vi.fn()
-  const pinnedFetchFn = vi.fn()
-  class MockOpenAI {
-    chat = { completions: { create: mockCreate } }
-    constructor(opts: Record<string, unknown>) {
-      openAIArgs.push(opts)
-    }
-  }
-  return {
-    mockRecordUsage: vi.fn(),
-    mockCapture: vi.fn(),
-    mockCreate,
-    openAIArgs,
-    mockOpenAI: MockOpenAI,
-    mockExecuteTool: vi.fn(),
-    mockPrepareTools: vi.fn(),
-    mockCheckForced: vi.fn(),
-    mockCreateStream: vi.fn(),
-    mockValidateUrlWithDNS: vi.fn(),
-    mockCreatePinnedFetch: vi.fn(() => pinnedFetchFn),
-    pinnedFetchFn,
-  }
-})
-
-vi.mock('openai', () => ({ default: mockOpenAI }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-  createPinnedFetch: mockCreatePinnedFetch,
-}))
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
-  captureProviderConversationStep: mockCapture,
-  recordProviderConversationUsage: mockRecordUsage,
-  recordProviderConversationToolError: vi.fn(),
+const { mockCheckForced, mockCreateStream, pinnedFetchFn } = vi.hoisted(() => ({
+  mockCheckForced: vi.fn(),
+  mockCreateStream: vi.fn(),
+  pinnedFetchFn: vi.fn(),
 }))
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn(() => []),
-  getProviderDefaultModel: vi.fn(() => 'vllm/generic'),
-}))
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: mockPrepareTools,
-  sumToolCosts: vi.fn(() => 0),
-}))
+vi.mock('openai', () => openaiMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/providers/vllm/utils', () => ({
   checkForForcedToolUsage: mockCheckForced,
   createReadableStreamFromVLLMStream: mockCreateStream,
 }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
 }))
@@ -91,6 +44,22 @@ import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm/index'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
+/** Options each `new OpenAI(...)` received, in construction order. */
+const openAIArgs = () =>
+  openaiMockFns.mockOpenAI.mock.calls.map(
+    (call) => (call as unknown[])[0] as Record<string, unknown>
+  )
+
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
+const mockCreatePinnedFetch = inputValidationMockFns.mockCreatePinnedFetch
+mockCreatePinnedFetch.mockImplementation(() => pinnedFetchFn)
+
+const mockPrepareTools = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 interface ToolCall {
   id: string
@@ -142,7 +111,6 @@ afterAll(resetEnvMock)
 describe('vllmProvider', () => {
   beforeEach(() => {
     clearProviderClientCacheForTests()
-    openAIArgs.length = 0
     setEnv({ VLLM_BASE_URL: 'http://localhost:8000', VLLM_API_KEY: undefined })
     mockPrepareTools.mockReturnValue({
       tools: [{ type: 'function', function: { name: 'myTool' } }],
@@ -230,8 +198,8 @@ describe('vllmProvider', () => {
 
       expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(openAIArgs[0].baseURL).toBe('http://localhost:8000/v1')
-      expect(openAIArgs[0].fetch).toBeUndefined()
+      expect(openAIArgs()[0].baseURL).toBe('http://localhost:8000/v1')
+      expect(openAIArgs()[0].fetch).toBeUndefined()
     })
 
     it('does not duplicate an existing /v1 API prefix', async () => {
@@ -243,7 +211,7 @@ describe('vllmProvider', () => {
         messages: [{ role: 'user', content: 'hi' }],
       })
 
-      expect(openAIArgs[0].baseURL).toBe('http://localhost:1234/v1')
+      expect(openAIArgs()[0].baseURL).toBe('http://localhost:1234/v1')
     })
 
     it('validates a user-supplied endpoint and pins the connection to the resolved IP', async () => {
@@ -263,8 +231,8 @@ describe('vllmProvider', () => {
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
         profile: 'selfHostedService',
       })
-      expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
-      expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
+      expect(openAIArgs()[0].baseURL).toBe('https://my-vllm.example.com/v1')
+      expect(openAIArgs()[0].fetch).toBe(pinnedFetchFn)
     })
 
     it('preserves an existing /v1 prefix on a user-supplied endpoint', async () => {
@@ -281,8 +249,8 @@ describe('vllmProvider', () => {
         'vLLM endpoint',
         'selfHostedService'
       )
-      expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
-      expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
+      expect(openAIArgs()[0].baseURL).toBe('https://my-vllm.example.com/v1')
+      expect(openAIArgs()[0].fetch).toBe(pinnedFetchFn)
     })
 
     it('rejects a user-supplied endpoint that fails SSRF validation without issuing a request', async () => {
@@ -300,7 +268,7 @@ describe('vllmProvider', () => {
       ).rejects.toThrow('Invalid vLLM endpoint')
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(openAIArgs).toHaveLength(0)
+      expect(openAIArgs()).toHaveLength(0)
       expect(mockCreate).not.toHaveBeenCalled()
     })
   })

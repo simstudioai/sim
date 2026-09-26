@@ -8,22 +8,25 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingIdentityLockMock } from '@sim/testing/mocks/billing-identity-lock.mock'
+import { billingPlanMock } from '@sim/testing/mocks/billing-plan.mock'
+import { billingUsageMock } from '@sim/testing/mocks/billing-usage.mock'
+import { organizationMemberLimitsMock } from '@sim/testing/mocks/organization-member-limits.mock'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { organizationSeatsMock } from '@sim/testing/mocks/organization-seats.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   provisionings: new Map(),
   resolveMetadataIntent: vi.fn(),
-  enqueueOutboxEvent: vi.fn(),
   countPendingSeatInvitations: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 /**
  * Cuts the import chain dashboard.ts -> admin-move.ts -> invitations/core ->
  * lib/auth/auth.ts. The auth module throws at import time when another suite
@@ -39,38 +42,27 @@ vi.mock('@/lib/workspaces/admin-move', () => ({
  * module's dependency bindings, which would break the dedicated plan/usage
  * suites when they run later with their own dependency mocks.
  */
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/billing/enterprise-provisioning', () => ({
-  getLatestEnterpriseProvisionings: vi.fn(async () => mocks.provisionings),
+  getLatestEnterpriseProvisionings: vi.fn(async () => hoistedMocks.provisionings),
 }))
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE: 'stripe.sync-enterprise-metadata',
   enterpriseMetadataSyncPayloadSchema: { safeParse: vi.fn() },
-  resolveEnterpriseMetadataIntent: mocks.resolveMetadataIntent,
+  resolveEnterpriseMetadataIntent: hoistedMocks.resolveMetadataIntent,
 }))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({ setOrgMemberUsageLimit: vi.fn() }))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: vi.fn(),
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-  ensureUserInOrganizationTx: vi.fn(),
-  removeUserFromOrganization: vi.fn(),
-  transferOrganizationOwnership: vi.fn(),
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: vi.fn() }))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({
-  countPendingSeatInvitations: mocks.countPendingSeatInvitations,
+  countPendingSeatInvitations: hoistedMocks.countPendingSeatInvitations,
 }))
 vi.mock('@/lib/core/idempotency/transaction', () => ({
   executeTransactionallyIdempotent: vi.fn(),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.enqueueOutboxEvent }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import {
   getDashboardMemberTransferPreflight,
@@ -80,6 +72,10 @@ import {
   updateDashboardEnterpriseSeats,
   updateDashboardOrganizationLimits,
 } from '@/lib/admin/dashboard'
+
+const mocks = Object.assign(hoistedMocks, {
+  enqueueOutboxEvent: outboxServiceMockFns.mockEnqueueOutboxEvent,
+})
 
 describe('getDashboardMemberTransferPreflight', () => {
   beforeEach(() => {

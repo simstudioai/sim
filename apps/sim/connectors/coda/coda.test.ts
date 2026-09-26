@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { codaConnector } from '@/connectors/coda/coda'
 
 const doc = {
@@ -25,8 +25,6 @@ const config = { docIds: ['doc-1'] }
 const line = (content: string) => ({ type: 'line', itemContent: { format: 'plainText', content } })
 
 describe('Coda connector', () => {
-  beforeEach(() => vi.restoreAllMocks())
-
   it('reconciles a deleted explicit document but never treats authorization failure as deletion', async () => {
     const fetch = vi
       .spyOn(globalThis, 'fetch')

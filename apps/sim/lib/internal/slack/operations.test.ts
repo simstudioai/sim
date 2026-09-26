@@ -1,3 +1,7 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isInternalToolFileResult,
@@ -6,23 +10,19 @@ import {
 
 const mocks = vi.hoisted(() => ({
   resolveFiles: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-  secureFetchWithValidation: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/slack/file-input', () => ({
   forEachSlackAttachmentFile: mocks.resolveFiles,
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  secureFetchWithValidation: mocks.secureFetchWithValidation,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { executeSlackDownload } from '@/lib/internal/slack/operations'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP, mockSecureFetchWithValidation } =
+  inputValidationMockFns
 
 const originalFetch = global.fetch
 
@@ -33,12 +33,12 @@ function slackResponse(body: unknown, status = 200): Response {
 describe('Slack operations', () => {
   beforeEach(() => {
     global.fetch = vi.fn() as unknown as typeof fetch
-    mocks.validateUrlWithDNS.mockResolvedValue({
+    mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
       originalHostname: 'files.slack.com',
     })
-    mocks.secureFetchWithValidation.mockResolvedValue(new Response(null, { status: 200 }))
+    mockSecureFetchWithValidation.mockResolvedValue(new Response(null, { status: 200 }))
   })
 
   afterEach(() => {
@@ -57,16 +57,14 @@ describe('Slack operations', () => {
         },
       })
     )
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
-      new Response(Buffer.from('pdf'), { status: 200 })
-    )
+    mockSecureFetchWithPinnedIP.mockResolvedValue(new Response(Buffer.from('pdf'), { status: 200 }))
 
     const result = await executeSlackDownload(
       { accessToken: 'token', fileId: 'F1' },
       controller.signal
     )
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://files.slack.com/report.pdf',
       '93.184.216.34',
       {

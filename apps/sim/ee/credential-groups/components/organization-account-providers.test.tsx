@@ -1,6 +1,10 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import { toast } from '@sim/emcn'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,8 +17,6 @@ const mocks = vi.hoisted(() => ({
   add: vi.fn(),
   addAsync: vi.fn(),
   configure: vi.fn(),
-  setup: vi.fn(),
-  accounts: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
   reset: vi.fn(),
@@ -22,29 +24,7 @@ const mocks = vi.hoisted(() => ({
   addError: null as Error | null,
   updatePending: false,
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccounts: mocks.accounts,
-  useEnsureOrganizationAccounts: () => ({ isPending: false, error: null }),
-  useUpdateOrganizationAccounts: () => ({
-    isPending: mocks.updatePending,
-    mutate: mocks.update,
-    reset: mocks.reset,
-  }),
-  useAddOrganizationAccountMcpProvider: () => ({
-    isPending: false,
-    mutate: mocks.add,
-    mutateAsync: mocks.addAsync,
-    reset: mocks.reset,
-    error: mocks.addError,
-  }),
-  useRemoveOrganizationAccountMcpProvider: () => ({
-    isPending: false,
-    mutate: mocks.remove,
-    reset: mocks.reset,
-  }),
-  useConfigureOrganizationMcp: () => ({ isPending: false, mutateAsync: mocks.configure }),
-  useOrganizationDatabricksSetup: mocks.setup,
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/ee/credential-groups/components/slack-managed-users-modal', () => ({
   SlackManagedUsersModal: mocks.slack,
 }))
@@ -109,7 +89,38 @@ describe('organization provider configuration UI', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     vi.spyOn(toast, 'success').mockImplementation(() => '')
     vi.spyOn(toast, 'error').mockImplementation(() => '')
-    mocks.setup.mockReturnValue({ data: { server: setupServer }, isPending: false, error: null })
+    organizationAccountsQueriesMockFns.mockUseEnsureOrganizationAccounts.mockReturnValue({
+      isPending: false,
+      error: null,
+    })
+    organizationAccountsQueriesMockFns.mockUseUpdateOrganizationAccounts.mockImplementation(() => ({
+      isPending: mocks.updatePending,
+      mutate: mocks.update,
+      reset: mocks.reset,
+    }))
+    organizationAccountsQueriesMockFns.mockUseAddOrganizationAccountMcpProvider.mockImplementation(
+      () => ({
+        isPending: false,
+        mutate: mocks.add,
+        mutateAsync: mocks.addAsync,
+        reset: mocks.reset,
+        error: mocks.addError,
+      })
+    )
+    organizationAccountsQueriesMockFns.mockUseRemoveOrganizationAccountMcpProvider.mockReturnValue({
+      isPending: false,
+      mutate: mocks.remove,
+      reset: mocks.reset,
+    })
+    organizationAccountsQueriesMockFns.mockUseConfigureOrganizationMcp.mockReturnValue({
+      isPending: false,
+      mutateAsync: mocks.configure,
+    })
+    organizationAccountsQueriesMockFns.mockUseOrganizationDatabricksSetup.mockReturnValue({
+      data: { server: setupServer },
+      isPending: false,
+      error: null,
+    })
     mocks.configure.mockResolvedValue({ mcpServer: { ...provider, enabled: true } })
     mocks.addAsync.mockResolvedValue({ mcpServer: { ...provider, enabled: true } })
     mocks.add.mockImplementation((_input, { onSuccess }) => onSuccess())
@@ -123,8 +134,6 @@ describe('organization provider configuration UI', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   async function render(
@@ -202,7 +211,7 @@ describe('organization provider configuration UI', () => {
   })
 
   it('loads existing settings for Configure and preserves a saved secret left blank', async () => {
-    mocks.setup.mockReturnValue({
+    organizationAccountsQueriesMockFns.mockUseOrganizationDatabricksSetup.mockReturnValue({
       data: {
         server: {
           ...setupServer,

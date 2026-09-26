@@ -1,19 +1,18 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAssertFileAccess,
-  mockDownloadFile,
-  mockFetchToken,
-  mockInvokeApi,
-  mockInvokeMultipart,
-  mockProcessFiles,
-} = vi.hoisted(() => ({
-  mockAssertFileAccess: vi.fn(),
-  mockDownloadFile: vi.fn(),
+const { mockFetchToken, mockInvokeApi, mockInvokeMultipart } = vi.hoisted(() => ({
   mockFetchToken: vi.fn(),
   mockInvokeApi: vi.fn(),
   mockInvokeMultipart: vi.fn(),
-  mockProcessFiles: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/sap-concur/client', () => ({
@@ -27,27 +26,25 @@ vi.mock('@/lib/internal/sap-concur/client', () => ({
   invokeSapConcurMultipart: mockInvokeMultipart,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mockProcessFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: () => null,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mockAssertFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import {
   executeSapConcurUploadOperation,
   SapConcurOperationError,
 } from '@/lib/internal/sap-concur/operations'
 import { sapConcurUploadInputSchema } from '@/lib/internal/sap-concur/schema'
+
+const { mockAssertToolFileAccess: mockAssertFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage: mockDownloadFile } = fileUtilsServerMockFns
+const { mockProcessFilesToUserFiles: mockProcessFiles } = fileUtilsMockFns
 
 const context = {
   requestId: 'request-1',

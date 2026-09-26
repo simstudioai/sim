@@ -6,35 +6,32 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAvailability,
-  mockCheckWorkspaceAccess,
-  mockGitHubReadGrants,
-  mockConfluenceReadGrants,
-  mockCsvGrants,
-  mockLiveSources,
-} = vi.hoisted(() => ({
-  mockLiveSources: {
-    github: vi.fn(() => ({ type: 'github-sources' })),
-    confluence: vi.fn(() => ({ type: 'confluence-sources' })),
-    knowledgeBases: vi.fn(() => ({ type: 'live-knowledge-bases' })),
-  },
-  mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
-  mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
-  mockGitHubReadGrants: vi.fn(async () => []),
-  mockConfluenceReadGrants: vi.fn(async () => []),
-  mockCsvGrants: vi.fn(async () => [] as string[]),
-}))
+const { mockGitHubReadGrants, mockConfluenceReadGrants, mockCsvGrants, mockLiveSources } =
+  vi.hoisted(() => ({
+    mockLiveSources: {
+      github: vi.fn(() => ({ type: 'github-sources' })),
+      confluence: vi.fn(() => ({ type: 'confluence-sources' })),
+      knowledgeBases: vi.fn(() => ({ type: 'live-knowledge-bases' })),
+    },
+    mockGitHubReadGrants: vi.fn(async () => []),
+    mockConfluenceReadGrants: vi.fn(async () => []),
+    mockCsvGrants: vi.fn(async () => [] as string[]),
+  }))
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockAvailability,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/knowledge/access/confluence-site', () => ({
   resolveConfluenceSiteReadGrants: mockConfluenceReadGrants,
 }))
@@ -56,7 +53,11 @@ import {
   resolveKnowledgeAccessScope,
 } from '@/lib/knowledge/access/scope'
 
-const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const mockAvailability = knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+mockCheckWorkspaceAccess.mockImplementation(async () => ({ hasAccess: true }))
+
+const SESSION: Principal = createSessionPrincipal()
 const WORKSPACE = { workspaceId: 'ws-1' }
 
 function queueSubjects(rows: Array<Record<string, string | null>>) {
@@ -359,7 +360,7 @@ describe('organization document ACL scope', () => {
   it('does not inherit a workspace key creator identity for organization search', async () => {
     await expect(
       resolveKnowledgeAccessScope(
-        { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
+        createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1' }),
         organization
       )
     ).rejects.toThrow('requires a user subject')

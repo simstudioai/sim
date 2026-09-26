@@ -1,14 +1,9 @@
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetEffectiveEnvironmentSnapshot } = vi.hoisted(() => ({
-  mockGetEffectiveEnvironmentSnapshot: vi.fn(),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveEnvironmentSnapshot: mockGetEffectiveEnvironmentSnapshot,
-}))
-
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
+
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const BASE_CONFIG = {
   id: 'server-1',

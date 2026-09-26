@@ -25,6 +25,10 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { Serializer } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 vi.mock('@/blocks', () => ({
   ...blocksMock,
@@ -43,8 +47,6 @@ vi.mock('@/blocks', () => ({
   }),
 }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
-
 describe('Serializer', () => {
   describe('serializeWorkflow', () => {
     it.concurrent('should serialize a conditional workflow correctly', () => {

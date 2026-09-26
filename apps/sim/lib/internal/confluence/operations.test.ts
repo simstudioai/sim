@@ -1,22 +1,23 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const uploadMocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  processSingleFileToUserFile: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: uploadMocks.assertToolFileAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processSingleFileToUserFile: uploadMocks.processSingleFileToUserFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: uploadMocks.downloadServableFileFromStorage,
-}))
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessSingleFileToUserFile } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 import { ConfluenceOperationError } from '@/lib/internal/confluence/errors'
 import {
@@ -33,8 +34,7 @@ const CONNECTION = {
 
 describe('Confluence operations', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals()
-    uploadMocks.processSingleFileToUserFile.mockReturnValue({
+    mockProcessSingleFileToUserFile.mockReturnValue({
       id: 'file-1',
       key: 'uploads/file.txt',
       name: 'file.txt',
@@ -42,8 +42,8 @@ describe('Confluence operations', () => {
       type: 'text/plain',
       url: '',
     })
-    uploadMocks.assertToolFileAccess.mockResolvedValue(null)
-    uploadMocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('test'),
       contentType: 'text/plain',
     })
@@ -107,7 +107,7 @@ describe('Confluence operations', () => {
   })
 
   it('fails closed when stored-file authorization denies access', async () => {
-    uploadMocks.assertToolFileAccess.mockResolvedValueOnce(Response.json({ error: 'Forbidden' }))
+    mockAssertToolFileAccess.mockResolvedValueOnce(Response.json({ error: 'Forbidden' }))
 
     let caught: unknown
     try {
@@ -123,7 +123,7 @@ describe('Confluence operations', () => {
       caught = error
     }
 
-    expect(uploadMocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       'uploads/file.txt',
       'user-1',
       'confluence-upload',
@@ -135,6 +135,6 @@ describe('Confluence operations', () => {
         error: 'File not found',
       })
     )
-    expect(uploadMocks.downloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
   })
 })

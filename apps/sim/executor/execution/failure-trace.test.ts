@@ -1,3 +1,4 @@
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -8,9 +9,7 @@ vi.mock('@/lib/execution/cancellation', () => ({
   subscribeToExecutionCancellation: vi.fn(async () => () => {}),
   isExecutionCancelled: vi.fn(async () => false),
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateBlockType: vi.fn(async () => {}),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 /**
  * Start → Call, where Call fails while its inputs resolve: `<start.nope>` is not

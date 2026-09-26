@@ -39,14 +39,11 @@ import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
+import type { SearchResult } from '@/lib/knowledge/search/candidates'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import {
-  type RetrievalStatus,
-  retrieveKnowledgeSearch,
-  type SearchResult,
-} from '@/lib/knowledge/search/queries'
+import { type RetrievalStatus, retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getActiveKnowledgeBaseReferences } from '@/lib/knowledge/service'
 import {
@@ -56,6 +53,7 @@ import {
 import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+import { usesIndexedRetrieval } from '@/lib/sim-search/indexed/gate'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
@@ -475,7 +473,7 @@ export async function runKnowledgeSearch({
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
-      searchIndexOnly: context.knowledgeBases.every((knowledgeBase) => knowledgeBase.isSearchIndex),
+      indexedRetrieval: usesIndexedRetrieval(context.knowledgeBases),
     })
   )
 

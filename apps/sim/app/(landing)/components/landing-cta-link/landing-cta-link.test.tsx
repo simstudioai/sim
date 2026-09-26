@@ -24,7 +24,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.unstubAllGlobals()
 })
 
 function renderLink(element: React.ReactElement): HTMLAnchorElement {

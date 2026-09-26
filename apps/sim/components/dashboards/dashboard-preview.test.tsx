@@ -38,7 +38,6 @@ describe('dashboard view state', () => {
   let root: Root
   let client: QueryClient
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.timezone.mockReturnValue('America/Los_Angeles')
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     client = new QueryClient()

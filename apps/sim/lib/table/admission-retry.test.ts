@@ -1,15 +1,13 @@
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { PreprocessExecutionResult } from '@/lib/execution/preprocessing'
 
-const { mockBackoffWithJitter, mockSleep } = vi.hoisted(() => ({
+const { mockBackoffWithJitter } = vi.hoisted(() => ({
   mockBackoffWithJitter: vi.fn(),
-  mockSleep: vi.fn(),
 }))
 
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: mockSleep,
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 vi.mock('@sim/utils/retry', () => ({
   backoffWithJitter: mockBackoffWithJitter,
@@ -20,10 +18,11 @@ import {
   TABLE_ADMISSION_RETRY_MAX_ATTEMPTS,
 } from '@/lib/table/admission-retry'
 
+const mockSleep = utilsHelpersMockFns.mockSleep
+
 describe('retryTableAdmission', () => {
   beforeEach(() => {
     mockBackoffWithJitter.mockReturnValue(25)
-    mockSleep.mockResolvedValue(undefined)
   })
 
   it('bounds transient retries and returns the exact exhausted error', async () => {

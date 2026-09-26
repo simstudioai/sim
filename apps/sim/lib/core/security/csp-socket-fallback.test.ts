@@ -6,21 +6,15 @@
  * retries forever. Its own file because vi.mock is hoisted per-module and the
  * sibling suite needs NEXT_PUBLIC_SOCKET_URL set.
  */
-import { createEnvMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     NEXT_PUBLIC_SOCKET_URL: undefined,
   })
-)
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDev: false,
-  isHosted: false,
-  isReactGrabEnabled: false,
-}))
+})
 
 import { generateRuntimeCSP } from './csp'
 

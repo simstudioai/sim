@@ -1,9 +1,10 @@
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRun,
   mockWriteFile,
-  mockExecuteTool,
   mockInstallTools,
   mockPreflightCheckout,
   mockCreateTools,
@@ -17,7 +18,6 @@ const {
 } = vi.hoisted(() => ({
   mockRun: vi.fn(),
   mockWriteFile: vi.fn(),
-  mockExecuteTool: vi.fn(),
   mockInstallTools: vi.fn(),
   mockPreflightCheckout: vi.fn(),
   mockCreateTools: vi.fn(),
@@ -55,11 +55,8 @@ const mockModelRuntime = {
   removeRuntimeApiKey: mockRemoveRuntimeApiKey,
 }
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: (_options: unknown, fn: (runner: unknown) => unknown) =>
-    fn({ run: mockRun, writeFile: mockWriteFile }),
-}))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/executor/handlers/pi/core/keys', () => ({ mapThinkingLevel: () => 'medium' }))
 vi.mock('@/executor/handlers/pi/core/context', () => ({
   buildPiPrompt: ({ task, guidance }: { task: string; guidance: string }) => `${guidance}\n${task}`,
@@ -89,6 +86,13 @@ vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
 
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type { PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
+
+remoteSandboxMockFns.mockWithPiSandbox.mockImplementation(
+  (_options: unknown, fn: (runner: unknown) => unknown) =>
+    fn({ run: mockRun, writeFile: mockWriteFile })
+)
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)

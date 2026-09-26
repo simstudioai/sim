@@ -55,8 +55,6 @@ describe('uploadFileSession', () => {
   afterEach(() => {
     globalThis.XMLHttpRequest = originalXhr
     vi.useRealTimers()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it('uploads an exact-threshold file with PUT and completes with an empty body', async () => {

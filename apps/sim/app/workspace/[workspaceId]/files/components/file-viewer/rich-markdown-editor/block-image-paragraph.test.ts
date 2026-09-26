@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { getSchema, type JSONContent } from '@tiptap/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { splitBlockImageParagraph } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-image-paragraph'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
@@ -9,8 +9,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 const schema = getSchema(createMarkdownContentExtensions())
-const cleanups: Array<() => void> = []
-afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()))
 
 describe('block images within Markdown paragraphs', () => {
   it('retains a whitespace-only code span beside an image', () => {

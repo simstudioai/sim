@@ -1,10 +1,12 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: fetchMock,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+const fetchMock = inputValidationMockFns.mockSecureFetchWithValidation
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { fetchLinkPreview } from '@/lib/link-preview/fetch-preview'

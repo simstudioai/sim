@@ -4,74 +4,43 @@ import {
   resetDbChainMock,
   resetRedisConfigMock,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  assertBillingAttributionSnapshotMock,
   dueRowsLimitMock,
-  enqueueOrStartResumeMock,
   executionSnapshotFromJsonMock,
   fallbackRowsLimitMock,
-  inArrayMock,
   legacySizeRowsLimitMock,
-  lteMock,
-  preprocessExecutionMock,
-  processQueuedResumesMock,
-  setAutomaticResumeWaitingMock,
-  setNextResumeAtMock,
-  sqlMock,
 } = vi.hoisted(() => ({
-  assertBillingAttributionSnapshotMock: vi.fn((value: unknown) => value),
   dueRowsLimitMock: vi.fn(),
-  enqueueOrStartResumeMock: vi.fn(),
   executionSnapshotFromJsonMock: vi.fn(),
   fallbackRowsLimitMock: vi.fn(),
-  inArrayMock: vi.fn(),
   legacySizeRowsLimitMock: vi.fn(),
-  lteMock: vi.fn(),
-  preprocessExecutionMock: vi.fn(),
-  processQueuedResumesMock: vi.fn(),
-  setAutomaticResumeWaitingMock: vi.fn(),
-  setNextResumeAtMock: vi.fn(),
-  sqlMock: vi.fn((strings: TemplateStringsArray) =>
-    strings.join('').includes('jsonb_build_object') ? 'boundedMetadata' : 'snapshotBytes'
-  ),
 }))
 
 const acquireLockMock = redisConfigMockFns.mockAcquireLock
 const releaseLockMock = redisConfigMockFns.mockReleaseLock
+const preprocessExecutionMock = executionPreprocessingMockFns.mockPreprocessExecution
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  inArray: inArrayMock,
-  isNotNull: vi.fn(),
-  lte: lteMock,
-  sql: sqlMock,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: vi.fn(() => null),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: assertBillingAttributionSnapshotMock,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: preprocessExecutionMock,
-}))
-
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  computeEarliestResumeAt: vi.fn(() => null),
-  PauseResumeManager: {
-    enqueueOrStartResume: enqueueOrStartResumeMock,
-    processQueuedResumes: processQueuedResumesMock,
-    setAutomaticResumeWaiting: setAutomaticResumeWaitingMock,
-    setNextResumeAt: setNextResumeAtMock,
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: {
@@ -79,14 +48,31 @@ vi.mock('@/executor/execution/snapshot', () => ({
   },
 }))
 
+import { inArray, sql } from 'drizzle-orm'
 import {
   LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE,
   MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES,
 } from '@/lib/workflows/executor/paused-execution-policy'
 import { GET } from '@/app/api/resume/poll/route'
 
+humanInTheLoopManagerMockFns.mockComputeEarliestResumeAt.mockReturnValue(null)
+
+const inArrayMock = vi.mocked(inArray)
+const sqlMock = vi.mocked(sql)
+sqlMock.mockImplementation(
+  (strings: TemplateStringsArray) =>
+    (strings.join('').includes('jsonb_build_object') ? 'boundedMetadata' : 'snapshotBytes') as never
+)
+
+const {
+  mockEnqueueOrStartResume: enqueueOrStartResumeMock,
+  mockProcessQueuedResumes: processQueuedResumesMock,
+  mockSetAutomaticResumeWaiting: setAutomaticResumeWaitingMock,
+  mockSetNextResumeAt: setNextResumeAtMock,
+} = humanInTheLoopManagerMockFns
+
 function makeRequest(): NextRequest {
-  return new NextRequest('http://localhost/api/resume/poll')
+  return createMockRequest({ url: 'http://localhost/api/resume/poll' })
 }
 
 function makeBillingAttribution(workspaceId: string, actorUserId: string) {

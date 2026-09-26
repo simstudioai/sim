@@ -1,32 +1,40 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getDetail: vi.fn(),
   listMembers: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/workspaces/public-queries', () => ({
-  getPublicWorkspaceDetail: mocks.getDetail,
-  queryPublicWorkspaceMembers: mocks.listMembers,
+  getPublicWorkspaceDetail: hoisted.getDetail,
+  queryPublicWorkspaceMembers: hoisted.listMembers,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { getPublicWorkspace } from '@/lib/workspaces/application/get-public-workspace'
 import { listPublicWorkspaceMembers } from '@/lib/workspaces/application/list-public-workspace-members'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const context = {
   workspaceId: 'workspace-1',
@@ -34,11 +42,7 @@ const context = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'key-1',
-}
+const workspacePrincipal = createWorkspaceApiKeyPrincipal()
 
 describe('public workspace application reads', () => {
   beforeEach(() => {
@@ -65,11 +69,7 @@ describe('public workspace application reads', () => {
 
     await expect(
       listPublicWorkspaceMembers.execute({
-        principal: {
-          kind: 'personal_api_key',
-          userId: 'user-1',
-          keyId: 'key-1',
-        },
+        principal: createPersonalApiKeyPrincipal(),
         input: { workspaceId: 'workspace-1', limit: 50 },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

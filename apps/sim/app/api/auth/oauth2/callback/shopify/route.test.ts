@@ -1,25 +1,26 @@
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCompleteShopifyOAuthConnection, mockGetSession, mockRequireConfiguredOAuthClient } =
-  vi.hoisted(() => ({
-    mockCompleteShopifyOAuthConnection: vi.fn(),
-    mockGetSession: vi.fn(),
-    mockRequireConfiguredOAuthClient: vi.fn(),
-  }))
+const { mockCompleteShopifyOAuthConnection, mockRequireConfiguredOAuthClient } = vi.hoisted(() => ({
+  mockCompleteShopifyOAuthConnection: vi.fn(),
+  mockRequireConfiguredOAuthClient: vi.fn(),
+}))
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mockRequireConfiguredOAuthClient,
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
 vi.mock('@/lib/oauth/shopify', () => ({
   completeShopifyOAuthConnection: mockCompleteShopifyOAuthConnection,
 }))
 
 import { createShopifyOAuthState } from '@/lib/oauth/shopify-state'
 import { GET } from '@/app/api/auth/oauth2/callback/shopify/route'
+
+const mockGetSession = authMockFns.mockGetSession
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
 
 const CLIENT_SECRET = 'shopify-client-secret'
 const SHOP_DOMAIN = 'example.myshopify.com'

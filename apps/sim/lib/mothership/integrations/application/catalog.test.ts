@@ -1,5 +1,23 @@
 import { copilotChats, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTrustedCopilotPrincipal,
@@ -12,30 +30,23 @@ import {
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
 
-const mocks = vi.hoisted(() => ({
-  build: vi.fn(),
-  mcp: vi.fn(),
-  config: vi.fn(),
-  banned: vi.fn(),
-  target: vi.fn(),
-  workspace: vi.fn(),
-  listServers: vi.fn(),
-}))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  listMcpServersUseCase: { execute: mocks.listServers },
-}))
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildIntegrationToolSchemas: mocks.build }))
-vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: mocks.mcp }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: mocks.target,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+const hoisted = vi.hoisted(() => ({ mcp: vi.fn() }))
+const mocks = {
+  ...hoisted,
+  build: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+  target: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  listServers: mcpUseCasesMockFns.mockListMcpServersUseCase,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
+vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: hoisted.mcp }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 const input = { mode: 'assistant' as const, mcpServerIds: [], limit: 20 }
 const tools = [

@@ -1,22 +1,22 @@
 import { createMockRequest } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueue, mockGetJobQueue, mockIsTableRowTtlEnabled, mockVerifyCronAuth } = vi.hoisted(
-  () => ({
-    mockEnqueue: vi.fn(),
-    mockGetJobQueue: vi.fn(),
-    mockIsTableRowTtlEnabled: vi.fn(),
-    mockVerifyCronAuth: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mockGetJobQueue }))
-vi.mock('@/lib/table/ttl-availability', () => ({
-  isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
 
 import { GET } from '@/app/api/cron/cleanup-table-row-ttl/route'
+
+const { mockIsTableRowTtlEnabled } = tableTtlAvailabilityMockFns
+const { mockVerifyCronAuth } = authInternalMockFns
+
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
 
 describe('table row TTL cleanup route', () => {
   beforeEach(() => {
@@ -25,7 +25,6 @@ describe('table row TTL cleanup route', () => {
     mockVerifyCronAuth.mockReturnValue(null)
     mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockEnqueue.mockResolvedValue('job-ttl-1')
-    mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
   })
 
   afterEach(() => {

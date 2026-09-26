@@ -7,30 +7,27 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSyncSubscriptionUsageLimits, enqueueMock } = vi.hoisted(() => ({
+const { mockSyncSubscriptionUsageLimits } = vi.hoisted(() => ({
   mockSyncSubscriptionUsageLimits: vi.fn(),
-  enqueueMock: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organization', () => ({
   syncSubscriptionUsageLimits: mockSyncSubscriptionUsageLimits,
 }))
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: enqueueMock,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+
+const enqueueMock = outboxServiceMockFns.mockEnqueueOutboxEvent
 
 const teamSub = {
   id: 'sub-1',

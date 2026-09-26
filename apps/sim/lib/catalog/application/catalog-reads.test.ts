@@ -1,55 +1,48 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   allowedIntegrationTypes: vi.fn(),
-  getBlockVisibility: vi.fn(),
-  listCustomBlocks: vi.fn(),
-  isDeploymentAvailable: vi.fn(),
-  recordAudit: vi.fn(),
-  getAllBlocks: vi.fn(),
-  getBlock: vi.fn(),
-  getLatestBlockForViewer: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
-  allowedIntegrationTypes: mocks.allowedIntegrationTypes,
+  allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
   principalUserId: (principal: { kind: string; userId?: string }) =>
     principal.kind === 'session' || principal.kind === 'personal_api_key'
       ? principal.userId
       : undefined,
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  listCustomBlocksWithInputsForWorkspace: mocks.listCustomBlocks,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mocks.isDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: <T>(_rows: unknown, run: () => Promise<T>) => run(),
@@ -57,22 +50,6 @@ vi.mock('@/blocks/custom/server-overlay', () => ({
 
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: <T>(_state: unknown, run: () => Promise<T>) => run(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: mocks.getAllBlocks,
-  getBlock: mocks.getBlock,
-  getLatestBlockForViewer: mocks.getLatestBlockForViewer,
-  getBlockMeta: vi.fn(() => ({ tags: ['messaging'] })),
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (toolId: string) =>
-    Object.hasOwn(TOOL_METADATA, toolId) ? TOOL_METADATA[toolId] : undefined,
-}))
-
-vi.mock('@/tools/metadata-outputs', () => ({
-  getToolOutputsMetadata: () => ({ ok: { type: 'boolean', description: 'Whether it worked.' } }),
 }))
 
 vi.mock('@/tools/tool-ids', () => ({
@@ -85,7 +62,10 @@ import { getCatalogTool } from '@/lib/catalog/application/get-tool'
 import { listCatalogBlocks } from '@/lib/catalog/application/list-blocks'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
 import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
+import { getAllBlocks, getBlock, getBlockMeta, getLatestBlockForViewer } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { getToolMetadata } from '@/tools/metadata'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   slack_message: {
@@ -123,6 +103,28 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   },
 }
 
+vi.mocked(getToolMetadata).mockImplementation((toolId: string) =>
+  Object.hasOwn(TOOL_METADATA, toolId) ? TOOL_METADATA[toolId] : undefined
+)
+vi.mocked(getToolOutputsMetadata).mockReturnValue({
+  ok: { type: 'boolean', description: 'Whether it worked.' },
+})
+vi.mocked(getBlockMeta).mockReturnValue({ tags: ['messaging'] })
+
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  listCustomBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+  isDeploymentAvailable:
+    integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  getAllBlocks: vi.mocked(getAllBlocks),
+  getBlock: vi.mocked(getBlock),
+  getLatestBlockForViewer: vi.mocked(getLatestBlockForViewer),
+}
+
 const WORKSPACE_ID = 'workspace-1'
 
 const workspaceContext = {
@@ -132,7 +134,7 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const session = createSessionPrincipal()
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {

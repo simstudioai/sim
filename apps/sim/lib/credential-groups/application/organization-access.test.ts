@@ -1,4 +1,4 @@
-import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import {
   auditMock,
   auditMockFns,
@@ -7,50 +7,48 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsOrganizationSetupMock,
+  credentialGroupsOrganizationSetupMockFns,
+} from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  available: vi.fn(),
-  group: vi.fn(),
-  setup: vi.fn(),
-  write: vi.fn(),
-  policy: vi.fn(),
-  accountsGroup: vi.fn(),
-  invite: vi.fn(),
-}))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.setup,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: vi.fn(),
-  getOrganizationAccountsGroup: mocks.accountsGroup,
-  updateCredentialGroup: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: mocks.invite,
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.policy,
-  writeResourcePolicy: mocks.write,
-  ResourcePolicyRevisionConflictError: class extends Error {},
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -65,11 +63,17 @@ import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/ap
 import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
 
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-user',
-  sessionId: 'session-1',
+const mocks = {
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  setup: credentialGroupsOrganizationSetupMockFns.mockRequireOrganizationAccountsSetup,
+  accountsGroup: credentialGroupsServiceMockFns.mockGetOrganizationAccountsGroup,
+  invite: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  write: resourcePolicyRepositoryMockFns.mockWriteResourcePolicy,
 }
+
+const principal = createSessionPrincipal({ userId: 'admin-user' })
 const input = {
   organizationId: 'org-1',
   revision: 3,

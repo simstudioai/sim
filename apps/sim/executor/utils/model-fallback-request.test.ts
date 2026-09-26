@@ -1,26 +1,29 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { request, validateModel } = vi.hoisted(() => ({
+const validateModel = permissionCheckMockFns.mockValidateModelProvider
+providersUtilsMockFns.mockGetProviderFromModel.mockImplementation((model: string) => {
+  if (model.startsWith('claude')) return 'anthropic'
+  if (model.startsWith('vertex/')) return 'vertex'
+  return 'openai'
+})
+
+const { request } = vi.hoisted(() => ({
   request: vi.fn(),
-  validateModel: vi.fn(),
 }))
 
 vi.mock('@/executor/utils/provider-request', () => ({ executeBlockProviderRequest: request }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateModelProvider: validateModel,
-}))
-vi.mock('@/providers/utils', () => ({
-  getProviderFromModel: (model: string) => {
-    if (model.startsWith('claude')) return 'anthropic'
-    if (model.startsWith('vertex/')) return 'vertex'
-    return 'openai'
-  },
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 function context(): ExecutionContext {
   return {

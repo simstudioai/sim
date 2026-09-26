@@ -1,9 +1,9 @@
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { toError } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAppendSlackAgentStream,
-  mockGetSlackBotCredential,
   mockRegisterSlackStreamSession,
   mockSetSlackAgentSessionStatus,
   mockStartSlackAgentStream,
@@ -11,7 +11,6 @@ const {
   mockUnregisterSlackStreamSession,
 } = vi.hoisted(() => ({
   mockAppendSlackAgentStream: vi.fn(),
-  mockGetSlackBotCredential: vi.fn(),
   mockRegisterSlackStreamSession: vi.fn(),
   mockSetSlackAgentSessionStatus: vi.fn(),
   mockStartSlackAgentStream: vi.fn(),
@@ -19,9 +18,7 @@ const {
   mockUnregisterSlackStreamSession: vi.fn(),
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getSlackBotCredential: mockGetSlackBotCredential,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   appendSlackAgentStream: mockAppendSlackAgentStream,
@@ -42,6 +39,8 @@ import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-s
 import type { SlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import { type AgentStreamEvent, createAgentEventReadableStream } from '@/providers/stream-events'
 import { createAgentStreamPump } from '@/providers/stream-pump'
+
+const mockGetSlackBotCredential = authOAuthUtilsMockFns.mockGetSlackBotCredential
 
 const BASE_CONFIG: SlackStreamResponseConfig = {
   enabled: true,

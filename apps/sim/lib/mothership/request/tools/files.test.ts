@@ -1,25 +1,18 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEncryptSecret, mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
-  mockEncryptSecret: vi.fn(),
+const { mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (
-    _name: string,
-    _attrs: Record<string, unknown> | undefined,
-    fn: (span: unknown) => Promise<unknown>
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
@@ -32,6 +25,8 @@ import {
 } from '@/lib/mothership/request/tools/files'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockEncryptSecret } = encryptionMockFns
 
 describe('unwrapFunctionExecuteOutput', () => {
   it('unwraps the run_function envelope { result, stdout }', () => {

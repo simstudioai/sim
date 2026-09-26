@@ -1,16 +1,18 @@
+import {
+  workflowRegistryStoreMock,
+  workflowRegistryStoreMockFns,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFetchQuery,
   mockApplyWorkflowStateToStores,
-  mockGetRegistryState,
   mockHasPendingOperations,
   mockGetOperationQueueState,
   mockGetWorkflowDiffState,
 } = vi.hoisted(() => ({
   mockFetchQuery: vi.fn(),
   mockApplyWorkflowStateToStores: vi.fn(),
-  mockGetRegistryState: vi.fn(() => ({ activeWorkflowId: 'workflow-a' })),
   mockHasPendingOperations: vi.fn(() => false),
   mockGetOperationQueueState: vi.fn(() => ({
     hasPendingOperations: mockHasPendingOperations,
@@ -56,17 +58,15 @@ vi.mock('@/stores/operation-queue/store', () => ({
   },
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: {
-    getState: mockGetRegistryState,
-  },
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 import {
   canApplyDraftSnapshot,
   captureDraftVersions,
   syncLocalDraftFromServer,
 } from '@/stores/workflows/sync-local-draft'
+
+const mockGetRegistryState = workflowRegistryStoreMockFns.mockGetState
 
 function buildEnvelopeState() {
   return {

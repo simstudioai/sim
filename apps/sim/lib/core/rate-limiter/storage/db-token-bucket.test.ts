@@ -8,7 +8,6 @@ describe('PostgreSQL token bucket', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-04T12:00:00Z'))
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

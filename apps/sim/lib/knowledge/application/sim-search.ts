@@ -53,6 +53,7 @@ import {
   withSearchSourceDefaults,
 } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
+import { assertIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
@@ -296,12 +297,15 @@ async function requireSimSearchSetupAdmin(
  * The database identifies one active search index per owner. Local
  * singleflight also coalesces repeated setup clicks for each source; concurrent
  * source creation is serialized by the connector insert transaction before enrollment.
+ * The source crawls into the owner's search index, so it is refused while indexed organization
+ * search is dormant.
  */
 export const configureSimSearchConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.simSearchConnect,
   resolveContext: ({ input }: { input: ConnectSimSearchConnectorInput }) =>
     resolveKnowledgeOwnerContext(input),
   async execute({ principal, input, context, request }) {
+    assertIndexedOrgSearchEnabled()
     const meta = CONNECTOR_META_REGISTRY[input.connectorType]
     if (!meta || !canConnectPersonally(meta)) {
       throw new OrchestrationError(

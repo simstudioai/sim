@@ -1,16 +1,14 @@
 import { databaseMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'generated-uuid-1'),
-  generateShortId: vi.fn(() => 'generated-short-1'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import { SnapshotService } from '@/lib/logs/execution/snapshot/service'
 import type { WorkflowState } from '@/lib/logs/types'
+
+idMockFns.mockGenerateId.mockImplementation(() => 'generated-uuid-1')
+idMockFns.mockGenerateShortId.mockImplementation(() => 'generated-short-1')
 
 const mockState: WorkflowState = {
   blocks: {

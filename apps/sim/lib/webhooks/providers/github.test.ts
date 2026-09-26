@@ -1,16 +1,12 @@
-import { NextRequest } from 'next/server'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
 import { githubHandler } from '@/lib/webhooks/providers/github'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
 
-function reqWithHeaders(headers: Record<string, string>): NextRequest {
-  return new NextRequest('http://localhost/test', { headers })
-}
-
 describe('GitHub webhook provider', () => {
   it('verifyAuth rejects an invalid X-Hub-Signature-256', () => {
     const res = githubHandler.verifyAuth!({
-      request: reqWithHeaders({ 'X-Hub-Signature-256': 'sha256=deadbeef' }),
+      request: createMockRequest({ headers: { 'X-Hub-Signature-256': 'sha256=deadbeef' } }),
       rawBody: '{}',
       requestId: 't3',
       providerConfig: { webhookSecret: 'my-secret' },
@@ -26,7 +22,7 @@ describe('GitHub webhook provider', () => {
     const secret = 'my-secret'
     const signature = `sha256=${crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')}`
     const res = githubHandler.verifyAuth!({
-      request: reqWithHeaders({ 'X-Hub-Signature-256': signature }),
+      request: createMockRequest({ headers: { 'X-Hub-Signature-256': signature } }),
       rawBody: body,
       requestId: 't4',
       providerConfig: { webhookSecret: secret },
@@ -59,7 +55,7 @@ describe('GitHub webhook provider', () => {
       providerConfig: { triggerId: 'github_workflow_run' },
       webhook: {},
       workflow: {},
-      request: reqWithHeaders({ 'x-github-event': 'push' }),
+      request: createMockRequest({ headers: { 'x-github-event': 'push' } }),
     })
     expect(result).toBe(false)
   })

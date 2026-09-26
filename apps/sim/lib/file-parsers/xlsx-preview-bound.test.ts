@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 
@@ -20,10 +20,6 @@ function inflatedRangeWorkbook(): Buffer {
 }
 
 describe('XlsxParser preview bound', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('converts only the preview window, not the declared range', async () => {
     const toJson = vi.spyOn(XLSX.utils, 'sheet_to_json')
 

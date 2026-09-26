@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import { createShopifyOAuthState, parseShopifyOAuthState } from '@/lib/oauth/shopify-state'
 
@@ -20,10 +20,6 @@ function parse(
 }
 
 describe('Shopify OAuth state', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('keeps overlapping connection drafts bound to their own state', () => {
     const first = createShopifyOAuthState({
       userId: USER_ID,

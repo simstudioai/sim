@@ -3,7 +3,7 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import {
@@ -70,8 +70,6 @@ function recordedExecution(
 }
 
 describe('reconnect execution outcome recovery', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it.each(['completed', 'failed', 'cancelled', 'paused'] as const)(
     'recovers the recorded %s outcome when the replay buffer expired',
     async (status) => {
@@ -311,10 +309,6 @@ describe('useExecutionStream executeFromBlock', () => {
         headers: { 'X-Execution-Id': 'execution-2' },
       })
     )
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('sends current draft state and client identity without changing snapshot resume fields', async () => {

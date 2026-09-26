@@ -26,7 +26,6 @@ describe('Search MCP client connection', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   async function render(endpoint = ENDPOINT) {

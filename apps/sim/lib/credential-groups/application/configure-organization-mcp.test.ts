@@ -1,46 +1,44 @@
 import * as audit from '@sim/audit'
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsOrganizationSetupMock,
+  credentialGroupsOrganizationSetupMockFns,
+} from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import { credentialGroupsSelfEnrollmentMock } from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { credentialGroupsServiceMock } from '@sim/testing/mocks/credential-groups-service.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  available: vi.fn(),
-  group: vi.fn(),
-  setup: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   read: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   clear: vi.fn(),
   evict: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.setup,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: vi.fn(),
-  getOrganizationAccountsGroup: vi.fn(),
-  updateCredentialGroup: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
 vi.mock('@/lib/credential-groups/managed-mcp-service', () => ({
-  loadOrganizationDatabricksSetup: mocks.read,
-  createManagedMcpConnector: mocks.create,
-  updateManagedMcpConnector: mocks.update,
+  loadOrganizationDatabricksSetup: hoisted.read,
+  createManagedMcpConnector: hoisted.create,
+  updateManagedMcpConnector: hoisted.update,
   ManagedMcpConnectorError: class extends Error {
     constructor(
       message: string,
@@ -51,20 +49,23 @@ vi.mock('@/lib/credential-groups/managed-mcp-service', () => ({
   },
 }))
 vi.mock('@/lib/credential-groups/mcp-oauth-state', () => ({
-  clearCredentialGroupMcpOAuthAttempts: mocks.clear,
+  clearCredentialGroupMcpOAuthAttempts: hoisted.clear,
 }))
-vi.mock('@/lib/mcp/connection-pool', () => ({ evictMcpServerConnections: mocks.evict }))
+vi.mock('@/lib/mcp/connection-pool', () => ({ evictMcpServerConnections: hoisted.evict }))
 
 import { configureOrganizationMcp } from '@/lib/credential-groups/application/configure-organization-mcp'
 import { addOrganizationAccountMcpProvider } from '@/lib/credential-groups/application/organization-account-management'
 import { getOrganizationDatabricksSetup } from '@/lib/credential-groups/application/organization-databricks-setup'
 import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
 
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-user',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoisted,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  setup: credentialGroupsOrganizationSetupMockFns.mockRequireOrganizationAccountsSetup,
 }
+
+const principal = createSessionPrincipal({ userId: 'admin-user' })
 const input = {
   organizationId: 'customer-org',
   connectorId: 'databricks' as const,

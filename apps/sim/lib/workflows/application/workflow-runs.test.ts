@@ -1,30 +1,26 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   list: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveRunContext: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
   getRunFiles: vi.fn(),
   describeFiles: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-  resolveActiveWorkflowRunApplicationContext: mocks.resolveRunContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execution-queries', () => ({
   listWorkflowExecutions: mocks.list,
@@ -43,6 +39,11 @@ import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/function
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
 
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveWorkflowContext =
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockResolveRunContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
+
 const workflowContext = {
   workflowId: 'workflow-1',
   workflow: { id: 'workflow-1' },
@@ -55,9 +56,9 @@ const workflowContext = {
 const runContext = { ...workflowContext, runId: 'run-1' }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-  { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-workspace' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'key-personal' }),
+  createWorkspaceApiKeyPrincipal({ keyId: 'key-workspace' }),
   {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -72,9 +73,9 @@ const principals: Principal[] = [
 
 describe('workflow run application use cases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
-    mocks.resolveRunContext.mockResolvedValue(runContext)
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveWorkflowContext.mockResolvedValue(workflowContext)
+    mockResolveRunContext.mockResolvedValue(runContext)
     mocks.list.mockResolvedValue({ data: [], nextCursor: null })
     mocks.getStatus.mockResolvedValue({
       status: { executionId: 'run-1', workflowId: 'workflow-1', status: 'completed' },
@@ -96,7 +97,7 @@ describe('workflow run application use cases', () => {
         input: { workflowId: 'workflow-1', limit: 25, order: 'desc' },
       })
 
-      expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+      expect(mockResolveWorkflowContext).toHaveBeenCalledWith({
         workflowId: 'workflow-1',
       })
       expect(mocks.list).toHaveBeenCalledWith(
@@ -116,7 +117,7 @@ describe('workflow run application use cases', () => {
       },
     })
 
-    expect(mocks.resolveRunContext).toHaveBeenCalledWith({
+    expect(mockResolveRunContext).toHaveBeenCalledWith({
       runId: 'run-1',
       assertedWorkflowId: 'workflow-1',
     })
@@ -151,7 +152,7 @@ describe('workflow run application use cases', () => {
   })
 
   it('stops before authorization and data access when canonical run scope disagrees', async () => {
-    mocks.resolveRunContext.mockRejectedValueOnce(
+    mockResolveRunContext.mockRejectedValueOnce(
       Object.assign(new Error('Run not found'), { code: 'not_found' })
     )
 
@@ -166,7 +167,7 @@ describe('workflow run application use cases', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mockResolvePermission).not.toHaveBeenCalled()
     expect(mocks.getStatus).not.toHaveBeenCalled()
   })
 

@@ -1,4 +1,6 @@
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   InsufficientWorkspacePermissionsError,
@@ -7,12 +9,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mocks.getSession,
 }))
 
 vi.mock('@/lib/workflows/application/read-paused-workflow-execution', () => ({
@@ -87,20 +83,21 @@ function pausedExecutionRequest() {
 const routeCases = [
   {
     name: 'resume detail route',
-    call: () => GET(request(), { params: Promise.resolve(params) }),
+    call: () => GET(request(), createRouteContext(params)),
   },
   {
     name: 'workflow paused-detail route',
     call: () =>
-      GET_PAUSED_EXECUTION(pausedExecutionRequest(), {
-        params: Promise.resolve({ id: params.workflowId, executionId: params.executionId }),
-      }),
+      GET_PAUSED_EXECUTION(
+        pausedExecutionRequest(),
+        createRouteContext({ id: params.workflowId, executionId: params.executionId })
+      ),
   },
 ]
 
 describe('GET /api/resume/[workflowId]/[executionId]', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })

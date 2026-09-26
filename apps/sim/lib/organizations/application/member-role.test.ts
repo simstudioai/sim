@@ -1,38 +1,43 @@
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingOrganizationMock } from '@sim/testing/mocks/billing-organization.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { organizationSeatsMock } from '@sim/testing/mocks/organization-seats.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   scim: vi.fn(),
   change: vi.fn(),
-  audit: vi.fn(),
-  analytics: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/ee/scim/lib/managed-membership', () => ({
+  assertMembershipNotScimManaged: hoisted.scim,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.lock,
-}))
-vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: mocks.scim }))
-vi.mock('@/lib/organizations/members/lifecycle', () => ({ changeMemberRoleTx: mocks.change }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORG_MEMBER_ROLE_CHANGED: 'org.member.role' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/billing/core/organization', () => ({ getOrganizationMemberUsageSnapshot: vi.fn() }))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: vi.fn() }))
+vi.mock('@/lib/organizations/members/lifecycle', () => ({ changeMemberRoleTx: hoisted.change }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/auth/active-organization', () => ({
   setActiveOrganizationForCurrentSession: vi.fn(),
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { updateOrganizationMember } from '@/lib/organizations/application/members'
+
+const mocks = {
+  ...hoisted,
+  lock: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const principal = {
   kind: 'organization_delegated',

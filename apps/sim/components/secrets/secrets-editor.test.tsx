@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+
 import { act, type ComponentProps } from 'react'
 import { ToastProvider } from '@sim/emcn'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
@@ -7,11 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SecretsEditor } from '@/components/secrets/secrets-editor'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 
-const mocks = vi.hoisted(() => ({ push: vi.fn(), save: vi.fn() }))
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('next/navigation')>()),
-  useRouter: () => ({ push: mocks.push }),
-}))
+const mocks = vi.hoisted(() => ({ save: vi.fn() }))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
 
 let root: Root
 let container: HTMLDivElement
@@ -34,7 +35,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 async function render(props: Partial<ComponentProps<typeof SecretsEditor>> = {}) {
   await act(async () =>

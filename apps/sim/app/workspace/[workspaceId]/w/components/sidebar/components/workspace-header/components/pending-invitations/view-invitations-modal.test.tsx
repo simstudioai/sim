@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
 import { ToastProvider } from '@sim/emcn'
+import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
@@ -8,16 +10,15 @@ import type { MyInvitation } from '@/lib/api/contracts/invitations'
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   decline: vi.fn(),
-  push: vi.fn(),
   refetch: vi.fn(),
   query: vi.fn(),
   close: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push }),
-  usePathname: () => '/workspace/workspace-1/home',
-}))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
 vi.mock('@/hooks/queries/invitations', () => ({
   useMyPendingInvitations: mocks.query,
   useAcceptMyInvitation: () => ({ isPending: false, mutateAsync: mocks.accept }),
@@ -25,6 +26,9 @@ vi.mock('@/hooks/queries/invitations', () => ({
 }))
 
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+
+const mockPush = nextNavigationMockFns.router.push
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
 class ResizeObserverMock {
   observe = vi.fn()
@@ -92,8 +96,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.clearAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('ViewInvitationsModal', () => {
@@ -188,7 +190,7 @@ describe('ViewInvitationsModal', () => {
       disclosedWorkspaceIds: ['personal', 'archived'],
       disclosedOutcome: 'will-join',
     })
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-1/home')
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/home')
   })
 
   it('blocks an internal invitation with no preview and offers refresh', async () => {

@@ -1,50 +1,26 @@
-import { loggerMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { loggingSessionMock, loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
-const {
-  captureServerEventMock,
-  executeWorkflowCoreMock,
-  handlePostExecutionPauseStateMock,
-  loggingSessionConstructorMock,
-  projectDiagnosticErrorMock,
-  safeStartMock,
-  waitForPostExecutionMock,
-  setTrustedExecutionCorrelationMock,
-} = vi.hoisted(() => ({
-  captureServerEventMock: vi.fn(),
+const { executeWorkflowCoreMock, handlePostExecutionPauseStateMock } = vi.hoisted(() => ({
   executeWorkflowCoreMock: vi.fn(),
   handlePostExecutionPauseStateMock: vi.fn(),
-  loggingSessionConstructorMock: vi.fn(),
-  projectDiagnosticErrorMock: vi.fn(),
-  safeStartMock: vi.fn(),
-  waitForPostExecutionMock: vi.fn(),
-  setTrustedExecutionCorrelationMock: vi.fn(),
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: () => 'execution-1',
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: class {
-    projectDiagnosticError = projectDiagnosticErrorMock
-    safeStart = safeStartMock
-    waitForPostExecution = waitForPostExecutionMock
-    setTrustedExecutionCorrelation = setTrustedExecutionCorrelationMock
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-    constructor(...args: unknown[]) {
-      loggingSessionConstructorMock(...args)
-    }
-  },
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: captureServerEventMock,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: executeWorkflowCoreMock,
@@ -54,24 +30,23 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: handlePostExecutionPauseStateMock,
 }))
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (value: string) => {
-    if (value !== 'encrypted-secret') throw new Error('Invalid ciphertext')
-    return { decrypted: 'secret-value' }
-  }),
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { createWorkflowCellProgressWriter } from '@/lib/table/cell-write'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { hasExecutionResult } from '@/executor/utils/errors'
 
-const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
-  ([name]) => name === 'WorkflowExecution'
-)
-const workflowExecutionLogger =
-  loggerMock.createLogger.mock.results[workflowExecutionLoggerCallIndex]?.value
-if (!workflowExecutionLogger) throw new Error('WorkflowExecution logger mock was not initialized')
+const projectDiagnosticErrorMock = loggingSessionMockFns.mockProjectDiagnosticError
+const safeStartMock = loggingSessionMockFns.mockSafeStart
+const waitForPostExecutionMock = loggingSessionMockFns.mockWaitForPostExecution
+idMockFns.mockGenerateId.mockReturnValue('execution-1')
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => {
+  if (value !== 'encrypted-secret') throw new Error('Invalid ciphertext')
+  return { decrypted: 'secret-value' }
+})
+
+const workflowExecutionLogger = getMockLogger('WorkflowExecution')
 
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'actor-1',
@@ -101,11 +76,7 @@ const workflow = {
   variables: {},
 }
 
-const principal = {
-  kind: 'session',
-  userId: 'actor-1',
-  sessionId: 'session-1',
-} as const
+const principal = createSessionPrincipal({ userId: 'actor-1' })
 
 describe('executeWorkflow', () => {
   beforeEach(() => {

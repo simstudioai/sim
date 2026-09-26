@@ -1,14 +1,9 @@
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFolderMap, mockGetWorkflows, queryClient } = vi.hoisted(() => ({
+const { mockGetFolderMap, mockGetWorkflows } = vi.hoisted(() => ({
   mockGetFolderMap: vi.fn(() => ({})),
   mockGetWorkflows: vi.fn(() => []),
-  queryClient: {
-    cancelQueries: vi.fn().mockResolvedValue(undefined),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-    getQueryData: vi.fn(),
-    setQueryData: vi.fn(),
-  },
 }))
 
 let folderMapState: Record<string, any>
@@ -22,12 +17,7 @@ let workflowList: Array<{
   sortOrder: number
 }>
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
   getWorkflows: mockGetWorkflows,
@@ -44,6 +34,8 @@ vi.mock('@/hooks/queries/utils/workflow-keys', () => ({
 }))
 
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
+
+const queryClient = reactQueryMockFns.mockQueryClient
 
 function getOptimisticFolderByName(name: string) {
   return Object.values(folderMapState).find((folder: any) => folder.name === name) as

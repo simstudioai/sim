@@ -1,20 +1,21 @@
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   executeManage: vi.fn(),
   executeParser: vi.fn(),
   searchContent: vi.fn(),
   getProvenance: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/file/operations', () => ({
   executeFileManageOperation: mocks.executeManage,
@@ -42,6 +43,8 @@ vi.mock('@/lib/workspace-files/application/search-workspace-file-content', () =>
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const MANAGE_INPUTS = {
   file_append: { operation: 'append', fileName: 'notes.txt', content: 'next' },
@@ -117,7 +120,7 @@ function request(
 
 describe('executeFileTool', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -130,7 +133,7 @@ describe('executeFileTool', () => {
   })
 
   it('uses the delegation origin as the file authorization subject in child workflows', async () => {
-    mocks.createPrincipal.mockResolvedValueOnce({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'invoking-user',
@@ -191,7 +194,7 @@ describe('executeFileTool', () => {
         },
       },
     }
-    mocks.createPrincipal.mockResolvedValueOnce(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(principal)
 
     await executeFileTool(
       request('file_decompress', MANAGE_INPUTS.file_decompress, {
@@ -239,7 +242,7 @@ describe('executeFileTool', () => {
         )
       )
       expect(response.status).toBe(401)
-      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
       expect(mocks.executeManage).not.toHaveBeenCalled()
     }
   )
@@ -254,7 +257,7 @@ describe('executeFileTool', () => {
     call.context.callerPrincipal = callerPrincipal
     const response = await executeFileTool(call)
     expect(response.status).toBe(200)
-    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
     expect(mocks.executeManage.mock.calls[0]?.[1].principal).toMatchObject({
       kind: 'delegated',
       serviceId: 'executor',
@@ -265,10 +268,12 @@ describe('executeFileTool', () => {
   it('never falls back to a direct caller after invalid executor delegation', async () => {
     const call = request('file_read', MANAGE_INPUTS.file_read)
     call.context.callerPrincipal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
-    mocks.createPrincipal.mockRejectedValueOnce(new InvalidInternalDelegationBindingError())
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValueOnce(
+      new InvalidInternalDelegationBindingError()
+    )
     const response = await executeFileTool(call)
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
 
@@ -298,7 +303,7 @@ describe('executeFileTool', () => {
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
 })

@@ -1,36 +1,33 @@
-import { recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: {
-    PERMISSION_GROUP_CREATED: 'permission_group.created',
-    PERMISSION_GROUP_MEMBER_ADDED: 'permission_group.member_added',
-  },
-  AuditResourceType: { PERMISSION_GROUP: 'permission_group' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-const mocks = vi.hoisted(() => ({
-  regime: vi.fn(),
-  config: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   bulkAdd: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mocks.regime,
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/permission-groups/group-manager', () => ({
-  createPermissionGroupRecord: mocks.create,
+  createPermissionGroupRecord: hoisted.create,
   updatePermissionGroupRecord: vi.fn(),
   deletePermissionGroupRecord: vi.fn(),
   requirePermissionGroup: vi.fn(),
 }))
 vi.mock('@/lib/permission-groups/member-manager', () => ({
-  bulkAddPermissionGroupMemberRecords: mocks.bulkAdd,
+  bulkAddPermissionGroupMemberRecords: hoisted.bulkAdd,
   addPermissionGroupMemberRecord: vi.fn(),
   removePermissionGroupMemberRecord: vi.fn(),
 }))
@@ -39,8 +36,15 @@ import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { createPermissionGroup } from '@/lib/permission-groups/application/use-cases'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const session: Principal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
-const key: Principal = { kind: 'personal_api_key', userId: 'admin-1', keyId: 'key-1' }
+const recordAudit = auditMockFns.mockRecordAudit
+const mocks = {
+  ...hoisted,
+  regime: permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+
+const session: Principal = createSessionPrincipal({ userId: 'admin-1' })
+const key: Principal = createPersonalApiKeyPrincipal({ userId: 'admin-1' })
 const oauth: Principal = {
   kind: 'oauth_access_token',
   userId: 'admin-1',
@@ -66,11 +70,7 @@ describe('permission-group organization authorization', () => {
   it('rejects workspace keys before protected loading', async () => {
     await expect(
       createPermissionGroup.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          keyId: 'workspace-key',
-          workspaceId: 'workspace-1',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
         input,
       })
     ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })

@@ -1,14 +1,16 @@
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ SalesforceIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { salesforceConnector } from '@/connectors/salesforce/salesforce'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 const INSTANCE_URL = 'https://org.example.com/services/data/v62.0/'
 

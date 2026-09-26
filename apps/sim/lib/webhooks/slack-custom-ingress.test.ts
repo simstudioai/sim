@@ -1,8 +1,8 @@
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  getCredential: vi.fn(),
   listSessions: vi.fn(),
   unregister: vi.fn(),
   setStatus: vi.fn(),
@@ -11,9 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: mocks.cancel,
 }))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getSlackBotCredential: mocks.getCredential,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   setSlackAgentSessionStatus: mocks.setStatus,
 }))
@@ -54,7 +52,7 @@ describe('getLegacySlackCustomBotCredentialId', () => {
 describe('handleSlackAgentSessionStopped', () => {
   beforeEach(() => {
     mocks.listSessions.mockResolvedValue([])
-    mocks.getCredential.mockResolvedValue({ botToken: 'xoxb-test' })
+    authOAuthUtilsMockFns.mockGetSlackBotCredential.mockResolvedValue({ botToken: 'xoxb-test' })
   })
 
   it('cancels every active execution and returns the session to active', async () => {

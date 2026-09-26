@@ -42,7 +42,6 @@ function commandAt(...names: string[]): Command {
 
 describe('credential connection commands', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     output.format = 'table'
     mockRequest.mockReset()
     mockRequest.mockResolvedValue({
@@ -117,7 +116,6 @@ describe('credential connection commands', () => {
 
 describe('credentials update --name', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     output.format = 'json'
     mockRequest.mockReset()
     mockRequest.mockResolvedValue({ data: { id: 'cred-1', displayName: 'renamed' } })

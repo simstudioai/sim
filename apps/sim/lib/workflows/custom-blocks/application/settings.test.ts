@@ -1,41 +1,20 @@
 import { authMockFns } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  role: vi.fn(),
-  context: vi.fn(),
-  manage: vi.fn(),
-  eligible: vi.fn(),
-  deployment: vi.fn(),
-  list: vi.fn(),
-  publish: vi.fn(),
-  update: vi.fn(),
-  remove: vi.fn(),
-  usages: vi.fn(),
-  audit: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  CustomBlockValidationError: class extends Error {},
-  getCustomBlockManageContext: mocks.manage,
-  isCustomBlocksEligibleForOrganization: mocks.eligible,
-  isCustomBlocksDeploymentEnabled: mocks.deployment,
-  listCustomBlocksWithInputs: mocks.list,
-  publishCustomBlock: mocks.publish,
-  updateCustomBlock: mocks.update,
-  deleteCustomBlock: mocks.remove,
-  getCustomBlockUsageCounts: mocks.usages,
-}))
-vi.mock('@sim/audit', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/audit')>()),
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   deleteCustomBlockSettings,
@@ -45,6 +24,21 @@ import {
   updateCustomBlockSettings,
 } from '@/lib/workflows/custom-blocks/application/settings'
 import { CustomBlockValidationError } from '@/lib/workflows/custom-blocks/operations'
+
+const mocks = {
+  manage: customBlockOperationsMockFns.mockGetCustomBlockManageContext,
+  eligible: customBlockOperationsMockFns.mockIsCustomBlocksEligibleForOrganization,
+  deployment: customBlockOperationsMockFns.mockIsCustomBlocksDeploymentEnabled,
+  list: customBlockOperationsMockFns.mockListCustomBlocksWithInputs,
+  publish: customBlockOperationsMockFns.mockPublishCustomBlock,
+  update: customBlockOperationsMockFns.mockUpdateCustomBlock,
+  remove: customBlockOperationsMockFns.mockDeleteCustomBlock,
+  usages: customBlockOperationsMockFns.mockGetCustomBlockUsageCounts,
+}
+
+const mockRole = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockAudit = auditMockFns.mockRecordAudit
 
 const principal = {
   kind: 'delegated',
@@ -86,8 +80,8 @@ describe('custom block settings boundary', () => {
       user: { id: 'real-actor' },
       session: { id: 'session' },
     })
-    mocks.role.mockResolvedValue('admin')
-    mocks.context.mockImplementation(async (workspaceId: string) => ({
+    mockRole.mockResolvedValue('admin')
+    mockContext.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
       workspaceOrganizationId: 'org',
       allowPersonalApiKeys: true,
@@ -122,7 +116,7 @@ describe('custom block settings boundary', () => {
       description: '',
       traceChildRuns: false,
     })
-    expect(mocks.audit).toHaveBeenCalledWith(
+    expect(mockAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'real-actor',
         workspaceId: 'source',
@@ -137,7 +131,7 @@ describe('custom block settings boundary', () => {
     await expect(
       publishCustomBlockSettings.execute({ principal, input: publishInput })
     ).rejects.toThrow('not enabled')
-    mocks.role.mockResolvedValue('write')
+    mockRole.mockResolvedValue('write')
     await expect(
       publishCustomBlockSettings.execute({ principal, input: publishInput })
     ).rejects.toThrow()
@@ -194,7 +188,7 @@ describe('custom block settings boundary', () => {
     await expect(
       readCustomBlockUsages.execute({ principal, input: { id: 'block' } })
     ).rejects.toThrow('workspaceId')
-    mocks.role.mockResolvedValue('read')
+    mockRole.mockResolvedValue('read')
     await expect(readCustomBlockUsages.execute({ principal, input: target })).rejects.toThrow()
     expect(mocks.usages).not.toHaveBeenCalled()
   })
@@ -231,6 +225,6 @@ describe('custom block settings boundary', () => {
     await expect(
       publishCustomBlockSettings.execute({ principal, input: publishInput })
     ).rejects.toMatchObject({ code: 'validation', message: 'Workflow is not deployed' })
-    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mockAudit).not.toHaveBeenCalled()
   })
 })

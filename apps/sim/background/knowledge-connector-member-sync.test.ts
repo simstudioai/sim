@@ -1,19 +1,14 @@
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertPayload, mockExecuteMemberSync, mockTask } = vi.hoisted(() => ({
-  mockAssertPayload: vi.fn(),
+const { mockExecuteMemberSync } = vi.hoisted(() => ({
   mockExecuteMemberSync: vi.fn(),
-  mockTask: vi.fn((config) => config),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  task: mockTask,
-  AbortTaskRunError: class AbortTaskRunError extends Error {},
-}))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  MEMBER_SYNC_TASK_ID: 'knowledge-connector-member-sync',
-  assertMemberSyncPayload: mockAssertPayload,
-}))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
@@ -23,6 +18,8 @@ import {
   classifyMemberSyncResult,
   executeMemberSyncJob,
 } from '@/background/knowledge-connector-member-sync'
+
+const mockAssertPayload = knowledgeMemberQueueMockFns.mockAssertMemberSyncPayload
 
 const RESULT = {
   docsAdded: 0,

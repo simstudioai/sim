@@ -1,20 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
-
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-  getBlocksByCategory: vi.fn(() => []),
-}))
-
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import { getBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const mockGetBlock = vi.mocked(getBlock)
 
 /**
  * Block state exactly as the canvas persists it. A workflow saved before the

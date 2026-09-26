@@ -179,9 +179,7 @@ export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
  * document trigger that copies it onto every chunk's search projection rows, and
  * each of those rows is re-inserted into the vector index, so one statement costs
  * the chunks of every document in it rather than the documents. Kept small so a
- * page of changed documents cannot outrun the statement timeout; with
- * `knowledge-async-projection` on, the trigger only marks the documents and the bound is the
- * cleanup boundary noted at `pagesByProjectionRows` in `member-observations.ts`. Also the page
+ * page of changed documents cannot outrun the statement timeout. Also the page
  * of the transactions that remove observations and rematerialise the ACLs they
  * decide together, which must commit as one and so cannot be split by rows.
  */

@@ -86,10 +86,11 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
+  /** Live Search is the default Sim Search backend; indexed search is dormant. */
+  isLiveEnterpriseSearchEnabled: true,
   // True with billing off and no flags set — these carry a legacy default of
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
-  isLiveEnterpriseSearchEnabled: false,
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,

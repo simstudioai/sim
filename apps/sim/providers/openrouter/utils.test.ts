@@ -1,11 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/providers/openai-compat/stream-events', () => ({
   createOpenAICompatibleAgentEventStream: vi.fn(),
 }))
-vi.mock('@/providers/utils', () => ({
-  checkForForcedToolUsageOpenAI: vi.fn(),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 const fetchMock = vi.fn()
 
@@ -13,10 +12,6 @@ beforeEach(() => {
   vi.resetModules()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
-})
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 describe('OpenRouter model capabilities', () => {

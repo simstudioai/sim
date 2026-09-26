@@ -1,13 +1,13 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateOrganizationWithOwnerTx, mockEnsureUserInOrganization, mockSelect, mockExecute } =
-  vi.hoisted(() => ({
-    mockCreateOrganizationWithOwnerTx: vi.fn(),
-    mockEnsureUserInOrganization: vi.fn(),
-    mockSelect: vi.fn(),
-    mockExecute: vi.fn(),
-  }))
+const { mockCreateOrganizationWithOwnerTx } = vi.hoisted(() => ({
+  mockCreateOrganizationWithOwnerTx: vi.fn(),
+}))
 
 /**
  * Minimal chainable stub: each `select()` resolves to the next queued row set,
@@ -29,30 +29,21 @@ function buildSelectChain() {
   return chain
 }
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    execute: mockExecute,
-    transaction: vi.fn(async (fn: (tx: unknown) => unknown) =>
-      fn({ select: mockSelect, execute: mockExecute })
-    ),
-  },
-}))
-
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
   createOrganizationWithOwnerTx: mockCreateOrganizationWithOwnerTx,
   validateOrganizationSlugOrThrow: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  ensureUserInOrganization: mockEnsureUserInOrganization,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 import {
   ensureInstanceOrganization,
   getInstanceOrganizationConfig,
   joinInstanceOrganization,
 } from '@/lib/organizations/instance-org'
+
+const { select: mockSelect, execute: mockExecute } = dbChainMockFns
+const { mockEnsureUserInOrganization } = organizationMembershipMockFns
 
 const ORIGINAL_ENV = { ...process.env }
 
@@ -80,7 +71,10 @@ describe('instance organization', () => {
     process.env = { ...ORIGINAL_ENV }
   })
 
-  afterAll(resetEnvFlagsMock)
+  afterAll(() => {
+    resetEnvFlagsMock()
+    resetDbChainMock()
+  })
 
   describe('configuration', () => {
     it('stays off when billing is enabled, so paid orgs keep their own lifecycle', () => {

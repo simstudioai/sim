@@ -1,17 +1,12 @@
-import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-}))
-
-const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { catalogOperations } from '@/lib/catalog/application/operations'
@@ -19,7 +14,9 @@ import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+const sessionPrincipal = createSessionPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -33,7 +30,7 @@ const context = {
  */
 describe('catalog operations under a group that hides knowledge bases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideKnowledgeBaseTab: true,

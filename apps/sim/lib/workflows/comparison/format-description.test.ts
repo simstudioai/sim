@@ -1,7 +1,8 @@
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const { mockGetBlock, mockLoadAllSelectorOptions } = vi.hoisted(() => ({
-  mockGetBlock: vi.fn(),
+const { mockLoadAllSelectorOptions } = vi.hoisted(() => ({
   mockLoadAllSelectorOptions: vi.fn(),
 }))
 
@@ -20,13 +21,6 @@ vi.mock('@/blocks/types', () => ({
 
 vi.mock('@/executor/constants', () => ({
   isUuid: (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: () => ({}),
-  getAllBlockTypes: () => [],
-  registry: {},
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
@@ -48,6 +42,8 @@ import {
   resolveFieldLabel,
   resolveValueForDisplay,
 } from '@/lib/workflows/comparison/resolve-values'
+
+const mockGetBlock = getBlock as Mock
 
 function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {
   return {

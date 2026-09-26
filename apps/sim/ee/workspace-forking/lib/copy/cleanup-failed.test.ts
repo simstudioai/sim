@@ -6,16 +6,13 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockInvalidateDeployedStateCache } = vi.hoisted(() => ({
-  mockInvalidateDeployedStateCache: vi.fn(),
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  invalidateDeployedStateCache: mockInvalidateDeployedStateCache,
-  CREDENTIAL_SUBBLOCK_IDS: new Set(['credential', 'manualCredential', 'triggerCredentials']),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 // The reference indexer resolves a tool's params via the tool registry; stub it so loading the
 // remap module never pulls the full registry (this file only exercises top-level selectors).
@@ -41,6 +38,9 @@ import {
   rewriteDeploymentVersionState,
 } from '@/ee/workspace-forking/lib/copy/cleanup-failed'
 import type { ForkCopyResolver } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
+
+const mockInvalidateDeployedStateCache =
+  workflowsPersistenceUtilsMockFns.mockInvalidateDeployedStateCache
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Knowledge', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig

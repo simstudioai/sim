@@ -1,3 +1,4 @@
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 /**
  * `logs.cost` is a PROJECTION, not a gate — `logOperations.readExecutionSnapshot`
  * correctly declares `capability: 'none'`, and the run stays readable while its
@@ -10,52 +11,51 @@
  * Projecting in the use case is what makes both doors inherit it, which is why
  * these exercise the use case against the real `resolveLogFieldProjection`.
  */
+
 import {
+  dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  select: vi.fn(),
-  resolveWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  materialize: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   hydrateChildTraces: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@sim/db', () => ({ db: { select: mocks.select } }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === 'write' || actual === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
-}))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: mocks.materialize,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/logs/execution/hydrate-child-traces', () => ({
-  hydrateChildTraces: mocks.hydrateChildTraces,
+  hydrateChildTraces: hoisted.hydrateChildTraces,
 }))
 
 import { readExecutionSnapshotUseCase } from '@/lib/logs/application/read-execution-snapshot'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  resolveWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  materialize: traceStoreMockFns.mockMaterializeExecutionData,
+  select: dbChainMockFns.select,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -92,7 +92,7 @@ function queueSelects(...results: unknown[][]): void {
   }
 }
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 /**
  * `logs.read_execution_snapshot` denies a workspace API key outright, so the
  * subjectless caller that actually reaches this read is the executor delegation —

@@ -6,39 +6,27 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerifyCronAuth, mockConnectorRows, mockDispatch, mockClaim, mockWhere } = vi.hoisted(
-  () => ({
-    mockVerifyCronAuth: vi.fn(() => null),
-    mockConnectorRows: vi.fn(),
-    mockDispatch: vi.fn(),
-    mockClaim: vi.fn(),
-    mockWhere: vi.fn(),
-  })
-)
+const { mockDispatch } = vi.hoisted(() => ({
+  mockDispatch: vi.fn(),
+}))
 
-vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/knowledge/connectors/directory-queue', () => ({
   dispatchDirectorySync: mockDispatch,
 }))
-vi.mock('@sim/db', () => ({
-  db: {
-    update: () => ({ set: () => ({ where: () => ({ returning: () => mockClaim() }) }) }),
-    select: () => ({
-      from: () => ({
-        innerJoin: () => ({
-          where: (condition: unknown) => {
-            mockWhere(condition)
-            return { orderBy: () => ({ limit: () => mockConnectorRows() }) }
-          },
-        }),
-      }),
-    }),
-  },
-}))
 
 import { GET } from '@/app/api/knowledge/connectors/directory-sync/route'
+
+const { mockVerifyCronAuth } = authInternalMockFns
+mockVerifyCronAuth.mockImplementation(() => null)
+
+const mockClaim = dbChainMockFns.returning
+const mockConnectorRows = dbChainMockFns.limit
+const mockWhere = dbChainMockFns.where
 
 function connector(overrides: Record<string, unknown> = {}) {
   return { id: 'connector-1', nextDirectorySyncAt: new Date(0), ...overrides }

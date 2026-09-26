@@ -1,9 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { QUICKBOOKS_ENV: 'production' },
-}))
-
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeQuickBooksCreateBillPaymentOperation } from '@/lib/internal/quickbooks/provider-operations'
 
 const AUTH = {
@@ -26,10 +21,6 @@ function billPaymentParams(paymentType: 'check' | 'credit_card') {
 describe('QuickBooks bill payment account compatibility', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('refuses a Bank account whose sub-type is not the documented Checking', async () => {

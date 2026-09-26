@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -52,19 +53,14 @@ import {
   saveMemorySummary,
 } from '@/lib/memory/summary-store'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Memory PostgreSQL tests require an explicitly configured local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 
 const schemaName = `memory_summary_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 6,
-      connection: { search_path: `${schemaName},public` },
-      onnotice: () => {},
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 6,
+  connection: { search_path: `${schemaName},public` },
+  onnotice: () => {},
+})
 const queries: string[] = []
 const scope = { workspaceId: 'workspace-1', memoryId: 'memory-1', sourceHash: 'a'.repeat(64) }
 const prefix = [{ role: 'user', content: 'Original conversation request' }]
@@ -90,15 +86,13 @@ const actor: WorkflowExecutionDelegatedPrincipal = {
 }
 
 async function cacheRow() {
-  if (!connection) throw new Error('No test database')
   const [row] =
     await connection`SELECT encrypted_context_summary, data, storage_version FROM memory WHERE id = ${scope.memoryId}`
   return row
 }
 
-describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
+describe('derived summary cache in Postgres', () => {
   beforeAll(async () => {
-    if (!connection) return
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     database.current = drizzle(connection, {
       logger: { logQuery: (query) => queries.push(query) },
@@ -127,14 +121,12 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
     }
   })
   beforeEach(async () => {
-    if (!connection) return
     await connection`DELETE FROM memory`
     await connection`INSERT INTO memory (id, workspace_id, key, data, secret_provenance_version, storage_version) VALUES (${scope.memoryId}, ${scope.workspaceId}, 'conversation-1', ${JSON.stringify(prefix)}::jsonb, 1, 2)`
     await connection`INSERT INTO memory_secret_provenance (memory_id, content_hash, status, entries) VALUES (${scope.memoryId}, ${hashDurableSecretProvenanceValue(prefix)!}, 'exact', '[]')`
     queries.length = 0
   })
   afterAll(async () => {
-    if (!connection) return
     try {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
@@ -182,7 +174,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
           ...invalid,
         })
       )
-      await connection!`UPDATE memory SET encrypted_context_summary = ${encrypted} WHERE id = ${scope.memoryId}`
+      await connection`UPDATE memory SET encrypted_context_summary = ${encrypted} WHERE id = ${scope.memoryId}`
       expect(await readMemorySummary(scope)).toBeUndefined()
     }
   })
@@ -207,7 +199,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
         sourceMessageCount: 2,
       })
     )
-    await connection!`UPDATE memory SET encrypted_context_summary = ${foreignCiphertext.encrypted} WHERE id = ${scope.memoryId}`
+    await connection`UPDATE memory SET encrypted_context_summary = ${foreignCiphertext.encrypted} WHERE id = ${scope.memoryId}`
     expect(await readMemorySummary(scope)).toBeUndefined()
   })
 
@@ -217,13 +209,13 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
       principal: actor,
       input: { workspaceId: scope.workspaceId, key: 'conversation-1' },
     })
-    await connection!`INSERT INTO memory (id, workspace_id, key, data) VALUES ('replacement-memory', ${scope.workspaceId}, 'conversation-1', '[]')`
+    await connection`INSERT INTO memory (id, workspace_id, key, data) VALUES ('replacement-memory', ${scope.workspaceId}, 'conversation-1', '[]')`
     await saveMemorySummary({ ...scope, content: 'Stale write', sourceMessageCount: 2 })
     expect(await readMemorySummary(scope)).toBeUndefined()
     expect(await readMemorySummary({ ...scope, memoryId: 'replacement-memory' })).toBeUndefined()
     expect(
       (
-        await connection!`SELECT encrypted_context_summary FROM memory WHERE id = 'replacement-memory'`
+        await connection`SELECT encrypted_context_summary FROM memory WHERE id = 'replacement-memory'`
       )[0].encrypted_context_summary
     ).toBeNull()
   })
@@ -231,7 +223,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
   it('ignores a soft-deleted owner and cannot update its cache', async () => {
     await saveMemorySummary({ ...scope, content: 'Existing cache', sourceMessageCount: 2 })
     const original = (await cacheRow()).encrypted_context_summary
-    await connection!`UPDATE memory SET deleted_at = now() WHERE id = ${scope.memoryId}`
+    await connection`UPDATE memory SET deleted_at = now() WHERE id = ${scope.memoryId}`
     expect(await readMemorySummary(scope)).toBeUndefined()
     await saveMemorySummary({ ...scope, content: 'Stale change', sourceMessageCount: 2 })
     expect((await cacheRow()).encrypted_context_summary).toBe(original)
@@ -247,7 +239,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
       }),
     ])
     expect(await readMemorySummary(scope)).toBeUndefined()
-    expect(await connection!`SELECT id FROM memory WHERE id = ${scope.memoryId}`).toHaveLength(0)
+    expect(await connection`SELECT id FROM memory WHERE id = ${scope.memoryId}`).toHaveLength(0)
   })
 
   it('replaces a single cache under concurrent writers without mixing source hashes and content', async () => {
@@ -272,8 +264,8 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
       sourceMessageCount: stored.sourceMessageCount,
       content: stored.content,
     })
-    expect(await connection!`SELECT id FROM memory`).toHaveLength(1)
-    expect(await connection!`SELECT id FROM memory_item`).toHaveLength(0)
+    expect(await connection`SELECT id FROM memory`).toHaveLength(1)
+    expect(await connection`SELECT id FROM memory_item`).toHaveLength(0)
     expect((await cacheRow()).data).toEqual(prefix)
   })
 
@@ -291,7 +283,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
         saveMemorySummary({ ...scope, content: 'Valid', sourceMessageCount: 2, ...change })
       ).rejects.toThrow()
     expect((await cacheRow()).encrypted_context_summary).toBe(original)
-    await connection!`UPDATE memory SET encrypted_context_summary = repeat('invalid-ciphertext', 100000) WHERE id = ${scope.memoryId}`
+    await connection`UPDATE memory SET encrypted_context_summary = repeat('invalid-ciphertext', 100000) WHERE id = ${scope.memoryId}`
     queries.length = 0
     expect(await readMemorySummary(scope)).toBeUndefined()
     expect(queries).toHaveLength(1)
@@ -334,7 +326,7 @@ describe.skipIf(!databaseUrl)('derived summary cache in Postgres', () => {
     expect(JSON.stringify(results)).not.toContain(privateValue)
     expect(JSON.stringify(results)).not.toContain('Private derived summary')
     expect(queries.join('\n')).not.toContain('encrypted_context_summary')
-    await connection!`UPDATE memory SET encrypted_context_summary = repeat('oversized-private-value', 100000) WHERE id = ${scope.memoryId}`
+    await connection`UPDATE memory SET encrypted_context_summary = repeat('oversized-private-value', 100000) WHERE id = ${scope.memoryId}`
     queries.length = 0
     expect(
       (

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   exchangeMondayAuthorizationCode,
   MONDAY_OAUTH_TOKEN_URL,
@@ -35,10 +35,6 @@ function tokenResponse(overrides: Record<string, unknown> = {}): Response {
 }
 
 describe('Monday OAuth 2.1', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('exchanges a PKCE authorization code at the v2 endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(tokenResponse())
     vi.stubGlobal('fetch', fetchMock)

@@ -533,8 +533,6 @@ export function selectDeletedWorkflowResources(
 }
 
 export interface ResourceEventOptions {
-  /** A completed Search answer reveals its cited evidence as the turn result. */
-  revealCitedSources?: boolean
   activate?: boolean
   tableViewId?: string
 }
@@ -1914,15 +1912,13 @@ export function useChat(
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
     ) {
-      const hasCitedSources = updatedResources.some((resource) => resource.type === 'sources')
       for (const resource of updatedResources) {
         if (
           resource.type === 'search' &&
-          (hasCitedSources ||
-            (getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
-              !resourcesRef.current.some(
-                (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
-              )))
+          getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
+          !resourcesRef.current.some(
+            (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
+          )
         ) {
           removeResource('search', resource.id, resource.workspaceId)
         }
@@ -1951,7 +1947,10 @@ export function useChat(
         const visible = resourcesRef.current.find(
           (item) => getChatResourceKey(item) === getChatResourceKey(resource)
         )
-        return visible ? [visible] : []
+        if (visible) return [visible]
+        return getChatResourceSelectionId(resource) === selectedResourceIdRef.current
+          ? [resource]
+          : []
       })
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a

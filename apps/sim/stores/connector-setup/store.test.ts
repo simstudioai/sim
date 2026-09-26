@@ -15,7 +15,6 @@ function draft(savedAt = Date.now()): ConnectorSetupDraft {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   useConnectorSetupStore.getState().reset()
 })
 

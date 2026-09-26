@@ -17,8 +17,6 @@ vi.mock('@/lib/billing/core/usage', () => ({ syncUsageLimitsFromSubscription: vi
 vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
 async function loadRuntime() {
   const [{ db }, schema, { eq, inArray }, { admitSsoUser }] = await Promise.all([
     import('@sim/db'),
@@ -29,7 +27,7 @@ async function loadRuntime() {
   return { db, schema, eq, inArray, admitSsoUser }
 }
 
-describe.skipIf(!databaseUrl)('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
+describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
   let organizationId: string
   let ownerId: string
@@ -38,7 +36,6 @@ describe.skipIf(!databaseUrl)('SSO admission with a hosted SCIM directory in Pos
   let connectionId: string
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = databaseUrl
     runtime = await loadRuntime()
   }, 30_000)
 

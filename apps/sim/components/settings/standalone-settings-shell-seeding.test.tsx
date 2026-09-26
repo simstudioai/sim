@@ -1,8 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import type { ReactNode } from 'react'
 import { act } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +12,7 @@ const { mockSettingsSidebar } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn((_props: { items: { id: string }[] }) => null),
 }))
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/selfhost/settings/general' }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/components/settings/settings-sidebar', () => ({ SettingsSidebar: mockSettingsSidebar }))
 vi.mock('@/components/settings/settings-header', () => ({
   SettingsHeaderProvider: ({ children }: { children: ReactNode }) => children,
@@ -30,6 +32,8 @@ import {
   resolveDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { useSidebarStore } from '@/stores/sidebar/store'
+
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/selfhost/settings/general')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -52,7 +56,6 @@ afterEach(() => {
   host.remove()
   window.innerWidth = originalInnerWidth
   localStorage.clear()
-  vi.clearAllMocks()
 })
 
 describe('StandaloneSettingsShell', () => {

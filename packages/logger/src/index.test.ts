@@ -19,7 +19,6 @@ describe('Logger', () => {
   afterEach(() => {
     consoleLogSpy.mockRestore()
     consoleErrorSpy.mockRestore()
-    vi.clearAllMocks()
   })
 
   describe('browser suppression in production', () => {

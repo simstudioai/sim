@@ -5,13 +5,16 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createFile: vi.fn(),
-  queryFiles: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -21,22 +24,18 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   },
 }))
 
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  queryWorkspaceFilePage: {
-    operation: { id: 'files.list', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.queryFiles,
-  },
-}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { GET, POST } from '@/app/api/v2/files/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
+
+const mockQueryFiles = workspaceFilesListMockFns.mockQueryWorkspaceFilePage
 
 const WORKSPACE_ID = 'workspace-1'
 const auth = {
@@ -77,12 +76,12 @@ describe('/api/v2/files', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.queryFiles.mockResolvedValue({
+    mockQueryFiles.mockResolvedValue({
       files: [FILE],
       nextKeys: undefined,
     })
     mocks.createFile.mockResolvedValue({ file: FILE })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   /**
@@ -100,12 +99,12 @@ describe('/api/v2/files', () => {
 
       expect(response.status).toBe(400)
       expect((await response.json()).error.code).toBe('BAD_REQUEST')
-      expect(mocks.queryFiles).not.toHaveBeenCalled()
+      expect(mockQueryFiles).not.toHaveBeenCalled()
     }
   )
 
   it('preserves escaped slashes in the containing folder path', async () => {
-    mocks.queryFiles.mockResolvedValueOnce({
+    mockQueryFiles.mockResolvedValueOnce({
       files: [{ ...FILE, folderId: 'folder-1', folderPath: 'Finance\\/Legal' }],
       nextKeys: undefined,
     })
@@ -129,12 +128,12 @@ describe('/api/v2/files', () => {
     ['scope', 'scope=archived'],
     ['folderPath', 'folderPath=/Finance'],
   ])('refuses a cursor replayed under a different %s', async (_filter, param) => {
-    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+    mockQueryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
     const firstPage = await (
       await GET(new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`))
     ).json()
     expect(firstPage.nextCursor).toEqual(expect.any(String))
-    mocks.queryFiles.mockClear()
+    mockQueryFiles.mockClear()
 
     const response = await GET(
       new NextRequest(
@@ -146,7 +145,7 @@ describe('/api/v2/files', () => {
     expect(await response.json()).toMatchObject({
       error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
     })
-    expect(mocks.queryFiles).not.toHaveBeenCalled()
+    expect(mockQueryFiles).not.toHaveBeenCalled()
   })
 
   /**
@@ -154,11 +153,11 @@ describe('/api/v2/files', () => {
    * return, not what the sequence is.
    */
   it('resumes a cursor under an unchanged filter and a changed page size', async () => {
-    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+    mockQueryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
     const firstPage = await (
       await GET(new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`))
     ).json()
-    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: undefined })
+    mockQueryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: undefined })
 
     const response = await GET(
       new NextRequest(
@@ -167,7 +166,7 @@ describe('/api/v2/files', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.queryFiles).toHaveBeenLastCalledWith(
+    expect(mockQueryFiles).toHaveBeenLastCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ limit: 5, after: ['notes.md', FILE.id] }),
       })

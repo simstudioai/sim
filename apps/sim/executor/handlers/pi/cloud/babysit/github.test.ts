@@ -1,7 +1,7 @@
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import {
   babysitReviewLandedSince,
@@ -10,6 +10,8 @@ import {
   fetchBabysitThreads,
   replyAndResolveBabysitThreads,
 } from '@/executor/handlers/pi/cloud/babysit/github'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)

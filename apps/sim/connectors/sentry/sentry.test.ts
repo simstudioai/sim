@@ -1,25 +1,21 @@
+import { jsonResponse } from '@sim/testing'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: mockFetch,
-}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { sentryConnector } from '@/connectors/sentry/sentry'
+
+const mockFetch = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 const ACCESS_TOKEN = 'test-token'
 
 const BASE_CONFIG = {
   organization: 'acme',
   project: 'web',
-}
-
-function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...headers },
-  })
 }
 
 function issueFixture(id: string, overrides: Record<string, unknown> = {}) {
@@ -63,7 +59,7 @@ beforeEach(() => {
 describe('sentryConnector.listDocuments listing completeness', () => {
   it('flags listingCapped when maxIssues stops short of a source that has more pages', async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse([issueFixture('1'), issueFixture('2')], 200, NEXT_PAGE_LINK)
+      jsonResponse([issueFixture('1'), issueFixture('2')], { headers: NEXT_PAGE_LINK })
     )
     const syncContext: Record<string, unknown> = {}
 

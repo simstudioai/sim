@@ -1,16 +1,17 @@
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   computeTikTokChunkPlan: vi.fn(() => ({ chunkSize: 10_000_000, totalChunkCount: 2 })),
   getStoredVideoSize: vi.fn(),
   streamStoredVideoToTikTok: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 vi.mock('@/lib/internal/tiktok/upload', () => ({
   computeTikTokChunkPlan: mocks.computeTikTokChunkPlan,
@@ -21,6 +22,8 @@ vi.mock('@/lib/internal/tiktok/upload', () => ({
 
 import { executeTikTokUploadVideoDraft } from '@/lib/internal/tiktok/operations'
 
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+
 const FILE = {
   key: 'workspace/workspace-1/video.mp4',
   name: 'video.mp4',
@@ -30,7 +33,7 @@ const FILE = {
 
 describe('executeTikTokUploadVideoDraft', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
     mocks.getStoredVideoSize.mockResolvedValue(20_000_000)
     mocks.computeTikTokChunkPlan.mockReturnValue({
       chunkSize: 10_000_000,
@@ -110,7 +113,7 @@ describe('executeTikTokUploadVideoDraft', () => {
   })
 
   it('does not start provider upload before file authorization', async () => {
-    mocks.assertToolFileAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'Forbidden' }, { status: 403 })
     )
 

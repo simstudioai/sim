@@ -1,20 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 
 const TOKEN_URL = 'https://api.box.com/oauth2/token'
 const CURRENT_USER_URL = 'https://api.box.com/2.0/users/me'
 
 const FIELDS = { clientId: 'box-cid', clientSecret: 'box-secret', orgId: '1234567' }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 const mockFetch = vi.fn()
 
@@ -42,15 +33,11 @@ describe('mintBoxServiceAccountToken', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('mints a token and resolves the Service Account identity via users/me', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'box-access', expires_in: 3600 }))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'box-access', expires_in: 3600 }))
       .mockResolvedValueOnce(
-        jsonResponse(200, {
+        jsonResponse({
           id: '33445566',
           name: 'Sim Automation',
           login: 'AutomationUser_123_abc@boxdevedition.com',
@@ -79,8 +66,8 @@ describe('mintBoxServiceAccountToken', () => {
 
   it('marks the principal as lookup_failed when users/me omits the user id', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'box-access', expires_in: 3600 }))
-      .mockResolvedValueOnce(jsonResponse(200, { name: 'Sim Automation' }))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'box-access', expires_in: 3600 }))
+      .mockResolvedValueOnce(jsonResponse({ name: 'Sim Automation' }))
 
     const result = await mintBoxServiceAccountToken(FIELDS)
 
@@ -95,10 +82,13 @@ describe('mintBoxServiceAccountToken', () => {
 
   it('flags a wrong app type on the grant-type variant of unauthorized_client', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, {
-        error: 'unauthorized_client',
-        error_description: 'The grant type is unauthorized for this client_id',
-      })
+      jsonResponse(
+        {
+          error: 'unauthorized_client',
+          error_description: 'The grant type is unauthorized for this client_id',
+        },
+        400
+      )
     )
 
     await expect(mintBoxServiceAccountToken(FIELDS)).rejects.toMatchObject({
@@ -110,7 +100,7 @@ describe('mintBoxServiceAccountToken', () => {
   })
 
   it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(429, { error: 'rate_limit_exceeded' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'rate_limit_exceeded' }, 429))
 
     await expect(mintBoxServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',

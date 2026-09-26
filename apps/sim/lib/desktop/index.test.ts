@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getDesktopChatCapabilities,
   hasBrowserAgent,
@@ -25,10 +25,6 @@ function installBridge(value: unknown): void {
 describe('desktop surface availability', () => {
   beforeEach(() => {
     setDesktopPreferencesSnapshot(ENABLED_PREFERENCES)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('honors the per-device browser and terminal switches', () => {

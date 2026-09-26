@@ -1,14 +1,17 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const redis = vi.hoisted(() => ({ set: vi.fn(), eval: vi.fn() }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
 
 import {
   consumeSlackSearchOAuthAttempt,
   storeSlackSearchOAuthAttempt,
 } from '@/lib/slack-search/oauth-state'
 
-const principal = { kind: 'session', userId: 'admin1', sessionId: 'session1' } as const
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => redis)
+
+const principal = createSessionPrincipal({ userId: 'admin1', sessionId: 'session1' })
 const attempt = {
   userId: 'admin1',
   sessionId: 'session1',

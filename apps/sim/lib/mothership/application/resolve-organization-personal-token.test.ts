@@ -1,13 +1,15 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ chat: vi.fn(), token: vi.fn() }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.chat },
-}))
+const hoisted = vi.hoisted(() => ({ token: vi.fn() }))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/credentials/application/resolve-organization-personal-token', () => ({
   resolveOrganizationPersonalToken: {
     operation: { id: 'credentials.organization.personal.use', delegationAudience: 'sim:knowledge' },
-    execute: mocks.token,
+    execute: hoisted.token,
   },
   prepareOrganizationPersonalConnection: {
     operation: {
@@ -18,6 +20,11 @@ vi.mock('@/lib/credentials/application/resolve-organization-personal-token', () 
 }))
 
 import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
+
+const mocks = {
+  ...hoisted,
+  chat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+}
 
 const context = {
   userId: 'person',

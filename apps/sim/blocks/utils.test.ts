@@ -1,4 +1,6 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvFlagsMock)
@@ -42,14 +44,7 @@ vi.mock('@/providers/models', async (importOriginal) => ({
   isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: vi.fn(() => 'openai'),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: {
@@ -61,9 +56,7 @@ vi.mock('@/stores/providers/store', () => ({
   },
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getScopesForService: vi.fn(() => []),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   BUILT_IN_TOOL_TYPES,

@@ -1,20 +1,21 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { and, inArray, ne } from 'drizzle-orm'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
-  save: vi.fn(),
   extractCustomTools: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mocks.save,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
   extractAndPersistCustomTools: mocks.extractCustomTools,
 }))
@@ -23,6 +24,8 @@ import {
   replaceWorkflowNormalizedState,
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
+
+const mockSave = workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
 
 const BLOCK = {
   id: 'block-1',
@@ -80,7 +83,7 @@ describe('replaceWorkflowNormalizedState', () => {
     // result is the archived / cross-workspace refusal, covered separately.
     dbChainMockFns.for.mockResolvedValue([{ id: 'workflow-1' }])
     mocks.prepare.mockReturnValue({ state: PREPARED, warnings: [] })
-    mocks.save.mockResolvedValue({ success: true })
+    mockSave.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
   })
 
@@ -101,13 +104,13 @@ describe('replaceWorkflowNormalizedState', () => {
       blocks: { 'block-1': BLOCK },
       edges: [],
     })
-    expect(mocks.save).toHaveBeenCalledWith(
+    expect(mockSave).toHaveBeenCalledWith(
       'workflow-1',
       expect.objectContaining({ blocks: PREPARED.blocks, edges: PREPARED.edges }),
       { workspaceId: 'workspace-1', subjectUserId: 'user-1' },
       expect.anything()
     )
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.save)
+    expect(mocks.prepare).toHaveBeenCalledBefore(mockSave)
     expect(result.warnings).toEqual(['Dropped edge "edge-9": target block does not exist'])
     expect(result.state).toBe(PREPARED)
   })
@@ -120,7 +123,7 @@ describe('replaceWorkflowNormalizedState', () => {
 
   /** Pre-existing, deliberate: a stale custom tool never fails a committed graph write. */
   it('throws and skips custom-tool extraction when the write fails', async () => {
-    mocks.save.mockResolvedValue({ success: false, error: 'constraint violation' })
+    mockSave.mockResolvedValue({ success: false, error: 'constraint violation' })
 
     await expect(replaceWorkflowNormalizedState(input())).rejects.toBeInstanceOf(
       WorkflowStatePersistenceError
@@ -146,7 +149,7 @@ describe('replaceWorkflowNormalizedState', () => {
         code: 'conflict',
         message: 'Block ids already used by another workflow: block-1',
       })
-      expect(mocks.save).not.toHaveBeenCalled()
+      expect(mockSave).not.toHaveBeenCalled()
     })
 
     /**
@@ -171,7 +174,7 @@ describe('replaceWorkflowNormalizedState', () => {
           { type: 'ne', left: schemaMock.workflowBlocks.workflowId, right: 'workflow-1' },
         ],
       })
-      expect(mocks.save).toHaveBeenCalled()
+      expect(mockSave).toHaveBeenCalled()
     })
 
     /**
@@ -220,7 +223,7 @@ describe('replaceWorkflowNormalizedState', () => {
       })
       expect(inArray).toHaveBeenCalledWith(schemaMock.workflowEdges.id, ['edge-1'])
       expect(ne).toHaveBeenCalledWith(schemaMock.workflowEdges.workflowId, 'workflow-1')
-      expect(mocks.save).not.toHaveBeenCalled()
+      expect(mockSave).not.toHaveBeenCalled()
     })
 
     /** Ids only — never the workflow or workspace that holds them. */
@@ -242,7 +245,7 @@ describe('replaceWorkflowNormalizedState', () => {
      * 409 rather than an unclassified 500.
      */
     it('re-classifies a 23505 that races past the pre-check', async () => {
-      mocks.save.mockRejectedValue(wrapDriverError(uniqueViolation('workflow_edges_pkey')))
+      mockSave.mockRejectedValue(wrapDriverError(uniqueViolation('workflow_edges_pkey')))
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
         code: 'conflict',
@@ -256,7 +259,7 @@ describe('replaceWorkflowNormalizedState', () => {
      */
     it('leaves a 23505 on an unrelated constraint unclassified', async () => {
       const failure = wrapDriverError(uniqueViolation('archive_workflow_blocks_pkey_backup'))
-      mocks.save.mockRejectedValue(failure)
+      mockSave.mockRejectedValue(failure)
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
     })
@@ -271,6 +274,6 @@ describe('replaceWorkflowNormalizedState', () => {
     dbChainMockFns.for.mockResolvedValue([])
 
     await expect(replaceWorkflowNormalizedState(input())).rejects.toThrow('Workflow not found')
-    expect(mocks.save).not.toHaveBeenCalled()
+    expect(mockSave).not.toHaveBeenCalled()
   })
 })

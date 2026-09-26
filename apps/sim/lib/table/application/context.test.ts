@@ -1,19 +1,20 @@
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getTableById, loadWorkspace } = vi.hoisted(() => ({
-  getTableById: vi.fn(),
-  loadWorkspace: vi.fn(),
-}))
-
-vi.mock('@/lib/table/service', () => ({ getTableById }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: loadWorkspace,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import {
   resolveActiveTableContext,
   resolveArchivedTableContext,
 } from '@/lib/table/application/context'
+
+const getTableById = tableServiceMockFns.mockGetTableById
+const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const WORKSPACE_ONE = {
   workspaceId: 'workspace-1',

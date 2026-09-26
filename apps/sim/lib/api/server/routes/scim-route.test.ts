@@ -1,20 +1,12 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  checkRateLimitDirect: vi.fn(),
-  enforceIpRateLimit: vi.fn(),
-}))
 
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-  },
-  enforceIpRateLimit: mocks.enforceIpRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import type { ScimConnectionPrincipal } from '@sim/auth/principal'
 import {
@@ -26,6 +18,11 @@ import { createScimRouteBuilder } from '@/lib/api/server/routes'
 import { scimOperations } from '@/ee/scim/lib/application/operations'
 import { SCIM_MEDIA_TYPE } from '@/ee/scim/lib/protocol/constants'
 import { ScimError } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  checkRateLimitDirect: rateLimiterMockFns.mockCheckRateLimitDirect,
+  enforceIpRateLimit: rateLimiterMockFns.mockEnforceIpRateLimit,
+}
 
 const principal: ScimConnectionPrincipal = {
   kind: 'scim_connection',
@@ -82,10 +79,19 @@ const deleteUser = defineScimRoute({
   mapInput: () => ({}),
 })
 
-const withParams = { params: Promise.resolve({ id: 'su-1' }) }
+const withParams = createRouteContext({ id: 'su-1' })
 
-function request(method: string, path: string, init: RequestInit = {}) {
-  return new NextRequest(`https://sim.test${path}`, { method, ...init })
+function request(
+  method: string,
+  path: string,
+  init: { body?: string; headers?: Record<string, string> } = {}
+) {
+  return createMockRequest({
+    method,
+    url: `https://sim.test${path}`,
+    rawBody: init.body,
+    headers: init.headers,
+  })
 }
 
 afterEach(resetEnvFlagsMock)

@@ -1,12 +1,11 @@
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({ mockIsFeatureEnabled: vi.fn() }))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
 
 describe('table row TTL availability', () => {
   it('rejects TTL column creation while the flag is disabled', async () => {

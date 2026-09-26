@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-24",
+  "updatedAt": "2026-09-25",
   "integrations": [
     {
       "type": "onepassword",
@@ -9381,11 +9381,11 @@
       "operations": [
         {
           "name": "Send Email",
-          "description": "Send Gmail messages"
+          "description": "Send emails using Gmail"
         },
         {
           "name": "Read Email",
-          "description": "Read Gmail messages"
+          "description": "Read emails from Gmail"
         },
         {
           "name": "Draft Email",
@@ -10001,7 +10001,7 @@
       "operations": [
         {
           "name": "List Files",
-          "description": "List Google Drive files"
+          "description": "List files and folders in Google Drive with complete metadata"
         },
         {
           "name": "Search Files",

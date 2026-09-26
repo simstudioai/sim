@@ -1,25 +1,22 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
-  mockGetJob: vi.fn(),
-  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
-}))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
   getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
 }))
 
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+
+const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
+const mockMaterializeForDisplayWithBlockOutputs =
+  traceStoreMockFns.mockMaterializeExecutionDataForDisplayWithBlockOutputs
 
 const input = {
   workflowId: 'workflow-1',

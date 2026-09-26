@@ -1,21 +1,33 @@
 import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const mocks = vi.hoisted(() => ({ storage: vi.fn(), tags: vi.fn(), revoke: vi.fn() }))
+const hoisted = vi.hoisted(() => ({ storage: vi.fn() }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  enqueueKnowledgeStorageCleanup: mocks.storage,
+  enqueueKnowledgeStorageCleanup: hoisted.storage,
 }))
-vi.mock('@/lib/knowledge/tags/service', () => ({ cleanupUnusedTagDefinitions: mocks.tags }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  revokeKnowledgeConnectorCredentialAccess: mocks.revoke,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 
 import {
   cleanupKnowledgeConnector,
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
 } from '@/lib/knowledge/connectors/deletion'
+
+const mocks = {
+  ...hoisted,
+  tags: knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions,
+  revoke: knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCredentialAccess,
+}
 
 const payload = {
   version: 1 as const,

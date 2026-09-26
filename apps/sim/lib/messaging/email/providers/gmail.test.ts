@@ -2,7 +2,7 @@
  * Tests for the Gmail API mail provider
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvMock)
 
@@ -50,11 +50,6 @@ describe('Gmail mail provider', () => {
     setEnv({ GMAIL_SENDER: 'noreply@sim.example' })
     setEnv({ GMAIL_CREDENTIALS_JSON: VALID_CREDENTIALS })
     mockGetAccessToken.mockResolvedValue({ token: 'test-token' })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   describe('send', () => {

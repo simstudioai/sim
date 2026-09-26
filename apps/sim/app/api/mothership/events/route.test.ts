@@ -5,6 +5,14 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -12,18 +20,17 @@ import { HEARTBEAT_INTERVAL_MS } from '@/lib/events/sse-endpoint'
 import type { ChatStatusEvent } from '@/lib/mothership/chat-status'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
-const { authorize, subscribe, unsubscribe } = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  subscribe: vi.fn(),
+const { unsubscribe } = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatEvents: { execute: authorize },
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: { onStatusChanged: subscribe } }))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/mothership/events/route'
+
+const authorize = mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatEvents
+const subscribe = mothershipChatStatusMockFns.mockOnStatusChanged
 
 function request(query: string, signal?: AbortSignal) {
   return new NextRequest(`http://localhost/api/mothership/events?${query}`, { signal })

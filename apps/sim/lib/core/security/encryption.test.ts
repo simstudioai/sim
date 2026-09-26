@@ -1,17 +1,13 @@
-import { createEnvMock } from '@sim/testing'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-const { mockError } = vi.hoisted(() => ({ mockError: vi.fn() }))
-vi.mock('@sim/logger', () => ({ createLogger: () => ({ error: mockError }) }))
-
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-  })
-)
-
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { afterEach, describe, expect, it } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret, encryptSecret, generatePassword } from '@/lib/core/security/encryption'
+
+setEnv({
+  ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+})
+const mockError = getMockLogger('Encryption').error
 
 describe('encryptSecret / decryptSecret', () => {
   it('round-trips a secret under the app key', async () => {

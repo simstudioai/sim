@@ -1,12 +1,10 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: vi.fn(),
-}))
-vi.mock('@/lib/table/service', () => ({
-  getTableById: vi.fn(),
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import { insertDispatch } from '@/lib/table/dispatcher'
 

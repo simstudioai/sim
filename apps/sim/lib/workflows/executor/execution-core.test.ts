@@ -8,6 +8,27 @@ import {
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as retention from '@/lib/billing/retention'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -38,9 +59,6 @@ const {
   setExecutionDeadlineAtMock,
   projectDisplayContentMock,
   projectDiagnosticErrorMock,
-  decryptSecretMock,
-  downloadFileMock,
-  uploadFileMock,
   maskBatchMock,
 } = vi.hoisted(() => ({
   mergeSubblockStateWithValuesMock: vi.fn(),
@@ -63,9 +81,6 @@ const {
   setExecutionDeadlineAtMock: vi.fn(),
   projectDisplayContentMock: vi.fn(),
   projectDiagnosticErrorMock: vi.fn(),
-  decryptSecretMock: vi.fn(),
-  downloadFileMock: vi.fn(),
-  uploadFileMock: vi.fn(),
   maskBatchMock: vi.fn(),
 }))
 
@@ -80,18 +95,13 @@ const loadWorkflowDeploymentVersionStateMock =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
 const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { downloadFile: downloadFileMock, uploadFile: uploadFileMock },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/guardrails/mask-client', () => ({
   maskPIIBatchViaHttp: maskBatchMock,
 }))
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
-  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
@@ -105,9 +115,7 @@ vi.mock('@/lib/execution/execution-signal', () => ({
   connectExecutionSignalHub: connectExecutionSignalHubMock,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: decryptSecretMock,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: buildTraceSpansMock,
@@ -115,9 +123,7 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  getCustomBlockRowsForWorkspace: vi.fn().mockResolvedValue([]),
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mergeSubblockStateWithValuesMock,
@@ -145,22 +151,10 @@ vi.mock('@/executor', () => ({
   },
 }))
 
-const uploadWorkflowInputMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: uploadWorkflowInputMock,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-const { storedFileByKeyMock, presignStoredFileMock } = vi.hoisted(() => ({
-  storedFileByKeyMock: vi.fn(),
-  presignStoredFileMock: vi.fn(),
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataById: vi.fn(),
-  getFileMetadataByKey: storedFileByKeyMock,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  generatePresignedDownloadUrl: presignStoredFileMock,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/serializer', () => ({
   Serializer: class {
@@ -173,6 +167,15 @@ import {
   FINALIZED_EXECUTION_ID_TTL_MS,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
+
+const uploadWorkflowInputMock = uploadsExecutionMockFns.mockUploadExecutionFile
+largeValueMetadataMockFns.mockRegisterLargeValueOwner.mockResolvedValue(true)
+
+const decryptSecretMock = encryptionMockFns.mockDecryptSecret
+const downloadFileMock = storageServiceMockFns.mockDownloadFile
+const uploadFileMock = storageServiceMockFns.mockUploadFile
+const storedFileByKeyMock = uploadsMetadataMockFns.mockGetFileMetadataByKey
+const presignStoredFileMock = storageServiceMockFns.mockGeneratePresignedDownloadUrl
 
 const executionCoreLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'ExecutionCore'
@@ -208,11 +211,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       userId: 'user-1',
       workflowUserId: 'workflow-owner',
       workspaceId: 'workspace-1',
-      principal: {
-        kind: 'session' as const,
-        userId: 'user-1',
-        sessionId: 'session-1',
-      },
+      principal: createSessionPrincipal(),
       triggerType: 'api',
       executionId: 'execution-1',
       triggerBlockId: undefined,
@@ -372,7 +371,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     },
     {
       name: 'resolves and grants for a workspace member',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       granted: true,
     },
   ] satisfies Array<{ name: string; principal: WorkflowExecutionPrincipal; granted: boolean }>)(
@@ -456,11 +455,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   it.each([
     {
       name: 'personal API key manual draft execution',
-      principal: {
-        kind: 'personal_api_key' as const,
-        userId: 'user-1',
-        keyId: 'personal-key-1',
-      },
+      principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
       triggerType: 'manual',
       useDraftState: true,
       expectedIsDeployedContext: false,
@@ -543,11 +538,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     },
     {
       name: 'workspace API key',
-      principal: {
-        kind: 'workspace_api_key' as const,
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       triggerType: 'api',
       isPublicApiAccess: false,
     },
@@ -1009,7 +1000,6 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     afterEach(() => {
-      vi.restoreAllMocks()
       clearLargeValueCacheForTests()
     })
 

@@ -6,33 +6,37 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   readLogDetail: vi.fn(),
-  resolveWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@/lib/logs/fetch-log-detail', () => ({
-  readLogDetail: mocks.readLogDetail,
+  readLogDetail: hoisted.readLogDetail,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (held: string | null, required: string) =>
-    held === 'admin' || held === required || (held === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
+
+const mocks = {
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  resolveWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const EXECUTION_ID = 'execution-1'
@@ -74,7 +78,7 @@ const HUMAN_PRINCIPAL: Principal = {
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    principal: createSessionPrincipal(),
     currentWorkflow: {
       workflowId: 'workflow-1',
       mode: 'deployment',
@@ -125,7 +129,7 @@ describe('readLogDetailUseCase', () => {
     resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await readLogDetailUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
     })
 

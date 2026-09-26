@@ -13,24 +13,21 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 
 const orderByLimitMock = vi.fn()
 
 const {
-  mockVerifyCronAuth,
   mockExecuteScheduleJob,
   mockReleaseScheduleLock,
-  mockEnqueue,
-  mockGetJob,
-  mockStartJob,
-  mockCompleteJob,
-  mockMarkJobFailed,
-  mockCancelJob,
-  mockShouldExecuteInline,
-  mockResolveSystemBillingAttribution,
-  mockAssertBillingAttributionSnapshot,
   mockApplyScheduleSuccessUpdate,
   mockApplyScheduleCancellationUpdate,
   mockApplyScheduleFailureUpdate,
@@ -41,18 +38,8 @@ const {
   mockWorkflowSchedule,
   mockWorkflowExecutionLogs,
 } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
   mockReleaseScheduleLock: vi.fn().mockResolvedValue(undefined),
-  mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
-  mockGetJob: vi.fn().mockResolvedValue(null),
-  mockStartJob: vi.fn().mockResolvedValue(undefined),
-  mockCompleteJob: vi.fn().mockResolvedValue(undefined),
-  mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
-  mockCancelJob: vi.fn().mockResolvedValue(undefined),
-  mockShouldExecuteInline: vi.fn().mockReturnValue(false),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockAssertBillingAttributionSnapshot: vi.fn(),
   mockApplyScheduleSuccessUpdate: vi.fn().mockResolvedValue(true),
   mockApplyScheduleCancellationUpdate: vi.fn().mockResolvedValue(true),
   mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
@@ -98,14 +85,9 @@ const {
   },
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: mockVerifyCronAuth,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
@@ -124,18 +106,7 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
   unregisterManualExecutionAborter: mockUnregisterManualExecutionAborter,
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({
-    enqueue: mockEnqueue,
-    getJob: mockGetJob,
-    startJob: mockStartJob,
-    completeJob: mockCompleteJob,
-    markJobFailed: mockMarkJobFailed,
-    cancelJob: mockCancelJob,
-  }),
-  JOB_PENDING_RETENTION_HOURS: 14 * 24,
-  shouldExecuteInline: mockShouldExecuteInline,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
@@ -169,19 +140,37 @@ vi.mock('@sim/db', () => ({
   workflowExecutionLogs: mockWorkflowExecutionLogs,
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'schedule-execution-1'),
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 vi.mock('@sim/utils/random', () => ({
   randomInt: vi.fn(() => 0),
 }))
 
-import { runScheduleTick } from './route'
+import { runScheduleTick } from '@/app/api/schedules/execute/route'
+
+const { mockShouldExecuteInline } = asyncJobsMockFns
+mockShouldExecuteInline.mockReturnValue(false)
+const {
+  enqueue: mockEnqueue,
+  getJob: mockGetJob,
+  startJob: mockStartJob,
+  completeJob: mockCompleteJob,
+  markJobFailed: mockMarkJobFailed,
+  cancelJob: mockCancelJob,
+} = asyncJobsMockFns.mockJobQueue
+mockEnqueue.mockResolvedValue('job-id-1')
+mockGetJob.mockResolvedValue(null)
+mockStartJob.mockResolvedValue(undefined)
+mockCompleteJob.mockResolvedValue(undefined)
+mockMarkJobFailed.mockResolvedValue(undefined)
+mockCancelJob.mockResolvedValue(undefined)
+const { mockVerifyCronAuth } = authInternalMockFns
+mockVerifyCronAuth.mockReturnValue(null)
+
+const { mockResolveSystemBillingAttribution, mockAssertBillingAttributionSnapshot } =
+  billingAttributionMockFns
+idMockFns.mockGenerateId.mockReturnValue('schedule-execution-1')
+idMockFns.mockGenerateShortId.mockReturnValue('mock-short-id')
 
 const SINGLE_SCHEDULE = [
   {

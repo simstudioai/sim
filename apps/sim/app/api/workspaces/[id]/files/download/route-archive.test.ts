@@ -12,61 +12,39 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const run = promisify(execFile)
 
-const {
-  mockGetSession,
-  mockLoadWorkspaceFileOperationContext,
-  mockResolvePermission,
-  mockListWorkspaceFiles,
-  mockListFolders,
-  mockDownloadFileStream,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockLoadWorkspaceFileOperationContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockListWorkspaceFiles: vi.fn(),
-  mockListFolders: vi.fn(),
-  mockDownloadFileStream: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: mockListWorkspaceFiles,
-  listWorkspaceFileFolders: mockListFolders,
-  buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; name: string }>) =>
-    new Map(folders.map((folder) => [folder.id, folder.name])),
-  fetchServableWorkspaceFileBuffer: vi.fn(),
-  loadWorkspaceFileOperationContext: mockLoadWorkspaceFileOperationContext,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mockDownloadFileStream,
-}))
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { GET } from '@/app/api/workspaces/[id]/files/download/route'
 
+const mockGetSession = authMockFns.mockGetSession
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const {
+  mockLoadWorkspaceFileOperationContext,
+  mockListWorkspaceFiles,
+  mockListWorkspaceFileFolders: mockListFolders,
+} = workspaceUploadsMockFns
+const { mockDownloadFileStream } = storageServiceMockFns
+
 const WORKSPACE_ID = 'ws-1'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID })
 
 let workDir: string
 let bigPath: string

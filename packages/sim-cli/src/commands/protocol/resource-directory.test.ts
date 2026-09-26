@@ -34,7 +34,6 @@ function program(): Command {
 }
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mockRequest.mockReset()
   output.format = 'json'
 })

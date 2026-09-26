@@ -85,11 +85,11 @@ uploads the credential-free scenario report and an allowlist of HTTP status log
 lines. Raw application logs are not uploaded.
 
 The focused PostgreSQL suite is part of the integration layer and reads the same
-`TEST_DATABASE_URL` as every other integration suite. From `apps/sim`:
+`TEST_DATABASE_URL` as every other integration suite:
 
 ```sh
 TEST_DATABASE_URL="$SCIM_E2E_DATABASE_URL" \
-  bunx vitest run --mode integration ee/scim/lib/managed-membership.integration.ts
+  bun run --cwd apps/sim test --mode integration ee/scim/lib/managed-membership.integration.ts
 ```
 
 Integration mode refuses to start without that variable. The suites execute
@@ -162,5 +162,5 @@ Focused unit tests remain useful for malformed payload variants and policy
 branches that do not belong in a local HTTP scenario:
 
 ```sh
-bunx vitest run ee/scim lib/api/server/routes/scim-route.test.ts
+bun run --cwd apps/sim test ee/scim lib/api/server/routes/scim-route.test.ts
 ```

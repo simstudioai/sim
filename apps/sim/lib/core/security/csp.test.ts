@@ -1,8 +1,8 @@
-import { createEnvMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
     NEXT_PUBLIC_APP_URL: 'https://example.com',
     NEXT_PUBLIC_SOCKET_URL: 'https://socket.example.com',
     OLLAMA_URL: 'http://localhost:11434',
@@ -15,7 +15,7 @@ vi.mock('@/lib/core/config/env', () =>
     NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
     NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
   })
-)
+})
 
 import { buildCSPString, generateRuntimeCSP, getChatEmbedCSPPolicy, getMainCSPPolicy } from './csp'
 

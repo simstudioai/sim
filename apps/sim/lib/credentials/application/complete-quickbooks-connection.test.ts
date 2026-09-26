@@ -1,55 +1,60 @@
 import { account } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   decryptClientConfig: vi.fn(),
   exchangeAuthorizationCode: vi.fn(),
   fetchConnectionProfile: vi.fn(),
-  generateId: vi.fn(),
   getActiveDraft: vi.fn(),
-  loadWorkspace: vi.fn(),
   processDraft: vi.fn(),
-  resolvePermission: vi.fn(),
   resolveTarget: vi.fn(),
 }))
 
-vi.mock('@sim/utils/id', () => ({ generateId: mocks.generateId }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/credentials/application/connection-target', () => ({
-  resolveCredentialConnectionTarget: mocks.resolveTarget,
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  getActiveConnectDraft: mocks.getActiveDraft,
+  getActiveConnectDraft: hoisted.getActiveDraft,
 }))
 vi.mock('@/lib/credentials/draft-processor', () => ({
-  processCredentialDraft: mocks.processDraft,
+  processCredentialDraft: hoisted.processDraft,
 }))
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
-  decryptQuickBooksOAuthClientConfig: mocks.decryptClientConfig,
+  decryptQuickBooksOAuthClientConfig: hoisted.decryptClientConfig,
 }))
 vi.mock('@/lib/oauth/quickbooks', () => ({
-  exchangeQuickBooksAuthorizationCode: mocks.exchangeAuthorizationCode,
-  fetchQuickBooksConnectionProfile: mocks.fetchConnectionProfile,
+  exchangeQuickBooksAuthorizationCode: hoisted.exchangeAuthorizationCode,
+  fetchQuickBooksConnectionProfile: hoisted.fetchConnectionProfile,
 }))
-vi.mock('@/lib/oauth/utils', () => ({
-  getCanonicalScopesForProvider: () => ['com.intuit.quickbooks.accounting', 'openid'],
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { completeQuickBooksConnection } from '@/lib/credentials/application/complete-quickbooks-connection'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoisted,
+  generateId: idMockFns.mockGenerateId,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
+
+oauthUtilsMockFns.mockGetCanonicalScopesForProvider.mockReturnValue([
+  'com.intuit.quickbooks.accounting',
+  'openid',
+])
+
+const principal = createSessionPrincipal()
 
 describe('completeQuickBooksConnection', () => {
   beforeEach(() => {

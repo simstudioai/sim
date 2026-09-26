@@ -1,34 +1,36 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  getActor: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   createDraft: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  createConnectDraft: mocks.createDraft,
+  createConnectDraft: hoisted.createDraft,
 }))
 
 import { saveCredentialDraft } from '@/lib/credentials/application/save-credential-draft'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
 }
+
+const principal = createSessionPrincipal()
 const workspace = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 import {
   executeAsanaAddComment,
@@ -31,10 +31,6 @@ describe('Asana operations', () => {
     fetchMock.mockImplementation(
       async () => new Response(JSON.stringify({ data: {}, next_page: { offset: 'next' } }))
     )
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   const searchParams = new URLSearchParams({ opt_fields: TASK_OPT_FIELDS })

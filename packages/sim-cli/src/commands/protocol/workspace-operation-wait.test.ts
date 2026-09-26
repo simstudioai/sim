@@ -28,7 +28,6 @@ function fixtureClient() {
 }
 
 afterEach(() => {
-  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 

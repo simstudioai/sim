@@ -57,9 +57,9 @@ function SearchIntegrationConnectionControl({
   const label = connected
     ? `Connected ${name}`
     : connection.isLoading
-      ? `Checking ${name} connections…`
+      ? `Checking ${name} connections`
       : connection.pending
-        ? `Waiting for ${name} connection…`
+        ? `Waiting for ${name} connection`
         : !connection.available
           ? `${name} connection is no longer available`
           : `${action} ${name}`

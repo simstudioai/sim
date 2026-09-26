@@ -1,3 +1,10 @@
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingMappingStoreMock } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkSyncBlocker } from '@/lib/api/contracts/workspace-fork'
 
@@ -12,7 +19,6 @@ const {
   mockResolveFolderMapping,
   mockUpsertPromoteRun,
   mockLoadSourceDeployedStates,
-  mockGetUsersWithPermissions,
   mockGetMcpServerMeta,
   mockCreateTransform,
   mockSumForkCopyBytes,
@@ -30,7 +36,6 @@ const {
   mockResolveFolderMapping: vi.fn(),
   mockUpsertPromoteRun: vi.fn(),
   mockLoadSourceDeployedStates: vi.fn(),
-  mockGetUsersWithPermissions: vi.fn(),
   mockGetMcpServerMeta: vi.fn(),
   mockCreateTransform: vi.fn(),
   mockSumForkCopyBytes: vi.fn(),
@@ -46,9 +51,7 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   performFullDeploy: vi.fn(async () => ({ success: true })),
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  undeployWorkflow: vi.fn(async () => ({ success: true })),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   recordBackgroundWork: vi.fn(),
   startBackgroundWork: vi.fn(),
@@ -72,11 +75,7 @@ vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
   loadTargetWebhookPathsByBlock: mockLoadTargetWebhookPaths,
 }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  acquireForkEdgeLock: vi.fn(),
-  acquireForkTargetLock: vi.fn(),
-  setForkLockTimeout: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   loadForkBlockMap: mockLoadBlockMap,
   reconcileForkBlockPairs: vi.fn(),
@@ -101,10 +100,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/dependent-value-store', () => ({
       })
   ),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  deleteWorkflowIdentityByIds: vi.fn(),
-  upsertEdgeMappings: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: mockCollectBlockers,
   verifyForkDropAcknowledgments: mockVerifyDrops,
@@ -151,9 +147,7 @@ vi.mock('@/lib/workflows/references/remap-references', () => ({
 vi.mock('@/ee/workspace-forking/lib/socket', () => ({
   notifyForkWorkflowChanged: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUsersWithPermissions: mockGetUsersWithPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
@@ -162,6 +156,10 @@ import { copyWorkflowStateIntoTarget } from '@/ee/workspace-forking/lib/copy/cop
 import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 import type { ForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+
+const mockGetUsersWithPermissions = permissionsMockFns.mockGetUsersWithPermissions
+
+workflowsPersistenceUtilsMockFns.mockUndeployWorkflow.mockResolvedValue({ success: true })
 
 const EDGE = { childWorkspaceId: 'child-ws', parentWorkspaceId: 'parent-ws' }
 

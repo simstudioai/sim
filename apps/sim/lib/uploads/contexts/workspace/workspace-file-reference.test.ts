@@ -12,14 +12,16 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: vi.fn(),
-  incrementStorageUsageForBillingContextInTx: vi.fn(),
-  maybeNotifyStorageLimitForBillingContext: vi.fn(),
-  resolveStorageBillingContext: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', async (importOriginal) => ({
   ...(await importOriginal<
@@ -28,34 +30,23 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', async (impor
   currentWorkspaceFileVersionNumberSql: vi.fn(() => ({ versionProjection: true })),
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  getServePathPrefix: vi.fn(() => '/api/files/serve/s3/'),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-  downloadFile: vi.fn(),
-  hasCloudStorage: vi.fn(() => false),
-  headObject: vi.fn(),
-  uploadFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: vi.fn(async () => null),
-  buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
-  fileNameExistsInWorkspaceFolder: vi.fn(async () => false),
-  findWorkspaceFileFolderIdByPath: vi.fn(async () => null),
-  getWorkspaceFileFolderPath: vi.fn(),
-  listWorkspaceFileFolders: vi.fn(async () => []),
-  normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
-  resolveWorkspaceFileFolderTarget: vi.fn(async () => null),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 import {
   listWorkspaceFiles,
   parseChatUploadReference,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+
+uploadsMockFns.mockGetServePathPrefix.mockImplementation(() => '/api/files/serve/s3/')
+workspaceFileFoldersMockFns.mockFindWorkspaceFileFolderIdByPath.mockResolvedValue(null)
 
 const WS = '22222222-2222-2222-2222-222222222222'
 const UPLOAD_KEY = `workspace/${WS}/1731000000000-ab12cd34-face.png`

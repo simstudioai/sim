@@ -1,7 +1,7 @@
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { NextResponse } from 'next/server'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import {
   type DeploymentAuthResource,
@@ -47,10 +47,6 @@ function withoutEncryptedEmailClaim(token: string): string {
 }
 
 describe('deployment auth tokens', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('binds a password token to the resource, auth mode, and current password', async () => {
     const resource = {
       id: 'share-1',

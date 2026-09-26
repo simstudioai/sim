@@ -26,7 +26,6 @@ const trustedContext = {
 
 describe('Copilot Workflow application adapter', () => {
   afterEach(() => {
-    vi.clearAllMocks()
     vi.useRealTimers()
   })
 

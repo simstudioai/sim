@@ -1,62 +1,38 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDecrementStorageUsageForBillingContextInTx,
-  mockDeleteFile,
   mockEnqueueWorkspaceFileStorageCleanups,
   mockEnqueueWorkspaceFileLiveDocReconciliation,
-  mockFileNameExistsInWorkspaceFolder,
-  mockGetWorkspaceWithOwner,
-  mockHasCloudStorage,
-  mockHeadObject,
   mockAcquireFolderMutationLock,
-  mockAssertWorkspaceFileFolderTarget,
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockLoadActiveFolderPathIndex,
-  mockInitializeWorkspaceFileSecretProvenanceInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockNotifyWorkspaceFilesChanged,
   mockProcessWorkspaceFileStorageCleanupsNow,
-  mockApplyWorkspaceFileSecretProvenancePolicyInTx,
   mockProcessWorkspaceFileLiveDocReconciliationNow,
-  mockResolveStorageBillingContext,
-  mockResolveFolderPathFromIndex,
-  mockResolveRestoredFolderId,
-  mockResolveWorkspaceFileFolderTarget,
-  mockReplaceWorkspaceFileSecretProvenanceInTx,
   mockSaveCollabDocStateInTx,
-  mockUploadFile,
   mockRecordWorkspaceFileVersionInTx,
 } = vi.hoisted(() => ({
-  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockDeleteFile: vi.fn(),
   mockEnqueueWorkspaceFileStorageCleanups: vi.fn(),
   mockEnqueueWorkspaceFileLiveDocReconciliation: vi.fn(),
-  mockFileNameExistsInWorkspaceFolder: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockHasCloudStorage: vi.fn(),
-  mockHeadObject: vi.fn(),
   mockAcquireFolderMutationLock: vi.fn(),
-  mockAssertWorkspaceFileFolderTarget: vi.fn(),
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  mockInitializeWorkspaceFileSecretProvenanceInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockNotifyWorkspaceFilesChanged: vi.fn(),
   mockProcessWorkspaceFileStorageCleanupsNow: vi.fn(),
-  mockApplyWorkspaceFileSecretProvenancePolicyInTx: vi.fn(),
   mockProcessWorkspaceFileLiveDocReconciliationNow: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockResolveFolderPathFromIndex: vi.fn(),
-  mockResolveRestoredFolderId: vi.fn(),
-  mockResolveWorkspaceFileFolderTarget: vi.fn(),
-  mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockSaveCollabDocStateInTx: vi.fn(),
-  mockUploadFile: vi.fn(),
   mockRecordWorkspaceFileVersionInTx: vi.fn(),
 }))
 
@@ -65,13 +41,10 @@ vi.mock('@/lib/collab-doc/collab-state', () => ({
   saveCollabDocStateInTx: mockSaveCollabDocStateInTx,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
-  initializeWorkspaceFileSecretProvenanceInTx: mockInitializeWorkspaceFileSecretProvenanceInTx,
-  applyWorkspaceFileSecretProvenancePolicyInTx: mockApplyWorkspaceFileSecretProvenancePolicyInTx,
-  replaceWorkspaceFileSecretProvenanceInTx: mockReplaceWorkspaceFileSecretProvenanceInTx,
-  snapshotWorkspaceFileSecretProvenanceInTx: vi.fn(async () => ({ status: 'exact', entries: [] })),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
   isVersionHeadCurrent: vi.fn(() => false),
@@ -80,63 +53,36 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
   recordWorkspaceFileVersionInTx: mockRecordWorkspaceFileVersionInTx,
 }))
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceFilesChanged: mockNotifyWorkspaceFilesChanged,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
   enqueueWorkspaceFileLiveDocReconciliation: mockEnqueueWorkspaceFileLiveDocReconciliation,
   processWorkspaceFileLiveDocReconciliationNow: mockProcessWorkspaceFileLiveDocReconciliationNow,
 }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/uploads', () => ({
-  getServePathPrefix: vi.fn(() => '/api/files/serve/s3/'),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-  downloadFile: vi.fn(),
-  hasCloudStorage: mockHasCloudStorage,
-  headObject: mockHeadObject,
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanups: mockEnqueueWorkspaceFileStorageCleanups,
   processWorkspaceFileStorageCleanupsNow: mockProcessWorkspaceFileStorageCleanupsNow,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: mockAssertWorkspaceFileFolderTarget,
-  buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
-  fileNameExistsInWorkspaceFolder: mockFileNameExistsInWorkspaceFolder,
-  findWorkspaceFileFolderIdByPath: vi.fn(),
-  getWorkspaceFileFolderPath: vi.fn(),
-  listWorkspaceFileFolders: vi.fn(async () => []),
-  normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
-  resolveWorkspaceFileFolderTarget: mockResolveWorkspaceFileFolderTarget,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 vi.mock('@/lib/folders/locks', () => ({
   acquireFolderMutationLock: mockAcquireFolderMutationLock,
 }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
-  resolveFolderPathFromIndex: mockResolveFolderPathFromIndex,
-  resolveRestoredFolderId: mockResolveRestoredFolderId,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   CollabDocStateConflictError,
@@ -151,6 +97,50 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+
+const mockLoadActiveFolderPathIndex = folderQueriesMockFns.mockLoadActiveFolderPathIndex
+const mockResolveFolderPathFromIndex = folderQueriesMockFns.mockResolveFolderPathFromIndex
+mockResolveFolderPathFromIndex.mockImplementation(() => undefined)
+const mockFileNameExistsInWorkspaceFolder =
+  workspaceFileFoldersMockFns.mockFileNameExistsInWorkspaceFolder
+const mockAssertWorkspaceFileFolderTarget =
+  workspaceFileFoldersMockFns.mockAssertWorkspaceFileFolderTarget
+const mockResolveWorkspaceFileFolderTarget =
+  workspaceFileFoldersMockFns.mockResolveWorkspaceFileFolderTarget
+workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementation(() => new Map())
+workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
+  (name: string) => name
+)
+const mockResolveRestoredFolderId = folderQueriesMockFns.mockResolveRestoredFolderId
+
+const mockDecrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+
+const mockInitializeWorkspaceFileSecretProvenanceInTx =
+  workspaceFileSecretProvenanceMockFns.mockInitializeWorkspaceFileSecretProvenanceInTx
+const mockApplyWorkspaceFileSecretProvenancePolicyInTx =
+  workspaceFileSecretProvenanceMockFns.mockApplyWorkspaceFileSecretProvenancePolicyInTx
+const mockReplaceWorkspaceFileSecretProvenanceInTx =
+  workspaceFileSecretProvenanceMockFns.mockReplaceWorkspaceFileSecretProvenanceInTx
+workspaceFileSecretProvenanceMockFns.mockSnapshotWorkspaceFileSecretProvenanceInTx.mockImplementation(
+  async () => ({ status: 'exact', entries: [] })
+)
+
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockHasCloudStorage = storageServiceMockFns.mockHasCloudStorage
+const mockHeadObject = storageServiceMockFns.mockHeadObject
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+uploadsMockFns.mockGetServePathPrefix.mockImplementation(() => '/api/files/serve/s3/')
+
+const mockNotifyWorkspaceFilesChanged = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
 
 const TEST_VERSION_WRITE = { source: 'api', authorUserId: 'user-1' } as const
 

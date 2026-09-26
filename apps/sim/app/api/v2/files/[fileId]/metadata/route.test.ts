@@ -5,12 +5,12 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readMetadata: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
@@ -23,14 +23,13 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/files/[fileId]/metadata/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -94,7 +93,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       file: { ...buildRecord(), currentVersion: 3 },
       share: SHARE,
     })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('conceals cross-workspace authorization as not found', async () => {

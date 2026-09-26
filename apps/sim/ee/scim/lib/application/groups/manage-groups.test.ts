@@ -1,10 +1,13 @@
 import type { Principal } from '@sim/auth/principal'
 import { scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  locks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   findGroup: vi.fn(),
   filterUsers: vi.fn(),
   memberIds: vi.fn(),
@@ -17,26 +20,24 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.locks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
-  reconcileUsersProjection: mocks.reconcile,
+  reconcileUsersProjection: hoistedMocks.reconcile,
 }))
 vi.mock('@/ee/scim/lib/projection/auto-map', () => ({
   autoMapPermissionGroupByName: vi.fn(),
   settleMappedPermissionGroupsExplicit: vi.fn(),
 }))
 vi.mock('@/ee/scim/lib/repository/groups', () => ({
-  findScimGroupById: mocks.findGroup,
-  filterOwnedUsers: mocks.filterUsers,
-  loadGroupMemberIds: mocks.memberIds,
-  loadGroupMembers: mocks.members,
-  addGroupMember: mocks.addMember,
-  removeGroupMember: mocks.removeMember,
-  countGroupMembers: mocks.countMembers,
-  touchScimGroup: mocks.touch,
-  updateScimGroup: mocks.update,
+  findScimGroupById: hoistedMocks.findGroup,
+  filterOwnedUsers: hoistedMocks.filterUsers,
+  loadGroupMemberIds: hoistedMocks.memberIds,
+  loadGroupMembers: hoistedMocks.members,
+  addGroupMember: hoistedMocks.addMember,
+  removeGroupMember: hoistedMocks.removeMember,
+  countGroupMembers: hoistedMocks.countMembers,
+  touchScimGroup: hoistedMocks.touch,
+  updateScimGroup: hoistedMocks.update,
   deleteScimGroupRow: vi.fn(),
   insertScimGroup: vi.fn(),
   loadGroupMembersForGroups: vi.fn(),
@@ -47,6 +48,11 @@ vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/
 
 import { replaceScimGroup } from '@/ee/scim/lib/application/groups/manage-groups'
 import { toGroupResource } from '@/ee/scim/lib/protocol/resources'
+
+const mocks = {
+  ...hoistedMocks,
+  locks: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',

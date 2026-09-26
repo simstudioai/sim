@@ -1,22 +1,20 @@
 import { authMockFns } from '@sim/testing'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockRedirect, mockResolveAppEntryPath } = vi.hoisted(() => ({
-  mockRedirect: vi.fn((path: string) => {
-    throw new Error(`NEXT_REDIRECT:${path}`)
-  }),
+const { mockResolveAppEntryPath } = vi.hoisted(() => ({
   mockResolveAppEntryPath: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/navigation/resolve-app-entry', () => ({
   resolveAppEntryPath: mockResolveAppEntryPath,
 }))
 
 import AppEntryPage from '@/app/home/page'
+
+const mockRedirect = nextNavigationMockFns.mockRedirect
 
 const mockGetSession = authMockFns.mockGetSession
 

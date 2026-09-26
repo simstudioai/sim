@@ -1,54 +1,39 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  deleteTable: vi.fn(),
-  resolveActiveTableContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_DELETED: 'table.deleted' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
-vi.mock('@/lib/table', () => ({
-  deleteTable: mocks.deleteTable,
-  TABLE_LIMITS: { MAX_TABLES_PER_WORKSPACE: 100 },
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveActiveTableContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 import { deleteCopilotTables } from '@/lib/table/application/copilot-table-lifecycle'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const mocks = {
+  deleteTable: tableMockFns.mockDeleteTable,
+  resolveActiveTableContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { chatId: 'chat-1' },
-}
+})
 
 describe('deleteCopilotTables', () => {
   beforeEach(() => {
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'workspace-1',

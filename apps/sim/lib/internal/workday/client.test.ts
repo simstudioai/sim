@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildServiceUrl,
   createWorkdaySoapClient,
@@ -28,10 +28,6 @@ describe('Workday SOAP client', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('builds an allowlisted Workday service URL and rejects untrusted hosts', () => {

@@ -1,21 +1,19 @@
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
-  authMockFns,
-  createMockRequest,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
-} from '@sim/testing'
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkWorkspaceAccess: vi.fn(),
   expandFolderIdsWithDescendants: vi.fn(),
   readLogStatsBounds: vi.fn(),
   readLogStatsSegments: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: mocks.expandFolderIdsWithDescendants,
@@ -34,18 +32,15 @@ import { GET } from '@/app/api/logs/stats/route'
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 function makeRequest(query = '') {
-  return createMockRequest(
-    'GET',
-    undefined,
-    {},
-    `http://localhost:3000/api/logs/stats?workspaceId=workspace-1${query}`
-  )
+  return createMockRequest({
+    url: `http://localhost:3000/api/logs/stats?workspaceId=workspace-1${query}`,
+  })
 }
 
 describe('GET /api/logs/stats', () => {
   beforeEach(() => {
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+    permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.readLogStatsBounds.mockResolvedValue({
       minStartedAt: new Date('2026-08-01T00:00:00.000Z'),
       maxStartedAt: new Date('2026-08-02T00:00:00.000Z'),

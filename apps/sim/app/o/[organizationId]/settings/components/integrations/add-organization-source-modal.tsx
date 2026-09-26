@@ -68,7 +68,7 @@ export function AddOrganizationSourceModal({
             title={meta.name}
             description={
               !ready
-                ? 'Checking availability…'
+                ? 'Checking availability'
                 : !available
                   ? 'Unavailable in this deployment'
                   : (descriptions?.[type] ??
@@ -109,7 +109,7 @@ export function AddOrganizationSourceModal({
           <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
             <ChipInput
               icon={Search}
-              placeholder='Search sources...'
+              placeholder='Search sources'
               aria-label='Find a source'
               value={search}
               onChange={(event) => setSearch(event.target.value)}

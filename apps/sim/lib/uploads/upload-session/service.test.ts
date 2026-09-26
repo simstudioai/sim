@@ -1,38 +1,42 @@
 import type { Principal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const {
   mockAbortProviderUpload,
-  mockCheckStorageQuota,
   mockCompleteMultipart,
   mockCreatePutTransfer,
   mockDeleteObjectVersion,
   mockHeadObject,
   mockInitiateMultipart,
   mockListMultipartParts,
-  mockResolveBillingContext,
   mockUploadStorageProvider,
 } = vi.hoisted(() => ({
   mockAbortProviderUpload: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
   mockCompleteMultipart: vi.fn(),
   mockCreatePutTransfer: vi.fn(),
   mockDeleteObjectVersion: vi.fn(),
   mockHeadObject: vi.fn(),
   mockInitiateMultipart: vi.fn(),
   mockListMultipartParts: vi.fn(),
-  mockResolveBillingContext: vi.fn(),
   mockUploadStorageProvider: vi.fn(() => 's3' as const),
 }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuotaForBillingContext: mockCheckStorageQuota,
-  resolveStorageBillingContext: mockResolveBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 /**
  * Stands in for the workspace-files barrel, which pulls the whole file manager.
@@ -40,15 +44,7 @@ vi.mock('@/lib/billing/storage', () => ({
  * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
  * through it are deliberately absent from the sidecar-bounds sweep below.
  */
-vi.mock('@/lib/uploads/contexts/workspace', async () => {
-  const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
-  return {
-    generateWorkspaceFileKey: vi.fn(
-      (workspaceId: string, fileName: string) =>
-        `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
-    ),
-  }
-})
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/uploads/upload-session/cleanup', () => ({
   maybeCleanupLocalUploadArtifacts: vi.fn().mockResolvedValue({ scanned: 0, removed: 0 }),
@@ -66,7 +62,10 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: mockUploadStorageProvider,
 }))
 
-import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
+import {
+  buildStorageKeySegment,
+  LOCAL_UPLOAD_METADATA_SUFFIX,
+} from '@/lib/uploads/core/storage-key'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -87,16 +86,21 @@ import {
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { toInternalUploadSession } from '@/app/api/files/uploads/utils'
+
+workspaceUploadsMockFns.mockGenerateWorkspaceFileKey.mockImplementation(
+  (workspaceId: string, fileName: string) =>
+    `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
+)
+
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
+
+const mockCheckStorageQuota = billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockResolveBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const FINAL_KEY = `workspace/${WORKSPACE_ID}/final-file.bin`
-const executorPrincipal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
+const executorPrincipal: WorkflowExecutionDelegatedPrincipal = createExecutorPrincipal({
   workspaceId: WORKSPACE_ID,
-  delegationId: 'delegation-1',
   audience: 'sim:tables',
   issuedAt: new Date('2026-08-01T00:00:00.000Z'),
   expiresAt: new Date('2099-08-01T00:00:00.000Z'),
@@ -105,7 +109,7 @@ const executorPrincipal: WorkflowExecutionDelegatedPrincipal = {
     workflowId: 'workflow-1',
     executionId: 'execution-1',
   },
-}
+})
 
 describe('upload sessions', () => {
   beforeEach(() => {
@@ -150,7 +154,7 @@ describe('upload sessions', () => {
     expect(inserted.metadata.authBinding).toEqual({
       version: 1,
       workspaceId: WORKSPACE_ID,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
   })
 
@@ -171,7 +175,7 @@ describe('upload sessions', () => {
       purpose: 'organization_logo',
       organizationId: 'org-1',
       expectedLogo: null,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       fileName: 'logo.png',
       contentType: 'image/png',
       fileSize: 100,
@@ -208,7 +212,7 @@ describe('upload sessions', () => {
         organizationId: 'org-1',
         expectedLogo: null,
         userId: 'user-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         fileName: 'logo.png',
         ...file,
       })
@@ -232,7 +236,7 @@ describe('upload sessions', () => {
       userId: 'user-1',
       purpose: 'mothership_attachment',
       organizationId: 'org-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       fileName: 'image.png',
       contentType: 'image/png',
       fileSize: 100,
@@ -267,7 +271,7 @@ describe('upload sessions', () => {
         userId: 'user-1',
         purpose: 'mothership_attachment',
         organizationId: 'org-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         fileName: 'image.png',
         ...file,
       })
@@ -282,7 +286,7 @@ describe('upload sessions', () => {
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       purpose: 'workspace_file',
       fileName: 'file.bin',
       contentType: 'application/octet-stream',
@@ -339,7 +343,7 @@ describe('upload sessions', () => {
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
       fileName: `${'a'.repeat(251)}.txt`,
       contentType: 'text/plain',
@@ -375,7 +379,7 @@ describe('upload sessions', () => {
         id: 'upload-1',
         workspaceId: WORKSPACE_ID,
         userId: 'user-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
         fileName: 'empty.txt',
         contentType: 'text/plain',
@@ -425,7 +429,7 @@ describe('upload sessions', () => {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+          principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }),
         },
       },
     })
@@ -435,7 +439,7 @@ describe('upload sessions', () => {
       getOwnedUploadSession({
         uploadId: row.id,
         uploadToken: 'upload-secret',
-        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'key-2' }),
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -449,7 +453,7 @@ describe('upload sessions', () => {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal(),
         },
       },
     })
@@ -459,7 +463,7 @@ describe('upload sessions', () => {
       getPrincipalKnowledgeDocumentUploadSession({
         uploadId: row.id,
         uploadToken: 'upload-secret',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        principal: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
         workspaceId: WORKSPACE_ID,
         knowledgeBaseId: 'kb-1',
       })
@@ -469,26 +473,24 @@ describe('upload sessions', () => {
   it.each([
     {
       label: 'session',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      mismatch: { kind: 'session', userId: 'user-1', sessionId: 'session-2' },
+      principal: createSessionPrincipal(),
+      mismatch: createSessionPrincipal({ sessionId: 'session-2' }),
     },
     {
       label: 'personal API key',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      mismatch: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+      principal: createPersonalApiKeyPrincipal(),
+      mismatch: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
     },
     {
       label: 'workspace API key',
-      principal: {
-        kind: 'workspace_api_key',
+      principal: createWorkspaceApiKeyPrincipal({
         workspaceId: WORKSPACE_ID,
         keyId: 'workspace-key-1',
-      },
-      mismatch: {
-        kind: 'workspace_api_key',
+      }),
+      mismatch: createWorkspaceApiKeyPrincipal({
         workspaceId: WORKSPACE_ID,
         keyId: 'workspace-key-2',
-      },
+      }),
     },
   ] satisfies Array<{ label: string; principal: Principal; mismatch: Principal }>)(
     'requires the exact bound $label credential for knowledge control',
@@ -514,11 +516,10 @@ describe('upload sessions', () => {
     })
 
     expect(() =>
-      assertUploadSessionAuthBinding(malformed, {
-        kind: 'session',
-        userId: malformed.userId,
-        sessionId: 'current-session',
-      })
+      assertUploadSessionAuthBinding(
+        malformed,
+        createSessionPrincipal({ userId: malformed.userId, sessionId: 'current-session' })
+      )
     ).toThrow('Upload session not found')
   })
 
@@ -530,7 +531,7 @@ describe('upload sessions', () => {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal(),
         },
       },
     })
@@ -542,7 +543,7 @@ describe('upload sessions', () => {
         uploadId: bound.id,
         uploadToken: 'upload-secret',
         purpose: 'table_import',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal(),
       })
     ).resolves.toMatchObject({ id: bound.id, purpose: 'table_import' })
     await expect(
@@ -550,7 +551,7 @@ describe('upload sessions', () => {
         uploadId: bound.id,
         uploadToken: 'upload-secret',
         purpose: 'table_import',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        principal: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -978,11 +979,7 @@ async function createWorkspaceUpload(fileSize: number) {
     id: 'upload-1',
     workspaceId: WORKSPACE_ID,
     userId: 'user-1',
-    principal: {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    },
+    principal: createSessionPrincipal(),
     purpose: 'workspace_file',
     fileName: 'file.bin',
     contentType: 'application/octet-stream',

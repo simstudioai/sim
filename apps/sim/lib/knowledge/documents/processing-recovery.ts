@@ -11,6 +11,7 @@ import {
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   createDocumentProcessingPayload,
   createOrganizationDocumentProcessingBillingContext,
@@ -35,7 +36,8 @@ const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 /**
  * Re-admits bounded, abandoned connector documents from our retained bytes, independently
  * of source sync schedules and credentials. The generation, attempt and outbox event commit
- * together; no source-provider call or source lease is needed. Paused/deleted sources stay paused.
+ * together; no source-provider call or source lease is needed. Paused/deleted sources stay paused,
+ * and search-index knowledge bases are not indexed while indexed organization search is dormant.
  */
 export async function recoverKnowledgeDocumentProcessing(now = new Date()): Promise<number> {
   const deadlineAt = Date.now() + RECOVERY_RUNTIME_MS
@@ -102,6 +104,7 @@ async function recoverStoredDocumentBatch(
             ? notInArray(document.connectorId, [...attemptedConnectors])
             : undefined,
           isNull(knowledgeBase.deletedAt),
+          connectorIndexingCondition(),
           isNull(knowledgeConnector.deletedAt),
           isNull(knowledgeConnector.archivedAt),
           inArray(knowledgeConnector.status, RECOVERABLE_CONNECTOR_STATUSES)
@@ -151,7 +154,13 @@ async function recoverStoredDocumentBatch(
             organizationId: knowledgeBase.organizationId,
           })
           .from(knowledgeBase)
-          .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+          .where(
+            and(
+              eq(knowledgeBase.id, knowledgeBaseId),
+              isNull(knowledgeBase.deletedAt),
+              connectorIndexingCondition()
+            )
+          )
           .for('share', { skipLocked: true })
         signal.throwIfAborted()
         if (!kb) {

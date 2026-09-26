@@ -1,75 +1,54 @@
 import { member, organization, outboxEvent, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingIdentityLockMock } from '@sim/testing/mocks/billing-identity-lock.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import { organizationMemberLimitsMock } from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireOrganizationLock: vi.fn(),
-  acquireUserLock: vi.fn(),
-  ensureMembership: vi.fn(),
-  transferMembership: vi.fn(),
-  setMemberLimit: vi.fn(),
-  reconcileSeats: vi.fn(),
-  syncUsageLimits: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   moveWorkspace: vi.fn(),
-  recordAuditOnce: vi.fn(),
-  enqueue: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    ORG_MEMBER_ADDED: 'organization.member_added',
-    ORG_MEMBER_REMOVED: 'organization.member_removed',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAuditOnce: mocks.recordAuditOnce,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireOrganizationLock,
-  ensureUserInOrganizationTx: mocks.ensureMembership,
-  transferUserBetweenOrganizations: mocks.transferMembership,
-}))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: mocks.acquireUserLock,
-}))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mocks.setMemberLimit,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/workspaces/admin-move', () => ({
   MIGRATED_INVITATION_EMAIL_EVENT_TYPE: 'invitation.send-migrated-link',
-  moveWorkspaceToOrganization: mocks.moveWorkspace,
+  moveWorkspaceToOrganization: hoisted.moveWorkspace,
 }))
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({
-  continueOutboxHandler: (reason: string) => ({
-    outcome: 'deferred',
-    reason,
-    consumeAttempt: false,
-  }),
-  deferOutboxHandler: (reason: string, _minimum?: number, consumeAttempt = true) => ({
-    outcome: 'deferred',
-    reason,
-    ...(consumeAttempt ? {} : { consumeAttempt: false }),
-  }),
-  enqueueOutboxEvent: mocks.enqueue,
-  outboxEventHasSourceOperationId: vi.fn(() => undefined),
-  outboxPayloadHasSourceOperationId: vi.fn(
-    (payload: { sourceOperationId?: string; sourceOperationIds?: string[] }, operationId: string) =>
-      payload.sourceOperationId === operationId || payload.sourceOperationIds?.includes(operationId)
-  ),
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import {
   processAdminMemberOperation,
   startAdminMemberOperation,
 } from '@/lib/admin/member-operation'
+
+const mocks = {
+  ...hoisted,
+  reconcileSeats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  syncUsageLimits: billingUsageMockFns.mockSyncUsageLimitsFromSubscription,
+  enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  acquireOrganizationLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  ensureMembership: organizationMembershipMockFns.mockEnsureUserInOrganizationTx,
+  transferMembership: organizationMembershipMockFns.mockTransferUserBetweenOrganizations,
+  recordAuditOnce: auditMockFns.mockRecordAuditOnce,
+}
 
 const actor = { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
 

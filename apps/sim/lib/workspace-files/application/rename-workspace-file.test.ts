@@ -1,32 +1,30 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
-  renameStored: vi.fn(),
-  resolvePermission: vi.fn(),
-  recordAudit: vi.fn(),
-  notify: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPDATED: 'FILE_UPDATED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  renameWorkspaceFile: mocks.renameStored,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+
+const mocks = {
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  renameStored: workspaceFileManagerMockFns.mockRenameWorkspaceFile,
+  notify: realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged,
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const canonical = {
   fileId: 'file-1',
@@ -61,7 +59,7 @@ describe('renameWorkspaceFile application service', () => {
   it('conceals an asserted-workspace mismatch before authorization or mutation', async () => {
     await expect(
       renameWorkspaceFile.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-2', name: 'new.csv' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })
@@ -77,7 +75,7 @@ describe('renameWorkspaceFile application service', () => {
 
     await expect(
       renameWorkspaceFile.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { fileId: 'file-1', name: 'new.csv' },
       })
     ).rejects.toBe(failure)

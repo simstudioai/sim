@@ -1,9 +1,5 @@
 import { readFileSync } from 'node:fs'
-import {
-  applyMigration,
-  migrationTestDatabaseUrl,
-  withMigrationSchema,
-} from '@sim/db/scripts/migration-fixture'
+import { applyMigration, withMigrationSchema } from '@sim/db/scripts/migration-fixture'
 import type postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
@@ -58,7 +54,7 @@ async function fixture(run: (sql: postgres.Sql) => Promise<void>): Promise<void>
 
 const apply = (sql: postgres.Sql) => applyMigration(sql, migration)
 
-describe.skipIf(!migrationTestDatabaseUrl)('retired-column contract migration', () => {
+describe('retired-column contract migration', () => {
   it('allows a fresh database and replays after the columns are gone', async () => {
     await fixture(async (sql) => {
       await apply(sql)

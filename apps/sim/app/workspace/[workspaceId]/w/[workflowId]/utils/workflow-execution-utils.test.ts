@@ -1,5 +1,5 @@
 import { resetTerminalConsoleMock, terminalConsoleMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addExecutionErrorConsoleEntry,
   createBlockEventHandlers,
@@ -22,10 +22,6 @@ describe('workflow-execution-utils', () => {
     vi.mocked(useExecutionStore.getState).mockReturnValue({
       getCurrentExecutionId: vi.fn(() => 'exec-1'),
     } as any)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('classifies a duplicate Copilot claim without writing an HTTP error row', async () => {

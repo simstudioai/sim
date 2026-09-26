@@ -21,7 +21,6 @@ const ADMITTED = { allowed: true, retryAfterMs: 0, scale: 1, inFlight: 1 }
 describe('provider capacity leases', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     mutate.mockResolvedValue(ADMITTED)
   })
   afterEach(() => vi.useRealTimers())

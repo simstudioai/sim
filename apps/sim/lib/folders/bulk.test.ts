@@ -1,23 +1,16 @@
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { foldersOrchestrationMock } from '@sim/testing/mocks/folders-orchestration.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockListActiveFolderRows } = vi.hoisted(() => ({
-  mockListActiveFolderRows: vi.fn(),
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  listActiveFolderRows: mockListActiveFolderRows,
-}))
-
-vi.mock('@/lib/folders/orchestration', () => ({
-  deleteFolder: vi.fn(),
-  updateFolder: vi.fn(),
-}))
-
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyFolderResourceChanged: vi.fn(),
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { planFolderSelection } from '@/lib/folders/bulk'
+
+const mockListActiveFolderRows = folderQueriesMockFns.mockListActiveFolderRows
 
 /**
  * `a` holds `a1`, which holds `a1x`. `b` is a sibling with nothing inside it, so a plan can

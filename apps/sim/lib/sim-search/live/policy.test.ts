@@ -183,7 +183,8 @@ describe('organization search scope enforcement', () => {
     async (provider) => {
       const api = client({
         '/ex/jira/site/rest/api/3/issue/ENG-2': { fields: { project: { key: 'ENG' } } },
-        '/ex/confluence/site/wiki/rest/api/content/ENG-2': { space: { key: 'ENG' } },
+        '/ex/confluence/site/wiki/api/v2/pages/ENG-2': { id: 'ENG-2', spaceId: '7' },
+        '/ex/confluence/site/wiki/api/v2/spaces/7': { id: '7', key: 'ENG' },
       })
       expect(
         await createPolicyVerifier(
@@ -203,6 +204,25 @@ describe('organization search scope enforcement', () => {
       ).toBe(false)
     }
   )
+  it('checks a Confluence search hit by the space its search response named, without requests', async () => {
+    const verify = createPolicyVerifier('confluence', selected(['ENG']), client({}), '')
+    expect(await verify({ id: '123', container: 'site', kind: 'page' }, { spaceKey: 'ENG' })).toBe(
+      true
+    )
+    expect(await verify({ id: '124', container: 'site', kind: 'page' }, { spaceKey: 'HR' })).toBe(
+      false
+    )
+  })
+  it('checks Confluence spaces by key and blog posts through their own endpoint', async () => {
+    const api = client({
+      '/ex/confluence/site/wiki/api/v2/blogposts/9': { id: '9', spaceId: '7' },
+      '/ex/confluence/site/wiki/api/v2/spaces/7': { id: '7', key: 'ENG' },
+    })
+    const verify = createPolicyVerifier('confluence', selected(['ENG']), api, '')
+    expect(await verify({ id: '9', container: 'site', kind: 'blogpost' })).toBe(true)
+    expect(await verify({ id: 'ENG', container: 'site', kind: 'space' })).toBe(true)
+    expect(await verify({ id: 'HR', container: 'site', kind: 'space' })).toBe(false)
+  })
   it('checks Coda page and row document IDs, including converted URLs', async () => {
     const mcp = { call: vi.fn(async () => ({ docUri: 'coda://docs/allowed' })) }
     const verify = createPolicyVerifier('coda', selected(['allowed']), null, '', mcp)

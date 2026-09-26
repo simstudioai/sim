@@ -1,73 +1,59 @@
 import { createMockRequest } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    getSession: vi.fn(),
-    loadActiveWorkspaceContext: vi.fn(),
-    resolveEffectiveWorkspacePermission: vi.fn(),
-    recordAudit: vi.fn(),
-    getSkillById: vi.fn(),
-    upsertSkills: vi.fn(),
-    listSkillsForUser: vi.fn(),
-    listSkills: vi.fn(),
-    deleteSkill: vi.fn(),
-    getSkillActorContext: vi.fn(),
-    captureServerEvent: vi.fn(),
-    checkWorkspaceAccess: vi.fn(),
-    checkSessionOrInternalAuth: vi.fn(),
-  },
+const hoisted = vi.hoisted(() => ({
+  getSkillById: vi.fn(),
+  upsertSkills: vi.fn(),
+  listSkillsForUser: vi.fn(),
+  listSkills: vi.fn(),
+  deleteSkill: vi.fn(),
+  getSkillActorContext: vi.fn(),
 }))
 
-/**
- * Kept authenticated independently of which auth helper the route reaches for,
- * so a failure here can only be about where the authorization decision and the
- * audit entry are made.
- */
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mocks.checkSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mocks.getSession,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadActiveWorkspaceContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolveEffectiveWorkspacePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SKILL_CREATED: 'skill.created',
-    SKILL_UPDATED: 'skill.updated',
-    SKILL_DELETED: 'skill.deleted',
-  },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: mocks.getSkillById,
-  upsertSkills: mocks.upsertSkills,
-  listSkillsForUser: mocks.listSkillsForUser,
-  listSkills: mocks.listSkills,
-  deleteSkill: mocks.deleteSkill,
+  getSkillById: hoisted.getSkillById,
+  upsertSkills: hoisted.upsertSkills,
+  listSkillsForUser: hoisted.listSkillsForUser,
+  listSkills: hoisted.listSkills,
+  deleteSkill: hoisted.deleteSkill,
 }))
 vi.mock('@/lib/skills/access', () => ({
-  getSkillActorContext: mocks.getSkillActorContext,
+  getSkillActorContext: hoisted.getSkillActorContext,
 }))
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mocks.captureServerEvent,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { POST } from '@/app/api/skills/route'
+
+const mocks = {
+  ...hoisted,
+  getSession: authMockFns.mockGetSession,
+  /**
+   * Kept authenticated independently of which auth helper the route reaches for,
+   * so a failure here can only be about where the authorization decision and the
+   * audit entry are made.
+   */
+  checkSessionOrInternalAuth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
+  loadActiveWorkspaceContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolveEffectiveWorkspacePermission:
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  captureServerEvent: posthogServerMockFns.mockCaptureServerEvent,
+  checkWorkspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const USER_ID = 'user-1'

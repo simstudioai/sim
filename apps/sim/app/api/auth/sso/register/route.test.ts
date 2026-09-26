@@ -1,6 +1,5 @@
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -10,25 +9,16 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockRegisterSSOProvider,
-  mockUpdateSSOProvider,
-  mockHasSSOAccess,
-  mockValidateUrlWithDNS,
-  mockSecureFetchWithPinnedIP,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRegisterSSOProvider: vi.fn(),
-  mockUpdateSSOProvider: vi.fn(),
+const { mockHasSSOAccess } = vi.hoisted(() => ({
   mockHasSSOAccess: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
-  mockSecureFetchWithPinnedIP: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 /** Queues the caller's org membership row(s) for the admin/owner check. */
 function queueMembers(rows: Array<Record<string, unknown>>) {
@@ -51,16 +41,6 @@ function queueProviders(
   queueTableRows(schemaMock.ssoProvider, domainRows)
 }
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-  auth: {
-    api: {
-      registerSSOProvider: mockRegisterSSOProvider,
-      updateSSOProvider: mockUpdateSSOProvider,
-    },
-  },
-}))
-
 vi.mock('@/lib/billing', () => ({
   hasSSOAccess: mockHasSSOAccess,
 }))
@@ -73,12 +53,15 @@ vi.mock('@sim/utils/sso-domain', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { POST } from '@/app/api/auth/sso/register/route'
+
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockGetSession = authMockFns.mockGetSession
+const mockRegisterSSOProvider = authMockFns.mockRegisterSSOProvider
+const mockUpdateSSOProvider = authMockFns.mockUpdateSSOProvider
 
 const OIDC_BODY = {
   providerType: 'oidc' as const,

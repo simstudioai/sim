@@ -31,9 +31,12 @@ vi.mock('@/blocks', async () => {
   return { getBlock, getAllBlocks: () => Object.values(mockBlockConfigs) }
 })
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
 
 import { extractBlockParams, Serializer } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 function customBlockState(type: string, fieldValues: Record<string, unknown>) {
   return {

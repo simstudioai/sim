@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asanaConnector, decideTaskCap } from '@/connectors/asana/asana'
 
 const _baseTask = { gid: 't1', name: 'Task', completed: false }
@@ -37,20 +38,6 @@ describe('decideTaskCap', () => {
   })
 })
 
-/**
- * Minimal JSON response stub for the mocked global fetch.
- */
-function jsonResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers(),
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
-
 function _errorResponse(status: number): Response {
   return {
     ok: false,
@@ -68,10 +55,6 @@ describe('asanaConnector.listDocuments', () => {
   beforeEach(() => {
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   const requestedUrls = () => mockFetch.mock.calls.map(([url]) => url)
@@ -162,10 +145,6 @@ describe('asanaConnector.getDocument', () => {
   beforeEach(() => {
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('returns null for a task whose every project is archived', async () => {

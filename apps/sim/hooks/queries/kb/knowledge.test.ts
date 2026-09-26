@@ -1,44 +1,23 @@
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  live: false,
-  requestJson: vi.fn(),
-  useMutation: vi.fn(),
-  useQuery: vi.fn(),
-  invalidateQueries: vi.fn(),
-  getQueryData: vi.fn(),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'reader' } } }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: Symbol('keepPreviousData'),
-  useInfiniteQuery: vi.fn(),
-  useMutation: mocks.useMutation,
-  useQuery: mocks.useQuery,
-  useQueryClient: vi.fn(() => ({
-    invalidateQueries: mocks.invalidateQueries,
-    getQueryData: mocks.getQueryData,
-  })),
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'reader' } } }),
-}))
-
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mocks.requestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   useDocumentChunkSearchQuery,
@@ -48,6 +27,18 @@ import {
   useWorkspaceKnowledgeSearch,
 } from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+
+const mocks = {
+  live: false,
+  useMutation: reactQueryMockFns.mockUseMutation,
+  useQuery: reactQueryMockFns.mockUseQuery,
+  invalidateQueries: reactQueryMockFns.mockQueryClient.invalidateQueries,
+  getQueryData: reactQueryMockFns.mockQueryClient.getQueryData,
+}
+authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'reader' } } })
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(() =>
+  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
+)
 
 interface CapturedQuery {
   queryKey: readonly unknown[]

@@ -310,12 +310,12 @@ export function SearchSourceSetup({
           </ChipModalField>
         ) : isIntegrationAvailabilityLoading ? (
           <ChipModalField type='custom' title='Sources'>
-            <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>Loading sources</SettingsEmptyState>
           </ChipModalField>
         ) : managedSource ? (
           <ChipModalField type='custom' title='Source'>
             <SettingsEmptyState variant='inline'>
-              {index.isPending ? 'Loading source…' : 'This source is no longer available.'}
+              {index.isPending ? 'Loading source' : 'This source is no longer available.'}
             </SettingsEmptyState>
           </ChipModalField>
         ) : selectedType ? (
@@ -340,7 +340,7 @@ export function SearchSourceSetup({
                 variant='inline'
               />
             ) : (
-              <SettingsEmptyState variant='inline'>Loading source setup…</SettingsEmptyState>
+              <SettingsEmptyState variant='inline'>Loading source setup</SettingsEmptyState>
             )}
           </ChipModalField>
         ) : (
@@ -348,7 +348,7 @@ export function SearchSourceSetup({
             <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
               <ChipInput
                 icon={Search}
-                placeholder='Find a source…'
+                placeholder='Find a source'
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />

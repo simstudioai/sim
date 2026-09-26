@@ -14,6 +14,7 @@ import {
 } from '@/lib/credential-groups/organization-slack-app'
 import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
 import type { DbOrTx } from '@/lib/db/types'
+import { buildSlackAppCreationUrl } from '@/lib/integrations/slack-manifest'
 import {
   exchangeSlackBotAuthorization,
   revokeSlackBotAuthorization,
@@ -98,7 +99,7 @@ export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       sharedAppId: sharedApp?.id ?? null,
       manifest: JSON.stringify(manifest, null, 2),
       existingApp: member.app,
-      createAppUrl: `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`,
+      createAppUrl: buildSlackAppCreationUrl(JSON.stringify(manifest)),
     }
   },
 })

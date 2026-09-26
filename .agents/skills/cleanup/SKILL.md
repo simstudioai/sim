@@ -16,9 +16,9 @@ User arguments: $ARGUMENTS
 
 Parse `$ARGUMENTS` into `scope` and `fix`: extract the `fix=true|false` token wherever it appears in the string and strip it from `scope`; defaults are the current changes and `fix=true`. `fix` is consumed by Step 3 only — the passes below always run `fix=false`.
 
-Spawn all nine passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
+Spawn up to nine passes concurrently as subagents in a **single message** (multiple Agent tool calls); pass 9 runs only when its condition holds. Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
 
-Run these nine in parallel on the parsed `scope`:
+Run these in parallel on the parsed `scope`:
 
 1. `/you-might-not-need-an-effect <scope> fix=false`
 2. `/you-might-not-need-a-memo <scope> fix=false`
@@ -28,7 +28,7 @@ Run these nine in parallel on the parsed `scope`:
 6. `/emcn-design-review <scope> fix=false`
 7. `/you-might-not-need-url-state <scope> fix=false`
 8. `/you-might-not-need-a-comment <scope> fix=false`
-9. `/test-audit audit <scope>` — read-only; only when the scope adds or changes test files (`*.test.ts(x)`, `*.integration.ts`, `e2e/**`). It applies the authoring gate to every new or changed test and proposes deleting the ones that fail it.
+9. `/test-audit audit <test paths>` — read-only; only when the scope adds or changes test files (`*.test.ts(x)`, `*.integration.ts`, `**/e2e/**`, `apps/sim/scripts/test-*-e2e.ts`). First resolve a free-form scope to the concrete list of added or changed test paths (`git diff --name-only` against the scope's base) and pass those paths. It applies the authoring gate to every new or changed test and proposes deleting the ones that fail it.
 
 ## Step 2 — Converge
 
@@ -52,7 +52,7 @@ Comments apply after every structural pass, on purpose: that pass operates on wh
 2. If the `old_string` still matches verbatim, apply it — a content-anchored edit is safe even if its line moved.
 3. If it no longer matches (an earlier pass altered that region), do **not** force the stale patch. Re-derive the change from the current code by re-applying that pass's rule to the construct, or drop it if a prior pass already made it moot. Never apply a proposal against text it wasn't computed from.
 
-After all edits, run `bun run lint:check` (it runs `turbo run lint:check` across the repo — there is no per-file target, so run the full check).
+After all edits, run `bun run lint` from the repo root (it autofixes formatting across the repo; there is no per-file target).
 
 ## Step 4 — Summary
 
@@ -60,4 +60,4 @@ Output a summary across all passes that ran: what each found, what was applied v
 
 ## Boundary findings
 
-Never resolve a boundary finding by adding a `// boundary-raw-fetch` / `// double-cast-allowed` annotation — fix the call (adopt the contract + `requestJson`, or narrow the type). Annotations are only for the documented exceptions in CLAUDE.md → Boundary annotations.
+Never resolve a boundary finding by adding a `// boundary-raw-fetch` / `// double-cast-allowed` annotation — fix the call (adopt the contract + `requestJson`, or narrow the type). Annotations are only for the documented exceptions in `.claude/rules/sim-api-contracts.md` → Boundary annotations.

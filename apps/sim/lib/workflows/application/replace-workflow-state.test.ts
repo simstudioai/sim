@@ -1,41 +1,40 @@
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
   replace: vi.fn(),
   prepare: vi.fn(),
   collectGraphIds: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
-  needsRedeployment: vi.fn(),
-  loadNormalized: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UPDATED: 'workflow.updated' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
@@ -47,12 +46,8 @@ vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
 }))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.needsRedeployment,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
@@ -60,6 +55,15 @@ import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { getBlock } from '@/blocks/registry'
+
+const mockNeedsRedeployment = workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const defaultGetBlock = vi.mocked(getBlock).getMockImplementation()
 
@@ -82,11 +86,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const sessionPrincipal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [] }
 
@@ -95,22 +95,22 @@ describe('replaceWorkflowState', () => {
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'exa' ? ExaBlock : type === 'agent' ? AgentBlock : defaultGetBlock?.(type)
     )
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
     mocks.replace.mockResolvedValue({
       warnings: [],
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
     })
-    mocks.needsRedeployment.mockResolvedValue(true)
+    mockNeedsRedeployment.mockResolvedValue(true)
     mocks.prepare.mockReturnValue({
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
       warnings: [],
     })
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
-    mocks.loadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
+    mockLoadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
   /**
@@ -190,7 +190,7 @@ describe('replaceWorkflowState', () => {
   it('derives the audit source from the acting principal and notifies after it', async () => {
     await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
 
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.updated',
         resourceId: 'workflow-1',
@@ -203,14 +203,12 @@ describe('replaceWorkflowState', () => {
         }),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
-    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
+    expect(mockRecordAudit).toHaveBeenCalledBefore(mockNotify)
+    expect(mockNotify).toHaveBeenCalledWith('workflow-1')
   })
 
   it('conceals an asserted-workspace mismatch as not found', async () => {
-    mocks.resolveContext.mockRejectedValue(
-      new OrchestrationError('not_found', 'Workflow not found')
-    )
+    mockResolveContext.mockRejectedValue(new OrchestrationError('not_found', 'Workflow not found'))
 
     await expect(
       replaceWorkflowState.execute({
@@ -245,8 +243,8 @@ describe('replaceWorkflowState', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('records neither audit nor notification when the write fails', async () => {
@@ -256,8 +254,8 @@ describe('replaceWorkflowState', () => {
       replaceWorkflowState.execute({ principal: sessionPrincipal, input })
     ).rejects.toThrow('constraint violation')
 
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   describe('dry run', () => {
@@ -269,8 +267,8 @@ describe('replaceWorkflowState', () => {
 
       expect(result.dryRun).toBe(true)
       expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockNotify).not.toHaveBeenCalled()
     })
 
     /** A preview a caller cannot act on is worthless; it must carry the findings. */
@@ -339,8 +337,8 @@ describe('replaceWorkflowState', () => {
             })
           ).rejects.toThrow(errors[0].error)
           expect(mocks.replace).not.toHaveBeenCalled()
-          expect(mocks.notify).not.toHaveBeenCalled()
-          expect(mocks.recordAudit).not.toHaveBeenCalled()
+          expect(mockNotify).not.toHaveBeenCalled()
+          expect(mockRecordAudit).not.toHaveBeenCalled()
         }
       )
     }
@@ -378,11 +376,11 @@ describe('replaceWorkflowState', () => {
         })
       ).rejects.toThrow('attachment names are read-only')
       expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
+      expect(mockNotify).not.toHaveBeenCalled()
     })
 
     it('preserves an existing label when replacing the graph and editing other fields', async () => {
-      mocks.loadNormalized.mockResolvedValue({
+      mockLoadNormalized.mockResolvedValue({
         blocks: { [BLOCK.id]: block },
         edges: [],
         loops: {},
@@ -416,7 +414,7 @@ describe('replaceWorkflowState', () => {
     it('refuses a workspace API key, which names no human to evaluate', async () => {
       await expect(
         replaceWorkflowState.execute({
-          principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+          principal: createWorkspaceApiKeyPrincipal(),
           input,
         })
       ).rejects.toThrow()

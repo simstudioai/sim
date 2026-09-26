@@ -71,7 +71,6 @@ beforeEach(() => {
 
 afterEach(() => {
   resetEnvMock()
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 

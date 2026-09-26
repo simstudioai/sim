@@ -1,29 +1,24 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCopyWorkspaceFileSecretProvenanceInTx,
-  mockGenerateKey,
-  mockDownloadFile,
-  mockUploadFile,
-} = vi.hoisted(() => ({
-  mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
-  mockGenerateKey: vi.fn(),
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+const { mockCopyWorkspaceFileSecretProvenanceInTx } = workspaceFileSecretProvenanceMockFns
+const { mockGenerateWorkspaceFileKey: mockGenerateKey } = workspaceFileManagerMockFns
+const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  generateWorkspaceFileKey: mockGenerateKey,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  copyWorkspaceFileSecretProvenanceInTx: mockCopyWorkspaceFileSecretProvenanceInTx,
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import {
   executeChatFileBlobCopies,

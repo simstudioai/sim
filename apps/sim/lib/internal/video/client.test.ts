@@ -1,22 +1,21 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/execution-limits', () => ({ getMaxExecutionTimeout: () => 5000 }))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { generateVideo } from '@/lib/internal/video/client'
 
-function jsonResponse(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(5000)
 
 describe('Video provider client', () => {
   beforeEach(() => vi.useFakeTimers())
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it.each([

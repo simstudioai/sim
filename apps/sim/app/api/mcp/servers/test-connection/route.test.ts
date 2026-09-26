@@ -1,11 +1,11 @@
 import { createMockRequest, loggerMock } from '@sim/testing'
+import { mcpOauthMock, mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockClientOptions,
   mockConnect,
-  mockDetectMcpAuthType,
   mockDisconnect,
   mockListTools,
   mockResolveMcpConfigEnvVars,
@@ -14,7 +14,6 @@ const {
 } = vi.hoisted(() => ({
   mockClientOptions: vi.fn(),
   mockConnect: vi.fn(),
-  mockDetectMcpAuthType: vi.fn(),
   mockDisconnect: vi.fn(),
   mockListTools: vi.fn(),
   mockResolveMcpConfigEnvVars: vi.fn(),
@@ -75,15 +74,15 @@ vi.mock('@/lib/mcp/middleware', () => ({
       }),
 }))
 
-vi.mock('@/lib/mcp/oauth', () => ({
-  detectMcpAuthType: mockDetectMcpAuthType,
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
 vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: mockResolveMcpConfigEnvVars,
 }))
 
 import { POST } from '@/app/api/mcp/servers/test-connection/route'
+
+const { mockDetectMcpAuthType } = mcpOauthMockFns
 
 const mockLogger = vi.mocked(loggerMock.createLogger).mock.results.at(-1)?.value
 

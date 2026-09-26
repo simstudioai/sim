@@ -1,14 +1,7 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -17,6 +10,8 @@ import {
   storeCompiledDoc,
 } from '@/lib/mothership/tools/server/files/doc-compiled-store'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+
+const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 
 describe('compiled document publication', () => {
   beforeEach(() => {

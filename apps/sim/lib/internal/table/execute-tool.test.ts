@@ -1,10 +1,13 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   create: vi.fn(),
   list: vi.fn(),
   getSchema: vi.fn(),
@@ -19,9 +22,7 @@ const mocks = vi.hoisted(() => ({
   upsertRow: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/table/operations', () => ({
   executeTableCreate: mocks.create,
@@ -39,6 +40,8 @@ vi.mock('@/lib/internal/table/operations', () => ({
 }))
 
 import { executeTableTool } from '@/lib/internal/table/execute-tool'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -67,7 +70,7 @@ const WIRE_ROW = {
 
 describe('executeTableTool', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(PRINCIPAL)
     mocks.create.mockResolvedValue({
       body: { success: true, data: { table: {}, message: 'Table created successfully' } },
     })
@@ -142,7 +145,9 @@ describe('executeTableTool', () => {
   })
 
   it('projects a stale workflow binding as authentication failure', async () => {
-    mocks.createPrincipal.mockRejectedValueOnce(new InvalidInternalDelegationBindingError())
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValueOnce(
+      new InvalidInternalDelegationBindingError()
+    )
 
     const response = await executeTableTool({
       toolId: 'table_list',

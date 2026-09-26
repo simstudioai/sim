@@ -1,17 +1,11 @@
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockLocalUploadBodyError,
-  mockExpectedUploadPartSize,
-  mockVerifyUploadSessionToken,
-  mockWriteLocalMultipartPart,
-} = vi.hoisted(() => {
+const { MockLocalUploadBodyError, mockWriteLocalMultipartPart } = vi.hoisted(() => {
   class MockLocalUploadBodyError extends Error {}
   return {
     MockLocalUploadBodyError,
-    mockExpectedUploadPartSize: vi.fn(),
-    mockVerifyUploadSessionToken: vi.fn(),
     mockWriteLocalMultipartPart: vi.fn(),
   }
 })
@@ -21,13 +15,13 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   writeLocalMultipartPart: mockWriteLocalMultipartPart,
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  expectedUploadPartSize: mockExpectedUploadPartSize,
-  verifyUploadSessionToken: mockVerifyUploadSessionToken,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/v2/uploads/[uploadId]/parts/[partNumber]/route'
+
+const mockExpectedUploadPartSize = uploadSessionMockFns.mockExpectedUploadPartSize
+const mockVerifyUploadSessionToken = uploadSessionMockFns.mockVerifyUploadSessionToken
 
 const SESSION = {
   id: 'upload-1',

@@ -1,16 +1,15 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ listReferences: vi.fn() }))
-
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretReferencesUseCase: {
-    operation: { id: 'secrets.references' },
-    execute: mocks.listReferences,
-  },
-}))
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 
 import { GET } from '@/app/api/secrets/references/route'
+
+const { mockListSecretReferencesUseCase } = secretsUseCasesMockFns
 
 const url = 'http://localhost/api/secrets/references?workspaceId=workspace-1&name=API_KEY'
 
@@ -29,13 +28,17 @@ describe('GET /api/secrets/references', () => {
    * neither the gate nor the scan.
    */
   it('ignores a scope the caller tries to assert', async () => {
-    mocks.listReferences.mockResolvedValue({ workflows: [], resources: [], truncated: false })
+    mockListSecretReferencesUseCase.mockResolvedValue({
+      workflows: [],
+      resources: [],
+      truncated: false,
+    })
 
     const response = await GET(createMockRequest('GET', undefined, {}, `${url}&scope=personal`))
 
     expect(response.status).toBe(200)
-    expect(mocks.listReferences).toHaveBeenCalledTimes(1)
-    expect(mocks.listReferences.mock.calls[0]?.[0]?.input).toEqual({
+    expect(mockListSecretReferencesUseCase).toHaveBeenCalledTimes(1)
+    expect(mockListSecretReferencesUseCase.mock.calls[0]?.[0]?.input).toEqual({
       workspaceId: 'workspace-1',
       name: 'API_KEY',
     })

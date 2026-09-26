@@ -25,6 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
@@ -75,6 +76,7 @@ export function Composer({
   attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
@@ -88,7 +90,8 @@ export function Composer({
         workspaces.map((workspace, index) => ({
           ...workspace,
           skills: skillQueries[index].isPlaceholderData ? [] : (skillQueries[index].data ?? []),
-        }))
+        })),
+        dashboardsEnabled ? [] : ['builtin-create-dashboard']
       )
   const editor = usePromptEditor({
     workspaceId: '',

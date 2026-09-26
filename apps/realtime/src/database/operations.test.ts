@@ -1,4 +1,8 @@
 import { OPERATION_TARGETS, SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { databaseMock, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
+import { workflowAuthzMock, workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockTransaction, mockSelectWhere, mockSet } = vi.hoisted(() => ({
@@ -7,34 +11,16 @@ const { mockTransaction, mockSelectWhere, mockSet } = vi.hoisted(() => ({
   mockSet: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
-vi.mock('@sim/db', () => ({
-  instrumentPoolClient: vi.fn(),
-  resolveDbUrl: vi.fn(() => 'postgres://localhost/test'),
-  workflow: { id: 'workflow.id' },
-  workflowBlocks: { id: 'block.id', workflowId: 'block.workflowId' },
-  workflowEdges: {},
-  workflowSubflows: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/db/timestamps', () => ({ withUtcTimestamps: (options: unknown) => options }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
-vi.mock('@sim/platform-authz/workflow', () => ({
-  getActiveWorkflowContext: vi.fn().mockResolvedValue({ id: 'workflow-1' }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
 vi.mock('@sim/workflow-persistence/load', () => ({
   loadWorkflowFromNormalizedTablesRaw: vi.fn(),
 }))
 vi.mock('@sim/workflow-persistence/subblocks', () => ({ mergeSubBlockValues: vi.fn() }))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-  inArray: vi.fn(),
-  isNull: vi.fn(),
-  or: vi.fn(),
-  sql: vi.fn(),
-}))
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('drizzle-orm/postgres-js', () => ({ drizzle: () => ({ transaction: mockTransaction }) }))
 vi.mock('postgres', () => ({ default: vi.fn() }))
 vi.mock('@/env', () => ({
@@ -42,6 +28,8 @@ vi.mock('@/env', () => ({
 }))
 
 import { persistWorkflowOperation } from '@/database/operations'
+
+workflowAuthzMockFns.mockGetActiveWorkflowContext.mockResolvedValue({ id: 'workflow-1' })
 
 const transaction = {
   select: () => ({ from: () => ({ where: mockSelectWhere }) }),

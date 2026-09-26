@@ -1,28 +1,33 @@
 import { user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  membership: vi.fn(),
-  approval: vi.fn(),
-  available: vi.fn(),
-  deployed: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   accounts: vi.fn(),
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  requireOrganizationMembership: mocks.membership,
-}))
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  requireOrganizationSearchApproval: mocks.approval,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireKnowledgeMemberAccessAvailable: mocks.available,
-}))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isOAuthServiceDeploymentAvailable: mocks.deployed,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 vi.mock('@/lib/credentials/organization-managed', () => ({
-  getOwnOrganizationManagedOAuthCredentials: mocks.accounts,
+  getOwnOrganizationManagedOAuthCredentials: hoisted.accounts,
 }))
 
 import {
@@ -30,7 +35,13 @@ import {
   authorizePersonalSearchSetupCredential,
 } from '@/lib/knowledge/application/personal-search-account'
 
-const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+const mocks = {
+  ...hoisted,
+  approval: knowledgeSearchIntegrationPolicyMockFns.mockRequireOrganizationSearchApproval,
+  deployed: integrationsAvailabilityMockFns.mockIsOAuthServiceDeploymentAvailable,
+}
+
+const principal = createSessionPrincipal({ userId: 'member-1' })
 const input = {
   organizationId: 'organization-1',
   connectorType: 'jira',
@@ -57,7 +68,7 @@ describe('personal Search setup authorization', () => {
     await expect(authorizePersonalSearchSetupCredential(principal, input)).resolves.toMatchObject({
       id: 'own-account',
     })
-    expect(mocks.membership).toHaveBeenCalledWith(
+    expect(organizationAuthorizationMockFns.mockRequireOrganizationMembership).toHaveBeenCalledWith(
       principal,
       input.organizationId,
       'member',
@@ -74,17 +85,18 @@ describe('personal Search setup authorization', () => {
 
   it('rejects non-session callers before membership or protected account reads', async () => {
     await expect(
-      authorizePersonalSearchSetup(
-        { kind: 'personal_api_key', userId: 'member-1', keyId: 'key-1' },
-        input
-      )
+      authorizePersonalSearchSetup(createPersonalApiKeyPrincipal({ userId: 'member-1' }), input)
     ).rejects.toThrow('Sign in')
-    expect(mocks.membership).not.toHaveBeenCalled()
+    expect(
+      organizationAuthorizationMockFns.mockRequireOrganizationMembership
+    ).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('rejects non-members before looking up credentials', async () => {
-    mocks.membership.mockRejectedValue(new Error('Membership ended'))
+    organizationAuthorizationMockFns.mockRequireOrganizationMembership.mockRejectedValue(
+      new Error('Membership ended')
+    )
     await expect(authorizePersonalSearchSetupCredential(principal, input)).rejects.toThrow(
       'Membership ended'
     )

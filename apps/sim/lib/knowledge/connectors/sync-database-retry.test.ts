@@ -5,14 +5,8 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
-vi.mock('@sim/logger', async () => {
-  const { createMockLogger } = await import('@sim/testing/mocks/logger.mock')
-  return { createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
-})
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   countZeroProgressFailedRuns,
   DATABASE_FAILURE_ALERT_STREAK,
@@ -24,6 +18,8 @@ import {
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
+
+const { error: mockLogError } = getMockLogger('ConnectorDatabaseRetry')
 
 const MINUTE = 60 * 1000
 const NO_WRITES = { docsAdded: 0, docsUpdated: 0, docsDeleted: 0 }

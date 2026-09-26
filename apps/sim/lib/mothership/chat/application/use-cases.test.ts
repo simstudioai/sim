@@ -1,23 +1,31 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  publish: vi.fn(),
-  config: vi.fn(),
-  workspace: vi.fn(),
-  authorizeWorkspace: vi.fn(),
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: mocks.publish }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+const hoisted = vi.hoisted(() => ({ authorizeWorkspace: vi.fn() }))
 vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.authorizeWorkspace,
+  authorizeWorkspaceOperation: hoisted.authorizeWorkspace,
 }))
 
 import {
@@ -27,6 +35,13 @@ import {
   restoreMothershipChat,
 } from '@/lib/mothership/chat/application/use-cases'
 import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
+
+const mocks = {
+  publish: mothershipChatStatusMockFns.mockPublishChatStatusChanged,
+  authorizeWorkspace: hoisted.authorizeWorkspace,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -39,7 +54,7 @@ const principal: OrganizationDelegatedPrincipal = {
   expiresAt: new Date('2099-01-01'),
   resourceScope: { chatId: 'origin-chat' },
 }
-const session = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const session = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const input = { chatId: 'archived-chat', assertedOrganizationId: 'org' }
 beforeEach(() => {
   resetDbChainMock()
@@ -55,8 +70,8 @@ beforeEach(() => {
 
 describe('private archived chat operations', () => {
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
     { ...principal, audience: 'sim:knowledge' },
     { ...principal, expiresAt: new Date(0) },
     {

@@ -1,9 +1,9 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 
 /** `recordSecretUsage` is fire-and-forget, so tests await the microtask it queues. */
-const flush = () => new Promise((resolve) => setImmediate(resolve))
 
 describe('recordSecretUsage', () => {
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe('recordSecretUsage', () => {
         trigger: 'schedule',
       }
     )
-    await flush()
+    await flushMacrotask()
 
     expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
     const rows = dbChainMockFns.values.mock.calls[0]?.[0]
@@ -69,7 +69,7 @@ describe('recordSecretUsage', () => {
     } finally {
       vi.useRealTimers()
     }
-    await flush()
+    await flushMacrotask()
 
     expect(dbChainMockFns.values.mock.calls[0]?.[0][0]).toMatchObject({ usageDate: '2026-03-14' })
   })
@@ -80,7 +80,7 @@ describe('recordSecretUsage', () => {
       source: 'workflow',
       actorUserId: 'user-1',
     })
-    await flush()
+    await flushMacrotask()
 
     const conflict = dbChainMockFns.onConflictDoUpdate.mock.calls[0]?.[0]
     /** Every column of the day bucket, or two runs would collide into one row. */
@@ -101,6 +101,6 @@ describe('recordSecretUsage', () => {
         actorUserId: 'user-1',
       })
     ).not.toThrow()
-    await flush()
+    await flushMacrotask()
   })
 })

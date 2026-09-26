@@ -1,30 +1,24 @@
 import { member, outboxEvent, permissionAccessRequest, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const { mockRender, mockSend, mockHasEmailService, mockMembership, mockEnabled } = vi.hoisted(
-  () => ({
-    mockRender: vi.fn(),
-    mockSend: vi.fn(),
-    mockHasEmailService: vi.fn(),
-    mockMembership: vi.fn(),
-    mockEnabled: vi.fn(),
-  })
-)
+const { mockRender, mockMembership, mockEnabled } = vi.hoisted(() => ({
+  mockRender: vi.fn(),
+  mockMembership: vi.fn(),
+  mockEnabled: vi.fn(),
+}))
 
 vi.mock('@/components/emails/render', () => ({
   renderPermissionAccessRequestEmail: mockRender,
 }))
 vi.mock('@/components/emails/subjects', () => ({ getEmailSubject: (kind: string) => kind }))
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: mockSend,
-  hasEmailService: mockHasEmailService,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 vi.mock('@/ee/access-requests/lib/application/authorization', () => ({
   loadAccessRequestMembership: mockMembership,
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 vi.mock('@/ee/access-requests/lib/settings', () => ({
   isAccessRequestEnabled: mockEnabled,
 }))
@@ -34,6 +28,11 @@ import {
   PERMISSION_ACCESS_REQUEST_DECIDED_EVENT,
 } from '@/ee/access-requests/lib/notification-events'
 import { permissionAccessRequestOutboxHandlers } from '@/ee/access-requests/lib/notifications'
+
+const { mockSendEmail: mockSend, mockHasEmailService } = emailMailerMockFns
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+afterAll(resetUrlsMock)
 
 const request = {
   id: 'request-one',

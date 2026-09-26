@@ -1,3 +1,4 @@
+import { setUploadsConfig, uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
 /**
  * Tests for Azure Blob Storage client
  */
@@ -46,15 +47,7 @@ vi.mock('@azure/storage-blob', () => ({
   },
 }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  BLOB_CONFIG: {
-    accountName: 'testaccount',
-    accountKey: 'testkey',
-    connectionString:
-      'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
-    containerName: 'testcontainer',
-  },
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 import {
   abortMultipartUpload,
@@ -68,6 +61,16 @@ import {
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
 import { sanitizeFilenameForMetadata } from '@/lib/uploads/utils/file-utils'
+
+setUploadsConfig({
+  BLOB_CONFIG: {
+    accountName: 'testaccount',
+    accountKey: 'testkey',
+    connectionString:
+      'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
+    containerName: 'testcontainer',
+  },
+})
 
 describe('Azure Blob Storage Client', () => {
   beforeEach(() => {

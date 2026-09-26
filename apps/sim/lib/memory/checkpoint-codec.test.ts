@@ -1,13 +1,13 @@
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
-
 import {
   decryptMemoryCheckpoint,
   encryptMemoryCheckpoint,
   MAX_MEMORY_CHECKPOINT_BYTES,
   projectableMemoryCheckpoint,
 } from '@/lib/memory/checkpoint-codec'
+
+setEnv({ ENCRYPTION_KEY: 'ab'.repeat(32) })
 
 describe('private memory checkpoint encoding', () => {
   it('round-trips ciphertext close to the size limit, including its authentication overhead', async () => {

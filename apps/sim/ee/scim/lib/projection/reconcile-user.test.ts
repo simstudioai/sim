@@ -9,10 +9,13 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLocks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   changeMemberRole: vi.fn(),
   addMember: vi.fn(),
   removeMember: vi.fn(),
@@ -22,30 +25,33 @@ const mocks = vi.hoisted(() => ({
   revokeWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.acquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  changeMemberRoleTx: mocks.changeMemberRole,
+  changeMemberRoleTx: hoistedMocks.changeMemberRole,
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
-  addPermissionGroupMemberTx: mocks.addMember,
-  removePermissionGroupMemberTx: mocks.removeMember,
+  addPermissionGroupMemberTx: hoistedMocks.addMember,
+  removePermissionGroupMemberTx: hoistedMocks.removeMember,
   PermissionGroupNotFoundError: class PermissionGroupNotFoundError extends Error {},
   PermissionGroupScopeConflictError: class PermissionGroupScopeConflictError extends Error {
     conflicts: unknown[] = []
   },
 }))
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
-  grantWorkspaceAccessTx: mocks.grantWorkspace,
-  lowerWorkspaceAccessTx: mocks.lowerWorkspace,
-  readWorkspacePermission: mocks.readPermission,
-  revokeWorkspaceAccessTx: mocks.revokeWorkspace,
+  grantWorkspaceAccessTx: hoistedMocks.grantWorkspace,
+  lowerWorkspaceAccessTx: hoistedMocks.lowerWorkspace,
+  readWorkspacePermission: hoistedMocks.readPermission,
+  revokeWorkspaceAccessTx: hoistedMocks.revokeWorkspace,
   permissionRank: (permission: string) => ({ read: 1, write: 2, admin: 3 })[permission] ?? 0,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLocks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const params = {
   connectionId: 'conn-1',

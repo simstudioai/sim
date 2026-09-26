@@ -1,10 +1,11 @@
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { NextRequest, NextResponse } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCredentialOwner, mockRefreshAccessTokenIfNeeded } = vi.hoisted(() => ({
+const { mockGetCredentialOwner } = vi.hoisted(() => ({
   mockGetCredentialOwner: vi.fn(),
-  mockRefreshAccessTokenIfNeeded: vi.fn(),
 }))
 
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
@@ -14,23 +15,16 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getCredentialOwner: mockGetCredentialOwner,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  refreshAccessTokenIfNeeded: mockRefreshAccessTokenIfNeeded,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
+
+const mockRefreshAccessTokenIfNeeded = authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded
 
 const fetchMock = vi.fn()
 
 function reqWithHeaders(headers: Record<string, string>): NextRequest {
   return new NextRequest('http://localhost/test', { headers })
-}
-
-function jsonResponse(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 function createContext(providerConfig: Record<string, unknown>) {
@@ -47,10 +41,6 @@ describe('ClickUp webhook provider', () => {
     vi.stubGlobal('fetch', fetchMock)
     mockGetCredentialOwner.mockResolvedValue({ userId: 'user-1', accountId: 'account-1' })
     mockRefreshAccessTokenIfNeeded.mockResolvedValue('oauth-token')
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   describe('verifyAuth', () => {
@@ -128,8 +118,8 @@ describe('ClickUp webhook provider', () => {
     }
 
     it('rolls back the created webhook and throws when no secret is returned', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 'ext-3', webhook: { id: 'ext-3' } }))
-      fetchMock.mockResolvedValueOnce(jsonResponse(200, {}))
+      fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'ext-3', webhook: { id: 'ext-3' } }))
+      fetchMock.mockResolvedValueOnce(jsonResponse({}))
 
       await expect(clickupHandler.createSubscription!(createContext(validConfig))).rejects.toThrow(
         /no signing secret/i
@@ -158,7 +148,7 @@ describe('ClickUp webhook provider', () => {
 
   describe('deleteSubscription', () => {
     it('throws on failure only when strict', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse(500, {}))
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, 500))
       await expect(
         clickupHandler.deleteSubscription!({
           webhook: {

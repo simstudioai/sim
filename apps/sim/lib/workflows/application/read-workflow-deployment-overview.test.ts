@@ -1,38 +1,26 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    deploymentSummary: vi.fn(),
-    loadWorkspace: vi.fn(),
-    permission: vi.fn(),
-    redeployment: vi.fn(),
-  },
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.redeployment,
-}))
-
-vi.mock('@/lib/workflows/orchestration', () => ({
-  getWorkflowDeploymentSummary: mocks.deploymentSummary,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 import {
   MAX_WORKFLOW_MCP_STATUS_SCHEMA_BYTES,
@@ -40,6 +28,14 @@ import {
   MAX_WORKFLOW_MCP_STATUS_TOTAL_SCHEMA_BYTES,
   readWorkflowDeploymentOverview,
 } from '@/lib/workflows/application/read-workflow-deployment-overview'
+
+const mocks = {
+  deploymentSummary: workflowsOrchestrationMockFns.mockGetWorkflowDeploymentSummary,
+  redeployment: workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment,
+}
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockLoadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const workflowRecord = {
   id: 'workflow-1',
@@ -61,13 +57,13 @@ const principal = {
 describe('readWorkflowDeploymentOverview', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.loadWorkspace.mockResolvedValue({
+    mockLoadWorkspace.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    mocks.permission.mockResolvedValue('read')
+    mockPermission.mockResolvedValue('read')
     mocks.deploymentSummary.mockResolvedValue({
       activeDeployment: null,
       latestDeploymentAttempt: null,

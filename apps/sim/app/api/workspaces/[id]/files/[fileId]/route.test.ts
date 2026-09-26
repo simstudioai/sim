@@ -1,40 +1,37 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   rename: vi.fn(),
   read: vi.fn(),
   deleteItems: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
-  captureServerEvent: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-record', () => ({
   readWorkspaceFileContentRecord: {
     operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.read,
+    execute: hoisted.read,
   },
 }))
 
 vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
   renameWorkspaceFile: {
     operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
-    execute: mocks.rename,
+    execute: hoisted.rename,
   },
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
-  performDeleteWorkspaceFileItems: mocks.deleteItems,
+  performDeleteWorkspaceFileItems: hoisted.deleteItems,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mocks.getUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   DelegatedWorkspaceAuthorizationError,
@@ -44,16 +41,23 @@ import {
 } from '@/lib/core/application'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
 
+const mocks = {
+  ...hoisted,
+  getSession: authMockFns.mockGetSession,
+  getUserEntityPermissions: permissionsMockFns.mockGetUserEntityPermissions,
+  captureServerEvent: posthogServerMockFns.mockCaptureServerEvent,
+}
+
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
 
 function callRename(body: unknown) {
   return PATCH(
-    new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`, {
+    createMockRequest({
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`,
+      body,
     }),
     context
   )
@@ -110,7 +114,9 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
 describe('GET /api/workspaces/[id]/files/[fileId]', () => {
   const read = () =>
     GET(
-      new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`),
+      createMockRequest({
+        url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`,
+      }),
       context
     )
   beforeEach(() => {

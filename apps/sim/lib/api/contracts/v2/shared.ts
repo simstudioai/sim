@@ -99,7 +99,7 @@ import {
  *
  * ## Which lists are paged
  *
- * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
+ * The authoritative split is pinned in `v2/list-pagination.test.ts`,
  * not restated here. A full-set list returns `nextCursor: null` on every
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
@@ -148,7 +148,7 @@ import {
  * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
  *
  * The authoritative per-list binding is pinned in
- * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
+ * `v2/list-pagination.test.ts`, which fails when a list gains a param
  * that is neither bound nor explicitly exempted. The two lists whose token is
  * minted by a domain codec (`GET /audit-logs`, `GET /billing/logs`) get the same
  * binding by wrapping that token in a query-stamped envelope.

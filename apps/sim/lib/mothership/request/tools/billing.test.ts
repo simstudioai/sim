@@ -1,3 +1,4 @@
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ExecutionContext,
@@ -5,19 +6,15 @@ import type {
   StreamingContext,
 } from '@/lib/mothership/request/types'
 
-const { mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
-  mockGetHighestPrioritySubscription: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
 vi.mock('@/lib/mothership/request/handlers', () => ({
   sseHandlers: {},
 }))
 
 import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
+
+const { mockGetHighestPrioritySubscription } = billingPlanMockFns
 
 const context = { streamComplete: false } as StreamingContext
 

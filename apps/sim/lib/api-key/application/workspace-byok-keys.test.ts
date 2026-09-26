@@ -1,46 +1,44 @@
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  decrypt: vi.fn(),
-  audit: vi.fn(),
-  analytics: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.permission,
-  permissionSatisfies: (actual: string, required: string) =>
-    actual === 'admin' || actual === required,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.audit,
-  AuditAction: { BYOK_KEY_DELETED: 'byok_key.deleted' },
-  AuditResourceType: { BYOK_KEY: 'byok_key' },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+const hoisted = vi.hoisted(() => ({}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   deleteWorkspaceByokKey,
   listWorkspaceByokKeys,
 } from '@/lib/api-key/application/workspace-byok-keys'
 
-const principal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  ...hoisted,
+  context: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+  audit: auditMockFns.mockRecordAudit,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+}
+
+const principal = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'workspace',
   delegationId: 'byok',
   audience: 'sim:settings',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
   resourceScope: { chatId: 'chat' },
-} as const
+})
 beforeEach(() => {
   resetDbChainMock()
   mocks.context.mockResolvedValue({

@@ -1,15 +1,11 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockUploadFile, mockTranscode } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
+const { mockTranscode } = vi.hoisted(() => ({
   mockTranscode: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/server/heic', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/server/heic')>()),
@@ -17,6 +13,9 @@ vi.mock('@/lib/uploads/server/heic', async (importOriginal) => ({
 }))
 
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+const mockUploadFile = storageServiceMockFns.mockUploadFile
 
 /** An ISO-BMFF `ftyp` box declaring `brand` as its major brand. */
 function ftypBytes(brand: string): Buffer {

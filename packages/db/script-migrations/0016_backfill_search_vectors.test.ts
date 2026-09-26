@@ -3,7 +3,7 @@ import {
   runDevSearchBackfill,
 } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import type { Sql } from 'postgres'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 /** Models the ledger while keeping the expensive projection work mocked. */
 function createLedger(appliedNames: string[] = []) {
@@ -19,8 +19,6 @@ function createLedger(appliedNames: string[] = []) {
   const begin = vi.fn(async (callback: (tx: typeof query) => Promise<void>) => callback(query))
   return { names, begin, sql: Object.assign(query, { begin }) as unknown as Sql }
 }
-
-afterEach(() => vi.restoreAllMocks())
 
 describe('dev search backfill tracking', () => {
   it('retries failed work without recording completion', async () => {

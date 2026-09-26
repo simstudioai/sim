@@ -12,7 +12,20 @@ import {
   resetEnvironmentUtilsMock,
   setEnvFlags,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { triggersMock, triggersMockFns } from '@sim/testing/mocks/triggers.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { getBlock } from '@/blocks'
 
 const {
   mockWithResourceOutboundScope,
@@ -20,14 +33,10 @@ const {
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
   mockExecuteWithIdempotency,
-  mockLoadDeploymentVersionState,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
   mockExecutionSnapshot,
-  mockEnqueue,
-  mockGetJobQueue,
 } = vi.hoisted(() => {
-  const mockEnqueue = vi.fn()
   return {
     mockWithResourceOutboundScope: vi.fn(),
     mockResolveWebhookRecordProviderConfig: vi.fn(),
@@ -37,17 +46,6 @@ const {
     mockGetProviderHandler: vi.fn(() => ({})),
     mockSetResolvedSecretTraceRegistry: vi.fn(),
     mockExecutionSnapshot: vi.fn(),
-    mockLoadDeploymentVersionState: vi.fn(
-      async (_workflowId: string, deploymentVersionId: string) => ({
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        deploymentVersionId,
-      })
-    ),
-    mockEnqueue,
-    mockGetJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
   }
 })
 
@@ -90,16 +88,7 @@ vi.mock('@/lib/core/idempotency', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: vi.fn(async () => ({
-    blocks: {},
-    edges: [],
-    loops: {},
-    parallels: {},
-    deploymentVersionId: 'deployment-1',
-  })),
-  loadWorkflowDeploymentVersionState: mockLoadDeploymentVersionState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: mockGetProviderHandler }))
 
@@ -107,26 +96,9 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: vi.fn(() => ({ traceSpans: [] })),
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  capExecutionTimeoutMs: vi.fn((policyTimeoutMs, requestedTimeoutMs) =>
-    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
-  ),
-  createTimeoutAbortController: vi.fn((_timeoutMs: number, signal?: AbortSignal) => ({
-    signal: signal ?? new AbortController().signal,
-    cleanup: vi.fn(),
-    isTimedOut: () => false,
-    timeoutMs: 120_000,
-  })),
-  getAsyncExecutionTimeoutForBillingAttribution: vi.fn(() => 120_000),
-  getExecutionDeadlineAt: vi.fn(() => new Date(Date.now() + 120_000)),
-  getTimeoutErrorMessage: vi.fn(() => 'timed out'),
-  RESERVATION_TTL_BUFFER_MS: 300_000,
-  toTriggerMaxDurationSeconds: vi.fn(() => undefined),
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: mockGetJobQueue,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: vi.fn(),
@@ -136,9 +108,7 @@ vi.mock('@/lib/webhooks/attachment-processor', () => ({
   WebhookAttachmentProcessor: class {},
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveOAuthAccountId: vi.fn(),
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: mockExecutionSnapshot,
@@ -146,20 +116,59 @@ vi.mock('@/executor/execution/snapshot', () => ({
 
 vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
 
-vi.mock('@/blocks', () => ({ getBlock: vi.fn(() => null) }))
-
-vi.mock('@/triggers', () => ({
-  getTrigger: vi.fn(),
-  isTriggerValid: vi.fn(() => false),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import * as usageReservation from '@/lib/billing/calculations/usage-reservation'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { executeWebhookJob, type WebhookExecutionPayload } from '@/background/webhook-execution'
 
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
+triggersMockFns.mockGetTrigger.mockReturnValue(undefined)
+executionLimitsMockFns.mockCapExecutionTimeoutMs.mockImplementation(
+  (policyTimeoutMs: number, requestedTimeoutMs?: number) =>
+    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
+)
+executionLimitsMockFns.mockCreateTimeoutAbortController.mockImplementation(
+  (_timeoutMs?: number, signal?: AbortSignal) => ({
+    signal: signal ?? new AbortController().signal,
+    cleanup: vi.fn(),
+    abort: vi.fn(),
+    isTimedOut: () => false,
+    timeoutMs: 120_000,
+  })
+)
+executionLimitsMockFns.mockGetAsyncExecutionTimeoutForBillingAttribution.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionDeadlineAt.mockImplementation(
+  () => new Date(Date.now() + 120_000)
+)
+executionLimitsMockFns.mockGetTimeoutErrorMessage.mockReturnValue('timed out')
+executionLimitsMockFns.mockToTriggerMaxDurationSeconds.mockReturnValue(undefined)
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(null)
+
+const mockLoadDeploymentVersionState =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
+mockLoadDeploymentVersionState.mockImplementation(
+  async (_workflowId: string, deploymentVersionId: string) => ({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+    deploymentVersionId,
+  })
+)
+workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockImplementation(async () => ({
+  blocks: {},
+  edges: [],
+  loops: {},
+  parallels: {},
+  deploymentVersionId: 'deployment-1',
+}))
+
 const actualRefreshExecutionSlotExpiry = usageReservation.refreshExecutionSlotExpiry
-const mockRefreshExecutionSlotExpiry = vi.spyOn(usageReservation, 'refreshExecutionSlotExpiry')
-const mockReleaseExecutionSlot = vi.spyOn(usageReservation, 'releaseExecutionSlot')
+let mockRefreshExecutionSlotExpiry: MockInstance<typeof usageReservation.refreshExecutionSlotExpiry>
+let mockReleaseExecutionSlot: MockInstance<typeof usageReservation.releaseExecutionSlot>
 
 afterAll(resetEnvFlagsMock)
 
@@ -237,8 +246,12 @@ describe('executeWebhookJob fault vs error handling', () => {
       }
     })
     mockWithResourceOutboundScope.mockReset().mockImplementation((_owner, run) => run())
-    mockRefreshExecutionSlotExpiry.mockReset().mockResolvedValue(true)
-    mockReleaseExecutionSlot.mockReset().mockResolvedValue(undefined)
+    mockRefreshExecutionSlotExpiry = vi
+      .spyOn(usageReservation, 'refreshExecutionSlotExpiry')
+      .mockResolvedValue(true)
+    mockReleaseExecutionSlot = vi
+      .spyOn(usageReservation, 'releaseExecutionSlot')
+      .mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({})
     mockEnqueue.mockReset().mockResolvedValue('run_retry')
     mockExecuteWithIdempotency.mockImplementation(

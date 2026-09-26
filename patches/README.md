@@ -40,8 +40,8 @@ not the total elapsed transaction time.
 `apps/sim/lib/billing/core/usage-log.integration.ts` tests real ESM/CommonJS driver
 closure and reconnection, rollback after billing INSERT/UPDATE, and exact retry
 accounting. CI runs it against PostgreSQL 17 and 16. Set `TEST_DATABASE_URL` to a
-disposable local PostgreSQL 15+ database and run it from `apps/sim` with
-`bunx vitest run --mode integration lib/billing/core/usage-log.integration.ts`.
+disposable local PostgreSQL 15+ database and run
+`bun run --cwd apps/sim test --mode integration lib/billing/core/usage-log.integration.ts`.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.
@@ -65,8 +65,8 @@ reconciliation on failure. `packages/db/scripts/push.integration.ts` exercises
 the installed CLI against PostgreSQL, including multiple column changes, table
 and enum replacement, schema replacement, preservation of the excluded script
 ledger, and database errors. Set `TEST_DATABASE_URL` to a disposable local
-PostgreSQL database and run these tests from `packages/db` with
-`bunx vitest run --mode integration`.
+PostgreSQL database and run these tests with
+`bun run --cwd packages/db test --mode integration`.
 
 Remove the patch when Drizzle provides an explicit noninteractive create/drop
 policy and propagates push failures. Keep Drizzle pinned until the replacement

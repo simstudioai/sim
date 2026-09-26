@@ -1,49 +1,60 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   personal: vi.fn(),
   tokens: vi.fn(),
-  context: vi.fn(),
   visibility: vi.fn(),
-  resolve: vi.fn(),
   managed: vi.fn(),
   mcp: vi.fn(),
   admin: vi.fn(),
   resolveAdmin: vi.fn(),
-  approvals: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  listOrganizationSearchApprovals: mocks.approvals,
-}))
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({
-  listAdminGitLabAccounts: mocks.admin,
-  resolveAdminGitLabAccount: mocks.resolveAdmin,
+  listAdminGitLabAccounts: hoisted.admin,
+  resolveAdminGitLabAccount: hoisted.resolveAdmin,
 }))
-vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listCodaMcpSearchAccounts: mocks.mcp }))
-vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: mocks.personal }))
+vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ listCodaMcpSearchAccounts: hoisted.mcp }))
+vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: hoisted.personal }))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  getPersonalTokenCredentials: mocks.tokens,
+  getPersonalTokenCredentials: hoisted.tokens,
   requirePersonalTokenEnrollment: vi.fn(),
 }))
 vi.mock('@/lib/credentials/organization-managed', () => ({
-  getOwnOrganizationManagedOAuthCredentials: mocks.managed,
+  getOwnOrganizationManagedOAuthCredentials: hoisted.managed,
 }))
 vi.mock('@/lib/credentials/application/workspace-account-visibility', () => ({
-  filterWorkspaceAccountCredentials: mocks.visibility,
+  filterWorkspaceAccountCredentials: hoisted.visibility,
 }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.context,
-}))
-vi.mock('@/lib/oauth/credential-service', () => ({ resolveCredentialTokenBundle: mocks.resolve }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: vi.fn() }))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/accounts'
+
+const mocks = {
+  ...hoisted,
+  resolve: authOAuthUtilsMockFns.mockResolveCredentialTokenBundle,
+}
+
+const mockListOrganizationSearchApprovals =
+  knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals
 
 const owner = { workspaceId: 'workspace' }
 const account = { id: 'mine', providerId: 'google-drive', displayName: 'My Drive', type: 'oauth' }
 function metadata(revokedAt: Date | null = null) {
-  mocks.approvals.mockResolvedValue(new Map([['google_drive', true]]))
+  mockListOrganizationSearchApprovals.mockResolvedValue(new Map([['google_drive', true]]))
   queueTableRows(schemaMock.credential, []) // Coda discovery
   queueTableRows(schemaMock.credential, [
     { id: 'mine', scope: 'drive.readonly', grantedScopes: null, revokedAt },
@@ -58,12 +69,15 @@ describe('live account discovery boundaries', () => {
     mocks.managed.mockResolvedValue([])
     mocks.mcp.mockResolvedValue([])
     mocks.admin.mockResolvedValue([])
-    mocks.approvals.mockResolvedValue(new Map())
-    mocks.context.mockResolvedValue({ workspaceId: 'workspace', workspaceOrganizationId: 'org' })
+    mockListOrganizationSearchApprovals.mockResolvedValue(new Map())
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceId: 'workspace',
+      workspaceOrganizationId: 'org',
+    })
     mocks.visibility.mockImplementation(async (_context, rows) => rows)
   })
   it('uses only administrator-managed GitLab sources, never personal GitLab tokens', async () => {
-    mocks.approvals.mockResolvedValue(new Map([['gitlab', true]]))
+    mockListOrganizationSearchApprovals.mockResolvedValue(new Map([['gitlab', true]]))
     mocks.tokens.mockResolvedValue([
       {
         id: 'personal-gitlab',
@@ -101,7 +115,7 @@ describe('live account discovery boundaries', () => {
     )
   })
   it('honors an organization provider denial even in workspace search', async () => {
-    mocks.approvals.mockResolvedValue(new Map([['google_drive', false]]))
+    mockListOrganizationSearchApprovals.mockResolvedValue(new Map([['google_drive', false]]))
     expect(await listLiveAccounts(owner, 'reader')).toEqual([])
     expect(mocks.visibility).toHaveBeenCalledWith(expect.anything(), [])
   })

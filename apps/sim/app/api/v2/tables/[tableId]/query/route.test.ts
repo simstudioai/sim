@@ -5,37 +5,23 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {
-    constructor(
-      message: string,
-      readonly details?: unknown
-    ) {
-      super(message)
-    }
-  }
-  return {
-    mocks: {
-      queryRows: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { v2QueryRowsContract } from '@/lib/api/contracts/v2/tables'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
+
+const { mockQueryTableRows } = tableApplicationRowsMockFns
 
 /** A query cursor exactly as the route mints one, for the table given. */
 function queryCursor(tableId: string, inner: string): string {
@@ -83,7 +69,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.queryRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
+    mockQueryTableRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
   })
 
   it('delegates the typed query and preserves the public row envelope', async () => {
@@ -103,7 +89,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       ],
       nextCursor: null,
     })
-    expect(mocks.queryRows).toHaveBeenCalledWith({
+    expect(mockQueryTableRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -125,7 +111,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     const response = await invocation.response
 
     expect(response.status).toBe(200)
-    expect(mocks.queryRows).toHaveBeenCalledWith(
+    expect(mockQueryTableRows).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ predicate: { all: [condition] } }),
       })
@@ -135,7 +121,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
   it('preserves explicit limit=0 as the unbounded opt-in', async () => {
     await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
 
-    expect(mocks.queryRows).toHaveBeenCalledWith(
+    expect(mockQueryTableRows).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ limit: undefined }) })
     )
   })
@@ -147,7 +133,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     }).response
 
     expect(response.status).toBe(400)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 
   /**
@@ -163,7 +149,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
 
     expect(response.status).toBe(400)
     expect((await response.json()).error.message).toMatch(/requested filters/)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 
   it('enforces the one MiB body cap before delegation', async () => {
@@ -171,6 +157,6 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       .response
 
     expect(response.status).toBe(413)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 })

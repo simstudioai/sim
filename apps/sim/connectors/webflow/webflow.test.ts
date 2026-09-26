@@ -1,17 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { webflowConnector } from '@/connectors/webflow/webflow'
 
 const ACCESS_TOKEN = 'test-token'
 const CONFIG = { siteId: 'site-1', collectionId: 'col-1' }
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function itemFixture(id: string) {
   return { id, fieldData: { name: id, slug: id }, lastUpdated: '2026-01-01T00:00:00Z' }
@@ -30,10 +24,6 @@ function mockNameThenItems(itemsBody: unknown) {
 describe('webflow listDocuments deletion-reconciliation guards', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('flags listingCapped when the cap stops short of the collection total', async () => {
@@ -126,10 +116,6 @@ describe('webflow collection-scope resolution', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   /**

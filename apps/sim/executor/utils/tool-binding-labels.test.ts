@@ -1,21 +1,24 @@
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFindWorkspaceCredentialLookup, mockGetKnowledgeBaseNames } = vi.hoisted(() => ({
+const { mockFindWorkspaceCredentialLookup } = vi.hoisted(() => ({
   mockFindWorkspaceCredentialLookup: vi.fn(),
-  mockGetKnowledgeBaseNames: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/queries', () => ({
   findWorkspaceCredentialLookup: mockFindWorkspaceCredentialLookup,
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseNames: mockGetKnowledgeBaseNames,
-}))
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 
 import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { registerProviderToolBindings, type ToolResourceBinding } from '@/providers/tool-binding'
 import type { ProviderToolConfig } from '@/providers/types'
+
+const { mockGetKnowledgeBaseNames } = knowledgeServiceMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 

@@ -1,16 +1,17 @@
 import { member, session, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAcquireLocks, mockInvalidateVersion, mockInvalidateMembership } = vi.hoisted(() => ({
-  mockAcquireLocks: vi.fn(),
+const { mockInvalidateVersion, mockInvalidateMembership } = vi.hoisted(() => ({
   mockInvalidateVersion: vi.fn(),
   mockInvalidateMembership: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mockAcquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/auth/security-policy', () => ({
   invalidateSecurityPolicyVersionCache: mockInvalidateVersion,
   invalidateMembershipCache: mockInvalidateMembership,
@@ -24,6 +25,8 @@ import {
   unsuspendMemberTx,
 } from '@/lib/organizations/members/lifecycle'
 import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
+
+const mockAcquireLocks = organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks
 
 afterAll(resetDbChainMock)
 

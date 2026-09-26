@@ -99,17 +99,3 @@ export async function checkKnowledgeBaseAccess(
 ): Promise<KnowledgeBaseAccessCheck> {
   return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, false)
 }
-
-/**
- * Check if a user has write access to a knowledge base.
- *
- * Write access is granted if:
- * 1. KB has a workspace: user has write or admin permissions on that workspace
- * 2. KB has no workspace (legacy): user owns the KB directly
- */
-export async function checkKnowledgeBaseWriteAccess(
-  knowledgeBaseId: string,
-  userId: string
-): Promise<KnowledgeBaseAccessCheck> {
-  return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, true)
-}

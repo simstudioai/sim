@@ -1,49 +1,36 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { sqlCalls } = vi.hoisted(() => ({
-  sqlCalls: [] as Array<{ strings: readonly string[]; values: unknown[] }>,
-}))
-
-vi.mock('drizzle-orm', () => {
-  const sql = (strings: readonly string[], ...values: unknown[]) => {
-    const node = { strings, values }
-    sqlCalls.push(node)
-    return node
-  }
-  // Identity, so an interpolated value still shows up verbatim in `values`.
-  sql.param = (value: unknown) => value
-  sql.join = (fragments: unknown[], separator: unknown) => ({ fragments, separator })
-  return {
-    sql,
-    and: vi.fn(),
-    eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-    isNull: vi.fn(),
-    ne: vi.fn(),
-    or: vi.fn(),
-  }
-})
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getOAuthToken: vi.fn(),
-  refreshAccessTokenIfNeeded: vi.fn(),
-  resolveOAuthAccountId: vi.fn(),
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
+import { sql } from 'drizzle-orm'
 import { updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
 
 afterAll(resetDbChainMock)
 
 const logger = { error: vi.fn() } as never
 
+/** Every value interpolated into a `sql` template, with `sql.param(value)` binds unwrapped. */
 function allInterpolatedValues(): unknown[] {
-  return sqlCalls.flatMap((c) => c.values)
+  const params = new Map(
+    vi
+      .mocked(sql.param)
+      .mock.results.map((result, index) => [
+        result.value,
+        vi.mocked(sql.param).mock.calls[index][0],
+      ])
+  )
+  return vi
+    .mocked(sql)
+    .mock.calls.flatMap(([, ...values]) => values)
+    .map((value) => (params.has(value) ? params.get(value) : value))
 }
 
 describe('updateWebhookProviderConfig (atomic jsonb merge)', () => {
   beforeEach(() => {
     resetDbChainMock()
-    sqlCalls.length = 0
   })
 
   it('merges defined keys (null preserved) and removes undefined keys', async () => {

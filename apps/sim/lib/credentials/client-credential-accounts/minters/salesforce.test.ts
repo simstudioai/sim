@@ -1,5 +1,6 @@
 import { createVerify, generateKeyPairSync } from 'crypto'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 
 const HOST = 'yourorg.my.salesforce.com'
@@ -7,16 +8,6 @@ const TOKEN_URL = `https://${HOST}/services/oauth2/token`
 const INSTANCE_URL = 'https://yourorg.my.salesforce.com'
 
 const FIELDS = { clientId: 'test-consumer-key', clientSecret: 'sf-secret', orgId: HOST }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 /** Builds a structurally valid unsigned JWT carrying the given exp claim. */
 function jwtWithExp(expSeconds: number): string {
@@ -43,14 +34,10 @@ describe('mintSalesforceServiceAccountToken', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('mints against the My Domain token endpoint and derives identity from userinfo', async () => {
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(200, {
+        jsonResponse({
           access_token: 'sf-access',
           instance_url: INSTANCE_URL,
           token_type: 'Bearer',
@@ -59,7 +46,7 @@ describe('mintSalesforceServiceAccountToken', () => {
         })
       )
       .mockResolvedValueOnce(
-        jsonResponse(200, {
+        jsonResponse({
           name: 'Integration User',
           preferred_username: 'integration@yourorg.com',
           organization_id: '00Dxx0000000001EAA',
@@ -85,8 +72,8 @@ describe('mintSalesforceServiceAccountToken', () => {
 
   it('normalizes a pasted URL-style host before minting', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-access' }))
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'sf-access' }))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     const result = await mintSalesforceServiceAccountToken({
       ...FIELDS,
@@ -101,8 +88,8 @@ describe('mintSalesforceServiceAccountToken', () => {
     'accepts the %s partitioned My Domain host',
     async (host) => {
       mockFetch
-        .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-access' }))
-        .mockResolvedValueOnce(jsonResponse(403, {}))
+        .mockResolvedValueOnce(jsonResponse({ access_token: 'sf-access' }))
+        .mockResolvedValueOnce(jsonResponse({}, 403))
 
       await mintSalesforceServiceAccountToken({ ...FIELDS, orgId: host })
 
@@ -134,7 +121,7 @@ describe('mintSalesforceServiceAccountToken', () => {
       'Client Credentials Flow is not enabled on the Connected App, no "Run As" user is configured, or the Run As user is deactivated/frozen',
     ],
   ])('throws invalid_credentials with a hint on 400 %s', async (error, hint) => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(400, { error, error_description: 'nope' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error, error_description: 'nope' }, 400))
 
     await expect(mintSalesforceServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'invalid_credentials',
@@ -144,7 +131,7 @@ describe('mintSalesforceServiceAccountToken', () => {
   })
 
   it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(429, { error: 'rate_limit_exceeded' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'rate_limit_exceeded' }, 429))
 
     await expect(mintSalesforceServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',
@@ -171,9 +158,9 @@ describe('mintSalesforceServiceAccountToken', () => {
   it('marks the principal as lookup_failed when userinfo omits user_id', async () => {
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(200, { access_token: 'sf-access', instance_url: INSTANCE_URL })
+        jsonResponse({ access_token: 'sf-access', instance_url: INSTANCE_URL })
       )
-      .mockResolvedValueOnce(jsonResponse(200, { name: 'Integration User' }))
+      .mockResolvedValueOnce(jsonResponse({ name: 'Integration User' }))
 
     const result = await mintSalesforceServiceAccountToken(FIELDS)
 
@@ -189,9 +176,9 @@ describe('mintSalesforceServiceAccountToken', () => {
   it('ignores a non-Salesforce instance_url and falls back to the validated host', async () => {
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(200, { access_token: 'sf-access', instance_url: 'https://evil.com' })
+        jsonResponse({ access_token: 'sf-access', instance_url: 'https://evil.com' })
       )
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     const result = await mintSalesforceServiceAccountToken(FIELDS)
 
@@ -203,13 +190,13 @@ describe('mintSalesforceServiceAccountToken', () => {
     const exp = Math.floor(Date.now() / 1000) + 300
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(200, {
+        jsonResponse({
           access_token: jwtWithExp(exp),
           instance_url: INSTANCE_URL,
           token_format: 'jwt',
         })
       )
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     const result = await mintSalesforceServiceAccountToken(FIELDS)
 
@@ -263,16 +250,12 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('posts an RS256 assertion whose signature verifies against the public key', async () => {
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse(200, { access_token: 'sf-jwt-token', instance_url: INSTANCE_URL })
+        jsonResponse({ access_token: 'sf-jwt-token', instance_url: INSTANCE_URL })
       )
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     await mintSalesforceServiceAccountToken(JWT_FIELDS)
 
@@ -283,8 +266,8 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
 
   it('audiences the assertion at the My Domain host with an exp inside the 5-minute window', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     await mintSalesforceServiceAccountToken(JWT_FIELDS)
 
@@ -302,8 +285,8 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
     ['gs1-widgets.my.salesforce.com', 'https://gs1-widgets.my.salesforce.com'],
   ])('audiences the %s org at %s while posting to its own host', async (orgId, audience) => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, orgId })
 
@@ -316,8 +299,8 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
 
   it('accepts a PKCS#1 key, which is what OpenSSL 1.x emits', async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
-      .mockResolvedValueOnce(jsonResponse(403, {}))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
 
     await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, privateKey: PKCS1_PEM })
 

@@ -1,17 +1,9 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAccessToken, JWTCtor, loggerInstance } = vi.hoisted(() => {
+const { mockGetAccessToken, JWTCtor } = vi.hoisted(() => {
   const mockGetAccessToken = vi.fn(async () => ({ token: 'bq-token' }))
-  const loggerInstance = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-    withMetadata: vi.fn(),
-  }
   return {
     mockGetAccessToken,
     JWTCtor: vi.fn().mockImplementation(
@@ -19,21 +11,11 @@ const { mockGetAccessToken, JWTCtor, loggerInstance } = vi.hoisted(() => {
         getAccessToken = mockGetAccessToken
       }
     ),
-    loggerInstance,
   }
 })
 
 vi.mock('google-auth-library', () => ({ JWT: JWTCtor }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => loggerInstance,
-  logger: loggerInstance,
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: vi.fn(async () => {}),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 const fetchMock = vi.fn(
   async () =>
@@ -45,6 +27,8 @@ const fetchMock = vi.fn(
 vi.stubGlobal('fetch', fetchMock)
 
 import { bigqueryDestination } from '@/lib/data-drains/destinations/bigquery'
+
+const loggerInstance = getMockLogger('DataDrainBigQueryDestination')
 
 const config = { projectId: 'my-proj', datasetId: 'logs', tableId: 'workflow' }
 const credentials = {

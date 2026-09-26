@@ -11,15 +11,20 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSyncWorkspaceEnvCredentials,
-  mockGetEffectiveWorkspacePermission,
-  mockAssertMembershipNotScimManaged,
-} = vi.hoisted(() => ({
-  mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
+const { mockAssertMembershipNotScimManaged } = vi.hoisted(() => ({
   mockAssertMembershipNotScimManaged: vi.fn(),
 }))
 
@@ -29,40 +34,35 @@ vi.mock('@/ee/scim/lib/managed-membership', () => ({
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  ...permissionsMock,
-  getWorkspacePermissionsForViewer: vi.fn(),
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'billing-user',
-  }),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: async () =>
-    (await permissionsMockFns.mockHasWorkspaceAdminAccess()) ? 'admin' : null,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { getWorkspacePermissionsForViewer } from '@/lib/workspaces/permissions/utils'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/permissions/route'
 
+const { mockSyncWorkspaceEnvCredentials } = credentialsEnvironmentMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
+workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-user',
+  })
+)
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(async () =>
+  (await permissionsMockFns.mockHasWorkspaceAdminAccess()) ? 'admin' : null
+)
 
 const WORKSPACE_ID = 'workspace-1'
 const ADMIN_ID = 'user-admin'
@@ -74,7 +74,7 @@ const BILLED_ID = 'user-billed'
 const OWNER_ID = 'user-owner'
 const ORG_ID = 'org-1'
 
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const permissionRow = (userId: string, permissionType: 'admin' | 'write' | 'read') => ({
   userId,

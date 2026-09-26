@@ -4,7 +4,8 @@ import type { SearchParams } from 'nuqs/server'
 import { readSearchDocumentResultSchema } from '@/lib/api/contracts/knowledge/documents'
 import { getSession } from '@/lib/auth'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
+import { readSearchDocument } from '@/lib/sim-search/indexed'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import {
   loadDocumentReadParams,
@@ -22,6 +23,7 @@ export default async function OrganizationDocumentPage({
   params,
   searchParams,
 }: OrganizationDocumentPageProps) {
+  if (!isIndexedOrgSearchEnabled()) notFound()
   const { organizationId, knowledgeBaseId, documentId } = await params
   const position = await loadDocumentReadParams(searchParams, { strict: true }).catch(() =>
     notFound()

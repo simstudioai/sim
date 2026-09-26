@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { escapeRegExp } from '@sim/utils/string'
+import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
@@ -448,13 +449,13 @@ export function usePromptEditor({
     }
   }, [textareaRef])
 
-  const insertResource = useCallback(
-    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
-      const mapped = mapResourceToContext(resource)
-      if (!mapped) return
-      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
-      const candidate =
-        organizationId && ownerWorkspaceId ? { ...mapped, workspaceId: ownerWorkspaceId } : mapped
+  /**
+   * Inserts a picked context as an `@label` chip, replacing the `@query` being typed
+   * when there is one and the caret otherwise. Organization chats and folders reuse
+   * an existing chip for the same target rather than adding a duplicate.
+   */
+  const insertMention = useCallback(
+    (candidate: ChatContext, selected: ChatContext[]) => {
       const context =
         organizationId || candidate.kind === 'folder' || candidate.kind === 'filefolder'
           ? (selected.find(
@@ -500,6 +501,32 @@ export function usePromptEditor({
       return context
     },
     [textareaRef, addContextNotified, organizationId]
+  )
+
+  const insertResource = useCallback(
+    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
+      const mapped = mapResourceToContext(resource)
+      if (!mapped) return
+      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
+      return insertMention(
+        organizationId && ownerWorkspaceId && isWorkspaceOwnedContext(mapped)
+          ? { ...mapped, workspaceId: ownerWorkspaceId }
+          : mapped,
+        selected
+      )
+    },
+    [insertMention, organizationId]
+  )
+
+  /** Tags a whole workspace in an organization chat: "I'm working in this one". */
+  const insertWorkspace = useCallback(
+    (workspace: { id: string; name: string }) => {
+      insertMention(
+        { kind: 'workspace', workspaceId: workspace.id, label: workspace.name },
+        contextManagementRef.current.selectedContexts
+      )
+    },
+    [insertMention]
   )
 
   /**
@@ -1319,6 +1346,8 @@ export function usePromptEditor({
     pendingCursorRef,
     /** @internal */
     insertResource,
+    /** @internal */
+    insertWorkspace,
     /** @internal */
     handleSkillSelect,
     /** @internal */

@@ -5,14 +5,15 @@
  * is the shape that reaches this mutator from `PATCH .../columns`, and it used
  * to be the single column write with no lock assert at all.
  */
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableLocks } from '@/lib/table/types'
 
-const { mockWithLockedTable } = vi.hoisted(() => ({ mockWithLockedTable: vi.fn() }))
-
-vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import { updateColumnOptions } from '@/lib/table/columns/service'
+
+const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
 
 const UNLOCKED: TableLocks = {
   schemaLocked: false,

@@ -1345,7 +1345,8 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
     const toolFiles = await sourceGlob(`${toolsDir}/**/*.ts`)
     for (const file of toolFiles) {
       const basename = path.basename(file)
-      if (basename === 'index.ts' || basename === 'types.ts') continue
+      if (basename === 'index.ts' || basename === 'types.ts' || basename.includes('.test.'))
+        continue
       const content = readSourceFile(file)
 
       // Find every `id: 'tool_id'` occurrence in the file. For each, search

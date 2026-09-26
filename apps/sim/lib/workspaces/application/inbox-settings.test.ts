@@ -1,49 +1,50 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  role: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   capability: vi.fn(),
-  entitlement: vi.fn(),
   enable: vi.fn(),
   disable: vi.fn(),
   rename: vi.fn(),
 }))
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
-  assertWorkspaceCapability: mocks.capability,
+  assertWorkspaceCapability: hoisted.capability,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: 'org',
-    allowPersonalApiKeys: true,
-  }),
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({ hasWorkspaceInboxAccess: mocks.entitlement }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
-  enableInbox: mocks.enable,
-  disableInbox: mocks.disable,
-  updateInboxAddress: mocks.rename,
+  enableInbox: hoisted.enable,
+  disableInbox: hoisted.disable,
+  updateInboxAddress: hoisted.rename,
 }))
 
 import { readInboxSettings, updateInboxSettings } from '@/lib/workspaces/application/inbox-settings'
 
-const principal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  ...hoisted,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  entitlement: billingSubscriptionMockFns.mockHasWorkspaceInboxAccess,
+}
+
+const principal = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'workspace',
   audience: 'sim:settings',
   delegationId: 'call',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-} as const
+})
 function current(enabled = false) {
   queueTableRows(schemaMock.workspace, [
     {
@@ -59,6 +60,10 @@ function current(enabled = false) {
 describe('inbox settings application', () => {
   beforeEach(() => {
     resetDbChainMock()
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockImplementation(
+      async (workspaceId: string) =>
+        createMockWorkspaceApplicationContext({ workspaceId, workspaceOrganizationId: 'org' })
+    )
     mocks.role.mockResolvedValue('admin')
     mocks.capability.mockResolvedValue(undefined)
     mocks.entitlement.mockResolvedValue(true)

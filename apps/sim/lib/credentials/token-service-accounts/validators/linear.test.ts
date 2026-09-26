@@ -1,34 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { linearAuthorizationHeader } from '@/tools/linear/utils'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 describe('validateLinearServiceAccount', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.clearAllMocks()
-  })
-
   it('sends the raw API key, without a Bearer prefix, to the GraphQL endpoint', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
-        data: {
-          viewer: { id: 'viewer-1', name: 'Jane Ops', email: 'jane@acme.com' },
-          organization: { id: 'org-1', name: 'Acme' },
+      jsonResponse(
+        {
+          data: {
+            viewer: { id: 'viewer-1', name: 'Jane Ops', email: 'jane@acme.com' },
+            organization: { id: 'org-1', name: 'Acme' },
+          },
         },
-      })
+        200
+      )
     )
 
     await validateLinearServiceAccount({ apiToken: 'lin_api_abc' })
@@ -47,9 +39,12 @@ describe('validateLinearServiceAccount', () => {
 
   it('throws invalid_credentials on 200 with authentication errors', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
-        errors: [{ message: 'Not authorized', extensions: { code: 'authentication_error' } }],
-      })
+      jsonResponse(
+        {
+          errors: [{ message: 'Not authorized', extensions: { code: 'authentication_error' } }],
+        },
+        200
+      )
     )
 
     await expect(
@@ -63,9 +58,12 @@ describe('validateLinearServiceAccount', () => {
 
   it('throws provider_unavailable on 400 with a rate-limit body', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, {
-        errors: [{ message: 'Rate limit exceeded', extensions: { code: 'RATELIMITED' } }],
-      })
+      jsonResponse(
+        {
+          errors: [{ message: 'Rate limit exceeded', extensions: { code: 'RATELIMITED' } }],
+        },
+        400
+      )
     )
 
     await expect(validateLinearServiceAccount({ apiToken: 'lin_api_abc' })).rejects.toMatchObject({
@@ -77,11 +75,14 @@ describe('validateLinearServiceAccount', () => {
 
   it('throws invalid_credentials on 400 with an authentication body', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, {
-        errors: [
-          { message: 'Authentication required', extensions: { code: 'authentication_error' } },
-        ],
-      })
+      jsonResponse(
+        {
+          errors: [
+            { message: 'Authentication required', extensions: { code: 'authentication_error' } },
+          ],
+        },
+        400
+      )
     )
 
     await expect(validateLinearServiceAccount({ apiToken: 'lin_api_bad' })).rejects.toMatchObject({
@@ -93,7 +94,7 @@ describe('validateLinearServiceAccount', () => {
 
   it('throws provider_unavailable on an ambiguous 400 body', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, { errors: [{ message: 'Malformed request' }] })
+      jsonResponse({ errors: [{ message: 'Malformed request' }] }, 400)
     )
 
     await expect(validateLinearServiceAccount({ apiToken: 'lin_api_abc' })).rejects.toMatchObject({

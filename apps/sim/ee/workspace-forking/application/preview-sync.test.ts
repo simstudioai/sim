@@ -1,11 +1,14 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 vi.mock('@/lib/selectors/application/get-selector-option', () => ({
   getSelectorOption: { execute: vi.fn() },
 }))
@@ -35,9 +38,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-service', () => ({
   overlayForkMappingEntries: vi.fn(() => []),
   validateForkMappingTargets: vi.fn(),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: vi.fn(async () => []),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: vi.fn(async () => ({ blockers: [] })),
   verifyForkDropAcknowledgments: vi.fn(async () => []),
@@ -198,6 +199,7 @@ function choices(subBlockKey: string, value: string) {
 }
 
 beforeEach(() => {
+  workspaceForkingMappingStoreMockFns.mockGetEdgeMappingRows.mockResolvedValue([])
   vi.mocked(getBlock).mockImplementation((type) =>
     configs[type] ? ({ subBlocks: configs[type] } as BlockConfig) : undefined
   )

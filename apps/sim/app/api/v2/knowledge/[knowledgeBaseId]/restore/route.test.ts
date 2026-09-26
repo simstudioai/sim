@@ -5,32 +5,26 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockRestore, mockGetUserEmails } = vi.hoisted(() => ({
-  mockRestore: vi.fn(),
-  mockGetUserEmails: vi.fn(),
-}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  restoreKnowledgeBase: { operation: { id: 'knowledge.restore' }, execute: mockRestore },
-}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mockGetUserEmails,
-  requireResolvedUserEmail: (map: Map<string, string>, userId: string) => {
-    const email = map.get(userId)
-    if (!email) throw new Error(`No email for ${userId}`)
-    return email
-  },
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/restore/route'
+
+const { mockGetUserEmailsByIds: mockGetUserEmails } = usersQueriesMockFns
+const { mockRestoreKnowledgeBaseExecute: mockRestore } = knowledgeBaseUseCasesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) }

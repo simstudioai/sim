@@ -1,3 +1,7 @@
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { groupToken } from '@/lib/knowledge/access/tokens'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
@@ -16,9 +20,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   grant: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createUserKnowledgeAccessProvider: () => ({ get: mocks.access }),
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/connectors/gitlab/permission-config/repository', () => ({
   seedGitLabCsvContext: mocks.seed,
 }))
@@ -60,6 +62,9 @@ const file = { id: 'src/a.ts', container: '42', kind: 'code', revision: 'main' }
 
 beforeEach(() => {
   vi.resetAllMocks()
+  knowledgeAccessScopeMockFns.mockCreateUserKnowledgeAccessProvider.mockImplementation(() => ({
+    get: mocks.access,
+  }))
   mocks.access.mockResolvedValue({ kind: 'user', userId: 'reader', tokens: [own] })
   mocks.directory.mockResolvedValue({
     providerId: 'gitlab',

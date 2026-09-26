@@ -1,42 +1,29 @@
 import { workflowExecutionLogs } from '@sim/db/schema'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockExpandFolderIdsWithDescendants,
-  mockMapWithConcurrency,
-  mockMaterializeExecutionDataForDisplay,
-  mockGetUserPermissionConfig,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
+const { mockExpandFolderIdsWithDescendants, mockMapWithConcurrency } = vi.hoisted(() => ({
   mockExpandFolderIdsWithDescendants: vi.fn(),
   mockMapWithConcurrency: vi.fn(),
-  mockMaterializeExecutionDataForDisplay: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: mockExpandFolderIdsWithDescendants,
 }))
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterializeExecutionDataForDisplay,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/core/utils/concurrency', () => ({
   MATERIALIZE_CONCURRENCY: 20,
@@ -46,16 +33,15 @@ vi.mock('@/lib/core/utils/concurrency', () => ({
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
 
+const { mockMaterializeExecutionDataForDisplay } = traceStoreMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
 const STARTED_AT = new Date('2026-08-23T12:00:00.000Z')
 
 function makeRequest() {
-  return createMockRequest(
-    'GET',
-    undefined,
-    {},
-    'http://localhost:3000/api/logs/export?workspaceId=workspace-1'
-  )
+  return createMockRequest({ url: 'http://localhost:3000/api/logs/export?workspaceId=workspace-1' })
 }
 
 function logRow(index: number, overrides: Record<string, unknown> = {}) {

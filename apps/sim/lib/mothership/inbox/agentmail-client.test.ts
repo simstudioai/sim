@@ -15,7 +15,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => {
-  vi.unstubAllGlobals()
   resetEnvMock()
 })
 

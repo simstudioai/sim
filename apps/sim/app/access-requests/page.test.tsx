@@ -1,12 +1,12 @@
 import { authMockFns } from '@sim/testing'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redirect, organizationContext, organizationAccess } = vi.hoisted(() => ({
-  redirect: vi.fn(),
+const { organizationContext, organizationAccess } = vi.hoisted(() => ({
   organizationContext: vi.fn(),
   organizationAccess: vi.fn(),
 }))
-vi.mock('next/navigation', () => ({ redirect }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: organizationContext,
 }))
@@ -19,13 +19,12 @@ vi.mock('@/lib/organizations/settings-access', () => ({
 
 import AccessRequestsPage from '@/app/access-requests/page'
 
+const mockRedirect = nextNavigationMockFns.mockRedirect
+
 describe('access request sign-in redirect', () => {
   beforeEach(() => {
     organizationAccess.mockResolvedValue({ isAdmin: false, isMember: true })
     authMockFns.mockGetSession.mockResolvedValue(null)
-    redirect.mockImplementation(() => {
-      throw new Error('Redirect')
-    })
   })
 
   it('drops invalid and unsupported state instead of forwarding raw query parameters', async () => {
@@ -42,8 +41,8 @@ describe('access request sign-in redirect', () => {
           callbackUrl: 'https://example.com/untrusted',
         }),
       })
-    ).rejects.toThrow('Redirect')
-    expect(redirect).toHaveBeenCalledWith(
+    ).rejects.toThrow('NEXT_REDIRECT')
+    expect(mockRedirect).toHaveBeenCalledWith(
       `/login?callbackUrl=${encodeURIComponent('/access-requests?organizationId=organization')}`
     )
   })

@@ -1,15 +1,11 @@
 import { tableViews } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
-const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
-  mockSignalTableViewsChanged: vi.fn(),
-}))
-vi.mock('@/lib/table/events', () => ({
-  signalTableViewsChanged: mockSignalTableViewsChanged,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import {
   createTableView,
@@ -19,6 +15,8 @@ import {
   pruneViewConfig,
   updateTableView,
 } from '@/lib/table/views/service'
+
+const mockSignalTableViewsChanged = tableEventsMockFns.mockSignalTableViewsChanged
 
 const columns: ColumnDefinition[] = [
   { id: 'col_a', name: 'Name', type: 'text' },

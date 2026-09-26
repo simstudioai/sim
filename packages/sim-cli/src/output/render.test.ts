@@ -1,5 +1,5 @@
 import { Chalk } from 'chalk'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { type Column, printList, printRecord, sanitize } from './render'
 
 const ESC = String.fromCharCode(27)
@@ -15,10 +15,6 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     logged.push(line)
   })
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 interface Row {

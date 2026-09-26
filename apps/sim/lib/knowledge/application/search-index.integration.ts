@@ -1,15 +1,16 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createEnterpriseSearchMigrationFixture } from '@/lib/knowledge/__integration__/migration-fixture'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
-describe.runIf(Boolean(databaseUrl))('workspace search identity migration in PostgreSQL', () => {
+describe('workspace search identity migration in PostgreSQL', () => {
   let client: ReturnType<typeof postgres>
   let fixture: Awaited<ReturnType<typeof createEnterpriseSearchMigrationFixture>>
 
   beforeAll(async () => {
-    fixture = await createEnterpriseSearchMigrationFixture(databaseUrl!)
+    fixture = await createEnterpriseSearchMigrationFixture(databaseUrl)
     client = fixture.client
     await client.unsafe(`
       INSERT INTO credential_group(id, workspace_id, name) VALUES ('curated', 'workspace-1', 'Workspace accounts');

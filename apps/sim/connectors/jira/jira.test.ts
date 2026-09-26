@@ -1,5 +1,5 @@
 import { createMockResponse } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AtlassianSiteNotMatchedError, clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import {
   beginListingCheckpoint,
@@ -49,10 +49,6 @@ beforeEach(() => {
   fetchMock.mockReset()
   clearAtlassianCloudIdCache()
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('Jira Search member documents', () => {

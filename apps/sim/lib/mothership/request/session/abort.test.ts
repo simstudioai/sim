@@ -1,4 +1,5 @@
 import { redisConfigMockFns } from '@sim/testing'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHasAbortMarker, mockClearAbortMarker, mockWriteAbortMarker } = vi.hoisted(() => ({
@@ -12,10 +13,7 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   clearAbortMarker: mockClearAbortMarker,
   writeAbortMarker: mockWriteAbortMarker,
 }))
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (_span: unknown, _attrs: unknown, fn: (span: unknown) => unknown) =>
-    fn({ setAttribute: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import {
   acquirePendingChatStream,

@@ -1,23 +1,24 @@
 import { createMockRequest, setEnvFlags } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockSignInSSO, mockIsAllowed, mockEnforceIpRateLimit } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockSignInSSO: vi.fn(),
+const { mockIsAllowed } = vi.hoisted(() => ({
   mockIsAllowed: vi.fn(),
-  mockEnforceIpRateLimit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-  auth: { api: { signInSSO: mockSignInSSO } },
-}))
 vi.mock('@/lib/auth/sso/idp-initiated-login', () => ({ isIdpInitiatedLoginAllowed: mockIsAllowed }))
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mockEnforceIpRateLimit }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { GET } from '@/app/(auth)/sso/launch/[providerId]/route'
 
-const context = { params: Promise.resolve({ providerId: 'acme-okta' }) }
+const mockEnforceIpRateLimit = rateLimiterMockFns.mockEnforceIpRateLimit
+
+const mockGetSession = authMockFns.mockGetSession
+const mockSignInSSO = authMockFns.mockSignInSSO
+
+const context = createRouteContext({ providerId: 'acme-okta' })
 const ISSUER = 'https://acme.okta.test'
 const SIGN_IN_LINK = 'https://test.sim.ai/sso?provider=acme-okta'
 

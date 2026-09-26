@@ -6,16 +6,14 @@ import type { Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
-  url: process.env.TEST_DATABASE_URL,
   schema: `service_meter_${process.pid}`,
   client: null as Sql | null,
 }))
 vi.mock('@sim/db', async () => {
   const { drizzle } = await import('drizzle-orm/postgres-js')
   const { default: postgres } = await import('postgres')
-  if (state.url && !['localhost', '127.0.0.1'].includes(new URL(state.url).hostname))
-    throw new Error('Local test database required')
-  const client = postgres(state.url ?? 'postgres://127.0.0.1:1/unused', {
+  const { readTestDatabaseUrl } = await import('@sim/db/testing/test-infrastructure')
+  const client = postgres(readTestDatabaseUrl(), {
     max: 4,
     connection: { search_path: state.schema },
     onnotice: () => {},
@@ -43,7 +41,7 @@ afterAll(async () => {
   await state.client?.end()
   vi.unstubAllGlobals()
 })
-describe.skipIf(!state.url)('service receipts in SQL', () => {
+describe('service receipts in SQL', () => {
   beforeAll(async () => {
     const client = state.client!
     await client.unsafe(`CREATE SCHEMA "${state.schema}"`)

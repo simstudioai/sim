@@ -1,31 +1,24 @@
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetCredentialActorContext,
-  mockGetServiceAccountToken,
-  mockRefreshTokenIfNeeded,
-  mockResolveExecutorCredentialToken,
-} = vi.hoisted(() => ({
-  mockGetCredentialActorContext: vi.fn(),
-  mockGetServiceAccountToken: vi.fn(),
-  mockRefreshTokenIfNeeded: vi.fn(),
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
-  canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
-    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
-}))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getServiceAccountToken: mockGetServiceAccountToken,
-  refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: mockResolveExecutorCredentialToken,
 }))
 
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
+
+const { mockGetCredentialActorContext } = credentialsAccessMockFns
+const { mockGetServiceAccountToken, mockRefreshTokenIfNeeded } = authOAuthUtilsMockFns
 
 function actorContext(workspaceId: string) {
   return {

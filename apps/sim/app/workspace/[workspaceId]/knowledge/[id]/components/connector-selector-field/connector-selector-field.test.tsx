@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { ConnectorConfigField } from '@/connectors/types'
@@ -14,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@sim/emcn', () => ({
   ChipCombobox: mocks.combobox,
 }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/selectors/context', () => ({ projectSelectorContext: mocks.projectContext }))
 vi.mock('@/lib/selectors/manifest', () => ({
   getSelectorManifestEntry: () => ({ resolvesUnknownIds: false }),
@@ -32,6 +34,8 @@ vi.mock('@/hooks/queries/selectors', () => ({
 }))
 
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 interface ComboboxCallbacks {
   options: {
@@ -86,7 +90,6 @@ it.each([
       })
     } finally {
       await act(async () => root.unmount())
-      vi.clearAllMocks()
     }
   }
 )
@@ -139,6 +142,5 @@ it('keeps the prior selection when all personal setup options exceed its source 
     )
   } finally {
     await act(async () => root.unmount())
-    vi.clearAllMocks()
   }
 })

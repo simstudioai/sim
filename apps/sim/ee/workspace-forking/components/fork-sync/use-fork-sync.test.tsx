@@ -6,6 +6,8 @@
  * from a provider undo, which must restore them before Save or Sync derives its payload.
  */
 import { act, type ReactNode } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -28,9 +30,7 @@ const {
   mockPromote: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 vi.mock('@/ee/workspace-forking/hooks/workspace-fork', () => ({
   useForkMapping: mockUseForkMapping,
@@ -131,14 +131,6 @@ const SUCCESSFUL_PROMOTE_RESULT = {
   droppedReferences: [],
   triggerUrlChanges: [],
   deployFailed: 0,
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
 }
 
 const mappedRepickContext = (previousValue: string) => ({

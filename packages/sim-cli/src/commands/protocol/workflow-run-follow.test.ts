@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachWorkflowRunFollow, renderRunStream } from './workflow-run-follow'
@@ -89,12 +89,6 @@ beforeEach(() => {
       error: null,
     })
   )
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-  vi.unstubAllEnvs()
 })
 
 describe('renderRunStream', () => {

@@ -1,4 +1,5 @@
 import { setupGlobalFetchMock } from '@sim/testing/mocks'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,8 +13,7 @@ const admission = vi.hoisted(() => ({
   setCooldown: vi.fn(),
   cooldowns: new Map<string, Date>(),
 }))
-const { getBYOKKey } = vi.hoisted(() => ({ getBYOKKey: vi.fn() }))
-vi.mock('@/lib/api-key/byok', () => ({ getBYOKKey }))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
   createStorageAdapter: () => ({
     consumeTokensAtomically: admission.consume,
@@ -26,6 +26,8 @@ import { env } from '@/lib/core/config/env'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const getBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
 
 const envSnapshot = { ...env }
 
@@ -65,7 +67,6 @@ describe('Knowledge reranker model boundary', () => {
   afterEach(() => {
     vi.useRealTimers()
     resetEnvFlagsMock()
-    vi.unstubAllGlobals()
     for (const key of Object.keys(env)) delete (env as Record<string, unknown>)[key]
     Object.assign(env, envSnapshot)
   })

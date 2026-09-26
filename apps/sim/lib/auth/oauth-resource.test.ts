@@ -1,7 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
-
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   bindOAuthIssuedResource,
   getOAuthIssuedResource,
@@ -10,6 +8,9 @@ import {
   parseOAuthResource,
   withOAuthResourceIssuance,
 } from '@/lib/auth/oauth-resource'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+afterAll(resetUrlsMock)
 
 const resource = 'https://sim.example/api/mcp/search/organizations/org-one'
 const simMcpResource = 'https://sim.example/api/mcp'

@@ -1,14 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, expect, it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import {
   MOTHERSHIP_ADD_CONTEXT_EVENT,
   type MothershipAddContextDetail,
 } from '@/lib/mothership/events'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
-
-afterEach(() => vi.restoreAllMocks())
 
 function mockEditor() {
   return {

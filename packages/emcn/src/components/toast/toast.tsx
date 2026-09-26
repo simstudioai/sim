@@ -694,7 +694,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   key='toast-stack'
                   aria-live='polite'
                   aria-label='Notifications'
-                  data-native-surface-overlay=''
+                  data-native-surface-overlay='passive'
                   /*
                    * The stack is portalled to `<body>`, so it shares no ancestor
                    * with the panel or terminal it insets by. A resize drag writes

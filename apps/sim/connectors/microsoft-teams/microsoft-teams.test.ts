@@ -1,15 +1,17 @@
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ MicrosoftTeamsIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { microsoftTeamsConnector } from '@/connectors/microsoft-teams/microsoft-teams'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const TEAM_ID = 'team-1'

@@ -5,6 +5,7 @@
  * mocked here are the canonical reads, the workspace permission resolver, and
  * the deployment orchestration — not a route-local access helper.
  */
+
 import {
   auditMock,
   auditMockFns,
@@ -17,36 +18,37 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
   getChatDeploymentWithWorkspace: vi.fn(),
   getIdentifierOwner: vi.fn(),
   updateChatDeploymentRow: vi.fn(),
-  getWorkflowDeploymentSummary: vi.fn(),
-  performFullDeploy: vi.fn(),
-  performChatUndeploy: vi.fn(),
-  checkNeedsRedeployment: vi.fn(),
-  validateChatDeployAuth: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
   getChatDeploymentWithWorkspace: mocks.getChatDeploymentWithWorkspace,
   getChatDeploymentIdOwningIdentifier: mocks.getIdentifierOwner,
@@ -54,20 +56,15 @@ vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: vi.fn(),
 }))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/workflows/orchestration', () => ({
-  getWorkflowDeploymentSummary: mocks.getWorkflowDeploymentSummary,
-  performFullDeploy: mocks.performFullDeploy,
-  performChatUndeploy: mocks.performChatUndeploy,
-  performChatDeploy: vi.fn(),
-}))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.checkNeedsRedeployment,
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateChatDeployAuth: mocks.validateChatDeployAuth,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import { GET, PATCH } from '@/app/api/chat/manage/[id]/route'
+
+const { mockGetWorkflowDeploymentSummary, mockPerformFullDeploy, mockPerformChatUndeploy } =
+  workflowsOrchestrationMockFns
+const { mockCheckNeedsRedeployment } = workflowDeploymentStatusMockFns
 
 const CHAT_ID = 'chat-123'
 const WORKFLOW_ID = 'workflow-1'
@@ -97,17 +94,17 @@ function chatRow(overrides: Record<string, unknown> = {}) {
 }
 
 function patchRequest(body: unknown) {
-  return new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`, {
+  return createMockRequest({
     method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    url: `http://localhost:3000/api/chat/manage/${CHAT_ID}`,
+    body,
   })
 }
 
-const params = { params: Promise.resolve({ id: CHAT_ID }) }
+const params = createRouteContext({ id: CHAT_ID })
 
 async function patch(body: unknown) {
-  return PATCH(patchRequest(body), { params: Promise.resolve({ id: CHAT_ID }) })
+  return PATCH(patchRequest(body), createRouteContext({ id: CHAT_ID }))
 }
 
 /** The column values the update use case settled on, as written to the row. */
@@ -132,8 +129,8 @@ describe('internal chat deployment routes', () => {
       user: { id: 'admin-1', name: 'Admin', email: 'admin@example.com' },
       session: { id: 'session-1' },
     })
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.loadWorkspaceContext.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
@@ -145,19 +142,19 @@ describe('internal chat deployment routes', () => {
     })
     mocks.getIdentifierOwner.mockResolvedValue(null)
     mocks.updateChatDeploymentRow.mockImplementation(async (_id, values) => chatRow({ ...values }))
-    mocks.getWorkflowDeploymentSummary.mockResolvedValue({
+    mockGetWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment: { deploymentVersionId: 'dv-1', version: 1, deployedAt: null },
       latestDeploymentAttempt: null,
       warnings: [],
     })
-    mocks.checkNeedsRedeployment.mockResolvedValue(false)
-    mocks.performFullDeploy.mockResolvedValue({
+    mockCheckNeedsRedeployment.mockResolvedValue(false)
+    mockPerformFullDeploy.mockResolvedValue({
       success: true,
       version: 2,
       latestDeploymentAttempt: { status: 'active' },
     })
-    mocks.performChatUndeploy.mockResolvedValue({ success: true })
-    mocks.validateChatDeployAuth.mockResolvedValue(undefined)
+    mockPerformChatUndeploy.mockResolvedValue({ success: true })
+    permissionCheckMockFns.mockValidateChatDeployAuth.mockResolvedValue(undefined)
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
   })
 
@@ -169,7 +166,7 @@ describe('internal chat deployment routes', () => {
       })
 
       const response = await GET(
-        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        createMockRequest({ url: `http://localhost:3000/api/chat/manage/${CHAT_ID}` }),
         params
       )
       const body = await response.json()
@@ -196,7 +193,7 @@ describe('internal chat deployment routes', () => {
     it('answers a missing and an unreachable deployment identically', async () => {
       mocks.getChatDeploymentWithWorkspace.mockResolvedValue(null)
       const missing = await GET(
-        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        createMockRequest({ url: `http://localhost:3000/api/chat/manage/${CHAT_ID}` }),
         params
       )
       const missingBody = await missing.json()
@@ -205,9 +202,9 @@ describe('internal chat deployment routes', () => {
         chat: chatRow(),
         workspaceId: WORKSPACE_ID,
       })
-      mocks.resolvePermission.mockResolvedValue(null)
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
       const unreachable = await GET(
-        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        createMockRequest({ url: `http://localhost:3000/api/chat/manage/${CHAT_ID}` }),
         params
       )
       const unreachableBody = await unreachable.json()
@@ -218,10 +215,10 @@ describe('internal chat deployment routes', () => {
     })
 
     it('refuses a workspace member below admin the gate configuration', async () => {
-      mocks.resolvePermission.mockResolvedValue('read')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
 
       const response = await GET(
-        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        createMockRequest({ url: `http://localhost:3000/api/chat/manage/${CHAT_ID}` }),
         params
       )
 
@@ -306,7 +303,7 @@ describe('internal chat deployment routes', () => {
     })
 
     it('refuses a mode the permission group blocks', async () => {
-      mocks.validateChatDeployAuth.mockRejectedValue(
+      permissionCheckMockFns.mockValidateChatDeployAuth.mockRejectedValue(
         new PermissionGroupCapabilityError(
           'deploy.chat.auth_mode',
           'CHAT_AUTH_MODE_NOT_PERMITTED',
@@ -338,7 +335,7 @@ describe('internal chat deployment routes', () => {
 
     describe('redeploy gating', () => {
       it('refuses with 409 while a deployment attempt is in flight, admitting no new version', async () => {
-        mocks.getWorkflowDeploymentSummary.mockResolvedValue({
+        mockGetWorkflowDeploymentSummary.mockResolvedValue({
           activeDeployment: null,
           latestDeploymentAttempt: { status: 'preparing' },
           warnings: [],
@@ -350,7 +347,7 @@ describe('internal chat deployment routes', () => {
         expect((await response.json()).error).toBe(
           'A workflow deployment is still preparing. Retry the chat update after it becomes active.'
         )
-        expect(mocks.performFullDeploy).not.toHaveBeenCalled()
+        expect(mockPerformFullDeploy).not.toHaveBeenCalled()
         expect(mocks.updateChatDeploymentRow).not.toHaveBeenCalled()
       })
 
@@ -360,8 +357,8 @@ describe('internal chat deployment routes', () => {
        * version with no error.
        */
       it('refuses with 409 when the admitted deploy has not cut over, leaving the row untouched', async () => {
-        mocks.checkNeedsRedeployment.mockResolvedValue(true)
-        mocks.performFullDeploy.mockResolvedValue({
+        mockCheckNeedsRedeployment.mockResolvedValue(true)
+        mockPerformFullDeploy.mockResolvedValue({
           success: true,
           version: 2,
           warnings: ['Webhook sync still pending'],

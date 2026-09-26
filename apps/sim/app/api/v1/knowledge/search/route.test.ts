@@ -6,32 +6,40 @@
  */
 
 import { createMockRequest, knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveV1KnowledgeReadAccess,
-  mockExecuteKnowledgeSearch,
-  mockRetrievalStatus,
-  mockGenerateSearchEmbedding,
-  mockGetDocumentTagDefinitions,
-  mockAuthenticateRequest,
-  mockValidateWorkspaceAccess,
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-  mockRecordSearchEmbeddingUsage,
-} = vi.hoisted(() => ({
-  mockResolveV1KnowledgeReadAccess: vi.fn(),
-  mockExecuteKnowledgeSearch: vi.fn(),
-  mockRetrievalStatus: vi.fn(() => ({ status: 'complete', timedOutLegs: [] })),
-  mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentTagDefinitions: vi.fn(),
-  mockAuthenticateRequest: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockRecordSearchEmbeddingUsage: vi.fn(),
-}))
+const { mockResolveV1KnowledgeReadAccess, mockExecuteKnowledgeSearch, mockRetrievalStatus } =
+  vi.hoisted(() => ({
+    mockResolveV1KnowledgeReadAccess: vi.fn(),
+    mockExecuteKnowledgeSearch: vi.fn(),
+    mockRetrievalStatus: vi.fn(() => ({ status: 'complete', timedOutLegs: [] })),
+  }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
   actorUserId: 'owner-after-transfer',
@@ -46,10 +54,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-/** The route's defaults depend on member-access availability; pin it so the local flag cannot change the expectations. */
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: async () => false,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
   /** The route reads the retrieval result; the rows come from the same mock the tests drive. */
@@ -61,31 +66,14 @@ vi.mock('@/lib/knowledge/search/queries', () => ({
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkSearchUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateSearchEmbedding: mockGenerateSearchEmbedding,
-  recordSearchEmbeddingUsage: mockRecordSearchEmbeddingUsage,
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  authenticateRequest: mockAuthenticateRequest,
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'workspace' ? null : (rateLimit.userId ?? null),
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
   resolveV1KnowledgeReadAccess: mockResolveV1KnowledgeReadAccess,
@@ -95,13 +83,28 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
     }),
 }))
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import { POST } from '@/app/api/v1/knowledge/search/route'
 
+const { mockGetDocumentTagDefinitions } = knowledgeTagsServiceMockFns
+const { mockGenerateSearchEmbedding, mockRecordSearchEmbeddingUsage } = knowledgeEmbeddingsMockFns
+
+billingUsageGateCacheMockFns.mockCheckSearchUsageLimits.mockResolvedValue({ isExceeded: false })
+
+billingUsageMonitorMockFns.mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+const { mockAuthenticateRequest, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCapabilityGovernedUserId.mockImplementation(
+  (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'workspace' ? null : (rateLimit.userId ?? null)
+)
+
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
+const { mockResolveBillingAttribution, mockResolveSystemBillingAttribution } =
+  billingAttributionMockFns
+
+/** The route's defaults depend on member-access availability; pin it so the local flag cannot change the expectations. */
+knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(false)
 
 const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) => ({
   id,

@@ -10,6 +10,18 @@ import {
   resetEnvFlagsMock,
   workflowsUtilsMock,
 } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
 import JSZip from 'jszip'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,37 +42,14 @@ import {
 } from '@/lib/execution/remote-sandbox/output-limits'
 
 const {
-  mockExecuteInSandbox,
   mockExecuteInIsolatedVM,
-  mockExecuteShellInSandbox,
-  mockFetchWorkspaceFileBuffer,
-  mockDecryptSecret,
-  mockEncryptSecret,
-  mockGetWorkspaceFile,
-  mockResolveWorkspaceFileReference,
-  mockUpdateWorkspaceFileContent,
-  mockUploadFile,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
   mockMountContributors,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
-  mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
-  mockExecuteShellInSandbox: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockDecryptSecret: vi.fn(async (value: string) => ({
-    decrypted: value === 'encrypted:mounted-secret' ? 'mounted-secret' : value,
-  })),
-  mockEncryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${value}`,
-    iv: 'iv',
-  })),
-  mockGetWorkspaceFile: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockUpdateWorkspaceFileContent: vi.fn(),
-  mockUploadFile: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
@@ -68,20 +57,13 @@ const {
   mockRenderedMountContributors: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: mockExecuteInSandbox,
-  executeShellInSandbox: mockExecuteShellInSandbox,
-  SIM_RESULT_PREFIX: '__SIM_RESULT__=',
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
   buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
@@ -132,29 +114,22 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
-  getWorkspaceFile: mockGetWorkspaceFile,
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-  updateWorkspaceFileContent: mockUpdateWorkspaceFileContent,
-  uploadWorkspaceFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: {
-    execute: vi.fn(async () => ({ content: await mockFetchWorkspaceFileBuffer() })),
+    execute: vi.fn(async () => ({
+      content: await workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer(),
+    })),
   },
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
@@ -199,6 +174,20 @@ import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import * as fileMaterialization from '@/lib/execution/payloads/materialization.server'
 import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockFetchWorkspaceFileBuffer, mockGetWorkspaceFile, mockUpdateWorkspaceFileContent } =
+  workspaceFileManagerMockFns
+const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
+const { mockExecuteInSandbox, mockExecuteShellInSandbox } = remoteSandboxMockFns
+const { mockUploadFile } = storageServiceMockFns
+const { mockDecryptSecret, mockEncryptSecret } = encryptionMockFns
+mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: value === 'encrypted:mounted-secret' ? 'mounted-secret' : value,
+}))
+mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${value}`,
+  iv: 'iv',
+}))
 
 async function POST(
   request: NextRequest,

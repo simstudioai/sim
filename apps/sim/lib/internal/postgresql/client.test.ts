@@ -1,18 +1,21 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PostgresConnectionConfig } from '@/tools/postgresql/types'
 
-const { mockValidateDatabaseHost, mockPostgres } = vi.hoisted(() => ({
-  mockValidateDatabaseHost: vi.fn(),
+const { mockPostgres } = vi.hoisted(() => ({
   mockPostgres: vi.fn(() => ({})),
 }))
 
 vi.mock('postgres', () => ({ default: mockPostgres }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { createPostgresClient } from '@/lib/internal/postgresql/client'
+
+const { mockValidateDatabaseHost } = inputValidationMockFns
 
 function makeConfig(overrides: Partial<PostgresConnectionConfig> = {}): PostgresConnectionConfig {
   return {

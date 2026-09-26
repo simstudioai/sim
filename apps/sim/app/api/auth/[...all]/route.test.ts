@@ -20,10 +20,6 @@ vi.mock('better-auth/next-js', () => ({
   }),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  auth: { handler: {} },
-}))
-
 vi.mock('@/lib/auth/anonymous', () => ({
   ensureAnonymousUserExists: handlerMocks.ensureAnonymousUserExists,
   createAnonymousSession: handlerMocks.createAnonymousSession,

@@ -16,6 +16,7 @@ import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/bi
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
+import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
@@ -57,6 +58,18 @@ export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExe
 })
 
 export const KNOWLEDGE_BASE_NOT_FOUND_MESSAGE = 'Knowledge base not found'
+
+/**
+ * Answers an indexed-only surface refused while indexed organization search is dormant with a
+ * `409`: the request is well formed and authorized, and the deployment's state is what refuses it.
+ */
+function refuseDormantSearchIndex(base: InternalErrorPolicy): InternalErrorPolicy {
+  return extendInternalErrorPolicy(base, (error) =>
+    error instanceof SearchIndexDormantError
+      ? internalErrorResponse(409, { error: error.message })
+      : null
+  )
+}
 
 /**
  * Conceals a knowledge-base-scoped internal policy the way the v2 knowledge
@@ -111,8 +124,12 @@ export const internalKnowledgeErrorPolicies = {
   tags: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
-  connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
-  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
+  connectors: concealKnowledgeBase(
+    refuseDormantSearchIndex(internalKnowledgeErrorPolicy('Internal server error'))
+  ),
+  connectAccount: concealKnowledgeBase(
+    refuseDormantSearchIndex(internalPersonalCredentialConnectionErrorPolicy)
+  ),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 

@@ -1,18 +1,20 @@
 import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockGetTableById, mockPerformRestoreTable } = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
+const { mockPerformRestoreTable } = vi.hoisted(() => ({
   mockPerformRestoreTable: vi.fn(),
 }))
 
-vi.mock('@/lib/table', () => ({ getTableById: mockGetTableById }))
+vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/orchestration', () => ({ performRestoreTable: mockPerformRestoreTable }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { POST } from '@/app/api/table/[tableId]/restore/route'
+
+const { mockGetTableById } = tableMockFns
 
 const TABLE = {
   id: 'tbl_1',

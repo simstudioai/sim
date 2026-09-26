@@ -1,25 +1,20 @@
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const {
-  mockCheckInternalApiKey,
-  mockPrepareEnvironmentContext,
-  mockHandler,
-  mockToolRequiresApprovalLane,
-} = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
-  mockPrepareEnvironmentContext: vi.fn(),
+const { mockHandler, mockToolRequiresApprovalLane } = vi.hoisted(() => ({
   mockHandler: vi.fn(),
   mockToolRequiresApprovalLane: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mockPrepareEnvironmentContext,
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
 vi.mock('@/lib/mothership/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
@@ -38,16 +33,14 @@ vi.mock('@/lib/mothership/request/tools/resources', () => ({
   handleResourceSideEffects: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: Headers,
-    _span: string,
-    _attrs: undefined,
-    fn: (span: { setAttributes: () => void }) => Promise<Response>
-  ) => fn({ setAttributes: () => {} }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import { POST } from '@/app/api/copilot/tools/execute/route'
+
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+
+const mockPrepareEnvironmentContext =
+  mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext
 
 function makeRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/api/copilot/tools/execute', {

@@ -30,7 +30,6 @@ const INPUT = {
 describe('provider admission', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({
       KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,

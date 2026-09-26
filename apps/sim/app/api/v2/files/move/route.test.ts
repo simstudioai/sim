@@ -5,7 +5,9 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecute } = vi.hoisted(() => ({
@@ -14,14 +16,7 @@ const { mockExecute } = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   moveWorkspaceFileItemsOperation: {
     operation: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
@@ -34,7 +29,7 @@ import { POST } from '@/app/api/v2/files/move/route'
 
 const WS = 'workspace-1'
 const auth = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: WS, keyId: 'key-1' },
+  principal: createWorkspaceApiKeyPrincipal({ workspaceId: WS }),
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WS}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -42,10 +37,11 @@ const auth = {
 
 const callMove = (body: unknown) =>
   POST(
-    new NextRequest('http://localhost:3000/api/v2/files/move', {
+    createMockRequest({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'key' },
-      body: JSON.stringify(body),
+      url: 'http://localhost:3000/api/v2/files/move',
+      headers: { 'x-api-key': 'key' },
+      body,
     })
   )
 

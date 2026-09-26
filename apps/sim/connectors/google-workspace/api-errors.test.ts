@@ -15,7 +15,6 @@ function failure(status: number, reason: string, headers?: Record<string, string
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 

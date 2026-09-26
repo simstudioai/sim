@@ -1,3 +1,7 @@
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
@@ -12,18 +16,6 @@ const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApprov
     toolRequiresApproval: vi.fn().mockReturnValue(false),
   })
 )
-
-const {
-  upsertAsyncToolCall,
-  markAsyncToolRunning,
-  completeAsyncToolCall,
-  claimWorkflowToolExecution,
-} = vi.hoisted(() => ({
-  upsertAsyncToolCall: vi.fn(),
-  markAsyncToolRunning: vi.fn(),
-  completeAsyncToolCall: vi.fn(),
-  claimWorkflowToolExecution: vi.fn().mockResolvedValue(null),
-}))
 
 const { waitForClientToolCompletion, waitForToolCompletion, waitForWorkflowToolCompletion } =
   vi.hoisted(() => ({
@@ -44,24 +36,7 @@ vi.mock('@/lib/mothership/tool-executor', () => ({
   toolRequiresApproval,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment: vi.fn(),
-  updateRunStatus: vi.fn(),
-  getLatestRunForExecution: vi.fn(),
-  getLatestRunForStream: vi.fn(),
-  getRunSegment: vi.fn(),
-  createRunCheckpoint: vi.fn(),
-  getAsyncToolCall: vi.fn(),
-  markAsyncToolStatus: vi.fn(),
-  listAsyncToolCallsForRun: vi.fn(),
-  getAsyncToolCalls: vi.fn(),
-  claimCompletedAsyncToolCall: vi.fn(),
-  releaseCompletedAsyncToolClaim: vi.fn(),
-  upsertAsyncToolCall,
-  markAsyncToolRunning,
-  completeAsyncToolCall,
-  claimWorkflowToolExecution,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 /** Table side effects are not exercised here, and the real module loads the table application layer. */
 vi.mock('@/lib/mothership/request/tools/tables', () => ({
@@ -105,6 +80,14 @@ import type {
   StreamingContext,
 } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const {
+  mockUpsertAsyncToolCall: upsertAsyncToolCall,
+  mockMarkAsyncToolRunning: markAsyncToolRunning,
+  mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockClaimWorkflowToolExecution: claimWorkflowToolExecution,
+} = mothershipAsyncRunsMockFns
+claimWorkflowToolExecution.mockResolvedValue(null)
 
 describe('sse-handlers tool lifecycle', () => {
   let context: StreamingContext

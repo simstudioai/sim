@@ -36,8 +36,6 @@ afterEach(async () => {
   await vi.advanceTimersByTimeAsync(10)
   host.remove()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 async function render(
   value = 'before TARGET after',

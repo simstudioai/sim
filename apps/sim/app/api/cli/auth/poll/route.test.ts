@@ -1,4 +1,5 @@
 import { createMockRequest } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -8,7 +9,6 @@ const {
   mockGenerateCopilotApiKey,
   mockCreatePersonalApiKey,
   mockCreateWorkspaceApiKey,
-  mockEnforceIpRateLimit,
 } = vi.hoisted(() => ({
   mockPollApproval: vi.fn(),
   mockCompleteApproval: vi.fn(),
@@ -16,7 +16,6 @@ const {
   mockGenerateCopilotApiKey: vi.fn(),
   mockCreatePersonalApiKey: vi.fn(),
   mockCreateWorkspaceApiKey: vi.fn(),
-  mockEnforceIpRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/cli-auth/approval-store', () => ({
@@ -35,11 +34,11 @@ vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: mockCreateWorkspaceApiKey,
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceIpRateLimit: mockEnforceIpRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { POST } from '@/app/api/cli/auth/poll/route'
+
+const mockEnforceIpRateLimit = rateLimiterMockFns.mockEnforceIpRateLimit
 
 const REQUEST = 'a'.repeat(43)
 const VERIFIER = 'b'.repeat(43)

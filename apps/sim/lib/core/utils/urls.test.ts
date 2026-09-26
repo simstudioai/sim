@@ -1,17 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetEnv } = vi.hoisted(() => ({
-  mockGetEnv: vi.fn<(key: string) => string | undefined>(),
-}))
+import { envMockFns, setEnv } from '@sim/testing/mocks/env.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/core/utils/urls')
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  getEnv: mockGetEnv,
-}))
 
 import {
   getBaseUrl,
@@ -21,6 +14,9 @@ import {
   isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
+
+const mockGetEnv = envMockFns.getEnv
+setEnv({ SOCKET_SERVER_URL: undefined })
 
 function setLocation(url: string) {
   Object.defineProperty(window, 'location', {
@@ -34,10 +30,6 @@ describe('getBaseUrl', () => {
   beforeEach(() => {
     mockGetEnv.mockReset()
     mockGetEnv.mockReturnValue(undefined)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('uses NEXT_PUBLIC_APP_URL when set', () => {
@@ -94,10 +86,6 @@ describe('getSocketUrl', () => {
   beforeEach(() => {
     mockGetEnv.mockReset()
     mockGetEnv.mockReturnValue(undefined)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('uses NEXT_PUBLIC_SOCKET_URL when explicitly set', () => {

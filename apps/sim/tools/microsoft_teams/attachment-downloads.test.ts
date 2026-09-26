@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import { readChannelTool } from '@/tools/microsoft_teams/read_channel'
@@ -26,9 +26,6 @@ const reference = {
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
-})
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('Teams attachment downloads', () => {

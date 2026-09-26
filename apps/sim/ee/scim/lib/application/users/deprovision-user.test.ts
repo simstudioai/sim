@@ -1,36 +1,44 @@
 import { db } from '@sim/db'
 import { member, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  removeUser: vi.fn(),
-  reconcileSeats: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   endDirectoryMembership: vi.fn(),
   findScimUserById: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  removeUserFromOrganization: mocks.removeUser,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/ee/scim/lib/identity/end-directory-membership', () => ({
-  endDirectoryMembershipTx: mocks.endDirectoryMembership,
+  endDirectoryMembershipTx: hoistedMocks.endDirectoryMembership,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  findScimUserById: mocks.findScimUserById,
+  findScimUserById: hoistedMocks.findScimUserById,
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
 import { deprovisionScimUser } from '@/ee/scim/lib/application/users/deprovision-user'
 import { ScimError } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  ...hoistedMocks,
+  reconcileSeats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  removeUser: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',

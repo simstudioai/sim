@@ -66,7 +66,6 @@ describe('knowledge operation registry', () => {
     const operations = [
       knowledgeOperations.updateDocument,
       knowledgeOperations.addWorkspaceFiles,
-      knowledgeOperations.bulkDeleteDocuments,
       knowledgeOperations.createTag,
       knowledgeOperations.updateTag,
       knowledgeOperations.deleteTag,

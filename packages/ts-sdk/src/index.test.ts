@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SDK_VERSION, SimStudioClient } from './index'
 
 const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', mockFetch)
+})
 
 function v2ExecutionResponse(output: unknown = {}, status = 'completed') {
   return {

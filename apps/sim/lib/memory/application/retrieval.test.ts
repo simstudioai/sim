@@ -1,20 +1,29 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ workspace: vi.fn(), permission: vi.fn(), read: vi.fn() }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
+const hoisted = vi.hoisted(() => ({
+  read: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.permission,
-  permissionSatisfies: (actual: string | null) => ['read', 'write', 'admin'].includes(actual ?? ''),
-}))
-vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: mocks.read }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/memory/conversation-store', () => ({ readConversationItems: hoisted.read }))
 vi.mock('@/lib/memory/retrieval-prefix', () => ({
   readMemoryRetrievalPrefix: async () => ({ status: 'missing' }),
 }))
 
 import { retrieveAgentMemoryUseCase } from '@/lib/memory/application/retrieval'
+
+const mocks = {
+  ...hoisted,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const input = {
   workspaceId: 'workspace-1',
@@ -36,7 +45,7 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
       executionId: 'execution-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment',
@@ -74,7 +83,7 @@ describe('Agent memory retrieval authorization', () => {
   it('rejects unsupported principal kinds before canonical loading', async () => {
     await expect(
       retrieveAgentMemoryUseCase.execute({
-        principal: { kind: 'session', sessionId: 'session-1', userId: 'user-1' },
+        principal: createSessionPrincipal(),
         input,
       })
     ).rejects.toThrow()

@@ -1,11 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseJSONBuffer, parseJSONLBuffer } from '@/lib/file-parsers/json-parser'
 
 describe('JSON parser complexity limits', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('rejects excessive nesting before serializing the parsed value', async () => {
     const content = `${'['.repeat(501)}0${']'.repeat(501)}`
     const stringify = vi.spyOn(JSON, 'stringify')

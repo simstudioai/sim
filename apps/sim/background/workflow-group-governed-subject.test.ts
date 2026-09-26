@@ -1,36 +1,52 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  executeWorkflowMock,
+  executeWorkflowMockFns,
+} from '@sim/testing/mocks/execute-workflow.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: vi.fn(),
-  createProvenanceReader: vi.fn(),
-  pickNextEligibleGroupForRow: vi.fn(),
-  stashCellContextForResume: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
   createWorkflowCellProgressWriter: vi.fn(),
-  loadDeployedWorkflowState: vi.fn(),
-  executeWorkflow: vi.fn(),
-  preprocessExecution: vi.fn(),
-  exportProvenance: vi.fn(),
   findStartBlock: vi.fn(),
   flattenWorkflowOutputs: vi.fn(),
   normalizeInputFormatValue: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({
-  getRowById: mocks.getRowById,
-  getRowSummaryById: mocks.getRowSummaryById,
-  updateRow: vi.fn(),
-}))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  pickNextEligibleGroupForRow: mocks.pickNextEligibleGroupForRow,
-  stashCellContextForResume: mocks.stashCellContextForResume,
-  buildWorkflowGroupExecutionCorrelation: () => ({}),
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: (prev: { executionId: string | null; workflowId: string }) => ({
     status: 'cancelled',
@@ -39,62 +55,42 @@ vi.mock('@/lib/table/cell-write', () => ({
     workflowId: prev.workflowId,
     error: 'Cancelled',
   }),
-  createWorkflowCellProgressWriter: mocks.createWorkflowCellProgressWriter,
-  writeWorkflowGroupState: mocks.writeWorkflowGroupState,
-  markWorkflowGroupPickedUp: mocks.markWorkflowGroupPickedUp,
+  createWorkflowCellProgressWriter: hoisted.createWorkflowCellProgressWriter,
+  writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
+  markWorkflowGroupPickedUp: hoisted.markWorkflowGroupPickedUp,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: () => ({ status: 'completed', error: null }),
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/dispatcher', () => ({
   readDispatch: async () => ({ id: 'tdsp_1', status: 'dispatching' }),
   completeDispatchIfActive: vi.fn(),
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployedWorkflowState,
-}))
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
-  executeWorkflow: mocks.executeWorkflow,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 vi.mock('@/lib/workflows/triggers/triggers', () => ({
-  TriggerUtils: { findStartBlock: mocks.findStartBlock },
+  TriggerUtils: { findStartBlock: hoisted.findStartBlock },
 }))
 vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
-  flattenWorkflowOutputs: mocks.flattenWorkflowOutputs,
+  flattenWorkflowOutputs: hoisted.flattenWorkflowOutputs,
 }))
 vi.mock('@/lib/workflows/input-format', () => ({
-  normalizeInputFormatValue: mocks.normalizeInputFormatValue,
+  normalizeInputFormatValue: hoisted.normalizeInputFormatValue,
 }))
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mocks.preprocessExecution,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/table/admission-retry', () => ({
   retryTableAdmission: (fn: () => Promise<unknown>) => fn(),
 }))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
-  createTableRowSecretProvenanceFromRegistry: () => ({ complete: true, columns: {} }),
-  TableRowProvenanceReader: class {
-    constructor(scope: unknown, selectedColumnIds: unknown) {
-      mocks.createProvenanceReader(scope, selectedColumnIds)
-    }
-    exportProvenance = mocks.exportProvenance
-  },
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
     importCrossingProvenance = vi.fn()
     exportCheckpointProvenance = vi.fn(() => undefined)
   },
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-  toBillingContext: () => ({}),
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: async () => ({ isExceeded: false }),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 /** Real pacing would sleep jittered backoff against the global db mock. */
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: class {
@@ -103,6 +99,24 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 }))
 
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
+
+billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
+
+const mocks = {
+  ...hoisted,
+  executeWorkflow: executeWorkflowMockFns.mockExecuteWorkflow,
+  getRowById: tableRowsServiceMockFns.mockGetRowById,
+  getRowSummaryById: tableRowsServiceMockFns.mockGetRowSummaryById,
+  createProvenanceReader: tableRowsSecretProvenanceMockFns.mockTableRowProvenanceReader,
+  exportProvenance: tableRowsSecretProvenanceMockFns.mockTableRowProvenanceReaderExportProvenance,
+  pickNextEligibleGroupForRow: tableWorkflowColumnsMockFns.mockPickNextEligibleGroupForRow,
+  stashCellContextForResume: tableWorkflowColumnsMockFns.mockStashCellContextForResume,
+}
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
+billingAttributionMockFns.mockToBillingContext.mockReturnValue({} as never)
 
 const GROUP = {
   id: 'group-1',
@@ -163,12 +177,19 @@ describe('the workflow half of a table cell', () => {
 
   beforeEach(() => {
     resetDbChainMock()
+    tableWorkflowColumnsMockFns.mockBuildWorkflowGroupExecutionCorrelation.mockReturnValue(
+      {} as never
+    )
+    tableRowsSecretProvenanceMockFns.mockCreateExactEmptyTableRowSecretProvenance.mockReturnValue({
+      complete: true,
+      columns: {},
+    })
     mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
       mocks.getRowById(tableId, rowId, workspaceId)
     )
     mocks.flattenWorkflowOutputs.mockReturnValue([])
     mocks.normalizeInputFormatValue.mockReturnValue([])
-    mocks.getTableById.mockResolvedValue(TABLE)
+    mockGetTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({
       id: 'row-1',
       data: {},
@@ -178,7 +199,7 @@ describe('the workflow half of a table cell', () => {
     mocks.pickNextEligibleGroupForRow.mockReturnValue(null)
     mocks.writeWorkflowGroupState.mockResolvedValue('wrote')
     mocks.markWorkflowGroupPickedUp.mockResolvedValue('picked-up')
-    mocks.loadDeployedWorkflowState.mockResolvedValue({ blocks: {}, edges: [] })
+    mockLoadDeployedWorkflowState.mockResolvedValue({ blocks: {}, edges: [] })
     mocks.findStartBlock.mockReturnValue({ blockId: 'start-1', block: { subBlocks: {} } })
     mocks.exportProvenance.mockReturnValue({
       scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
@@ -193,7 +214,7 @@ describe('the workflow half of a table cell', () => {
       getBlockErrors: () => ({}),
       getPendingSecretProvenance: () => undefined,
     })
-    mocks.preprocessExecution.mockResolvedValue({
+    mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'workspace-billing-owner',
       actorSubscription: null,
@@ -239,7 +260,7 @@ describe('the workflow half of a table cell', () => {
       }
       mocks.flattenWorkflowOutputs.mockReturnValue([{ blockId: 'agent', path: 'content' }])
       mocks.normalizeInputFormatValue.mockReturnValue([{ name: 'explicit' }])
-      mocks.getTableById.mockResolvedValue({
+      mockGetTableById.mockResolvedValue({
         ...TABLE,
         schema: {
           columns: [

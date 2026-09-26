@@ -1,27 +1,21 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolveDocument: vi.fn(),
-  resolvePermission: vi.fn(),
   queryChunks: vi.fn(),
   batchChunkOperation: vi.fn(),
   createChunk: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveDocument,
-  resolveActiveKnowledgeChunkContext: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
 vi.mock('@/lib/knowledge/chunks/service', () => ({
   batchChunkOperation: mocks.batchChunkOperation,
@@ -40,7 +34,7 @@ vi.mock('@/lib/knowledge/model-input-provenance', () => ({
     execute(),
 }))
 
-vi.mock('@/providers/utils', () => ({ calculateCost: vi.fn() }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
@@ -49,8 +43,8 @@ import { bulkUpdateKnowledgeChunks, listKnowledgeChunks } from '@/lib/knowledge/
 
 describe('knowledge chunk application use cases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveDocument.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
@@ -65,7 +59,7 @@ describe('knowledge chunk application use cases', () => {
 
   it('returns a typed transient failure before querying chunks for a processing document', async () => {
     const promise = listKnowledgeChunks.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { knowledgeBaseId: 'knowledge-1', documentId: 'document-1' },
     })
 
@@ -84,8 +78,8 @@ describe('knowledge chunk application use cases', () => {
    * chunk writes publicly makes it a 403 a client has to branch on.
    */
   it('refuses a write to a connector-synced document with a machine-readable cause', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveDocument.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
@@ -98,7 +92,7 @@ describe('knowledge chunk application use cases', () => {
     })
 
     const promise = bulkUpdateKnowledgeChunks.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         knowledgeBaseId: 'knowledge-1',
         documentId: 'document-1',

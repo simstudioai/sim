@@ -1,4 +1,5 @@
 /** Real PostgreSQL coverage for storage ownership changes and document lifecycle accounting. */
+
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -14,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -432,13 +434,11 @@ describe('knowledge document storage ledgers', () => {
       '../../packages/db/scripts/reconcile-workspace-storage.ts'
     )
     const run = promisify(execFile)
-    const databaseUrl = process.env.TEST_DATABASE_URL
-    if (!databaseUrl) throw new Error('Missing isolated reconciliation database')
     for (let attempt = 0; attempt < 2; attempt++) {
       await run('bun', [script], {
         env: {
           ...process.env,
-          MIGRATION_DATABASE_URL: databaseUrl,
+          MIGRATION_DATABASE_URL: readTestDatabaseUrl(),
           WORKSPACE_STORAGE_RECONCILE_ACK: 'old-apps-drained',
         },
         timeout: 30_000,

@@ -1,10 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateGoogleCompanyConfig } from '@/connectors/google-drive/company-crawl'
 import { googleDriveConnector as drive } from '@/connectors/google-drive/google-drive'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { listGoogleWorkspaceUsers } from '@/connectors/google-workspace/users'
-
-vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
 
 const mockFetch = vi.fn()
 const CONFIG = { adminEmail: 'admin@corp.com' }
@@ -68,7 +66,6 @@ beforeEach(() => {
   mockFetch.mockReset()
   vi.stubGlobal('fetch', mockFetch)
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Google Drive company-wide crawl', () => {
   it('indexes private files for multiple users without granting either user access to the other', async () => {

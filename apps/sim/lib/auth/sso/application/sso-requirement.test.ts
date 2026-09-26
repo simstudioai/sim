@@ -1,5 +1,4 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -7,34 +6,33 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorize,
-  mockRecordAudit,
-  mockIsEntitled,
-  mockHasProvider,
-  mockIsRequired,
-  mockInvalidate,
-} = vi.hoisted(() => ({
-  mockAuthorize: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockIsEntitled: vi.fn(),
+const { mockHasProvider, mockIsRequired, mockInvalidate } = vi.hoisted(() => ({
   mockHasProvider: vi.fn(),
   mockIsRequired: vi.fn(),
   mockInvalidate: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mockAuthorize,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mockRecordAudit,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mockIsEntitled,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/auth/sso/verified-provider', () => ({
   hasSignInCapableSsoProvider: mockHasProvider,
 }))
@@ -45,7 +43,11 @@ vi.mock('@/lib/auth/sso-policy', () => ({
 
 import { readSsoRequirement, setSsoRequirement } from '@/lib/auth/sso/application/sso-requirement'
 
-const principal = { kind: 'session', userId: 'u1', sessionId: 's1' } as const
+const mockRecordAudit = authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries
+const mockIsEntitled = billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled
+const mockAuthorize = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
 const ORG_ID = 'org1'
 
 beforeAll(() => {

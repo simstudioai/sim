@@ -9,10 +9,6 @@ vi.mock('@/blocks', () => ({
   getBlock: mockGetBlock,
 }))
 
-vi.mock('@/tools/metadata', () => ({
-  getToolParams: vi.fn(() => undefined),
-}))
-
 import { Serializer } from '@/serializer'
 
 describe('Serializer private inputs', () => {

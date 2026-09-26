@@ -1,3 +1,4 @@
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpClient } from '@/lib/mcp/client'
 import { type AcquireParams, McpConnectionPool } from '@/lib/mcp/connection-pool'
@@ -48,10 +49,6 @@ function params(key: string, create: () => Promise<McpClient>): AcquireParams {
 }
 
 /** Drain the microtask queue so an in-flight acquire fully settles before the next step. */
-async function flushMicrotasks(turns = 50): Promise<void> {
-  for (let i = 0; i < turns; i++) await Promise.resolve()
-}
-
 describe('McpConnectionPool', () => {
   let pool: McpConnectionPool
 
@@ -315,7 +312,7 @@ describe('McpConnectionPool', () => {
 
     // A's ping fails → A retires stale, rebuilds `fresh`, pools it, clears pending.
     releasePing[0](false)
-    await flushMicrotasks()
+    await flushMicrotasks(50)
     // B's ping fails → B must reuse the pooled `fresh`, not create a third client.
     releasePing[1](false)
 

@@ -2,12 +2,15 @@
  * Tests for copilot api-keys API route
  */
 import { authMockFns, resetEnvMock, setEnv } from '@sim/testing'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockGetMothershipBaseURL } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/constants', () => ({
@@ -17,11 +20,11 @@ vi.mock('@/lib/mothership/constants', () => ({
   COPILOT_REQUEST_MODES: ['ask', 'build', 'plan', 'agent'] as const,
 }))
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import { GET } from '@/app/api/copilot/api-keys/route'
+
+const mockGetMothershipBaseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
 // `fetchGo` reads `response.status` and `response.headers.get('content-length')`
 // to stamp span attributes, so mock responses need both fields or the call

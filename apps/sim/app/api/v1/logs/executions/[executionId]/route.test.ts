@@ -1,37 +1,18 @@
-import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
-import { NextRequest, NextResponse } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkRateLimit: vi.fn(),
-  resolveWorkspaceAccess: vi.fn(),
   getPublicWorkflowLog: vi.fn(),
-  getUserLimits: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  /**
-   * Mirrors the real `capabilityGovernedUserId`: a workspace key reports its
-   * creator's `userId` too, so `keyType` — not the presence of a user — is what
-   * decides whether a permission group governs the caller.
-   */
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
-  checkRateLimit: mocks.checkRateLimit,
-  /** Mirrors the real helper: only a post-role group refusal carries `details`. */
-  concealedWorkspaceAccessResponse: (
-    failure: { status: number; message: string; details?: unknown },
-    notFoundMessage: string
-  ) =>
-    failure.details
-      ? NextResponse.json(
-          { error: failure.message, details: failure.details },
-          { status: failure.status }
-        )
-      : NextResponse.json({ error: notFoundMessage }, { status: 404 }),
-  createRateLimitResponse: () => NextResponse.json({ error: 'Rate limit' }, { status: 429 }),
-  resolveWorkspaceAccess: mocks.resolveWorkspaceAccess,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -39,38 +20,29 @@ vi.mock('@/lib/logs/public-queries', () => ({
   getPublicWorkflowLog: mocks.getPublicWorkflowLog,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', async () => {
-  const { projectUserLimits } =
-    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
-  return {
-    getUserLimits: mocks.getUserLimits,
-    projectUserLimits,
-    createApiResponse: <T, L>(data: T, limits: L) => ({ body: { ...data, limits }, headers: {} }),
-  }
-})
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
+
+import { GET } from '@/app/api/v1/logs/executions/[executionId]/route'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+
+const { mockCheckRateLimit, mockResolveWorkspaceAccess } = v1MiddlewareMockFns
+const { mockGetUserLimits } = v1LogsMetaMockFns
 
 /**
  * Overrides the global stub, whose empty `subBlocks` would let the sanitizer
  * no-op and make this suite pass against an unsanitized route.
  */
-vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn(() => ({
-    name: 'Gmail',
-    subBlocks: [
-      { id: 'credential', type: 'oauth-input' },
-      { id: 'apiKey', type: 'short-input', password: true },
-      { id: 'envApiKey', type: 'short-input', password: true },
-      { id: 'subject', type: 'short-input' },
-    ],
-    outputs: {},
-  })),
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-}))
-
-import { GET } from '@/app/api/v1/logs/executions/[executionId]/route'
+vi.mocked(getBlock).mockReturnValue({
+  name: 'Gmail',
+  subBlocks: [
+    { id: 'credential', type: 'oauth-input' },
+    { id: 'apiKey', type: 'short-input', password: true },
+    { id: 'envApiKey', type: 'short-input', password: true },
+    { id: 'subject', type: 'short-input' },
+  ],
+  outputs: {},
+} as unknown as BlockConfig)
 
 const rateLimit = {
   allowed: true,
@@ -100,17 +72,17 @@ function snapshot() {
 
 function requestFor(executionId: string) {
   return {
-    request: new NextRequest(`http://localhost:3000/api/v1/logs/executions/${executionId}`),
-    context: { params: Promise.resolve({ executionId }) },
+    request: createMockRequest({ url: `/api/v1/logs/executions/${executionId}` }),
+    context: createRouteContext({ executionId }),
   }
 }
 
 describe('GET /api/v1/logs/executions/[executionId]', () => {
   beforeEach(() => {
-    mocks.checkRateLimit.mockResolvedValue(rateLimit)
-    mocks.resolveWorkspaceAccess.mockResolvedValue(null)
+    mockCheckRateLimit.mockResolvedValue(rateLimit)
+    mockResolveWorkspaceAccess.mockResolvedValue(null)
     permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
-    mocks.getUserLimits.mockResolvedValue({
+    mockGetUserLimits.mockResolvedValue({
       usage: { plan: 'free', currentPeriodCost: 12.5, limit: 50, isExceeded: false },
     })
     mocks.getPublicWorkflowLog.mockResolvedValue({
@@ -142,7 +114,7 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
   })
 
   it("conceals an ordinary access failure behind the surface's not-found", async () => {
-    mocks.resolveWorkspaceAccess.mockResolvedValueOnce({
+    mockResolveWorkspaceAccess.mockResolvedValueOnce({
       status: 403,
       code: 'FORBIDDEN',
       message: 'Access denied',
@@ -161,7 +133,7 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
    * organization's setting and conceals nothing a 404 would protect.
    */
   it('preserves the structured detail of a post-role permission-group refusal', async () => {
-    mocks.resolveWorkspaceAccess.mockResolvedValueOnce({
+    mockResolveWorkspaceAccess.mockResolvedValueOnce({
       status: 403,
       code: 'FORBIDDEN',
       message: 'Personal API keys are disabled for this workspace',

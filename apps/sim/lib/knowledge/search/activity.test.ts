@@ -1,12 +1,11 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   values: vi.fn(),
   insert: vi.fn(),
   execute: vi.fn(),
-  transaction: vi.fn(),
 }))
-vi.mock('@sim/db', () => ({ db: { transaction: mocks.transaction } }))
 
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 
@@ -14,7 +13,7 @@ beforeEach(() => {
   mocks.insert.mockReturnValue({ values: mocks.values })
   mocks.values.mockResolvedValue(undefined)
   mocks.execute.mockResolvedValue(undefined)
-  mocks.transaction.mockImplementation((callback) =>
+  dbChainMockFns.transaction.mockImplementation((callback) =>
     callback({ execute: mocks.execute, insert: mocks.insert })
   )
 })

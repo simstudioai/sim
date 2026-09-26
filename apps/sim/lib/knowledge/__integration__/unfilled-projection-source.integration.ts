@@ -27,8 +27,14 @@ import { isRecordLike } from '@sim/utils/object'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
 /** The TINQL `resolveTinKeywordQuery` renders for `fixture`: its `english` stem, quoted. */
-vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+vi.mock('@/lib/sim-search/indexed/retrieval/tin-keyword', () => ({
   resolveTinKeywordQuery: async () => '"fixtur"',
 }))
 
@@ -36,19 +42,18 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import type { SearchAccessPlan } from '@/lib/knowledge/access/predicate'
 import type {
   GitHubInstallationReadGrant,
   KnowledgeAccessProvider,
   UserAccessScope,
 } from '@/lib/knowledge/access/types'
-import {
-  executeKeywordSearch,
-  forgetProjectionFilled,
-  handleVectorOnlySearch,
-  liveSourceAccessFor,
-} from '@/lib/knowledge/search/queries'
+import { liveSourceAccessForConnectors } from '@/lib/knowledge/search/candidates'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import type { SearchAccessPlan } from '@/lib/sim-search/indexed/retrieval/access-plan'
+import { executeIndexedKeywordSearch } from '@/lib/sim-search/indexed/retrieval/keyword'
+import type { IndexedRetrievalContext } from '@/lib/sim-search/indexed/retrieval/permitted'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval/projection-fill'
+import { selectIndexedVectorResults } from '@/lib/sim-search/indexed/retrieval/vector'
 
 const ids = createKnowledgeAclFixtureIds()
 const connectorId = generateId()
@@ -106,7 +111,15 @@ const aliceGrant: GitHubInstallationReadGrant = {
   repositoryId,
 }
 
-function searchInputs(who: 'alice' | 'bob') {
+const searchInputs = (who: 'alice' | 'bob') => ({
+  knowledgeBaseIds: [ids.knowledgeBaseId],
+  topK: 5,
+  access: scopeFor(who),
+  queryVector,
+})
+
+/** A narrow reader of the search index, whose live installation grant is resolved on demand. */
+function searchContext(who: 'alice' | 'bob'): IndexedRetrievalContext {
   const access = scopeFor(who)
   const accessPlan = planFor(who)
   const granted = who === 'alice' ? { ...access, githubInstallationGrants: [aliceGrant] } : access
@@ -117,24 +130,23 @@ function searchInputs(who: 'alice' | 'bob') {
     liveSourceConnectorCondition: async () => null,
   }
   return {
-    knowledgeBaseIds: [ids.knowledgeBaseId],
-    topK: 5,
     access,
-    accessProvider,
     accessPlan,
-    liveSourceAccess: liveSourceAccessFor(access, accessPlan, accessProvider),
-    queryVector,
+    filtered: false,
+    permitted: { kind: 'unbounded', broad: false },
+    liveSourceAccess: liveSourceAccessForConnectors(
+      accessPlan.connectors.liveProofRequired,
+      accessProvider
+    ),
   }
 }
 
 const keywordIds = async (who: 'alice' | 'bob') =>
   (
-    await executeKeywordSearch({
-      ...searchInputs(who),
-      query: 'fixture',
-      permitted: { kind: 'unbounded', broad: false },
-      searchIndexOnly: true,
-    })
+    await executeIndexedKeywordSearch(
+      { ...searchInputs(who), query: 'fixture' },
+      searchContext(who)
+    )
   ).map((row) => row.id)
 
 /**
@@ -144,11 +156,10 @@ const keywordIds = async (who: 'alice' | 'bob') =>
  */
 const vectorIds = async (who: 'alice' | 'bob') =>
   (
-    await handleVectorOnlySearch({
-      ...searchInputs(who),
-      distanceThreshold: 2,
-      permitted: { kind: 'unbounded', broad: false },
-    })
+    await selectIndexedVectorResults(
+      { ...searchInputs(who), distanceThreshold: 2 },
+      searchContext(who)
+    )
   ).map((row) => row.id)
 
 async function setProjection(state: 'filled' | 'unfilled') {

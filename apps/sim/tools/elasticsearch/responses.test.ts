@@ -1,13 +1,7 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import * as elasticsearchTools from '@/tools/elasticsearch'
 import type { ToolConfig } from '@/tools/types'
-
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const GET_INDEX_BODY = {
   'logs-2024': { aliases: {}, mappings: { properties: {} }, settings: { index: {} } },

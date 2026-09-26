@@ -1,61 +1,23 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveKnowledgeBase: vi.fn(),
-  resolveTag: vi.fn(),
-  resolveDocument: vi.fn(),
-  resolvePermission: vi.fn(),
-  listTags: vi.fn(),
-  listAllTags: vi.fn(),
-  nextSlot: vi.fn(),
-  createTag: vi.fn(),
-  updateTag: vi.fn(),
-  deleteTag: vi.fn(),
-  readUsage: vi.fn(),
-  readDetailedUsage: vi.fn(),
-  saveTags: vi.fn(),
-  cleanupTags: vi.fn(),
-  deleteAllTags: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated' },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeTagContext: mocks.resolveTag,
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveDocument,
-}))
-
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mocks.listTags,
-  getTagDefinitions: mocks.listAllTags,
-  getNextAvailableSlot: mocks.nextSlot,
-  createTagDefinition: mocks.createTag,
-  updateTagDefinition: mocks.updateTag,
-  deleteTagDefinition: mocks.deleteTag,
-  getTagUsageStats: mocks.readUsage,
-  getTagUsage: mocks.readDetailedUsage,
-  normalizeDisplayName: (displayName: string) => displayName.trim().toLowerCase(),
-  createOrUpdateTagDefinitionsBulk: mocks.saveTags,
-  cleanupUnusedTagDefinitions: mocks.cleanupTags,
-  deleteAllTagDefinitions: mocks.deleteAllTags,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
@@ -66,6 +28,10 @@ import {
   readNextKnowledgeTagSlot,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
+
+knowledgeContextsMockFns.mockResolveActiveKnowledgeResourceContext.mockImplementation(
+  (...args: unknown[]) => knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext(...args)
+)
 
 /** Every mocked context carries the workspace read scope the resolvers would attach. */
 const knowledgeAccess = {
@@ -106,11 +72,7 @@ const documentContext = {
   },
 }
 
-const sessionPrincipal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 const delegatedPrincipal = {
   kind: 'delegated' as const,
@@ -122,6 +84,25 @@ const delegatedPrincipal = {
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 60_000),
   resourceScope: {},
+}
+
+const mocks = {
+  listTags: knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitions,
+  listAllTags: knowledgeTagsServiceMockFns.mockGetTagDefinitions,
+  nextSlot: knowledgeTagsServiceMockFns.mockGetNextAvailableSlot,
+  createTag: knowledgeTagsServiceMockFns.mockCreateTagDefinition,
+  updateTag: knowledgeTagsServiceMockFns.mockUpdateTagDefinition,
+  deleteTag: knowledgeTagsServiceMockFns.mockDeleteTagDefinition,
+  readUsage: knowledgeTagsServiceMockFns.mockGetTagUsageStats,
+  readDetailedUsage: knowledgeTagsServiceMockFns.mockGetTagUsage,
+  saveTags: knowledgeTagsServiceMockFns.mockCreateOrUpdateTagDefinitionsBulk,
+  cleanupTags: knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions,
+  deleteAllTags: knowledgeTagsServiceMockFns.mockDeleteAllTagDefinitions,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolveKnowledgeBase: knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext,
+  resolveTag: knowledgeContextsMockFns.mockResolveActiveKnowledgeTagContext,
+  resolveDocument: knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext,
 }
 
 describe('knowledge tag application use cases', () => {

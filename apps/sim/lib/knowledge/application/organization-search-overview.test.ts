@@ -1,20 +1,28 @@
 import { knowledgeConnector, member, organizationSearchIntegration } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), policy: vi.fn(), availability: vi.fn() }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: mocks.context,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.policy,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'owner' || role === 'admin',
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mocks.availability,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/sim-search/connectors', () => ({
   canConnectWithDefaults: (meta: { id: string }) => ['google_drive', 'gmail'].includes(meta.id),
   SEARCH_SOURCE_TYPES: [
@@ -52,7 +60,7 @@ function renderFragment(fragment: unknown): { sql: string; params: unknown[] } {
   return { sql: sqlText, params }
 }
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = { organizationId: 'organization' }
 const health = {
   connectorType: 'google_drive',
@@ -70,9 +78,12 @@ const health = {
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.context.mockResolvedValue(input)
-  mocks.policy.mockResolvedValue(null)
-  mocks.availability.mockResolvedValue({ memberScoped: true, sourceMirrored: true })
+  knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue(input)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+    memberScoped: true,
+    sourceMirrored: true,
+  })
 })
 
 describe('organization Search administration overview', () => {
@@ -119,15 +130,17 @@ describe('organization Search administration overview', () => {
   it('rejects a workspace key before canonical loading', async () => {
     await expect(
       readOrganizationSearchOverview.execute({
-        principal: { kind: 'workspace_api_key', keyId: 'key', workspaceId: 'workspace' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input,
       })
     ).rejects.toThrow()
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).not.toHaveBeenCalled()
   })
   it('does not mistake infrastructure failure for an empty integration list', async () => {
     queueTableRows(member, [{ role: 'admin' }])
-    mocks.policy.mockRejectedValue(new Error('Database unavailable'))
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockRejectedValue(
+      new Error('Database unavailable')
+    )
     await expect(readOrganizationSearchOverview.execute({ principal, input })).rejects.toThrow(
       'Database unavailable'
     )
@@ -136,9 +149,14 @@ describe('organization Search administration overview', () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(knowledgeConnector, [{ ...health, hasIndexing: true }])
     queueTableRows(organizationSearchIntegration, [{ connectorType: 'gmail', approved: true }])
-    mocks.availability.mockResolvedValue({ memberScoped: false, sourceMirrored: false })
+    knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+      memberScoped: false,
+      sourceMirrored: false,
+    })
     const result = await readOrganizationSearchOverview.execute({ principal, input })
-    expect(mocks.availability).toHaveBeenCalledWith(input)
+    expect(
+      knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
+    ).toHaveBeenCalledWith(input)
     expect(result.providers).toEqual([
       {
         connectorType: 'google_drive',

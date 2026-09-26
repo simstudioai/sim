@@ -6,48 +6,48 @@ import {
   resetDbChainMock,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-const { mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { API_KEY_UPDATED: 'api_key.updated', API_KEY_REVOKED: 'api_key.revoked' },
-  AuditResourceType: { API_KEY: 'api_key' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: 'org',
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'billing',
-  }),
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
-    mockGetUserEntityPermissions(...args),
-  permissionSatisfies: (actual: string, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { DELETE, PUT } from '@/app/api/workspaces/[id]/api-keys/[keyId]/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetUserEntityPermissions } = permissionsMockFns
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetUserEntityPermissions(...args)
+)
+workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) =>
+    createMockWorkspaceApplicationContext({
+      workspaceId,
+      workspaceOrganizationId: 'org',
+      billedAccountUserId: 'billing',
+    })
+)
 
-const context = { params: Promise.resolve({ id: 'workspace-1', keyId: 'key-1' }) }
+const context = createRouteContext({ id: 'workspace-1', keyId: 'key-1' })
 
 function renameRequest() {
   return createMockRequest(

@@ -1,55 +1,42 @@
 import { createMockRequest } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockGetWorkspaceFile,
-  mockDownloadWorkspaceFileStream,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
+const { mockDownloadWorkspaceFileStream } = vi.hoisted(() => ({
   mockDownloadWorkspaceFileStream: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: () => new Response('rate limited', { status: 429 }),
-  requireRateLimitPrincipal: (rateLimit: { principal: unknown }) => rateLimit.principal,
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
   downloadWorkspaceFileStream: { execute: mockDownloadWorkspaceFileStream },
 }))
 vi.mock('@/lib/workspace-files/orchestration', () => ({
   performDeleteWorkspaceFileItems: vi.fn(),
 }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded', FILE_DELETED: 'file.deleted' },
-  AuditResourceType: { FILE: 'file' },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v1/files/[fileId]/route'
 
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+const { mockGetWorkspaceFile } = workspaceUploadsMockFns
+
 const WORKSPACE_ID = 'ws-1'
 const FILE_ID = 'file-1'
-const context = { params: Promise.resolve({ fileId: FILE_ID }) }
+const context = createRouteContext({ fileId: FILE_ID })
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const PRINCIPAL = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 
 function request() {
   return createMockRequest(

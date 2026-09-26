@@ -1,41 +1,28 @@
 import { generateKeyPairSync, verify } from 'node:crypto'
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   coalesceLocally: vi.fn(),
-  decryptSecret: vi.fn(),
   getFreshestSlackChain: vi.fn(),
   getRecentTerminalError: vi.fn(),
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-  },
   refreshOAuthToken: vi.fn(),
   decryptQuickBooksOAuthClientConfig: vi.fn(),
   withLeaderLock: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mocks.logger),
-}))
-
 vi.mock('@/lib/concurrency/singleflight', () => ({
-  coalesceLocally: mocks.coalesceLocally,
+  coalesceLocally: hoisted.coalesceLocally,
 }))
 
 vi.mock('@/lib/concurrency/leader-lock', () => ({
-  withLeaderLock: mocks.withLeaderLock,
+  withLeaderLock: hoisted.withLeaderLock,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mocks.decryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/oauth/instagram', () => ({
   isInstagramProvider: vi.fn(() => false),
@@ -50,25 +37,25 @@ vi.mock('@/lib/oauth/microsoft', () => ({
 
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
-  refreshOAuthToken: mocks.refreshOAuthToken,
+  refreshOAuthToken: hoisted.refreshOAuthToken,
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
 
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
-  decryptQuickBooksOAuthClientConfig: mocks.decryptQuickBooksOAuthClientConfig,
+  decryptQuickBooksOAuthClientConfig: hoisted.decryptQuickBooksOAuthClientConfig,
 }))
 
 vi.mock('@/lib/oauth/slack', () => ({
   extractSlackTeamId: (value: string | null | undefined) =>
     value?.match(/^([TE][A-Z0-9]+)-/)?.[1] ?? null,
   fanOutSlackTokenChain: vi.fn(),
-  getFreshestSlackChain: mocks.getFreshestSlackChain,
+  getFreshestSlackChain: hoisted.getFreshestSlackChain,
   hasSlackChainMoved: vi.fn(() => false),
   isSlackProvider: (providerId: string) => providerId === 'slack',
 }))
 
 vi.mock('@/lib/oauth/terminal-errors', () => ({
-  getRecentTerminalError: mocks.getRecentTerminalError,
+  getRecentTerminalError: hoisted.getRecentTerminalError,
   isTerminalRefreshError: vi.fn(() => false),
   markCredentialDead: vi.fn(),
 }))
@@ -88,6 +75,18 @@ import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordin
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { isTerminalRefreshError, markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+const serviceLogger = getMockLogger('OAuthCredentialService')
+const transportLogger = getMockLogger('GoogleServiceAccountTransport')
+const mocks = { ...hoisted, decryptSecret: encryptionMockFns.mockDecryptSecret }
+
+/** Every call the credential service and its token transport logged at the given levels. */
+function loggedCalls(...levels: Array<'info' | 'warn' | 'error'>) {
+  return levels.flatMap((level) => [
+    ...serviceLogger[level].mock.calls,
+    ...transportLogger[level].mock.calls,
+  ])
+}
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -164,11 +163,7 @@ async function observeRefresh(
     cacheKey: mocks.getRecentTerminalError.mock.calls[0][0],
     coalescingKey: mocks.coalesceLocally.mock.calls[0][0],
     lockKey: mocks.withLeaderLock.mock.calls[0][0].key,
-    logs: JSON.stringify([
-      ...mocks.logger.info.mock.calls,
-      ...mocks.logger.warn.mock.calls,
-      ...mocks.logger.error.mock.calls,
-    ]),
+    logs: JSON.stringify(loggedCalls('info', 'warn', 'error')),
   }
 }
 
@@ -621,7 +616,6 @@ describe('Google service-account token minting', () => {
 
   beforeEach(() => {
     resetDbChainMock()
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(now)
     vi.stubGlobal('fetch', fetchMock)
@@ -636,7 +630,6 @@ describe('Google service-account token minting', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
@@ -756,13 +749,13 @@ describe('Google service-account token minting', () => {
       errorCode: 'unauthorized_client',
       errorDescription: RAW_PROVIDER_ERROR,
     })
-    expect(mocks.logger.error).toHaveBeenCalledWith('Service account token exchange failed', {
+    expect(serviceLogger.error).toHaveBeenCalledWith('Service account token exchange failed', {
       status: 401,
       subject: 'admin@example.com',
       scopes: [driveScope],
       errorCode: 'unauthorized_client',
     })
-    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(RAW_PROVIDER_ERROR)
+    expect(JSON.stringify(loggedCalls('error'))).not.toContain(RAW_PROVIDER_ERROR)
   })
 
   it('keeps token errors private for selectors', async () => {
@@ -782,7 +775,7 @@ describe('Google service-account token minting', () => {
       errorCode: undefined,
       errorDescription: 'Token exchange failed: 401',
     })
-    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(RAW_PROVIDER_ERROR)
+    expect(JSON.stringify(loggedCalls('error'))).not.toContain(RAW_PROVIDER_ERROR)
   })
 
   it.each(['<html>Unavailable</html>', '{"error":42,"error_description":{}}'])(
@@ -836,11 +829,7 @@ describe('Google service-account token minting', () => {
     await vi.runAllTimersAsync()
     await checked
     expect(fetchMock).toHaveBeenCalledTimes(3)
-    const logs = JSON.stringify([
-      ...mocks.logger.info.mock.calls,
-      ...mocks.logger.warn.mock.calls,
-      ...mocks.logger.error.mock.calls,
-    ])
+    const logs = JSON.stringify(loggedCalls('info', 'warn', 'error'))
     expect(logs).not.toContain(RAW_PROVIDER_ERROR)
     expect(logs).not.toContain('private@example.com')
     expect(logs).not.toContain('crawler@qa-project.iam.gserviceaccount.com')
@@ -853,7 +842,7 @@ describe('Google service-account token minting', () => {
       statusCode: 400,
       errorDescription: 'Token exchange failed: 400',
     })
-    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain('xxxx')
+    expect(JSON.stringify(loggedCalls('error'))).not.toContain('xxxx')
   })
 })
 

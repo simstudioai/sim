@@ -1,78 +1,72 @@
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveKnowledgeBase: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveFile: vi.fn(),
-  getFile: vi.fn(),
-  loadFileContext: vi.fn(),
-  getProvenance: vi.fn(),
-  readFile: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   upload: vi.fn(),
-  resolveBilling: vi.fn(),
-  checkUsage: vi.fn(),
-  createDocument: vi.fn(),
-  processQueue: vi.fn(),
-  recordAudit: vi.fn(),
-  platformUploaded: vi.fn(),
-  captureServerEvent: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { DOCUMENT_UPLOADED: 'document.uploaded' },
-  AuditResourceType: { DOCUMENT: 'document' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveSystemBillingAttribution: mocks.resolveBilling,
-  checkAttributedUsageLimits: mocks.checkUsage,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformUploaded },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: mocks.createDocument,
-  processDocumentsWithQueue: mocks.processQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/knowledge/documents/storage-upload', () => ({
-  uploadKnowledgeArtifact: mocks.upload,
+  uploadKnowledgeArtifact: hoisted.upload,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.getProvenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchServableWorkspaceFileBuffer: mocks.readFile,
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadFileContext,
-  resolveWorkspaceFileReference: mocks.resolveFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/uploads/utils/validation', () => ({ validateFileType: () => null }))
 
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
+
+const mocks = {
+  ...hoisted,
+  createDocument: knowledgeDocumentsServiceMockFns.mockCreateSingleDocument,
+  processQueue: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+}
+
+billingAttributionMockFns.mockResolveSystemBillingAttribution.mockImplementation(
+  (...args: unknown[]) => billingAttributionMockFns.mockResolveBillingAttribution(...args)
+)
 
 const knowledgeContext = {
   workspaceId: 'workspace-1',
@@ -109,25 +103,34 @@ const delegatedPrincipal = {
 
 describe('add workspace files to knowledge base application command', () => {
   beforeEach(() => {
-    mocks.resolveKnowledgeBase.mockResolvedValue(knowledgeContext)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveFile.mockImplementation(async (_workspaceId: string, reference: string) =>
-      reference === 'file-2'
-        ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' }
-        : workspaceFile
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(
+      knowledgeContext
     )
-    mocks.getFile.mockImplementation(async (_workspaceId: string, id: string) =>
-      id === 'file-2' ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' } : workspaceFile
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    workspaceFileManagerMockFns.mockResolveWorkspaceFileReference.mockImplementation(
+      async (_workspaceId: string, reference: string) =>
+        reference === 'file-2'
+          ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' }
+          : workspaceFile
     )
-    mocks.loadFileContext.mockResolvedValue({
+    workspaceFileManagerMockFns.mockGetWorkspaceFile.mockImplementation(
+      async (_workspaceId: string, id: string) =>
+        id === 'file-2' ? { ...workspaceFile, id: 'file-2', name: 'second.pdf' } : workspaceFile
+    )
+    workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext.mockResolvedValue({
       fileId: workspaceFile.id,
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    mocks.getProvenance.mockResolvedValue({ status: 'exact', entries: [] })
-    mocks.readFile.mockResolvedValue({ buffer: Buffer.alloc(100), contentType: 'application/pdf' })
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
+      { status: 'exact', entries: [] }
+    )
+    workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
+      buffer: Buffer.alloc(100),
+      contentType: 'application/pdf',
+    })
     mocks.upload.mockResolvedValue({
       key: 'kb/copied.pdf',
       path: '/api/files/serve/kb%2Fcopied.pdf',
@@ -135,11 +138,13 @@ describe('add workspace files to knowledge base application command', () => {
       contentUpdatedAt: new Date(0),
       cleanupEventId: 'guard-1',
     })
-    mocks.resolveBilling.mockResolvedValue({
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
       actorUserId: 'dual-workspace-user',
       workspaceId: 'workspace-1',
     })
-    mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    billingAttributionMockFns.mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: false,
+    })
     mocks.createDocument.mockResolvedValue({
       id: 'document-1',
       filename: workspaceFile.name,
@@ -162,7 +167,7 @@ describe('add workspace files to knowledge base application command', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.resolveKnowledgeBase).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
   })
 
@@ -177,16 +182,21 @@ describe('add workspace files to knowledge base application command', () => {
       },
     })
 
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.resolveFile.mock.invocationCallOrder[0]
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      workspaceFileManagerMockFns.mockResolveWorkspaceFileReference.mock.invocationCallOrder[0]
     )
-    expect(mocks.getProvenance.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.resolveBilling.mock.invocationCallOrder[0]
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(
+      billingAttributionMockFns.mockResolveBillingAttribution.mock.invocationCallOrder[0]
     )
-    expect(mocks.checkUsage.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.createDocument.mock.invocationCallOrder[0]
-    )
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(5)
+    expect(
+      billingAttributionMockFns.mockCheckAttributedUsageLimits.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.createDocument.mock.invocationCallOrder[0])
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledTimes(5)
     expect(mocks.createDocument).toHaveBeenCalledWith(
       expect.objectContaining({ filename: 'report.pdf' }),
       'knowledge-1',
@@ -199,7 +209,7 @@ describe('add workspace files to knowledge base application command', () => {
   })
 
   it('conceals a cross-workspace file before provenance, storage, or mutation', async () => {
-    mocks.loadFileContext.mockResolvedValueOnce({
+    workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext.mockResolvedValueOnce({
       fileId: 'workspace-2-file',
       workspaceId: 'workspace-2',
       workspaceOrganizationId: null,
@@ -217,15 +227,17 @@ describe('add workspace files to knowledge base application command', () => {
     })
 
     expect(result).toMatchObject({ added: [], failed: ['workspace-2-file'] })
-    expect(mocks.getProvenance).not.toHaveBeenCalled()
-    expect(mocks.readFile).not.toHaveBeenCalled()
-    expect(mocks.checkUsage).not.toHaveBeenCalled()
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
+    ).not.toHaveBeenCalled()
+    expect(workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('refuses an updated source instead of attaching bytes with stale provenance', async () => {
-    mocks.getFile
+    workspaceFileManagerMockFns.mockGetWorkspaceFile
       .mockResolvedValueOnce(workspaceFile)
       .mockResolvedValueOnce({ ...workspaceFile, key: 'workspace/workspace-1/replacement.pdf' })
     const result = await addWorkspaceFilesToKnowledgeBase.execute({
@@ -238,7 +250,7 @@ describe('add workspace files to knowledge base application command', () => {
   })
 
   it('leaves the reserved upload unbound if authorization was revoked while reading', async () => {
-    mocks.resolvePermission
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
       .mockResolvedValueOnce('write')
       .mockResolvedValueOnce('write')
       .mockResolvedValueOnce('write')
@@ -257,12 +269,12 @@ describe('add workspace files to knowledge base application command', () => {
       key: 'workspace/workspace-1/asset.png',
       context: 'workspace',
     }
-    mocks.readFile.mockResolvedValueOnce({
+    workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer.mockResolvedValueOnce({
       buffer: Buffer.alloc(247),
       contentType: 'application/pdf',
       contributingFiles: [contributor],
     })
-    mocks.getProvenance
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
       .mockResolvedValueOnce({ status: 'exact', entries: [] })
       .mockResolvedValueOnce({ status: 'exact', entries: [] })
       .mockResolvedValueOnce({ status: 'unknown' })
@@ -271,7 +283,9 @@ describe('add workspace files to knowledge base application command', () => {
       input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
     })
     expect(result).toMatchObject({ added: [], failed: ['file-1'] })
-    expect(mocks.getProvenance).toHaveBeenLastCalledWith('workspace-1', contributor)
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance
+    ).toHaveBeenLastCalledWith('workspace-1', contributor)
     expect(mocks.upload).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
   })
@@ -279,11 +293,11 @@ describe('add workspace files to knowledge base application command', () => {
   it('rejects workspace keys before canonical resource resolution', async () => {
     await expect(
       addWorkspaceFilesToKnowledgeBase.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+        principal: createWorkspaceApiKeyPrincipal(),
         input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.resolveKnowledgeBase).not.toHaveBeenCalled()
-    expect(mocks.readFile).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext).not.toHaveBeenCalled()
+    expect(workspaceFileManagerMockFns.mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 })

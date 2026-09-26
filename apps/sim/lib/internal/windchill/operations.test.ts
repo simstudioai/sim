@@ -1,15 +1,25 @@
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   createWindchillSession: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
   downloadWindchillContent: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
   resolveWindchillContentUrl: vi.fn(),
-  uploadCopilotFile: vi.fn(),
-  uploadExecutionFile: vi.fn(),
   uploadWindchillContent: vi.fn(),
   windchillMutationRequest: vi.fn(),
 }))
@@ -24,28 +34,26 @@ vi.mock('@/lib/internal/windchill/client', () => ({
   windchillMutationRequest: mocks.windchillMutationRequest,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFilesToUserFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mocks.uploadCopilotFile,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
 import { WindchillOperationError } from '@/lib/internal/windchill/errors'
 import { executeWindchillOperation } from '@/lib/internal/windchill/operations'
+
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 
 const BASE = {
   baseUrl: 'https://windchill.example.com/Windchill/servlet/odata/v6',
@@ -53,21 +61,16 @@ const BASE = {
   password: 'not-a-real-password',
 }
 const DOCUMENT_OID = 'OR:wt.doc.WTDocument:1'
-const PRINCIPAL = {
-  kind: 'delegated' as const,
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
+const PRINCIPAL = createExecutorPrincipal({
   audience: 'sim:windchill',
   issuedAt: new Date('2026-01-01T00:00:00.000Z'),
   expiresAt: new Date('2026-01-01T01:00:00.000Z'),
   delegationContext: {
-    kind: 'workflow_execution' as const,
+    kind: 'workflow_execution',
     workflowId: 'workflow-1',
     executionId: 'execution-1',
   },
-}
+})
 
 describe('Windchill operations', () => {
   beforeEach(() => {
@@ -79,7 +82,7 @@ describe('Windchill operations', () => {
     mocks.windchillMutationRequest.mockResolvedValue({
       value: [{ ID: DOCUMENT_OID, Name: 'Specification' }],
     })
-    mocks.assertToolFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
     mocks.uploadWindchillContent.mockResolvedValue(['specification.pdf'])
     mocks.resolveWindchillContentUrl.mockResolvedValue(
       'https://windchill.example.com/WindchillGW/download?token=opaque'
@@ -89,7 +92,7 @@ describe('Windchill operations', () => {
       contentType: 'application/pdf; charset=binary',
       contentDisposition: 'attachment; filename="specification.pdf"',
     })
-    mocks.uploadExecutionFile.mockResolvedValue({
+    mockUploadExecutionFile.mockResolvedValue({
       id: 'file-1',
       name: 'specification.pdf',
       url: '/api/files/serve?key=execution/specification.pdf',
@@ -106,8 +109,8 @@ describe('Windchill operations', () => {
       size: 3,
       type: 'application/pdf',
     }
-    mocks.processFilesToUserFiles.mockReturnValue([rawFile])
-    mocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockProcessFilesToUserFiles.mockReturnValue([rawFile])
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('pdf'),
       contentType: 'application/pdf',
     })
@@ -140,7 +143,7 @@ describe('Windchill operations', () => {
       }
     )
 
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       rawFile.key,
       'execution-actor',
       'request-1',
@@ -150,8 +153,8 @@ describe('Windchill operations', () => {
 
   it('fails closed before storage or provider work when file access is denied', async () => {
     const rawFile = { key: 'other/file.pdf', name: 'file.pdf', size: 3, type: 'application/pdf' }
-    mocks.processFilesToUserFiles.mockReturnValue([rawFile])
-    mocks.assertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
+    mockProcessFilesToUserFiles.mockReturnValue([rawFile])
+    mockAssertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
 
     await expect(
       executeWindchillOperation(
@@ -164,13 +167,13 @@ describe('Windchill operations', () => {
         { principal: PRINCIPAL, requestId: 'request-1' }
       )
     ).rejects.toEqual(new WindchillOperationError('File not found', 404))
-    expect(mocks.downloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.uploadWindchillContent).not.toHaveBeenCalled()
   })
 
   it('rejects declared aggregate upload size before authorization or download', async () => {
     const rawFile = { key: 'file.bin', name: 'file.bin', size: MAX_FILE_SIZE + 1 }
-    mocks.processFilesToUserFiles.mockReturnValue([rawFile])
+    mockProcessFilesToUserFiles.mockReturnValue([rawFile])
 
     await expect(
       executeWindchillOperation(
@@ -185,8 +188,8 @@ describe('Windchill operations', () => {
     ).rejects.toEqual(
       new WindchillOperationError('Combined Windchill upload exceeds the maximum file size', 413)
     )
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
-    expect(mocks.downloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
   })
 
   it('stores provider downloads in the bound execution scope without returning inline bytes', async () => {
@@ -210,7 +213,7 @@ describe('Windchill operations', () => {
     expect(mocks.downloadWindchillContent).toHaveBeenCalledWith(
       expect.objectContaining({ maxBytes: MAX_FILE_SIZE, signal: controller.signal })
     )
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
@@ -221,7 +224,7 @@ describe('Windchill operations', () => {
       'application/pdf',
       'user-1'
     )
-    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       operation: 'windchill_download_primary_content',
       file: { key: 'execution/specification.pdf' },

@@ -1,23 +1,27 @@
 import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseRequest, mockGetAccessibleChat } = vi.hoisted(() => ({
+const { mockParseRequest } = vi.hoisted(() => ({
   mockParseRequest: vi.fn(),
-  mockGetAccessibleChat: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/api/server', () => ({ parseRequest: mockParseRequest }))
 vi.mock('@/lib/api/contracts/mothership-chats', () => ({ markMothershipChatReadContract: {} }))
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { POST } from '@/app/api/mothership/chats/read/route'
+
+const mockGetAccessibleChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
 
 function createRequest() {
   return new NextRequest('http://localhost:3000/api/mothership/chats/read', {

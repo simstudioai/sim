@@ -14,13 +14,11 @@ describe('GitHub coordinated requests', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(1_800_000_000_000)
-    vi.clearAllMocks()
     settle.mockImplementation(async (_outcome, retryAfterMs = 0) => retryAfterMs)
     acquire.mockResolvedValue({ settle })
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('holds the credential lease until the streamed body is consumed and observes successful exhaustion', async () => {

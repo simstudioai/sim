@@ -6,14 +6,8 @@
  * cached module reads at call time, so the tests behave identically whether
  * the module graph is fresh or reused.
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: warnMock, error: vi.fn() }),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import * as inputValidation from '@/lib/core/security/input-validation.server'
 import {
   ExternalUrlValidationError,
@@ -22,14 +16,22 @@ import {
 import * as workspaceFileManager from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import * as workspacePermissions from '@/lib/workspaces/permissions/utils'
 
-const validateUrlWithDNSSpy = vi.spyOn(inputValidation, 'validateUrlWithDNS')
-const secureFetchWithPinnedIPSpy = vi.spyOn(inputValidation, 'secureFetchWithPinnedIP')
-const getUserEntityPermissionsSpy = vi.spyOn(workspacePermissions, 'getUserEntityPermissions')
-const uploadWorkspaceFileSpy = vi.spyOn(workspaceFileManager, 'uploadWorkspaceFile')
+let validateUrlWithDNSSpy: MockInstance<typeof inputValidation.validateUrlWithDNS>
+let secureFetchWithPinnedIPSpy: MockInstance<typeof inputValidation.secureFetchWithPinnedIP>
+let getUserEntityPermissionsSpy: MockInstance<typeof workspacePermissions.getUserEntityPermissions>
+let uploadWorkspaceFileSpy: MockInstance<typeof workspaceFileManager.uploadWorkspaceFile>
+beforeEach(() => {
+  validateUrlWithDNSSpy = vi.spyOn(inputValidation, 'validateUrlWithDNS')
+  secureFetchWithPinnedIPSpy = vi.spyOn(inputValidation, 'secureFetchWithPinnedIP')
+  getUserEntityPermissionsSpy = vi.spyOn(workspacePermissions, 'getUserEntityPermissions')
+  uploadWorkspaceFileSpy = vi.spyOn(workspaceFileManager, 'uploadWorkspaceFile')
+})
 
 function makeResponse(body: string, contentType = 'application/octet-stream'): Response {
   return new Response(body, { status: 200, headers: { 'content-type': contentType } })
 }
+
+const warnMock = getMockLogger('FetchExternalUrl').warn
 
 describe('fetchExternalUrlToWorkspace', () => {
   beforeEach(() => {

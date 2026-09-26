@@ -8,28 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
  * that could leave a process-global store stubbed, and a routine registry shape
  * logged as a warning on every sweep.
  */
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-  logger: mockLogger,
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: () => undefined,
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (toolId: string) =>
-    toolId === 'hosted_tool'
-      ? { id: 'hosted_tool', name: 'Hosted', description: 'Hosted.', hostedApiKey: 'always' }
-      : undefined,
-}))
-vi.mock('@/tools/metadata-outputs', () => ({ getToolOutputsMetadata: () => ({}) }))
 vi.mock('@/tools/tool-ids', () => ({ resolveToolId: (toolId: string) => toolId }))
-vi.mock('@/blocks/registry', () => ({ getBlockMeta: () => ({ tags: ['messaging'] }) }))
 
 import { projectBlockSummary } from '@/lib/catalog/projection/block-summary'
 import {
@@ -37,7 +16,25 @@ import {
   projectSubBlock,
   resolveSubBlockOptions,
 } from '@/lib/catalog/projection/subblock'
+import { getBlockMeta } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { getToolMetadata } from '@/tools/metadata'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
+
+vi.mocked(getToolMetadata).mockImplementation((toolId: string) =>
+  toolId === 'hosted_tool'
+    ? ({
+        id: 'hosted_tool',
+        name: 'Hosted',
+        description: 'Hosted.',
+        hostedApiKey: 'always',
+      } as unknown as ReturnType<typeof getToolMetadata>)
+    : undefined
+)
+vi.mocked(getToolOutputsMetadata).mockReturnValue({})
+vi.mocked(getBlockMeta).mockReturnValue({ tags: ['messaging'] } as unknown as ReturnType<
+  typeof getBlockMeta
+>)
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {

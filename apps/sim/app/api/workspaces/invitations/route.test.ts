@@ -12,117 +12,97 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
+const { mockValidateSeatAvailability } = vi.hoisted(() => ({
+  mockValidateSeatAvailability: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
+
+vi.mock('@/lib/billing/validation/seat-management', () => ({
+  validateSeatAvailability: mockValidateSeatAvailability,
+}))
+
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
+
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+
+const mockGetSession = authMockFns.mockGetSession
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
 const {
-  MockConflictingPendingInvitationError,
-  mockGetWorkspaceInvitePolicy,
-  mockValidateInvitationsAllowed,
-  mockValidateSeatAvailability,
   mockAcquireOrganizationMutationLock,
   mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
-  mockGetEffectiveWorkspacePermission,
+} = organizationMembershipMockFns
+const { mockValidateInvitationsAllowed } = permissionCheckMockFns
+mockValidateInvitationsAllowed.mockResolvedValue(undefined)
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetEffectiveWorkspacePermission(...args)
+)
+
+import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
+import { POST } from '@/app/api/workspaces/invitations/batch/route'
+import { GET } from '@/app/api/workspaces/invitations/route'
+
+const { mockListAccessibleWorkspaceRowsForUser } = workspacesUtilsMockFns
+mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([])
+const { mockGetWorkspaceInvitePolicy, mockGetInvitePlanCategoryForUser } = workspacesPolicyMockFns
+const {
   mockCreatePendingInvitation,
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
   mockRevertPendingInvitationGrants,
   mockFindPendingGrantWorkspaceIds,
   mockFindPendingOrganizationInvitation,
-  mockGetInvitePlanCategoryForUser,
-  mockListInvitationsForWorkspaces,
-  mockListAccessibleWorkspaceRowsForUser,
-} = vi.hoisted(() => ({
-  mockListInvitationsForWorkspaces: vi.fn().mockResolvedValue([]),
-  mockListAccessibleWorkspaceRowsForUser: vi.fn().mockResolvedValue([]),
-  MockConflictingPendingInvitationError: class extends Error {},
-  mockGetWorkspaceInvitePolicy: vi.fn(),
-  mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
-  mockValidateSeatAvailability: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
-  mockCreatePendingInvitation: vi.fn(),
-  mockSendInvitationEmail: vi.fn(),
-  mockCancelPendingInvitation: vi.fn(),
-  mockRevertPendingInvitationGrants: vi.fn(),
-  mockFindPendingGrantWorkspaceIds: vi.fn(),
-  mockFindPendingOrganizationInvitation: vi.fn(),
-  mockGetInvitePlanCategoryForUser: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  ...permissionsMock,
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
-
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
-  isOrganizationWorkspace: (ws: {
-    workspaceMode?: string | null
-    organizationId?: string | null
-  }) => ws.workspaceMode === 'organization' && !!ws.organizationId,
-}))
-
-vi.mock('@/lib/billing/validation/seat-management', () => ({
-  validateSeatAvailability: mockValidateSeatAvailability,
-}))
-
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
-
-vi.mock('@/lib/invitations/send', () => ({
-  ConflictingPendingInvitationError: MockConflictingPendingInvitationError,
-  createPendingInvitation: mockCreatePendingInvitation,
-  sendInvitationEmail: mockSendInvitationEmail,
-  cancelPendingInvitation: mockCancelPendingInvitation,
-  revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
-  findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
-  findPendingOrganizationInvitation: mockFindPendingOrganizationInvitation,
-}))
-
-vi.mock('@/lib/invitations/core', () => ({
-  normalizeEmail: (email: string) => email.trim().toLowerCase(),
-  listInvitationsForWorkspaces: mockListInvitationsForWorkspaces,
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  listAccessibleWorkspaceRowsForUser: mockListAccessibleWorkspaceRowsForUser,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateInvitationsAllowed: mockValidateInvitationsAllowed,
-  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
-}))
-
-vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/posthog/server', () => posthogServerMock)
-
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: {
-    workspaceMemberInvited: vi.fn(),
-  },
-}))
-
-const mockGetSession = authMockFns.mockGetSession
-const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
-
-import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
-import { POST } from '@/app/api/workspaces/invitations/batch/route'
-import { GET } from '@/app/api/workspaces/invitations/route'
+} = invitationsSendMockFns
+const { mockListInvitationsForWorkspaces } = invitationsCoreMockFns
+mockListInvitationsForWorkspaces.mockResolvedValue([])
 
 describe('GET /api/workspaces/invitations', () => {
   const invitation = (workspaceId: string) => ({

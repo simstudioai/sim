@@ -1,16 +1,16 @@
 import { dbChainMockFns, hybridAuthMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockListAccessibleWorkspaceRowsForUser } = vi.hoisted(() => ({
-  mockListAccessibleWorkspaceRowsForUser: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  listAccessibleWorkspaceRowsForUser: mockListAccessibleWorkspaceRowsForUser,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { GET } from '@/app/api/mcp/discover/route'
+
+const { mockListAccessibleWorkspaceRowsForUser } = workspacesUtilsMockFns
 
 function workspaceRow(id: string) {
   return {

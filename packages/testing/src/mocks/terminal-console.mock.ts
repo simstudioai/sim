@@ -29,6 +29,24 @@ const mockClearWorkflowConsole = vi.fn((workflowId: string) => {
   delete entriesByWorkflow[workflowId]
 })
 
+/** Stand-in for the `consolePersistence` manager: scoped executions are opaque tokens. */
+const mockConsolePersistence = {
+  bind: vi.fn(),
+  executionStarted: vi.fn(() => ({})),
+  beginScopedExecution: vi.fn(() => ({})),
+  adoptScopedExecution: vi.fn((): object | undefined => undefined),
+  onRunningEntryAdded: vi.fn(),
+  executionEnded: vi.fn(),
+  endScopedExecution: vi.fn(() => true),
+  persist: vi.fn(async () => undefined),
+  reset: vi.fn(),
+}
+const mockLoadExecutionPointer = vi.fn(async (): Promise<unknown> => null)
+const mockSaveExecutionPointer = vi.fn(async () => undefined)
+const mockClearExecutionPointer = vi.fn(async () => undefined)
+const mockClearAllExecutionPointers = vi.fn()
+const mockWaitForConsoleHydration = vi.fn(async () => undefined)
+
 /**
  * Resets the in-memory mock console store. Call from `beforeEach` if your tests
  * push entries via `terminalConsoleMockFns.mockAddConsole`.
@@ -40,20 +58,6 @@ export function resetTerminalConsoleMock(): void {
   mockUpdateConsole.mockClear()
   mockCancelRunningEntries.mockClear()
   mockClearWorkflowConsole.mockClear()
-}
-
-/**
- * Controllable mock fns for `@/stores/terminal` and `@/stores/terminal/console/store`.
- * Includes a tiny in-memory store backing `getWorkflowEntries`/`addConsole` so callers
- * exercising the read-after-write contract behave correctly without the real Zustand store.
- */
-export const terminalConsoleMockFns = {
-  mockGetWorkflowEntries,
-  mockAddConsole,
-  mockUpdateConsole,
-  mockCancelRunningEntries,
-  mockClearWorkflowConsole,
-  reset: resetTerminalConsoleMock,
 }
 
 const stateValue = {
@@ -70,6 +74,43 @@ const stateValue = {
 }
 
 /**
+ * The store hook. The default ignores the selector and returns the whole mock state; a test that
+ * needs selector semantics or its own state sets `mockImplementation` / `getState.mockReturnValue`.
+ */
+const mockUseTerminalConsoleStore = Object.assign(
+  vi.fn((_selector?: (state: never) => unknown): unknown => stateValue),
+  {
+    getState: vi.fn((): unknown => stateValue),
+    setState: vi.fn(),
+    subscribe: vi.fn(),
+  }
+)
+
+/**
+ * Controllable mock fns for `@/stores/terminal` and `@/stores/terminal/console/store`.
+ * Includes a tiny in-memory store backing `getWorkflowEntries`/`addConsole` so callers
+ * exercising the read-after-write contract behave correctly without the real Zustand store.
+ */
+export const terminalConsoleMockFns = {
+  mockGetWorkflowEntries,
+  mockAddConsole,
+  mockUpdateConsole,
+  mockCancelRunningEntries,
+  mockClearWorkflowConsole,
+  mockConsolePersistence,
+  mockExecutionStarted: mockConsolePersistence.executionStarted,
+  mockExecutionEnded: mockConsolePersistence.executionEnded,
+  mockPersist: mockConsolePersistence.persist,
+  mockLoadExecutionPointer,
+  mockSaveExecutionPointer,
+  mockClearExecutionPointer,
+  mockClearAllExecutionPointers,
+  mockWaitForConsoleHydration,
+  mockUseTerminalConsoleStore,
+  reset: resetTerminalConsoleMock,
+}
+
+/**
  * Static mock module for `@/stores/terminal` / `@/stores/terminal/console/store`.
  *
  * @example
@@ -78,13 +119,11 @@ const stateValue = {
  * ```
  */
 export const terminalConsoleMock = {
-  useTerminalConsoleStore: Object.assign(
-    vi.fn(() => stateValue),
-    {
-      getState: vi.fn(() => stateValue),
-      setState: vi.fn(),
-      subscribe: vi.fn(),
-    }
-  ),
-  saveExecutionPointer: vi.fn(),
+  useTerminalConsoleStore: mockUseTerminalConsoleStore,
+  consolePersistence: mockConsolePersistence,
+  loadExecutionPointer: mockLoadExecutionPointer,
+  saveExecutionPointer: mockSaveExecutionPointer,
+  clearExecutionPointer: mockClearExecutionPointer,
+  clearAllExecutionPointers: mockClearAllExecutionPointers,
+  waitForConsoleHydration: mockWaitForConsoleHydration,
 }

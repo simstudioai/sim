@@ -1,11 +1,15 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, createElement, type ReactNode } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableInfo, TableRow } from '@/lib/table'
 import { RowModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/row-modal/row-modal'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 const {
   mockToastError,
@@ -23,9 +27,7 @@ const {
   mockDeleteRows: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/hooks/queries/general-settings', () => ({
   useTimezoneState: mockUseTimezoneState,
 }))

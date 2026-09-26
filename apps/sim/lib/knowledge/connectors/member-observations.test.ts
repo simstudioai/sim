@@ -5,12 +5,10 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  ConnectorSyncDeletionGuardError: class ConnectorSyncDeletionGuardError extends Error {},
-  hardDeleteDocuments: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { db } from '@sim/db'
 import { inArray } from 'drizzle-orm'

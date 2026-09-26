@@ -1,26 +1,23 @@
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  trigger: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   processor: vi.fn(),
-  enabled: true,
 }))
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mocks.trigger } }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isTriggerDevEnabled() {
-    return mocks.enabled
-  },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
-vi.mock('@/lib/core/outbox/processor', () => ({ runOutboxProcessor: mocks.processor }))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/outbox/processor', () => ({ runOutboxProcessor: hoisted.processor }))
 
+import { tasks } from '@trigger.dev/sdk'
 import { enqueueOutboxProcessor } from '@/lib/core/outbox/enqueue'
+
+const mocks = { ...hoisted, trigger: vi.mocked(tasks.trigger) }
 
 describe('outbox processor enqueue', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-16T12:34:45Z'))
-    mocks.enabled = true
+    setEnvFlags({ isTriggerDevEnabled: true })
     mocks.trigger.mockResolvedValue({ id: 'run-1' })
   })
   afterEach(() => vi.useRealTimers())
@@ -42,7 +39,7 @@ describe('outbox processor enqueue', () => {
   })
 
   it('preserves synchronous processing for self-hosted deployments without Trigger', async () => {
-    mocks.enabled = false
+    setEnvFlags({ isTriggerDevEnabled: false })
     const output = {
       result: { processed: 4, retried: 0, deadLettered: 0, leaseLost: 0, reaped: 0 },
       recoveredDocuments: 2,

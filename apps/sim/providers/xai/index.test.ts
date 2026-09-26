@@ -1,46 +1,35 @@
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreate, mockExecuteProviderTool, mockCapture, mockRecordUsage } = vi.hoisted(() => ({
-  mockRecordUsage: vi.fn(),
-  mockCapture: vi.fn(),
-  mockCreate: vi.fn(),
+const { mockExecuteProviderTool } = vi.hoisted(() => ({
   mockExecuteProviderTool: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
-  captureProviderConversationStep: mockCapture,
-  recordProviderConversationUsage: mockRecordUsage,
-  recordProviderConversationToolError: vi.fn(),
-}))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
+vi.mock('@/providers', () => providersMock)
 
 vi.mock('@/providers/runtime-context', () => ({
   getProviderRuntimeContext: () => undefined,
   executeProviderTool: mockExecuteProviderTool,
 }))
 
-vi.mock('@/providers/models', () => ({
-  getProviderModels: () => [],
-  getProviderDefaultModel: () => '',
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: (messages: unknown) => messages,
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
 vi.mock('@/providers/transport', () => ({ openAICompatTransport: () => ({}) }))
 
@@ -67,33 +56,22 @@ vi.mock('@/providers/streaming-execution', () => ({
   createStreamingExecution: vi.fn(() => ({ stream: null, execution: null })),
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  sumToolCosts: vi.fn(() => 0),
-  prepareToolExecution: vi.fn((_tool, toolArgs) => ({
-    toolParams: toolArgs,
-    executionParams: toolArgs,
-  })),
-  prepareToolsWithUsageControl: vi.fn((tools) => ({
-    tools,
-    toolChoice: 'auto',
-    forcedTools: [],
-    hasFilteredTools: false,
-  })),
-  checkForForcedToolUsageOpenAI: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import type { StreamingExecution } from '@/executor/types'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
+
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: 'auto',
+  forcedTools: [],
+  hasFilteredTools: false,
+}))
 
 interface ChatOptions {
   content?: string | null

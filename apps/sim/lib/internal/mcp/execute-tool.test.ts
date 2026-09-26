@@ -6,6 +6,10 @@ import {
   toolsMetadataMock,
   toolsUtilsMock,
 } from '@sim/testing/mocks'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { listMcpOperations } from '@/lib/internal/mcp/list-operations'
@@ -18,9 +22,9 @@ import { Serializer } from '@/serializer'
 import { mcpListOperationsTool } from '@/tools/mcp/list-operations'
 import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import type { McpListOperationsResponse } from '@/tools/mcp/types'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   discover: vi.fn(),
   executeUseCase: vi.fn(),
   executeManagedUseCase: vi.fn(),
@@ -28,14 +32,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/blocks', () => ({ ...blocksMock, getBlock: createMockGetBlock({ mcp: McpBlock }) }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: mocks.discover,
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 vi.mock('@/lib/mcp/application/execute-tool', () => ({
   executeMcpToolUseCase: { execute: mocks.executeUseCase },
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
@@ -45,6 +46,11 @@ vi.mock('@/lib/mcp/application/execute-managed-tool', () => ({
 }))
 
 import { executeMcpTool } from '@/lib/internal/mcp/execute-tool'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -91,7 +97,7 @@ const CONTEXT: InternalToolOperationContext = {
 
 describe('executeMcpTool', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(PRINCIPAL)
     mocks.executeUseCase.mockResolvedValue({
       success: true,
       output: { content: [{ type: 'text', text: 'done' }] },
@@ -117,7 +123,7 @@ describe('executeMcpTool', () => {
         requestId: 'request-copilot',
       })
       expect(response.status).toBe(200)
-      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
       expect(mocks.executeUseCase).toHaveBeenCalledWith({
         principal: expect.objectContaining({
           kind: 'delegated',
@@ -151,7 +157,7 @@ describe('executeMcpTool', () => {
       requestId: 'request-copilot-managed',
     })
     expect(response.status).toBe(200)
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.executeUseCase).not.toHaveBeenCalled()
     expect(mocks.executeManagedUseCase).toHaveBeenCalledWith({
       principal: expect.objectContaining({
@@ -187,7 +193,7 @@ describe('executeMcpTool', () => {
       })
       expect(response.ok).toBe(false)
       expect(mocks.executeUseCase).not.toHaveBeenCalled()
-      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     }
   )
 
@@ -207,7 +213,7 @@ describe('executeMcpTool', () => {
       requestId: 'request-copilot-block',
     })
     expect(response.status).toBe(200)
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith({
       context,
       audience: 'sim:mcp-servers',
       resourceScope: { mcpServerId: 'mcp-server' },
@@ -295,11 +301,11 @@ describe('executeMcpTool', () => {
     expect(await missingBilling.json()).toMatchObject({
       error: 'Missing billing attribution in execution context for MCP tool lookup',
     })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
   })
 
   it('scopes provenance to the trusted nested human without inventing an actor', async () => {
-    mocks.createPrincipal.mockResolvedValueOnce(NESTED_HUMAN_PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(NESTED_HUMAN_PRINCIPAL)
     mocks.executeUseCase.mockImplementationOnce(async ({ input }) => {
       input.onResolvedSecretTraceProvenance?.({
         version: 1,
@@ -448,7 +454,7 @@ describe('executeMcpTool', () => {
           arguments: { query: 'sim' },
         }),
       })
-      expect(mocks.createPrincipal).toHaveBeenCalledWith(
+      expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith(
         expect.objectContaining({ context: expect.objectContaining({ mcpBlockId: 'run' }) })
       )
     }

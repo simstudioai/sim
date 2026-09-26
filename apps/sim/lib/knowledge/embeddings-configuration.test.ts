@@ -1,19 +1,7 @@
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, mockOllamaMetadata } = vi.hoisted(() => ({
-  mockEnv: {} as { KB_EMBEDDING_MODEL?: string; EMBEDDING_OUTPUT_DIMS?: string },
-  mockOllamaMetadata: vi.fn(),
-}))
-
-/**
- * `envNumber` is the real implementation, not a stub: the whole point of the
- * cases below is that `createEnv` runs with `skipValidation`, so every value
- * arrives as the raw string from the environment however its schema is declared.
- */
-vi.mock('@/lib/core/config/env', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/config/env')>()),
-  env: mockEnv,
-}))
+const { mockOllamaMetadata } = vi.hoisted(() => ({ mockOllamaMetadata: vi.fn() }))
 
 vi.mock('@/lib/embeddings/ollama-model-catalog.server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/embeddings/ollama-model-catalog.server')>()),
@@ -24,14 +12,14 @@ import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 
 describe('getConfiguredKbEmbedding', () => {
   beforeEach(() => {
-    mockEnv.KB_EMBEDDING_MODEL = undefined
-    mockEnv.EMBEDDING_OUTPUT_DIMS = undefined
+    mockEnvObject.KB_EMBEDDING_MODEL = undefined
+    mockEnvObject.EMBEDDING_OUTPUT_DIMS = undefined
     mockOllamaMetadata.mockRejectedValue(new Error('no server configured'))
   })
 
   it('accepts any storable width from a model on the deployment’s own Ollama', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
-    mockEnv.EMBEDDING_OUTPUT_DIMS = '768'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
+    mockEnvObject.EMBEDDING_OUTPUT_DIMS = '768'
     await expect(getConfiguredKbEmbedding()).resolves.toEqual({
       model: 'ollama/nomic-embed-text',
       dimensions: 768,
@@ -39,8 +27,8 @@ describe('getConfiguredKbEmbedding', () => {
   })
 
   it('prefers a stated width over the server, and never asks when one is stated', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
-    mockEnv.EMBEDDING_OUTPUT_DIMS = '1024'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
+    mockEnvObject.EMBEDDING_OUTPUT_DIMS = '1024'
     mockOllamaMetadata.mockResolvedValue({ id: 'nomic-embed-text:latest', dimensions: 768 })
 
     await expect(getConfiguredKbEmbedding()).resolves.toEqual({
@@ -57,14 +45,14 @@ describe('getConfiguredKbEmbedding', () => {
    * a base created at an impossible width is not.
    */
   it('refuses to create a base when the server cannot be asked', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
     mockOllamaMetadata.mockRejectedValue(new Error('ECONNREFUSED'))
 
     await expect(getConfiguredKbEmbedding()).rejects.toThrow('Set EMBEDDING_OUTPUT_DIMS')
   })
 
   it('refuses to create a base when the model emits a width no column can store', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'ollama/odd-width'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'ollama/odd-width'
     mockOllamaMetadata.mockResolvedValue({ id: 'odd-width:latest', dimensions: 1152 })
 
     await expect(getConfiguredKbEmbedding()).rejects.toThrow(
@@ -73,8 +61,8 @@ describe('getConfiguredKbEmbedding', () => {
   })
 
   it('falls back when the width has no storage column, keeping the chosen model', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-3-large'
-    mockEnv.EMBEDDING_OUTPUT_DIMS = '1000'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'text-embedding-3-large'
+    mockEnvObject.EMBEDDING_OUTPUT_DIMS = '1000'
     await expect(getConfiguredKbEmbedding()).resolves.toEqual({
       model: 'text-embedding-3-large',
       dimensions: 1536,
@@ -82,8 +70,8 @@ describe('getConfiguredKbEmbedding', () => {
   })
 
   it('falls back to the default model when the configured one cannot index a knowledge base', async () => {
-    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-ada-002'
-    mockEnv.EMBEDDING_OUTPUT_DIMS = '768'
+    mockEnvObject.KB_EMBEDDING_MODEL = 'text-embedding-ada-002'
+    mockEnvObject.EMBEDDING_OUTPUT_DIMS = '768'
     await expect(getConfiguredKbEmbedding()).resolves.toEqual({
       model: 'text-embedding-3-small',
       dimensions: 768,

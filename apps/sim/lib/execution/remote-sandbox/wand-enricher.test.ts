@@ -1,42 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockLimit, mockSelect } = vi.hoisted(() => ({
-  mockLimit: vi.fn(),
-  mockSelect: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mockSelect },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workspaceSandbox: {
-    cliTools: 'cliTools',
-    dependencies: 'dependencies',
-    id: 'id',
-    language: 'language',
-    name: 'name',
-    systemPackages: 'systemPackages',
-    workspaceId: 'workspaceId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  eq: vi.fn(),
-}))
-
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { describe, expect, it, vi } from 'vitest'
 import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
 
-describe('enrichSandboxCapabilities', () => {
-  beforeEach(() => {
-    mockSelect.mockReturnValue({
-      from: () => ({
-        where: () => ({ limit: mockLimit }),
-      }),
-    })
-  })
+const mockLimit = dbChainMockFns.limit
 
+describe('enrichSandboxCapabilities', () => {
   it('describes curated CLIs for a CLI-only sandbox without registry requests', async () => {
     mockLimit.mockResolvedValue([
       {

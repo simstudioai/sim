@@ -2,7 +2,19 @@
  * @vitest-environment jsdom
  * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
+
 import { act, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +24,7 @@ vi.mock('@/hooks/queries/workspace-usage', () => ({
 }))
 
 const {
-  mockParams,
   mockCredentialHost,
-  mockOrganizationContext,
-  mockSession,
   mockRefetchPersonalEnvironment,
   mockRefetchWorkspaceCredentials,
   mockIsBrowserAgentAvailable,
@@ -27,9 +36,6 @@ const {
   mockUseWorkspaceCredential,
   mockUseWorkspaceCredentials,
 } = vi.hoisted(() => ({
-  mockParams: vi.fn(() => ({ workspaceId: 'workspace-1' })),
-  mockOrganizationContext: vi.fn(() => null),
-  mockSession: vi.fn(() => ({ data: { user: { id: 'person' } } })),
   mockCredentialHost: vi.fn(({ children }: { children: ReactNode }) => children),
   mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
@@ -47,16 +53,11 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/resource-workspace-host',
   ResourceWorkspaceHost: mockCredentialHost,
 }))
 
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOptionalOrganizationContext: mockOrganizationContext,
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useOptionalWorkspaceHostContext: () => null,
 }))
-vi.mock('@/lib/core/config/deployment-shape', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useDeploymentShape: () => ({ hosted: true }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({ getSettingsHref: () => '/unexpected-workspace-settings' }),
 }))
@@ -65,13 +66,9 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
   useUserPermissionsContext: mockUseUserPermissionsContext,
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: mockParams,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: mockSession,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
   useChatSurface: () => ({
     SearchConnectionComponent: ({ onConnected }: { onConnected?: () => void }) => (
@@ -114,6 +111,15 @@ import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/comp
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
 
+const mockOrganizationContext = organizationProviderMockFns.mockUseOptionalOrganizationContext
+const mockSession = authClientMockFns.mockUseSession
+deploymentShapeMockFns.mockUseDeploymentShape.mockReturnValue(
+  createMockDeploymentShape({ hosted: true })
+)
+
+const mockParams = nextNavigationMockFns.mockUseParams
+mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 /**
  * Minimal dependency-free render harness (the repo has no `@testing-library/react`). Mounts the
  * component in a real React 19 root under jsdom, matching the pattern in `use-autosave.test.tsx`.
@@ -142,7 +148,6 @@ function renderCredentialLink(
 describe('CredentialDisplay link tag', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.clearAllMocks()
     mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
     mockOrganizationContext.mockReturnValue(null)
     mockSession.mockReturnValue({ data: { user: { id: 'person' } } })

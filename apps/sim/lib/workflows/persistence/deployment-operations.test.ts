@@ -1,20 +1,8 @@
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateId } = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: schemaMock.workflow,
-  workflowDeploymentOperation: schemaMock.workflowDeploymentOperation,
-  workflowDeploymentVersion: schemaMock.workflowDeploymentVersion,
-}))
-
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import {
   activateDeploymentOperation,
@@ -23,6 +11,8 @@ import {
   markDeploymentOperationFailed,
   prepareWorkflowDeployment,
 } from '@/lib/workflows/persistence/deployment-operations'
+
+const mockGenerateId = idMockFns.mockGenerateId
 
 const WORKFLOW_ID = 'workflow-1'
 const NOW = new Date('2026-07-14T08:00:00.000Z')

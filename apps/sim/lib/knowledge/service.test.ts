@@ -7,27 +7,14 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 import {
   attachKnowledgeBaseConnectors,
@@ -36,6 +23,11 @@ import {
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 /**
  * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the

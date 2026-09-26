@@ -1,27 +1,21 @@
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   MAX_TRACE_ARCHIVE_BYTES,
 } from '@/lib/execution/payloads/limits'
 
-const {
-  mockPrimaryRead,
-  mockRead,
-  mockInfo,
-  mockDataRead,
-  mockTransaction,
-  mockUpdate,
-  mockExternalize,
-  mockReplaceReferences,
-} = vi.hoisted(() => ({
+const { mockPrimaryRead, mockRead, mockDataRead, mockTransaction, mockUpdate } = vi.hoisted(() => ({
   mockPrimaryRead: vi.fn(),
   mockRead: vi.fn(),
-  mockInfo: vi.fn(),
   mockDataRead: vi.fn(),
   mockTransaction: vi.fn(),
   mockUpdate: vi.fn(),
-  mockExternalize: vi.fn(),
-  mockReplaceReferences: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => {
@@ -47,25 +41,19 @@ vi.mock('@sim/db', () => {
   }
 })
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mockInfo, error: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  externalizeExecutionData: mockExternalize,
-  stripSpanCosts: vi.fn(),
-  TRACE_STORE_REF_KEY: 'traceStoreRef',
-}))
-
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  collectLargeValueReferenceKeys: () => ['stored-key'],
-  replaceLargeValueReferenceKeysWithClient: mockReplaceReferences,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import { backfillTraceStorage, parseArgs, runBackfillWorkers } from '@/scripts/backfill-trace-spans'
 
+const mockInfo = getMockLogger('BackfillTraceSpans').info
+const mockExternalize = traceStoreMockFns.mockExternalizeExecutionData
+
 beforeEach(() => {
   vi.resetAllMocks()
+  traceStoreMockFns.mockStripSpanCosts.mockImplementation(() => {})
+  largeValueMetadataMockFns.mockCollectLargeValueReferenceKeys.mockReturnValue(['stored-key'])
   mockPrimaryRead.mockImplementation((limit: number) => {
     if (limit !== 0) throw new Error('Execution payloads must use the execution pool')
     return Promise.resolve([])

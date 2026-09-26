@@ -10,13 +10,12 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
-import {
-  forgetProjectionFilled,
-  resolvePermittedDocuments,
-  retrieveKnowledgeSearch,
-  VECTOR_PROBE_DOCUMENT_LIMIT,
-} from '@/lib/knowledge/search/queries'
+import { VECTOR_PROBE_DOCUMENT_LIMIT } from '@/lib/knowledge/search/candidates'
+import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
+import { resolveSearchAccessPlan } from '@/lib/sim-search/indexed/retrieval/access-plan'
+import { resolvePermittedDocuments } from '@/lib/sim-search/indexed/retrieval/permitted'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval/projection-fill'
 
 describe('API-key KB block fan-out', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -135,10 +134,10 @@ describe('API-key KB block fan-out', () => {
           statements.filter((query) => query.includes(fragment))
         /**
          * Every statement runs under the leg's deadline: the candidate search applies it with the
-         * scan settings in one statement, and the probe, exact ranking, document-backed page
-         * and hydration each open with one of their own.
+         * scan settings in one statement, and the probe, exact ranking and hydration each open
+         * with one of their own.
          */
-        expect(matching('statement_timeout')).toHaveLength(bases.length * 5)
+        expect(matching('statement_timeout')).toHaveLength(bases.length * 4)
         expect(matching('IS NOT NULL AS unfilled')).toHaveLength(0)
         /**
          * A scope this small leaves the bounded traversal short of its candidate limit, so every
@@ -147,8 +146,8 @@ describe('API-key KB block fan-out', () => {
         expect(matching('hnsw.iterative_scan')).toHaveLength(bases.length)
         expect(matching('AS visible')).toHaveLength(bases.length)
         expect(matching(') + 0 LIMIT')).toHaveLength(bases.length)
-        /** Ordinary KBs read page identities from documents without requiring a filled projection. */
-        expect(matching('"embedding_search"."id" = ANY(')).toHaveLength(bases.length)
+        /** The walk and the rescue carry each candidate's document, so no page read follows them. */
+        expect(matching('"embedding_search"."id" = ANY(')).toHaveLength(0)
         /** The probe enumerates visible documents and reports saturation; it never ranks them. */
         expect(
           statements.filter(
@@ -178,9 +177,12 @@ describe('API-key KB block fan-out', () => {
           'text/plain', 'completed', ARRAY['ws']::text[]
         FROM generate_series(1, ${VECTOR_PROBE_DOCUMENT_LIMIT + 1}) AS n
       `)
+      const access = { kind: 'user' as const, userId: ids.bobId, tokens: ['pub', 'ws'] }
       const permitted = await resolvePermittedDocuments({
         knowledgeBaseIds: [bases[0].id],
-        access: { kind: 'user', userId: ids.bobId, tokens: ['pub', 'ws'] },
+        access,
+        accessPlan: await resolveSearchAccessPlan([bases[0].id], access),
+        filtered: false,
       })
       expect(permitted).toEqual({
         kind: 'bounded',

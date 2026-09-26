@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleCalendarConnector } from '@/connectors/google-calendar/google-calendar'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -25,13 +26,6 @@ const EVENT = {
   ],
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
 beforeEach(() => {
@@ -47,7 +41,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('Google Calendar Search isolation', () => {

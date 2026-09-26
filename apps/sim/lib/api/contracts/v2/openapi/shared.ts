@@ -355,7 +355,7 @@ export const FOLDER_TREE_TOO_LARGE = 'Workspace folder trees exceeding 10,000 fo
  * single-page list from a paged one by shape alone. Saying so once keeps the
  * eight such operations from drifting into eight paraphrases of the same
  * promise. The authoritative membership is pinned in
- * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
+ * `contracts/v2/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
 export const FULL_SET_LIST = 'Returns the complete set in one page; `nextCursor` is always null.'
 

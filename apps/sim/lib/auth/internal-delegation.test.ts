@@ -1,27 +1,26 @@
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveWorkflow, mockResolveRun, mockResolveExecution, mockResolveDeploymentVersion } =
-  vi.hoisted(() => ({
-    mockResolveWorkflow: vi.fn(),
-    mockResolveRun: vi.fn(),
-    mockResolveExecution: vi.fn(),
-    mockResolveDeploymentVersion: vi.fn(),
-  }))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
-
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mockResolveWorkflow,
-  resolveActiveWorkflowRunApplicationContext: mockResolveRun,
-  resolveActiveWorkflowExecutionApplicationContext: mockResolveExecution,
-  resolveActiveWorkflowDeploymentVersionApplicationContext: mockResolveDeploymentVersion,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 import {
   bindInternalExecutorDelegation,
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+const {
+  mockResolveActiveWorkflowApplicationContext: mockResolveWorkflow,
+  mockResolveActiveWorkflowRunApplicationContext: mockResolveRun,
+  mockResolveActiveWorkflowExecutionApplicationContext: mockResolveExecution,
+  mockResolveActiveWorkflowDeploymentVersionApplicationContext: mockResolveDeploymentVersion,
+} = workflowContextMockFns
 
 const claims = {
   serviceId: 'executor' as const,

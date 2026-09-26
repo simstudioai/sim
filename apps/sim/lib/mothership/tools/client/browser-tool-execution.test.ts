@@ -3,7 +3,7 @@
  */
 import { Blob as NodeBlob } from 'node:buffer'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCancelBrowserTool,
@@ -78,10 +78,6 @@ describe('executeBrowserToolOnClient', () => {
     mockReportCompletionOnPageExit.mockResolvedValue(undefined)
     mockRestoreBrowserScope.mockResolvedValue(false)
     mockCancelBrowserTool.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('reports stopped form outcomes with partial readbacks and does not replay their writes', async () => {

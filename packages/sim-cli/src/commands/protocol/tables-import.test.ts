@@ -25,7 +25,6 @@ vi.mock('../../context', () => ({
 }))
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mockRequest.mockReset()
   output.format = 'json'
 })

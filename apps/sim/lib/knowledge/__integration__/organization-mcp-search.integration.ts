@@ -43,10 +43,11 @@ const fixtures = vi.hoisted(() => ({
   afterResponse: [] as Array<() => Promise<void>>,
 }))
 /** This ingestion suite covers the explicit rollback backend; live Search has its own suites. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
-  isLiveEnterpriseSearchEnabled: false,
-}))
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
 vi.mock('@/lib/core/utils/after-response', () => ({
   afterResponse: (task: () => Promise<void>) => fixtures.afterResponse.push(task),
 }))
@@ -84,15 +85,15 @@ import {
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { listKnowledgeBaseCatalog } from '@/lib/knowledge/application/knowledge-bases'
-import { readIndexedKnowledgeDocument } from '@/lib/knowledge/application/read-indexed-document'
+import { listKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
 import { prepareSearchSource } from '@/lib/knowledge/application/sim-search'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
 import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/secret-provenance'
+import { readIndexedKnowledgeDocument } from '@/lib/sim-search/indexed/documents/read-indexed-document'
+import { searchScopedKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 import { DELETE, GET, POST } from '@/app/api/mcp/search/organizations/[organizationId]/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -455,7 +456,7 @@ describe('organization Search MCP rollback backend with real ingestion and curre
         userId: otherAdminId,
       }),
     ])
-    const catalog = await listKnowledgeBaseCatalog.execute({
+    const catalog = await listKnowledgeBases.execute({
       principal: alicePrincipal,
       input: { workspaceId },
     })

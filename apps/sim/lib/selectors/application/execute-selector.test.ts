@@ -1,71 +1,58 @@
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   events: [] as string[],
-  authorizeCredential: vi.fn(),
   executeAttachment: vi.fn(),
   getAttachment: vi.fn(),
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
   recordCredentialAccess: vi.fn(),
-  resolvePermission: vi.fn(),
   resolveReferences: vi.fn(),
   resolveScope: vi.fn(),
   sanitize: vi.fn(),
   authorizePersonalSearch: vi.fn(),
-  requireOrganizationMembership: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
-  authorizePersonalSearchSetup: mocks.authorizePersonalSearch,
+  authorizePersonalSearchSetup: hoisted.authorizePersonalSearch,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  requireOrganizationMembership: mocks.requireOrganizationMembership,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
-vi.mock('@sim/audit', () => ({ recordAudit: vi.fn() }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mocks.logger),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/selectors/application/resolve-scope', () => ({
-  resolveSelectorApplicationContext: mocks.resolveScope,
+  resolveSelectorApplicationContext: hoisted.resolveScope,
 }))
 
 vi.mock('@/lib/oauth/token-resolution', () => ({
-  recordCredentialAccess: mocks.recordCredentialAccess,
+  recordCredentialAccess: hoisted.recordCredentialAccess,
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  authorizeSelectorCredential: mocks.authorizeCredential,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 vi.mock('@/lib/selectors/server/references', () => ({
-  resolveSelectorReferences: mocks.resolveReferences,
+  resolveSelectorReferences: hoisted.resolveReferences,
 }))
 
 vi.mock('@/lib/selectors/server/registry', () => ({
-  getServerSelectorAttachment: mocks.getAttachment,
+  getServerSelectorAttachment: hoisted.getAttachment,
 }))
 
 vi.mock('@/lib/selectors/server/sanitize', () => ({
-  sanitizeSelectorResult: mocks.sanitize,
+  sanitizeSelectorResult: hoisted.sanitize,
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
@@ -83,7 +70,15 @@ import {
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  logger: getMockLogger('ExecuteSelector'),
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  authorizeCredential: selectorCredentialsMockFns.mockAuthorizeSelectorCredential,
+  requireOrganizationMembership: organizationAuthorizationMockFns.mockRequireOrganizationMembership,
+}
+
+const principal = createSessionPrincipal()
 const scope = { kind: 'workspace' as const, workspaceId: 'workspace-1' }
 
 function execute(inputOverrides: Record<string, unknown> = {}) {

@@ -1,28 +1,16 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureServerEvent, mockRecordAudit, mockUploadWorkspaceFile } = vi.hoisted(() => ({
-  mockCaptureServerEvent: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockUploadWorkspaceFile: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPLOADED: 'file.uploaded' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  FileConflictError: class FileConflictError extends Error {
-    constructor(name: string) {
-      super(`A file named "${name}" already exists in this workspace`)
-      this.name = 'FileConflictError'
-    }
-  },
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-}))
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { FileConflictError } from '@/lib/uploads/contexts/workspace'
@@ -30,6 +18,12 @@ import {
   MAX_WORKSPACE_FILE_CONTENT_BYTES,
   performCreateWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
+
+const mockUploadWorkspaceFile = workspaceUploadsMockFns.mockUploadWorkspaceFile
+
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const WORKSPACE_ID = 'workspace-1'
 const USER_ID = 'user-1'

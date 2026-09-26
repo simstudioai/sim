@@ -2,8 +2,10 @@
  * Uses a disposable schema in the isolated local memory test database.
  * Set TEST_DATABASE_URL before running this suite from apps/sim.
  */
+
 import { readFile } from 'node:fs/promises'
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -57,19 +59,14 @@ import type { AgentInputs } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Memory PostgreSQL tests require an explicitly configured local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 
 const schemaName = `memory_provenance_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 8,
-      connection: { search_path: `${schemaName},public` },
-      onnotice: () => {},
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 8,
+  connection: { search_path: `${schemaName},public` },
+  onnotice: () => {},
+})
 const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 function principal(): WorkflowExecutionDelegatedPrincipal {
@@ -151,9 +148,8 @@ async function nativeAppend(key: string, suffix: string) {
   })
 }
 
-describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
+describe('memory provenance in PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     database.current = drizzle(connection)
     await connection.unsafe(`
@@ -189,7 +185,6 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    if (!connection) return
     try {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
@@ -200,7 +195,6 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
 
   describe('enforced memory provenance', () => {
     it('keeps a large one-secret conversation exact across tool and native writes and model reads', async () => {
-      if (!connection) throw new Error('PostgreSQL test database is not initialized')
       const key = `large-conversation-strict`
       const messages = Array.from({ length: 17_000 }, (_, index) => ({
         role: 'user',
@@ -253,7 +247,6 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
     it.each(['tool-tool', 'tool-native', 'native-native'] as const)(
       'preserves both first appends and secret bindings for %s',
       async (mode) => {
-        if (!connection) throw new Error('PostgreSQL test database is not initialized')
         for (let index = 0; index < 8; index++) {
           const key = `strict-${mode}-${index}`
           await Promise.all([

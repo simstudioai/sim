@@ -1,5 +1,7 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { NextRequest } from 'next/server'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
   BILLING_ATTRIBUTION_HEADER,
@@ -11,8 +13,9 @@ import {
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 
-const { capture } = vi.hoisted(() => ({ capture: vi.fn() }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: capture }))
+const capture = posthogServerMockFns.mockCaptureServerEvent
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'execution-billing-actor-1',
@@ -28,7 +31,8 @@ const BILLING_ATTRIBUTION = {
 }
 
 function request(): NextRequest {
-  return new NextRequest('http://localhost/api/knowledge/search', {
+  return createMockRequest({
+    url: 'http://localhost/api/knowledge/search',
     headers: {
       [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(BILLING_ATTRIBUTION),
     },

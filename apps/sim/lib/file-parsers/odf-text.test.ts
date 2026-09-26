@@ -1,5 +1,5 @@
 import JSZip, { type JSZipObject } from 'jszip'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { FileParserError } from '@/lib/file-parsers/errors'
 import { extractOpenDocumentText } from '@/lib/file-parsers/odf-text'
 import { MAX_OFFICE_TEXT_BYTES, MAX_OFFICE_XML_PART_BYTES } from '@/lib/file-parsers/office-text'
@@ -21,10 +21,6 @@ async function buildOdf(bodyXml: string, extraParts: Record<string, string> = {}
 const text = (body: string) => buildOdf(`<office:text>${body}</office:text>`)
 
 describe('extractOpenDocumentText', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('treats tracked deletions as accepted and keeps insertions', async () => {
     const buffer = await text(
       `<text:tracked-changes><text:changed-region text:id="ct1"><text:deletion><office:change-info><dc:creator>M</dc:creator></office:change-info><text:p>deleted words</text:p></text:deletion></text:changed-region></text:tracked-changes>` +

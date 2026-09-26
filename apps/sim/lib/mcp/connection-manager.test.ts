@@ -1,4 +1,7 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { mcpOauthMock, mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
+import { mcpPubsubMock } from '@sim/testing/mocks/mcp-pubsub.mock'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface MockMcpClient {
@@ -6,15 +9,6 @@ interface MockMcpClient {
   disconnect: ReturnType<typeof vi.fn>
   hasListChangedCapability: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
-}
-
-/** Deferred promise to control when `client.connect()` resolves. */
-function createDeferred<T = void>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
-    resolve = res
-  })
-  return { promise, resolve }
 }
 
 function serverConfig(id: string, name = `Server ${id}`) {
@@ -28,9 +22,6 @@ function serverConfig(id: string, name = `Server ${id}`) {
 
 const {
   MockMcpClientConstructor,
-  mockOnToolsChanged,
-  mockPublishToolsChanged,
-  mockGetOrCreateOauthRow,
   mockValidateMcpDomain,
   mockValidateMcpServerSsrf,
   mockWithResourceOutboundScope,
@@ -39,21 +30,13 @@ const {
   MockMcpClientConstructor: vi.fn(),
   mockValidateMcpDomain: vi.fn(),
   mockValidateMcpServerSsrf: vi.fn(),
-  mockOnToolsChanged: vi.fn(() => vi.fn()),
-  mockPublishToolsChanged: vi.fn(),
-  mockGetOrCreateOauthRow: vi.fn(),
 }))
 
 vi.mock('@/lib/core/network/resource-scope.server', () => ({
   withResourceOutboundScope: mockWithResourceOutboundScope,
 }))
 
-vi.mock('@/lib/mcp/pubsub', () => ({
-  mcpPubSub: {
-    onToolsChanged: mockOnToolsChanged,
-    publishToolsChanged: mockPublishToolsChanged,
-  },
-}))
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
 vi.mock('@/lib/mcp/client', () => ({
   McpClient: MockMcpClientConstructor,
 }))
@@ -61,20 +44,12 @@ vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpDomain: mockValidateMcpDomain,
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
-vi.mock('@/lib/mcp/oauth', () => ({
-  getOrCreateOauthRow: mockGetOrCreateOauthRow,
-  loadPreregisteredClient: vi.fn(),
-  SimMcpOauthProvider: vi.fn().mockImplementation(
-    class {
-      constructor(value: object) {
-        Object.assign(this, value)
-      }
-    }
-  ),
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
 import { McpConnectionManager } from '@/lib/mcp/connection-manager'
 import type { McpClientOptions } from '@/lib/mcp/types'
+
+const mockGetOrCreateOauthRow = mcpOauthMockFns.mockGetOrCreateOauthRow
 
 beforeAll(() => {
   setEnvFlags({ isTest: false })
@@ -137,7 +112,7 @@ describe('McpConnectionManager', () => {
     })
 
     it('creates only one client when two connect() calls race for the same serverId', async () => {
-      const deferred = createDeferred()
+      const deferred = createDeferred<void>()
       const instances: MockMcpClient[] = []
 
       MockMcpClientConstructor.mockImplementation(
@@ -247,7 +222,7 @@ describe('McpConnectionManager', () => {
 
     it('marks timed-out connect attempts as cancelled for late completions', async () => {
       vi.useFakeTimers()
-      const deferred = createDeferred()
+      const deferred = createDeferred<void>()
       const instances: MockMcpClient[] = []
 
       MockMcpClientConstructor.mockImplementation(

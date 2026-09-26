@@ -11,53 +11,41 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type { DbOrTx } from '@/lib/db/types'
 import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
 const {
-  MockConflictingPendingInvitationError,
   MockDirectGrantContextChangedError,
   mockAcquireInvitationMutationLocks,
-  mockAcquireOrganizationMutationLock,
-  mockAcquireOrganizationUserMutationLocks,
-  mockGetUserOrganization,
-  mockGetEffectiveWorkspacePermission,
-  mockGetWorkspaceWithOwner,
   mockValidateSeatAvailability,
   mockGrantWorkspaceAccessDirectly,
-  mockCreatePendingInvitation,
-  mockSendInvitationEmail,
-  mockCancelPendingInvitation,
-  mockRevertPendingInvitationGrants,
-  mockFindPendingGrantWorkspaceIds,
-  mockFindPendingOrganizationInvitation,
-  mockGetInvitePlanCategoryForUser,
-  mockIsOrganizationOwnerOrAdmin,
-  mockWorkspaceMemberInvited,
-  mockCaptureServerEvent,
 } = vi.hoisted(() => ({
-  MockConflictingPendingInvitationError: class extends Error {},
   MockDirectGrantContextChangedError: class extends Error {},
   mockAcquireInvitationMutationLocks: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
   mockValidateSeatAvailability: vi.fn(),
   mockGrantWorkspaceAccessDirectly: vi.fn(),
-  mockCreatePendingInvitation: vi.fn(),
-  mockSendInvitationEmail: vi.fn(),
-  mockCancelPendingInvitation: vi.fn(),
-  mockRevertPendingInvitationGrants: vi.fn(),
-  mockFindPendingGrantWorkspaceIds: vi.fn(),
-  mockFindPendingOrganizationInvitation: vi.fn(),
-  mockGetInvitePlanCategoryForUser: vi.fn(),
-  mockIsOrganizationOwnerOrAdmin: vi.fn(),
-  mockWorkspaceMemberInvited: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -66,57 +54,30 @@ vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   validateSeatAvailability: mockValidateSeatAvailability,
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { workspaceMemberInvited: mockWorkspaceMemberInvited },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@/lib/invitations/direct-grant', () => ({
   DirectGrantContextChangedError: MockDirectGrantContextChangedError,
   grantWorkspaceAccessDirectly: mockGrantWorkspaceAccessDirectly,
 }))
 
-vi.mock('@/lib/invitations/send', () => ({
-  ConflictingPendingInvitationError: MockConflictingPendingInvitationError,
-  createPendingInvitation: mockCreatePendingInvitation,
-  sendInvitationEmail: mockSendInvitationEmail,
-  cancelPendingInvitation: mockCancelPendingInvitation,
-  revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
-  findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
-  findPendingOrganizationInvitation: mockFindPendingOrganizationInvitation,
-}))
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-  hasWorkspaceAdminAccess: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: vi.fn(),
-  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
-}))
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateInvitationsAllowed: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import {
   createWorkspaceInvitation,
@@ -125,6 +86,24 @@ import {
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
+
+const {
+  mockAcquireOrganizationMutationLock,
+  mockAcquireOrganizationUserMutationLocks,
+  mockGetUserOrganization,
+} = organizationMembershipMockFns
+const { mockGetEffectiveWorkspacePermission, mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const {
+  mockCreatePendingInvitation,
+  mockSendInvitationEmail,
+  mockCancelPendingInvitation,
+  mockRevertPendingInvitationGrants,
+  mockFindPendingGrantWorkspaceIds,
+  mockFindPendingOrganizationInvitation,
+} = invitationsSendMockFns
+const mockGetInvitePlanCategoryForUser = workspacesPolicyMockFns.mockGetInvitePlanCategoryForUser
+const mockIsOrganizationOwnerOrAdmin = billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin
 
 function queueWhereResponses(responses: unknown[][]) {
   const queue = [...responses]

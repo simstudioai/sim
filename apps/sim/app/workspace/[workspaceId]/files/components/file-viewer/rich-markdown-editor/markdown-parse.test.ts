@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { Editor } from '@tiptap/core'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
   parseMarkdownToDoc,
@@ -254,4 +254,25 @@ describe('chunked parse — property test over randomized documents', () => {
     // Same budget as the corpus above, for the same reason — this is the second ~10s property test in
     // the file, and adding it is what pushed both past 30s under whole-suite parallelism.
   }, 60000)
+})
+
+describe('serializeMarkdownBody', () => {
+  /**
+   * Serializing is synchronous, so any timer it leaves behind outlives the call — and a DOM-touching
+   * one fires after a jsdom environment is torn down, failing whichever suite finished first. A fresh
+   * module instance makes the shared editor get built under the fake clock, whatever ran before.
+   */
+  it('leaves no deferred work behind, including when it builds the shared editor', async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    try {
+      const fresh = await import(
+        '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+      )
+      fresh.serializeMarkdownBody('# Before ![Logo](/logo.png "Title") after\n\n- a\n- b')
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

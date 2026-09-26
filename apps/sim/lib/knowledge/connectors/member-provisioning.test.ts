@@ -1,34 +1,24 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import { credentialGroupsEnrollmentsMock } from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import { credentialGroupsOrganizationSetupMock } from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import { credentialGroupsServiceMock } from '@sim/testing/mocks/credential-groups-service.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeMemberQueueMock } from '@sim/testing/mocks/knowledge-member-queue.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getPolicy } = vi.hoisted(() => ({ getPolicy: vi.fn() }))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => ({
-    getPolicy,
-    hasRequiredScopes: (granted: string[], required: string[]) =>
-      required.every((scope) => granted.includes(scope)),
-  }),
-}))
-
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  createCredentialGroupInvitationLink: vi.fn(),
-  inviteCredentialGroupEnrollment: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: vi.fn(),
-  resolveKnowledgeAccessAvailability: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({ dispatchMemberSync: vi.fn() }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveSystemBillingAttribution: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 
 import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
@@ -47,6 +37,13 @@ import {
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
+
+const getPolicy = vi.fn()
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue({
+  getPolicy,
+  hasRequiredScopes: (granted: string[], required: string[]) =>
+    required.every((scope) => granted.includes(scope)),
+})
 
 describe('provisionKnowledgeConnectorMembersBinding', () => {
   const slackMeta = { name: 'Slack', auth: { mode: 'oauth' as const, provider: 'slack' } }

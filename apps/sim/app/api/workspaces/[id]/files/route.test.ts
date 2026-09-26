@@ -1,12 +1,18 @@
 import { authMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   admitCreate: vi.fn(),
   createFile: vi.fn(),
-  listFiles: vi.fn(),
-  captureServerEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -17,21 +23,16 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   },
 }))
 
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: {
-    operation: { id: 'files.list', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.listFiles,
-  },
-}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/workspaces/[id]/files/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
-const PRINCIPAL = { kind: 'session' as const, userId: USER.id, sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal({ userId: USER.id })
 const FILE = {
   id: 'wf_1',
   workspaceId: WORKSPACE_ID,
@@ -45,13 +46,14 @@ const FILE = {
   uploadedAt: new Date('2026-08-04T00:00:00.000Z'),
   updatedAt: new Date('2026-08-04T00:00:00.000Z'),
 }
-const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID })
 
 function createRequest(body: unknown): NextRequest {
-  return new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files`, {
+  return createMockRequest({
     method: 'POST',
+    url: `/api/workspaces/${WORKSPACE_ID}/files`,
     headers: { 'content-type': 'application/json' },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    rawBody: typeof body === 'string' ? body : JSON.stringify(body),
   })
 }
 
@@ -60,7 +62,7 @@ describe('/api/workspaces/[id]/files', () => {
     authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
     mocks.admitCreate.mockResolvedValue(undefined)
     mocks.createFile.mockResolvedValue({ file: FILE })
-    mocks.listFiles.mockResolvedValue({ files: [FILE] })
+    workspaceFilesListMockFns.mockListAllWorkspaceFiles.mockResolvedValue({ files: [FILE] })
   })
 
   it('authorizes the asserted workspace before buffering the create body', async () => {

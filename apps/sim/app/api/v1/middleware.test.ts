@@ -5,32 +5,28 @@
  * `used = limit - remaining` gets a negative number.
  */
 
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import {
-  createMockRequest,
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 
-const {
-  mockAuthenticateV1Request,
-  mockGetSubscription,
-  mockCheckRateLimit,
-  mockGetRateLimit,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockGetWorkspaceBilledAccountUserId,
-  mockIsCapabilityWithheldForUser,
-} = vi.hoisted(() => ({
+const { mockAuthenticateV1Request, mockIsCapabilityWithheldForUser } = vi.hoisted(() => ({
   mockAuthenticateV1Request: vi.fn(),
-  mockGetSubscription: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockGetRateLimit: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockIsCapabilityWithheldForUser: vi.fn(),
 }))
 
@@ -38,16 +34,9 @@ vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetSubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: mockGetRateLimit,
-  RateLimiter: class {
-    checkRateLimitWithSubscription = mockCheckRateLimit
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -55,14 +44,9 @@ vi.mock('@/lib/permission-groups/user-scope.server', () => ({
   isCapabilityWithheldForUser: mockIsCapabilityWithheldForUser,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
@@ -73,6 +57,14 @@ import {
   createRateLimitResponse,
   requireWorkspaceRequestActor,
 } from '@/app/api/v1/middleware'
+
+const { mockGetWorkspaceBillingSettings, mockGetWorkspaceBilledAccountUserId } =
+  workspacesUtilsMockFns
+
+const mockGetSubscription = billingSubscriptionMockFns.mockGetHighestPrioritySubscription
+const mockCheckRateLimit = rateLimiterMockFns.mockCheckRateLimitWithSubscription
+const mockGetRateLimit = rateLimiterMockFns.mockGetRateLimit
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 /** Mirrors `createBucketConfig`: capacity is the per-minute rate x burst multiplier. */
 const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 }
@@ -87,7 +79,7 @@ describe('checkRateLimit', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -185,7 +177,7 @@ describe('rate-limit snapshot context', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -229,7 +221,7 @@ describe('checkWorkspaceScope', () => {
       resetAt: new Date(),
       userId: USER_ID,
       keyType: 'personal' as const,
-      principal: { kind: 'personal_api_key' as const, userId: USER_ID, keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: USER_ID }),
     }
   }
 

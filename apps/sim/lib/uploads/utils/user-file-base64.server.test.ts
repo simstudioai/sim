@@ -1,4 +1,19 @@
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import {
@@ -7,13 +22,10 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { UserFile } from '@/executor/types'
 
-const {
-  mockDownloadFile,
-  mockDownloadServableFileFromStorage,
-  mockRedis,
-  mockVerifyFileAccess,
-  mockCreateKnowledgeAccessProvider,
-} = vi.hoisted(() => {
+const mockCreateKnowledgeAccessProvider =
+  knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider
+
+const { mockRedis } = vi.hoisted(() => {
   const mockRedis = {
     get: vi.fn(),
     set: vi.fn(),
@@ -26,40 +38,31 @@ const {
     eval: vi.fn(),
   }
   return {
-    mockDownloadFile: vi.fn(),
-    mockDownloadServableFileFromStorage: vi.fn(),
     mockRedis,
-    mockVerifyFileAccess: vi.fn(),
-    mockCreateKnowledgeAccessProvider: vi.fn(),
   }
 })
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const mockVerifyFileAccess = filesAuthorizationMockFns.mockVerifyFileAccess
+fileUtilsServerMockFns.mockDownloadFileFromStorage.mockImplementation((...args: unknown[]) =>
+  mockDownloadFile(...args)
+)
 
 afterAll(resetRedisConfigMock)
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
-  downloadExecutionFile: mockDownloadFile,
+  downloadExecutionFile: storageServiceMockFns.mockDownloadFile,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mockDownloadFile,
-  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createKnowledgeAccessProvider: mockCreateKnowledgeAccessProvider,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 
 describe('hydrateUserFilesWithBase64', () => {
   beforeEach(() => {
@@ -198,7 +201,7 @@ describe('hydrateUserFilesWithBase64', () => {
     'retains the run principal and knowledge reader when file access is %s',
     async (allowed) => {
       mockDownloadFile.mockResolvedValueOnce(Buffer.from('hello', 'utf8'))
-      const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+      const principal = createSessionPrincipal()
       const scope = { kind: 'user' as const, userId: 'user-1', tokens: ['user:user-1'] }
       const access: KnowledgeAccessProvider = {
         get: vi.fn().mockResolvedValue(scope),

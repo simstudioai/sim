@@ -1,42 +1,14 @@
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckStorageQuotaForBillingContext,
-  mockResolveStorageBillingContext,
-  mockGetOrganizationSubscription,
-  mockGetHighestPriorityPersonalSubscription,
-} = vi.hoisted(() => ({
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetHighestPriorityPersonalSubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
-}))
-
-/**
- * Minimal stand-in for the domain error so this unit test never loads the authz module's
- * billing/feature-flag import chain. Shape-compatible with the real `ForkError`.
- */
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  ForkError: class ForkError extends Error {
-    statusCode: number
-    constructor(message: string, statusCode = 400) {
-      super(message)
-      this.name = 'ForkError'
-      this.statusCode = statusCode
-    }
-  },
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -44,6 +16,11 @@ import {
   sumForkCopyBytes,
 } from '@/ee/workspace-forking/lib/copy/storage-quota'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
+
+const { mockCheckStorageQuotaForBillingContext, mockResolveStorageBillingContext } =
+  billingStorageMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+const { mockGetHighestPriorityPersonalSubscription } = billingPlanMockFns
 
 function makeExecutor(total: number | string | null) {
   const execute = vi.fn((_query: unknown) => Promise.resolve([{ total }]))

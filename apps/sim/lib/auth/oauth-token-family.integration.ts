@@ -1,11 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
-describe.skipIf(!databaseUrl)('OAuth token families in PostgreSQL', () => {
+describe('OAuth token families in PostgreSQL', () => {
   it('rotates, contains replay, revokes one login, and follows consent changes', async () => {
-    process.env.DATABASE_URL = databaseUrl
     process.env.BETTER_AUTH_SECRET ||= 'oauth-token-family-integration-test-secret'
 
     const [{ db }, schema, { eq, sql }, provider, tokenStore] = await Promise.all([

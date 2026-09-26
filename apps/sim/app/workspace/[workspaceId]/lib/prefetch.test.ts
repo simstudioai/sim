@@ -1,84 +1,80 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
-  mockAuthorizeResource,
-  mockAuthenticate,
   mockGetWorkspaceHostContextForViewer,
-  mockGetWorkspaceMemberProfiles,
   mockKnowledgePresenterList,
-  mockListFoldersForWorkspace,
-  mockListInternalKnowledgeBases,
   mockListPinnedItemsForUser,
-  mockListWorkflowsForUser,
   mockListWorkspacesForViewer,
-  mockGetUserProfile,
-  mockGetWorkspacePermissions,
   mockListMothershipChats,
-  mockListTables,
-  mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
 } = vi.hoisted(() => ({
-  mockAuthorizeResource: vi.fn(),
-  mockAuthenticate: vi.fn(),
   mockGetWorkspaceHostContextForViewer: vi.fn(),
-  mockGetWorkspaceMemberProfiles: vi.fn(),
   mockKnowledgePresenterList: vi.fn(),
-  mockListFoldersForWorkspace: vi.fn(),
-  mockListInternalKnowledgeBases: vi.fn(),
   mockListPinnedItemsForUser: vi.fn(),
-  mockListWorkflowsForUser: vi.fn(),
   mockListWorkspacesForViewer: vi.fn(),
-  mockGetUserProfile: vi.fn(),
-  mockGetWorkspacePermissions: vi.fn(),
   mockListMothershipChats: vi.fn(),
-  mockListTables: vi.fn(),
-  mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
 }))
-vi.mock('@/lib/folders/queries', () => ({
-  listFoldersForWorkspace: mockListFoldersForWorkspace,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 vi.mock('@/lib/workspace-files/queries', () => ({
   listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  listWorkspaceFileFolders: mockListWorkspaceFileFolders,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 vi.mock('@/lib/pinned-items/queries', () => ({
   listPinnedItemsForUser: mockListPinnedItemsForUser,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceMemberProfiles: mockGetWorkspaceMemberProfiles,
-  getWorkspacePermissionsForAuthorizedViewer: mockGetWorkspacePermissions,
-}))
-vi.mock('@/lib/workflows/queries', () => ({
-  listWorkflowsForUser: mockListWorkflowsForUser,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: mockListWorkspacesForViewer,
 }))
-vi.mock('@/lib/users/queries', () => ({
-  getUserProfile: mockGetUserProfile,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 vi.mock('@/lib/mothership/chat/list-mothership-chats', () => ({
   listMothershipChats: mockListMothershipChats,
 }))
-vi.mock('@/lib/table/application/tables', () => ({
-  listTableDefinitionsUseCase: { authorize: mockAuthorizeResource },
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { authorize: mockAuthorizeResource },
-}))
-vi.mock('@/lib/table/service', () => ({
-  listTables: mockListTables,
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 /**
  * `typeMetadataOf` is the one leaf of the real wire projection that reaches the
  * column-type registry, and through it every type module's icon and editor. Stub
@@ -88,22 +84,13 @@ vi.mock('@/lib/table/service', () => ({
 vi.mock('@/lib/table/column-types', () => ({
   typeMetadataOf: () => ({}),
 }))
-vi.mock('@/lib/api/server/routes', () => ({
-  internalSessionAuth: { authenticate: mockAuthenticate },
-}))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  listKnowledgeBases: { authorize: mockAuthorizeResource },
-  listInternalKnowledgeBases: {
-    execute: mockListInternalKnowledgeBases,
-  },
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgePresenters: { list: mockKnowledgePresenterList },
 }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
@@ -112,6 +99,29 @@ import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
+
+const mockAuthenticate = apiServerRoutesMockFns.mockInternalSessionAuthenticate
+const mockListFoldersForWorkspace = folderQueriesMockFns.mockListFoldersForWorkspace
+const mockListInternalKnowledgeBases =
+  knowledgeBaseUseCasesMockFns.mockListInternalKnowledgeBasesExecute
+const mockListWorkflowsForUser = workflowsQueriesMockFns.mockListWorkflowsForUser
+const mockGetUserProfile = usersQueriesMockFns.mockGetUserProfile
+const mockListWorkspaceFileFolders = workspaceFileFoldersMockFns.mockListWorkspaceFileFolders
+
+/** One authorization decision shared by the table, knowledge, and file module operations. */
+const mockAuthorizeResource = vi.fn()
+for (const authorize of [
+  tableApplicationTablesMockFns.mockListTableDefinitionsUseCaseAuthorize,
+  knowledgeBaseUseCasesMockFns.mockListKnowledgeBasesAuthorize,
+  workspaceFilesListMockFns.mockListAllWorkspaceFilesAuthorize,
+]) {
+  authorize.mockImplementation((...args: unknown[]) => mockAuthorizeResource(...args))
+}
+
+const mockGetWorkspacePermissions =
+  permissionsMockFns.mockGetWorkspacePermissionsForAuthorizedViewer
+const mockListTables = tableServiceMockFns.mockListTables
+const mockGetWorkspaceMemberProfiles = permissionsMockFns.mockGetWorkspaceMemberProfiles
 
 const WORKSPACE_ID = 'ws-123'
 const USER_ID = 'user-1'
@@ -140,7 +150,9 @@ describe('workspace list prefetches', () => {
     })
     mockGetWorkspaceMemberProfiles.mockResolvedValue([])
     mockListTables.mockResolvedValue([])
-    mockAuthenticate.mockResolvedValue({ kind: 'session', userId: USER_ID, sessionId: 'sess-1' })
+    mockAuthenticate.mockResolvedValue(
+      createSessionPrincipal({ userId: USER_ID, sessionId: 'sess-1' })
+    )
     mockListInternalKnowledgeBases.mockResolvedValue({ knowledgeBases: [] })
     mockKnowledgePresenterList.mockReturnValue({ success: true, data: [] })
   })

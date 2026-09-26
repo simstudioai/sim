@@ -1,18 +1,20 @@
 import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEncryptQuickBooksOAuthClientConfig, mockGenerateId } = vi.hoisted(() => ({
+const { mockEncryptQuickBooksOAuthClientConfig } = vi.hoisted(() => ({
   mockEncryptQuickBooksOAuthClientConfig: vi.fn(),
-  mockGenerateId: vi.fn(),
 }))
 
-vi.mock('@sim/utils/id', () => ({ generateId: mockGenerateId }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
   encryptQuickBooksOAuthClientConfig: mockEncryptQuickBooksOAuthClientConfig,
 }))
 
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
+
+const mockGenerateId = idMockFns.mockGenerateId
 
 describe('createConnectDraft', () => {
   beforeEach(() => {

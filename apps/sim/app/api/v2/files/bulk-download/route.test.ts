@@ -5,13 +5,15 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   authorizeDownload: vi.fn(),
-  downloadFileStream: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/download-workspace-file-items', () => ({
@@ -22,9 +24,7 @@ vi.mock('@/lib/workspace-files/application/download-workspace-file-items', () =>
   },
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadFileStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -34,17 +34,18 @@ import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 import { GET } from '@/app/api/v2/files/bulk-download/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const context = { params: Promise.resolve({}) }
+const context = createRouteContext({})
 
 const AUTH = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+  principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }),
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
 
 function downloadRequest(query = `workspaceId=${WORKSPACE_ID}&fileIds=wf_a,wf_b`) {
-  return new NextRequest(`http://localhost:3000/api/v2/files/bulk-download?${query}`, {
+  return createMockRequest({
+    url: `http://localhost:3000/api/v2/files/bulk-download?${query}`,
     headers: { 'x-api-key': 'secret' },
   })
 }
@@ -67,7 +68,9 @@ describe('GET /api/v2/files/bulk-download', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.authorizeDownload.mockResolvedValue(undefined)
-    mocks.downloadFileStream.mockImplementation(async () => Readable.from([Buffer.from('abc')]))
+    storageServiceMockFns.mockDownloadFileStream.mockImplementation(async () =>
+      Readable.from([Buffer.from('abc')])
+    )
     mocks.download.mockResolvedValue({
       filesToZip: [fileRecord('wf_a', 'a.txt'), fileRecord('wf_b', 'b.txt')],
       folderPaths: new Map<string, string>(),
@@ -135,10 +138,10 @@ describe('GET /api/v2/files/bulk-download', () => {
    */
   it('answers an authorized HEAD bodiless without archiving', async () => {
     const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/files/bulk-download?workspaceId=${WORKSPACE_ID}&fileIds=wf_a`,
-        { method: 'HEAD' }
-      ),
+      createMockRequest({
+        method: 'HEAD',
+        url: `http://localhost:3000/api/v2/files/bulk-download?workspaceId=${WORKSPACE_ID}&fileIds=wf_a`,
+      }),
       context
     )
 

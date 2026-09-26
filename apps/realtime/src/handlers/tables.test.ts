@@ -1,5 +1,6 @@
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { TABLE_PRESENCE_EVENTS } from '@sim/realtime-protocol/table-presence'
+import { databaseMock } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
@@ -8,10 +9,7 @@ const { mockAuthorizeRoom } = vi.hoisted(() => ({
   mockAuthorizeRoom: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn() },
-  user: { image: 'image' },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,

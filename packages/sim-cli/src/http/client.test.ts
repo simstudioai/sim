@@ -10,10 +10,8 @@ import {
 } from './client'
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   // `stubEnv` is not undone by `unstubAllGlobals`, so a SIM_TIMEOUT_SECONDS or
   // SIM_DEBUG set for one test would otherwise configure every test after it.
-  vi.unstubAllEnvs()
 })
 
 function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {

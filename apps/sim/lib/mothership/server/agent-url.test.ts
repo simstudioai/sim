@@ -1,5 +1,6 @@
 import { user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearSuperUserGate,
@@ -8,14 +9,15 @@ import {
   MOTHERSHIP_SOURCE_ENV_HEADER,
 } from './agent-url'
 
-const { envMock } = vi.hoisted(() => ({
-  envMock: {
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
     COPILOT_DEV_URL: 'https://dev.mothership.test',
     COPILOT_STAGING_URL: 'https://staging.mothership.test',
     COPILOT_PROD_URL: 'https://prod.mothership.test',
-    COPILOT_SOURCE_ENV: undefined as string | undefined,
-  },
-}))
+    COPILOT_SOURCE_ENV: undefined,
+  })
+})
 
 vi.mock('@/lib/api/contracts/user', () => ({
   mothershipEnvironmentSchema: {
@@ -29,15 +31,12 @@ vi.mock('@/lib/mothership/constants', () => ({
   SIM_AGENT_API_URL: 'https://default.mothership.test',
   SIM_AGENT_API_URL_DEFAULT: 'https://fallback.mothership.test',
 }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: envMock,
-}))
 
 describe('getMothershipBaseURL', () => {
   beforeEach(() => {
     resetDbChainMock()
     clearSuperUserGate()
-    envMock.COPILOT_SOURCE_ENV = undefined
+    setEnv({ COPILOT_SOURCE_ENV: undefined })
   })
 
   afterAll(() => {
@@ -122,11 +121,11 @@ describe('getMothershipBaseURL', () => {
 
 describe('getMothershipSourceEnvHeaders', () => {
   beforeEach(() => {
-    envMock.COPILOT_SOURCE_ENV = undefined
+    setEnv({ COPILOT_SOURCE_ENV: undefined })
   })
 
   it('emits the source environment header for known hosted environments', () => {
-    envMock.COPILOT_SOURCE_ENV = 'dev'
+    setEnv({ COPILOT_SOURCE_ENV: 'dev' })
 
     expect(getMothershipSourceEnvHeaders()).toEqual({
       [MOTHERSHIP_SOURCE_ENV_HEADER]: 'dev',
@@ -134,7 +133,7 @@ describe('getMothershipSourceEnvHeaders', () => {
   })
 
   it('omits the source environment header for unknown values', () => {
-    envMock.COPILOT_SOURCE_ENV = 'local'
+    setEnv({ COPILOT_SOURCE_ENV: 'local' })
 
     expect(getMothershipSourceEnvHeaders()).toEqual({})
   })

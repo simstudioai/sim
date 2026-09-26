@@ -1,14 +1,24 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ policy: vi.fn(), available: vi.fn() }))
-vi.mock('@/lib/resource-policies/repository', () => ({ requireResourcePolicy: mocks.policy }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { filterWorkspaceAccountCredentials } from '@/lib/credentials/application/workspace-account-visibility'
+
+const mocks = {
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
 
 const context = { workspaceId: 'ws', workspaceOrganizationId: 'org', allowPersonalApiKeys: true }
 const entries = [

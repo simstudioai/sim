@@ -102,7 +102,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.clearAllMocks()
 })
 
 describe('WorkspaceHostProvider', () => {

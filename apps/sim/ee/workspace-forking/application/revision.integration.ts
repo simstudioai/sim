@@ -4,6 +4,7 @@
  */
 
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateShortId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -14,12 +15,9 @@ import {
   loadForkPreviewRevision,
 } from '@/ee/workspace-forking/application/revision'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Fork revision PostgreSQL tests require a local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 
-describe.runIf(Boolean(databaseUrl))('fork revision scope in PostgreSQL', () => {
+describe('fork revision scope in PostgreSQL', () => {
   const testSchema = `fork_revision_${generateShortId()
     .replace(/[^a-zA-Z0-9]/g, '')
     .toLowerCase()}`
@@ -32,7 +30,7 @@ describe.runIf(Boolean(databaseUrl))('fork revision scope in PostgreSQL', () => 
   }
 
   beforeAll(async () => {
-    client = postgres(databaseUrl!, { max: 1, connection: { search_path: testSchema } })
+    client = postgres(databaseUrl, { max: 1, connection: { search_path: testSchema } })
     executor = drizzle(client, { schema }) as DbOrTx
     await client.unsafe(`CREATE SCHEMA ${testSchema}`)
     await client.unsafe(`

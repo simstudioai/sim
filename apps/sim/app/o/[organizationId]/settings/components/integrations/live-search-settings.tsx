@@ -115,7 +115,7 @@ export function LiveSearchSettings() {
           onSelect: () => setAdding(true),
         },
       ]}
-      search={{ value: search, onChange: setSearch, placeholder: 'Search sources…' }}
+      search={{ value: search, onChange: setSearch, placeholder: 'Search sources' }}
     >
       {policies.error || secrets.error ? (
         <SettingsQueryErrorState
@@ -129,7 +129,7 @@ export function LiveSearchSettings() {
           variant='inline'
         />
       ) : !policies.data || !secrets.data ? (
-        <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading sources</SettingsEmptyState>
       ) : added.length === 0 && !secretSource && !search ? (
         <SettingsEmptyState>No sources yet. Add a source to get started.</SettingsEmptyState>
       ) : (

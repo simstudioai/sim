@@ -29,7 +29,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.clearAllMocks()
 })
 
 function renderHeader(actions: SettingsAction[]) {

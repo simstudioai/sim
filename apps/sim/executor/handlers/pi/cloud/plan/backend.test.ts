@@ -1,22 +1,17 @@
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockBuildPrompt,
-  mockCleanup,
-  mockProviderEnvVar,
-  mockRun,
-  mockWithPiSandbox,
-  mockWriteFile,
-} = vi.hoisted(() => ({
-  mockBuildPrompt: vi.fn(),
-  mockCleanup: vi.fn(),
-  mockProviderEnvVar: vi.fn(),
-  mockRun: vi.fn(),
-  mockWithPiSandbox: vi.fn(),
-  mockWriteFile: vi.fn(),
-}))
+const { mockBuildPrompt, mockCleanup, mockProviderEnvVar, mockRun, mockWriteFile } = vi.hoisted(
+  () => ({
+    mockBuildPrompt: vi.fn(),
+    mockCleanup: vi.fn(),
+    mockProviderEnvVar: vi.fn(),
+    mockRun: vi.fn(),
+    mockWriteFile: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({ withPiSandbox: mockWithPiSandbox }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
   resolvePiRunLifetimeMs: () => 40 * 60 * 1000,
   resolvePiSandboxLifetimeMs: () => 40 * 60 * 1000,
@@ -38,6 +33,8 @@ import {
   PI_SEARCH_EXTENSION_PATH,
   PI_SEARCH_PROVIDER_ENV_VAR,
 } from '@/executor/handlers/pi/search/extension-source'
+
+const mockWithPiSandbox = remoteSandboxMockFns.mockWithPiSandbox
 
 function params(overrides: Partial<PiCloudPlanRunParams> = {}): PiCloudPlanRunParams {
   return {

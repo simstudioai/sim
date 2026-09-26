@@ -1,27 +1,17 @@
-import type {
-  DelegatedPrincipal,
-  OAuthAccessTokenPrincipal,
-  PersonalApiKeyPrincipal,
-  SessionPrincipal,
-  WorkspaceApiKeyPrincipal,
-} from '@sim/auth/principal'
-import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import type { DelegatedPrincipal, OAuthAccessTokenPrincipal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-}))
-
-const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import {
@@ -40,6 +30,9 @@ import {
 } from '@/lib/core/application'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
+const mocks = { resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission }
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
 const writeOperation = defineWorkspaceOperation({
   id: 'test.write',
   minimumRole: 'write',
@@ -48,11 +41,7 @@ const writeOperation = defineWorkspaceOperation({
   capability: 'none',
 })
 
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal()
 
 const workspaceKeyOperation = defineWorkspaceOperation({
   id: 'test.workspace-key-write',
@@ -62,11 +51,7 @@ const workspaceKeyOperation = defineWorkspaceOperation({
   capability: 'none',
 })
 
-const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: 'workspace-other',
-  keyId: 'key-1',
-}
+const workspaceKeyPrincipal = createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace-other' })
 
 const executorOperation = defineWorkspaceOperation({
   id: 'test.executor-write',
@@ -245,10 +230,10 @@ describe('authorizeWorkspaceOperation', () => {
     await expect(
       authorizeWorkspaceOperation(
         {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
+          ...executorPrincipal(createSessionPrincipal(), {
+            workflowId: 'current-workflow-1',
+            mode: 'draft',
+          }),
           subjectUserId: 'user-1',
         },
         executorOperation,
@@ -284,17 +269,9 @@ const copilotCapabilityOperation = defineWorkspaceOperation({
   capability: 'tables.use',
 })
 
-const personalKeyPrincipal: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-personal-1',
-}
+const personalKeyPrincipal = createPersonalApiKeyPrincipal({ keyId: 'key-personal-1' })
 
-const scopedWorkspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: 'workspace-1',
-  keyId: 'key-1',
-}
+const scopedWorkspaceKeyPrincipal = createWorkspaceApiKeyPrincipal()
 
 /** A config that withholds the capability the operation above declares. */
 function withholdingConfig() {
@@ -341,10 +318,10 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     await expect(
       authorizeWorkspaceOperation(
         {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
+          ...executorPrincipal(createSessionPrincipal(), {
+            workflowId: 'current-workflow-1',
+            mode: 'draft',
+          }),
           subjectUserId: 'user-1',
         },
         capabilityOperation,
@@ -360,10 +337,10 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     await expect(
       authorizeWorkspaceOperation(
         {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
+          ...executorPrincipal(createSessionPrincipal(), {
+            workflowId: 'current-workflow-1',
+            mode: 'draft',
+          }),
           subjectUserId: 'user-1',
         },
         capabilityOperation,
@@ -382,10 +359,10 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     await expect(
       authorizeWorkspaceOperation(
         {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
+          ...executorPrincipal(createSessionPrincipal(), {
+            workflowId: 'current-workflow-1',
+            mode: 'draft',
+          }),
           serviceId: 'copilot',
           subjectUserId: 'user-1',
         },

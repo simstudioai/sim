@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeBitbucketGetFileOperation } from '@/lib/internal/bitbucket/operations/get-file'
 import { bitbucketCreateBranchTool } from '@/tools/bitbucket/create_branch'
 import { bitbucketDeleteBranchTool } from '@/tools/bitbucket/delete_branch'
@@ -111,10 +111,6 @@ function requestUrl<P, R>(tool: ToolConfig<P, R>, params: P): string {
 function requestBody<P, R>(tool: ToolConfig<P, R>, params: P): unknown {
   return tool.request.body?.(params)
 }
-
-afterEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('Bitbucket action tool contracts', () => {
   it('enables bounded retry only on safe reads, never on mutations', () => {

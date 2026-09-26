@@ -1,7 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from '../embed'
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe('streamed upload bytes', () => {
   it('sends streamed multipart bytes with exact lengths over HTTP', async () => {

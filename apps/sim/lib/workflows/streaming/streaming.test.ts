@@ -1,4 +1,6 @@
 import { loggerMock } from '@sim/testing'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -14,6 +16,8 @@ import {
 import type { ExecutionResult } from '@/executor/types'
 import type { AgentStreamSink } from '@/providers/stream-events'
 
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowStreaming'
 )
@@ -23,15 +27,7 @@ if (!workflowStreamingLogger) {
   throw new Error('WorkflowStreaming logger mock was not initialized')
 }
 
-const { mockDownloadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 const manifestChunk = [{ id: 1 }]
 const manifestChunkBytes = Buffer.byteLength(JSON.stringify(manifestChunk), 'utf8')

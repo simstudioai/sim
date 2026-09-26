@@ -1,3 +1,5 @@
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 /**
  * `logs.trace_spans` and `logs.cost` are PROJECTIONS, not gates — a group
  * withholds those fields from the response rather than refusing the read, which
@@ -12,64 +14,69 @@
  * routes resolve their flags through — so they fail if this surface stops
  * projecting.
  */
+
 import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getLogScope: vi.fn(),
   getLog: vi.fn(),
   listLogs: vi.fn(),
-  loadFolders: vi.fn(),
-  materialize: vi.fn(),
   buildCostLedger: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/logs/public-queries', () => ({
-  getPublicWorkflowLogScope: mocks.getLogScope,
-  getPublicWorkflowLog: mocks.getLog,
-  readPublicLogPage: mocks.listLogs,
+  getPublicWorkflowLogScope: hoisted.getLogScope,
+  getPublicWorkflowLog: hoisted.getLog,
+  readPublicLogPage: hoisted.listLogs,
 }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolders,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mocks.materialize,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/logs/cost-ledger', () => ({
-  buildCostLedger: mocks.buildCostLedger,
+  buildCostLedger: hoisted.buildCostLedger,
 }))
 
 vi.mock('@/lib/logs/snapshot-sanitizer', () => ({
   sanitizeExecutionSnapshotState: (state: unknown) => state,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  materialize: traceStoreMockFns.mockMaterializeExecutionDataForDisplay,
+  loadFolders: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -121,18 +128,10 @@ const workflowLog = {
 }
 
 /** A person governed by a group; the group's own keys decide what is withheld. */
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-9',
-  keyId: 'key-9',
-}
+const personalPrincipal = createPersonalApiKeyPrincipal({ userId: 'user-9', keyId: 'key-9' })
 
 /** A workspace key has no user and therefore no group. */
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const workspacePrincipal = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 
 function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) {
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({

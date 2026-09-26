@@ -1,5 +1,5 @@
 import { createMockResponse } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AtlassianSiteNotMatchedError,
   clearAtlassianCloudIdCache,
@@ -34,11 +34,6 @@ beforeEach(() => {
   clearAtlassianCloudIdCache()
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 describe('normalizeAtlassianSiteUrl', () => {

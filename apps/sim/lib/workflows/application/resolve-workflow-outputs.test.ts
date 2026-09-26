@@ -1,45 +1,42 @@
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  MockNoActiveDeploymentError,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   flatten: vi.fn(),
-  loadDeployed: vi.fn(),
-  load: vi.fn(),
-  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
   order: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
   flattenWorkflowOutputs: mocks.flatten,
   getBlockExecutionOrder: mocks.order,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  NoActiveDeploymentError: mocks.NoActiveDeploymentError,
-  loadDeployedWorkflowState: mocks.loadDeployed,
-  loadWorkflowFromNormalizedTables: mocks.load,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import {
   loadResolvedDeployedWorkflowOutputs,
   resolveWorkflowOutputs,
 } from '@/lib/workflows/application/resolve-workflow-outputs'
+
+const mockLoadDeployed = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockLoad = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const principal = {
   kind: 'delegated' as const,
@@ -54,8 +51,8 @@ const principal = {
 
 describe('resolveWorkflowOutputs', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveContext.mockResolvedValue({
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
@@ -63,11 +60,11 @@ describe('resolveWorkflowOutputs', () => {
       billedAccountUserId: 'billing-owner-1',
       workflow: { id: 'workflow-1', isDeployed: true },
     })
-    mocks.load.mockResolvedValue({
+    mockLoad.mockResolvedValue({
       blocks: { block1: { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} } },
       edges: [],
     })
-    mocks.loadDeployed.mockResolvedValue({
+    mockLoadDeployed.mockResolvedValue({
       blocks: { block1: { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} } },
       edges: [],
     })
@@ -95,15 +92,15 @@ describe('resolveWorkflowOutputs', () => {
       executionOrderByBlockId: { 'block-1': 1 },
     })
 
-    expect(mocks.resolveContext).toHaveBeenCalledWith({
+    expect(mockResolveContext).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       assertedWorkspaceId: 'workspace-1',
     })
-    expect(mocks.load).toHaveBeenCalledWith('workflow-1')
+    expect(mockLoad).toHaveBeenCalledWith('workflow-1')
   })
 
   it('conceals cross-workspace workflow ids before loading workflow state', async () => {
-    mocks.resolveContext.mockRejectedValueOnce(
+    mockResolveContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Workflow not found')
     )
 
@@ -113,12 +110,12 @@ describe('resolveWorkflowOutputs', () => {
         input: { workflowId: 'workflow-other', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
-    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mockLoad).not.toHaveBeenCalled()
   })
 
   it('rejects a workflow without an active deployment before resolving mappings', async () => {
     const context = {
-      ...(await mocks.resolveContext()),
+      ...(await mockResolveContext()),
       workflow: { id: 'workflow-1', isDeployed: false },
     }
 
@@ -126,18 +123,18 @@ describe('resolveWorkflowOutputs', () => {
       code: 'validation',
       message: 'Workflow must have an active deployment',
     })
-    expect(mocks.loadDeployed).not.toHaveBeenCalled()
+    expect(mockLoadDeployed).not.toHaveBeenCalled()
   })
 
   it('rejects inconsistent deployment metadata without returning draft mappings', async () => {
-    const context = await mocks.resolveContext()
-    mocks.loadDeployed.mockRejectedValueOnce(new mocks.NoActiveDeploymentError())
+    const context = await mockResolveContext()
+    mockLoadDeployed.mockRejectedValueOnce(new MockNoActiveDeploymentError('workflow-1'))
 
     await expect(loadResolvedDeployedWorkflowOutputs(context)).rejects.toMatchObject({
       code: 'validation',
       message: 'Workflow must have an active deployment',
     })
-    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mockLoad).not.toHaveBeenCalled()
   })
 
   it('rejects expired delegated scope before loading workflow state', async () => {
@@ -147,6 +144,6 @@ describe('resolveWorkflowOutputs', () => {
         input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mockLoad).not.toHaveBeenCalled()
   })
 })

@@ -1,14 +1,19 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/credentials', () => ({ useWorkspaceCredential: vi.fn() }))
 
 import { listOrganizationOAuthCredentialsContract } from '@/lib/api/contracts/organization-credentials'
 import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+
 beforeEach(() => {
-  mocks.request.mockReset()
+  mockRequestJson.mockReset()
 })
 
 describe('connector credential listing', () => {
@@ -20,7 +25,7 @@ describe('connector credential listing', () => {
       type: 'managed_oauth',
     }
     const signal = new AbortController().signal
-    mocks.request.mockImplementation((contract) =>
+    mockRequestJson.mockImplementation((contract) =>
       Promise.resolve({
         credentials: contract === listOrganizationOAuthCredentialsContract ? [memberAccount] : [],
       })
@@ -31,7 +36,7 @@ describe('connector credential listing', () => {
         signal
       )
     ).resolves.toEqual([memberAccount])
-    expect(mocks.request).toHaveBeenCalledWith(listOrganizationOAuthCredentialsContract, {
+    expect(mockRequestJson).toHaveBeenCalledWith(listOrganizationOAuthCredentialsContract, {
       query: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
       signal,
     })
@@ -42,7 +47,7 @@ describe('connector credential listing', () => {
 
   it('does not report a partial credential list as successful when service-account access fails', async () => {
     const failure = new Error('Access denied')
-    mocks.request.mockImplementation((contract) =>
+    mockRequestJson.mockImplementation((contract) =>
       contract === listOrganizationOAuthCredentialsContract
         ? Promise.resolve({ credentials: [] })
         : Promise.reject(failure)

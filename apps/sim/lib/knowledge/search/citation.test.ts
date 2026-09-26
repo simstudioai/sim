@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createKnowledgeDocumentCitation,
-  isKnowledgeSourceUrl,
-} from '@/lib/knowledge/search/citation'
+import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 const input = {
   scope: { kind: 'workspace', workspaceId: 'workspace/a' } as const,

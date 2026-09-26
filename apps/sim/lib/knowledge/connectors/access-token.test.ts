@@ -1,23 +1,10 @@
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDecryptApiKey,
-  mockResolveTokenBundle,
-  mockResolveOAuthAccountId,
-  mockGetServiceAccountToken,
-} = vi.hoisted(() => ({
-  mockDecryptApiKey: vi.fn(),
-  mockResolveTokenBundle: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockGetServiceAccountToken: vi.fn(),
-}))
+const { mockDecryptApiKey } = vi.hoisted(() => ({ mockDecryptApiKey: vi.fn() }))
 
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mockDecryptApiKey }))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mockResolveTokenBundle,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  getServiceAccountToken: mockGetServiceAccountToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -30,6 +17,12 @@ import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import type { ConnectorAuthConfig } from '@/connectors/types'
+
+const {
+  mockResolveCredentialTokenBundle: mockResolveTokenBundle,
+  mockResolveOAuthAccountId,
+  mockGetServiceAccountToken,
+} = authOAuthUtilsMockFns
 
 const OAUTH_AUTH: ConnectorAuthConfig = {
   mode: 'oauth',

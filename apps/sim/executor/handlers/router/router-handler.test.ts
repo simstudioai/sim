@@ -1,3 +1,8 @@
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import '@sim/testing/mocks/executor'
 
 import { createLogger } from '@sim/logger'
@@ -9,14 +14,11 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { mockResolveAutoModel, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
+const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
@@ -25,22 +27,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: vi.fn().mockResolvedValue({ accessToken: 'mock-access-token' }),
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
-    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
-  getCredentialActorContext: vi.fn().mockResolvedValue({
-    credential: {
-      id: 'test-vertex-credential',
-      type: 'oauth',
-      workspaceId: 'test-workspace',
-      accountId: 'test-vertex-credential-id',
-    },
-    member: { role: 'admin', status: 'active' },
-    hasWorkspaceAccess: true,
-    canWriteWorkspace: true,
-    isAdmin: true,
-  }),
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 vi.mock('@/lib/model-router/resolve', () => ({
   addAutoRoutingCost: (cost: Record<string, number>, routingCost: number) =>
@@ -57,6 +44,21 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue({
+  credential: {
+    id: 'test-vertex-credential',
+    type: 'oauth',
+    workspaceId: 'test-workspace',
+    accountId: 'test-vertex-credential-id',
+  },
+  member: { role: 'admin', status: 'active' },
+  hasWorkspaceAccess: true,
+  canWriteWorkspace: true,
+  isAdmin: true,
+})
+
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGenerateRouterV2Prompt = generateRouterV2Prompt as Mock
@@ -146,8 +148,6 @@ describe('RouterBlockHandler', () => {
       activeExecutionPath: new Set(),
       workflow: mockWorkflow as SerializedWorkflow,
     }
-
-    vi.clearAllMocks()
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'test-decrypted' })
 
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
@@ -493,8 +493,6 @@ describe('RouterBlockHandler V2', () => {
       activeExecutionPath: new Set(),
       workflow: mockWorkflow as SerializedWorkflow,
     }
-
-    vi.clearAllMocks()
 
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
 

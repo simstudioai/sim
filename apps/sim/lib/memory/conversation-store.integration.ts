@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -73,18 +74,13 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Memory tests require a local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 const schemaName = `memory_storage_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 8,
-      connection: { search_path: `${schemaName},public` },
-      onnotice: () => {},
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 8,
+  connection: { search_path: `${schemaName},public` },
+  onnotice: () => {},
+})
 const identity: AgentMemoryTurnIdentity = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
@@ -145,14 +141,12 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
 }
 
 async function writeLegacyPrefix() {
-  if (!connection) throw new Error('No test database')
   await connection`INSERT INTO memory (id, workspace_id, key, data, secret_provenance_version) VALUES ('legacy-memory', ${identity.workspaceId}, ${identity.conversationId}, ${JSON.stringify(prefix)}::jsonb, 1)`
   await connection`INSERT INTO memory_secret_provenance (memory_id, content_hash, status, entries) VALUES ('legacy-memory', ${hashDurableSecretProvenanceValue(prefix)!}, 'exact', '[]')`
 }
 
-describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
+describe('conversation storage in Postgres', () => {
   beforeAll(async () => {
-    if (!connection) return
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     database.current = drizzle(connection, {
       logger: {
@@ -197,11 +191,10 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     }
   })
   beforeEach(async () => {
-    if (connection) await connection`DELETE FROM memory`
+    await connection`DELETE FROM memory`
     journalReads.length = 0
   })
   afterAll(async () => {
-    if (!connection) return
     try {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
@@ -233,12 +226,12 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       }),
     ])
     const [legacy] =
-      await connection!`SELECT id, data, storage_version FROM memory WHERE key = ${identity.conversationId}`
+      await connection`SELECT id, data, storage_version FROM memory WHERE key = ${identity.conversationId}`
     expect(legacy.storage_version).toBe(1)
     expect(legacy.data).toHaveLength(3)
     expect(legacy.data).toEqual(expect.arrayContaining([seed, nativeMessage, apiMessage]))
     const [sidecar] =
-      await connection!`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = ${legacy.id}`
+      await connection`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = ${legacy.id}`
     expect(sidecar).toEqual({
       content_hash: hashDurableSecretProvenanceValue(legacy.data),
       status: 'exact',
@@ -263,7 +256,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       }),
     ])
     const [activated] =
-      await connection!`SELECT data, storage_version FROM memory WHERE id = ${turn.memoryId}`
+      await connection`SELECT data, storage_version FROM memory WHERE id = ${turn.memoryId}`
     expect(activated).toEqual({ data: legacy.data, storage_version: 2 })
     const tail = await readPlainMemoryTail(turn.memoryId, identity.workspaceId)
     expect(tail.messages).toHaveLength(2)
@@ -280,12 +273,12 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       messages: [untracked],
     })
     const [stored] =
-      await connection!`SELECT data, secret_provenance_version FROM memory WHERE id = 'legacy-memory'`
+      await connection`SELECT data, secret_provenance_version FROM memory WHERE id = 'legacy-memory'`
     expect(stored.secret_provenance_version).toBe(1)
     expect(stored.data).toEqual([...prefix, untracked])
     expect(
       (
-        await connection!`SELECT content_hash, status, entries FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+        await connection`SELECT content_hash, status, entries FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
       )[0]
     ).toEqual({
       content_hash: hashDurableSecretProvenanceValue(stored.data),
@@ -301,7 +294,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     })
     expect(
       (
-        await connection!`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+        await connection`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
       )[0]
     ).toEqual({
       content_hash: hashDurableSecretProvenanceValue([...prefix, untracked, tracked]),
@@ -347,7 +340,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       ).items.map((item) => item.kind)
     ).toEqual(['message', 'exchange'])
     const [stored] =
-      await connection!`SELECT data, storage_version FROM memory WHERE id = ${turn.memoryId}`
+      await connection`SELECT data, storage_version FROM memory WHERE id = ${turn.memoryId}`
     expect(stored).toMatchObject({ data: prefix, storage_version: 2 })
     const replay = await new Memory().fetchMemoryMessages(
       { workspaceId: identity.workspaceId } as ExecutionContext,
@@ -367,7 +360,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     expect((await readPlainMemoryTail(turn.memoryId, identity.workspaceId)).messages).toEqual([
       message,
     ])
-    const [stored] = await connection!`SELECT data FROM memory WHERE id = ${turn.memoryId}`
+    const [stored] = await connection`SELECT data FROM memory WHERE id = ${turn.memoryId}`
     expect(stored.data).toEqual([])
   })
 
@@ -469,7 +462,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         encryptedState: 'stale',
       })
     ).rejects.toThrow('Conversation no longer exists')
-    const [{ count }] = await connection!`SELECT count(*)::int AS count FROM memory_item`
+    const [{ count }] = await connection`SELECT count(*)::int AS count FROM memory_item`
     expect(count).toBe(0)
     expect((await openAgentMemoryTurn(identity)).revision).toBe(0)
   })
@@ -583,22 +576,22 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
   })
   it('retains memory artifacts and their children without run logs until the conversation is deleted', async () => {
     const turn = await openAgentMemoryTurn(identity)
-    await connection!`INSERT INTO execution_large_values (key, workspace_id, owner_execution_id) VALUES ('parent-artifact', ${identity.workspaceId}, 'old-run'), ('child-artifact', ${identity.workspaceId}, 'old-run')`
-    await connection!`INSERT INTO execution_large_value_dependencies (parent_key, child_key, workspace_id) VALUES ('parent-artifact', 'child-artifact', ${identity.workspaceId})`
-    await connection!`INSERT INTO memory_artifact (memory_id, key) VALUES (${turn.memoryId}, 'parent-artifact')`
+    await connection`INSERT INTO execution_large_values (key, workspace_id, owner_execution_id) VALUES ('parent-artifact', ${identity.workspaceId}, 'old-run'), ('child-artifact', ${identity.workspaceId}, 'old-run')`
+    await connection`INSERT INTO execution_large_value_dependencies (parent_key, child_key, workspace_id) VALUES ('parent-artifact', 'child-artifact', ${identity.workspaceId})`
+    await connection`INSERT INTO memory_artifact (memory_id, key) VALUES (${turn.memoryId}, 'parent-artifact')`
     const collectible = () =>
       database
         .current!.select({ key: executionLargeValues.key })
         .from(executionLargeValues)
         .where(unreferencedLargeValuePredicate())
     expect(await collectible()).toEqual([])
-    await connection!`UPDATE memory SET deleted_at = now() WHERE id = ${turn.memoryId}`
+    await connection`UPDATE memory SET deleted_at = now() WHERE id = ${turn.memoryId}`
     expect((await collectible()).map((row) => row.key).sort()).toEqual([
       'child-artifact',
       'parent-artifact',
     ])
-    await connection!`DELETE FROM memory WHERE id = ${turn.memoryId}`
-    expect(await connection!`SELECT * FROM memory_artifact`).toHaveLength(0)
+    await connection`DELETE FROM memory WHERE id = ${turn.memoryId}`
+    expect(await connection`SELECT * FROM memory_artifact`).toHaveLength(0)
   })
   it('rejects two conflicting values for one append identity before committing the checkpoint', async () => {
     const turn = await openAgentMemoryTurn(identity)
@@ -632,7 +625,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
       encryptedState: 'saved',
       items: [{ appendKey: 'exchange', kind: 'exchange', data: exchange, provenance }],
     })
-    await connection!`UPDATE memory_item SET content_hash = 'mismatched' WHERE memory_id = ${turn.memoryId}`
+    await connection`UPDATE memory_item SET content_hash = 'mismatched' WHERE memory_id = ${turn.memoryId}`
     const latest = { role: 'assistant' as const, content: 'new safe answer' }
     const service = new Memory()
     const ctx = { workspaceId: identity.workspaceId } as ExecutionContext
@@ -657,12 +650,12 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
 
   it('refuses oversized saved ciphertext before admitting a recovery checkpoint', async () => {
     const turn = await openAgentMemoryTurn(identity)
-    await connection!`UPDATE agent_memory_turn SET encrypted_state = repeat('oversized-ciphertext', 300000) WHERE id = ${turn.turnId}`
+    await connection`UPDATE agent_memory_turn SET encrypted_state = repeat('oversized-ciphertext', 300000) WHERE id = ${turn.turnId}`
     await expect(openAgentMemoryTurn(identity)).rejects.toMatchObject({ code: 'payload_too_large' })
     expect(journalReads.at(-1)).toContain('CASE WHEN octet_length(')
     expect(journalReads.at(-1)).toContain('ELSE NULL END')
     expect(
-      (await connection!`SELECT revision FROM agent_memory_turn WHERE id = ${turn.turnId}`)[0]
+      (await connection`SELECT revision FROM agent_memory_turn WHERE id = ${turn.turnId}`)[0]
         .revision
     ).toBe(0)
   })
@@ -673,7 +666,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     const ctx = { workspaceId: identity.workspaceId } as ExecutionContext
     const inputs = { memoryType: 'conversation' as const, conversationId: identity.conversationId }
     const options = { memoryId: turn.memoryId, turnId: turn.turnId, appendKey: 'input' }
-    await connection!`UPDATE agent_memory_turn SET execution_id = 'other-execution' WHERE id = ${turn.turnId}`
+    await connection`UPDATE agent_memory_turn SET execution_id = 'other-execution' WHERE id = ${turn.turnId}`
     await expect(
       service.appendToMemory(ctx, inputs, { role: 'user', content: 'foreign' }, options)
     ).resolves.toBeUndefined()
@@ -685,7 +678,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     await expect(
       service.appendToMemory(ctx, inputs, { role: 'user', content: 'stale' }, options)
     ).resolves.toBeUndefined()
-    expect(await connection!`SELECT * FROM memory_item`).toEqual([])
+    expect(await connection`SELECT * FROM memory_item`).toEqual([])
   })
 
   it('refuses a changed exchange whose private provenance no longer matches its contents', async () => {
@@ -703,7 +696,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         message.role === 'tool' ? { ...message, content: 'unexpected stored bytes' } : message
       ),
     }
-    await connection!`UPDATE memory_item SET data = ${JSON.stringify(modified)}::jsonb WHERE memory_id = ${turn.memoryId}`
+    await connection`UPDATE memory_item SET data = ${JSON.stringify(modified)}::jsonb WHERE memory_id = ${turn.memoryId}`
     expect(
       (await readConversationItems({ workspaceId: identity.workspaceId, memoryId: turn.memoryId }))
         .items[0].provenance.status
@@ -741,11 +734,11 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
               })
       await expect(attempt).rejects.toMatchObject({ code: 'payload_too_large' })
       expect(
-        await connection!`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
+        await connection`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
       ).toEqual([])
       expect(
         (
-          await connection!`SELECT revision, encrypted_state FROM agent_memory_turn WHERE id = ${turn.turnId}`
+          await connection`SELECT revision, encrypted_state FROM agent_memory_turn WHERE id = ${turn.turnId}`
         )[0]
       ).toEqual({ revision: 0, encrypted_state: null })
     }
@@ -756,7 +749,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
     async (existing) => {
       if (existing) await writeLegacyPrefix()
       const before =
-        await connection!`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
+        await connection`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
       await expect(
         appendMemoryUseCase.execute({
           principal: principal(),
@@ -769,13 +762,13 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         })
       ).rejects.toMatchObject({ code: 'payload_too_large' })
       expect(
-        await connection!`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
+        await connection`SELECT data, secret_provenance_version FROM memory WHERE key = ${identity.conversationId}`
       ).toEqual(before)
-      expect(await connection!`SELECT id FROM memory_item`).toEqual([])
+      expect(await connection`SELECT id FROM memory_item`).toEqual([])
       if (existing)
         expect(
           (
-            await connection!`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
+            await connection`SELECT content_hash, status FROM memory_secret_provenance WHERE memory_id = 'legacy-memory'`
           )[0]
         ).toEqual({
           content_hash: hashDurableSecretProvenanceValue(prefix),
@@ -796,18 +789,18 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'payload_too_large' })
-    expect(
-      await connection!`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
-    ).toEqual([])
-    expect(
-      (await connection!`SELECT data FROM memory WHERE id = ${turn.memoryId}`)[0].data
-    ).toEqual([])
+    expect(await connection`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`).toEqual(
+      []
+    )
+    expect((await connection`SELECT data FROM memory WHERE id = ${turn.memoryId}`)[0].data).toEqual(
+      []
+    )
   })
 
   it('counts existing and proposed JSON bytes together before committing a compatibility append', async () => {
     const turn = await openAgentMemoryTurn(identity)
     const existing = { role: 'user', content: 'x'.repeat(8 * 1024 * 1024) }
-    await connection!`INSERT INTO memory_item (id, memory_id, append_key, kind, data, content_hash, provenance_status, provenance_entries) VALUES ('existing-large-item', ${turn.memoryId}, 'existing', 'message', ${JSON.stringify(existing)}::jsonb, ${hashDurableSecretProvenanceValue(existing)!}, 'exact', '[]')`
+    await connection`INSERT INTO memory_item (id, memory_id, append_key, kind, data, content_hash, provenance_status, provenance_entries) VALUES ('existing-large-item', ${turn.memoryId}, 'existing', 'message', ${JSON.stringify(existing)}::jsonb, ${hashDurableSecretProvenanceValue(existing)!}, 'exact', '[]')`
     await expect(
       appendMemoryUseCase.execute({
         principal: principal(),
@@ -818,9 +811,9 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'payload_too_large' })
-    expect(
-      await connection!`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`
-    ).toEqual([{ id: 'existing-large-item' }])
+    expect(await connection`SELECT id FROM memory_item WHERE memory_id = ${turn.memoryId}`).toEqual(
+      [{ id: 'existing-large-item' }]
+    )
   })
 
   it('finds older retained matches after a no-match page reaches the retrieval byte limit', async () => {
@@ -865,7 +858,7 @@ describe.skipIf(!databaseUrl)('conversation storage in Postgres', () => {
   it('reports a single oversized history item and advances to the end without repeating it', async () => {
     const turn = await openAgentMemoryTurn(identity)
     const oversized = { role: 'user', content: 'x'.repeat(5 * 1024 * 1024) }
-    await connection!`INSERT INTO memory_item (id, memory_id, append_key, kind, data, content_hash, provenance_status, provenance_entries) VALUES ('oversized-retrieval-item', ${turn.memoryId}, 'oversized-retrieval', 'message', ${JSON.stringify(oversized)}::jsonb, ${hashDurableSecretProvenanceValue(oversized)!}, 'exact', '[]')`
+    await connection`INSERT INTO memory_item (id, memory_id, append_key, kind, data, content_hash, provenance_status, provenance_entries) VALUES ('oversized-retrieval-item', ${turn.memoryId}, 'oversized-retrieval', 'message', ${JSON.stringify(oversized)}::jsonb, ${hashDurableSecretProvenanceValue(oversized)!}, 'exact', '[]')`
     const scope = { workspaceId: identity.workspaceId, memoryId: turn.memoryId }
     const args = { target: 'history' as const, query: 'needle' }
     const first = await retrieveMemory({ ...scope, arguments: args, projection: {} })

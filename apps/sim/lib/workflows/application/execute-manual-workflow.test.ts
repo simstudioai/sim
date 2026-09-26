@@ -1,32 +1,32 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   executeService: vi.fn(),
-  loadManualState: vi.fn(),
   loadSourceState: vi.fn(),
-  permission: vi.fn(),
-  resolveContext: vi.fn(),
   resolveOptions: vi.fn(),
   validateInput: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: vi.fn((blocks) => blocks),
 }))
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execute-service', () => ({
   executeWorkflowService: mocks.executeService,
@@ -36,9 +36,7 @@ vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getExecutionStateForWorkflow: mocks.loadSourceState,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadManualState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/triggers/run-options', () => ({
   resolveTriggerRunOptions: mocks.resolveOptions,
@@ -50,11 +48,12 @@ import {
   executeManualWorkflowOperation,
 } from '@/lib/workflows/application/execute-manual-workflow'
 
-const principal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'personal-key-1',
-}
+const mockLoadManualState = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
+const principal = createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' })
 
 const context = {
   workflowId: 'workflow-1',
@@ -87,9 +86,9 @@ const triggerOption = {
 
 describe('manual workflow execution application operations', () => {
   beforeEach(() => {
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.permission.mockResolvedValue('write')
-    mocks.loadManualState.mockResolvedValue({
+    mockResolveContext.mockResolvedValue(context)
+    mockPermission.mockResolvedValue('write')
+    mockLoadManualState.mockResolvedValue({
       blocks: { 'trigger-1': {}, 'agent-1': {} },
       edges: [],
     })
@@ -185,7 +184,7 @@ describe('manual workflow execution application operations', () => {
       ).rejects.toThrow()
     }
     expect(mocks.executeService).not.toHaveBeenCalled()
-    expect(mocks.loadManualState).not.toHaveBeenCalled()
+    expect(mockLoadManualState).not.toHaveBeenCalled()
   })
 
   it('requires current write access for delegated manual execution', async () => {
@@ -199,7 +198,7 @@ describe('manual workflow execution application operations', () => {
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
     } as const
-    mocks.permission.mockResolvedValue('read')
+    mockPermission.mockResolvedValue('read')
     await expect(
       executeManualWorkflowOperation.execute({
         principal,
@@ -212,15 +211,14 @@ describe('manual workflow execution application operations', () => {
   it('still refuses workspace API keys for manual block entry', async () => {
     await expect(
       executeManualWorkflowFromBlockOperation.execute({
-        principal: {
-          kind: 'workspace_api_key',
+        principal: createWorkspaceApiKeyPrincipal({
           workspaceId: context.workspaceId,
           keyId: 'workspace-key',
-        } as never,
+        }) as never,
         input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
       })
     ).rejects.toThrow()
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
@@ -246,7 +244,7 @@ describe('manual workflow execution application operations', () => {
         input: { ...baseInput, useMockPayload: true },
       })
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.loadManualState).not.toHaveBeenCalled()
+    expect(mockLoadManualState).not.toHaveBeenCalled()
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 

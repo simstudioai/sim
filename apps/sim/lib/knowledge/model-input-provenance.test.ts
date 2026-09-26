@@ -1,4 +1,9 @@
-import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  encryptionMock,
+  encryptionMockFns,
+  environmentUtilsMockFns,
+  resetEnvironmentUtilsMock,
+} from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -12,9 +17,7 @@ import {
 } from '@/lib/knowledge/model-input-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 function verifiedHeaders(): Headers {
   return new Headers({

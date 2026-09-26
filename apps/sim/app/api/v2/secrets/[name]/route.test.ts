@@ -1,53 +1,33 @@
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      set: vi.fn(),
-      remove: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
-
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  setSecretUseCase: { operation: { id: 'secrets.set' }, execute: mocks.set },
-  deleteSecretUseCase: { operation: { id: 'secrets.delete' }, execute: mocks.remove },
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 
 import { PUT } from '@/app/api/v2/secrets/[name]/route'
 
+const mocks = {
+  set: secretsUseCasesMockFns.mockSetSecretUseCase,
+  remove: secretsUseCasesMockFns.mockDeleteSecretUseCase,
+}
+
 const WORKSPACE_ID = 'workspace-1'
 const SECRET_NAME = 'STRIPE_API_KEY'
-const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+const PRINCIPAL = createPersonalApiKeyPrincipal({ keyId: 'key-personal' })
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['user:user-1'] as const,
@@ -78,7 +58,7 @@ const secret = {
   role: 'admin' as const,
   unredacted: false,
 }
-const context = { params: Promise.resolve({ name: SECRET_NAME }) }
+const context = createRouteContext({ name: SECRET_NAME })
 
 /**
  * The read and delete verbs scope themselves with `?workspaceId=`; the write
@@ -88,21 +68,19 @@ const context = { params: Promise.resolve({ name: SECRET_NAME }) }
  */
 function request(method: 'PUT' | 'DELETE', body?: unknown) {
   const query = method === 'DELETE' ? `?workspaceId=${WORKSPACE_ID}&scope=workspace` : ''
-  return new NextRequest(`http://localhost:3000/api/v2/secrets/${SECRET_NAME}${query}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000/api/v2/secrets/${SECRET_NAME}${query}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/secrets/[name]', () => {
   beforeEach(() => {
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.set.mockResolvedValue({ secret, userId: 'user-1', created: true })
     mocks.remove.mockResolvedValue({ name: SECRET_NAME, scope: 'workspace' })
   })

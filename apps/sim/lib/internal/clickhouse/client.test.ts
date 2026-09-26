@@ -1,19 +1,14 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClickHouseConnectionConfig } from '@/lib/internal/clickhouse/client'
 
-const { mockValidateDatabaseHost, mockSecureFetchWithPinnedIP, mockValidateSqlWhereClause } =
-  vi.hoisted(() => ({
-    mockValidateDatabaseHost: vi.fn(),
-    mockSecureFetchWithPinnedIP: vi.fn(),
-    mockValidateSqlWhereClause: vi.fn(),
-  }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  validateDatabaseHost: mockValidateDatabaseHost,
-  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
-  validateSqlWhereClause: mockValidateSqlWhereClause,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateDatabaseHost, mockValidateSqlWhereClause } =
+  inputValidationMockFns
 
 import { executeClickHouseQuery } from '@/lib/internal/clickhouse/sql'
 

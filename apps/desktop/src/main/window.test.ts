@@ -76,7 +76,6 @@ describe('setupPermissionHandlers', () => {
 
   afterEach(() => {
     Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
-    vi.clearAllMocks()
   })
 
   it('grants a microphone request only after the OS agrees', async () => {

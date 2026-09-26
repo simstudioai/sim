@@ -55,7 +55,7 @@ export function OrganizationSecretInputHost({
       <p role='status'>Open this request in an organization conversation to add Generic Secrets.</p>
     )
   if (sourceQuery.isPending)
-    return renderContent(null, <p role='status'>Loading Generic Secrets…</p>)
+    return renderContent(null, <p role='status'>Loading Generic Secrets</p>)
   if (sourceQuery.isError)
     return renderContent(
       null,

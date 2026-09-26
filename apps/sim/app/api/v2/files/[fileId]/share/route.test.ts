@@ -5,7 +5,10 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -15,15 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 
 vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
   getWorkspaceFileShare: {
@@ -40,7 +35,7 @@ import { PATCH } from '@/app/api/v2/files/[fileId]/share/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
-const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
@@ -58,14 +53,15 @@ const SHARE = {
   hasPassword: false,
   allowedEmails: [] as string[],
 }
-const context = { params: Promise.resolve({ fileId: FILE_ID }) }
+const context = createRouteContext({ fileId: FILE_ID })
 
 function callPatch(body: unknown) {
   return PATCH(
-    new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/share`, {
+    createMockRequest({
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'key' },
-      body: JSON.stringify(body),
+      url: `http://localhost:3000/api/v2/files/${FILE_ID}/share`,
+      headers: { 'x-api-key': 'key' },
+      body,
     }),
     context
   )

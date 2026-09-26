@@ -11,83 +11,65 @@ import {
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 
 const {
-  MockV2ApiKeyUnauthenticatedError,
-  mockAdmissionRelease,
-  mockAuthenticateV2ApiKey,
   mockClaimExecutionId,
-  mockCheckOperationRate,
-  mockCheckPreAuthRate,
-  mockEnqueue,
   mockExecuteManualFromBlock,
   mockExecuteManualTrigger,
   mockExecuteWorkflowCore,
-  mockGenerateId,
   mockHasDurableExecutionOwner,
   mockReleaseExecutionIdClaim,
-  mockReleaseExecutionSlot,
-  mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
-  MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
-  mockAdmissionRelease: vi.fn(),
-  mockAuthenticateV2ApiKey: vi.fn(),
   mockClaimExecutionId: vi.fn(),
-  mockCheckOperationRate: vi.fn(),
-  mockCheckPreAuthRate: vi.fn(),
-  mockEnqueue: vi.fn().mockResolvedValue('workflow-execution:execution-123'),
   mockExecuteManualFromBlock: vi.fn(),
   mockExecuteManualTrigger: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
-  mockGenerateId: vi.fn(() => 'execution-123'),
   mockHasDurableExecutionOwner: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
-  mockValidatePublicApiAllowed: vi.fn(),
 }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@/lib/workflows/application/execute-manual-workflow', () => ({
   executeManualWorkflowOperation: { execute: mockExecuteManualTrigger },
   executeManualWorkflowFromBlockOperation: { execute: mockExecuteManualFromBlock },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mockCheckPreAuthRate
-    checkRateLimitDirectOrThrow = mockCheckOperationRate
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('read'),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
-  validatePublicApiAllowed: mockValidatePublicApiAllowed,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
@@ -108,23 +90,13 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
   releaseExecutionIdClaim: mockReleaseExecutionIdClaim,
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({
-    enqueue: mockEnqueue,
-    startJob: vi.fn(),
-    completeJob: vi.fn(),
-    markJobFailed: vi.fn(),
-  }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('@/background/workflow-execution', () => ({
   executeWorkflowJob: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  getCustomBlockRowsForWorkspace: vi.fn().mockResolvedValue([]),
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: vi.fn(async (_rows: unknown, fn: () => unknown) => fn()),
@@ -155,21 +127,27 @@ vi.mock(import('@/lib/execution/payloads/large-value-ref'), async (importOrigina
   return { ...actual, containsLargeValueRef: vi.fn().mockReturnValue(false) }
 })
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { attachExecutionResult } from '@/executor/utils/errors'
 import { POST } from './route'
 
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
+mockEnqueue.mockResolvedValue('workflow-execution:execution-123')
+const { mockRelease: mockAdmissionRelease } = admissionGateMockFns
+const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
+
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockAuthorize = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockAuthenticateV2ApiKey = v2RouteMocks.authenticate
+const mockGenerateId = idMockFns.mockGenerateId
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+mockGenerateId.mockReturnValue('execution-123')
+const mockCheckPreAuthRate = v2RouteMocks.preauthRate
+const mockCheckOperationRate = v2RouteMocks.operationRate
+const mockValidatePublicApiAllowed = permissionCheckMockFns.mockValidatePublicApiAllowed
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
@@ -209,7 +187,7 @@ function callExecute(body: Record<string, unknown>, headers: Record<string, stri
     'X-API-Key': 'test-key',
     ...headers,
   })
-  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 function callPublicExecute(body: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -217,7 +195,7 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
     'Content-Type': 'application/json',
     ...headers,
   })
-  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 function callOAuthExecute(body: Record<string, unknown>) {
@@ -225,7 +203,7 @@ function callOAuthExecute(body: Record<string, unknown>) {
     'Content-Type': 'application/json',
     Authorization: 'Bearer sim_oat_token',
   })
-  return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return POST(req, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 /**
@@ -246,7 +224,7 @@ function queuePublicWorkflowReads(
 
 function authenticatePersonalKey() {
   mockAuthenticateV2ApiKey.mockResolvedValue({
-    principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+    principal: createPersonalApiKeyPrincipal({ userId: 'actor-1' }),
     rateLimitSubjectIds: ['api-key:key-1', 'user:actor-1'],
     rateLimitSubscription: null,
     keyType: 'personal',
@@ -269,11 +247,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       resetAt: new Date('2026-08-08T05:00:00Z'),
     })
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -724,7 +698,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('maps malformed nested output selectors to an input failure', async () => {
     const result = await executeWorkflowService({
       workflowId: 'workflow-1',
-      principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: 'actor-1' }),
       userId: 'actor-1',
       input: {},
       triggerType: 'api',
@@ -866,11 +840,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('conceals a workspace-key/workflow mismatch as not found', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'other-workspace',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'other-workspace' }),
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:other-workspace'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -884,7 +854,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('rejects personal keys when the workspace disallows them', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
-      principal: { kind: 'personal_api_key', userId: 'key-user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: 'key-user-1' }),
       rateLimitSubjectIds: ['api-key:key-1', 'user:key-user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',

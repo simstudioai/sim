@@ -1,35 +1,29 @@
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  createRows: vi.fn(),
-  queryRows: vi.fn(),
-  updateRows: vi.fn(),
-  batchUpdateRows: vi.fn(),
-  deleteRows: vi.fn(),
-}))
-
-vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/api/row-route-policies', () => ({
   internalTableRowsErrorPolicy: { project: () => null },
 }))
 
-vi.mock('@/lib/table/application/rows', () => ({
-  createTableRows: { operation: { id: 'tables.rows.create' }, execute: mocks.createRows },
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-  updateTableRows: { operation: { id: 'tables.rows.update_many' }, execute: mocks.updateRows },
-  batchUpdateTableRows: {
-    operation: { id: 'tables.rows.update_many' },
-    execute: mocks.batchUpdateRows,
-  },
-  deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/table/[tableId]/rows/route'
+
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  createRows: tableApplicationRowsMockFns.mockCreateTableRows,
+  queryRows: tableApplicationRowsMockFns.mockQueryTableRows,
+  updateRows: tableApplicationRowsMockFns.mockUpdateTableRows,
+  batchUpdateRows: tableApplicationRowsMockFns.mockBatchUpdateTableRows,
+  deleteRows: tableApplicationRowsMockFns.mockDeleteTableRows,
+}
 
 const TABLE = {
   id: 'table-1',

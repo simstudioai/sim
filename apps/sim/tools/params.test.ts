@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
@@ -59,55 +59,56 @@ const mockToolConfig = {
  * module, so patching the shared namespace is the only wiring that always
  * applies.
  */
-const getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((
-  toolId: string
-) => {
-  if (toolId === 'test_tool') {
-    return mockToolConfig
-  }
-  if (toolId === 'workflow_executor') {
-    return {
-      id: 'workflow_executor',
-      name: 'Workflow Executor',
-      description: '',
-      version: '1.0.0',
-      params: {},
+let getToolSpy: MockInstance<typeof toolMetadata.getToolMetadata>
+beforeEach(() => {
+  getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((toolId: string) => {
+    if (toolId === 'test_tool') {
+      return mockToolConfig
     }
-  }
-  if (toolId === 'bool_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'bool_tool',
-      params: {
-        includeAttachments: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-          description: 'Download attachment file contents',
-        },
-        payload: {
-          type: 'json',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-        },
-      },
+    if (toolId === 'workflow_executor') {
+      return {
+        id: 'workflow_executor',
+        name: 'Workflow Executor',
+        description: '',
+        version: '1.0.0',
+        params: {},
+      }
     }
-  }
-  if (toolId === 'checkbox_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'checkbox_tool',
-      params: {
-        completed: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
+    if (toolId === 'bool_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'bool_tool',
+        params: {
+          includeAttachments: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Download attachment file contents',
+          },
+          payload: {
+            type: 'json',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
         },
-      },
+      }
     }
-  }
-  return null
-}) as unknown as typeof toolMetadata.getToolMetadata)
+    if (toolId === 'checkbox_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'checkbox_tool',
+        params: {
+          completed: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
+        },
+      }
+    }
+    return null
+  }) as unknown as typeof toolMetadata.getToolMetadata)
+})
 
 afterAll(() => {
   getToolSpy.mockRestore()

@@ -212,6 +212,7 @@ const ChatContextSchema = z
       'mcp',
       'browser_tab',
       'terminal_tab',
+      'workspace',
     ]),
     label: z.string(),
     chatId: z.string().optional(),
@@ -242,7 +243,14 @@ const ChatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection }, refinementContext) => {
+  .superRefine(({ kind, selection, workspaceId }, refinementContext) => {
+    if (kind === 'workspace' && !workspaceId) {
+      refinementContext.addIssue({
+        code: 'custom',
+        message: 'workspaceId is required for a workspace context',
+        path: ['workspaceId'],
+      })
+    }
     if (!selection) return
     const isTerminalSelection = 'startLine' in selection
     const selectionMatchesKind =

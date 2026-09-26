@@ -1,3 +1,9 @@
+import {
+  MockToolNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -12,13 +18,10 @@ const {
   mockAppendMemory,
   mockResolvePiModelId,
   mockIsPiSupportedProvider,
-  mockGetProviderFromModel,
   mockParseSearchProvider,
   mockResolveSearchKey,
   mockBuildSearchTool,
-  mockAssertPermissionsAllowed,
   mockBuildSimToolSpecs,
-  MockToolNotAllowedError,
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
@@ -31,13 +34,10 @@ const {
   mockAppendMemory: vi.fn(),
   mockResolvePiModelId: vi.fn(),
   mockIsPiSupportedProvider: vi.fn(),
-  mockGetProviderFromModel: vi.fn(),
   mockParseSearchProvider: vi.fn(),
   mockResolveSearchKey: vi.fn(),
   mockBuildSearchTool: vi.fn(),
-  mockAssertPermissionsAllowed: vi.fn(),
   mockBuildSimToolSpecs: vi.fn(),
-  MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
 }))
 
 vi.mock('@/executor/handlers/pi/core/keys', () => ({
@@ -53,10 +53,7 @@ vi.mock('@/executor/handlers/pi/core/keys', () => ({
 vi.mock('@/executor/handlers/pi/search/tool', () => ({
   buildPiSearchToolSpec: mockBuildSearchTool,
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mockAssertPermissionsAllowed,
-  ToolNotAllowedError: MockToolNotAllowedError,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/executor/handlers/pi/core/context', () => ({
   resolvePiSkills: mockResolveSkills,
   loadPiMemory: mockLoadMemory,
@@ -78,14 +75,7 @@ vi.mock('@/providers/pi-providers', () => ({
   isPiSupportedProvider: mockIsPiSupportedProvider,
   resolvePiModelId: mockResolvePiModelId,
 }))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: mockGetProviderFromModel,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/blocks/utils', () => ({
   parseOptionalNumberInput: (
     value: unknown,
@@ -114,6 +104,9 @@ import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
+
+const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
 
 const block = { id: 'blk', metadata: { id: 'pi' } } as unknown as SerializedBlock
 
@@ -515,7 +508,7 @@ describe('PiBlockHandler', () => {
 
     it('checks the tool denylist before touching the key', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
-      mockAssertPermissionsAllowed.mockRejectedValue(new MockToolNotAllowedError('denied'))
+      mockAssertPermissionsAllowed.mockRejectedValue(new MockToolNotAllowedError('exa_search'))
 
       await expect(
         handler.execute(ctx(), block, localInputs({ searchProvider: 'exa' }))

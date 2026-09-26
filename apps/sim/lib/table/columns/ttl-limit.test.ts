@@ -1,20 +1,22 @@
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableLocks } from '@/lib/table/types'
 
-const { mockAssertTableRowTtlEnabled, mockTimeoutExecute, mockWithLockedTable } = vi.hoisted(
-  () => ({
-    mockAssertTableRowTtlEnabled: vi.fn(),
-    mockTimeoutExecute: vi.fn(),
-    mockWithLockedTable: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
-vi.mock('@/lib/table/ttl-availability', () => ({
-  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
+const { mockTimeoutExecute } = vi.hoisted(() => ({
+  mockTimeoutExecute: vi.fn(),
 }))
 
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
+
 import { addTableColumn } from '@/lib/table/columns/service'
+
+const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
+const mockAssertTableRowTtlEnabled = tableTtlAvailabilityMockFns.mockAssertTableRowTtlEnabled
 
 const UNLOCKED: TableLocks = {
   schemaLocked: false,

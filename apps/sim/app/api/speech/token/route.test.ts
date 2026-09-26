@@ -10,52 +10,65 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordUsage: vi.fn(),
-  resolveBilling: vi.fn(),
-  resolveOrganizationBilling: vi.fn(),
-  checkUsage: vi.fn(),
-  toBillingContext: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   billOverage: vi.fn(),
-  rateCheck: vi.fn(),
-  organizationConfig: vi.fn(),
-  workspaceContext: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveOrganizationBillingAttribution: mocks.resolveOrganizationBilling,
-  checkAttributedUsageLimits: mocks.checkUsage,
-  toBillingContext: mocks.toBillingContext,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillPayerOverageThreshold: mocks.billOverage,
+  checkAndBillPayerOverageThreshold: hoisted.billOverage,
 }))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.rateCheck
-  },
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.organizationConfig,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspaceContext,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createSpeechToken } from '@/lib/speech/application/create-token'
 import { POST } from '@/app/api/speech/token/route'
 
-const permission = vi.spyOn(workspaceAuthz, 'resolveEffectiveWorkspacePermission')
-const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+const mocks = {
+  recordUsage: billingUsageLogMockFns.mockRecordUsage,
+  ...hoisted,
+  resolveBilling: billingAttributionMockFns.mockResolveBillingAttribution,
+  resolveOrganizationBilling: billingAttributionMockFns.mockResolveOrganizationBillingAttribution,
+  checkUsage: billingAttributionMockFns.mockCheckAttributedUsageLimits,
+  toBillingContext: billingAttributionMockFns.mockToBillingContext,
+  rateCheck: rateLimiterMockFns.mockCheckRateLimitDirect,
+  organizationConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspaceContext: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
+let permission: MockInstance<typeof workspaceAuthz.resolveEffectiveWorkspacePermission>
+const principal = createSessionPrincipal({ userId: 'member-1' })
 const billingEntity = { type: 'organization', id: 'org-1' } as const
 const billingPeriod = { start: new Date('2026-07-01'), end: new Date('2026-08-01') }
 
 beforeEach(() => {
+  permission = vi.spyOn(workspaceAuthz, 'resolveEffectiveWorkspacePermission')
   resetDbChainMock()
   setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   setEnvFlags({ isBillingEnabled: true })
@@ -88,7 +101,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   resetDbChainMock()
   resetEnvMock()
   resetEnvFlagsMock()
@@ -249,7 +261,7 @@ describe('POST /api/speech/token', () => {
     for (const input of [{ workspaceId: 'ws-1' }, { organizationId: 'org-1' }]) {
       await expect(
         createSpeechToken.execute({
-          principal: { kind: 'personal_api_key', userId: 'member-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal({ userId: 'member-1' }),
           input,
         })
       ).rejects.toThrow('cannot perform operation speech.token.create')

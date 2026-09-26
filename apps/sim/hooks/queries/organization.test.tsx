@@ -1,55 +1,27 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 
-const {
-  mockGetFullOrganization,
-  mockListOrganizations,
-  mockSetActiveOrganization,
-  mockRefresh,
-  mockRequestJson,
-  featureFlags,
-} = vi.hoisted(() => ({
-  mockGetFullOrganization: vi.fn(),
-  mockListOrganizations: vi.fn(),
-  mockSetActiveOrganization: vi.fn(),
-  mockRefresh: vi.fn(),
-  mockRequestJson: vi.fn(),
-  featureFlags: { organizations: true },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: mockRefresh }),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isOrganizationsEnabled() {
-    return featureFlags.organizations
-  },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    organization: {
-      getFullOrganization: mockGetFullOrganization,
-      list: mockListOrganizations,
-      setActive: mockSetActiveOrganization,
-    },
-    subscription: {
-      list: vi.fn(),
-    },
-  },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import {
   getOrganizationRosterContract,
@@ -68,18 +40,13 @@ import {
 } from '@/hooks/queries/organization'
 import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
-}
+const {
+  getFullOrganization: mockGetFullOrganization,
+  list: mockListOrganizations,
+  setActive: mockSetActiveOrganization,
+} = authClientMockFns.mockClient.organization
 
-function createDeferred<T>(): Deferred<T> {
-  let resolvePromise: (value: T) => void = () => undefined
-  const promise = new Promise<T>((resolve) => {
-    resolvePromise = resolve
-  })
-  return { promise, resolve: resolvePromise }
-}
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const ORGANIZATION_A = {
   id: 'org-a',
@@ -164,7 +131,7 @@ describe('organization identity transitions', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    featureFlags.organizations = true
+    setEnvFlags({ isOrganizationsEnabled: true })
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -176,7 +143,6 @@ describe('organization identity transitions', () => {
     act(() => root.unmount())
     queryClient.clear()
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('treats Better Auth failures as errors rather than a missing organization', async () => {

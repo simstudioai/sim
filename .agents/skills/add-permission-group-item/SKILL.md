@@ -210,7 +210,7 @@ bun run check:permission-group-enforcement
 bun run check:application-graph
 bun run check:capability-subject
 cd apps/sim && bun run type-check
-cd apps/sim && bunx vitest run lib/permission-groups
+bun run --cwd apps/sim test lib/permission-groups
 ```
 
 Also `bun run check:api-validation` if you touched a contract or the group routes. `bun run check:audits` runs all of these; it derives its list from the `check:*` scripts in `package.json`, so a new audit is opted *out* deliberately rather than opted in.

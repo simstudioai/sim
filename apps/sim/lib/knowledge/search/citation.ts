@@ -1,20 +1,10 @@
 import { sha256Hex } from '@sim/security/hash'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 /** Stable opaque citation IDs keep the model from rewriting long live references. */
 export function liveCitationId(documentId: string): string {
   return `live:${sha256Hex(documentId).slice(0, 32)}`
-}
-
-/** Accepts navigable provider links without embedding credentials or rewriting their identity. */
-export function isKnowledgeSourceUrl(value: string): boolean {
-  if (!/^https?:\/\//i.test(value) || /[\u0000-\u0020\u007f\\]/.test(value)) return false
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
-  } catch {
-    return false
-  }
 }
 
 interface KnowledgeDocumentCitationInput {

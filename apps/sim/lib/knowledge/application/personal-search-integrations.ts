@@ -2,28 +2,21 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { credentialGroup, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { readSearchConnectionCompletion } from '@/lib/credential-groups/search-connection-completion'
 import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
-import {
-  getIntegrationAvailability,
-  isOAuthServiceDeploymentAvailable,
-} from '@/lib/integrations/availability.server'
-import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { listConfiguredSearchProviderTypes } from '@/lib/knowledge/application/search-source-overview'
-import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
-import { getConnectorAccessAvailability, SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
+import { listIndexedPersonalSearchIntegrations } from '@/lib/sim-search/indexed/integrations/personal-search-integrations'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
-import { findSharedSlackSearchInstallation } from '@/lib/slack-search/shared-app'
 
 export interface ListPersonalSearchIntegrationsInput {
   organizationId: string
@@ -46,209 +39,78 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
       .where(eq(user.id, userId))
       .limit(1)
     if (!viewer) throw new OrchestrationError('forbidden', 'The current person is unavailable')
-    if (isLiveEnterpriseSearchEnabled) {
-      if (input.connectorId || input.cursor)
-        throw new OrchestrationError('validation', 'Refresh your live account connections')
-      const scope = { kind: 'organization', organizationId: context.organizationId } as const
-      if (!(await isScopedCredentialGroupsAvailable(scope)))
-        return { completedCredentialId: null, connections: [], available: [], nextCursor: null }
-      const [group, approvals] = await Promise.all([
-        getOrganizationAccountsGroup(context.organizationId),
-        listOrganizationSearchApprovals(context.organizationId),
-      ])
-      const accounts = group
-        ? await listViewerOrganizationAccounts({
-            organizationId: context.organizationId,
-            userId,
-            matching: eq(credentialGroup.id, group.id),
-          })
-        : []
-      const connections = (group?.options ?? []).flatMap((option) => {
-        const connector = SEARCH_CONNECTORS.find(
-          (entry) => findCredentialGroupProviderFromProviderId(entry.providerId) === option.provider
-        )
-        if (
-          !connector ||
-          !LIVE_SEARCH_SCOPE_FIELDS[connector.type] ||
-          (input.connectorType && connector.type !== input.connectorType)
-        )
-          return []
-        const ready = Boolean(
-          viewer.emailVerified &&
-            group?.status === 'active' &&
-            option.status === 'active' &&
-            option.configurationStatus === 'ready' &&
-            approvals.get(connector.type)
-        )
-        const target: SearchConnectionTarget = {
-          type: 'link',
-          provider: option.provider,
-          connectorType: connector.type,
-          connectionMode: 'live',
-          optionId: option.id,
-        }
-        const own = accounts
-          .filter((account) => account.optionId === option.id)
-          .map((account) => ({
-            credentialId: account.credentialId,
-            displayName: account.displayName,
-            status:
-              account.status === 'active' ? ('connected' as const) : ('reconnect_needed' as const),
-            action: ready ? { ...target, credentialId: account.credentialId } : null,
-          }))
-        return [
-          {
-            name: connector.meta.name,
-            providerId: option.provider,
-            connectorType: connector.type,
-            connectorId: undefined,
-            knowledgeBaseId: undefined,
-            indexingStatus: undefined,
-            description: '',
-            accounts: own,
-            connectionStatus: !ready
-              ? ('unavailable' as const)
-              : own.some((account) => account.status === 'reconnect_needed')
-                ? ('reconnect_needed' as const)
-                : own.length
-                  ? ('connected' as const)
-                  : ('not_connected' as const),
-            action: ready ? target : null,
-          },
-        ]
-      })
-      return {
-        completedCredentialId: input.completionId
-          ? await readSearchConnectionCompletion({
-              organizationId: context.organizationId,
-              userId,
-              completionId: input.completionId,
-            })
-          : null,
-        connections: connections.filter((entry) => entry.accounts.length > 0),
-        available: connections.flatMap((entry) =>
-          entry.action
-            ? [{ name: entry.name, description: entry.description, target: entry.action }]
-            : []
-        ),
-        nextCursor: null,
-      }
-    }
-    const [page, configuredTypes, approvals, access, sharedSlack] = await Promise.all([
-      listSearchSources.execute({ principal, input }),
-      listConfiguredSearchProviderTypes({ organizationId: context.organizationId }),
+    if (isIndexedOrgSearchEnabled())
+      return listIndexedPersonalSearchIntegrations({ principal, input, context, userId, viewer })
+    if (input.connectorId || input.cursor)
+      throw new OrchestrationError('validation', 'Refresh your live account connections')
+    const scope = { kind: 'organization', organizationId: context.organizationId } as const
+    if (!(await isScopedCredentialGroupsAvailable(scope)))
+      return { completedCredentialId: null, connections: [], available: [], nextCursor: null }
+    const [group, approvals] = await Promise.all([
+      getOrganizationAccountsGroup(context.organizationId),
       listOrganizationSearchApprovals(context.organizationId),
-      resolveKnowledgeAccessAvailability(context),
-      findSharedSlackSearchInstallation(context.organizationId),
     ])
-    const deployment = new Map(
-      getIntegrationAvailability().map((entry) => [entry.type.toLowerCase(), entry])
-    )
-    const oauth = new Map(
-      SEARCH_CONNECTORS.map((entry) => [
-        entry.providerId,
-        isOAuthServiceDeploymentAvailable(entry.providerId),
-      ])
-    )
-    const configured = new Set(configuredTypes)
-    const eligible = (connectorType: string) => {
-      const connector = SEARCH_CONNECTORS.find((entry) => entry.type === connectorType)
-      return Boolean(
-        viewer.emailVerified &&
-          connector &&
-          approvals.get(connectorType) &&
-          getConnectorAccessAvailability(connector.meta, deployment, {
-            memberAccessAvailable: access.memberScoped,
-            mirroredAccessAvailable: access.sourceMirrored,
-            oauthServiceAvailability: oauth,
-            isIntegrationAvailabilityReady: true,
-          }).members
+    const accounts = group
+      ? await listViewerOrganizationAccounts({
+          organizationId: context.organizationId,
+          userId,
+          matching: eq(credentialGroup.id, group.id),
+        })
+      : []
+    const connections = (group?.options ?? []).flatMap((option) => {
+      const connector = SEARCH_CONNECTORS.find(
+        (entry) => findCredentialGroupProviderFromProviderId(entry.providerId) === option.provider
       )
-    }
-    const projected = page.sources.flatMap((source) => {
-      const connector = SEARCH_CONNECTORS.find((entry) => entry.type === source.connectorType)
-      if (!connector) return []
+      if (
+        !connector ||
+        !LIVE_SEARCH_SCOPE_FIELDS[connector.type] ||
+        (input.connectorType && connector.type !== input.connectorType)
+      )
+        return []
+      const ready = Boolean(
+        viewer.emailVerified &&
+          group?.status === 'active' &&
+          option.status === 'active' &&
+          option.configurationStatus === 'ready' &&
+          approvals.get(connector.type)
+      )
       const target: SearchConnectionTarget = {
         type: 'link',
-        provider: connector.providerId,
-        connectorType: source.connectorType,
-        connectorId: source.connectorId,
+        provider: option.provider,
+        connectorType: connector.type,
+        connectionMode: 'live',
+        optionId: option.id,
       }
-      const canConnect =
-        eligible(source.connectorType) &&
-        source.enabled &&
-        source.availability === 'available' &&
-        source.viewerEmailVerified &&
-        source.connectionRequired &&
-        source.viewerMembership !== null &&
-        !['revoked', 'unverified_email'].includes(source.viewerMembership)
-      const accounts = source.viewerAccounts.map((account) => {
-        if (!account.status) throw new Error('Personal Search account status is missing')
-        return {
+      const own = accounts
+        .filter((account) => account.optionId === option.id)
+        .map((account) => ({
           credentialId: account.credentialId,
           displayName: account.displayName,
           status:
             account.status === 'active' ? ('connected' as const) : ('reconnect_needed' as const),
-          action:
-            canConnect && account.status === 'needs_reauth'
-              ? { ...target, credentialId: account.credentialId }
-              : null,
-        }
-      })
+          action: ready ? { ...target, credentialId: account.credentialId } : null,
+        }))
       return [
         {
           name: connector.meta.name,
-          providerId: connector.providerId,
+          providerId: option.provider,
           connectorType: connector.type,
-          connectorId: source.connectorId,
-          knowledgeBaseId: source.knowledgeBaseId,
-          description: source.sourceDescription,
-          accounts,
-          connectionStatus: accounts.some((account) => account.status === 'reconnect_needed')
-            ? ('reconnect_needed' as const)
-            : accounts.length
-              ? ('connected' as const)
-              : canConnect
-                ? ('not_connected' as const)
-                : ('unavailable' as const),
-          indexingStatus:
-            !source.enabled || source.availability !== 'available' || source.approved === false
-              ? ('paused' as const)
-              : source.isSyncing
-                ? ('indexing' as const)
-                : source.hasSyncError || source.viewerFailedDocumentCount > 0
-                  ? ('sync_failed' as const)
-                  : source.hasViewerDocuments
-                    ? ('indexed' as const)
-                    : ('not_indexed' as const),
-          action: canConnect && !accounts.length ? target : null,
+          connectorId: undefined,
+          knowledgeBaseId: undefined,
+          indexingStatus: undefined,
+          description: '',
+          accounts: own,
+          connectionStatus: !ready
+            ? ('unavailable' as const)
+            : own.some((account) => account.status === 'reconnect_needed')
+              ? ('reconnect_needed' as const)
+              : own.length
+                ? ('connected' as const)
+                : ('not_connected' as const),
+          action: ready ? target : null,
         },
       ]
     })
-    const available: Array<{ name: string; description: string; target: SearchConnectionTarget }> =
-      [
-        ...projected.flatMap((entry) =>
-          entry.action
-            ? [{ name: entry.name, description: entry.description, target: entry.action }]
-            : []
-        ),
-        ...SEARCH_CONNECTORS.filter(
-          (connector) =>
-            !input.connectorId &&
-            (!input.connectorType || connector.type === input.connectorType) &&
-            (connector.type !== 'slack' || sharedSlack !== null) &&
-            (!configured.has(connector.type) || connector.setupFields.length > 0) &&
-            eligible(connector.type)
-        ).map((connector) => ({
-          name: connector.meta.name,
-          description: '',
-          target: {
-            type: 'link' as const,
-            provider: connector.providerId,
-            connectorType: connector.type,
-          },
-        })),
-      ]
     return {
       completedCredentialId: input.completionId
         ? await readSearchConnectionCompletion({
@@ -257,9 +119,13 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
             completionId: input.completionId,
           })
         : null,
-      connections: projected.filter((entry) => entry.accounts.length > 0),
-      available,
-      nextCursor: page.nextCursor,
+      connections: connections.filter((entry) => entry.accounts.length > 0),
+      available: connections.flatMap((entry) =>
+        entry.action
+          ? [{ name: entry.name, description: entry.description, target: entry.action }]
+          : []
+      ),
+      nextCursor: null,
     }
   },
 })

@@ -1,9 +1,12 @@
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 
 const mocks = vi.hoisted(() => ({
-  createExecutorPrincipalFromExecutionContext: vi.fn(),
   createChunkOperation: vi.fn(),
   createDocumentsOperation: vi.fn(),
   deleteChunkOperation: vi.fn(),
@@ -20,9 +23,7 @@ const mocks = vi.hoisted(() => ({
   upsertDocumentOperation: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/knowledge/operations', () => ({
   createChunkOperation: mocks.createChunkOperation,
@@ -43,6 +44,8 @@ vi.mock('@/lib/internal/knowledge/operations', () => ({
 
 import { executeKnowledgeTool } from '@/lib/internal/knowledge/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const principal = {
   kind: 'delegated' as const,
@@ -75,7 +78,7 @@ function createRequest(
 
 describe('executeKnowledgeTool', () => {
   beforeEach(() => {
-    mocks.createExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
     mocks.listTagsOperation.mockResolvedValue({
       body: {
         success: true,
@@ -94,7 +97,7 @@ describe('executeKnowledgeTool', () => {
   })
 
   it('preserves the internal auth error when delegation no longer binds', async () => {
-    mocks.createExecutorPrincipalFromExecutionContext.mockRejectedValue(
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValue(
       new InvalidInternalDelegationBindingError()
     )
 

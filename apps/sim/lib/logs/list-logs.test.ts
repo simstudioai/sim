@@ -2,40 +2,6 @@ import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Local drizzle-orm mock: the global mock's `sql` lacks `.as()`. We only need
-// condition/sql builders to produce truthy stubs (the mocked db ignores them).
-vi.mock('drizzle-orm', () => {
-  const make = (): Record<string, unknown> => {
-    const o: Record<string, unknown> = {}
-    o.as = () => o
-    o.mapWith = () => o
-    return o
-  }
-  const sql = Object.assign((..._args: unknown[]) => make(), {
-    raw: (..._args: unknown[]) => make(),
-    join: (..._args: unknown[]) => make(),
-  })
-  const op =
-    (type: string) =>
-    (...args: unknown[]) => ({ type, args })
-  return {
-    sql,
-    and: op('and'),
-    or: op('or'),
-    eq: op('eq'),
-    ne: op('ne'),
-    gt: op('gt'),
-    gte: op('gte'),
-    lt: op('lt'),
-    lte: op('lte'),
-    inArray: op('inArray'),
-    isNull: op('isNull'),
-    isNotNull: op('isNotNull'),
-    asc: op('asc'),
-    desc: op('desc'),
-  }
-})
-
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
@@ -173,7 +139,9 @@ describe('readLogs', () => {
       for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
         expect(dbChainMockFns.where).toHaveBeenCalledWith(
           expect.objectContaining({
-            args: expect.arrayContaining([{ type: 'lte', args: [table.startedAt, new Date(now)] }]),
+            conditions: expect.arrayContaining([
+              { type: 'lte', left: table.startedAt, right: new Date(now) },
+            ]),
           })
         )
       }
@@ -193,12 +161,12 @@ describe('readLogs', () => {
     expect(result.total).toBe(5)
     for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
       const matchingCalls = dbChainMockFns.where.mock.calls.filter(([condition]) =>
-        condition.args.some(
-          (item: { type: string; args: unknown[] }) =>
+        condition.conditions.some(
+          (item: { type: string; left: unknown; right: unknown }) =>
             item.type === 'gt' &&
-            item.args[0] === table.startedAt &&
-            item.args[1] instanceof Date &&
-            item.args[1].toISOString() === startedAfter
+            item.left === table.startedAt &&
+            item.right instanceof Date &&
+            item.right.toISOString() === startedAfter
         )
       )
       expect(matchingCalls).toHaveLength(2)

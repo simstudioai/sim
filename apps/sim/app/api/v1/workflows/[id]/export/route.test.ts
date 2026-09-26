@@ -4,67 +4,59 @@
  * and edge-handle normalization.
  */
 
-import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockLoadWorkflowFromNormalizedTables,
-  mockRecordAudit,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockLoadWorkflowFromNormalizedTables: vi.fn(),
-  mockRecordAudit: vi.fn(),
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
+
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+import { GET } from '@/app/api/v1/workflows/[id]/export/route'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCreateRateLimitResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mockLoadWorkflowFromNormalizedTables,
-}))
-
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: { WORKFLOW_EXPORTED: 'workflow.exported' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-}))
+const mockLoadWorkflowFromNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
 /**
  * Overrides the global registry mock (whose blocks declare no subBlocks) so
  * `sanitizeForExport` has a `password: true` field to actually redact.
  */
-vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn(() => ({
-    name: 'Starter',
-    description: 'Mock block',
-    icon: () => null,
-    subBlocks: [
-      { id: 'apiKey', type: 'short-input', password: true },
-      { id: 'endpoint', type: 'short-input' },
-      { id: 'secretFromEnv', type: 'short-input', password: true },
-    ],
-    outputs: {},
-  })),
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockByToolName: vi.fn(() => undefined),
-}))
-
-import { GET } from '@/app/api/v1/workflows/[id]/export/route'
+vi.mocked(getBlock).mockReturnValue({
+  name: 'Starter',
+  description: 'Mock block',
+  icon: () => null,
+  subBlocks: [
+    { id: 'apiKey', type: 'short-input', password: true },
+    { id: 'endpoint', type: 'short-input' },
+    { id: 'secretFromEnv', type: 'short-input', password: true },
+  ],
+  outputs: {},
+} as unknown as BlockConfig)
 
 const WORKFLOW_ID = 'wf-1'
 
@@ -110,7 +102,7 @@ const NORMALIZED_STATE = {
 }
 
 function makeContext(id = WORKFLOW_ID) {
-  return { params: Promise.resolve({ id }) }
+  return createRouteContext({ id })
 }
 
 function makeRequest() {

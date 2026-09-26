@@ -1,18 +1,18 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  requestJson: vi.fn(),
   requireWorkspaceCredentialListResponse: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
-vi.mock('next/navigation', () => ({
-  useParams: vi.fn(),
-  useRouter: vi.fn(),
-}))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
+vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
   requireWorkspaceCredentialListResponse: mocks.requireWorkspaceCredentialListResponse,
 }))
@@ -24,6 +24,8 @@ import {
   resolveOAuthCallbackError,
   resolveOAuthMessage,
 } from '@/hooks/use-oauth-return'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const context: OAuthReturnContext = {
   origin: 'integrations',
@@ -58,7 +60,7 @@ const existingCredential = {
 
 describe('resolveOAuthMessage', () => {
   beforeEach(() => {
-    mocks.requestJson.mockResolvedValue({})
+    mockRequestJson.mockResolvedValue({})
   })
 
   it('verifies organization OAuth against only the routed organization credentials', async () => {
@@ -67,7 +69,7 @@ describe('resolveOAuthMessage', () => {
       workspaceId: undefined,
       organizationId: 'org-1',
     }
-    mocks.requestJson.mockResolvedValue({
+    mockRequestJson.mockResolvedValue({
       credentials: [
         existingCredential,
         { ...existingCredential, id: 'new-org-credential', displayName: context.displayName },
@@ -77,7 +79,7 @@ describe('resolveOAuthMessage', () => {
       kind: 'success',
       credentialId: 'new-org-credential',
     })
-    expect(mocks.requestJson).toHaveBeenCalledWith(listOrganizationCredentialsContract, {
+    expect(mockRequestJson).toHaveBeenCalledWith(listOrganizationCredentialsContract, {
       query: { organizationId: 'org-1', type: 'oauth' },
     })
     expect(mocks.requireWorkspaceCredentialListResponse).not.toHaveBeenCalled()

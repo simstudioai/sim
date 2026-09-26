@@ -36,7 +36,6 @@ let editor: Editor
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-  vi.clearAllMocks()
   editor = new Editor({ extensions: [StarterKit, MarkdownImage] })
   host = document.createElement('div')
   document.body.append(host)

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { type SQL, sql } from 'drizzle-orm'
 import type postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,19 +23,18 @@ const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
   '@/lib/knowledge/connectors/mirrored-acls'
 )
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const {
-  knowledgeAccessCondition,
-  knowledgeCandidateAccessConditionForConnectors,
-  projectionCandidateAccessCondition,
-  restrictSearchAccessPlan,
-  knowledgeMetadataCandidateAccessCondition,
-} = await import('@/lib/knowledge/access/predicate')
+const { knowledgeAccessCondition, knowledgeMetadataCandidateAccessCondition } = await import(
+  '@/lib/knowledge/access/predicate'
+)
+const { restrictSearchAccessPlan } = await import('@/lib/sim-search/indexed/retrieval/access-plan')
+const { knowledgeCandidateAccessConditionForConnectors, projectionCandidateAccessCondition } =
+  await import('@/lib/sim-search/indexed/retrieval/projection-access')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
 
-/** Explicit opt-in; every table and index belongs to an isolated disposable schema. */
-const databaseUrl = process.env.TEST_DATABASE_URL
+/** Every table and index belongs to an isolated disposable schema. */
+const databaseUrl = readTestDatabaseUrl()
 
-describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
+describe('knowledge ACLs in PostgreSQL', () => {
   let client: ReturnType<typeof postgres>
   let connection: ReturnType<typeof postgres>
   let fixture: Awaited<ReturnType<typeof createEnterpriseSearchMigrationFixture>>
@@ -42,7 +42,7 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
   const bob = 's:confluence:tenant:bob'
 
   beforeAll(async () => {
-    fixture = await createEnterpriseSearchMigrationFixture(databaseUrl!)
+    fixture = await createEnterpriseSearchMigrationFixture(databaseUrl)
     client = fixture.client
     connection = client
     await client`INSERT INTO document(id) VALUES ('before-migration')`

@@ -1,42 +1,45 @@
 import { knowledgeBase, knowledgeConnector, member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  availability: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   memberships: vi.fn(),
   accounts: vi.fn(),
-  access: vi.fn(),
   predicate: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: mocks.context,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mocks.availability,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  resolveViewerConnectorMemberships: mocks.memberships,
+  resolveViewerConnectorMemberships: hoisted.memberships,
 }))
 vi.mock('@/lib/knowledge/connectors/viewer-source-accounts', () => ({
-  resolveViewerSourceAccounts: mocks.accounts,
+  resolveViewerSourceAccounts: hoisted.accounts,
 }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createKnowledgeAccessProvider: mocks.access,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/lib/knowledge/access/predicate', () => ({
-  knowledgeAccessCondition: mocks.predicate,
-  knowledgeMetadataCandidateAccessCondition: mocks.predicate,
+  knowledgeAccessCondition: hoisted.predicate,
+  knowledgeMetadataCandidateAccessCondition: hoisted.predicate,
 }))
 vi.mock('@/connectors/registry', () => {
   const registry = {
@@ -62,7 +65,16 @@ import { readSearchSourceOverview } from '@/lib/knowledge/application/search-sou
 import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 
-const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  access: knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider,
+}
+
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const input = { workspaceId: 'workspace' }
 const access = { kind: 'user', userId: principal.userId, tokens: ['u:reader@example.test'] }
 const ACL = { type: 'viewer-acl' }
@@ -98,13 +110,16 @@ function seed(rows: ReturnType<typeof source>[], emailVerified = true) {
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.context.mockResolvedValue({
+  knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
     workspaceId: input.workspaceId,
     workspaceOrganizationId: null,
     allowPersonalApiKeys: true,
   })
-  mocks.permission.mockResolvedValue('read')
-  mocks.availability.mockResolvedValue({ sourceMirrored: true, memberScoped: true })
+  workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+  knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+    sourceMirrored: true,
+    memberScoped: true,
+  })
   mocks.memberships.mockResolvedValue(new Map())
   mocks.accounts.mockResolvedValue(new Map())
   mocks.access.mockReturnValue({
@@ -120,7 +135,7 @@ describe('Search source summaries', () => {
   it.each(['read', 'write', 'admin'])(
     'allows a current workspace %s without exposing credentials or other members',
     async (role) => {
-      mocks.permission.mockResolvedValue(role)
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(role)
       seed([source('drive')])
       queueTableRows(knowledgeConnector, [
         { connectorId: 'drive', hasDocuments: true, failedCount: 0, isIndexing: false },
@@ -151,7 +166,7 @@ describe('Search source summaries', () => {
       expect(JSON.stringify(result)).not.toMatch(
         /secret-fixture|admin@example|group-secret|option-secret|sourceConfig/
       )
-      expect(mocks.context).toHaveBeenCalledWith(input)
+      expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).toHaveBeenCalledWith(input)
       expect(mocks.access).toHaveBeenCalledWith(principal, {
         workspaceId: 'workspace',
         workspaceOrganizationId: null,
@@ -195,7 +210,7 @@ describe('Search source summaries', () => {
   })
 
   it('rejects a former workspace member before querying source data', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(listSearchSources.execute({ principal, input })).rejects.toMatchObject({
       code: 'forbidden',
     })
@@ -204,8 +219,8 @@ describe('Search source summaries', () => {
   })
 
   it.each([
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createPersonalApiKeyPrincipal({ userId: 'reader', keyId: 'key' }),
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
     {
       kind: 'credential_group_enrollment',
       workspaceId: 'workspace',
@@ -218,7 +233,7 @@ describe('Search source summaries', () => {
     await expect(listSearchSources.execute({ principal: other, input })).rejects.toMatchObject({
       code: 'forbidden',
     })
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })
@@ -227,7 +242,9 @@ describe('organization Search source summaries', () => {
   it.each(['member', 'admin'])(
     'returns only the current %s viewer ACL counts without a workspace membership',
     async (role) => {
-      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+      knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
+        organizationId: 'org-1',
+      })
       queueTableRows(member, [{ role }])
       seed([source('drive')])
       queueTableRows(knowledgeConnector, [])
@@ -248,7 +265,7 @@ describe('organization Search source summaries', () => {
       expect(mocks.memberships).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
       )
-      expect(mocks.permission).not.toHaveBeenCalled()
+      expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
       expect(JSON.stringify(result)).not.toMatch(
         /secret-fixture|admin@example|group-secret|option-secret/
       )
@@ -256,7 +273,9 @@ describe('organization Search source summaries', () => {
   )
 
   it('rejects a removed organization member without exposing configured sources', async () => {
-    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+    knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
+      organizationId: 'org-1',
+    })
     queueTableRows(member, [])
     await expect(
       listSearchSources.execute({ principal, input: { organizationId: 'org-1' } })
@@ -268,7 +287,7 @@ describe('organization Search source summaries', () => {
 
 describe('bounded Search progress', () => {
   it('does not read progress for a former member', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(
       readSearchSourceProgress.execute({ principal, input: { ...input, connectorIds: ['drive'] } })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -297,7 +316,7 @@ describe('bounded Search source pagination', () => {
       const first = await listSearchSources.execute({ principal, input })
       resetDbChainMock()
       if (change === 'scope')
-        mocks.context.mockResolvedValue({
+        knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
           workspaceId: 'other-workspace',
           workspaceOrganizationId: null,
           allowPersonalApiKeys: true,
@@ -321,7 +340,7 @@ describe('bounded Search source pagination', () => {
 
 describe('Search source overview', () => {
   it('rechecks current membership before reading the overview', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(readSearchSourceOverview.execute({ principal, input })).rejects.toMatchObject({
       code: 'forbidden',
     })

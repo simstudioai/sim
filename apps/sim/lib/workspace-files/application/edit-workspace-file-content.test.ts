@@ -1,84 +1,40 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  MockContentVersionConflictError,
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAcquireLock,
-  mockReleaseLock,
-  mockGetWorkspaceFile,
   mockGetWorkspaceFileWithCurrentVersion,
   mockFetchWorkspaceFileBuffer,
-  mockUpdateStoredContent,
-  mockResolveEffectiveWorkspacePermission,
-  mockAssertActiveWorkspaceAccess,
+  mockUpdateWorkspaceFileContent: mockUpdateStoredContent,
   mockLoadActiveWorkspaceFileContext,
-} = vi.hoisted(() => ({
-  mockAcquireLock: vi.fn(),
-  mockReleaseLock: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockGetWorkspaceFileWithCurrentVersion: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockUpdateStoredContent: vi.fn(),
-  mockResolveEffectiveWorkspacePermission: vi.fn(),
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockLoadActiveWorkspaceFileContext: vi.fn(),
-}))
+  mockLoadWorkspaceFileLifecycleContext,
+} = workspaceFileManagerMockFns
+mockLoadWorkspaceFileLifecycleContext.mockImplementation((...args: unknown[]) =>
+  mockLoadActiveWorkspaceFileContext(...args)
+)
 
-const { ContentVersionConflictError } = vi.hoisted(() => ({
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  acquireLock: (...args: unknown[]) => mockAcquireLock(...args),
-  releaseLock: (...args: unknown[]) => mockReleaseLock(...args),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  ContentVersionConflictError,
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  getWorkspaceFileWithCurrentVersion: (...args: unknown[]) =>
-    mockGetWorkspaceFileWithCurrentVersion(...args),
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateStoredContent(...args),
-  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 /*
  * The context resolver imports straight from the manager, not the barrel, so
  * mocking only one of the two leaves the branch under test unreachable.
  */
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  ContentVersionConflictError,
-  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
-  getWorkspaceFileWithCurrentVersion: (...args: unknown[]) =>
-    mockGetWorkspaceFileWithCurrentVersion(...args),
-  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
-  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateStoredContent(...args),
-  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-  loadWorkspaceFileLifecycleContext: (...args: unknown[]) =>
-    mockLoadActiveWorkspaceFileContext(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' ||
-    permission === required ||
-    (permission === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
-    mockResolveEffectiveWorkspacePermission(...args),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: (...args: unknown[]) => mockAssertActiveWorkspaceAccess(...args),
-  getUserEntityPermissions: vi.fn(),
-  isWorkspaceAccessDeniedError: vi.fn(() => false),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPDATED: 'file.updated' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -88,13 +44,16 @@ import {
 } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 
+const { mockAcquireLock, mockReleaseLock } = redisConfigMockFns
+
+const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
+
+const mockResolveEffectiveWorkspacePermission =
+  workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
 const CONTENT_UPDATED_AT = new Date('2025-01-01T00:00:00.000Z')
 
-const principal: Principal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const principal: Principal = createSessionPrincipal()
 
 const NOTE = '# self\n\n- prefers async\n- based in NYC\n'
 
@@ -185,7 +144,7 @@ describe('editWorkspaceFileContent', () => {
   })
 
   it('surfaces a losing race as a conflict rather than a crash', async () => {
-    mockUpdateStoredContent.mockRejectedValue(new ContentVersionConflictError('stale'))
+    mockUpdateStoredContent.mockRejectedValue(new MockContentVersionConflictError('stale'))
 
     await expect(edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })).rejects.toThrow(
       OrchestrationError

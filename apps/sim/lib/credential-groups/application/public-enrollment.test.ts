@@ -1,53 +1,44 @@
-import type { CredentialGroupEnrollmentPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import type { CredentialGroupEnrollmentPrincipal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  bind: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   memberAccess: vi.fn(),
-  searchAvailable: vi.fn(),
-  completeEnrollment: vi.fn(),
   completeOAuth: vi.fn(),
   fireTrigger: vi.fn(),
-  getEnrollment: vi.fn(),
-  getMcpOAuthContext: vi.fn(),
-  getOAuthContext: vi.fn(),
-  getAttemptContext: vi.fn(),
-  getMcpAttemptContext: vi.fn(),
   completeMcpOAuth: vi.fn(),
   startMcpOAuth: vi.fn(),
   startOAuth: vi.fn(),
 }))
 
 vi.mock('@/lib/organizations/settings-access', () => ({
-  getOrganizationSettingsAccess: mocks.memberAccess,
+  getOrganizationSettingsAccess: hoisted.memberAccess,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.searchAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  bindCredentialGroupEnrollmentUser: mocks.bind,
-  completeAuthorizedCredentialGroupEnrollment: mocks.completeEnrollment,
-  getAuthorizedCredentialGroupMcpOAuthContext: mocks.getMcpOAuthContext,
-  getAuthorizedCredentialGroupOAuthContext: mocks.getOAuthContext,
-  getCredentialGroupOAuthContextForEnrollment: mocks.getAttemptContext,
-  getCredentialGroupMcpOAuthContextForEnrollment: mocks.getMcpAttemptContext,
-  getAuthorizedPublicCredentialGroupEnrollment: mocks.getEnrollment,
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
 vi.mock('@/lib/credential-groups/mcp-oauth', () => ({
-  completeCredentialGroupMcpOAuth: mocks.completeMcpOAuth,
-  startCredentialGroupMcpOAuth: mocks.startMcpOAuth,
+  completeCredentialGroupMcpOAuth: hoisted.completeMcpOAuth,
+  startCredentialGroupMcpOAuth: hoisted.startMcpOAuth,
 }))
 
 vi.mock('@/lib/credential-groups/oauth', () => ({
-  completeCredentialGroupOAuth: mocks.completeOAuth,
-  startCredentialGroupOAuth: mocks.startOAuth,
+  completeCredentialGroupOAuth: hoisted.completeOAuth,
+  startCredentialGroupOAuth: hoisted.startOAuth,
 }))
 
 vi.mock('@/lib/credential-groups/trigger', () => ({
-  fireCredentialGroupTrigger: mocks.fireTrigger,
+  fireCredentialGroupTrigger: hoisted.fireTrigger,
 }))
 
 import {
@@ -58,6 +49,24 @@ import {
   startPublicCredentialGroupMcpOAuth,
   startPublicCredentialGroupOAuth,
 } from '@/lib/credential-groups/application/public-enrollment'
+
+const mocks = {
+  ...hoisted,
+  bind: credentialGroupsEnrollmentsMockFns.mockBindCredentialGroupEnrollmentUser,
+  completeEnrollment:
+    credentialGroupsEnrollmentsMockFns.mockCompleteAuthorizedCredentialGroupEnrollment,
+  getMcpOAuthContext:
+    credentialGroupsEnrollmentsMockFns.mockGetAuthorizedCredentialGroupMcpOAuthContext,
+  getOAuthContext: credentialGroupsEnrollmentsMockFns.mockGetAuthorizedCredentialGroupOAuthContext,
+  getAttemptContext:
+    credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+  getMcpAttemptContext:
+    credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupMcpOAuthContextForEnrollment,
+  getEnrollment:
+    credentialGroupsEnrollmentsMockFns.mockGetAuthorizedPublicCredentialGroupEnrollment,
+}
+
+const searchAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
 
 const invitationToken = 'invitation-token'
 const principal: CredentialGroupEnrollmentPrincipal = {
@@ -99,7 +108,7 @@ describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
     mocks.bind.mockResolvedValue(undefined)
     mocks.memberAccess.mockResolvedValue({ isMember: false })
-    mocks.searchAvailable.mockResolvedValue(true)
+    searchAvailable.mockResolvedValue(true)
     mocks.getEnrollment.mockResolvedValue({
       status: 'invited',
       credentialGroupName: 'Credential Group',
@@ -136,11 +145,7 @@ describe('public Credential Group enrollment application operations', () => {
   })
 
   it('rejects a workspace session before resolving invitation data', async () => {
-    const session: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const session = createSessionPrincipal()
 
     await expect(
       readPublicCredentialGroupEnrollment.execute({ principal: session, input: {} })
@@ -170,7 +175,7 @@ describe('public Credential Group enrollment application operations', () => {
     'returns to organization Search only for current members with Search enabled',
     async (isMember, available, expected) => {
       mocks.memberAccess.mockResolvedValue({ isMember })
-      mocks.searchAvailable.mockResolvedValue(available)
+      searchAvailable.mockResolvedValue(available)
       const result = await readPublicCredentialGroupEnrollment.execute({
         principal,
         input: { optionId: 'option-1' },

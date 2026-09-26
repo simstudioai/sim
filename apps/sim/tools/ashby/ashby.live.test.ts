@@ -6,7 +6,7 @@
  * `ASHBY_LIVE_WRITES=1` because every Ashby call is a production write - there
  * is no sandbox, no test mode, and no dry-run flag.
  *
- *   Read-only:  ASHBY_LIVE=1 ASHBY_API_KEY=... bunx vitest run --mode live tools/ashby/ashby.live.test.ts
+ *   Read-only:  ASHBY_LIVE=1 ASHBY_API_KEY=... bun run --cwd apps/sim test --mode live tools/ashby/ashby.live.test.ts
  *   With writes: add ASHBY_LIVE_WRITES=1 ASHBY_FIXTURE_JOB_ID=<uuid>
  *
  * The Ashby tools have a static URL, pure `headers(params)`/`body(params)`, and

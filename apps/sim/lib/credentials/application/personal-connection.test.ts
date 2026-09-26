@@ -1,61 +1,79 @@
-import type { Principal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  workspace: vi.fn(),
-  permission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   catalog: vi.fn(),
-  group: vi.fn(),
-  ensure: vi.fn(),
-  enroll: vi.fn(),
   personal: vi.fn(),
-  oauthContext: vi.fn(),
   startOAuth: vi.fn(),
-  organizationMembership: vi.fn(),
-  available: vi.fn(),
-  policy: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' ||
-    permission === required ||
-    (permission === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.catalog,
+  listCredentialProviderCatalog: hoisted.catalog,
 }))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  requireOrganizationMembership: mocks.organizationMembership,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.policy,
-  ResourcePolicyNotFoundError: class extends Error {},
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: mocks.oauthContext,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: mocks.startOAuth }))
-vi.mock('@/lib/credential-groups/service', () => ({ ensureWorkspaceAccountsGroup: mocks.ensure }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: mocks.enroll,
-}))
-vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: mocks.personal }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.startOAuth }))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credentials/personal', () => ({ getPersonalOAuthCredentials: hoisted.personal }))
 
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { startPersonalCredentialConnection } from '@/lib/credentials/application/personal-connection'
 
-const principal: Principal = { kind: 'session', userId: 'viewer', sessionId: 'session' }
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
+const mocks = {
+  ...hoisted,
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  ensure: credentialGroupsServiceMockFns.mockEnsureWorkspaceAccountsGroup,
+  enroll: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  oauthContext: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  workspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  organizationMembership: organizationAuthorizationMockFns.mockRequireOrganizationMembership,
+}
+
+const principal = createSessionPrincipal({ userId: 'viewer', sessionId: 'session' })
 const input = { workspaceId: 'workspace', providerId: 'confluence' }
 const group = {
   credentialGroupId: 'canonical-group',

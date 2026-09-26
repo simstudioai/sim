@@ -1,32 +1,39 @@
 /**
  * Tests for file serve API route
  */
+
 import {
   authMockFns,
   hybridAuthMockFns,
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => serveLogger),
-  logger: serveLogger,
-  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
-  getRequestContext: vi.fn(() => undefined),
-  setRequestAuth: vi.fn(),
-}))
-
 const {
-  mockVerifyFileAccess,
   mockReadFile,
-  mockIsUsingCloudStorage,
-  mockDownloadCopilotFile,
-  mockInferContextFromKey,
-  mockResolveStoredFileContext,
-  mockParseWorkspaceFileKey,
   mockAuthenticateWorkspaceFile,
   mockReadWorkspaceFileContentByKey,
   mockResolveServableDocBytes,
@@ -37,7 +44,6 @@ const {
   mockCreateConditionalFileResponse,
   mockCreateErrorResponse,
   FileNotFoundError,
-  serveLogger,
   mockReadOrganizationAssistantImage,
 } = vi.hoisted(() => {
   class FileNotFoundErrorClass extends Error {
@@ -47,15 +53,8 @@ const {
     }
   }
   return {
-    serveLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     mockReadOrganizationAssistantImage: vi.fn(),
-    mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
-    mockIsUsingCloudStorage: vi.fn(),
-    mockDownloadCopilotFile: vi.fn(),
-    mockInferContextFromKey: vi.fn(),
-    mockResolveStoredFileContext: vi.fn(),
-    mockParseWorkspaceFileKey: vi.fn(),
     mockAuthenticateWorkspaceFile: vi.fn(),
     mockReadWorkspaceFileContentByKey: vi.fn(),
     mockResolveServableDocBytes: vi.fn(),
@@ -79,26 +78,15 @@ vi.mock('fs/promises', () => ({
   stat: vi.fn().mockResolvedValue({ isFile: () => true, size: 100 }),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads', () => ({
-  CopilotFiles: {
-    downloadCopilotFile: mockDownloadCopilotFile,
-  },
-  isUsingCloudStorage: mockIsUsingCloudStorage,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  inferContextFromKey: mockInferContextFromKey,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  resolveStoredFileContext: mockResolveStoredFileContext,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/uploads/setup.server', () => ({}))
 
@@ -110,9 +98,7 @@ vi.mock('@/lib/execution/sandbox/run-task', () => ({
     ),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  parseWorkspaceFileKey: mockParseWorkspaceFileKey,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/api', () => ({
   internalWorkspaceFileServeAuth: { authenticate: mockAuthenticateWorkspaceFile },
@@ -140,6 +126,14 @@ vi.mock('@/app/api/files/utils', () => ({
 
 import { GET } from '@/app/api/files/serve/[...path]/route'
 
+const mockResolveStoredFileContext = uploadsMetadataMockFns.mockResolveStoredFileContext
+const mockVerifyFileAccess = filesAuthorizationMockFns.mockVerifyFileAccess
+const mockInferContextFromKey = fileUtilsMockFns.mockInferContextFromKey
+const mockParseWorkspaceFileKey = workspaceFileManagerMockFns.mockParseWorkspaceFileKey
+const serveLogger = getMockLogger('FilesServeAPI')
+const mockDownloadCopilotFile = uploadsMockFns.mockDownloadCopilotFile
+const mockIsUsingCloudStorage = uploadsMockFns.mockIsUsingCloudStorage
+
 describe('File Serve API Route', () => {
   beforeEach(() => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
@@ -156,11 +150,9 @@ describe('File Serve API Route', () => {
     mockInferContextFromKey.mockReturnValue('workspace')
     mockResolveStoredFileContext.mockResolvedValue('mothership')
     mockParseWorkspaceFileKey.mockReturnValue(undefined)
-    mockAuthenticateWorkspaceFile.mockResolvedValue({
-      kind: 'session',
-      userId: 'test-user-id',
-      sessionId: 'session-1',
-    })
+    mockAuthenticateWorkspaceFile.mockResolvedValue(
+      createSessionPrincipal({ userId: 'test-user-id' })
+    )
     mockReadWorkspaceFileContentByKey.mockResolvedValue({
       file: {
         id: 'file-1',
@@ -211,12 +203,10 @@ describe('File Serve API Route', () => {
       error: 'Unauthorized',
     })
     const response = await GET(
-      new NextRequest(
-        'http://localhost/api/files/serve/execution%2Fworkspace%2Fworkflow%2Frun%2Fimage.png?context=execution'
-      ),
-      {
-        params: Promise.resolve({ path: ['execution/workspace/workflow/run/image.png'] }),
-      }
+      createMockRequest({
+        url: 'http://localhost/api/files/serve/execution%2Fworkspace%2Fworkflow%2Frun%2Fimage.png?context=execution',
+      }),
+      createRouteContext({ path: ['execution/workspace/workflow/run/image.png'] })
     )
     expect(response.status).toBe(401)
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
@@ -230,9 +220,10 @@ describe('File Serve API Route', () => {
     mockInferContextFromKey.mockReturnValue('copilot')
     mockDownloadCopilotFile.mockResolvedValue(Buffer.from('bytes'))
 
-    await GET(new NextRequest('http://localhost:3000/api/files/serve/copilot/doc.txt'), {
-      params: Promise.resolve({ path: ['copilot', 'doc.txt'] }),
-    })
+    await GET(
+      createMockRequest({ url: 'http://localhost:3000/api/files/serve/copilot/doc.txt' }),
+      createRouteContext({ path: ['copilot', 'doc.txt'] })
+    )
 
     expect(mockDownloadCopilotFile).toHaveBeenCalledWith('copilot/doc.txt', {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
@@ -244,8 +235,10 @@ describe('File Serve API Route', () => {
     async (prefix) => {
       const key = `${prefix}chat-images/chat/request/image.webp`
       const response = await GET(
-        new NextRequest(`http://localhost/api/files/serve/${key}?context=profile-pictures`),
-        { params: Promise.resolve({ path: key.split('/') }) }
+        createMockRequest({
+          url: `http://localhost/api/files/serve/${key}?context=profile-pictures`,
+        }),
+        createRouteContext({ path: key.split('/') })
       )
       expect(response.status).toBe(404)
       expect(mockReadOrganizationAssistantImage).not.toHaveBeenCalled()
@@ -256,17 +249,21 @@ describe('File Serve API Route', () => {
   it('requires a real session for private Assistant images even when legacy auth succeeds', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
     const key = 'assistant/org-1/user-1/upload-1/image.png'
-    const response = await GET(new NextRequest(`http://localhost/api/files/serve/${key}`), {
-      params: Promise.resolve({ path: key.split('/') }),
-    })
+    const response = await GET(
+      createMockRequest({ url: `http://localhost/api/files/serve/${key}` }),
+      createRouteContext({ path: key.split('/') })
+    )
     expect(response.status).toBe(401)
     expect(mockReadOrganizationAssistantImage).not.toHaveBeenCalled()
   })
 
   it('bounds the local read rather than trusting the stored size', async () => {
-    await GET(new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/test-file.txt'), {
-      params: Promise.resolve({ path: ['workspace', 'ws', 'test-file.txt'] }),
-    })
+    await GET(
+      createMockRequest({
+        url: 'http://localhost:3000/api/files/serve/workspace/ws/test-file.txt',
+      }),
+      createRouteContext({ path: ['workspace', 'ws', 'test-file.txt'] })
+    )
 
     expect(mockReadLocalFileWithinLimit).toHaveBeenCalledWith(
       '/test/uploads/test-file.txt',
@@ -294,8 +291,8 @@ describe('File Serve API Route', () => {
     )
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/huge.bin'),
-      { params: Promise.resolve({ path: ['workspace', 'ws', 'huge.bin'] }) }
+      createMockRequest({ url: 'http://localhost:3000/api/files/serve/workspace/ws/huge.bin' }),
+      createRouteContext({ path: ['workspace', 'ws', 'huge.bin'] })
     )
 
     expect(response.status).toBe(413)
@@ -303,20 +300,17 @@ describe('File Serve API Route', () => {
   })
 
   describe('versioned cache lifetime', () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
+    const principal = createExecutorPrincipal({
       subjectUserId: 'test-user-id',
       workspaceId: 'test-workspace-id',
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
       issuedAt: new Date('2026-08-01T00:00:00Z'),
       expiresAt: new Date('2026-08-01T01:00:00Z'),
       delegationContext: {
-        kind: 'workflow_execution' as const,
+        kind: 'workflow_execution',
         workflowId: 'workflow-1',
       },
-    }
+    })
 
     async function serveVersionedDoc(dependsOnReferencedFiles: boolean) {
       mockResolveStoredFileContext.mockResolvedValue('workspace')
@@ -328,12 +322,10 @@ describe('File Serve API Route', () => {
         ...(dependsOnReferencedFiles ? { dependsOnReferencedFiles: true } : {}),
       })
 
-      const req = new NextRequest(
-        'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf?v=1756684800000'
-      )
-      await GET(req, {
-        params: Promise.resolve({ path: ['workspace', 'test-workspace-id', 'report.pdf'] }),
+      const req = createMockRequest({
+        url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf?v=1756684800000',
       })
+      await GET(req, createRouteContext({ path: ['workspace', 'test-workspace-id', 'report.pdf'] }))
       return mockCreateFileResponse.mock.calls.at(-1)?.[0]
     }
 

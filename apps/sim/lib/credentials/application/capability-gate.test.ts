@@ -11,31 +11,32 @@
  * — the same resolution personal API keys use for an organization-level action.
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockGetUserOrganization } = organizationMembershipMockFns
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
 const {
-  mockGetUserOrganization,
-  mockGetOrgPermissionConfig,
   mockListOAuthConnectionsForUser,
   mockListConnectedAccountsForUser,
   mockDisconnectOAuthAccounts,
 } = vi.hoisted(() => ({
-  mockGetUserOrganization: vi.fn(),
-  mockGetOrgPermissionConfig: vi.fn(),
   mockListOAuthConnectionsForUser: vi.fn(),
   mockListConnectedAccountsForUser: vi.fn(),
   mockDisconnectOAuthAccounts: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  getUserOrganization: mockGetUserOrganization,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: vi.fn(),
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/credentials/oauth-accounts', () => ({
   listOAuthConnectionsForUser: mockListOAuthConnectionsForUser,

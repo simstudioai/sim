@@ -1,5 +1,12 @@
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { workspacesPolicyMock } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -11,7 +18,6 @@ const {
   mockStartBackgroundWork,
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
-  mockSeedEdgeMappings,
   mockCollectReferencedFileFolderPaths,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
@@ -22,16 +28,13 @@ const {
   mockStartBackgroundWork: vi.fn(),
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
-  mockSeedEdgeMappings: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: vi.fn(() => ({ workflowState: {} })),
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   startBackgroundWork: mockStartBackgroundWork,
   finishBackgroundWork: mockFinishBackgroundWork,
@@ -68,16 +71,12 @@ vi.mock('@/ee/workspace-forking/lib/copy/copy-workflows', () => ({
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  setForkLockTimeout: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   reconcileForkBlockPairs: vi.fn(),
   toForkBlockPairs: vi.fn(() => []),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  seedEdgeMappings: mockSeedEdgeMappings,
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
   createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
@@ -86,15 +85,11 @@ vi.mock('@/lib/workflows/references/reference-scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
   collectReferencedFileFolderPaths: mockCollectReferencedFileFolderPaths,
 }))
-vi.mock('@/lib/workspaces/policy', () => ({
-  WORKSPACE_MODE: {
-    PERSONAL: 'personal',
-    ORGANIZATION: 'organization',
-    GRANDFATHERED_SHARED: 'grandfathered_shared',
-  },
-}))
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
+
+const { mockSeedEdgeMappings } = workspaceForkingMappingStoreMockFns
 
 const SOURCE = { id: 'src-ws', name: 'Parent', allowPersonalApiKeys: false } as never
 const POLICY = {

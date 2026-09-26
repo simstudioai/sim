@@ -1,8 +1,21 @@
 import type { Principal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  run: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   chat: vi.fn(),
   authorize: vi.fn(),
   acquire: vi.fn(),
@@ -10,48 +23,46 @@ const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   assertLease: vi.fn(),
   events: vi.fn(),
-  billing: vi.fn(),
-  organizationBilling: vi.fn(),
-  organizationAuthorize: vi.fn(),
-  permission: vi.fn(),
   start: vi.fn(),
 }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({ getLatestRunForStream: mocks.run }))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
-  resolveOwnedChatContext: mocks.chat,
+  resolveOwnedChatContext: hoisted.chat,
 }))
 vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
   ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.authorize,
+  authorizeWorkspaceOperation: hoisted.authorize,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.organizationAuthorize,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/mothership/request/session/abort', () => ({
-  acquirePendingChatStream: mocks.acquire,
-  releasePendingChatStream: mocks.release,
+  acquirePendingChatStream: hoisted.acquire,
+  releasePendingChatStream: hoisted.release,
   getLocalChatStreamLease: () => ({ key: 'chat-lock', value: 'stream\nnew-controller' }),
 }))
 vi.mock('@/lib/mothership/request/session/controller-lease', async (original) => ({
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
-  assertChatStreamLease: mocks.assertLease,
+  assertChatStreamLease: hoisted.assertLease,
 }))
 vi.mock('@/lib/mothership/request/lifecycle/controller-ownership', () => ({
-  claimRunController: mocks.claim,
+  claimRunController: hoisted.claim,
 }))
-vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mocks.events }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.billing,
-  resolveOrganizationBillingAttribution: mocks.organizationBilling,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mocks.permission,
-}))
-vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ createSSEStream: mocks.start }))
+vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: hoisted.events }))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
+const mockResolveOrganizationBillingAttribution =
+  billingAttributionMockFns.mockResolveOrganizationBillingAttribution
+const mocks = {
+  ...hoisted,
+  run: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  organizationAuthorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  permission: permissionsMockFns.mockGetUserEntityPermissions,
+}
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ createSSEStream: hoisted.start }))
 
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 
-const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
+const principal = createSessionPrincipal({ userId: 'user', sessionId: 'session' })
 const input = { streamId: '11111111-1111-4111-8111-111111111111' }
 const run = {
   id: 'run',
@@ -96,7 +107,7 @@ describe('authorized chat stream recovery', () => {
     mocks.acquire.mockResolvedValue(true)
     mocks.claim.mockResolvedValue(true)
     mocks.events.mockResolvedValue([])
-    mocks.billing.mockResolvedValue({
+    mockResolveBillingAttribution.mockResolvedValue({
       actorUserId: 'user',
       workspaceId: '33333333-3333-4333-8333-333333333333',
     })
@@ -189,7 +200,7 @@ describe('authorized chat stream recovery', () => {
         events: [],
       },
     })
-    expect(mocks.billing).toHaveBeenCalledWith({
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
       actorUserId: 'user',
       workspaceId: '33333333-3333-4333-8333-333333333333',
     })
@@ -220,7 +231,7 @@ describe('authorized chat stream recovery', () => {
       organizationId,
       mode: 'assistant',
     })
-    mocks.organizationBilling.mockResolvedValue({
+    mockResolveOrganizationBillingAttribution.mockResolvedValue({
       actorUserId: 'user',
       workspaceId: null,
       organizationId,
@@ -232,7 +243,7 @@ describe('authorized chat stream recovery', () => {
       { organizationId }
     )
     expect(mocks.permission).not.toHaveBeenCalled()
-    expect(mocks.billing).not.toHaveBeenCalled()
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mocks.start).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: undefined,

@@ -1,13 +1,20 @@
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  captureServerEvent: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   completeUpload: vi.fn(),
-  platformEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
@@ -21,25 +28,16 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformEvent },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
+
+const mockDocumentsUploaded = getMockPlatformEvent('knowledgeBaseDocumentsUploaded')
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const DOCUMENT = {
@@ -84,29 +82,26 @@ function auth(principal: Record<string, unknown>) {
 }
 
 function request() {
-  const request = new NextRequest(
-    `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads/upload-1/complete?workspaceId=${WORKSPACE_ID}`,
-    { method: 'POST', headers: { 'upload-token': 'token', 'x-api-key': 'secret' } }
-  )
+  const request = createMockRequest({
+    method: 'POST',
+    url: `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads/upload-1/complete?workspaceId=${WORKSPACE_ID}`,
+    headers: { 'upload-token': 'token', 'x-api-key': 'secret' },
+  })
   return {
     request,
-    response: POST(request, {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' }),
-    }),
+    response: POST(request, createRouteContext({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' })),
   }
 }
 
 describe('POST knowledge-document upload completion', () => {
   beforeEach(() => {
-    mocks.authenticateV2ApiKey.mockResolvedValue(
-      auth({ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' })
-    )
-    mocks.checkRateLimitDirect.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue(auth(createPersonalApiKeyPrincipal()))
+    v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
       remaining: 599,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+    v2RouteMocks.operationRate.mockResolvedValue({
       allowed: true,
       remaining: 99,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
@@ -150,18 +145,18 @@ describe('POST knowledge-document upload completion', () => {
     const response = await request().response
 
     expect(response.status).toBe(200)
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-    expect(mocks.platformEvent).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+    expect(mockDocumentsUploaded).not.toHaveBeenCalled()
   })
 
   it('does not attribute a workspace-key event to the billing owner', async () => {
-    mocks.authenticateV2ApiKey.mockResolvedValue(
-      auth({ kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' })
+    v2RouteMocks.authenticate.mockResolvedValue(
+      auth(createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }))
     )
 
     await request().response
 
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-    expect(mocks.platformEvent).toHaveBeenCalledTimes(1)
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+    expect(mockDocumentsUploaded).toHaveBeenCalledTimes(1)
   })
 })

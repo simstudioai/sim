@@ -10,7 +10,8 @@ globs: ["apps/sim/**/*.tsx","apps/sim/**/*.css"]
 ## Tailwind
 
 1. **No inline styles** - Use Tailwind classes. Exception: a genuinely dynamic
-   value (a hashed avatar colour, a brand tile background) that cannot be a class.
+   value (a hashed avatar colour, a brand tile background) that cannot be a class,
+   or a CSS variable (see CSS Variables below).
 2. **No duplicate dark classes** - Skip `dark:` when value matches light mode
 3. **Exact values over approximations** - `h-[26px]`, not `h-6`. But **type size is
    always a named token** (`text-sm`, `text-caption`) — never `text-[14px]`, which
@@ -49,7 +50,7 @@ setWidth: (width) => {
 
 Custom font sizes (the `@theme` block in `apps/sim/app/_styles/globals.css`): `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px. `text-sm` is Tailwind default 14px. Field titles use `text-small` (13px); hints/errors use `text-caption` (12px).
 
-Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N`.
+Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N` or `h-[Npx] w-[Npx]`.
 
 ## Text Overflow
 

@@ -1,35 +1,31 @@
-import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  resetUrlsMock,
-  schemaMock,
-  setEnvFlags,
-  urlsMockFns,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { sendEmailSpy, getEmailPreferencesMock, renderMock, subjectMock, isOrgAdminRoleMock } =
-  vi.hoisted(() => ({
-    sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
-    getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
-    renderMock: vi.fn(() => Promise.resolve('<html></html>')),
-    subjectMock: vi.fn(() => 'Subject'),
-    isOrgAdminRoleMock: vi.fn(() => true),
-  }))
+const { getEmailPreferencesMock } = vi.hoisted(() => ({
+  getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
+}))
 
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   getEmailPreferences: getEmailPreferencesMock,
 }))
-vi.mock('@/components/emails', () => ({
-  renderLimitThresholdEmail: renderMock,
-  getLimitEmailSubject: subjectMock,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({ isOrgAdminRole: isOrgAdminRoleMock }))
+vi.mock('@/components/emails', () => emailTemplatesMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { maybeSendLimitThresholdEmail } from '@/lib/billing/core/limit-notifications'
+
+const sendEmailSpy = emailMailerMockFns.mockSendEmail
+const renderMock = emailTemplatesMockFns.mockRenderLimitThresholdEmail
+const subjectMock = emailTemplatesMockFns.mockGetLimitEmailSubject
+sendEmailSpy.mockResolvedValue({ success: true })
+renderMock.mockResolvedValue('<html></html>')
+subjectMock.mockReturnValue('Subject')
 
 const baseUserParams = {
   category: 'storage' as const,

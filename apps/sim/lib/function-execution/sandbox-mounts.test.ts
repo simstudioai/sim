@@ -4,31 +4,27 @@
  * a Function block may mount is the security-relevant part of this module, and
  * mocking it away would leave exactly that untested.
  */
+
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UserFile } from '@/executor/types'
 
-const {
-  mockHasCloudStorage,
-  mockGeneratePresignedDownloadUrl,
-  mockDownloadServableFileFromStorage,
-  mockReadWorkspaceFileRecordByKey,
-  mockGetFileMetadataByKey,
-} = vi.hoisted(() => ({
-  mockHasCloudStorage: vi.fn(),
-  mockGeneratePresignedDownloadUrl: vi.fn(),
-  mockDownloadServableFileFromStorage: vi.fn(),
+const { mockReadWorkspaceFileRecordByKey } = vi.hoisted(() => ({
   mockReadWorkspaceFileRecordByKey: vi.fn(),
-  mockGetFileMetadataByKey: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mockHasCloudStorage,
-  generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 vi.mock(
   '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
@@ -40,15 +36,17 @@ vi.mock(
   })
 )
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: mockGetFileMetadataByKey,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   MOUNT_URL_TTL_SECONDS,
   planUserFileMounts,
   resolveUserFileMounts,
 } from '@/lib/function-execution/sandbox-mounts'
+
+const { mockHasCloudStorage, mockGeneratePresignedDownloadUrl } = storageServiceMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockGetFileMetadataByKey } = uploadsMetadataMockFns
 
 const WORKSPACE_ID = 'ws-1'
 const WORKFLOW_ID = 'wf-1'
@@ -201,7 +199,7 @@ describe('resolveUserFileMounts', () => {
       planned: planUserFileMounts([file]),
       context: {
         ...executionContext,
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
       },
     })
 
@@ -254,7 +252,7 @@ describe('resolveUserFileMounts', () => {
       planned: planUserFileMounts([oldFile, newFile]),
       context: {
         ...executionContext,
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
       },
     })
     expect(result.contributingFiles).toEqual(

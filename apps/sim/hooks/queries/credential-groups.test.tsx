@@ -3,6 +3,10 @@
  */
 
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,17 +15,15 @@ import {
   type WorkspaceAccountsSettings,
 } from '@/lib/api/contracts/credential-groups'
 
-const mocks = vi.hoisted(() => ({
-  requestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   useUpdateCredentialGroupAccess,
   useWorkspaceAccounts,
 } from '@/hooks/queries/credential-groups'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const WORKSPACE_ID = 'workspace-1'
 const GROUP_ID = 'group-1'
@@ -55,7 +57,7 @@ function renderMutation(queryClient: QueryClient) {
 }
 
 beforeEach(() => {
-  mocks.requestJson.mockResolvedValue({ revision: 4, allowedWorkflowIds: ['workflow-2'] })
+  mockRequestJson.mockResolvedValue({ revision: 4, allowedWorkflowIds: ['workflow-2'] })
 })
 
 afterEach(() => {
@@ -78,7 +80,7 @@ describe('useUpdateCredentialGroupAccess', () => {
         })
       )
     ).rejects.toThrow('Credential Group access must be loaded before it can be updated')
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
   })
 })
 
@@ -100,7 +102,7 @@ describe('useWorkspaceAccounts', () => {
       availableProviders: ['slack'],
     }
     queryClient.setQueryData(credentialGroupKeys.workspace(WORKSPACE_ID), settings)
-    mocks.requestJson.mockImplementation(() => new Promise<WorkspaceAccountsSettings>(() => {}))
+    mockRequestJson.mockImplementation(() => new Promise<WorkspaceAccountsSettings>(() => {}))
     const root = createRoot(document.createElement('div'))
     mountedRoots.push(root)
     let current: ReturnType<typeof useWorkspaceAccounts> | undefined
@@ -118,13 +120,13 @@ describe('useWorkspaceAccounts', () => {
       )
     }
     render()
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
     render(WORKSPACE_ID)
     expect(current?.data).toEqual(settings)
     render('workspace-2')
     expect(current?.data).toBeUndefined()
     expect(current?.isPending).toBe(true)
-    expect(mocks.requestJson).toHaveBeenCalledWith(getWorkspaceAccountsContract, {
+    expect(mockRequestJson).toHaveBeenCalledWith(getWorkspaceAccountsContract, {
       params: { id: 'workspace-2' },
       signal: expect.any(AbortSignal),
     })

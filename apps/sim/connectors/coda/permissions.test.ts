@@ -26,7 +26,6 @@ let admin: Record<string, unknown> = { mirrorsSourceAcls: true }
 
 describe('Coda source permissions', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     admin = { mirrorsSourceAcls: true }
   })
 

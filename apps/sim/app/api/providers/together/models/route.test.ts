@@ -1,48 +1,26 @@
 import { authMockFns, createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFilterBlacklistedModels,
-  mockIsProviderBlacklisted,
-  mockGetBYOKKey,
-  mockGetUserEntityPermissions,
-  mockFetch,
-} = vi.hoisted(() => ({
-  mockFilterBlacklistedModels: vi.fn(),
-  mockIsProviderBlacklisted: vi.fn(),
-  mockGetBYOKKey: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  filterBlacklistedModels: mockFilterBlacklistedModels,
-  isProviderBlacklisted: mockIsProviderBlacklisted,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: mockGetBYOKKey,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/providers/together/models/route'
 
 const mockGetSession = authMockFns.mockGetSession
-
-const okResponse = (body: unknown) => ({
-  ok: true,
-  status: 200,
-  statusText: 'OK',
-  json: vi.fn().mockResolvedValue(body),
-})
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
+const { mockGetUserEntityPermissions } = permissionsMockFns
 
 /**
  * Builds a request whose query string carries the given workspaceId. Passing
@@ -83,7 +61,7 @@ describe('GET /api/providers/together/models', () => {
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'byok-together-key' })
-    mockFetch.mockResolvedValue(okResponse([{ id: 'moonshotai/Kimi-K2-Instruct' }]))
+    mockFetch.mockResolvedValue(jsonResponse([{ id: 'moonshotai/Kimi-K2-Instruct' }]))
 
     const res = await GET(requestWithWorkspace('ws-1'))
 
@@ -98,7 +76,7 @@ describe('GET /api/providers/together/models', () => {
     setEnv({ TOGETHER_API_KEY: 'env-together-key' })
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockGetUserEntityPermissions.mockResolvedValue(null)
-    mockFetch.mockResolvedValue(okResponse([{ id: 'moonshotai/Kimi-K2-Instruct' }]))
+    mockFetch.mockResolvedValue(jsonResponse([{ id: 'moonshotai/Kimi-K2-Instruct' }]))
 
     const res = await GET(requestWithWorkspace('ws-1'))
 

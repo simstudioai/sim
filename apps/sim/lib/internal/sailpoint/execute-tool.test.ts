@@ -1,25 +1,26 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const fileMocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: fileMocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: fileMocks.processFilesToUserFiles,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: fileMocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { clearSailPointTokenStateForTests } from '@/lib/internal/sailpoint/client'
 import { executeSailPointTool } from '@/lib/internal/sailpoint/execute-tool'
 import { MAX_SAILPOINT_CSV_BYTES } from '@/lib/internal/sailpoint/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 
 const mockFetch = vi.fn<typeof fetch>()
 const credentials = { clientId: 'client', clientSecret: 'secret', tenant: 'acme' }
@@ -43,9 +44,9 @@ describe('SailPoint internal tool handler', () => {
     clearSailPointTokenStateForTests()
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
-    fileMocks.assertToolFileAccess.mockReset().mockResolvedValue(null)
-    fileMocks.processFilesToUserFiles.mockReset()
-    fileMocks.downloadServableFileFromStorage.mockReset()
+    mockAssertToolFileAccess.mockReset().mockResolvedValue(null)
+    mockProcessFilesToUserFiles.mockReset()
+    mockDownloadServableFileFromStorage.mockReset()
   })
 
   it.each(['sailpoint_request_access', 'sailpoint_get_account_selections'])(
@@ -83,10 +84,10 @@ describe('SailPoint internal tool handler', () => {
   })
 
   it('maps an oversized stored CSV to a bounded validation error', async () => {
-    fileMocks.processFilesToUserFiles.mockReturnValue([
+    mockProcessFilesToUserFiles.mockReturnValue([
       { key: 'workspace/file.csv', name: 'file.csv', type: 'text/csv' },
     ])
-    fileMocks.downloadServableFileFromStorage.mockRejectedValue(
+    mockDownloadServableFileFromStorage.mockRejectedValue(
       new PayloadSizeLimitError({
         label: 'SailPoint CSV',
         maxBytes: MAX_SAILPOINT_CSV_BYTES,
@@ -120,7 +121,7 @@ describe('SailPoint internal tool handler', () => {
       file: { key: 'file', name: 'file.csv', size: 7 },
     })
     expect(fileResponse.status).toBe(401)
-    expect(fileMocks.processFilesToUserFiles).not.toHaveBeenCalled()
+    expect(mockProcessFilesToUserFiles).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 })

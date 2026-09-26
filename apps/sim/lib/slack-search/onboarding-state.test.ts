@@ -1,12 +1,14 @@
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const redis = vi.hoisted(() => ({ set: vi.fn(), get: vi.fn() }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
 
 import {
   readSlackSearchOnboardingState,
   storeSlackSearchOnboardingState,
 } from '@/lib/slack-search/onboarding-state'
+
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => redis)
 
 const state = {
   turnId: 'turn1',

@@ -1,44 +1,41 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT } from '@/lib/credential-groups/limits'
 
-const mocks = vi.hoisted(() => ({
-  requirePolicy: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireAvailability: vi.fn(),
   resolveGroup: vi.fn(),
-  resolvePermission: vi.fn(),
-  writePolicy: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
-  requireCredentialGroupSettingsAvailable: mocks.requireAvailability,
-  resolveCredentialGroupSettingsContext: mocks.resolveGroup,
+  requireCredentialGroupSettingsAvailable: hoisted.requireAvailability,
+  resolveCredentialGroupSettingsContext: hoisted.resolveGroup,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/resource-policies/repository', () => {
-  class ResourcePolicyRevisionConflictError extends Error {}
-  class ResourcePolicyNotFoundError extends Error {}
-  return {
-    requireResourcePolicy: mocks.requirePolicy,
-    ResourcePolicyNotFoundError,
-    ResourcePolicyRevisionConflictError,
-    writeResourcePolicy: mocks.writePolicy,
-  }
-})
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import {
   readCredentialGroupAccess,
   updateCredentialGroupAccess,
 } from '@/lib/credential-groups/application/manage-access'
 import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
+
+const mocks = {
+  ...hoisted,
+  requirePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  writePolicy: resourcePolicyRepositoryMockFns.mockWriteResourcePolicy,
+}
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const context = {
   workspaceId: 'workspace-1',
@@ -50,11 +47,7 @@ const context = {
   status: 'active' as const,
   options: [],
 }
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const target = {
   assertedWorkspaceId: 'workspace-1',
   credentialGroupId: 'group-1',
@@ -87,7 +80,7 @@ describe('Credential Group workflow access operations', () => {
   beforeEach(() => {
     resetDbChainMock()
     mocks.resolveGroup.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailability.mockResolvedValue(undefined)
     mocks.requirePolicy.mockResolvedValue(storedPolicy())
     queueTableRows(schemaMock.workflow, WORKFLOWS)
@@ -156,7 +149,7 @@ describe('Credential Group workflow access operations', () => {
   })
 
   it('requires current workspace-admin permission', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    resolvePermission.mockResolvedValue('write')
 
     await expect(
       updateCredentialGroupAccess.execute({

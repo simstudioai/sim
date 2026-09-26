@@ -1,8 +1,9 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  session: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   get: vi.fn(),
   create: vi.fn(),
@@ -13,19 +14,18 @@ const mocks = vi.hoisted(() => ({
   run: vi.fn(),
   runs: vi.fn(),
 }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
 vi.mock('@/lib/data-drains/application/use-cases', async () => {
   const { dataDrainOperations } = await import('@/lib/data-drains/application/operations')
   return {
-    authorizeDataDrainOperation: mocks.authorize,
-    getDataDrain: { operation: dataDrainOperations.get, execute: mocks.get },
-    listDataDrains: { operation: dataDrainOperations.list, execute: mocks.list },
-    createDataDrain: { operation: dataDrainOperations.create, execute: mocks.create },
-    updateDataDrain: { operation: dataDrainOperations.update, execute: mocks.update },
-    deleteDataDrain: { operation: dataDrainOperations.delete, execute: mocks.delete },
-    testDataDrain: { operation: dataDrainOperations.test, execute: mocks.test },
-    runDataDrain: { operation: dataDrainOperations.run, execute: mocks.run },
-    listDataDrainRuns: { operation: dataDrainOperations.runs, execute: mocks.runs },
+    authorizeDataDrainOperation: hoisted.authorize,
+    getDataDrain: { operation: dataDrainOperations.get, execute: hoisted.get },
+    listDataDrains: { operation: dataDrainOperations.list, execute: hoisted.list },
+    createDataDrain: { operation: dataDrainOperations.create, execute: hoisted.create },
+    updateDataDrain: { operation: dataDrainOperations.update, execute: hoisted.update },
+    deleteDataDrain: { operation: dataDrainOperations.delete, execute: hoisted.delete },
+    testDataDrain: { operation: dataDrainOperations.test, execute: hoisted.test },
+    runDataDrain: { operation: dataDrainOperations.run, execute: hoisted.run },
+    listDataDrainRuns: { operation: dataDrainOperations.runs, execute: hoisted.runs },
   }
 })
 vi.mock('@/lib/data-drains/destinations/registry', () => ({
@@ -34,7 +34,8 @@ vi.mock('@/lib/data-drains/destinations/registry', () => ({
 
 import { POST as create } from '@/app/api/organizations/[id]/data-drains/route'
 
-const context = { params: Promise.resolve({ id: 'org', drainId: 'drain' }) }
+const mocks = { ...hoisted, session: authMockFns.mockGetSession }
+const context = createRouteContext({ id: 'org', drainId: 'drain' })
 const row = {
   id: 'drain',
   organizationId: 'org',
@@ -52,11 +53,10 @@ const row = {
   updatedAt: new Date(),
 }
 function request(method: string, body?: unknown) {
-  return new NextRequest('http://localhost/api/organizations/org/data-drains/drain', {
+  return createMockRequest({
     method,
-    ...(body !== undefined
-      ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }
-      : {}),
+    url: 'http://localhost/api/organizations/org/data-drains/drain',
+    body,
   })
 }
 beforeEach(() => {

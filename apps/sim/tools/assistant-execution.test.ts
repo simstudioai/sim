@@ -1,4 +1,6 @@
 import { createExecutionContext } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -6,26 +8,13 @@ import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolve
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { InternalToolConfig } from '@/tools/types'
 
-const { getTool, getToolMetadata, resolveToken, operation, permissions, resolvePersonalToken } =
-  vi.hoisted(() => ({
-    getTool: vi.fn(),
-    getToolMetadata: vi.fn(),
-    resolveToken: vi.fn(),
-    operation: vi.fn(),
-    permissions: vi.fn(),
-    resolvePersonalToken: vi.fn(),
-  }))
-const encryptedTokens = vi.hoisted(() => new Map<string, string>())
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (plaintext: string) => {
-    const encrypted = `encrypted-token-${encryptedTokens.size}`
-    encryptedTokens.set(encrypted, plaintext)
-    return { encrypted, iv: 'test-iv' }
-  }),
-  decryptSecret: vi.fn(async (encrypted: string) => ({
-    decrypted: encryptedTokens.get(encrypted) ?? '',
-  })),
+const { getTool, resolveToken, operation, resolvePersonalToken } = vi.hoisted(() => ({
+  getTool: vi.fn(),
+  resolveToken: vi.fn(),
+  operation: vi.fn(),
+  resolvePersonalToken: vi.fn(),
 }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: resolvePersonalToken,
@@ -39,7 +28,6 @@ vi.mock('@/tools/utils', () => ({
   validateRequiredParametersAfterMerge: vi.fn(),
 }))
 vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
-vi.mock('@/tools/metadata', () => ({ getToolMetadata }))
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: resolveToken,
 }))
@@ -47,11 +35,21 @@ vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: vi.fn(async () => operation),
 }))
 vi.mock('@/lib/internal/function/execute', () => ({ executeFunctionTool: vi.fn() }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: permissions,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import { executeTool } from '@/tools'
+import { getToolMetadata as getToolMetadataExport } from '@/tools/metadata'
+
+const getToolMetadata = vi.mocked(getToolMetadataExport)
+const encryptedTokens = new Map<string, string>()
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (plaintext: string) => {
+  const encrypted = `encrypted-token-${encryptedTokens.size}`
+  encryptedTokens.set(encrypted, plaintext)
+  return { encrypted, iv: 'test-iv' }
+})
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+  decrypted: encryptedTokens.get(encrypted) ?? '',
+}))
 
 const assistantContext: InternalToolOperationContext = {
   userId: 'caller',
@@ -96,7 +94,6 @@ describe('Assistant integration execution boundary', () => {
     getToolMetadata.mockImplementation((id: string) => tool(id))
     resolveToken.mockResolvedValue({ accessToken: 'personal-token', credentialType: 'oauth' })
     operation.mockImplementation(async () => Response.json({ success: true, output: {} }))
-    permissions.mockResolvedValue(undefined)
     resolvePersonalToken.mockResolvedValue({
       accessToken: 'personal-pat',
       instanceUrl: 'https://gitlab.example.com',

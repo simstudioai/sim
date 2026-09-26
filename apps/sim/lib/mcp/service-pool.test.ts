@@ -8,6 +8,7 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -106,12 +107,7 @@ vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpDomain: () => {},
   validateMcpServerSsrf: async () => '203.0.113.10',
 }))
-vi.mock('@/lib/mcp/oauth', () => ({
-  getOrCreateOauthRow: vi.fn(),
-  loadPreregisteredClient: vi.fn(),
-  SimMcpOauthProvider: vi.fn(),
-  withMcpOauthRefreshLock: vi.fn((_id: string, fn: () => Promise<unknown>) => fn()),
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: (...args: unknown[]) => mockResolveEnvVars(...args),
 }))

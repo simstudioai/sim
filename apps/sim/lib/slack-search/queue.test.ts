@@ -1,15 +1,22 @@
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn(), externalEnqueue: vi.fn() }))
-vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: async () => ({ enqueue: mocks.enqueue }),
-  getJobQueue: async () => ({ enqueue: mocks.externalEnqueue }),
-}))
+const hoisted = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn() }))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/slack-search/handlers/search-message', () => ({
-  handleSlackSearchMessage: mocks.run,
+  handleSlackSearchMessage: hoisted.run,
 }))
 
 import { enqueueSlackSearch } from '@/lib/slack-search/queue'
+
+const mocks = {
+  ...hoisted,
+  externalEnqueue: asyncJobsMockFns.mockJobQueue.enqueue,
+}
+asyncJobsMockFns.mockGetInlineJobQueue.mockImplementation(async () => ({
+  ...asyncJobsMockFns.mockJobQueue,
+  enqueue: mocks.enqueue,
+}))
 
 const job = { turnId: 'turn1', installationId: 'i1' }
 beforeEach(() => {

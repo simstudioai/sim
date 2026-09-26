@@ -1,15 +1,16 @@
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({
-  mockFetchWithRetry: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: { maxRetries: 0 } }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { linearConnector } from '@/connectors/linear/linear'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 describe('linearConnector authentication', () => {
   beforeEach(() => {

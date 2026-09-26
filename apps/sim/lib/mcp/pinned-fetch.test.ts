@@ -1,23 +1,16 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreateGuardedFetchWithDispatcher,
-  mockCreatePinnedFetchWithDispatcher,
-  mockValidateMcpServerSsrf,
-  sentinelFetch,
-  mockDestroy,
-} = vi.hoisted(() => ({
-  mockCreateGuardedFetchWithDispatcher: vi.fn(),
-  mockCreatePinnedFetchWithDispatcher: vi.fn(),
+const { mockValidateMcpServerSsrf, sentinelFetch, mockDestroy } = vi.hoisted(() => ({
   mockValidateMcpServerSsrf: vi.fn(),
   sentinelFetch: vi.fn(),
   mockDestroy: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createSsrfGuardedFetchWithDispatcher: mockCreateGuardedFetchWithDispatcher,
-  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 /**
  * Stubbed so the suite's `203.0.113.10` reads as an ordinary public address.
  * The real classifier treats TEST-NET-3 as reserved, which would route every
@@ -35,6 +28,11 @@ vi.mock('@/lib/mcp/domain-check', () => ({
 
 import { McpSsrfError } from '@/lib/mcp/domain-check'
 import { createGuardedMcpFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+
+const mockCreateGuardedFetchWithDispatcher =
+  inputValidationMockFns.mockCreateSsrfGuardedFetchWithDispatcher
+const mockCreatePinnedFetchWithDispatcher =
+  inputValidationMockFns.mockCreatePinnedFetchWithDispatcher
 
 /** The per-request guarded Agent is always built with a DoS-backstop response cap. */
 const withResponseCap = expect.objectContaining({ maxResponseSize: expect.any(Number) })

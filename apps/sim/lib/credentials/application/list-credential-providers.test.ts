@@ -1,27 +1,30 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   listCatalog: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.listCatalog,
+  listCredentialProviderCatalog: hoisted.listCatalog,
 }))
 
 import { listCredentialProviders } from '@/lib/credentials/application/list-credential-providers'
+
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -49,11 +52,7 @@ describe('listCredentialProviders', () => {
       description: 'Migrate Salesforce records.',
     }
     mocks.listCatalog.mockResolvedValue([salesforce, google])
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const principal = createSessionPrincipal()
 
     const result = await listCredentialProviders.execute({
       principal,

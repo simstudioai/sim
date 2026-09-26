@@ -1,8 +1,9 @@
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('@/lib/credential-groups/application/slack-managed-users', () => ({
   startSlackCredentialGroupConfiguration: {
     get operation() {
@@ -20,7 +21,7 @@ const body = {
   appId: 'A123',
   teamId: 'T123',
 }
-const context = { params: Promise.resolve({ id: 'org-a', groupId: 'group-a' }) }
+const context = createRouteContext({ id: 'org-a', groupId: 'group-a' })
 function request(input: unknown = body) {
   return createMockRequest(
     'POST',
@@ -31,7 +32,10 @@ function request(input: unknown = body) {
 }
 
 beforeEach(() => {
-  mocks.session.mockResolvedValue({ user: { id: 'actor' }, session: { id: 'session' } })
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'actor' },
+    session: { id: 'session' },
+  })
   mocks.execute.mockResolvedValue({
     authorizationUrl: 'https://slack.com/oauth/v2/authorize',
     state: 'opaque-state',

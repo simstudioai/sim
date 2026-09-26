@@ -1,3 +1,6 @@
+import { toolsUtilsMock, toolsUtilsMockFns } from '@sim/testing/mocks/blocks.mock'
+import { triggersMock, triggersMockFns } from '@sim/testing/mocks/triggers.mock'
+import { workflowRegistryStoreMock } from '@sim/testing/mocks/workflow-registry-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -47,14 +50,9 @@ vi.mock('@/blocks', () => ({
   registry: {},
 }))
 
-vi.mock('@/tools/utils', () => ({
-  getTool: () => null,
-}))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
-vi.mock('@/triggers', () => ({
-  getTrigger: () => null,
-  isTriggerValid: () => false,
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
   getEffectiveBlockOutputs: () => ({}),
@@ -81,13 +79,7 @@ vi.mock('@/executor/constants', () => ({
   HANDLE_POSITIONS: {},
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: {
-    getState: () => ({
-      activeWorkflowId: null,
-    }),
-  },
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: {
@@ -99,6 +91,9 @@ vi.mock('@/stores/workflows/subblock/store', () => ({
 }))
 
 import { WorkflowDiffEngine } from './diff-engine'
+
+toolsUtilsMockFns.mockGetTool.mockReturnValue(null)
+triggersMockFns.mockGetTrigger.mockReturnValue(null)
 
 function createMockBlock(overrides: Partial<BlockState> = {}): BlockState {
   return {

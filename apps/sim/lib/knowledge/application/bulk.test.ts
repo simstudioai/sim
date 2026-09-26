@@ -1,46 +1,32 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   bulkDeleteFolders: vi.fn(),
   bulkMoveFolders: vi.fn(),
-  deleteRecord: vi.fn(),
-  findActiveFolder: vi.fn(),
-  knowledgeBaseDeleted: vi.fn(),
   planFolderSelection: vi.fn(),
-  resolveKnowledgeBase: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspace: vi.fn(),
-  updateRecord: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
-    KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-  },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base', FOLDER: 'folder' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDeleted: mocks.knowledgeBaseDeleted },
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 vi.mock('@/lib/folders/bulk', () => ({
-  planFolderSelection: mocks.planFolderSelection,
-  bulkMoveFolders: mocks.bulkMoveFolders,
-  bulkDeleteFolders: mocks.bulkDeleteFolders,
+  planFolderSelection: hoisted.planFolderSelection,
+  bulkMoveFolders: hoisted.bulkMoveFolders,
+  bulkDeleteFolders: hoisted.bulkDeleteFolders,
   /** Pure projection — mirrored here rather than mocked, so outcomes stay realistic. */
   foldFolderPlan: (
     plan: { notFound: string[]; contained: { id: string; name: string }[] },
@@ -53,18 +39,21 @@ vi.mock('@/lib/folders/bulk', () => ({
     for (const folder of plan.contained) outcome.skipped.push({ kind: 'folder', ...folder })
   },
 }))
-vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mocks.findActiveFolder }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-  resolveActiveKnowledgeBaseInWorkspace: mocks.resolveKnowledgeBase,
-}))
-vi.mock('@/lib/knowledge/service', () => ({
-  updateKnowledgeBase: mocks.updateRecord,
-  deleteKnowledgeBase: mocks.deleteRecord,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { bulkDeleteKnowledgeItems, bulkMoveKnowledgeItems } from '@/lib/knowledge/application/bulk'
+
+const mocks = {
+  ...hoisted,
+  findActiveFolder: folderQueriesMockFns.mockFindActiveFolder,
+  updateRecord: knowledgeServiceMockFns.mockUpdateKnowledgeBase,
+  deleteRecord: knowledgeServiceMockFns.mockDeleteKnowledgeBase,
+}
+
+requestUtilsMockFns.mockGenerateRequestId.mockImplementation(() => 'request-1')
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -73,7 +62,7 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const principal = createSessionPrincipal()
 
 function knowledgeContext(id: string, folderId: string | null = null) {
   return {
@@ -87,12 +76,14 @@ const emptyPlan = { selected: [], notFound: [], contained: [], covered: new Set<
 
 describe('knowledge bulk application use cases', () => {
   beforeEach(() => {
-    mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
-    mocks.resolvePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue(
+      workspaceContext
+    )
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
-    mocks.resolveKnowledgeBase.mockImplementation(async (knowledgeBaseId: string) =>
-      knowledgeContext(knowledgeBaseId)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseInWorkspace.mockImplementation(
+      async (knowledgeBaseId: string) => knowledgeContext(knowledgeBaseId)
     )
     mocks.updateRecord.mockImplementation(async (id: string) => ({ id, name: `Base ${id}` }))
     mocks.deleteRecord.mockResolvedValue(undefined)
@@ -113,7 +104,7 @@ describe('knowledge bulk application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 
@@ -129,7 +120,7 @@ describe('knowledge bulk application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
   })
 
   /**
@@ -144,8 +135,8 @@ describe('knowledge bulk application use cases', () => {
       contained: [],
       covered: new Set(['folder-1', 'folder-child']),
     })
-    mocks.resolveKnowledgeBase.mockImplementation(async (knowledgeBaseId: string) =>
-      knowledgeContext(knowledgeBaseId, 'folder-child')
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseInWorkspace.mockImplementation(
+      async (knowledgeBaseId: string) => knowledgeContext(knowledgeBaseId, 'folder-child')
     )
 
     const result = await bulkDeleteKnowledgeItems.execute({
@@ -164,7 +155,7 @@ describe('knowledge bulk application use cases', () => {
   })
 
   it('conceals an inaccessible knowledge base as not-found rather than naming it', async () => {
-    mocks.resolveKnowledgeBase.mockRejectedValueOnce(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseInWorkspace.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Knowledge base not found')
     )
 
@@ -179,7 +170,7 @@ describe('knowledge bulk application use cases', () => {
 
     expect(result.notFound).toEqual([{ kind: 'knowledgeBase', id: 'workspace-2-knowledge' }])
     expect(result.failed).toEqual([])
-    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('fails the whole move when the destination folder is not in the workspace', async () => {
@@ -245,7 +236,7 @@ describe('knowledge bulk application use cases', () => {
       })
     ).rejects.toThrow('connection reset')
 
-    expect(mocks.audit).toHaveBeenCalledExactlyOnceWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ action: 'knowledge_base.deleted', resourceId: 'knowledge-1' })
     )
     expect(mocks.bulkDeleteFolders).not.toHaveBeenCalled()

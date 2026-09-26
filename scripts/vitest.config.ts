@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import sharedConfig from '../vitest.shared'
 
 /**
  * Repo-level scripts have their own suites. One invocation for all of them
@@ -9,12 +10,15 @@ import { defineConfig } from 'vitest/config'
  *
  * The root is pinned so `bun run test:scripts` behaves the same from any cwd.
  */
-export default defineConfig({
-  resolve: {
-    alias: { '@scripts': fileURLToPath(new URL('.', import.meta.url)) },
-  },
-  test: {
-    root: fileURLToPath(new URL('..', import.meta.url)),
-    include: ['scripts/*.test.ts'],
-  },
-})
+export default mergeConfig(
+  sharedConfig,
+  defineConfig({
+    resolve: {
+      alias: { '@scripts': fileURLToPath(new URL('.', import.meta.url)) },
+    },
+    test: {
+      root: fileURLToPath(new URL('..', import.meta.url)),
+      include: ['scripts/*.test.ts'],
+    },
+  })
+)

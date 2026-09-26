@@ -1,15 +1,11 @@
 import { getRequestContext } from '@sim/logger'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-const { mockEnforceUserRateLimit } = vi.hoisted(() => ({
-  mockEnforceUserRateLimit: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mockEnforceUserRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
 
 import { defineRouteContract } from '@/lib/api/contracts'
 import {

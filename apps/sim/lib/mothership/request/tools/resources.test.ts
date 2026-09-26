@@ -1,9 +1,9 @@
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractResourcesFromToolResult: vi.fn(),
   persistChatResources: vi.fn(() => Promise.resolve()),
-  setAttributes: vi.fn(),
   changeStoredChatResources: vi.fn().mockResolvedValue([]),
 }))
 
@@ -11,13 +11,7 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: mocks.changeStoredChatResources,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (
-    _name: string,
-    _attributes: Record<string, unknown>,
-    run: (span: { setAttributes: typeof mocks.setAttributes }) => Promise<void>
-  ) => run({ setAttributes: mocks.setAttributes }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 vi.mock('@/lib/mothership/resources/persistence', () => ({
   extractDeletedResourcesFromToolResult: vi.fn(() => []),

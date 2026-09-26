@@ -1,44 +1,18 @@
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
+}))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  enforceUserRateLimit: vi.fn(),
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', async () => {
   const { OrchestrationError } = await import('@/lib/core/orchestration/types')
   class SandboxDependencyError extends OrchestrationError {
@@ -68,7 +42,7 @@ import { SandboxBuildBudgetExceededError } from '@/lib/sandboxes/application/bui
 import { GET, POST } from '@/app/api/v2/sandboxes/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['user:user-1'] as const,
@@ -107,21 +81,19 @@ const listResult = {
 }
 
 function request(method: 'GET' | 'POST', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/sandboxes', () => {
   beforeEach(() => {
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    rateLimiterMockFns.mockCheckRateLimitDirect.mockResolvedValue(RATE_LIMIT_OK)
+    rateLimiterMockFns.mockCheckRateLimitDirectOrThrow.mockResolvedValue(RATE_LIMIT_OK)
     mocks.list.mockResolvedValue(listResult)
     mocks.create.mockResolvedValue({ sandbox })
   })

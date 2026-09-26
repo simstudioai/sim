@@ -35,6 +35,16 @@ export {
   createSession,
   createWorkflowRecord,
 } from './permission.factory'
+// Principal factories
+export {
+  createDelegatedPrincipal,
+  createExecutorPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+  TEST_PRINCIPAL_EXPIRES_AT,
+  TEST_PRINCIPAL_ISSUED_AT,
+} from './principal.factory'
 // Serialized block factories (for executor tests)
 export {
   createSerializedBlock,

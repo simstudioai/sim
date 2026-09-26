@@ -1,40 +1,27 @@
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingAccessMock } from '@sim/testing/mocks/billing-access.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetBillingPeriodUsageCost,
-  mockGetOrgMemberUsageForBillingPeriod,
-  mockGetOrgMemberUsageLimit,
-  mockGetUserUsageLimit,
-  mockIsOrganizationBillingBlocked,
-  mockComputeBillingPeriodUsageWithWeeklyRefresh,
-} = vi.hoisted(() => ({
-  mockGetBillingPeriodUsageCost: vi.fn(),
-  mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
-  mockGetOrgMemberUsageLimit: vi.fn(),
-  mockGetUserUsageLimit: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
+const { mockComputeBillingPeriodUsageWithWeeklyRefresh } = vi.hoisted(() => ({
   mockComputeBillingPeriodUsageWithWeeklyRefresh: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  getOrgMemberUsageForBillingPeriod: mockGetOrgMemberUsageForBillingPeriod,
-  getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-// core/usage pulls in the email-rendering chain at import; stub the symbol
-// usage-monitor imports from it so the module loads in a node test env.
-vi.mock('@/lib/billing/core/usage', () => ({
-  getUserUsageLimit: mockGetUserUsageLimit,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
   computeBillingPeriodUsageWithWeeklyRefresh: mockComputeBillingPeriodUsageWithWeeklyRefresh,
@@ -45,6 +32,11 @@ import {
   checkServerSideUsageLimits,
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
+
+const { mockGetOrgMemberUsageForBillingPeriod, mockGetOrgMemberUsageLimit } =
+  organizationMemberLimitsMockFns
+const mockGetBillingPeriodUsageCost = billingUsageLogMockFns.mockGetBillingPeriodUsageCost
+const mockGetUserUsageLimit = billingUsageMockFns.mockGetUserUsageLimit
 
 afterAll(() => {
   resetDbChainMock()

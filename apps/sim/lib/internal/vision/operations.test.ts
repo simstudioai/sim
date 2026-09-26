@@ -1,3 +1,19 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -7,31 +23,23 @@ import {
 
 const mocks = vi.hoisted(() => ({
   analyzeVision: vi.fn(),
-  assertToolFileAccess: vi.fn(),
-  downloadFileFromStorage: vi.fn(),
-  isModelSafeWorkspaceFileKey: vi.fn(),
-  resolveInternalFileUrl: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/vision/client', () => ({ analyzeVision: mocks.analyzeVision }))
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mocks.downloadFileFromStorage,
-  resolveInternalFileUrl: mocks.resolveInternalFileUrl,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mocks.isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { executeVisionOperation } from '@/lib/internal/vision/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadFileFromStorage, mockResolveInternalFileUrl } = fileUtilsServerMockFns
+const { mockIsModelSafeWorkspaceFileKey } = workspaceFileSecretProvenanceMockFns
+const { mockValidateUrlWithDNS } = inputValidationMockFns
 
 const imageFile = {
   id: 'file-1',
@@ -51,13 +59,13 @@ const context = {
 describe('Vision operations', () => {
   beforeEach(() => {
     mocks.analyzeVision.mockResolvedValue({ content: 'A lighthouse', model: 'gpt-5.2' })
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from([1, 2, 3]))
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
-    mocks.resolveInternalFileUrl.mockResolvedValue({
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadFileFromStorage.mockResolvedValue(Buffer.from([1, 2, 3]))
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
+    mockResolveInternalFileUrl.mockResolvedValue({
       fileUrl: 'https://storage.example.com/image.png',
     })
-    mocks.validateUrlWithDNS.mockResolvedValue({
+    mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
@@ -87,12 +95,12 @@ describe('Vision operations', () => {
       status: 400,
       body: { success: false, error: 'Model input provenance is unavailable' },
     })
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
     expect(mocks.analyzeVision).not.toHaveBeenCalled()
   })
 
   it('rejects unsafe files before reading bytes', async () => {
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(false)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(false)
 
     await expect(
       executeVisionOperation(
@@ -106,7 +114,7 @@ describe('Vision operations', () => {
         error: 'File cannot be sent to a model because its secret provenance is unavailable',
       },
     })
-    expect(mocks.downloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.analyzeVision).not.toHaveBeenCalled()
   })
 
@@ -122,7 +130,7 @@ describe('Vision operations', () => {
       context
     )
 
-    expect(mocks.validateUrlWithDNS).not.toHaveBeenCalled()
+    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
     expect(mocks.analyzeVision).toHaveBeenCalledWith(
       expect.objectContaining({ imageSource: 'data:image/png;base64,AQID' }),
       undefined
@@ -141,19 +149,17 @@ describe('Vision operations', () => {
       context
     )
 
-    expect(mocks.resolveInternalFileUrl).toHaveBeenCalledWith(
+    expect(mockResolveInternalFileUrl).toHaveBeenCalledWith(
       '/api/files/serve/s3/workspace/workspace-1/image.png',
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.isModelSafeWorkspaceFileKey).toHaveBeenCalledWith(
-      'workspace/workspace-1/image.png'
-    )
+    expect(mockIsModelSafeWorkspaceFileKey).toHaveBeenCalledWith('workspace/workspace-1/image.png')
     // A resolved internal file URL is a presigned URL against Sim's own
     // storage, which on a self-hosted deployment legitimately sits on a private
     // address — so it is judged as a configured endpoint, not as content.
-    expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://storage.example.com/image.png',
       'imageUrl',
       'configuredEndpoint'
@@ -168,7 +174,7 @@ describe('Vision operations', () => {
   })
 
   it('rejects invalid external destinations before provider work', async () => {
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'private address' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'private address' })
 
     await expect(
       executeVisionOperation(

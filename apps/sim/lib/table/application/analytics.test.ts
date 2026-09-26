@@ -1,32 +1,34 @@
-/** @vitest-environment node */
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readTableAnalytics } from '@/lib/table/application/analytics'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   flag: vi.fn(),
-  table: vi.fn(),
-  workspace: vi.fn(),
-  permission: vi.fn(),
   capability: vi.fn(),
   query: vi.fn(),
 }))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.table }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: mocks.flag }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.permission,
-  permissionSatisfies: (actual: string, required: string) =>
-    required === 'read' && ['read', 'write', 'admin'].includes(actual),
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: hoisted.flag }))
 vi.mock('@/lib/permission-groups/capability-assertions', () => ({
-  assertWorkspaceCapability: mocks.capability,
+  assertWorkspaceCapability: hoisted.capability,
 }))
-vi.mock('@/lib/table/analytics/query', () => ({ queryTableAnalytics: mocks.query }))
+vi.mock('@/lib/table/analytics/query', () => ({ queryTableAnalytics: hoisted.query }))
 vi.mock('@/lib/core/network/context.server', () => ({
   runWithOutboundOrganization: (_org: string, callback: () => unknown) => callback(),
 }))
+const mocks = {
+  ...hoisted,
+  table: tableServiceMockFns.mockGetTableById,
+  workspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 const principal = { kind: 'session' as const, userId: 'viewer', sessionId: 'session' }
 const input = {
   tableId: 'tbl_test',
@@ -38,7 +40,6 @@ const input = {
   },
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.flag.mockResolvedValue(undefined)
   mocks.table.mockResolvedValue({
     id: 'tbl_test',

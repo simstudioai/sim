@@ -1,4 +1,3 @@
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import {
@@ -6,9 +5,10 @@ import {
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
+import { loadIndexedSearchIntegrationInventory } from '@/lib/sim-search/indexed'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { listLiveSearchAccounts } from '@/lib/sim-search/live/application'
 
-const MAX_INVENTORY_PAGES = 100
 const MAX_INVENTORY_BYTES = 256 * 1024
 
 interface SearchIntegrationsContext {
@@ -18,8 +18,6 @@ interface SearchIntegrationsContext {
   messageId: string
   signal?: AbortSignal
 }
-
-type IntegrationInventory = Awaited<ReturnType<typeof listPersonalSearchIntegrations.execute>>
 
 /** Loads the complete current person's Search inventory for one authenticated chat turn. */
 export async function loadCopilotSearchIntegrations(
@@ -35,55 +33,33 @@ export async function loadCopilotSearchIntegrations(
   )
   await authorizeOrganizationChatDelegation.execute({ principal })
 
-  if (isLiveEnterpriseSearchEnabled) {
-    const [inventory, connections] = await Promise.all([
-      listLiveSearchAccounts.execute({
-        principal,
-        input: { organizationId: context.organizationId },
-      }),
-      listPersonalSearchIntegrations.execute({
-        principal,
-        input: { organizationId: context.organizationId },
-      }),
-    ])
-    context.signal?.throwIfAborted()
-    const result = JSON.stringify({
-      ...inventory,
-      connections: connections.connections,
-      available: connections.available,
-      connectionGuidance:
-        'Offer the exact available target or account action in a terminal <credential> tag to connect or reconnect in chat. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
-    })
-    if (Buffer.byteLength(result) > MAX_INVENTORY_BYTES)
-      throw new Error('Search integration inventory exceeds the prompt size limit')
-    return result
-  }
-
-  const connections: Array<IntegrationInventory['connections'][number]> = []
-  const available = new Map<string, IntegrationInventory['available'][number]>()
-  const cursors = new Set<string>()
-  let cursor: string | undefined
-  for (let pageNumber = 0; pageNumber < MAX_INVENTORY_PAGES; pageNumber++) {
-    context.signal?.throwIfAborted()
-    const page = await listPersonalSearchIntegrations.execute({
+  if (isIndexedOrgSearchEnabled())
+    return loadIndexedSearchIntegrationInventory({
       principal,
-      input: { organizationId: context.organizationId, ...(cursor ? { cursor } : {}) },
+      organizationId: context.organizationId,
+      signal: context.signal,
+      maxBytes: MAX_INVENTORY_BYTES,
     })
-    context.signal?.throwIfAborted()
-    connections.push(...page.connections)
-    for (const entry of page.available) {
-      available.set(JSON.stringify(entry.target), entry)
-    }
-    const inventory = JSON.stringify({ connections, available: [...available.values()] })
-    if (Buffer.byteLength(inventory) > MAX_INVENTORY_BYTES) {
-      throw new Error('Search integration inventory exceeds the prompt size limit')
-    }
-    if (page.nextCursor === null) return inventory
-    if (cursors.has(page.nextCursor)) {
-      throw new Error('Search integration inventory pagination did not advance')
-    }
-    cursors.add(page.nextCursor)
-    cursor = page.nextCursor
-  }
-  throw new Error('Search integration inventory exceeds the pagination limit')
+
+  const [inventory, connections] = await Promise.all([
+    listLiveSearchAccounts.execute({
+      principal,
+      input: { organizationId: context.organizationId },
+    }),
+    listPersonalSearchIntegrations.execute({
+      principal,
+      input: { organizationId: context.organizationId },
+    }),
+  ])
+  context.signal?.throwIfAborted()
+  const result = JSON.stringify({
+    ...inventory,
+    connections: connections.connections,
+    available: connections.available,
+    connectionGuidance:
+      'Offer the exact available target or account action in a terminal <credential> tag to connect or reconnect in chat. Search uses the provider APIs directly. Account inventory alone does not establish permission to search; a provider search must succeed.',
+  })
+  if (Buffer.byteLength(result) > MAX_INVENTORY_BYTES)
+    throw new Error('Search integration inventory exceeds the prompt size limit')
+  return result
 }

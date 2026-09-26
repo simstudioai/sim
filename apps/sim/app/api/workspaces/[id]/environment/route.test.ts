@@ -1,40 +1,30 @@
 import { authMockFns, createMockRequest, environmentUtilsMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetPersonalEnvKeyRawAccess,
-  mockGetWorkspaceById,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceEnvKeyAdminAccess,
-} = vi.hoisted(() => ({
-  mockGetPersonalEnvKeyRawAccess: vi.fn(),
-  mockGetWorkspaceById: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceById: mockGetWorkspaceById,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
-vi.mock('@/lib/credentials/environment', () => ({
-  getPersonalEnvKeyRawAccess: mockGetPersonalEnvKeyRawAccess,
-  getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
-  createWorkspaceEnvCredentials: vi.fn(),
-  deleteWorkspaceEnvCredentials: vi.fn(),
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import { GET } from '@/app/api/workspaces/[id]/environment/route'
 
+const { mockGetWorkspaceEnvKeyAdminAccess, mockGetPersonalEnvKeyRawAccess } =
+  credentialsEnvironmentMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetWorkspaceById, mockGetUserEntityPermissions } = permissionsMockFns
 
 const WORKSPACE_ID = 'ws-1'
 
 function buildParams() {
-  return { params: Promise.resolve({ id: WORKSPACE_ID }) }
+  return createRouteContext({ id: WORKSPACE_ID })
 }
 
 async function callGet() {

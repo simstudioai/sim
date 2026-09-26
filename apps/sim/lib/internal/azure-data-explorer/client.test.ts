@@ -1,11 +1,13 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { secureFetch } = vi.hoisted(() => ({ secureFetch: vi.fn() }))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithValidation: secureFetch,
-}))
+const { mockSecureFetchWithValidation: secureFetch } = inputValidationMockFns
 
 import {
   AzureDataExplorerOperationError,
@@ -20,16 +22,6 @@ const BASE_INPUT = {
   endpoint: 'query' as const,
   database: 'Samples',
   csl: 'print Test="Hello, World!"',
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    headers: new Headers(),
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response
 }
 
 function queryResponse(severity = 4) {

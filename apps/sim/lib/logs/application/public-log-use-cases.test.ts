@@ -1,91 +1,96 @@
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  searchReplaceIndexerMock,
+  searchReplaceIndexerMockFns,
+} from '@sim/testing/mocks/search-replace-indexer.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getLogScope: vi.fn(),
   getLog: vi.fn(),
   listLogs: vi.fn(),
-  loadFolders: vi.fn(),
-  materialize: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/logs/public-queries', () => ({
-  getPublicWorkflowLogScope: mocks.getLogScope,
-  getPublicWorkflowLog: mocks.getLog,
-  readPublicLogPage: mocks.listLogs,
+  getPublicWorkflowLogScope: hoisted.getLogScope,
+  getPublicWorkflowLog: hoisted.getLog,
+  readPublicLogPage: hoisted.listLogs,
 }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolders,
-  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
-    if (path === undefined) return { kind: 'unfiltered' }
-    if (path === '/') return { kind: 'folder', folderId: null }
-    const folderId = index.idByPath.get(path)
-    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
-  },
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-/**
- * Only the display projection is exposed: these public readers must never reach
- * for raw `materializeExecutionData`, which skips resolved-secret redaction.
- */
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mocks.materialize,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: ({
-    tool,
-  }: {
-    tool: { type: string; params?: Record<string, unknown> }
-  }) =>
-    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
-      paramId,
-      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
-      value,
-      config: {
-        id: paramId,
-        type: 'short-input',
-        password: paramId === 'apiKey',
-      },
-    })),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
+
+import { getPublicLog } from '@/lib/logs/application/get-public-log'
+import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
+import { getBlock } from '@/blocks/registry'
 
 /**
  * Overrides the global registry stub (which declares no sub-blocks) so the credential
  * sanitizer has real `oauth-input` and `password: true` fields to act on.
  */
-vi.mock('@/blocks/registry', () => ({
-  getBlock: () => ({
-    name: 'Slack',
-    subBlocks: [
-      { id: 'credential', type: 'oauth-input' },
-      { id: 'botToken', type: 'short-input', password: true },
-      { id: 'envToken', type: 'short-input', password: true },
-      { id: 'tools', type: 'tool-input' },
-      { id: 'headers', type: 'table' },
-      { id: 'channel', type: 'short-input' },
-    ],
-    outputs: {},
-  }),
-}))
+vi.mocked(getBlock).mockImplementation(
+  () =>
+    ({
+      name: 'Slack',
+      subBlocks: [
+        { id: 'credential', type: 'oauth-input' },
+        { id: 'botToken', type: 'short-input', password: true },
+        { id: 'envToken', type: 'short-input', password: true },
+        { id: 'tools', type: 'tool-input' },
+        { id: 'headers', type: 'table' },
+        { id: 'channel', type: 'short-input' },
+      ],
+      outputs: {},
+    }) as unknown as ReturnType<typeof getBlock>
+)
 
-import { getPublicLog } from '@/lib/logs/application/get-public-log'
-import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
+/**
+ * Only the display projection is exposed: these public readers must never reach
+ * for raw `materializeExecutionData`, which skips resolved-secret redaction.
+ */
+traceStoreMockFns.mockMaterializeExecutionData.mockImplementation(() => {
+  throw new Error('public log readers must use materializeExecutionDataForDisplay')
+})
+
+searchReplaceIndexerMockFns.mockGetToolInputParamConfigs.mockImplementation((options) => {
+  const { tool } = options as { tool: { type: string; params?: Record<string, unknown> } }
+  return Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+    paramId,
+    authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
+    value,
+    config: {
+      id: paramId,
+      type: 'short-input',
+      password: paramId === 'apiKey',
+    },
+  }))
+})
+
+const mocks = {
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  loadFolders: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  materialize: traceStoreMockFns.mockMaterializeExecutionDataForDisplay,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -105,11 +110,7 @@ const log = {
   workflowOwnerEmail: 'owner@example.com',
   executionData: { pointer: true },
 }
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'key-1',
-}
+const workspacePrincipal = createWorkspaceApiKeyPrincipal()
 
 describe('public log application use cases', () => {
   beforeEach(() => {

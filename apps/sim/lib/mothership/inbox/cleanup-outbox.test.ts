@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import * as outboxService from '@/lib/core/outbox/service'
 
@@ -189,8 +189,6 @@ describe('durable inbox cleanup', () => {
 })
 
 describe('immediate rollback processing', () => {
-  afterEach(() => vi.restoreAllMocks())
-
   it('makes failed activation rollback due before asking the outbox to claim it', async () => {
     const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('completed')
     const before = Date.now()

@@ -1,29 +1,33 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAppendTableEvent,
-  mockGetTableById,
-  mockBatchEnqueueAndWait,
-  mockWriteWorkflowGroupState,
-} = vi.hoisted(() => ({
-  mockAppendTableEvent: vi.fn(),
-  mockGetTableById: vi.fn(),
+const { mockBatchEnqueueAndWait, mockWriteWorkflowGroupState } = vi.hoisted(() => ({
   mockBatchEnqueueAndWait: vi.fn(),
   mockWriteWorkflowGroupState: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
-vi.mock('@/lib/table/service', () => ({ getTableById: mockGetTableById }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/cell-write', () => ({ writeWorkflowGroupState: mockWriteWorkflowGroupState }))
 vi.mock('@/lib/core/async-jobs/config', () => ({
   getJobQueue: async () => ({ batchEnqueueAndWait: mockBatchEnqueueAndWait }),
 }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  TABLE_CONCURRENCY_LIMIT: 20,
-  buildEnqueueItems: async (runs: unknown[]) => runs.map((payload) => ({ payload })),
-  /** Every targeted group of every row is eligible, so cells = rows × groups. */
-  buildPendingRuns: (
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
+
+import { dispatcherStep } from '@/lib/table/dispatcher'
+
+tableWorkflowColumnsMockFns.mockBuildEnqueueItems.mockImplementation(async (runs: unknown[]) =>
+  runs.map((payload) => ({ payload }))
+)
+/** Every targeted group of every row is eligible, so cells = rows × groups. */
+tableWorkflowColumnsMockFns.mockBuildPendingRuns.mockImplementation(
+  (
     table: { id: string; name: string; workspaceId: string },
     rows: Array<{ id: string }>,
     opts?: { groupIds?: string[] }
@@ -38,14 +42,11 @@ vi.mock('@/lib/table/workflow-columns', () => ({
         workspaceId: table.workspaceId,
         executionId: `exec-${row.id}-${groupId}`,
       }))
-    ),
-  toTableRow: (row: Record<string, unknown>, executions: Record<string, unknown> = {}) => ({
-    ...row,
-    executions,
-  }),
-}))
+    )
+)
 
-import { dispatcherStep } from '@/lib/table/dispatcher'
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 const DISPATCH = {
   id: 'tdsp_1',

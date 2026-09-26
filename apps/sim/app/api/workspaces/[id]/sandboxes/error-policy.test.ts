@@ -1,13 +1,7 @@
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = vi.fn()
-    checkRateLimitDirectOrThrow = vi.fn()
-  },
-  enforceUserRateLimit: vi.fn(),
-  getRateLimit: vi.fn(),
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', async () => {
   const { OrchestrationError } = await import('@/lib/core/orchestration/types')
   class SandboxDependencyError extends OrchestrationError {

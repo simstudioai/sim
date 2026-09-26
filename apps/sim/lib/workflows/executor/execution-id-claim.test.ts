@@ -1,19 +1,16 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateId } = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-}))
-
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import {
   claimExecutionId,
   hasDurableExecutionOwner,
   releaseExecutionIdClaim,
 } from '@/lib/workflows/executor/execution-id-claim'
+
+const mockGenerateId = idMockFns.mockGenerateId
 
 describe('execution ID claims', () => {
   beforeEach(() => {

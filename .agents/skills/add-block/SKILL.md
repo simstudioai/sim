@@ -902,16 +902,16 @@ Every block declares a one-line prose summary that replaces its card's field row
 
 ```
 Slack                                    ← header (already names the block)
-Posts ⟨Ship it 🚀⟩ to ⟨#eng⟩             ← the sentence; ⟨…⟩ are live value chips
+Post ⟨Ship it 🚀⟩ to ⟨#eng⟩              ← the sentence; ⟨…⟩ are live value chips
 ```
 
 Write one `byOperation` entry per operation dropdown option (or a single `default`
 when the block has no operation dropdown).
 
-**The full authoring contract — voice, structure, and the two mistakes that break
+**The full authoring contract — voice, structure, and the four mistakes that break
 cards silently — is `apps/sim/blocks/AGENTS.md` → "Canvas sentences". Read it
-before writing any.** The two failures worth repeating here, because both are
-invisible at runtime:
+before writing any.** Two of those four are worth repeating here, because both
+are invisible at runtime:
 
 1. A clause naming only one member of a `canonicalParamId` pair drops the sentence
    for every advanced-mode user. List all members:

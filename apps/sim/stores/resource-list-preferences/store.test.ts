@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   RESOURCE_LIST_PREFERENCES_STORAGE_KEY,
   useResourceListPreferencesStore,
@@ -28,10 +28,6 @@ describe('resource list preferences store', () => {
     localStorage.clear()
     useResourceListPreferencesStore.setState({ preferences: {}, _hasHydrated: false })
     void useResourceListPreferencesStore.persist.clearStorage()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('keeps preferences independent by workspace and module', () => {

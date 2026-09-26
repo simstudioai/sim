@@ -7,78 +7,31 @@
  * column entirely untouched. These pin both.
  */
 import { hybridAuthMockFns } from '@sim/testing'
-import { getErrorMessage } from '@sim/utils/errors'
-import { NextRequest, NextResponse } from 'next/server'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckAccess,
-  mockRenameColumn,
-  mockUpdateColumnType,
-  mockUpdateColumnCurrency,
-  mockUpdateColumnOptions,
-  mockUpdateColumnConstraints,
-  mockAddTableColumn,
-  mockDeleteColumn,
-} = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockRenameColumn: vi.fn(),
-  mockUpdateColumnType: vi.fn(),
-  mockUpdateColumnCurrency: vi.fn(),
-  mockUpdateColumnOptions: vi.fn(),
-  mockUpdateColumnConstraints: vi.fn(),
-  mockAddTableColumn: vi.fn(),
-  mockDeleteColumn: vi.fn(),
-}))
-
-vi.mock('@/lib/table', () => ({
-  addTableColumn: mockAddTableColumn,
-  deleteColumn: mockDeleteColumn,
-  renameColumn: mockRenameColumn,
-  updateColumnConstraints: mockUpdateColumnConstraints,
-  updateColumnCurrency: mockUpdateColumnCurrency,
-  updateColumnOptions: mockUpdateColumnOptions,
-  updateColumnType: mockUpdateColumnType,
-}))
+vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/columns/service', () => ({
-  renameColumn: mockRenameColumn,
-  updateColumnConstraints: mockUpdateColumnConstraints,
-  updateColumnCurrency: mockUpdateColumnCurrency,
-  updateColumnOptions: mockUpdateColumnOptions,
-  updateColumnType: mockUpdateColumnType,
+  renameColumn: tableMockFns.mockRenameColumn,
+  updateColumnConstraints: tableMockFns.mockUpdateColumnConstraints,
+  updateColumnCurrency: tableMockFns.mockUpdateColumnCurrency,
+  updateColumnOptions: tableMockFns.mockUpdateColumnOptions,
+  updateColumnType: tableMockFns.mockUpdateColumnType,
 }))
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: (c: unknown) => c,
-}))
-vi.mock('@/app/api/table/utils', () => ({
-  accessError: () => new Response('denied', { status: 403 }),
-  checkAccess: mockCheckAccess,
-  orchestrationErrorResponse: (error: unknown) =>
-    error instanceof OrchestrationError
-      ? NextResponse.json(
-          { error: error.message },
-          { status: statusForOrchestrationError(error.code) }
-        )
-      : null,
-  orchestrationOutcomeErrorResponse: (
-    outcome: { error?: string; errorCode?: OrchestrationErrorCode },
-    fallback: string
-  ) =>
-    NextResponse.json(
-      { error: messageForOrchestrationError(outcome, fallback) },
-      { status: statusForOrchestrationError(outcome.errorCode) }
-    ),
-  rootErrorMessage: (e: unknown) => getErrorMessage(e),
-  tableLockErrorResponse: () => null,
-}))
+vi.mock('@/lib/table/wire', () => tableWireMock)
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
 
-import {
-  messageForOrchestrationError,
-  OrchestrationError,
-  type OrchestrationErrorCode,
-  statusForOrchestrationError,
-} from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH } from '@/app/api/table/[tableId]/columns/route'
+
+const { mockRenameColumn, mockUpdateColumnCurrency, mockUpdateColumnType } = tableMockFns
+const { mockCheckAccess } = tableRouteUtilsMockFns
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 

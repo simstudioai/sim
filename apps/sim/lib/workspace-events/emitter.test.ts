@@ -1,25 +1,24 @@
 import { workflowAuthzMockFns } from '@sim/testing'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetActiveWorkflowContext } = workflowAuthzMockFns
+const { mockProcessPolledWebhookEvent } = webhooksProcessorMockFns
 
 afterAll(() => {
   mockGetActiveWorkflowContext.mockReset()
 })
 
-const {
-  mockFetchSubscriptions,
-  mockEvaluateRule,
-  mockReadLastFiredAt,
-  mockClaimCooldown,
-  mockProcessPolledWebhookEvent,
-} = vi.hoisted(() => ({
-  mockFetchSubscriptions: vi.fn(),
-  mockEvaluateRule: vi.fn(),
-  mockReadLastFiredAt: vi.fn(),
-  mockClaimCooldown: vi.fn(),
-  mockProcessPolledWebhookEvent: vi.fn(),
-}))
+const { mockFetchSubscriptions, mockEvaluateRule, mockReadLastFiredAt, mockClaimCooldown } =
+  vi.hoisted(() => ({
+    mockFetchSubscriptions: vi.fn(),
+    mockEvaluateRule: vi.fn(),
+    mockReadLastFiredAt: vi.fn(),
+    mockClaimCooldown: vi.fn(),
+  }))
 
 vi.mock('@/lib/workspace-events/subscriptions', () => ({
   fetchSimTriggerSubscriptions: mockFetchSubscriptions,
@@ -39,9 +38,7 @@ vi.mock('@/lib/workspace-events/state', () => ({
   ),
 }))
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  processPolledWebhookEvent: mockProcessPolledWebhookEvent,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {

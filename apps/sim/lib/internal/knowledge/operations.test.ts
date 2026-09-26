@@ -1,15 +1,18 @@
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { knowledgeSearchUseCaseMock } from '@sim/testing/mocks/knowledge-search-use-case.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  requireWorkspaceBillingAttributionHeader: vi.fn(),
   listKnowledgeTags: { execute: vi.fn() },
   syncKnowledgeConnector: { execute: vi.fn() },
   connectorSynced: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireWorkspaceBillingAttributionHeader: mocks.requireWorkspaceBillingAttributionHeader,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgeProvenanceUserId: (_headers: Headers, principal: { subjectUserId?: string }) =>
@@ -56,9 +59,7 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
   upsertKnowledgeDocument: { execute: vi.fn() },
 }))
 
-vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: vi.fn() },
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 
 vi.mock('@/lib/knowledge/application/tags', () => ({
   listKnowledgeTags: mocks.listKnowledgeTags,
@@ -72,22 +73,19 @@ vi.mock('@/lib/knowledge/secret-provenance', () => ({
   createKnowledgeDocumentSourceValue: vi.fn(),
 }))
 
+const { mockRequireWorkspaceBillingAttributionHeader } = billingAttributionMockFns
+
 import {
   type KnowledgeOperationContext,
   syncConnectorOperation,
 } from '@/lib/internal/knowledge/operations'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
+const principal = createExecutorPrincipal({
   subjectUserId: 'trusted-user',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
   audience: 'sim:knowledge',
-  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
   expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution' as const, workflowId: 'workflow-1' },
-}
+  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+})
 
 function createContext(): KnowledgeOperationContext {
   return { principal, headers: new Headers({ 'x-billing': 'snapshot' }) }
@@ -96,7 +94,7 @@ function createContext(): KnowledgeOperationContext {
 describe('Knowledge direct operations', () => {
   it('restores exact billing attribution before the canonical connector sync use case', async () => {
     const attribution = { actorUserId: 'trusted-user', workspaceId: 'workspace-1' }
-    mocks.requireWorkspaceBillingAttributionHeader.mockReturnValue(attribution)
+    mockRequireWorkspaceBillingAttributionHeader.mockReturnValue(attribution)
     mocks.syncKnowledgeConnector.execute.mockImplementation(async ({ input }) => {
       await expect(input.resolveBillingAttribution('workspace-1')).resolves.toBe(attribution)
       return {
@@ -110,7 +108,7 @@ describe('Knowledge direct operations', () => {
 
     const result = await syncConnectorOperation('kb-1', 'connector-1', false, context)
 
-    expect(mocks.requireWorkspaceBillingAttributionHeader).toHaveBeenCalledWith(context.headers, {
+    expect(mockRequireWorkspaceBillingAttributionHeader).toHaveBeenCalledWith(context.headers, {
       workspaceId: 'workspace-1',
     })
     expect(mocks.syncKnowledgeConnector.execute).toHaveBeenCalledWith({

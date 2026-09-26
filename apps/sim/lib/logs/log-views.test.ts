@@ -1,3 +1,7 @@
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -5,13 +9,11 @@ const {
   isLargeValueRefMock,
   readLargeArrayManifestSliceMock,
   materializeLargeArrayManifestMock,
-  materializeLargeValueRefMock,
 } = vi.hoisted(() => ({
   isLargeArrayManifestMock: vi.fn(),
   isLargeValueRefMock: vi.fn(),
   readLargeArrayManifestSliceMock: vi.fn(),
   materializeLargeArrayManifestMock: vi.fn(),
-  materializeLargeValueRefMock: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/payloads/large-array-manifest-metadata', () => ({
@@ -24,13 +26,13 @@ vi.mock('@/lib/execution/payloads/large-array-manifest', () => ({
   readLargeArrayManifestSlice: readLargeArrayManifestSliceMock,
   materializeLargeArrayManifest: materializeLargeArrayManifestMock,
 }))
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import { sleep } from '@sim/utils/helpers'
 import type { TraceSpan } from '@/lib/logs/types'
 import { grepSpans, type LogViewContext, toFull, toOverview, toTrace } from './log-views'
+
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
 
 const ctx: LogViewContext = {
   workspaceId: 'ws-1',

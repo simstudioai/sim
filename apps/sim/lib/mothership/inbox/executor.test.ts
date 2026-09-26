@@ -1,62 +1,73 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import { mothershipChatMessagesMock } from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckWorkspaceAccess,
-  mockGetUserEntityPermissions,
   mockGetMessage,
   mockGetAttachment,
-  mockTrackChatUpload,
-  mockUploadFile,
-  mockDeleteFile,
-  mockDeleteFileMetadata,
-  mockResolveOrCreateChat,
   mockRunHeadlessCopilotLifecycle,
   mockSendInboxResponse,
-  mockBuildIntegrationToolSchemas,
 } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
   mockGetMessage: vi.fn(),
   mockGetAttachment: vi.fn(),
-  mockTrackChatUpload: vi.fn(),
-  mockUploadFile: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockResolveOrCreateChat: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
-  mockBuildIntegrationToolSchemas: vi.fn(),
 }))
+const { mockResolveOrCreateChat } = mothershipChatLifecycleMockFns
+const { mockBuildIntegrationToolSchemas } = mothershipChatPayloadMockFns
+const { mockUploadFile, mockDeleteFile } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+const { mockTrackChatUpload } = workspaceFileManagerMockFns
+const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = permissionsMockFns
+billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({})
+workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockResolvedValue('owner-1')
+setEnvFlags({ isDocSandboxEnabled: false, isHosted: true })
+afterAll(resetEnvFlagsMock)
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+vi.mock('@/lib/auth/ban', () => authBanMock)
 
-vi.mock('@/lib/auth/ban', () => ({
-  getActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
-  isEmailBlocked: vi.fn().mockResolvedValue(false),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn().mockResolvedValue({}),
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  resolveOrCreateChat: mockResolveOrCreateChat,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: vi.fn(),
-}))
-
-vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
 vi.mock('@/lib/mothership/chat/persisted-message', () => ({
   buildPersistedAssistantMessage: vi.fn().mockReturnValue({ id: 'assistant-message' }),
@@ -67,9 +78,7 @@ vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: vi.fn() },
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
@@ -83,11 +92,6 @@ vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
   requestChatTitle: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDocSandboxEnabled: false,
-  isHosted: true,
-}))
-
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
   getMessage: mockGetMessage,
   getAttachment: mockGetAttachment,
@@ -97,29 +101,13 @@ vi.mock('@/lib/mothership/inbox/response', () => ({
   sendInboxResponse: mockSendInboxResponse,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  generateWorkspaceFileKey: (workspaceId: string, filename: string) =>
-    `workspace/${workspaceId}/generated-${filename}`,
-  trackChatUpload: mockTrackChatUpload,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('owner-1'),
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'

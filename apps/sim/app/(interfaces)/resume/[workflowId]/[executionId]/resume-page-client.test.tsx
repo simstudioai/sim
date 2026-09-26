@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,14 +13,11 @@ import type { PausePointWithQueue } from '@/hooks/queries/resume-execution'
 const mocks = vi.hoisted(() => ({
   pauseContextDetail: vi.fn(),
   refetch: vi.fn(),
-  replace: vi.fn(),
   resumeContext: vi.fn(),
   resumeExecutionDetail: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mocks.replace }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/hooks/queries/resume-execution', () => ({
   resumeKeys: {
@@ -92,7 +91,6 @@ describe('ResumeExecutionPage', () => {
     act(() => root.unmount())
     queryClient.clear()
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('renders a concealed state for an absent or newly inaccessible execution', () => {

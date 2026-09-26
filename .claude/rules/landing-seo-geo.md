@@ -9,23 +9,23 @@ paths:
 
 ## SEO
 
-- One `<h1>` per page, in Hero only — never add another.
-- Strict heading hierarchy: H1 (Hero) → H2 (section titles) → H3 (feature names).
-- Every section: `<section id="…" aria-labelledby="…-heading">`.
+- One `<h1>` per page, in the hero only — never add another. The brand carries in the title tag, the meta description, and the hero's `sr-only` summary, so the H1 is free to lead with the non-brand keywords people search ("AI workspace", "AI agents") rather than "Sim is the".
+- Strict heading hierarchy: H1 (hero) → H2 (section titles) → H3 (items within a section). Never skip a level.
+- Semantic landmarks: `<header>`, `<main>`, `<footer>`, `<nav>`. Every section: `<section id="…" aria-labelledby="…-heading">`.
 - Decorative/animated elements: `aria-hidden="true"`.
-- All internal routes use Next.js `<Link>` (crawlable). External links get `rel="noopener noreferrer"`.
-- Navbar is a Server Component (no `'use client'`) for immediate crawlability. Logo `<Image>` has `priority` (LCP element).
-- Navbar `<nav>` carries `SiteNavigationElement` schema.org markup.
-- Feature lists must stay in sync with `WebApplication.featureList` in `structured-data.tsx`.
+- All internal navigation uses Next.js `<Link>` with real `href`s — never `onClick` navigation. External links get `rel="noopener noreferrer"`.
+- All copy is server-rendered text: no text baked into images, no content that exists only after a client effect runs.
+- Navbar is a Server Component (no `'use client'`) for immediate crawlability. Logo `<Image>` has `priority` (LCP element). The navbar `<nav>` carries `SiteNavigationElement` schema.org markup.
+- Structured data: emit JSON-LD (`Organization`, `WebSite`, `WebApplication` with `featureList`, `FAQPage` if an FAQ exists) from a server component rendered before visible content. Keep `featureList` in sync with the features the page shows (`components/home-structured-data/`).
+- After adding routes or anchors, verify `app/sitemap.ts` and `app/robots.ts` still reflect reality.
 
 ## GEO (Generative Engine Optimisation)
 
-- **Answer-first pattern**: each section's H2 + subtitle should directly answer a user question (e.g. "What is Sim?", "How fast can I deploy?").
-- **Atomic answer blocks**: each feature / template card should be independently extractable by an AI summariser.
-- **Entity consistency**: always write "Sim" by name — never "the platform" or "our tool".
-- **Keyword density**: first 150 visible chars of Hero must name "AI workspace" and "AI agents". "Sim" is carried by the title tag, the meta description, and the Hero `sr-only` summary — the H1 does not have to spend its opening words on the brand.
-- **sr-only summaries**: Hero and Templates each have a `<p className="sr-only">` (~50 words) as an atomic product/catalog summary for AI citation.
-- **Specific numbers**: prefer concrete figures ("1,000+ integrations", "15+ AI providers") over vague claims.
+- **Answer-first pattern**: each section's H2 + first paragraph directly answers a question a user would ask an AI ("What is Sim?", "What integrations does Sim support?", "How much does Sim cost?").
+- **Atomic answer blocks**: every feature card, template, and pricing tier is independently quotable — self-contained, with "Sim" named explicitly. Never "the platform", "our tool", or a bare pronoun as the subject.
+- **Keyword density**: the hero's `sr-only` summary is the first text in the hero's DOM, so its first 150 characters name "Sim", "AI workspace", and "AI agents" for crawlers. The visible headline and description name "AI agents" (not "AI workspace" or "Sim"); "Sim" is otherwise carried by the title tag and the meta description.
+- **sr-only summaries**: the hero (and Templates) each carry a `<p className="sr-only">` (~50 words) stating what Sim is, who it's for, and what it does — a clean citation target for AI summarizers. The hero's summary opens by naming Sim.
+- **Specific numbers**: concrete figures ("1,000+ integrations", "every major LLM", "100,000+ builders") over vague claims — and only numbers that are true and shipped.
 
 ## Citations and linking (`/library`, `/blog`, `/comparisons`)
 

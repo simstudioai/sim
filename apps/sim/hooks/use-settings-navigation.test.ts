@@ -1,3 +1,4 @@
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 
@@ -8,9 +9,7 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
  * env). This test only exercises the pure `resolveSettingsHref`, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { resolveSettingsHref, resolveSettingsReturnUrl } from '@/hooks/use-settings-navigation'
 

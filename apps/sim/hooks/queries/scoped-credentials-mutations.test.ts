@@ -1,19 +1,20 @@
 import { setupGlobalFetchMock } from '@sim/testing'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: vi.fn(),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: <TInput, TOutput>(options: { mutationFn: (input: TInput) => Promise<TOutput> }) => ({
-    mutateAsync: options.mutationFn,
-  }),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   oauthCredentialKeys: { lists: () => ['oauth-credentials', 'list'] },
 }))
 
 import { updateOrganizationCredentialBodySchema } from '@/lib/api/contracts/organization-credentials'
 import { useUpdateScopedCredential } from '@/hooks/queries/scoped-credentials'
+
+reactQueryMockFns.mockUseMutation.mockImplementation(
+  (options: { mutationFn: (input: unknown) => Promise<unknown> }) => ({
+    mutateAsync: options.mutationFn,
+  })
+)
 
 const WORKSPACE_ID = 'workspace-1'
 const ORGANIZATION_ID = 'organization-1'

@@ -1,11 +1,9 @@
 import type { Artifact, Message, Part, Task } from '@a2a-js/sdk'
 import { Role, TaskState } from '@a2a-js/sdk'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { buildUserMessage, taskErrored, taskOutput } from '@/lib/a2a/client'
 

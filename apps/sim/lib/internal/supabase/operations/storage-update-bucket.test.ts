@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeStorageUpdateBucketOperation } from '@/lib/internal/supabase/operations/storage-update-bucket'
 
 const INPUT = {
@@ -13,10 +13,6 @@ describe('executeStorageUpdateBucketOperation', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('sends only explicitly changed fields in one non-redirecting update request', async () => {

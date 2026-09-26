@@ -1,21 +1,16 @@
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const {
-  createWorkspaceFileSecretProvenanceFromRegistryMock,
-  fetchWorkspaceFileBufferMock,
-  getBoundWorkspaceFileSecretProvenanceMock,
-  mergeWorkspaceFileSecretProvenanceMock,
-  resolveWorkspaceFileReferenceMock,
-  runFfmpegOperationMock,
-  writeWorkspaceFileByPathMock,
-} = vi.hoisted(() => ({
-  createWorkspaceFileSecretProvenanceFromRegistryMock: vi.fn(),
-  fetchWorkspaceFileBufferMock: vi.fn(),
-  getBoundWorkspaceFileSecretProvenanceMock: vi.fn(),
-  mergeWorkspaceFileSecretProvenanceMock: vi.fn(),
-  resolveWorkspaceFileReferenceMock: vi.fn(),
+const { runFfmpegOperationMock, writeWorkspaceFileByPathMock } = vi.hoisted(() => ({
   runFfmpegOperationMock: vi.fn(),
   writeWorkspaceFileByPathMock: vi.fn(),
 }))
@@ -32,29 +27,35 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: async () => ({
     file,
-    content: await fetchWorkspaceFileBufferMock(file),
+    content: await workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer(file),
   }),
   resolveCopilotWorkspaceFileReference: (...args: unknown[]) =>
-    resolveWorkspaceFileReferenceMock(...args),
+    workspaceFileManagerMockFns.mockResolveWorkspaceFileReference(...args),
 }))
 
 vi.mock('@/lib/media/ffmpeg', () => ({
   runFfmpegOperation: runFfmpegOperationMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  createWorkspaceFileSecretProvenanceFromRegistry:
-    createWorkspaceFileSecretProvenanceFromRegistryMock,
-  getBoundWorkspaceFileSecretProvenance: getBoundWorkspaceFileSecretProvenanceMock,
-  mergeWorkspaceFileSecretProvenance: mergeWorkspaceFileSecretProvenanceMock,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
+
+const {
+  mockFetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+  mockResolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+} = workspaceFileManagerMockFns
+const {
+  mockCreateWorkspaceFileSecretProvenanceFromRegistry:
+    createWorkspaceFileSecretProvenanceFromRegistryMock,
+  mockGetBoundWorkspaceFileSecretProvenance: getBoundWorkspaceFileSecretProvenanceMock,
+  mockMergeWorkspaceFileSecretProvenance: mergeWorkspaceFileSecretProvenanceMock,
+} = workspaceFileSecretProvenanceMockFns
 
 const EXACT_EMPTY = { status: 'exact' as const, entries: [] }
 const TRACKED = {

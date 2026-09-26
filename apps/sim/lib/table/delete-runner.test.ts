@@ -1,60 +1,47 @@
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 
-const {
-  mockGetTableById,
-  mockGetJobProgress,
-  mockSelectRowIdPage,
-  mockDeletePageByIds,
-  mockUpdateJobProgress,
-  mockMarkJobReady,
-  mockMarkJobFailed,
-  mockMarkJobCanceled,
-  mockAppendTableEvent,
-  mockSignalTableRowsChanged,
-  mockBuildFilterClause,
-  mockFireTableTrigger,
-} = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
-  mockGetJobProgress: vi.fn(),
+const { mockSelectRowIdPage, mockDeletePageByIds, mockBuildFilterClause } = vi.hoisted(() => ({
   mockSelectRowIdPage: vi.fn(),
   mockDeletePageByIds: vi.fn(),
-  mockUpdateJobProgress: vi.fn(),
-  mockMarkJobReady: vi.fn(),
-  mockMarkJobFailed: vi.fn(),
-  mockMarkJobCanceled: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
-  mockSignalTableRowsChanged: vi.fn(),
   mockBuildFilterClause: vi.fn(),
-  mockFireTableTrigger: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
-vi.mock('@/lib/table/jobs/service', () => ({
-  getJobProgress: mockGetJobProgress,
-  updateJobProgress: mockUpdateJobProgress,
-  markJobReady: mockMarkJobReady,
-  markJobFailed: mockMarkJobFailed,
-  markJobCanceled: mockMarkJobCanceled,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
 }))
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: mockAppendTableEvent,
-  signalTableRowsChanged: mockSignalTableRowsChanged,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
-vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: mockFireTableTrigger }))
+vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
   USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
 }))
 
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+
+const {
+  mockGetJobProgress,
+  mockUpdateJobProgress,
+  mockMarkJobReady,
+  mockMarkJobFailed,
+  mockMarkJobCanceled,
+} = tableJobsServiceMockFns
+const mockFireTableTrigger = tableTriggerMockFns.mockFireTableTrigger
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockSignalTableRowsChanged = tableEventsMockFns.mockSignalTableRowsChanged
 
 const UNLOCKED = {
   schemaLocked: false,

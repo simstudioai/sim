@@ -1,29 +1,29 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClient, mockCreatePinnedLookup, mockMongoClient, mockValidateDatabaseHost } =
-  vi.hoisted(() => {
-    const client = {
-      close: vi.fn().mockResolvedValue(undefined),
-      connect: vi.fn(),
-    }
-    return {
-      mockClient: client,
-      mockCreatePinnedLookup: vi.fn(),
-      mockMongoClient: vi.fn(function MockMongoClient() {
-        return client
-      }),
-      mockValidateDatabaseHost: vi.fn(),
-    }
-  })
+const { mockClient, mockMongoClient } = vi.hoisted(() => {
+  const client = {
+    close: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn(),
+  }
+  return {
+    mockClient: client,
+    mockMongoClient: vi.fn(function MockMongoClient() {
+      return client
+    }),
+  }
+})
 
 vi.mock('mongodb', () => ({ MongoClient: mockMongoClient }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedLookup: mockCreatePinnedLookup,
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { createMongodbClient, type MongodbConnectionConfig } from '@/lib/internal/mongodb/client'
+
+const { mockCreatePinnedLookup, mockValidateDatabaseHost } = inputValidationMockFns
 
 const CONNECTION_CONFIG: MongodbConnectionConfig = {
   host: 'db.example.com',

@@ -2,7 +2,9 @@
  * Exercises download admission and its additive migration against an isolated local PostgreSQL
  * schema in the disposable integration database (TEST_DATABASE_URL).
  */
+
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateShortId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -25,26 +27,19 @@ import {
   completeClaimedAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-  throw new Error('Browser download PostgreSQL tests require a local database')
-}
+const databaseUrl = readTestDatabaseUrl()
 const schema = `browser_download_${generateShortId()
   .replace(/[^a-zA-Z0-9]/g, '')
   .toLowerCase()}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, { max: 4, connection: { search_path: schema } })
-  : undefined
+const connection = postgres(databaseUrl, { max: 4, connection: { search_path: schema } })
 
 afterAll(async () => {
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
   await connection.end()
 })
 
-describe.skipIf(!connection)('browser download admission with PostgreSQL', () => {
+describe('browser download admission with PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection.unsafe(`CREATE SCHEMA "${schema}"`)
     await connection.unsafe(`CREATE TABLE copilot_async_tool_calls (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), run_id uuid NOT NULL, checkpoint_id uuid,
@@ -71,7 +66,6 @@ describe.skipIf(!connection)('browser download admission with PostgreSQL', () =>
   })
 
   beforeEach(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection`TRUNCATE copilot_async_tool_calls`
     await connection`INSERT INTO copilot_async_tool_calls (run_id, tool_call_id, tool_name, status, claimed_by)
       VALUES (gen_random_uuid(), 'download-1', 'browser_save_download', 'running', 'desktop-browser')`
@@ -84,7 +78,7 @@ describe.skipIf(!connection)('browser download admission with PostgreSQL', () =>
     expect(results.filter(Boolean)).toHaveLength(1)
     expect(await claimBrowserDownloadSave('download-1')).toBe(false)
     const [row] =
-      await connection!`SELECT status, claimed_by, result, browser_download_started_at IS NOT NULL AS started FROM copilot_async_tool_calls`
+      await connection`SELECT status, claimed_by, result, browser_download_started_at IS NOT NULL AS started FROM copilot_async_tool_calls`
     expect(row).toMatchObject({ status: 'running', claimed_by: 'desktop-browser', result: null })
     expect(row.started).toBe(true)
   })
@@ -96,7 +90,7 @@ describe.skipIf(!connection)('browser download admission with PostgreSQL', () =>
     ['running', 'desktop-terminal', 'browser_save_download'],
     ['running', 'desktop-browser', 'browser_upload_file'],
   ])('rejects status=%s owner=%s tool=%s', async (status, owner, tool) => {
-    await connection!`UPDATE copilot_async_tool_calls SET status = ${status}, claimed_by = ${owner}, tool_name = ${tool}`
+    await connection`UPDATE copilot_async_tool_calls SET status = ${status}, claimed_by = ${owner}, tool_name = ${tool}`
     expect(await claimBrowserDownloadSave('download-1')).toBe(false)
   })
 

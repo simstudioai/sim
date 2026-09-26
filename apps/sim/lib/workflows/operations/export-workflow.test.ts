@@ -1,76 +1,76 @@
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const mocks = vi.hoisted(() => ({
-  loadNormalized: vi.fn(),
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-  CREDENTIAL_SUBBLOCK_IDS: new Set(['credential', 'triggerCredentials', 'oauthCredential']),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => {
-    if (type === 'agent') {
-      return {
-        name: 'Agent',
-        subBlocks: [{ id: 'tools', type: 'tool-input' }],
-        outputs: {},
-      }
-    }
-    if (type === 'mcp') {
-      return {
-        name: 'MCP',
-        subBlocks: [
-          { id: 'serverSelector', type: 'mcp-server-selector' },
-          {
-            id: 'toolSelector',
-            type: 'mcp-tool-selector',
-            dependsOn: ['serverSelector'],
-            selectorKey: 'mcp.tools',
-          },
-        ],
-        outputs: {},
-      }
-    }
-    if (type === 'table_v2') {
-      return {
-        name: 'Table',
-        subBlocks: [
-          { id: 'credential', type: 'oauth-input' },
-          {
-            id: 'tableSelector',
-            type: 'table-selector',
-            canonicalParamId: 'tableId',
-            mode: 'basic',
-            required: true,
-          },
-          {
-            id: 'manualTableId',
-            type: 'short-input',
-            canonicalParamId: 'tableId',
-            mode: 'advanced',
-            required: true,
-          },
-        ],
-        outputs: {},
-      }
-    }
-    return {
-      name: 'Slack',
-      subBlocks: [
-        { id: 'credential', type: 'oauth-input' },
-        { id: 'botToken', type: 'short-input', password: true },
-        { id: 'text', type: 'long-input' },
-        { id: 'headers', type: 'table' },
-      ],
-      outputs: {},
-    }
-  },
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) => {
+  if (type === 'agent') {
+    return {
+      name: 'Agent',
+      subBlocks: [{ id: 'tools', type: 'tool-input' }],
+      outputs: {},
+    }
+  }
+  if (type === 'mcp') {
+    return {
+      name: 'MCP',
+      subBlocks: [
+        { id: 'serverSelector', type: 'mcp-server-selector' },
+        {
+          id: 'toolSelector',
+          type: 'mcp-tool-selector',
+          dependsOn: ['serverSelector'],
+          selectorKey: 'mcp.tools',
+        },
+      ],
+      outputs: {},
+    }
+  }
+  if (type === 'table_v2') {
+    return {
+      name: 'Table',
+      subBlocks: [
+        { id: 'credential', type: 'oauth-input' },
+        {
+          id: 'tableSelector',
+          type: 'table-selector',
+          canonicalParamId: 'tableId',
+          mode: 'basic',
+          required: true,
+        },
+        {
+          id: 'manualTableId',
+          type: 'short-input',
+          canonicalParamId: 'tableId',
+          mode: 'advanced',
+          required: true,
+        },
+      ],
+      outputs: {},
+    }
+  }
+  return {
+    name: 'Slack',
+    subBlocks: [
+      { id: 'credential', type: 'oauth-input' },
+      { id: 'botToken', type: 'short-input', password: true },
+      { id: 'text', type: 'long-input' },
+      { id: 'headers', type: 'table' },
+    ],
+    outputs: {},
+  }
+})
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
 /**
  * Asserts real tool params and outputs, which the global `@/tools/metadata`
@@ -81,7 +81,7 @@ vi.unmock('@/tools/metadata-outputs')
 
 describe('buildWorkflowExportPayload', () => {
   beforeEach(() => {
-    mocks.loadNormalized.mockResolvedValue({
+    mockLoadNormalized.mockResolvedValue({
       blocks: {
         agent: {
           id: 'agent',
@@ -149,7 +149,7 @@ describe('buildWorkflowExportPayload', () => {
         },
       },
     ]
-    mocks.loadNormalized.mockResolvedValue({
+    mockLoadNormalized.mockResolvedValue({
       blocks: {
         slack: {
           id: 'slack',
@@ -270,7 +270,7 @@ describe('buildWorkflowExportPayload', () => {
   it.each(['search_docs', 'read_document'])(
     'preserves safe MCP selection metadata only when opted in: %s',
     async (value) => {
-      mocks.loadNormalized.mockResolvedValue({
+      mockLoadNormalized.mockResolvedValue({
         blocks: {
           mcp: {
             id: 'mcp',
@@ -317,7 +317,7 @@ describe('buildWorkflowExportPayload', () => {
   it.each(['https://example.com/tools?token=secret-token', 'Bearer secret-token'])(
     'withholds unsafe MCP selector payloads with references enabled: %s',
     async (value) => {
-      mocks.loadNormalized.mockResolvedValue({
+      mockLoadNormalized.mockResolvedValue({
         blocks: {
           mcp: {
             id: 'mcp',
@@ -361,7 +361,7 @@ describe('buildWorkflowExportPayload with includeWorkspaceBindings', () => {
   }
 
   beforeEach(() => {
-    mocks.loadNormalized.mockResolvedValue({
+    mockLoadNormalized.mockResolvedValue({
       blocks: {
         lookup: {
           id: 'lookup',

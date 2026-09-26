@@ -10,46 +10,38 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockGetOrgMemberUsageLimit,
-  mockGetOrgMemberUsageForCurrentPeriod,
-  mockSetOrgMemberUsageLimit,
-  mockGetOrganizationSubscription,
-  mockIsOrgMemberUsageLimitTarget,
-} = vi.hoisted(() => ({
-  mockGetOrgMemberUsageLimit: vi.fn(),
-  mockGetOrgMemberUsageForCurrentPeriod: vi.fn(),
-  mockSetOrgMemberUsageLimit: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockIsOrgMemberUsageLimitTarget: vi.fn(),
-}))
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  getOrgMemberUsageForCurrentPeriod: mockGetOrgMemberUsageForCurrentPeriod,
-  getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
-  setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
-  isOrgMemberUsageLimitTarget: mockIsOrgMemberUsageLimitTarget,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 import { GET, PUT } from '@/app/api/organizations/[id]/members/[memberId]/usage-limit/route'
+
+const {
+  mockGetOrgMemberUsageForCurrentPeriod,
+  mockGetOrgMemberUsageLimit,
+  mockSetOrgMemberUsageLimit,
+  mockIsOrgMemberUsageLimitTarget,
+} = organizationMemberLimitsMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
 
 const mockGetSession = authMockFns.mockGetSession
 
 afterAll(resetEnvFlagsMock)
 
 function context() {
-  return { params: Promise.resolve({ id: 'org-1', memberId: 'user-2' }) }
+  return createRouteContext({ id: 'org-1', memberId: 'user-2' })
 }
 
 function putRequest(body: unknown) {

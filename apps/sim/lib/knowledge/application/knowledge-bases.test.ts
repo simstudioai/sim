@@ -1,96 +1,59 @@
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { knowledgeEmbeddingsMock } from '@sim/testing/mocks/knowledge-embeddings.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveWorkspace: vi.fn(),
-  loadAuthorizationWorkspace: vi.fn(),
-  resolveKnowledgeBase: vi.fn(),
-  resolveArchivedKnowledgeBase: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveAccess: vi.fn(),
-  createAccessProvider: vi.fn(),
-  attachConnectors: vi.fn(),
   resolveFolderPath: vi.fn(),
-  createRecord: vi.fn(),
-  updateRecord: vi.fn(),
-  deleteRecord: vi.fn(),
-  listRecords: vi.fn(),
-  getRecord: vi.fn(),
   performUpdate: vi.fn(),
   performDelete: vi.fn(),
   performRestore: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  recordAudit: vi.fn(),
-  knowledgeBaseDeleted: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    KNOWLEDGE_BASE_CREATED: 'knowledge_base.created',
-    KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
-    KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
-    KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
-  },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createKnowledgeAccessProvider: mocks.createAccessProvider,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDeleted: mocks.knowledgeBaseDeleted },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
-    if (path === undefined) return { kind: 'unfiltered' }
-    if (path === '/') return { kind: 'folder', folderId: null }
-    const folderId = index.idByPath.get(path)
-    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
-  },
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  loadKnowledgeWorkspaceAuthorizationContext: mocks.loadAuthorizationWorkspace,
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-  resolveArchivedKnowledgeBaseContext: mocks.resolveArchivedKnowledgeBase,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
 vi.mock('@/lib/knowledge/application/folder-paths', () => ({
-  resolveKnowledgeFolderPath: mocks.resolveFolderPath,
+  resolveKnowledgeFolderPath: hoisted.resolveFolderPath,
   knowledgeFolderPathForId: () => '/',
 }))
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  getConfiguredKbEmbedding: () => ({ model: 'text-embedding-3-small', dimensions: 1536 }),
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-vi.mock('@/lib/knowledge/service', () => ({
-  createAuthorizedKnowledgeBase: mocks.createRecord,
-  updateKnowledgeBase: mocks.updateRecord,
-  deleteKnowledgeBase: mocks.deleteRecord,
-  getKnowledgeBaseById: mocks.getRecord,
-  getWorkspaceKnowledgeBases: mocks.listRecords,
-  attachKnowledgeBaseConnectors: mocks.attachConnectors,
-}))
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 
 vi.mock('@/lib/knowledge/orchestration', () => ({
-  performUpdateKnowledgeBase: mocks.performUpdate,
-  performDeleteKnowledgeBase: mocks.performDelete,
-  performRestoreKnowledgeBase: mocks.performRestore,
+  performUpdateKnowledgeBase: hoisted.performUpdate,
+  performDeleteKnowledgeBase: hoisted.performDelete,
+  performRestoreKnowledgeBase: hoisted.performRestore,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -103,6 +66,18 @@ import {
   readKnowledgeBase,
   updateInternalKnowledgeBase,
 } from '@/lib/knowledge/application/knowledge-bases'
+
+const mocks = {
+  ...hoisted,
+  createAccessProvider: knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  createRecord: knowledgeServiceMockFns.mockCreateAuthorizedKnowledgeBase,
+  updateRecord: knowledgeServiceMockFns.mockUpdateKnowledgeBase,
+  deleteRecord: knowledgeServiceMockFns.mockDeleteKnowledgeBase,
+  getRecord: knowledgeServiceMockFns.mockGetKnowledgeBaseById,
+  listRecords: knowledgeServiceMockFns.mockGetWorkspaceKnowledgeBases,
+  attachConnectors: knowledgeServiceMockFns.mockAttachKnowledgeBaseConnectors,
+}
 
 const context = {
   workspaceId: 'workspace-1',
@@ -134,15 +109,17 @@ describe('knowledge base application use cases', () => {
     mocks.resolveAccess.mockResolvedValue({ kind: 'workspace', tokens: ['workspace', 'public'] })
     mocks.createAccessProvider.mockReturnValue({ get: mocks.resolveAccess })
     mocks.attachConnectors.mockImplementation(async (kb) => kb)
-    mocks.resolveWorkspace.mockResolvedValue(context)
-    mocks.loadAuthorizationWorkspace.mockResolvedValue(context)
-    mocks.resolveKnowledgeBase.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue(context)
+    knowledgeContextsMockFns.mockLoadKnowledgeWorkspaceAuthorizationContext.mockResolvedValue(
+      context
+    )
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
       ...context,
       knowledgeBaseId: knowledgeBase.id,
       knowledgeBase,
       access: { get: mocks.resolveAccess },
     })
-    mocks.resolvePermission.mockResolvedValue('write')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
     mocks.resolveFolderPath.mockResolvedValue({
       folderId: null,
       index: { pathById: new Map(), idByPath: new Map(), rowById: new Map() },
@@ -151,7 +128,7 @@ describe('knowledge base application use cases', () => {
     mocks.createRecord.mockResolvedValue(knowledgeBase)
     mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.getRecord.mockResolvedValue(knowledgeBase)
-    mocks.resolveArchivedKnowledgeBase.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveArchivedKnowledgeBaseContext.mockResolvedValue({
       ...context,
       knowledgeBaseId: knowledgeBase.id,
       restorableKnowledgeBase: {
@@ -174,12 +151,14 @@ describe('knowledge base application use cases', () => {
 
   it('authorizes a canonical workspace before listing its internal knowledge bases', async () => {
     await listInternalKnowledgeBases.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'workspace-1', scope: 'archived' },
     })
 
-    expect(mocks.resolveWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+    })
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
       'user-1',
       'workspace-1',
       'organization-1',
@@ -208,16 +187,16 @@ describe('knowledge base application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
     expect(mocks.listRecords).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace listing before reading when current access is insufficient', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValueOnce(null)
 
     await expect(
       listInternalKnowledgeBases.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'workspace-1', scope: 'active' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -226,64 +205,56 @@ describe('knowledge base application use cases', () => {
   })
 
   it('rejects an insufficient role before the protected mutation', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValueOnce('read')
 
     await expect(
       createKnowledgeBase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'workspace-1', name: 'Docs' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.createRecord).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('uses billing ownership only for the workspace-key compatibility column', async () => {
     await createKnowledgeBase.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       input: { workspaceId: 'workspace-1', name: 'Docs', source: 'v2' },
     })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
     expect(mocks.createRecord).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'billing-owner-1', workspaceId: 'workspace-1' }),
       expect.any(String)
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: null,
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.create',
-          actor: {
-            kind: 'workspace_api_key',
-            keyId: 'workspace-key-1',
-            workspaceId: 'workspace-1',
-          },
+          actor: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
         }),
       })
     )
   })
 
   it('conceals a canonical scope mismatch and never audits it', async () => {
-    mocks.resolveKnowledgeBase.mockRejectedValueOnce(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Knowledge base not found')
     )
 
     await expect(
       readKnowledgeBase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-2' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it.each([null, 'organization-1'])(
@@ -299,23 +270,28 @@ describe('knowledge base application use cases', () => {
 
       await expect(
         readInternalKnowledgeBase.execute({
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          principal: createSessionPrincipal(),
           input: { knowledgeBaseId: 'knowledge-1' },
         })
       ).rejects.toMatchObject({ code: 'not_found' })
-      expect(mocks.loadAuthorizationWorkspace).not.toHaveBeenCalled()
+      expect(
+        knowledgeContextsMockFns.mockLoadKnowledgeWorkspaceAuthorizationContext
+      ).not.toHaveBeenCalled()
     }
   )
 
   it('authorizes both canonical workspaces before moving a knowledge base', async () => {
-    mocks.resolveWorkspace.mockResolvedValueOnce({ ...context, workspaceId: 'workspace-2' })
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValueOnce({
+      ...context,
+      workspaceId: 'workspace-2',
+    })
 
     await updateInternalKnowledgeBase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { knowledgeBaseId: 'knowledge-1', workspaceId: 'workspace-2' },
     })
 
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(2)
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledTimes(2)
     expect(mocks.performUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         knowledgeBaseId: 'knowledge-1',
@@ -334,8 +310,8 @@ describe('knowledge base application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
     expect(mocks.performUpdate).not.toHaveBeenCalled()
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('refuses to move an unscoped knowledge base through a creator-authorized path', async () => {
@@ -349,11 +325,11 @@ describe('knowledge base application use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.performUpdate).not.toHaveBeenCalled()
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-workspace bulk target before mutation for a dual-workspace subject', async () => {
-    mocks.resolveKnowledgeBase.mockRejectedValueOnce(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Knowledge base not found')
     )
 
@@ -375,7 +351,7 @@ describe('knowledge base application use cases', () => {
     })
 
     expect(result).toMatchObject({ deleted: [], notFound: ['workspace-2-knowledge'] })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
       'dual-workspace-user',
       'workspace-1',
       'organization-1',
@@ -383,21 +359,23 @@ describe('knowledge base application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.deleteRecord).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('audits completed knowledge base deletions before propagating infrastructure failure', async () => {
     const failure = new Error('knowledge store unavailable')
-    mocks.resolveKnowledgeBase.mockImplementation(async ({ knowledgeBaseId }) => ({
-      ...context,
-      knowledgeBaseId,
-      knowledgeBase: { ...knowledgeBase, id: knowledgeBaseId, name: knowledgeBaseId },
-    }))
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockImplementation(
+      async ({ knowledgeBaseId }) => ({
+        ...context,
+        knowledgeBaseId,
+        knowledgeBase: { ...knowledgeBase, id: knowledgeBaseId, name: knowledgeBaseId },
+      })
+    )
     mocks.deleteRecord.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
 
     await expect(
       bulkDeleteKnowledgeBases.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           assertedWorkspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
@@ -405,10 +383,10 @@ describe('knowledge base application use cases', () => {
       })
     ).rejects.toBe(failure)
 
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledOnce()
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ resourceId: 'knowledge-1' })
     )
-    expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledOnce()
+    expect(getMockPlatformEvent('knowledgeBaseDeleted')).toHaveBeenCalledOnce()
   })
 })

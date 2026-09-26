@@ -10,6 +10,11 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { tasks } from '@trigger.dev/sdk'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
@@ -20,19 +25,7 @@ import {
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 
-const { mockBatchTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
-  mockBatchTrigger: vi.fn(),
-  mockResolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: {
-    batchTrigger: mockBatchTrigger,
-  },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 /**
  * Under `isolate: false` the shared `@/lib/knowledge/embeddings` /
  * `documents/service` modules may be cached bound to the REAL env module, so
@@ -49,6 +42,10 @@ afterAll(() => {
 })
 
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
+
+const mockBatchTrigger = vi.mocked(tasks.batchTrigger)
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',

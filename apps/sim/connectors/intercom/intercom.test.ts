@@ -1,16 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { intercomConnector } from '@/connectors/intercom/intercom'
 
 const ACCESS_TOKEN = 'test-token'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function requestUrl(callIndex = 0): URL {
   const call = mockFetch.mock.calls[callIndex]
@@ -56,10 +50,6 @@ function conversationFixture(id: string, overrides: Record<string, unknown> = {}
 beforeEach(() => {
   mockFetch.mockReset()
   vi.stubGlobal('fetch', mockFetch)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('intercom listingCapped', () => {

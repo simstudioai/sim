@@ -92,7 +92,6 @@ describe('GeneratedPasswordInput', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('shows a masked placeholder without fetching the saved password', () => {

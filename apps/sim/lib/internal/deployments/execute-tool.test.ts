@@ -1,8 +1,11 @@
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   deploy: vi.fn(),
   getVersion: vi.fn(),
   listVersions: vi.fn(),
@@ -10,9 +13,7 @@ const mocks = vi.hoisted(() => ({
   undeploy: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/deployments/operations', () => ({
   executeDeploymentsDeploy: mocks.deploy,
@@ -25,6 +26,8 @@ vi.mock('@/lib/internal/deployments/operations', () => ({
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import { executeDeploymentsTool } from '@/lib/internal/deployments/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const INPUTS = {
   deployments_deploy: { workflowId: 'workflow-1', name: 'Release 4' },
@@ -63,7 +66,7 @@ function request(
 
 describe('executeDeploymentsTool', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -89,7 +92,7 @@ describe('executeDeploymentsTool', () => {
       success: false,
       error: 'Authentication required',
     })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 

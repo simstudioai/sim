@@ -6,12 +6,15 @@ import {
   schemaMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockSaveWorkflowToNormalizedTables,
-  mockRecordAudit,
-  mockCaptureServerEvent,
   mockValidateWorkflowSchedules,
   mockValidateTriggerWebhookConfigForDeploy,
   mockEmitWorkflowDeployedEvent,
@@ -21,13 +24,8 @@ const {
   mockEnqueueWorkflowDeploymentPreparation,
   mockProcessWorkflowDeploymentOutboxEvent,
   mockNotifySocketDeploymentChanged,
-  mockLoadWorkflowDeploymentSnapshot,
-  mockUpdateDeploymentVersionMetadata,
   mockTx,
 } = vi.hoisted(() => ({
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockValidateWorkflowSchedules: vi.fn(),
   mockValidateTriggerWebhookConfigForDeploy: vi.fn(),
   mockEmitWorkflowDeployedEvent: vi.fn(),
@@ -37,8 +35,6 @@ const {
   mockEnqueueWorkflowDeploymentPreparation: vi.fn(),
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
-  mockLoadWorkflowDeploymentSnapshot: vi.fn(),
-  mockUpdateDeploymentVersionMetadata: vi.fn(),
   /**
    * Sentinel transaction handle the mocked prepare functions hand to the real
    * onPrepareTransaction callback, which only forwards it into the (mocked)
@@ -47,18 +43,7 @@ const {
   mockTx: { sentinel: 'tx' },
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_DEPLOYMENT_REVERTED: 'WORKFLOW_DEPLOYMENT_REVERTED',
-    WORKFLOW_DEPLOYED: 'WORKFLOW_DEPLOYED',
-    WORKFLOW_UNDEPLOYED: 'WORKFLOW_UNDEPLOYED',
-    WORKFLOW_DEPLOYMENT_ACTIVATED: 'WORKFLOW_DEPLOYMENT_ACTIVATED',
-  },
-  AuditResourceType: { WORKFLOW: 'WORKFLOW' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
   enqueueWorkflowDeploymentPreparation: mockEnqueueWorkflowDeploymentPreparation,
@@ -79,16 +64,9 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitWorkflowUndeployedEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowDeploymentSnapshot: mockLoadWorkflowDeploymentSnapshot,
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-  undeployWorkflow: vi.fn(),
-  updateDeploymentVersionMetadata: mockUpdateDeploymentVersionMetadata,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/deploy', () => ({
   validateTriggerWebhookConfigForDeploy: mockValidateTriggerWebhookConfigForDeploy,
@@ -107,6 +85,16 @@ import {
   performFullUndeploy,
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockLoadWorkflowDeploymentSnapshot =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentSnapshot
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+const mockUpdateDeploymentVersionMetadata =
+  workflowsPersistenceUtilsMockFns.mockUpdateDeploymentVersionMetadata
 
 afterAll(() => {
   resetDbChainMock()

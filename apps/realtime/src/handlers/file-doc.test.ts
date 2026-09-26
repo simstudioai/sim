@@ -5,6 +5,7 @@ import {
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { flushMicrotasks } from '@sim/testing/helpers'
 import { sleep } from '@sim/utils/helpers'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
@@ -140,10 +141,8 @@ function setup(id: string, io: IRoomManager['io'], socketOverrides?: Record<stri
 const FILE_DOC_FIELD = 'default'
 
 /** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
-async function flushMicrotasks(): Promise<void> {
-  // Enough to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply).
-  for (let i = 0; i < 8; i++) await Promise.resolve()
-}
+/** Enough turns to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply). */
+const SEED_CHAIN_TICKS = 8
 
 /**
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
@@ -442,7 +441,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     })
 
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     expect(socket.emit).toHaveBeenCalledWith(
       FILE_DOC_EVENTS.JOIN_ERROR,
@@ -494,12 +493,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks() // let the seed apply
+    await flushMicrotasks(SEED_CHAIN_TICKS) // let the seed apply
 
     // Last collaborator leaves without ever editing — projecting this seed back over the file could
     // clobber a concurrent copilot write, so the final flush must NOT persist.
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
   })
 
@@ -508,7 +507,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // A real user edit (socket-origin sync update) marks the doc dirty.
     const edit = new Y.Doc()
@@ -518,10 +517,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
   })
 
@@ -551,7 +550,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     cleanupFileDocForSocket('socket-closing-update', io, true)
     const completed = vi.fn()
     const flush = flushAllFileDocRooms().then(completed)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(completed).not.toHaveBeenCalled()
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
     finishAppend()
@@ -632,7 +631,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io, sent } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     const before = sent.length
     const edit = new Y.Doc()
@@ -642,7 +641,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // It fans out to the WHOLE room — no socket excluded — so peers AND a same-socket sibling provider see
     // the stream live (the emitting provider no-ops on its own echo).
@@ -654,7 +653,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // ...but it must NOT mark the doc dirty: a last-disconnect flush never persists agent content (the
     // copilot's final edit_content write is the authoritative durable persist).
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).not.toHaveBeenCalled()
   })
 
@@ -670,7 +669,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
@@ -679,12 +678,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
     )
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // The conflict is handled gracefully: the persist is attempted exactly once (never silently skipped,
     // never retried against a possibly-behind stream) and the durable file is left authoritative.
     cleanupFileDocForSocket('socket-1', io, true)
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
   })
 
@@ -838,7 +837,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const joinA = a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     const joinB = b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // The second join found the seed already in flight, so it does not start another one — and
     // neither join has been answered yet.
@@ -903,7 +902,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
     const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     expect(socket.join).not.toHaveBeenCalled()
     expect(joinSuccessFileId(socket)).toBeUndefined()
@@ -945,7 +944,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
@@ -971,7 +970,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-1', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
 
     // First merge is left in flight; the second must not start its own fetch until the first finishes.
     const noOpUpdate = Y.encodeStateAsUpdate(new Y.Doc())
@@ -982,7 +981,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const first = applyMarkdownToLiveFileDoc('file-1', '# One')
     const second = applyMarkdownToLiveFileDoc('file-1', '# Two')
-    await flushMicrotasks()
+    await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1) // second is queued behind the first
 
     resolveFirst(noOpUpdate)

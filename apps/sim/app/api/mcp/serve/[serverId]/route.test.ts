@@ -1,35 +1,32 @@
 /**
  * Tests for MCP serve route auth propagation.
  */
+
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
 import {
-  dbChainMockFns,
-  encryptionMock,
-  encryptionMockFns,
-  hybridAuthMockFns,
-  permissionsMock,
-  permissionsMockFns,
-  resetDbChainMock,
-  resetEnvMock,
-  setEnv,
-} from '@sim/testing'
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { NextRequest } from 'next/server'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockExecuteWorkflowService,
-  mockAssertBillingAttributionSnapshot,
-  mockGenerateInternalToken,
-  mockResolveBillingAttribution,
-  mockSerializeBillingAttributionHeader,
   mockVerifyOAuthAccessToken,
   MockInvalidOAuthAccessTokenError,
   fetchMock,
 } = vi.hoisted(() => ({
   mockExecuteWorkflowService: vi.fn(),
-  mockAssertBillingAttributionSnapshot: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockSerializeBillingAttributionHeader: vi.fn(),
   mockVerifyOAuthAccessToken: vi.fn(),
   MockInvalidOAuthAccessTokenError: class extends Error {
     constructor(readonly reason: string) {
@@ -41,13 +38,13 @@ const {
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
+const {
+  mockAssertBillingAttributionSnapshot,
+  mockResolveBillingAttribution,
+  mockSerializeBillingAttributionHeader,
+} = billingAttributionMockFns
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 const MCP_BYTE_LIMIT = 10 * 1024 * 1024
 const MCP_TOOLS_LIST_LIMIT = 100
@@ -119,9 +116,7 @@ function toolCallRequest(headers: Record<string, string>) {
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 vi.mock('@/lib/auth/oauth-access-token', () => ({
   InvalidOAuthAccessTokenError: MockInvalidOAuthAccessTokenError,
@@ -130,9 +125,7 @@ vi.mock('@/lib/auth/oauth-access-token', () => ({
   verifyOAuthAccessToken: mockVerifyOAuthAccessToken,
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  getMaxExecutionTimeout: () => 60_000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 vi.mock('@/lib/workflows/executor/execute-service', () => ({
   executeWorkflowService: mockExecuteWorkflowService,
@@ -140,6 +133,8 @@ vi.mock('@/lib/workflows/executor/execute-service', () => ({
 
 import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import { DELETE, GET, POST } from '@/app/api/mcp/serve/[serverId]/route'
+
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(60_000)
 
 describe('MCP Serve Route', () => {
   afterAll(() => {
@@ -161,10 +156,6 @@ describe('MCP Serve Route', () => {
     }))
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('returns 401 for private server when auth fails', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -184,7 +175,7 @@ describe('MCP Serve Route', () => {
       method: 'POST',
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(401)
   })
@@ -197,9 +188,7 @@ describe('MCP Serve Route', () => {
         error: 'Unauthorized',
       })
 
-      const response = await POST(toolCallRequest({}), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(toolCallRequest({}), createRouteContext({ serverId: 'server-1' }))
 
       expect(response.status).toBe(401)
       expect(response.headers.get('www-authenticate')).toBe(
@@ -226,9 +215,10 @@ describe('MCP Serve Route', () => {
         resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('user-1'),
       })
 
-      const response = await POST(toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(
+        toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }),
+        createRouteContext({ serverId: 'server-1' })
+      )
 
       expect(response.status).toBe(200)
       expect(mockVerifyOAuthAccessToken).toHaveBeenCalledWith('sim_oat_valid', {
@@ -251,9 +241,10 @@ describe('MCP Serve Route', () => {
         new MockInvalidOAuthAccessTokenError('wrong_resource')
       )
 
-      const response = await POST(toolCallRequest({ Authorization: 'Bearer sim_oat_other' }), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(
+        toolCallRequest({ Authorization: 'Bearer sim_oat_other' }),
+        createRouteContext({ serverId: 'server-1' })
+      )
 
       expect(response.status).toBe(401)
       expect(response.headers.get('www-authenticate')).toBe(
@@ -270,9 +261,10 @@ describe('MCP Serve Route', () => {
       })
       mockGetUserEntityPermissions.mockResolvedValueOnce('write')
 
-      const response = await POST(toolCallRequest({ Authorization: 'Bearer sim_oat_read' }), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(
+        toolCallRequest({ Authorization: 'Bearer sim_oat_read' }),
+        createRouteContext({ serverId: 'server-1' })
+      )
 
       expect(response.status).toBe(403)
       expect(response.headers.get('www-authenticate')).toBe(
@@ -294,7 +286,7 @@ describe('MCP Serve Route', () => {
           headers: { Authorization: 'Bearer sim_oat_offline' },
           body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
         }),
-        { params: Promise.resolve({ serverId: 'server-1' }) }
+        createRouteContext({ serverId: 'server-1' })
       )
 
       expect(response.status).toBe(403)
@@ -309,9 +301,10 @@ describe('MCP Serve Route', () => {
       mockVerifyOAuthAccessToken.mockResolvedValueOnce(OAUTH_WRITE_PRINCIPAL)
       mockGetUserEntityPermissions.mockResolvedValueOnce(null)
 
-      const response = await POST(toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(
+        toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }),
+        createRouteContext({ serverId: 'server-1' })
+      )
 
       expect(response.status).toBe(403)
       expect(mockExecuteWorkflowService).not.toHaveBeenCalled()
@@ -324,9 +317,10 @@ describe('MCP Serve Route', () => {
       mockVerifyOAuthAccessToken.mockResolvedValueOnce(OAUTH_WRITE_PRINCIPAL)
       mockGetUserEntityPermissions.mockResolvedValueOnce('write')
 
-      const response = await POST(toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }), {
-        params: Promise.resolve({ serverId: 'server-1' }),
-      })
+      const response = await POST(
+        toolCallRequest({ Authorization: 'Bearer sim_oat_valid' }),
+        createRouteContext({ serverId: 'server-1' })
+      )
       const body = await response.json()
 
       expect(response.status).toBe(403)
@@ -343,7 +337,7 @@ describe('MCP Serve Route', () => {
 
       const response = await POST(
         toolCallRequest({ Authorization: 'Bearer sim_oat_valid', 'X-API-Key': 'bad-key' }),
-        { params: Promise.resolve({ serverId: 'server-1' }) }
+        createRouteContext({ serverId: 'server-1' })
       )
 
       expect(response.status).toBe(401)
@@ -363,7 +357,7 @@ describe('MCP Serve Route', () => {
     ])
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1')
-    const response = await GET(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await GET(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -390,7 +384,7 @@ describe('MCP Serve Route', () => {
       headers: { accept: 'text/event-stream' },
     })
 
-    const response = await GET(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await GET(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(401)
   })
@@ -413,7 +407,7 @@ describe('MCP Serve Route', () => {
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'DELETE',
     })
-    const response = await DELETE(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await DELETE(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(401)
   })
@@ -466,7 +460,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('application/json')
@@ -522,7 +516,7 @@ describe('MCP Serve Route', () => {
           params: { name: 'tool_a', arguments: { q: 'test' } },
         }),
       })
-      const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+      const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toContain('text/event-stream')
@@ -602,7 +596,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     if (!response.body) throw new Error('Expected MCP event stream')
     const reader = response.body.getReader()
     await reader.read()
@@ -643,7 +637,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(403)
@@ -686,7 +680,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a' },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(200)
     expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
@@ -727,7 +721,7 @@ describe('MCP Serve Route', () => {
           params: { name: 'tool_a' },
         }),
       })
-      const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+      const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
       expect(response.status).toBe(403)
       expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
@@ -761,7 +755,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a' },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     expect(response.status).toBe(500)
     expect(mockSerializeBillingAttributionHeader).not.toHaveBeenCalled()
@@ -785,7 +779,7 @@ describe('MCP Serve Route', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
     })
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(413)
@@ -819,7 +813,7 @@ describe('MCP Serve Route', () => {
     } as RequestInit & { duplex: 'half' })
     const req = new NextRequest(request)
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(413)
@@ -849,7 +843,7 @@ describe('MCP Serve Route', () => {
       }),
     })
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(413)
@@ -891,7 +885,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -937,7 +931,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -981,7 +975,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -1026,7 +1020,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -1070,7 +1064,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -1118,7 +1112,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -1164,7 +1158,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -1208,12 +1202,56 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
     expect(JSON.parse(body.result.content[0].text)).toEqual({ leaked: '[REDACTED_SECRET]' })
     expect(body.result.content[0].text).not.toContain('AUTHOR_TOKEN')
+  })
+
+  it('keeps the author-scoped secret label when the actor is the author', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { leaked: 'decrypted:owner-ciphertext' },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: {
+        ...createResolvedSecretTraceProvenance('owner-1'),
+        entries: [{ name: 'OWNER_TOKEN', encryptedValue: 'owner-ciphertext' }],
+      },
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ leaked: '{{OWNER_TOKEN}}' })
   })
 
   it('refuses a tool result whose provenance was stamped for another workspace', async () => {
@@ -1250,7 +1288,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(500)
@@ -1283,7 +1321,7 @@ describe('MCP Serve Route', () => {
       }),
     })
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(409)
@@ -1325,7 +1363,7 @@ describe('MCP Serve Route', () => {
         params: { name: 'tool_a', arguments: { q: 'test' } },
       }),
     })
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
 
     const body = await response.json()
 
@@ -1367,7 +1405,7 @@ describe('MCP Serve Route', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     })
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -1409,7 +1447,7 @@ describe('MCP Serve Route', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     })
 
-    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const response = await POST(req, createRouteContext({ serverId: 'server-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(413)
@@ -1436,7 +1474,7 @@ describe('MCP Serve Route', () => {
         method: 'POST',
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params }),
       })
-      const res = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+      const res = await POST(req, createRouteContext({ serverId: 'server-1' }))
       return res.json() as Promise<{ result: { protocolVersion: string } }>
     }
 

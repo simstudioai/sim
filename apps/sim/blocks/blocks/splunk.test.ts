@@ -1,8 +1,7 @@
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: () => ({ subBlocks: [] }),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import { SplunkBlock } from '@/blocks/blocks/splunk'
 import { buildSplunkFormBody, buildSplunkUrl } from '@/tools/splunk/utils'

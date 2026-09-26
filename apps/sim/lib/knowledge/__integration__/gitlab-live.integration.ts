@@ -36,6 +36,14 @@ import { serializeSignedCookie } from 'better-call'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+/** Its search-index knowledge bases are read through indexed organization search, dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
+
 import type { EmbedOptions } from '@/lib/embeddings/types'
 
 const fixture = vi.hoisted(() => ({ embeddingCalls: 0 }))
@@ -86,9 +94,9 @@ import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
 import { updateKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import { readSearchDocument } from '@/lib/sim-search/indexed/documents/read-search-document'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { PATCH as updateConnectorRoute } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'

@@ -1,29 +1,14 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  decryptSecretMock,
-  materializeLargeValueRefMock,
-  storeExecutionTraceArchiveMock,
-  mockLogger,
-} = vi.hoisted(() => ({
-  decryptSecretMock: vi.fn(),
-  materializeLargeValueRefMock: vi.fn(),
-  storeExecutionTraceArchiveMock: vi.fn(),
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: decryptSecretMock,
-}))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeExecutionTraceArchive: storeExecutionTraceArchiveMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import {
   copyTraceSpansWithoutCosts,
@@ -38,6 +23,13 @@ import {
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
+
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const storeExecutionTraceArchiveMock = executionPayloadStoreMockFns.mockStoreExecutionTraceArchive
+
+const mockLogger = getMockLogger('TraceStore')
+
+const decryptSecretMock = encryptionMockFns.mockDecryptSecret
 
 const CONTEXT = {
   workspaceId: 'workspace-1',

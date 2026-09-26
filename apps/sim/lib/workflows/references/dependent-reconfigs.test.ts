@@ -1,16 +1,14 @@
+import {
+  searchReplaceIndexerMock,
+  searchReplaceIndexerMockFns,
+} from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetToolInputParamConfigs } = vi.hoisted(() => ({
-  mockGetToolInputParamConfigs: vi.fn(() => [] as unknown[]),
-}))
 
 /**
  * Mocked at the module boundary so these tests stay about the collector's own logic rather
  * than the tool/block registries the real resolver reaches into.
  */
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: mockGetToolInputParamConfigs,
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
 import {
   collectForkDependentReconfigs,
@@ -24,6 +22,8 @@ import {
   EMPTY_FORK_BLOCK_MAP,
 } from '@/ee/workspace-forking/lib/remap/block-identity'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+const { mockGetToolInputParamConfigs } = searchReplaceIndexerMockFns
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Test', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig

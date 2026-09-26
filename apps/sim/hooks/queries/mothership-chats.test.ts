@@ -1,16 +1,11 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
-const { queryClient, suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
+const { suspendBrowserScope, suspendTerminalScope, clearChat } = vi.hoisted(() => ({
   clearChat: vi.fn(),
-  queryClient: {
-    cancelQueries: vi.fn().mockResolvedValue(undefined),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-    getQueryData: vi.fn(),
-    removeQueries: vi.fn(),
-    setQueryData: vi.fn(),
-  },
   suspendBrowserScope: vi.fn(async () => true),
   suspendTerminalScope: vi.fn(async () => true),
 }))
@@ -19,14 +14,7 @@ vi.mock('@/stores/mothership-queue/store', () => ({
   useMothershipQueueStore: { getState: () => ({ clearChat }) },
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  queryOptions: (options: unknown) => options,
-  skipToken: Symbol('skipToken'),
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   suspendBrowserScope,
@@ -38,23 +26,11 @@ vi.mock('@/lib/terminal/transport', () => ({
 
 import { useDeleteMothershipChats, useRemoveChatResource } from '@/hooks/queries/mothership-chats'
 
-function jsonResponse(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    ...init,
-  })
-}
+const queryClient = reactQueryMockFns.mockQueryClient
 
 describe('tasks query boundary parsing', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('waits for slower successful deletions before reconciling a failed batch', async () => {

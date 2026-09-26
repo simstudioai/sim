@@ -1,14 +1,14 @@
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockMaterializeLargeValueRef } = vi.hoisted(() => ({
-  mockMaterializeLargeValueRef: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: mockMaterializeLargeValueRef,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
+
+const mockMaterializeLargeValueRef = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
 
 describe('warmLargeValueRefs', () => {
   it('does not warm manifest chunks before explicit navigation', async () => {

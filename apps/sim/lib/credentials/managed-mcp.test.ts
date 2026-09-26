@@ -1,28 +1,31 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingWorkspaceAccessMock } from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ lock: vi.fn() }))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  lockCredentialGroupEnrollmentLifecycle: mocks.lock,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn().mockResolvedValue({ encrypted: 'encrypted-token-set' }),
-  decryptSecret: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import {
   persistManagedMcpCredential,
   saveManagedMcpRuntimeTokens,
   saveManagedMcpToolSnapshot,
 } from '@/lib/credentials/managed-mcp'
+
+const mocks = {
+  lock: credentialGroupsEnrollmentsMockFns.mockLockCredentialGroupEnrollmentLifecycle,
+}
+
+encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-token-set' })
 
 const input = {
   organizationId: 'org-1',

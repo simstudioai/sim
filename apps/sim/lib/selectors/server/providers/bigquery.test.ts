@@ -1,17 +1,21 @@
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { bigQuerySelectorAttachments } from '@/lib/selectors/server/providers/bigquery'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 const PROJECT_ID = 'selector-test'
 const DATASET_ID = 'analytics'

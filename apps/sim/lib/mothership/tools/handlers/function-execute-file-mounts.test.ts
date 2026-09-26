@@ -1,51 +1,38 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  file: vi.fn(),
-  list: vi.fn(),
-  context: vi.fn(),
-  buffer: vi.fn(),
-  permission: vi.fn(),
-  cloud: vi.fn(),
-  presign: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
-  decrypt: vi.fn(),
   attachment: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/application/read-attachment', () => ({
-  readChatAttachment: { execute: mocks.attachment },
+  readChatAttachment: { execute: hoisted.attachment },
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual === 'read',
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.file,
-  fetchWorkspaceFileBuffer: mocks.buffer,
-  loadActiveWorkspaceFileContext: mocks.context,
-  findWorkspaceFileRecord: (files: { id: string }[], id: string) =>
-    files.find((file) => file.id === id),
-  getSandboxWorkspaceFilePath: () => '/home/user/files/source.txt',
-  parseChatUploadReference: () => null,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mocks.file,
-  fetchWorkspaceFileBuffer: mocks.buffer,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { execute: mocks.list },
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.render,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.render,
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mocks.cloud,
-  generatePresignedDownloadUrl: mocks.presign,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/tools', () => toolsMock)
 
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -53,6 +40,29 @@ import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  list: workspaceFilesListMockFns.mockListAllWorkspaceFiles,
+  file: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  context: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  buffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  cloud: storageServiceMockFns.mockHasCloudStorage,
+  presign: storageServiceMockFns.mockGeneratePresignedDownloadUrl,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+}
+
+/** Reinstalls the file-manager helpers this suite fixes, after `vi.resetAllMocks()` restores defaults. */
+function pinFileManagerHelpers() {
+  workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
+    (files: { id: string }[], id: string) => files.find((candidate) => candidate.id === id)
+  )
+  workspaceFileManagerMockFns.mockGetSandboxWorkspaceFilePath.mockReturnValue(
+    '/home/user/files/source.txt'
+  )
+  workspaceFileManagerMockFns.mockParseChatUploadReference.mockReturnValue(null)
+}
 
 const revision = new Date('2026-09-06T00:00:00Z')
 const content = 'FILE_MOUNT_TEST_SECRET'
@@ -112,6 +122,7 @@ function mountedBytes(mounts: SandboxFile[]) {
 describe('Mothership file mounts bind content and classification to the same record', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    pinFileManagerHelpers()
     resetDbChainMock()
     mocks.file.mockResolvedValue(file)
     mocks.list.mockResolvedValue({ files: [file] })
@@ -289,7 +300,7 @@ describe('Mothership file mounts bind content and classification to the same rec
     mocks.buffer.mockRejectedValue(new Error('Storage unavailable'))
     await expect(
       readWorkspaceFileMount.execute({
-        principal: { kind: 'session', userId: 'reader', sessionId: 'fixture' },
+        principal: createSessionPrincipal({ userId: 'reader', sessionId: 'fixture' }),
         input: {
           fileId: 'file',
           assertedWorkspaceId: 'workspace',
@@ -306,6 +317,7 @@ describe('Mothership file mounts bind content and classification to the same rec
 describe('organization-owned upload mounts', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    pinFileManagerHelpers()
     mocks.attachment.mockResolvedValue({
       id: 'upload',
       name: 'data.txt',

@@ -1,14 +1,10 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetch, MOCK_MAX_JSON_BYTES } = vi.hoisted(() => ({
-  mockSecureFetch: vi.fn(),
-  MOCK_MAX_JSON_BYTES: 10 * 1024 * 1024,
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetch,
-  MAX_JSON_API_RESPONSE_BYTES: MOCK_MAX_JSON_BYTES,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   assertSafeExternalUrl,
@@ -17,6 +13,8 @@ import {
   invokeSapConcurMultipart,
 } from '@/lib/internal/sap-concur/client'
 import { type SapConcurAuth, sapConcurApiPathSchema } from '@/lib/internal/sap-concur/schema'
+
+const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 
 const CLIENT_SECRET = 'super-secret-client-value'
 const PASSWORD = 'hunter2-plaintext-password'

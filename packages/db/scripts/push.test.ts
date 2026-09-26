@@ -26,8 +26,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.unstubAllEnvs()
   if (stdinTty) Object.defineProperty(process.stdin, 'isTTY', stdinTty)
   else Reflect.deleteProperty(process.stdin, 'isTTY')
   if (stdoutTty) Object.defineProperty(process.stdout, 'isTTY', stdoutTty)

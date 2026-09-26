@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_APP_URL = 'https://test.sim.ai'
 })
-/** Resolves every request to one loopback client so the per-IP token bucket applies. */
+/** Each case resolves its requests to its own client IP so the per-IP token bucket applies. */
 vi.mock('@/lib/core/utils/request', async () => (await import('@sim/testing')).requestUtilsMock)
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
@@ -16,19 +16,16 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
 interface TokenResponseBody {
   access_token: string
   refresh_token: string
   scope: string
 }
 
-describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
+describe('OAuth token route in PostgreSQL', () => {
   it.each(['http://127.0.0.1:48881/callback', 'cursor://anysphere.cursor-mcp/oauth/callback'])(
     'persists Search audiences through native PKCE issuance and refresh with %s',
     async (redirectUri) => {
-      process.env.DATABASE_URL = databaseUrl
       const authSecret = 'test-secret-that-is-at-least-32-chars-long'
       process.env.BETTER_AUTH_SECRET = authSecret
       const [
@@ -39,6 +36,7 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
         { auth },
         { POST: tokenRoute },
         tokenStore,
+        { requestUtilsMockFns },
       ] = await Promise.all([
         import('@sim/db'),
         import('@sim/db/schema'),
@@ -47,8 +45,12 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
         import('@/lib/auth'),
         import('@/app/api/auth/oauth2/token/route'),
         import('@/lib/auth/oauth-access-token'),
+        import('@sim/testing/mocks/request.mock'),
       ])
       const POST = (request: NextRequest) => tokenRoute(request, {})
+      /** A fresh TEST-NET-2 address per case, so reruns never draw on an earlier run's bucket. */
+      const clientIp = `198.51.100.${(randomBytes(1)[0] % 254) + 1}`
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
       const userId = generateId()
       const clientId = generateId()
       const sessionId = generateId()
@@ -252,13 +254,16 @@ describe.skipIf(!databaseUrl)('OAuth token route in PostgreSQL', () => {
         await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
         await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
         await db.delete(schema.user).where(eq(schema.user.id, userId))
+        await db
+          .delete(schema.rateLimitBucket)
+          .where(eq(schema.rateLimitBucket.key, `route:oauth-provider-token:ip:${clientIp}`))
+        requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
       }
     },
     30_000
   )
 
   it('issues, rotates, contains replay, and revokes a real Better Auth PKCE grant', async () => {
-    process.env.DATABASE_URL = databaseUrl
     const authSecret = 'test-secret-that-is-at-least-32-chars-long'
     process.env.BETTER_AUTH_SECRET = authSecret
 

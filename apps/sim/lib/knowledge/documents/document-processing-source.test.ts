@@ -8,38 +8,34 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
+import { getAllMockLoggers, getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { tasks } from '@trigger.dev/sdk'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckAttributedUsageLimits,
-  mockBatchTrigger,
-  mockGenerateEmbeddings,
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
+
   mockGetEmbeddingModelInfo,
-  mockGetFileMetadataByKeys,
-  mockLogError,
+
   mockProcessDocument,
-  mockTrigger,
 } = vi.hoisted(() => ({
   mockCheckAttributedUsageLimits: vi.fn(),
-  mockBatchTrigger: vi.fn(),
-  mockGenerateEmbeddings: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetEmbeddingModelInfo: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
-  mockLogError: vi.fn(),
   mockProcessDocument: vi.fn(),
-  mockTrigger: vi.fn(),
-}))
-
-vi.mock('@sim/logger', async () => {
-  const { createMockLogger, loggerMock } = await import('@sim/testing/mocks/logger.mock')
-  return { ...loggerMock, createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
-})
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
 }))
 
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
@@ -52,23 +48,16 @@ vi.mock('@/lib/knowledge/embedding-models', () => ({
   getEmbeddingModelInfo: mockGetEmbeddingModelInfo,
 }))
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: mockGenerateEmbeddings,
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenanceByMetadata:
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: vi.fn(),
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import * as billingAttribution from '@/lib/billing/core/billing-attribution'
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
@@ -90,6 +79,17 @@ import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/do
 import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
+
+const mockGenerateEmbeddings = knowledgeEmbeddingsMockFns.mockGenerateEmbeddings
+
+const mockBatchTrigger = vi.mocked(tasks.batchTrigger)
+const mockTrigger = vi.mocked(tasks.trigger)
+
+const { error: mockLogError } = getMockLogger('DocumentService')
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockGetBoundWorkspaceFileSecretProvenanceByMetadata =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
@@ -654,7 +654,7 @@ describe('processDocumentAsync write guards', () => {
         message: 'Database request failed (SQLSTATE 57014).',
       },
     })
-    const logs = JSON.stringify(mockLogError.mock.calls)
+    const logs = JSON.stringify(getAllMockLoggers().flatMap((logger) => logger.error.mock.calls))
     expect(logs).not.toContain('private')
     expect(logs).not.toContain('0.123456789')
     expect(guardForStatusWrite('failed')).toBeDefined()
@@ -1107,7 +1107,6 @@ describe('in-process quota continuation dispatch', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     resetInsideTriggerRunForTests()
     resetEnvFlagsMock()
   })

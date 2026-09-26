@@ -3,7 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
@@ -76,10 +76,6 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
 }
 
 describe('usePromptEditor context insertion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
     const context = {
       kind: 'file_selection',
@@ -170,6 +166,80 @@ it('preserves an explicit cross-workspace resource owner in the organization men
     expect(result().getActiveContexts()).toEqual([
       { kind: 'file', fileId: 'report.csv', label: 'Report · Finance', workspaceId: 'finance' },
     ])
+  } finally {
+    unmount()
+  }
+})
+
+it('keeps a copied organization resource chip addressed to its owner workspace on paste', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'table',
+        id: 'table-1',
+        title: 'Accounts',
+        workspaceId: 'sales',
+      })
+    )
+    textarea.value = result().value
+    textarea.setSelectionRange(0, textarea.value.length)
+    let copied = ''
+    act(() => {
+      result().handleCopy({
+        currentTarget: textarea,
+        clipboardData: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          },
+        },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    act(() => result().clear())
+    textarea.value = ''
+    textarea.setSelectionRange(0, 0)
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? copied : '') },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(result().contexts).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'sales' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('pastes a chip link with a malformed owner as the plain text it is', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  let nativePasteCancelled = false
+  try {
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? '[Notes](sim:file/file-1?workspace=100%)' : '',
+        },
+        preventDefault: () => {
+          nativePasteCancelled = true
+        },
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+    expect(nativePasteCancelled).toBe(false)
+    expect(result().contexts).toEqual([])
   } finally {
     unmount()
   }

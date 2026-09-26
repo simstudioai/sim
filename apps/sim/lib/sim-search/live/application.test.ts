@@ -1,10 +1,17 @@
 import { resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
-  permission: vi.fn(),
-  context: vi.fn(),
   accounts: vi.fn(),
   resolveAccount: vi.fn(),
   search: vi.fn(),
@@ -17,9 +24,7 @@ const mocks = vi.hoisted(() => ({
   service: vi.fn(),
   destroyPool: vi.fn(),
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedConnectionPool: () => ({ agent: vi.fn(), destroy: mocks.destroyPool }),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/sim-search/live/service-session', () => ({
   createLiveServiceSession: mocks.service,
 }))
@@ -37,18 +42,8 @@ vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   searchCodaMcp: vi.fn(),
   readCodaMcp: vi.fn(),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isLiveEnterpriseSearchEnabled() {
-    return mocks.enabled
-  },
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: mocks.context,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/sim-search/live/accounts', () => ({
   listLiveAccounts: mocks.accounts,
   resolveLiveAccount: mocks.resolveAccount,
@@ -78,7 +73,15 @@ import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 's' } as const
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+inputValidationMockFns.mockCreatePinnedConnectionPool.mockImplementation(() => ({
+  agent: vi.fn(),
+  destroy: mocks.destroyPool,
+}))
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 's' })
 const input = { workspaceId: 'workspace', query: 'launch', topK: 20 }
 const account = {
   id: 'account',
@@ -99,15 +102,14 @@ const document = {
 describe('authorized live retrieval', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.enabled = true
     mocks.service.mockResolvedValue(undefined)
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'payer',
     })
-    mocks.permission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.accounts.mockResolvedValue([account])
     mocks.resolveAccount.mockResolvedValue({ account, accessToken: 'secret' })
     mocks.search.mockResolvedValue({ documents: [document] })
@@ -364,7 +366,7 @@ describe('authorized live retrieval', () => {
     expect(mocks.read).toHaveBeenCalledOnce()
   })
   it('rejects nonmembers before account discovery or provider calls', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(searchLiveKnowledge.execute({ principal, input })).rejects.toThrow(
       'Insufficient workspace'
     )

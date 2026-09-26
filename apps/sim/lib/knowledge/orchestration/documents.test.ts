@@ -1,58 +1,17 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCaptureServerEvent,
-  mockCreateDocumentRecords,
-  mockCreateSingleDocument,
-  mockDeleteDocument,
-  mockGetDocumentByUploadId,
-  mockMarkDocumentAsFailedTimeout,
-  mockProcessDocumentAsync,
-  mockProcessDocumentsWithQueue,
-  mockPlatformUpload,
-  mockRecordAudit,
-  mockRetryDocumentProcessing,
-  mockUpdateDocument,
-} = vi.hoisted(() => ({
-  mockCaptureServerEvent: vi.fn(),
-  mockCreateDocumentRecords: vi.fn(),
-  mockCreateSingleDocument: vi.fn(),
-  mockDeleteDocument: vi.fn(),
-  mockGetDocumentByUploadId: vi.fn(),
-  mockMarkDocumentAsFailedTimeout: vi.fn(),
-  mockProcessDocumentAsync: vi.fn(),
-  mockProcessDocumentsWithQueue: vi.fn(),
-  mockPlatformUpload: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockRetryDocumentProcessing: vi.fn(),
-  mockUpdateDocument: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    DOCUMENT_UPLOADED: 'document.uploaded',
-    DOCUMENT_UPDATED: 'document.updated',
-    DOCUMENT_DELETED: 'document.deleted',
-  },
-  AuditResourceType: { DOCUMENT: 'document' },
-  recordAudit: mockRecordAudit,
-}))
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mockPlatformUpload },
-}))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createDocumentRecords: mockCreateDocumentRecords,
-  createSingleDocument: mockCreateSingleDocument,
-  deleteDocument: mockDeleteDocument,
-  getDocumentByUploadId: mockGetDocumentByUploadId,
-  markDocumentAsFailedTimeout: mockMarkDocumentAsFailedTimeout,
-  processDocumentAsync: mockProcessDocumentAsync,
-  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
-  retryDocumentProcessing: mockRetryDocumentProcessing,
-  updateDocument: mockUpdateDocument,
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -60,6 +19,20 @@ import {
   performRetryKnowledgeDocumentProcessing,
   performUploadKnowledgeDocument,
 } from '@/lib/knowledge/orchestration/documents'
+
+const mockCreateDocumentRecords = knowledgeDocumentsServiceMockFns.mockCreateDocumentRecords
+const mockCreateSingleDocument = knowledgeDocumentsServiceMockFns.mockCreateSingleDocument
+const mockDeleteDocument = knowledgeDocumentsServiceMockFns.mockDeleteDocument
+const mockGetDocumentByUploadId = knowledgeDocumentsServiceMockFns.mockGetDocumentByUploadId
+const mockMarkDocumentAsFailedTimeout =
+  knowledgeDocumentsServiceMockFns.mockMarkDocumentAsFailedTimeout
+const mockProcessDocumentAsync = knowledgeDocumentsServiceMockFns.mockProcessDocumentAsync
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+const mockRetryDocumentProcessing = knowledgeDocumentsServiceMockFns.mockRetryDocumentProcessing
+const mockUpdateDocument = knowledgeDocumentsServiceMockFns.mockUpdateDocument
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const FILE = {

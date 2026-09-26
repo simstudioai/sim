@@ -1,35 +1,35 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreatePinnedFetchWithDispatcher,
-  mockCreateSsrfGuardedMcpFetch,
-  mockPinnedFetch,
-  mockGuardedFetch,
-  mockDestroy,
-} = vi.hoisted(() => {
-  const mockPinnedFetch = vi.fn()
-  const mockGuardedFetch = vi.fn()
-  const mockDestroy = vi.fn(() => Promise.resolve())
-  return {
-    mockPinnedFetch,
-    mockGuardedFetch,
-    mockDestroy,
-    mockCreatePinnedFetchWithDispatcher: vi.fn(() => ({
-      fetch: mockPinnedFetch,
-      dispatcher: { destroy: mockDestroy },
-    })),
-    mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
-  }
-})
+const { mockCreateSsrfGuardedMcpFetch, mockPinnedFetch, mockGuardedFetch, mockDestroy } =
+  vi.hoisted(() => {
+    const mockPinnedFetch = vi.fn()
+    const mockGuardedFetch = vi.fn()
+    const mockDestroy = vi.fn(() => Promise.resolve())
+    return {
+      mockPinnedFetch,
+      mockGuardedFetch,
+      mockDestroy,
+      mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
+    }
+  })
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createSsrfGuardedMcpFetch: mockCreateSsrfGuardedMcpFetch,
 }))
 
 import { detectMcpAuthType } from '@/lib/mcp/oauth/probe'
+
+const mockCreatePinnedFetchWithDispatcher =
+  inputValidationMockFns.mockCreatePinnedFetchWithDispatcher
+mockCreatePinnedFetchWithDispatcher.mockImplementation(() => ({
+  fetch: mockPinnedFetch,
+  dispatcher: { destroy: mockDestroy },
+}))
 
 function makeResponse(init: { status?: number; headers?: Record<string, string> }): Response {
   const status = init.status ?? 200

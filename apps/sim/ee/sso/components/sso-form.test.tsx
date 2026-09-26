@@ -2,21 +2,16 @@
  * @vitest-environment jsdom
  */
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { envMockFns, resetEnvMock } from '@sim/testing/mocks/env.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToString } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSsoSignIn, mockUseSearchParams, mockRequestJson } = vi.hoisted(() => ({
-  mockSsoSignIn: vi.fn(),
-  mockUseSearchParams: vi.fn(),
-  mockRequestJson: vi.fn(),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: mockUseSearchParams,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
@@ -35,9 +30,7 @@ vi.mock('@sim/emcn', () => ({
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { signIn: { sso: mockSsoSignIn } },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/(auth)/components', () => ({
   AuthFormMessage: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -58,12 +51,13 @@ vi.mock('@/app/(auth)/components', () => ({
   ),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: () => 'true',
-  isFalsy: (value: unknown) => value === undefined || value === 'false',
-}))
-
 import SSOForm from '@/ee/sso/components/sso-form'
+
+const mockSsoSignIn = authClientMockFns.mockClient.signIn.sso
+
+const mockUseSearchParams = nextNavigationMockFns.mockUseSearchParams
+envMockFns.getEnv.mockReturnValue('true')
+afterAll(resetEnvMock)
 
 function renderFirstFrame(search: string): string {
   mockUseSearchParams.mockReturnValue(new URLSearchParams(search))

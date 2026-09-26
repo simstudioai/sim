@@ -6,11 +6,12 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   deleteCredential: vi.fn(),
-  capture: vi.fn(),
   revokeQuickBooksToken: vi.fn(),
   decryptClientConfig: vi.fn(),
 }))
@@ -35,7 +36,7 @@ vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
   decryptQuickBooksOAuthClientConfig: mocks.decryptClientConfig,
   QuickBooksOAuthClientConfigurationError: class QuickBooksOAuthClientConfigurationError extends Error {},
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { disconnectOAuthUseCase } from '@/lib/credentials/application/oauth-accounts'
 import { QuickBooksTokenRevocationError } from '@/lib/oauth/quickbooks'
@@ -56,7 +57,7 @@ const firstCredential = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
 
-const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const PRINCIPAL = createSessionPrincipal()
 
 describe('OAuth account application operations', () => {
   beforeEach(() => {

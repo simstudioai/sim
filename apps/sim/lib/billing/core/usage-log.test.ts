@@ -1,20 +1,21 @@
 import { usageLog } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetHighestPrioritySubscription,
   mockInsert,
-  mockIsOrgScopedSubscription,
   mockOnConflictDoNothing,
   mockReturning,
   mockValues,
   mockTransaction,
   mockUpdate,
 } = vi.hoisted(() => ({
-  mockGetHighestPrioritySubscription: vi.fn(),
   mockInsert: vi.fn(),
-  mockIsOrgScopedSubscription: vi.fn(),
   mockOnConflictDoNothing: vi.fn(),
   mockReturning: vi.fn(),
   mockValues: vi.fn(),
@@ -22,13 +23,9 @@ const {
   mockUpdate: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
@@ -46,6 +43,9 @@ import {
   UNKNOWN_CURSOR_MESSAGE,
   UnknownUsageCursorError,
 } from '@/lib/billing/core/usage-log'
+
+const mockGetHighestPrioritySubscription = billingPlanMockFns.mockGetHighestPrioritySubscription
+const mockIsOrgScopedSubscription = billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription
 
 /**
  * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared

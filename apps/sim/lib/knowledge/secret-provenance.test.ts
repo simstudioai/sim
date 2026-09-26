@@ -1,5 +1,6 @@
 import { document, embedding } from '@sim/db/schema'
 import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -12,15 +13,14 @@ import {
 } from '@/lib/knowledge/secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockDecryptSecret, mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+
+const { mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
   mockReportWrite: vi.fn(),
   mockReportRefusal: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceWrite: mockReportWrite,

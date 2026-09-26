@@ -1,16 +1,22 @@
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getGmailMailboxEmail, gmailThreadUrl } from '@/connectors/gmail/mailbox'
 
 const { transport } = vi.hoisted(() => ({ transport: vi.fn<typeof fetch>() }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (
     url: string,
     init: RequestInit,
     options: {
       fetcher: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
     }
-  ) => options.fetcher(url, init, transport),
-}))
+  ) => options.fetcher(url, init, transport)
+)
 
 beforeEach(() => {
   transport.mockReset()

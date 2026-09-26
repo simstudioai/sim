@@ -1,18 +1,16 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
 const PLACEHOLDER_PASSWORD = 'not-a-real-password'
 
-const { mockValidateUrlWithDNS, mockSecureFetch } = vi.hoisted(() => ({
-  mockValidateUrlWithDNS: vi.fn(),
-  mockSecureFetch: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-  secureFetchWithPinnedIP: mockSecureFetch,
-}))
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP: mockSecureFetch } =
+  inputValidationMockFns
 
 import {
   AgiloftAlrestError,

@@ -1,5 +1,5 @@
 import JSZip, { type JSZipObject } from 'jszip'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { FileParserError } from '@/lib/file-parsers/errors'
 import { MAX_OFFICE_XML_PART_BYTES } from '@/lib/file-parsers/office-text'
 import { extractPresentationText } from '@/lib/file-parsers/ooxml-presentation'
@@ -97,10 +97,6 @@ function diagramDataXml(points: string[]): string {
 const _CHART_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:title><c:tx><c:rich><a:p><a:r><a:t>Revenue by </a:t></a:r><a:r><a:t>quarter</a:t></a:r></a:p></c:rich></c:tx></c:title><c:plotArea><c:barChart><c:ser><c:idx val="0"/><c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:pt idx="0"><c:v>Sales</c:v></c:pt></c:strCache></c:strRef></c:tx><c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>1st Qtr</c:v></c:pt><c:pt idx="1"><c:v>2nd Qtr</c:v></c:pt></c:strCache></c:strRef></c:cat><c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>10</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser><c:ser><c:idx val="1"/><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>Costs</c:v></c:pt></c:strCache></c:strRef></c:tx><c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>1st Qtr</c:v></c:pt><c:pt idx="1"><c:v>2nd Qtr</c:v></c:pt></c:strCache></c:strRef></c:cat></c:ser></c:barChart><c:catAx><c:axId val="1"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title></c:catAx><c:valAx><c:axId val="2"/></c:valAx></c:plotArea></c:chart></c:chartSpace>`
 
 describe('extractPresentationText', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('walks the fallback branch of an AlternateContent wrapper, else its first choice', async () => {
     const spTree =
       `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x">${shape('Choice text')}</mc:Choice><mc:Fallback>${shape('Fallback text')}</mc:Fallback></mc:AlternateContent>` +

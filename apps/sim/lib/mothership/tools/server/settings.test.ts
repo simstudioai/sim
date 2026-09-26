@@ -1,4 +1,8 @@
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const resolve = vi.hoisted(() => vi.fn())
@@ -6,10 +10,7 @@ const sectionAccess = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/settings/application/organization-section-access', () => ({
   authorizeOrganizationSettingsSection: sectionAccess,
 }))
-const searchAvailable = vi.hoisted(() => vi.fn(() => Promise.resolve(false)))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: searchAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/mothership/application/settings-context', () => ({
   resolveSettingsContext: resolve,
 }))
@@ -31,6 +32,9 @@ import {
   updateOrganizationSettings,
 } from '@/lib/organizations/application/settings'
 import { updateCurrentUserPreferences } from '@/lib/users/application/preferences'
+
+const searchAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
+searchAvailable.mockResolvedValue(false)
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -69,7 +73,6 @@ const drain = {
 
 describe('settings tool dispatch', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     searchAvailable.mockResolvedValue(false)
     sectionAccess.mockResolvedValue(true)
     resolve

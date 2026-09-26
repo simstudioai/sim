@@ -1,43 +1,40 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   clickupUpload: vi.fn(),
   dataverseUpload: vi.fn(),
   discordSend: vi.fn(),
   downloadPipedriveFile: vi.fn(),
-  downloadServableFile: vi.fn(),
-  downloadServableFiles: vi.fn(),
-  isModelSafeWorkspaceFileKey: vi.fn(),
   linqRegister: vi.fn(),
   linqUpload: vi.fn(),
   listPipedriveFiles: vi.fn(),
-  processFiles: vi.fn(),
-  processSingleFile: vi.fn(),
   serviceNowUpload: vi.fn(),
   validateOpaqueModelInputProvenance: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getFileExtension: (name: string) => name.split('.').pop() || '',
-  getMimeTypeFromExtension: () => 'application/octet-stream',
-  processFilesToUserFiles: mocks.processFiles,
-  processSingleFileToUserFile: mocks.processSingleFile,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFile,
-  downloadServableFilesWithinBudget: mocks.downloadServableFiles,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 vi.mock('@/lib/execution/model-input-provenance', () => ({
   validateOpaqueModelInputProvenance: mocks.validateOpaqueModelInputProvenance,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mocks.isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE: 'File may contain private data',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 vi.mock('@/lib/internal/clickup/client', () => ({
   uploadClickUpAttachment: mocks.clickupUpload,
 }))
@@ -68,6 +65,17 @@ import { executeServiceNowUploadAttachment } from '@/lib/internal/servicenow/ope
 import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
+const mockIsModelSafeWorkspaceFileKey =
+  workspaceFileSecretProvenanceMockFns.mockIsModelSafeWorkspaceFileKey
+const mockDownloadServableFileFromStorage =
+  fileUtilsServerMockFns.mockDownloadServableFileFromStorage
+const mockDownloadServableFilesWithinBudget =
+  fileUtilsServerMockFns.mockDownloadServableFilesWithinBudget
+const mockProcessFilesToUserFiles = fileUtilsMockFns.mockProcessFilesToUserFiles
+const mockProcessSingleFileToUserFile = fileUtilsMockFns.mockProcessSingleFileToUserFile
+const mockAssertToolFileAccess = filesAuthorizationMockFns.mockAssertToolFileAccess
+fileUtilsMockFns.mockGetMimeTypeFromExtension.mockReturnValue('application/octet-stream')
+
 const FILE = {
   id: 'file-1',
   key: 'workspace/workspace-1/file-1',
@@ -79,18 +87,18 @@ const FILE = {
 
 describe('file and message operation security', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.processFiles.mockReturnValue([FILE])
-    mocks.processSingleFile.mockReturnValue(FILE)
-    mocks.downloadServableFile.mockResolvedValue({
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockProcessFilesToUserFiles.mockReturnValue([FILE])
+    mockProcessSingleFileToUserFile.mockReturnValue(FILE)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('abc'),
       contentType: 'text/plain',
     })
-    mocks.downloadServableFiles.mockResolvedValue([
+    mockDownloadServableFilesWithinBudget.mockResolvedValue([
       { buffer: Buffer.from('abc'), contentType: 'text/plain' },
     ])
     mocks.validateOpaqueModelInputProvenance.mockReturnValue({ success: true })
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
     mocks.clickupUpload.mockResolvedValue({ id: 'attachment-1' })
     mocks.discordSend.mockResolvedValue({ id: 'message-1', content: 'hello' })
     mocks.linqRegister.mockResolvedValue({
@@ -113,13 +121,13 @@ describe('file and message operation security', () => {
       { requestId: 'request-1', signal: controller.signal, userId: 'user-1' }
     )
 
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       FILE.key,
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.downloadServableFile).toHaveBeenCalledWith(
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledWith(
       FILE,
       'request-1',
       expect.anything(),
@@ -135,8 +143,8 @@ describe('file and message operation security', () => {
 
   it('uses sequential authorization before Discord bounded materialization', async () => {
     const secondFile = { ...FILE, id: 'file-2', key: 'workspace/workspace-1/file-2' }
-    mocks.processFiles.mockReturnValue([FILE, secondFile])
-    mocks.downloadServableFiles.mockResolvedValue([
+    mockProcessFilesToUserFiles.mockReturnValue([FILE, secondFile])
+    mockDownloadServableFilesWithinBudget.mockResolvedValue([
       { buffer: Buffer.from('abc'), contentType: 'text/plain' },
       { buffer: Buffer.from('def'), contentType: 'text/plain' },
     ])
@@ -151,11 +159,11 @@ describe('file and message operation security', () => {
       { requestId: 'request-1', userId: 'user-1' }
     )
 
-    expect(mocks.assertToolFileAccess.mock.calls.map(([key]) => key)).toEqual([
+    expect(mockAssertToolFileAccess.mock.calls.map(([key]) => key)).toEqual([
       FILE.key,
       secondFile.key,
     ])
-    expect(mocks.downloadServableFiles).toHaveBeenCalledWith(
+    expect(mockDownloadServableFilesWithinBudget).toHaveBeenCalledWith(
       [FILE, secondFile],
       'request-1',
       expect.anything(),
@@ -176,7 +184,7 @@ describe('file and message operation security', () => {
         { headers: new Headers(), requestId: 'request-1', userId: 'user-1' }
       )
     ).rejects.toEqual(expect.objectContaining<LinqOperationError>({ status: 403 }))
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
   })
 
   it('preserves Dataverse legacy base64 while forwarding cancellation to the provider', async () => {
@@ -199,7 +207,7 @@ describe('file and message operation security', () => {
       Buffer.from('a'),
       controller.signal
     )
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
   })
 
   it('keeps the exact ServiceNow missing-file contract', async () => {

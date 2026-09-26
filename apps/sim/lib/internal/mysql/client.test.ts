@@ -1,15 +1,17 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateConnection, mockNetConnect, mockTypedParameterNull, mockValidateDatabaseHost } =
-  vi.hoisted(() => {
-    class MockTypedParameter {}
-    return {
-      mockCreateConnection: vi.fn(),
-      mockNetConnect: vi.fn(),
-      mockTypedParameterNull: vi.fn(() => new MockTypedParameter()),
-      mockValidateDatabaseHost: vi.fn(),
-    }
-  })
+const { mockCreateConnection, mockNetConnect, mockTypedParameterNull } = vi.hoisted(() => {
+  class MockTypedParameter {}
+  return {
+    mockCreateConnection: vi.fn(),
+    mockNetConnect: vi.fn(),
+    mockTypedParameterNull: vi.fn(() => new MockTypedParameter()),
+  }
+})
 
 vi.mock('node:net', () => ({
   default: { connect: mockNetConnect },
@@ -22,15 +24,15 @@ vi.mock('mysql2/promise', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createMysqlConnection,
   executeMysqlCommand,
   type MysqlConnectionConfig,
 } from '@/lib/internal/mysql/client'
+
+const { mockValidateDatabaseHost } = inputValidationMockFns
 
 const CONNECTION_CONFIG: MysqlConnectionConfig = {
   host: 'db.example.com',

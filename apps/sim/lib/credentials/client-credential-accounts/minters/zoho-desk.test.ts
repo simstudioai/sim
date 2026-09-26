@@ -1,30 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCanonicalScopesForProvider } = vi.hoisted(() => ({
-  mockGetCanonicalScopesForProvider: vi.fn(),
-}))
-
-vi.mock('@/lib/oauth/utils', () => ({
-  getCanonicalScopesForProvider: mockGetCanonicalScopesForProvider,
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
+
+const mockGetCanonicalScopesForProvider = oauthUtilsMockFns.mockGetCanonicalScopesForProvider
 
 const TOKEN_URL = 'https://accounts.zoho.com/oauth/v2/token'
 
 const SCOPES = ['Desk.tickets.READ', 'Desk.contacts.READ', 'aaaserver.profile.READ']
 
 const FIELDS = { clientId: 'zoho-cid', clientSecret: 'zoho-secret', orgId: '600123456' }
-
-function jsonResponse(status: number, body: unknown): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response
-}
 
 const mockFetch = vi.fn()
 
@@ -42,13 +30,9 @@ describe('mintZohoDeskServiceAccountToken', () => {
     mockGetCanonicalScopesForProvider.mockReturnValue(SCOPES)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('returns the minted token, derived Desk base, scopes, and identity on success', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         access_token: 'zoho-access',
         api_domain: 'https://www.zohoapis.com',
         token_type: 'Bearer',
@@ -78,7 +62,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('sends client_credentials with a COMMA-separated scope list and a ZohoDesk-prefixed soid', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ access_token: 'zoho-access' }))
 
     await mintZohoDeskServiceAccountToken(FIELDS)
 
@@ -95,7 +79,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('passes an already-prefixed soid through unchanged', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ access_token: 'zoho-access' }))
 
     await mintZohoDeskServiceAccountToken({ ...FIELDS, orgId: ' ZohoCRM.600123456 ' })
 
@@ -104,7 +88,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
 
   it('falls back to the selected Desk base when api_domain is not a Zoho host', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { access_token: 'a', api_domain: 'https://zoho.attacker.com' })
+      jsonResponse({ access_token: 'a', api_domain: 'https://zoho.attacker.com' })
     )
 
     const result = await mintZohoDeskServiceAccountToken(FIELDS, { skipIdentity: true })
@@ -113,7 +97,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('accepts the region code with surrounding whitespace and mixed case', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ access_token: 'zoho-access' }))
 
     const result = await mintZohoDeskServiceAccountToken(
       { ...FIELDS, dataCenter: '  EU ' },
@@ -125,7 +109,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it.each(['   '])('defaults to the US data center when dataCenter is %j', async (dataCenter) => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { access_token: 'zoho-access' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ access_token: 'zoho-access' }))
 
     const result = await mintZohoDeskServiceAccountToken(
       { ...FIELDS, dataCenter },
@@ -152,7 +136,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
 
   it('prefers an allowlisted api_domain over the selected region', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { access_token: 'zoho-access', api_domain: 'https://www.zohoapis.in' })
+      jsonResponse({ access_token: 'zoho-access', api_domain: 'https://www.zohoapis.in' })
     )
 
     const result = await mintZohoDeskServiceAccountToken(
@@ -177,7 +161,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('throws invalid_credentials on an HTTP 200 body carrying an error field', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { error: 'invalid_client' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'invalid_client' }))
 
     await expect(mintZohoDeskServiceAccountToken(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
@@ -195,7 +179,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('throws invalid_credentials on a 401', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: 'unauthorized' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'unauthorized' }, 401))
 
     await expect(mintZohoDeskServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'invalid_credentials',
@@ -204,7 +188,7 @@ describe('mintZohoDeskServiceAccountToken', () => {
   })
 
   it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(429, { error: 'too_many_requests' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'too_many_requests' }, 429))
 
     await expect(mintZohoDeskServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',

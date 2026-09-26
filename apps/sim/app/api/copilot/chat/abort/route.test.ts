@@ -1,22 +1,33 @@
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAbortActiveStream,
-  mockAuthenticate,
-  mockGetLatestRunForStream,
   mockReleasePendingChatStream,
   mockRequestExplicitStreamAbort,
   mockWaitForPendingChatStream,
-  mockStreamToolsSettled,
-  mockUnsettledProcesses,
-  mockUnsettledWorkflows,
   mockCancelWorkflow,
   mockAbortWorkflow,
   mockStopProcess,
-  mockSettleProcess,
-  mockRequestRunStop,
   order,
 } = vi.hoisted(() => {
   const order: string[] = []
@@ -30,30 +41,15 @@ const {
       order.push('requestExplicitStreamAbort')
       return { settled: true }
     }),
-    mockAuthenticate: vi.fn(),
-    mockGetLatestRunForStream: vi.fn(),
     mockWaitForPendingChatStream: vi.fn(),
     mockReleasePendingChatStream: vi.fn(),
-    mockStreamToolsSettled: vi.fn(),
-    mockUnsettledProcesses: vi.fn(),
-    mockUnsettledWorkflows: vi.fn(),
     mockCancelWorkflow: vi.fn(),
     mockAbortWorkflow: vi.fn(),
     mockStopProcess: vi.fn(),
-    mockSettleProcess: vi.fn(),
-    mockRequestRunStop: vi.fn(),
   }
 })
 
-vi.mock('@/lib/auth', () => ({ getSession: mockAuthenticate }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mockGetLatestRunForStream,
-  areStreamToolExecutionsSettled: mockStreamToolsSettled,
-  getUnsettledStreamSandboxProcesses: mockUnsettledProcesses,
-  getUnsettledClientWorkflowExecutions: mockUnsettledWorkflows,
-  settleSimSandboxProcess: mockSettleProcess,
-  requestRunStop: mockRequestRunStop,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/execution/cancellation', () => ({ markExecutionCancelled: mockCancelWorkflow }))
 vi.mock('@/lib/execution/manual-cancellation', () => ({ abortManualExecution: mockAbortWorkflow }))
 vi.mock('@/lib/execution/remote-sandbox/e2b', () => ({ stopE2BSessionProcess: mockStopProcess }))
@@ -66,36 +62,33 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-const {
-  mockChatContext,
-  mockAuthorize,
-  mockOrganizationAuthorize,
-  mockWorkspaceContext,
-  mockBannedUsers,
-} = vi.hoisted(() => ({
+const { mockChatContext } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
-  mockAuthorize: vi.fn(),
-  mockOrganizationAuthorize: vi.fn(),
-  mockWorkspaceContext: vi.fn(),
-  mockBannedUsers: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mockWorkspaceContext,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mockBannedUsers }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,
 }))
-vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mockAuthorize,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mockOrganizationAuthorize,
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/copilot/chat/abort/route'
+
+const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizationMockFns
+const { mockGetActivelyBannedUserIds: mockBannedUsers } = authBanMockFns
+
+const mockGetLatestRunForStream = mothershipAsyncRunsMockFns.mockGetLatestRunForStream
+const mockStreamToolsSettled = mothershipAsyncRunsMockFns.mockAreStreamToolExecutionsSettled
+const mockUnsettledProcesses = mothershipAsyncRunsMockFns.mockGetUnsettledStreamSandboxProcesses
+const mockUnsettledWorkflows = mothershipAsyncRunsMockFns.mockGetUnsettledClientWorkflowExecutions
+const mockSettleProcess = mothershipAsyncRunsMockFns.mockSettleSimSandboxProcess
+const mockRequestRunStop = mothershipAsyncRunsMockFns.mockRequestRunStop
+const mockWorkspaceContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockOrganizationAuthorize =
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+const mockAuthenticate = authMockFns.mockGetSession
 
 function abortRequest() {
   return createMockRequest('POST', { streamId: 'stream-1', chatId: 'chat-1' })

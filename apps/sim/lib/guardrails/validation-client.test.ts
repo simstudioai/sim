@@ -1,13 +1,12 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetUrlsMock)
 
-const { mockToken } = vi.hoisted(() => ({
-  mockToken: vi.fn(),
-}))
+const mockToken = authInternalMockFns.mockGenerateInternalToken
 
-vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import { MAX_PII_VALIDATION_RESPONSE_BYTES } from '@/lib/guardrails/pii-limits'
 import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
@@ -23,10 +22,6 @@ describe('validatePIIViaHttp', () => {
       Response.json({ passed: true, detectedEntities: [], maskedText: 'clean' })
     )
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('fails on an HTTP error without retrying', async () => {

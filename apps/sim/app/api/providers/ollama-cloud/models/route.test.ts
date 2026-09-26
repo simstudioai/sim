@@ -1,41 +1,26 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFilterBlacklistedModels,
-  mockIsProviderBlacklisted,
-  mockGetBYOKKey,
-  mockGetUserEntityPermissions,
-  mockFetch,
-} = vi.hoisted(() => ({
-  mockFilterBlacklistedModels: vi.fn(),
-  mockIsProviderBlacklisted: vi.fn(),
-  mockGetBYOKKey: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  filterBlacklistedModels: mockFilterBlacklistedModels,
-  isProviderBlacklisted: mockIsProviderBlacklisted,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: mockGetBYOKKey,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/providers/ollama-cloud/models/route'
 
+const { mockGetBYOKKey } = apiKeyByokMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
+const { mockGetUserEntityPermissions } = permissionsMockFns
 
 /**
  * Builds a request whose query string carries the given workspaceId. Passing

@@ -1,12 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSleep } = vi.hoisted(() => ({
-  mockSleep: vi.fn(() => Promise.resolve()),
-}))
-
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: mockSleep,
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import {
   couldMatchDocsScope,
@@ -17,6 +12,8 @@ import {
   readDocsPage,
 } from '@/lib/mothership/docs/docs-corpus'
 import { DOCS_MANIFEST } from '@/lib/mothership/generated/docs-manifest'
+
+const mockSleep = utilsHelpersMockFns.mockSleep
 
 const SAMPLE_PAGE = DOCS_MANIFEST.find((path) => path === 'workflows/blocks/agent.mdx')
 
@@ -88,10 +85,6 @@ describe('readDocsPage', () => {
     mockSleep.mockReset()
     mockSleep.mockResolvedValue(undefined)
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('fetches the manifest path verbatim from the docs site', async () => {
@@ -195,10 +188,6 @@ describe('grepDocs', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('greps exactly one page for a page path', async () => {

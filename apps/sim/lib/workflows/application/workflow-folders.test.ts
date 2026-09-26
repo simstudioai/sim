@@ -1,52 +1,28 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from '@sim/testing/mocks/folders-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
-const mocks = vi.hoisted(() => ({
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  create: vi.fn(),
-  relocate: vi.fn(),
-  delete: vi.fn(),
-  loadIndex: vi.fn(),
-  listRows: vi.fn(),
-  recordAudit: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    FOLDER_CREATED: 'folder.created',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-  },
-  AuditResourceType: { FOLDER: 'folder' },
-  recordAudit: mocks.recordAudit,
-}))
-vi.mock('@/lib/folders/orchestration', () => ({
-  createFolderAtPathTransition: mocks.create,
-  deleteFolderByPathTransition: mocks.delete,
-  relocateFolderByPathTransition: mocks.relocate,
-}))
-vi.mock('@/lib/folders/queries', () => ({
-  listActiveFolderRows: mocks.listRows,
-  loadActiveFolderPathIndex: mocks.loadIndex,
-  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
-    if (path === undefined) return { kind: 'unfiltered' }
-    if (path === '/') return { kind: 'folder', folderId: null }
-    const folderId = index.idByPath.get(path)
-    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
-  },
-  resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
-    path === '/' ? null : index.idByPath.get(path),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
 import {
   archivableWorkflowFolderPath,
@@ -55,6 +31,21 @@ import {
   listWorkflowFolders,
   workflowFolderPathForId,
 } from '@/lib/workflows/application/workflow-folders'
+
+const mocks = {
+  loadIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  listRows: folderQueriesMockFns.mockListActiveFolderRows,
+}
+
+const {
+  mockCreateFolderAtPathTransition,
+  mockDeleteFolderByPathTransition,
+  mockRelocateFolderByPathTransition,
+} = foldersOrchestrationMockFns
+
+const mockResolveContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const folder = {
   id: 'folder-1',
@@ -76,9 +67,9 @@ const index = {
 }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'personal-1' },
-  { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'workspace-1' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'personal-1' }),
+  createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1', keyId: 'workspace-1' }),
   {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -93,16 +84,16 @@ const principals: Principal[] = [
 
 describe('workflow folder application operations', () => {
   beforeEach(() => {
-    mocks.resolveContext.mockResolvedValue({
+    mockResolveContext.mockResolvedValue({
       workspaceId: 'ws-1',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'owner-1',
     })
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolvePermission.mockResolvedValue('write')
     mocks.loadIndex.mockResolvedValue(index)
-    mocks.create.mockResolvedValue({ success: true, folder, path: '/Reports' })
-    mocks.delete.mockResolvedValue({
+    mockCreateFolderAtPathTransition.mockResolvedValue({ success: true, folder, path: '/Reports' })
+    mockDeleteFolderByPathTransition.mockResolvedValue({
       success: true,
       folderId: folder.id,
       folderName: folder.name,
@@ -119,14 +110,14 @@ describe('workflow folder application operations', () => {
         input: { workspaceId: 'ws-1', path: '/Reports' },
       })
 
-      expect(mocks.create).toHaveBeenCalledWith({
+      expect(mockCreateFolderAtPathTransition).toHaveBeenCalledWith({
         resourceType: 'workflow',
         workspaceId: 'ws-1',
         userId: principal.kind === 'workspace_api_key' ? 'owner-1' : 'user-1',
         path: '/Reports',
         maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       })
-      expect(mocks.recordAudit).toHaveBeenCalledOnce()
+      expect(mockRecordAudit).toHaveBeenCalledOnce()
     }
   )
 
@@ -151,31 +142,27 @@ describe('workflow folder application operations', () => {
   it('rejects a workspace key outside the canonical workspace before mutation', async () => {
     await expect(
       createWorkflowFolder.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'ws-2', keyId: 'workspace-2' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-2', keyId: 'workspace-2' }),
         input: { workspaceId: 'ws-1', path: '/Reports' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.create).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mockCreateFolderAtPathTransition).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('keeps workspace-key audit attribution non-human', async () => {
     await deleteWorkflowFolder.execute({
-      principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'workspace-1' },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1', keyId: 'workspace-1' }),
       input: { workspaceId: 'ws-1', path: '/Reports', recursive: true },
     })
 
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: null,
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
-          actor: {
-            kind: 'workspace_api_key',
-            keyId: 'workspace-1',
-            workspaceId: 'ws-1',
-          },
+          actor: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-1', workspaceId: 'ws-1' }),
         }),
       })
     )

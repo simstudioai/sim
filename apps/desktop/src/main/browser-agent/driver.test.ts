@@ -1,7 +1,7 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
 import { toRecord } from '@sim/utils/object'
 import type { WebContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -2618,8 +2618,6 @@ describe('credential protection', () => {
   })
 
   describe('file uploads', () => {
-    afterEach(() => vi.restoreAllMocks())
-
     it('retains one input handle through staging and releases it after uploading', async () => {
       const contents = await openPage()
       respondWith(contents, { readPageActionState: {} })

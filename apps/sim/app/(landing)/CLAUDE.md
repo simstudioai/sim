@@ -15,9 +15,9 @@ The landing page looks like the product. Its visual language is the workspace UI
 
 - **Light by default, dark on request.** The landing family follows the theme class on `<html>` (next-themes, storage key `sim-landing-theme` - its own store, separate from the workspace's account-synced `sim-theme`, which holds `system` for every signed-in user): a visitor who has not chosen otherwise here gets light, the design baseline, and the footer's `ThemeToggle` switches to dark - the platform's own `.dark` token values from `app/_styles/globals.css`, no separate palette. Tokens flip on their own, so `dark:` variants exist here only to pair the handful of deliberate literals (the `#F8F8F8` paper band, the composer send button, the pale CTA drawing) with their dark value in the same class string - never leave a literal unpaired. Never read the theme in a Server Component; the toggle is the one client reader.
 - **Use platform tokens, never hex.** Canvas `--bg`, surfaces `--surface-1`…`--surface-7`, cards/modals `--surface-2`, hover `--surface-hover`, active `--surface-active`; text `--text-primary` / `--text-secondary` / `--text-muted` / `--text-body`, icons `--text-icon`; borders `--border` (its legacy alias `--border-1` is not for new work); brand `--brand-agent` / `--brand-secondary` / `--brand-accent`. Do **not** use the legacy `--landing-*` tokens - they belong to the old dark landing.
-- **Use emcn components where they fit.** The chip family (`Chip`, `ChipLink`, `ChipTag`, `ChipInput`, `ChipModal*`, …) from `@/components/emcn` is the canonical chrome - a demo-request form is a `ChipModal` with `ChipModalField`s, a pill CTA is a `Chip`/`ChipLink`. Components own their chrome; pass props, not className overrides. Full consumer rules: `.claude/rules/sim-styling.md`.
+- **Use emcn components where they fit.** The chip family (`Chip`, `ChipLink`, `ChipTag`, `ChipInput`, `ChipModal*`, …) from `@sim/emcn` is the canonical chrome - a demo-request form is a `ChipModal` with `ChipModalField`s, a pill CTA is a `Chip`/`ChipLink`. Components own their chrome; pass props, not className overrides. Full consumer rules: `.claude/rules/sim-styling.md`.
 - **Typography is the platform's.** Season is the global body font (`font-season` is applied on `<body>` in the root layout). Use the platform text scale (`text-small` = 13px, `text-base` = 15px, etc. - see the `@theme` block in `app/_styles/globals.css`). Don't add new fonts or font CSS variables without explicit direction.
-- **Never touch global styles.** No additions to `app/_styles/globals.css`. All styling is local Tailwind classes; `cn()` from `@/lib/core/utils/cn` for conditionals; no inline `style` attributes.
+- **Never touch global styles.** No additions to `app/_styles/globals.css`. All styling is local Tailwind classes; `cn()` from `@sim/emcn` for conditionals; inline `style` only for a genuinely dynamic value or a CSS variable (see `.claude/rules/sim-styling.md`).
 - **Responsive - desktop is the source of truth, scaled down via `max-*` overrides.** The page is fully responsive (iPad + phone). The desktop layout stays the unprefixed baseline; smaller screens are handled by *layering* `max-*` overrides on top, so desktop renders byte-identically. Tiers:
   - `max-xl:` (≤1279) - the hero's two-panel split (absolute visual + logos) collapses to a stacked, in-flow column. The split needs ≥1280 to avoid the headline colliding with the visual panel; iPad-landscape (1024) therefore gets the stacked hero with the desktop nav.
   - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (footer 7→3); the shared gutter narrows; section gaps tighten.
@@ -40,26 +40,9 @@ Target: Lighthouse 95+ on mobile, LCP < 2.0s, CLS < 0.05, minimal hydration cost
 - **Lazy-mount a heavy client island's second occurrence.** If the same animated component appears twice on a page, only the first (usually the hero) loads eagerly - the rest go through a small `'use client'` mount wrapper built on the shared `hooks/use-lazy-mount.ts` hook: `next/dynamic(..., { ssr: false })` gated by the hook's `IntersectionObserver`. See `components/product-demo/components/product-demo-visual-mount/` for the reference pattern, and `.claude/rules/sim-imports.md` for the barrel-cleanup step that must come with it.
 - **Don't prefetch authenticated-app routes from an always-visible CTA.** `<Link>` prefetches its target route's JS once it's in the viewport - a navbar/hero CTA to `/signup` or `/login` is always in view, so it downloads that route's bundle on every pageview. Pass `prefetch={false}` there. Leave the default on CTAs that only enter the viewport on scroll (prefetch-on-approach is the desired behavior there).
 
-## SEO
+## SEO / GEO
 
-`page.tsx` owns the metadata (title, description, OG/Twitter, canonical, robots) - keep it the single source of truth and keep it aligned with the constitution's claim hierarchy. Beyond metadata:
-
-- **One `<h1>`, in the hero, containing "AI workspace".** The brand carries in the title tag, the meta description, and the hero's `sr-only` summary, so the H1 itself is free to lead with the non-brand keywords people actually search ("AI workspace", "AI agents") rather than spending its first two words on "Sim is the". Whichever wording it uses, the hero's `sr-only` paragraph must still open by naming Sim. Strict hierarchy below it: H2 per section, H3 for items within a section. Never skip levels, never add a second H1.
-- **Semantic landmarks**: `<header>`, `<main>`, `<footer>`, `<nav>`; each section is `<section id="…" aria-labelledby="…-heading">`. Decorative/animated elements get `aria-hidden='true'`.
-- **Structured data**: emit JSON-LD (`Organization`, `WebSite`, `WebApplication` with `featureList`, `FAQPage` if an FAQ exists) from a server component rendered before visible content. Keep `featureList` in sync with the features actually shown on the page.
-- **Crawlable links**: all internal navigation uses Next `<Link>` with real `href`s - never `onClick` navigation. External links get `rel='noopener noreferrer'`.
-- **All copy is server-rendered text.** No text baked into images, no content that only exists after a client effect runs.
-- After adding routes or anchors, verify `app/sitemap.ts` and `app/robots.ts` still reflect reality.
-
-## GEO (generative engine optimization)
-
-AI crawlers and answer engines read this page. Optimize for extraction:
-
-- **Answer-first sections.** Each H2 + first paragraph should directly answer a question a user would ask an AI ("What is Sim?", "What integrations does Sim support?", "How much does Sim cost?").
-- **Atomic blocks.** Every feature card, template, and pricing tier must be independently quotable - self-contained, with "Sim" named explicitly. Never "the platform", "our tool", or a bare pronoun as the subject.
-- **Specific numbers over vague claims.** "1,000+ integrations", "every major LLM", "100,000+ builders" - and only numbers that are true and shipped.
-- **sr-only summaries.** The hero gets a `<p className='sr-only'>` (~50 words) stating what Sim is, who it's for, and what it does - a clean citation target for AI summarizers.
-- The first 150 visible characters of the page must include "Sim", "AI workspace", and "AI agents".
+`page.tsx` owns each page's metadata (title, description, OG/Twitter, canonical, robots) — the single source of truth, aligned with the constitution's claim hierarchy. Every other SEO and GEO rule — the one hero `<h1>`, heading hierarchy, landmarks, JSON-LD, crawlable links, answer-first sections, atomic "Sim"-named blocks, the hero `sr-only` summary, citations, and freshness — is in `.claude/rules/landing-seo-geo.md`. Read it before adding a section.
 
 ## Copy
 

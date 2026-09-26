@@ -1,37 +1,16 @@
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
-const mocks = vi.hoisted(() => ({
-  requestJson: vi.fn(),
-  useInfiniteQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
-  useQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
-  useMutation: vi.fn(),
-  cancelQueries: vi.fn(),
-  getQueryData: vi.fn(),
-  setQueryData: vi.fn(),
-  setQueriesData: vi.fn(),
-  invalidateQueries: vi.fn(),
-}))
-
 vi.mock('react', () => ({ useEffect: vi.fn() }))
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: Symbol('keepPreviousData'),
-  useInfiniteQuery: mocks.useInfiniteQuery,
-  useMutation: mocks.useMutation,
-  useQuery: mocks.useQuery,
-  useQueryClient: vi.fn(() => ({
-    cancelQueries: mocks.cancelQueries,
-    getQueryData: mocks.getQueryData,
-    setQueryData: mocks.setQueryData,
-    setQueriesData: mocks.setQueriesData,
-    invalidateQueries: mocks.invalidateQueries,
-  })),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mocks.requestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   type ConnectorData,
@@ -51,6 +30,22 @@ import {
   useSearchSources,
   useTriggerSync,
 } from '@/hooks/queries/kb/connectors'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const { cancelQueries, getQueryData, setQueryData, setQueriesData, invalidateQueries } =
+  reactQueryMockFns.mockQueryClient
+const mocks = {
+  useInfiniteQuery: reactQueryMockFns.mockUseInfiniteQuery,
+  useQuery: reactQueryMockFns.mockUseQuery,
+  useMutation: reactQueryMockFns.mockUseMutation,
+  cancelQueries,
+  getQueryData,
+  setQueryData,
+  setQueriesData,
+  invalidateQueries,
+}
+mocks.useInfiniteQuery.mockReturnValue({ data: undefined, dataUpdatedAt: 0 })
+mocks.useQuery.mockReturnValue({ data: undefined, dataUpdatedAt: 0 })
 
 const KB_ID = 'kb-1'
 
@@ -247,7 +242,7 @@ describe('useConnectorDocuments', () => {
       counts: firstPage.counts,
       hasMore: false,
     }
-    mocks.requestJson.mockResolvedValue({ data: firstPage })
+    mockRequestJson.mockResolvedValue({ data: firstPage })
 
     useConnectorDocuments('knowledge-1', 'connector-1', { includeExcluded: true })
 
@@ -255,7 +250,7 @@ describe('useConnectorDocuments', () => {
     const signal = new AbortController().signal
     await options.queryFn({ signal, pageParam: 200 })
 
-    expect(mocks.requestJson).toHaveBeenCalledWith(listKnowledgeConnectorDocumentsContract, {
+    expect(mockRequestJson).toHaveBeenCalledWith(listKnowledgeConnectorDocumentsContract, {
       params: { id: 'knowledge-1', connectorId: 'connector-1' },
       query: {
         includeExcluded: true,
@@ -277,11 +272,11 @@ describe('useSearchSources', () => {
   it('isolates organization sources and resolves their index without listing workspace knowledge bases', async () => {
     const scope = { kind: 'organization' as const, organizationId: 'scope-1' }
     const signal = new AbortController().signal
-    mocks.requestJson.mockResolvedValue({ data: { knowledgeBaseId: 'org-index' } })
+    mockRequestJson.mockResolvedValue({ data: { knowledgeBaseId: 'org-index' } })
     useSearchIndex(scope)
     const index = mocks.useQuery.mock.calls.at(-1)?.[0]
     await expect(index.queryFn({ signal })).resolves.toEqual({ knowledgeBaseId: 'org-index' })
-    expect(mocks.requestJson).toHaveBeenCalledWith(readSearchIndexContract, {
+    expect(mockRequestJson).toHaveBeenCalledWith(readSearchIndexContract, {
       query: { organizationId: 'scope-1' },
       signal,
     })
@@ -289,7 +284,7 @@ describe('useSearchSources', () => {
     const sources = mocks.useInfiniteQuery.mock.calls.at(-1)?.[0]
     expect(sources.queryKey).not.toEqual(searchSourceKeys.list('scope-1'))
     await sources.queryFn({ signal })
-    expect(mocks.requestJson).toHaveBeenLastCalledWith(listSearchSourcesContract, {
+    expect(mockRequestJson).toHaveBeenLastCalledWith(listSearchSourcesContract, {
       query: { organizationId: 'scope-1', search: '', mine: false },
       signal,
     })

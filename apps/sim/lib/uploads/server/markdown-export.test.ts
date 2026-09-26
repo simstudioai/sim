@@ -1,3 +1,4 @@
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -6,7 +7,7 @@ import {
   MAX_EXPORT_MARKDOWN_PARSE_BYTES,
 } from '@/lib/uploads/server/markdown-export'
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: vi.fn() }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 async function exportMarkdown(content: string, name = 'image.png') {
   const result = await createMarkdownExport({

@@ -10,7 +10,6 @@ import {
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
 import { resolveGitHubSetupUrl } from '@/lib/knowledge/github-setup-navigation'
-import { githubSearchInstallationKeys } from '@/hooks/queries/github-search-installations'
 import {
   isGitHubSetupTerminalError,
   useCancelGitHubSearchSetup,
@@ -105,7 +104,6 @@ export function useGitHubInstallationSetup({
           ),
         })
       }
-      void client.invalidateQueries({ queryKey: githubSearchInstallationKeys.list(organizationId) })
       void client.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) })
       callback.current(result.credential.id)
     } else if (

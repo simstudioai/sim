@@ -1,46 +1,30 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   bulkDeleteFolders: vi.fn(),
   bulkMoveFolders: vi.fn(),
-  deleteTable: vi.fn(),
-  findActiveFolder: vi.fn(),
-  moveTableToFolder: vi.fn(),
   planFolderSelection: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveTableContext: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-  signal: vi.fn(),
-  notifyTables: vi.fn(),
-  resolveFolderPathFromIndex: vi.fn(),
   resolveTableFolderPath: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    TABLE_DELETED: 'table.deleted',
-    TABLE_UPDATED: 'table.updated',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-  },
-  AuditResourceType: { TABLE: 'table', FOLDER: 'folder' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/folders/bulk', () => ({
-  planFolderSelection: mocks.planFolderSelection,
-  bulkMoveFolders: mocks.bulkMoveFolders,
-  bulkDeleteFolders: mocks.bulkDeleteFolders,
+  planFolderSelection: hoisted.planFolderSelection,
+  bulkMoveFolders: hoisted.bulkMoveFolders,
+  bulkDeleteFolders: hoisted.bulkDeleteFolders,
   /** Pure projection — mirrored here rather than mocked, so outcomes stay realistic. */
   foldFolderPlan: (
     plan: { notFound: string[]; contained: { id: string; name: string }[] },
@@ -53,25 +37,14 @@ vi.mock('@/lib/folders/bulk', () => ({
     for (const folder of plan.contained) outcome.skipped.push({ kind: 'folder', ...folder })
   },
 }))
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceTablesChanged: mocks.notifyTables,
-}))
-vi.mock('@/lib/folders/queries', () => ({
-  findActiveFolder: mocks.findActiveFolder,
-  resolveFolderPathFromIndex: mocks.resolveFolderPathFromIndex,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 vi.mock('@/lib/table/application/folder-paths', () => ({
-  resolveTableFolderPath: mocks.resolveTableFolderPath,
+  resolveTableFolderPath: hoisted.resolveTableFolderPath,
 }))
-vi.mock('@/lib/table', () => ({
-  deleteTable: mocks.deleteTable,
-  moveTableToFolder: mocks.moveTableToFolder,
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableInWorkspace: mocks.resolveTableContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { bulkDeleteTables, bulkMoveTables } from '@/lib/table/application/bulk'
@@ -84,7 +57,21 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  ...hoisted,
+  deleteTable: tableMockFns.mockDeleteTable,
+  moveTableToFolder: tableMockFns.mockMoveTableToFolder,
+  findActiveFolder: folderQueriesMockFns.mockFindActiveFolder,
+  resolveFolderPathFromIndex: folderQueriesMockFns.mockResolveFolderPathFromIndex,
+  resolveTableContext: tableApplicationContextMockFns.mockResolveActiveTableInWorkspace,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  audit: auditMockFns.mockRecordAudit,
+  notifyTables: realtimeNotifyMockFns.mockNotifyWorkspaceTablesChanged,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  signal: tableEventsMockFns.mockSignalTableSchemaChanged,
+}
+
+const principal = createSessionPrincipal()
 
 function tableContext(id: string, folderId: string | null = null) {
   return {
@@ -110,6 +97,7 @@ const emptyPlan = { selected: [], notFound: [], contained: [], covered: new Set<
 
 describe('table bulk application use cases', () => {
   beforeEach(() => {
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)

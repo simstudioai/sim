@@ -6,6 +6,8 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { folderMutationStatus } from '@/lib/folders/status'
@@ -15,28 +17,20 @@ const {
   mockCollectArchivedSubtreeIds,
   mockCollectCascadeSubtreeIds,
   mockDeduplicateFolderName,
-  mockGetWorkspaceWithOwner,
   mockGuardDelete,
   mockRestoreChildren,
   mockRestoreFolderChildren,
   mockRestoreFolderRows,
-  mockWouldCreateFolderCycle,
-  mockLoadActiveFolderPathIndex,
-  mockAssertFolderCollectionHasRoom,
   resourceConfig,
 } = vi.hoisted(() => ({
   mockArchiveFolderCascade: vi.fn(),
   mockCollectArchivedSubtreeIds: vi.fn(),
   mockCollectCascadeSubtreeIds: vi.fn(),
   mockDeduplicateFolderName: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
   mockGuardDelete: vi.fn(),
   mockRestoreChildren: vi.fn(),
   mockRestoreFolderChildren: vi.fn(),
   mockRestoreFolderRows: vi.fn(),
-  mockWouldCreateFolderCycle: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  mockAssertFolderCollectionHasRoom: vi.fn(),
   resourceConfig: { current: {} as Record<string, unknown> },
 }))
 
@@ -60,15 +54,9 @@ vi.mock('@/lib/folders/config', () => ({
 
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
 
-vi.mock('@/lib/folders/queries', () => ({
-  wouldCreateFolderCycle: mockWouldCreateFolderCycle,
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
-  assertFolderCollectionHasRoom: mockAssertFolderCollectionHasRoom,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   createFolder,
@@ -79,6 +67,14 @@ import {
   restoreFolder,
   updateFolder,
 } from '@/lib/folders/orchestration'
+
+const {
+  mockWouldCreateFolderCycle,
+  mockLoadActiveFolderPathIndex,
+  mockAssertFolderCollectionHasRoom,
+} = folderQueriesMockFns
+
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
 
 const CHILD_TABLE = { name: 'child_table' }
 

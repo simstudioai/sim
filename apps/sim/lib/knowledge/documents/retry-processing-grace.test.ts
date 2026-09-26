@@ -1,18 +1,17 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   flattenMockConditions,
   type MockCondition,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
   enqueueKnowledgeDocumentProcessing: vi.fn(),
 }))
-vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
+vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'

@@ -1,11 +1,17 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   clientConstructed: vi.fn(),
   upload: vi.fn(),
-  processFiles: vi.fn(),
-  downloadStorage: vi.fn(),
-  assertAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/box/client', () => {
@@ -27,15 +33,13 @@ vi.mock('@/lib/internal/box/client', () => {
   return { BoxClient, BoxUploadError }
 })
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFiles,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadStorage,
-}))
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
 
 import { executeBoxUploadFile } from '@/lib/internal/box/operations'
 
@@ -44,14 +48,14 @@ const userFile = { ...rawFile, type: 'application/pdf' }
 
 describe('executeBoxUploadFile', () => {
   beforeEach(() => {
-    mocks.processFiles.mockReturnValue([userFile])
-    mocks.assertAccess.mockResolvedValue(null)
-    mocks.downloadStorage.mockResolvedValue({ buffer: Buffer.from('file') })
+    mockProcessFilesToUserFiles.mockReturnValue([userFile])
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({ buffer: Buffer.from('file') })
     mocks.upload.mockResolvedValue({ id: 'box-1', name: 'override.pdf', size: 4 })
   })
 
   it('never materializes an unauthorized file', async () => {
-    mocks.assertAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
     const response = await executeBoxUploadFile(
@@ -60,7 +64,7 @@ describe('executeBoxUploadFile', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(mocks.downloadStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.upload).not.toHaveBeenCalled()
   })
 })

@@ -1,27 +1,33 @@
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
-const mocks = vi.hoisted(() => ({
-  authority: vi.fn(),
-  entitlement: vi.fn(),
-  subscription: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   summary: vi.fn(),
   breakdown: vi.fn(),
   workspace: vi.fn(),
 }))
 
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authority,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.entitlement,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/lib/billing/core/organization-activity-queries', () => ({
-  readActivityDays: mocks.summary,
-  readActivityBreakdown: mocks.breakdown,
-  readActivityWorkspace: mocks.workspace,
+  readActivityDays: hoisted.summary,
+  readActivityBreakdown: hoisted.breakdown,
+  readActivityWorkspace: hoisted.workspace,
 }))
 
 import {
@@ -29,7 +35,14 @@ import {
   getOrganizationActivitySummary,
 } from '@/lib/billing/application/organization-usage/get-organization-activity'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'admin', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  subscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  authority: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  entitlement: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+}
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = {
   organizationId: 'org',
   preset: 'custom' as const,
@@ -67,7 +80,7 @@ describe.each([
 ] as const)('organization activity %s authorization', (_name, run) => {
   it('rejects API keys before loading organization data', async () => {
     await expect(
-      run({ kind: 'personal_api_key', userId: 'admin', keyId: 'key' })
+      run(createPersonalApiKeyPrincipal({ userId: 'admin', keyId: 'key' }))
     ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
     expect(mocks.authority).not.toHaveBeenCalled()
     expect(mocks.workspace).not.toHaveBeenCalled()

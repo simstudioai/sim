@@ -1,19 +1,21 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadFileFromStorage: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mocks.downloadFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { executeSquareCreateCatalogImage } from '@/lib/internal/square/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadFileFromStorage } = fileUtilsServerMockFns
 
 const FILE = {
   id: 'file-1',
@@ -26,8 +28,8 @@ const FILE = {
 
 describe('executeSquareCreateCatalogImage', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from('image'))
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('image'))
     vi.stubGlobal(
       'fetch',
       vi
@@ -54,8 +56,8 @@ describe('executeSquareCreateCatalogImage', () => {
       success: true,
       output: { metadata: { id: 'image-1', type: 'IMAGE', version: 1 } },
     })
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledOnce()
-    expect(mocks.downloadFileFromStorage).toHaveBeenCalledOnce()
+    expect(mockAssertToolFileAccess).toHaveBeenCalledOnce()
+    expect(mockDownloadFileFromStorage).toHaveBeenCalledOnce()
     expect(fetch).toHaveBeenCalledOnce()
     const formData = vi.mocked(fetch).mock.calls[0][1]?.body as FormData
     expect(JSON.parse(String(formData.get('request')))).toMatchObject({

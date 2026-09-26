@@ -1,21 +1,18 @@
 import { db } from '@sim/db'
 import { copilotChats, document, organization, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDeleteFile, mockCleanupCopilotBackend, mockEnqueueOutboxEvent, mockEnv } = vi.hoisted(
-  () => ({
-    mockDeleteFile: vi.fn(),
-    mockCleanupCopilotBackend: vi.fn(),
-    mockEnqueueOutboxEvent: vi.fn(),
-    mockEnv: { COPILOT_API_KEY: 'test-key' as string | undefined },
-  })
-)
+const { mockCleanupCopilotBackend } = vi.hoisted(() => ({
+  mockCleanupCopilotBackend: vi.fn(),
+}))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/cleanup/chat-cleanup', () => ({ cleanupCopilotBackend: mockCleanupCopilotBackend }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mockEnqueueOutboxEvent }))
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
@@ -23,6 +20,9 @@ import {
   ORGANIZATION_RESOURCE_CLEANUP_EVENT,
   organizationResourceCleanupOutboxHandlers,
 } from '@/lib/organizations/resource-cleanup'
+
+const { mockDeleteFile } = storageServiceMockFns
+const { mockEnqueueOutboxEvent } = outboxServiceMockFns
 
 const ORG_ID = 'org-1'
 const CHAT_ID = '10000000-0000-4000-8000-000000000001'
@@ -50,13 +50,16 @@ function filesPayload() {
 
 beforeEach(() => {
   resetDbChainMock()
-  mockEnv.COPILOT_API_KEY = 'test-key'
+  setEnv({ COPILOT_API_KEY: 'test-key' })
   mockDeleteFile.mockResolvedValue(undefined)
   mockEnqueueOutboxEvent.mockResolvedValue('event')
   mockCleanupCopilotBackend.mockResolvedValue({ deleted: 1, failed: 0 })
 })
 
-afterAll(resetDbChainMock)
+afterAll(() => {
+  resetDbChainMock()
+  resetEnvMock()
+})
 
 describe('enqueueOrganizationResourceCleanup', () => {
   it('locks the organization and snapshots only canonical direct org resources inside the caller transaction', async () => {
@@ -241,7 +244,7 @@ describe('organization resource cleanup worker', () => {
   })
 
   it('does not complete unconfigured backend cleanup silently', async () => {
-    mockEnv.COPILOT_API_KEY = undefined
+    setEnv({ COPILOT_API_KEY: undefined })
 
     await expect(
       handleCleanup({ kind: 'chats', organizationId: ORG_ID, chatIds: [CHAT_ID] }, context())

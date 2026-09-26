@@ -1,50 +1,23 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreateTable,
-  mockCreateUploadSession,
-  mockDbLimit,
-  mockGetUserSettings,
-  mockGetWorkspaceFile,
-  mockGetWorkspaceTableLimits,
-  mockAssertWorkspaceTableCapacity,
-  mockRunDetached,
-} = vi.hoisted(() => ({
-  mockCreateTable: vi.fn(),
-  mockCreateUploadSession: vi.fn(),
-  mockDbLimit: vi.fn(),
-  mockGetUserSettings: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockGetWorkspaceTableLimits: vi.fn(),
-  mockAssertWorkspaceTableCapacity: vi.fn(),
-  mockRunDetached: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({ limit: mockDbLimit }),
-      }),
-    }),
-  },
-}))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: mockRunDetached }))
-vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetWorkspaceTableLimits }))
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: vi.fn() }))
-vi.mock('@/lib/table/service', () => ({
-  assertWorkspaceTableCapacity: mockAssertWorkspaceTableCapacity,
-  createTable: mockCreateTable,
-  getTableById: vi.fn(),
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ getWorkspaceFile: mockGetWorkspaceFile }))
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  abortUploadSession: vi.fn(),
-  createUploadSession: mockCreateUploadSession,
-  getOwnedUploadSession: vi.fn(),
-}))
-vi.mock('@/lib/users/queries', () => ({ getUserSettings: mockGetUserSettings }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 import {
@@ -53,10 +26,19 @@ import {
   getTableImportResource,
 } from '@/lib/table/orchestration/import-resource'
 
+const mockCreateTable = tableServiceMockFns.mockCreateTable
+const mockCreateUploadSession = uploadSessionMockFns.mockCreateUploadSession
+const mockGetUserSettings = usersQueriesMockFns.mockGetUserSettings
+const mockGetWorkspaceTableLimits = tableBillingMockFns.mockGetWorkspaceTableLimits
+const mockRunDetached = backgroundTaskMockFns.mockRunDetached
+const mockDbLimit = dbChainMockFns.limit
+const mockGetWorkspaceFile = workspaceUploadsMockFns.mockGetWorkspaceFile
+const mockAssertWorkspaceTableCapacity = tableServiceMockFns.mockAssertWorkspaceTableCapacity
+
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const SOURCE = { type: 'workspace_file' as const, fileId: 'file-1' }
 const TARGET = { type: 'new' as const, name: 'imported_data' }
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 
 function createImport(body: Parameters<typeof createAuthorizedTableImportResource>[0]['body']) {
   return createAuthorizedTableImportResource({

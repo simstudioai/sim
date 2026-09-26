@@ -64,7 +64,6 @@ afterAll(async () => {
 // Per test, not once: globals and env are restored between tests, and an unstubbed `fetch` here
 // would reach the real providers.
 beforeEach(() => {
-  vi.unstubAllEnvs()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })

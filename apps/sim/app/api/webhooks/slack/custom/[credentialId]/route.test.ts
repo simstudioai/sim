@@ -1,18 +1,12 @@
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockParseWebhookBody,
-  mockFindWebhooksByRoutingKey,
-  mockDispatchResolvedWebhookTarget,
-  mockGetSlackBotCredential,
-  mockHandleChallenge,
-  mockVerifySignature,
-  mockDispatchSearch,
-} = vi.hoisted(() => ({
-  mockParseWebhookBody: vi.fn(),
-  mockFindWebhooksByRoutingKey: vi.fn(),
-  mockDispatchResolvedWebhookTarget: vi.fn(),
-  mockGetSlackBotCredential: vi.fn(),
+const { mockHandleChallenge, mockVerifySignature, mockDispatchSearch } = vi.hoisted(() => ({
   mockHandleChallenge: vi.fn(),
   mockVerifySignature: vi.fn(),
   mockDispatchSearch: vi.fn(),
@@ -20,20 +14,11 @@ const {
 
 vi.mock('@/lib/slack-search/dispatcher', () => ({ dispatchSlackSearch: mockDispatchSearch }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: () => ({ release: vi.fn() }),
-  admissionRejectedResponse: () => new Response(null, { status: 503 }),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getSlackBotCredential: mockGetSlackBotCredential,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  parseWebhookBody: mockParseWebhookBody,
-  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: mockHandleChallenge,
@@ -42,6 +27,14 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/slack/custom/[credentialId]/route'
+
+const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
+  webhooksProcessorMockFns
+const { mockGetSlackBotCredential } = authOAuthUtilsMockFns
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
 
 const CREDENTIAL_ID = 'cred-123'
 

@@ -1,36 +1,52 @@
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  session: vi.fn(),
-  authorizeWorkspace: vi.fn(),
-  workspace: vi.fn(),
-  publish: vi.fn(),
-  analytics: vi.fn(),
-  authorizeOrganization: vi.fn(),
-}))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
-vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.authorizeWorkspace,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganization,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: mocks.publish }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/mothership/chats/[chatId]/restore/route'
 
-function request() {
-  return new NextRequest('http://localhost/api/mothership/chats/chat/restore', { method: 'POST' })
+const mocks = {
+  authorizeWorkspace: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  publish: mothershipChatStatusMockFns.mockPublishChatStatusChanged,
+  session: authMockFns.mockGetSession,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+  authorizeOrganization: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
 }
-const context = { params: Promise.resolve({ chatId: 'chat' }) }
+
+function request() {
+  return createMockRequest({
+    method: 'POST',
+    url: 'http://localhost/api/mothership/chats/chat/restore',
+  })
+}
+const context = createRouteContext({ chatId: 'chat' })
 
 beforeEach(() => {
   resetDbChainMock()
@@ -75,7 +91,7 @@ describe('chat restore internal surface', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ error: 'Chat not found' })
     expect(mocks.authorizeOrganization).toHaveBeenCalledWith(
-      { kind: 'session', userId: 'actor', sessionId: 'session' },
+      createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
       expect.any(Object),
       { organizationId: 'org' }
     )

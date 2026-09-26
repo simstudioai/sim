@@ -1,6 +1,7 @@
 /**
  * Tests for the workspace credentials API route (create path).
  */
+
 import { credential } from '@sim/db/schema'
 import {
   auditMock,
@@ -11,29 +12,35 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 
 const {
-  mockCheckWorkspaceAccess,
-  mockGetCredentialActorContext,
-  mockGetCredentialCreationWorkspaceContext,
-  mockGetBlockVisibility,
   mockCreateIntegrationCredentialVisibility,
   mockIsCredentialVisible,
-  mockLoadWorkspace,
-  mockResolveWorkspacePermission,
   mockSyncWorkspaceOAuthCredentials,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetCredentialActorContext: vi.fn(),
-  mockGetCredentialCreationWorkspaceContext: vi.fn(),
-  mockGetBlockVisibility: vi.fn(),
   mockCreateIntegrationCredentialVisibility: vi.fn(),
   mockIsCredentialVisible: vi.fn(),
-  mockLoadWorkspace: vi.fn(),
-  mockResolveWorkspacePermission: vi.fn(),
   mockSyncWorkspaceOAuthCredentials: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
@@ -41,43 +48,21 @@ const {
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mockGetBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
   createIntegrationCredentialVisibility: mockCreateIntegrationCredentialVisibility,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mockLoadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolveWorkspacePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/credentials/access', () => ({
-  canUseCredential: (access: { member: unknown; isAdmin: boolean; hasWorkspaceAccess: boolean }) =>
-    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
-  getCredentialActorContext: mockGetCredentialActorContext,
-  isSharedCredentialType: (type: string) => type !== 'env_personal',
-  requireOrdinaryCredentialType: (type: string) => {
-    if (type === 'managed_oauth') throw new Error('Managed OAuth credential reached test surface')
-    return type
-  },
-  SHARED_CREDENTIAL_TYPES: ['oauth', 'env_workspace', 'service_account'],
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  getCredentialCreationWorkspaceContext: mockGetCredentialCreationWorkspaceContext,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: mockSyncWorkspaceOAuthCredentials,
@@ -97,6 +82,14 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
 }))
 
 import { GET, POST } from '@/app/api/credentials/route'
+
+const { mockGetCredentialCreationWorkspaceContext } = credentialsEnvironmentMockFns
+const { mockGetCredentialActorContext } = credentialsAccessMockFns
+const { mockGetBlockVisibility } = blockVisibilityMockFns
+
+const mockLoadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockResolveWorkspacePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 const WORKSPACE_CONTEXT = {

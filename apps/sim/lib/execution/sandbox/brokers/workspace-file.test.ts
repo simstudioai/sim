@@ -1,20 +1,21 @@
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { fetchWorkspaceFileBufferMock, getWorkspaceFileMock } = vi.hoisted(() => ({
-  fetchWorkspaceFileBufferMock: vi.fn(),
-  getWorkspaceFileMock: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
-  getWorkspaceFile: getWorkspaceFileMock,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import {
   MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS,
   MAX_SANDBOX_IMAGE_DATA_URI_CHARS,
 } from '@/lib/execution/isolated-vm-limits'
 import { workspaceFileBroker } from '@/lib/execution/sandbox/brokers/workspace-file'
+
+const {
+  mockFetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+  mockGetWorkspaceFile: getWorkspaceFileMock,
+} = workspaceFileManagerMockFns
 
 const CONTEXT = { workspaceId: 'workspace-1', requestId: 'request-1' }
 

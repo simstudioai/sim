@@ -1,12 +1,11 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
   extract: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/workspace-files/application/extract-workspace-file', () => ({
   extractWorkspaceFile: {
@@ -20,21 +19,21 @@ import { POST } from '@/app/api/workspaces/[id]/files/[fileId]/extract/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
 
 function callExtract() {
   return POST(
-    new NextRequest(
-      `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/extract`,
-      { method: 'POST' }
-    ),
+    createMockRequest({
+      method: 'POST',
+      url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/extract`,
+    }),
     context
   )
 }
 
 describe('POST /api/workspaces/[id]/files/[fileId]/extract', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })

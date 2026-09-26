@@ -5,6 +5,7 @@ import {
   mcpOauthMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
@@ -13,20 +14,16 @@ const {
   mockAuthenticateEnrollment,
   mockCompleteManagedMcpOAuth,
   mockConsumeManagedAttempt,
-  mockDiscoverServerTools,
   mockEnforceCallbackRateLimit,
 } = vi.hoisted(() => ({
   mockAuthenticateEnrollment: vi.fn(),
   mockCompleteManagedMcpOAuth: vi.fn(),
   mockConsumeManagedAttempt: vi.fn(),
-  mockDiscoverServerTools: vi.fn(),
   mockEnforceCallbackRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverServerTools: mockDiscoverServerTools },
-}))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
   credentialGroupOAuthAttemptPrincipal: mockAuthenticateEnrollment,
 }))
@@ -42,6 +39,8 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
 }))
 
 import { GET } from './route'
+
+const { mockDiscoverServerTools } = mcpServiceMockFns
 
 describe('MCP OAuth callback route', () => {
   beforeEach(() => {

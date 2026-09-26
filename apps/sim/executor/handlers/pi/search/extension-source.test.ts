@@ -4,10 +4,12 @@
  * string-matched. Each provider's envelope is compared against `normalize.ts`, which is the only
  * thing standing between the two copies and silent drift.
  */
+
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PI_SEARCH_PROVIDERS, type PiSearchProvider } from '@/executor/handlers/pi/core/keys'
 import {
@@ -65,17 +67,9 @@ function register(provider: string, apiKey = 'key-123'): RegisteredTool {
   return registered
 }
 
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 const fetchMock = vi.fn()
 
 beforeEach(() => {
-  vi.unstubAllEnvs()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })

@@ -1,33 +1,31 @@
 import { dbChainMockFns, resetDbChainMock, resetEnvMock, setEnv } from '@sim/testing'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getBilling: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   isAvailable: vi.fn(),
-  getAdapter: vi.fn(),
-  decryptSecret: vi.fn(),
-  encryptSecret: vi.fn(),
   slackConfiguration: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.getBilling,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
 vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.isAvailable,
+  isCredentialGroupsAvailable: hoisted.isAvailable,
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapterByProviderId: mocks.getAdapter,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mocks.decryptSecret,
-  encryptSecret: mocks.encryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
-  getSlackCredentialGroupConfiguration: mocks.slackConfiguration,
+  getSlackCredentialGroupConfiguration: hoisted.slackConfiguration,
 }))
 vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   getSlackCustomBotCredential: async () => ({ id: 'bot-1', teamId: 'T123' }),
@@ -44,6 +42,14 @@ import {
 import { slackCredentialGroupProviderAdapter } from '@/lib/credential-groups/slack-provider'
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 import { rejectManagedOAuthToken, resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
+
+const mocks = {
+  ...hoisted,
+  getBilling: billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess,
+  getAdapter: credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapterByProviderId,
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+  encryptSecret: encryptionMockFns.mockEncryptSecret,
+}
 
 function mondayCredentialRow() {
   return {

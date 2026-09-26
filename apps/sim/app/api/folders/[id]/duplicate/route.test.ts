@@ -6,6 +6,7 @@
  * capped folder reader materializes under. These pin that the whole subtree is charged
  * against the ceiling in one check, before anything is inserted.
  */
+
 import {
   auditMock,
   authMockFns,
@@ -17,27 +18,20 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from '@sim/testing/mocks/folders-orchestration.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
 const {
-  mockLogger,
-  mockNextFolderSortOrder,
   mockDeduplicateFolderName,
   mockDuplicateWorkflow,
   mockAcquireFolderMutationLock,
   mockWithFolderTreeLock,
 } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
-  mockNextFolderSortOrder: vi.fn(),
   mockDeduplicateFolderName: vi.fn(),
   mockDuplicateWorkflow: vi.fn(),
   mockAcquireFolderMutationLock: vi.fn(),
@@ -45,14 +39,8 @@ const {
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/folders/orchestration', () => ({ nextFolderSortOrder: mockNextFolderSortOrder }))
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 vi.mock('@/lib/folders/locks', () => ({
   acquireFolderMutationLock: mockAcquireFolderMutationLock,
   withFolderTreeLock: mockWithFolderTreeLock,
@@ -63,6 +51,8 @@ vi.mock('@/lib/workflows/persistence/duplicate', () => ({
 }))
 
 import { POST } from '@/app/api/folders/[id]/duplicate/route'
+
+const mockNextFolderSortOrder = foldersOrchestrationMockFns.mockNextFolderSortOrder
 
 const TEST_USER: MockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User' }
 const WORKSPACE_ID = 'workspace-123'
@@ -110,7 +100,7 @@ function duplicateRequest(body: Record<string, unknown> = { name: 'Copy' }) {
   return createMockRequest('POST', body)
 }
 
-const routeContext = { params: Promise.resolve({ id: SOURCE_FOLDER_ID }) }
+const routeContext = createRouteContext({ id: SOURCE_FOLDER_ID })
 
 describe('POST /api/folders/[id]/duplicate', () => {
   afterAll(() => {

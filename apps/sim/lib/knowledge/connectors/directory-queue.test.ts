@@ -1,15 +1,17 @@
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }))
-vi.mock('@sim/db', () => ({ db: dbChainMock.db, asyncJobs: schemaMock.asyncJobs }))
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: async () => new DatabaseJobQueue() }))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/knowledge/connectors/external-group-sync', () => ({
   refreshConnectorDirectory: refresh,
 }))
 
 import { dispatchDirectorySync } from '@/lib/knowledge/connectors/directory-queue'
+
+asyncJobsMockFns.mockGetJobQueue.mockImplementation(async () => new DatabaseJobQueue())
 
 describe('local directory sync dispatch', () => {
   beforeEach(() => {

@@ -1,65 +1,24 @@
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  events,
-  mockLoadContext,
-  mockResolvePermission,
-  mockAssertItems,
-  mockArchive,
-  mockCreate,
-  mockDeleteByPath,
-  mockEnsure,
-  mockList,
-  mockGetFolderPath,
-  mockRelocate,
-  mockRestore,
-  mockAudit,
-  mockNotify,
-} = vi.hoisted(() => ({
+const { events } = vi.hoisted(() => ({
   events: [] as string[],
-  mockLoadContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockAssertItems: vi.fn(),
-  mockArchive: vi.fn(),
-  mockCreate: vi.fn(),
-  mockDeleteByPath: vi.fn(),
-  mockEnsure: vi.fn(),
-  mockList: vi.fn(),
-  mockGetFolderPath: vi.fn(),
-  mockRelocate: vi.fn(),
-  mockRestore: vi.fn(),
-  mockAudit: vi.fn(),
-  mockNotify: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  assertWorkspaceFileItemsBelongToWorkspace: mockAssertItems,
-  bulkArchiveWorkspaceFileItems: mockArchive,
-  createWorkspaceFileFolderAtPath: mockCreate,
-  deleteWorkspaceFileFolderByPath: mockDeleteByPath,
-  ensureWorkspaceFileFolderPath: mockEnsure,
-  listWorkspaceFileFolders: mockList,
-  getWorkspaceFileFolderPath: mockGetFolderPath,
-  loadWorkspaceFileOperationContext: mockLoadContext,
-  relocateWorkspaceFileFolderByPath: mockRelocate,
-  restoreWorkspaceFileFolder: mockRestore,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    FOLDER_CREATED: 'folder.created',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-    FOLDER_RESTORED: 'folder.restored',
-  },
-  AuditResourceType: { FOLDER: 'folder' },
-  recordAudit: mockAudit,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
@@ -70,6 +29,15 @@ import {
   resolveWorkspaceFileFolderPathOperation,
   restoreWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
+
+const mockAssertItems = workspaceUploadsMockFns.mockAssertWorkspaceFileItemsBelongToWorkspace
+const mockArchive = workspaceUploadsMockFns.mockBulkArchiveWorkspaceFileItems
+const mockCreate = workspaceUploadsMockFns.mockCreateWorkspaceFileFolderAtPath
+const mockEnsure = workspaceUploadsMockFns.mockEnsureWorkspaceFileFolderPath
+const mockList = workspaceUploadsMockFns.mockListWorkspaceFileFolders
+const mockGetFolderPath = workspaceUploadsMockFns.mockGetWorkspaceFileFolderPath
+const mockLoadContext = workspaceUploadsMockFns.mockLoadWorkspaceFileOperationContext
+const mockRestore = workspaceUploadsMockFns.mockRestoreWorkspaceFileFolder
 
 const folder = {
   id: 'folder-1',
@@ -82,6 +50,8 @@ const folder = {
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 }
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 describe('workspace file folder operations', () => {
   beforeEach(() => {
@@ -161,7 +131,7 @@ describe('workspace file folder operations', () => {
       .mockResolvedValue(LEAF)
 
     await createWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', path: '/A/B/C' },
     })
 
@@ -176,7 +146,7 @@ describe('workspace file folder operations', () => {
     mockList.mockResolvedValue([folder])
 
     await listWorkspaceFileFoldersOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', ...sortInput },
     })
 
@@ -193,7 +163,7 @@ describe('workspace file folder operations', () => {
     ])
 
     const result = await listWorkspaceFileFoldersOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', parentPath: '/Reports%20%26%20Plans' },
     })
 
@@ -210,7 +180,7 @@ describe('workspace file folder operations', () => {
 
     const list = (input: Record<string, unknown>) =>
       listWorkspaceFileFoldersOperation.execute({
-        principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'ws-1', ...input },
       })
 
@@ -238,7 +208,7 @@ describe('workspace file folder operations', () => {
     })
 
     const result = await ensureWorkspaceFileFolderPathOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', pathSegments: ['Reports', '2026'] },
     })
 
@@ -267,7 +237,7 @@ describe('workspace file folder operations', () => {
     })
 
     await restoreWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
     })
 
@@ -282,7 +252,7 @@ describe('workspace file folder operations', () => {
 
     await expect(
       restoreWorkspaceFileFolderOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
@@ -298,7 +268,7 @@ describe('workspace file folder operations', () => {
 
     await expect(
       restoreWorkspaceFileFolderOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
@@ -309,7 +279,7 @@ describe('workspace file folder operations', () => {
   it('rejects restoring the workspace root', async () => {
     await expect(
       restoreWorkspaceFileFolderOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'ws-1', path: '/' },
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -319,17 +289,11 @@ describe('workspace file folder operations', () => {
   })
 
   it('does not authorize a folder restore as though its ID were a delegated file scope', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot' as const,
-      subjectUserId: 'user-1',
+    const principal = createDelegatedPrincipal({
       workspaceId: 'ws-1',
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2099-01-01T00:00:00Z'),
       resourceScope: { fileId: 'folder-1' },
-    }
+    })
     await expect(
       restoreWorkspaceFileFolderOperation.execute({
         principal,

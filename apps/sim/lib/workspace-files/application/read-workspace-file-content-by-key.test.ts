@@ -1,27 +1,23 @@
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  fetchContent: vi.fn(),
-  getFile: vi.fn(),
-  getMetadata: vi.fn(),
-  loadContext: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchContent,
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: mocks.getMetadata,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
@@ -29,7 +25,15 @@ import {
   readWorkspaceFileRecordByKey,
 } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  fetchContent: workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer,
+  getFile: workspaceUploadsMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  getMetadata: uploadsMetadataMockFns.mockGetFileMetadataByKey,
+}
+
+const principal = createSessionPrincipal()
 const context = {
   fileId: 'file-1',
   workspaceId: 'workspace-1',
@@ -95,11 +99,7 @@ describe('readWorkspaceFileContentByKey', () => {
   it('authorizes an exact-key record read for a workspace API key without a human fallback', async () => {
     await expect(
       readWorkspaceFileRecordByKey.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: file.workspaceId,
-          keyId: 'key-1',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: file.workspaceId }),
         input: { key: file.key, assertedWorkspaceId: file.workspaceId },
       })
     ).resolves.toEqual({ file })

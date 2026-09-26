@@ -1,60 +1,25 @@
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StreamUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 
-const { mockCreate, mockExecuteTool, streamOnComplete, MockAPIError } = vi.hoisted(() => {
-  class MockAPIError extends Error {
-    status?: number
-    code?: string | null
-    type?: string
-    constructor(message: string, opts: { status?: number; code?: string; type?: string } = {}) {
-      super(message)
-      this.name = 'APIError'
-      this.status = opts.status
-      this.code = opts.code
-      this.type = opts.type
-    }
-  }
-  return {
-    mockCreate: vi.fn(),
-    mockExecuteTool: vi.fn(),
-    streamOnComplete: {
-      current: undefined as undefined | ((content: string, usage: StreamUsage) => void),
-    },
-    MockAPIError,
-  }
-})
-
-const mockOpenAIConstructor = vi.hoisted(() => vi.fn())
-
-vi.mock('openai', () => {
-  const OpenAI = vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-      constructor(opts: unknown) {
-        mockOpenAIConstructor(opts)
-      }
-    }
-  )
-  ;(OpenAI as unknown as { APIError: typeof MockAPIError }).APIError = MockAPIError
-  return { default: OpenAI }
-})
-
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue(''),
+const { streamOnComplete } = vi.hoisted(() => ({
+  streamOnComplete: {
+    current: undefined as undefined | ((content: string, usage: StreamUsage) => void),
+  },
 }))
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: (messages: unknown) => messages,
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+
+vi.mock('openai', () => openaiMock)
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 vi.mock('@/providers/ollama-cloud/utils', () => ({
   createReadableStreamFromOllamaCloudStream: (
     _stream: unknown,
@@ -68,24 +33,21 @@ vi.mock('@/providers/ollama-cloud/utils', () => ({
     })
   },
 }))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: () => ({ input: 0, output: 0, total: 0, pricing: null }),
-  generateSchemaInstructions: () => 'SCHEMA_INSTRUCTIONS',
-  prepareToolExecution: (_tool: unknown, args: Record<string, unknown>) => ({
-    toolParams: args,
-    executionParams: args,
-  }),
-  sumToolCosts: () => 0,
-}))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+const mockOpenAIConstructor = openaiMockFns.mockOpenAI
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({
+  input: 0,
+  output: 0,
+  total: 0,
+  pricing: null,
+})
 
 type ToolCallChunk = { id: string; type: 'function'; function: { name: string; arguments: string } }
 

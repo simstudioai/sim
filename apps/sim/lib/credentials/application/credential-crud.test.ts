@@ -1,17 +1,33 @@
 import {
-  auditMock,
-  auditMockFns,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
-} from '@sim/testing'
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getWorkspaceCredential: vi.fn(),
   getCredentialById: vi.fn(),
-  getActor: vi.fn(),
   updateRecord: vi.fn(),
   createRecord: vi.fn(),
   personalAccounts: vi.fn(),
@@ -21,44 +37,34 @@ const mocks = vi.hoisted(() => ({
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/queries', () => ({
-  getWorkspaceCredential: mocks.getWorkspaceCredential,
-  getCredentialById: mocks.getCredentialById,
+  getWorkspaceCredential: hoisted.getWorkspaceCredential,
+  getCredentialById: hoisted.getCredentialById,
 }))
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getActor,
-  canUseCredential: () => true,
-  requireOrdinaryCredentialType: (type: string) => type,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 vi.mock('@/lib/credentials/orchestration', () => ({
-  updateCredentialRecord: mocks.updateRecord,
-  createCredentialRecord: mocks.createRecord,
+  updateCredentialRecord: hoisted.updateRecord,
+  createCredentialRecord: hoisted.createRecord,
   isProviderOutageCode: () => false,
 }))
 vi.mock('@/lib/credentials/application/workspace-personal-accounts', () => ({
-  requireWorkspacePersonalAccounts: mocks.personalAccounts,
+  requireWorkspacePersonalAccounts: hoisted.personalAccounts,
 }))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  createPersonalTokenCredential: mocks.createPersonalToken,
+  createPersonalTokenCredential: hoisted.createPersonalToken,
   updatePersonalTokenCredential: vi.fn(),
 }))
-vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: vi.fn() }))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 vi.mock('@/lib/integrations/principal-scope.server', () => ({ allowedIntegrationTypes: vi.fn() }))
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
   createIntegrationCredentialVisibility: () => ({ isCredentialVisible: () => true }),
 }))
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/credentials/oauth', () => ({ syncWorkspaceOAuthCredentialsForUser: vi.fn() }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ checkWorkspaceAccess: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { PermissionGroupCapabilityError } from '@/lib/core/application'
 import {
@@ -68,6 +74,17 @@ import {
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
+const mocks = {
+  ...hoisted,
+  getActor: credentialsAccessMockFns.mockGetCredentialActorContext,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+credentialsAccessMockFns.mockCanUseCredential.mockReturnValue(true)
+credentialsAccessMockFns.mockRequireOrdinaryCredentialType.mockImplementation((type) => type)
+blockVisibilityMockFns.mockGetBlockVisibility.mockResolvedValue(undefined)
+
 const WORKSPACE_ID = 'workspace-1'
 const OTHER_WORKSPACE_ID = 'workspace-2'
 const workspace = {
@@ -76,8 +93,8 @@ const workspace = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const apiKeyPrincipal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
-const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const apiKeyPrincipal = createPersonalApiKeyPrincipal()
+const sessionPrincipal = createSessionPrincipal()
 const credential = {
   id: 'credential-1',
   workspaceId: WORKSPACE_ID,
@@ -188,7 +205,7 @@ describe('updateWorkspaceCredentialUseCase', () => {
   it('refuses a workspace API key before any canonical load', async () => {
     await expect(
       updateWorkspaceCredentialUseCase.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }),
         input: {
           credentialId: credential.id,
           assertedWorkspaceId: WORKSPACE_ID,

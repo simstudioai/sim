@@ -1,30 +1,34 @@
 import { Readable } from 'node:stream'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLoadContext, mockGetWorkspaceFile, mockGetMetadataByKey, mockDownloadFileStream } =
-  vi.hoisted(() => ({
-    mockLoadContext: vi.fn(),
-    mockGetWorkspaceFile: vi.fn(),
-    mockGetMetadataByKey: vi.fn(),
-    mockDownloadFileStream: vi.fn(),
-  }))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('admin'),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  loadActiveWorkspaceFileContext: mockLoadContext,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mockGetMetadataByKey }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mockDownloadFileStream,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 
-const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
+
+const mockGetMetadataByKey = uploadsMetadataMockFns.mockGetFileMetadataByKey
+
+const mockGetWorkspaceFile = workspaceFileManagerMockFns.mockGetWorkspaceFile
+const mockLoadContext = workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext
+
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
 const file = {
   id: 'f1',
   workspaceId: 'ws-1',

@@ -5,18 +5,15 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getJob: vi.fn(),
-  getJobQueue: vi.fn(),
-  loadWorkspace: vi.fn(),
-}))
-
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mocks.getJobQueue }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import {
   resolveActiveWorkflowApplicationContext,
@@ -24,6 +21,13 @@ import {
   resolveActiveWorkflowExecutionApplicationContext,
   resolveActiveWorkflowRunApplicationContext,
 } from '@/lib/workflows/application/context'
+
+const mocks = {
+  getJob: asyncJobsMockFns.mockJobQueue.getJob,
+  getJobQueue: asyncJobsMockFns.mockGetJobQueue,
+}
+
+const mockLoadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -42,8 +46,7 @@ function queueCanonicalBindings(input: { log?: string; paused?: string; resumed?
 describe('workflow application contexts', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.loadWorkspace.mockResolvedValue(workspace)
-    mocks.getJobQueue.mockResolvedValue({ getJob: mocks.getJob })
+    mockLoadWorkspace.mockResolvedValue(workspace)
   })
 
   it('derives workflow authorization from its canonical active workspace', async () => {
@@ -57,7 +60,7 @@ describe('workflow application contexts', () => {
         assertedWorkspaceId: 'workspace-1',
       })
     ).resolves.toEqual({ ...workspace, workflowId: 'workflow-1', workflow })
-    expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
+    expect(mockLoadWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('conceals an asserted workspace mismatch before loading workspace policy', async () => {
@@ -71,14 +74,14 @@ describe('workflow application contexts', () => {
         assertedWorkspaceId: 'workspace-2',
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mockLoadWorkspace).not.toHaveBeenCalled()
   })
 
   it('conceals an inactive canonical workspace as workflow absence', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { workflowId: 'workflow-1', workflow, workspaceId: 'workspace-1' },
     ])
-    mocks.loadWorkspace.mockResolvedValueOnce(null)
+    mockLoadWorkspace.mockResolvedValueOnce(null)
 
     await expect(
       resolveActiveWorkflowApplicationContext({ workflowId: 'workflow-1' })
@@ -152,7 +155,7 @@ describe('workflow application contexts', () => {
         assertedWorkflowId: 'workflow-1',
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mockLoadWorkspace).not.toHaveBeenCalled()
   })
 
   it('binds a claimed resume attempt to its parent durable execution log', async () => {

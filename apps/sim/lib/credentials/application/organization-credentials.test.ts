@@ -1,12 +1,26 @@
 import type { Principal } from '@sim/auth/principal'
 import { credential } from '@sim/db/schema'
 import { auditMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   catalog: vi.fn(),
   requireOAuth: vi.fn(),
   requireService: vi.fn(),
@@ -15,19 +29,14 @@ const mocks = vi.hoisted(() => ({
   draft: vi.fn(),
   getDraft: vi.fn(),
   getCredential: vi.fn(),
-  resolveToken: vi.fn(),
   ownedManaged: vi.fn(),
-  resolveManaged: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-  requireOrganizationMembership: vi.fn(),
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.catalog,
-  requireAvailableOAuthCredentialProvider: mocks.requireOAuth,
-  requireAvailableServiceAccountCredentialProvider: mocks.requireService,
+  listCredentialProviderCatalog: hoisted.catalog,
+  requireAvailableOAuthCredentialProvider: hoisted.requireOAuth,
+  requireAvailableServiceAccountCredentialProvider: hoisted.requireService,
 }))
 vi.mock('@/lib/credentials/application/credential-crud', () => ({
   throwCredentialMutationFailure: (result: { error?: string }) => {
@@ -35,28 +44,22 @@ vi.mock('@/lib/credentials/application/credential-crud', () => ({
   },
 }))
 vi.mock('@/lib/credentials/orchestration/credential-create', () => ({
-  createCredentialRecord: mocks.create,
+  createCredentialRecord: hoisted.create,
 }))
-vi.mock('@/lib/credentials/orchestration', () => ({ updateCredentialRecord: mocks.update }))
+vi.mock('@/lib/credentials/orchestration', () => ({ updateCredentialRecord: hoisted.update }))
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  createConnectDraft: mocks.draft,
-  getActiveConnectDraft: mocks.getDraft,
+  createConnectDraft: hoisted.draft,
+  getActiveConnectDraft: hoisted.getDraft,
 }))
 vi.mock('@/lib/credentials/organization', () => ({
-  getOrganizationCredential: mocks.getCredential,
+  getOrganizationCredential: hoisted.getCredential,
 }))
 vi.mock('@/lib/credentials/organization-managed', () => ({
-  getOwnOrganizationManagedOAuthCredentials: mocks.ownedManaged,
+  getOwnOrganizationManagedOAuthCredentials: hoisted.ownedManaged,
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mocks.resolveManaged,
-}))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mocks.resolveToken,
-}))
-vi.mock('@/lib/oauth/utils', () => ({
-  getServiceConfigByProviderId: () => ({ serviceAccountProviderId: 'google-service-account' }),
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   createOrganizationCredential,
@@ -68,7 +71,18 @@ import {
   saveOrganizationCredentialDraft,
 } from '@/lib/credentials/application/organization-credentials'
 
-const principal = { kind: 'session' as const, userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  resolveToken: authOAuthUtilsMockFns.mockResolveCredentialTokenBundle,
+  resolveManaged: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
+
+oauthUtilsMockFns.mockGetServiceConfigByProviderId.mockReturnValue({
+  serviceAccountProviderId: 'google-service-account',
+})
+
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const row = {
   id: 'credential-1',
   organizationId: 'org-1',
@@ -300,7 +314,7 @@ describe('organization member account browsing', () => {
     ])
     expect(result.credentials[0]).not.toHaveProperty('createdBy')
   })
-  it.each<Principal>([{ kind: 'personal_api_key', userId: 'key-user', keyId: 'key-1' }])(
+  it.each<Principal>([createPersonalApiKeyPrincipal({ userId: 'key-user' })])(
     'keeps $kind browsing bound to its authorized user',
     async (userPrincipal) => {
       await listOrganizationOAuthCredentials.execute({
@@ -320,7 +334,7 @@ describe('organization member account browsing', () => {
       })
     }
   )
-  it.each<Principal>([{ kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' }])(
+  it.each<Principal>([createWorkspaceApiKeyPrincipal()])(
     'refuses actorless $kind browsing before any account lookup',
     async (actorlessPrincipal) => {
       await expect(

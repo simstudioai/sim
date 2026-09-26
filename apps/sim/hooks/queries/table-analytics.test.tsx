@@ -1,5 +1,9 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,8 +13,8 @@ import type {
 } from '@/lib/api/contracts/table-analytics'
 import { useTableAnalytics } from '@/hooks/queries/table-analytics'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+const mocks = { request: apiClientRequestMockFns.mockRequestJson }
 
 const BODY: QueryTableAnalyticsBody = {
   workspaceId: 'workspace-1',
@@ -54,6 +58,7 @@ describe('dashboard range transitions', () => {
     })
   }
   beforeEach(() => {
+    mocks.request.mockReset()
     vi.useFakeTimers()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.request.mockResolvedValue(DATA)

@@ -1,30 +1,18 @@
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
 import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerify, mockTryAdmit, mockRelease, mockEq, mockExecuteInboxTask } = vi.hoisted(() => ({
+const { mockVerify, mockExecuteInboxTask } = vi.hoisted(() => ({
   mockVerify: vi.fn(),
-  mockTryAdmit: vi.fn(),
-  mockRelease: vi.fn(),
-  mockEq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   mockExecuteInboxTask: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => conditions),
-  eq: mockEq,
-  gt: vi.fn((left: unknown, right: unknown) => ({ gt: [left, right] })),
-  ne: vi.fn((left: unknown, right: unknown) => ({ ne: [left, right] })),
-  sql: Object.assign((strings: TemplateStringsArray) => ({ strings }), {
-    raw: (value: string) => ({ value }),
-  }),
 }))
 
 vi.mock('svix', () => ({
@@ -39,18 +27,11 @@ vi.mock('svix', () => ({
   },
 }))
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: mockTryAdmit,
-  admissionRejectedResponse: () => new Response(null, { status: 429 }),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceInboxAccess: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 vi.mock('@/lib/mothership/inbox/executor', () => ({
   executeInboxTask: mockExecuteInboxTask,
@@ -58,6 +39,11 @@ vi.mock('@/lib/mothership/inbox/executor', () => ({
 
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { POST } from '@/app/api/webhooks/agentmail/route'
+
+const { mockTryAdmit, mockRelease } = admissionGateMockFns
+
+const mockEq = vi.mocked(eq)
+billingSubscriptionMockFns.mockHasWorkspaceInboxAccess.mockResolvedValue(true)
 
 const TARGET_INBOX_ID = 'agent-b@agentmail.to'
 
@@ -85,9 +71,10 @@ function envelope(messageOverrides: Record<string, unknown> = {}): string {
   })
 }
 
-function webhookRequest(body: string, headers: Record<string, string> = {}): Request {
-  return new Request('https://sim.ai/api/webhooks/agentmail', {
+function webhookRequest(body: string, headers: Record<string, string> = {}) {
+  return createMockRequest({
     method: 'POST',
+    url: 'https://sim.ai/api/webhooks/agentmail',
     headers: {
       'content-type': 'application/json',
       'svix-id': 'msg_1',
@@ -95,7 +82,7 @@ function webhookRequest(body: string, headers: Record<string, string> = {}): Req
       'svix-signature': 'v1,AAAA',
       ...headers,
     },
-    body,
+    rawBody: body,
   })
 }
 

@@ -2,7 +2,7 @@
 description: UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings
 paths:
   - "apps/sim/**/*.tsx"
-  - "apps/sim/components/emcn/**"
+  - "packages/emcn/**/*.tsx"
 ---
 
 # UI Copy
