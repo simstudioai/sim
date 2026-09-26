@@ -157,9 +157,10 @@ test('a component rename does not hide removal of an appearance override', () =>
   ).toBe(false)
 })
 test('uppercase exported object styling and property edits are inspected', () => {
-  const a = "export const PANEL_CLASSES={layout:'p-2 [--control-reserve:64px]'} as const"
+  const a =
+    "export const PANEL_CLASSES={layout:'p-2 [--control-reserve:64px]'} as const;const A=()=> <div className={PANEL_CLASSES.layout}/>"
   expect(diff(a, a.replace('64px', '52px')).flagged).toBe(true)
-  expect(diff(a, a.replace('PANEL_CLASSES', 'ROW_CLASSES')).flagged).toBe(false)
+  expect(diff(a, a.replaceAll('PANEL_CLASSES', 'ROW_CLASSES')).flagged).toBe(false)
 })
 test('detached shared styles have specific evidence; import aliases pass', () => {
   const a =

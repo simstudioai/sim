@@ -27,7 +27,7 @@ import {
   utility,
   variablesIn,
 } from '#design-conformance/normalize'
-import { type SourceSummary, summarize } from '#design-conformance/source-summary'
+import { classUseIndex, type SourceSummary, summarize } from '#design-conformance/source-summary'
 import type { SystemInput } from '#design-conformance/system-snapshot'
 
 export interface Reference {
@@ -50,6 +50,7 @@ interface Module {
 export interface DesignSystem {
   metadata: GeneratedContracts
   recipes: Record<string, ReturnType<typeof extractCentralRecipes>>
+  classUses: ReturnType<typeof classUseIndex>
   summaries: { file: string; summary: SourceSummary }[]
   resolutionHash: string
   definitions: Record<string, Atom[]>
@@ -586,13 +587,15 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
   unchecked.push(
     ...metadata.diagnostics.map((d) => ({ file: d.file, line: d.line, reason: d.reason }))
   )
+  const summaries = input.snapshot.entries.flatMap((e) => {
+    const summary = info.get(moduleName(e.path))?.summary
+    return summary ? [{ file: e.path, summary }] : []
+  })
   return {
     metadata,
     recipes,
-    summaries: input.snapshot.entries.flatMap((e) => {
-      const summary = info.get(moduleName(e.path))?.summary
-      return summary ? [{ file: e.path, summary }] : []
-    }),
+    classUses: classUseIndex(summaries),
+    summaries,
     resolutionHash: hash(
       canonical([
         metadata.sourceHash,

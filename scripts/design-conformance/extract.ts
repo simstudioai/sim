@@ -33,7 +33,13 @@ import {
   renderedHtml,
   visibleHtmlText,
 } from '#design-conformance/rendered-html'
-import { modulePath, type Route, summarize } from '#design-conformance/source-summary'
+import {
+  type ClassUse,
+  classUseIndex,
+  modulePath,
+  type Route,
+  summarize,
+} from '#design-conformance/source-summary'
 
 const classHelpers = new Set(['cn', 'clsx', 'classNames', 'twMerge'])
 const media = new Set([
@@ -55,6 +61,7 @@ export function extract(
   file: string,
   appearance = true,
   options?: {
+    classUses?: (ref: string) => ClassUse[]
     conformance: boolean
     resolve: (ref: string) => Reference | undefined
     contract?: (target: string) => ComponentContract | undefined
@@ -401,7 +408,9 @@ export function extract(
       errorRecovery: false,
     })
     parsed = true
-    if (options?.conformance) facts.syntax = summarize(ast, file)
+    const summary = summarize(ast, file)
+    const localClassUses = classUseIndex([{ file, summary }])
+    if (options?.conformance) facts.syntax = summary
     const emitted = new Set<string>()
     const mediaNames = new Set(media)
     for (const statement of ast.program.body)
@@ -1365,9 +1374,12 @@ export function extract(
           for (const decl of d.get('declarations'))
             if (
               decl.get('id').isIdentifier() &&
-              /(?:Class|Classes|Tokens|Styles|_CLASS|_CLASSES|_TOKENS|_STYLES)$/.test(
+              (/(?:Class|Classes|Tokens|Styles|_CLASS|_CLASSES|_TOKENS|_STYLES)$/.test(
                 name(decl.get('id'))
-              )
+              ) ||
+                localClassUses(`${modulePath(file)}#${name(decl.get('id'))}`).length > 0 ||
+                (options?.classUses?.(`${modulePath(file)}#${name(decl.get('id'))}`).length ?? 0) >
+                  0)
             )
               within(
                 surface(
@@ -1380,8 +1392,48 @@ export function extract(
                   let init = decl.get('init') as NodePath
                   if (init.isTSAsExpression() || init.isTSSatisfiesExpression())
                     init = init.get('expression') as NodePath
-                  if (init.isObjectExpression()) variantValues(init)
-                  else classes(init)
+                  if (init.isObjectExpression()) {
+                    const ref = `${modulePath(file)}#${name(decl.get('id'))}`
+                    const uses = [...localClassUses(ref), ...(options?.classUses?.(ref) ?? [])]
+                    if (!uses.length) {
+                      note(
+                        init,
+                        'Exported object class-input classification is unchecked; supplied same-file/central consumers do not prove class-map keys or variant values'
+                      )
+                      return
+                    }
+                    for (const use of uses) {
+                      let selected: NodePath | undefined = init
+                      for (const key of use.path) {
+                        while (
+                          selected?.isTSAsExpression() ||
+                          selected?.isTSSatisfiesExpression() ||
+                          selected?.isTSNonNullExpression()
+                        )
+                          selected = selected.get('expression') as NodePath
+                        if (!selected?.isObjectExpression()) {
+                          selected = undefined
+                          break
+                        }
+                        const member = selected
+                          .get('properties')
+                          .filter(
+                            (p) =>
+                              p.isObjectProperty() && !p.node.computed && name(p.get('key')) === key
+                          )
+                          .at(-1)
+                        selected = member?.isObjectProperty() ? member.get('value') : undefined
+                      }
+                      if (!selected) {
+                        note(init, 'Exported object class-input member path is unchecked')
+                        continue
+                      }
+                      if (use.mode === 'variants')
+                        variantValues(selected, use.path.map((part) => `/${part}`).join(''))
+                      else
+                        classes(selected, new Set(), 0, use.path.map((part) => `/${part}`).join(''))
+                    }
+                  } else classes(init)
                 }
               )
       },

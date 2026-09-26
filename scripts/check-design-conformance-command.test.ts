@@ -310,6 +310,165 @@ throw new Error('Product source must not execute')
 )
 
 test.each([
+  [
+    'Boolean class map',
+    "{'bg-red-500':true}",
+    "{'bg-blue-500':true}",
+    'cn(paintStyles)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'truthy string class map',
+    "{'bg-red-500':'enabled'}",
+    "{'bg-blue-500':'enabled'}",
+    'cn(paintStyles)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'nested class map',
+    "{tone:{'bg-red-500':true}}",
+    "{tone:{'bg-blue-500':true}}",
+    'cn(paintStyles.tone)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'class map without styling suffix',
+    "{'bg-red-500':true}",
+    "{'bg-blue-500':true}",
+    'cn(palette)',
+    'palette',
+    true,
+    false,
+  ],
+  [
+    'falsy class map',
+    "{'bg-red-500':false,'rounded-lg':0,'p-2':null,'text-red-500':''}",
+    "{'bg-blue-500':false,'rounded-xl':0,'p-4':null,'text-blue-500':''}",
+    'cn(paintStyles)',
+    'paintStyles',
+    false,
+    false,
+  ],
+  [
+    'variant string value',
+    "{primary:'bg-red-500'}",
+    "{primary:'bg-blue-500'}",
+    'cn(paintStyles.primary)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'nested variant value',
+    "{tone:{primary:'bg-red-500'}}",
+    "{tone:{primary:'bg-blue-500'}}",
+    'cn(paintStyles.tone.primary)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'CVA variant table',
+    "{tone:{primary:'bg-red-500'}}",
+    "{tone:{primary:'bg-blue-500'}}",
+    "cva('',{variants:paintStyles})()",
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'exported string',
+    "'bg-red-500'",
+    "'bg-blue-500'",
+    'cn(paintStyles)',
+    'paintStyles',
+    true,
+    false,
+  ],
+  [
+    'data-only object',
+    "{message:'bg-red-500'}",
+    "{message:'bg-blue-500'}",
+    'JSON.stringify(paintStyles)',
+    'paintStyles',
+    false,
+    true,
+  ],
+  [
+    'shadowed data object',
+    "{message:'bg-red-500'}",
+    "{message:'bg-blue-500'}",
+    '<shadowed>',
+    'paintStyles',
+    false,
+    true,
+  ],
+  [
+    'unknown object consumer',
+    "{primary:'bg-red-500'}",
+    "{primary:'bg-blue-500'}",
+    'unknownClasses(paintStyles)',
+    'paintStyles',
+    false,
+    true,
+  ],
+] as const)(
+  'source-only exported styling changes follow unchanged class consumers through the real CLI: %s',
+  (_name, before, after, use, exported, notify, unchecked) => {
+    const { repo } = fixture()
+    const sourceFile = 'packages/emcn/src/lib/styles.ts'
+    const consumerFile = 'packages/emcn/src/components/consumer.tsx'
+    const write = (file: string, source: string) => {
+      mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+      writeFileSync(path.join(repo, file), source)
+    }
+    write('packages/emcn/src/index.ts', `export {${exported}} from './lib/styles'`)
+    const shadow =
+      use === '<shadowed>'
+        ? ";declare function cva(value:unknown):unknown;function Local(){const paintStyles={'p-2':true};return cva(paintStyles)}"
+        : ''
+    write(sourceFile, `export const ${exported}=${before} as const${shadow}`)
+    write(
+      consumerFile,
+      `import {${exported}} from '../lib/styles';declare function cn(...v:unknown[]):string;declare function unknownClasses(v:unknown):string;declare function cva(base:string,config:unknown):()=>string;${use === '<shadowed>' ? "const Consumer=()=> {const paintStyles={'p-2':true};return <div className={cn(paintStyles)}/>}" : `const Consumer=()=> <div className={${use}}/>`}`
+    )
+    write(
+      ui,
+      `import {${exported},cn} from '@sim/emcn';const A=()=> <div className={cn(${exported})}/>`
+    )
+    const base = commit(repo)
+    write(sourceFile, `export const ${exported}=${after} as const${shadow}`)
+    const child = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+    expect([0, 1], child.stderr).toContain(child.status)
+    const report = JSON.parse(child.stdout) as Report
+    expect(report.status, child.stdout).toBe('completed')
+    expect(git(repo, ['diff', '--name-only', base]).toString().trim()).toBe(sourceFile)
+    expect(
+      report.findings.some(
+        (finding) => finding.file === sourceFile && finding.property === 'background-color'
+      ),
+      child.stdout
+    ).toBe(notify)
+    expect(
+      report.findings.filter((finding) => finding.file === sourceFile),
+      child.stdout
+    ).toHaveLength(notify ? 1 : 0)
+    expect(
+      report.unchecked.some(
+        (note) => note.file === sourceFile && /object.*class.*unchecked/i.test(note.reason)
+      ),
+      child.stdout
+    ).toBe(unchecked)
+  }
+)
+
+test.each([
   ['grid line integer', 'gridColumnStart', 'grid-column-start', '1', 1, ''],
   ['grid row integer', 'gridRowEnd', 'grid-row-end', '3', 3, ''],
   ['animation count', 'animationIterationCount', 'animation-iteration-count', '2', 2, ''],

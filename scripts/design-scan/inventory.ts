@@ -144,6 +144,7 @@ export async function inspectInventory(
     extract(source.read(entry), entry.path, true, {
       conformance: true,
       resolve: system.resolve,
+      classUses: system.classUses,
       contract: (target) => componentContract(target, system.metadata),
     })
   /** Keep only detached metadata between passes; no ASTs or application execution. */

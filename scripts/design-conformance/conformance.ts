@@ -577,6 +577,7 @@ export class ConformanceLinter {
     const facts = extract(source, file, true, {
       conformance: true,
       resolve: system.resolve,
+      classUses: system.classUses,
       contract: (target) => componentContract(target, system.metadata),
     })
     const bytes = Buffer.byteLength(canonical(facts))

@@ -1,4 +1,5 @@
 import { posix } from 'node:path'
+import traverse, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { componentContract, registry } from '#design-conformance/contracts'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
@@ -9,7 +10,14 @@ export interface Route {
   target: string
   slot: string
 }
+export interface ClassUse {
+  ref: string
+  path: string[]
+  mode: 'classes' | 'variants'
+}
 export interface SourceSummary {
+  classUses?: ClassUse[]
+  classObjects?: string[]
   unchecked?: string[]
   exports: Record<string, string>
   stars: string[]
@@ -122,6 +130,7 @@ export function summarize(ast: t.File, file: string): SourceSummary {
         if (t.isIdentifier(d.id) && d.init) {
           const v = value(d.init)
           if (v !== undefined) result.values[d.id.name] = v
+          if (t.isObjectExpression(unwrapped(d.init))) (result.classObjects ??= []).push(d.id.name)
         }
     if (t.isExportNamedDeclaration(st)) {
       if (t.isVariableDeclaration(decl))
@@ -142,6 +151,102 @@ export function summarize(ast: t.File, file: string): SourceSummary {
     }
     if (t.isExportAllDeclaration(st)) result.stars.push(importPath(file, st.source.value))
   }
+  const classHelpers = new Set(['cn', 'clsx', 'classNames', 'twMerge'])
+  const helper = (p: NodePath): string => {
+    if (!p.isIdentifier()) return ''
+    const binding = p.scope.getBinding(p.node.name)
+    if (binding?.path.isImportSpecifier()) return key(binding.path.node.imported)
+    if (binding?.path.isImportDefaultSpecifier() && binding.path.parentPath.isImportDeclaration()) {
+      const source = binding.path.parentPath.node.source.value
+      if (source === 'clsx') return 'clsx'
+      if (source === 'classnames') return 'classNames'
+    }
+    return p.node.name
+  }
+  const classRef = (
+    p: NodePath,
+    active = new Set<t.Node>()
+  ): { ref: string; path: string[] } | undefined => {
+    if (!p.node || active.has(p.node) || active.size >= 12) {
+      note(
+        'Class-input source summary resolution limit or cycle; object classification is unchecked'
+      )
+      return undefined
+    }
+    const next = new Set(active).add(p.node)
+    if (p.isTSAsExpression() || p.isTSSatisfiesExpression() || p.isTSNonNullExpression())
+      return classRef(p.get('expression') as NodePath, next)
+    if (p.isMemberExpression()) {
+      const member = p.node.computed
+        ? t.isStringLiteral(p.node.property)
+          ? p.node.property.value
+          : ''
+        : key(p.node.property)
+      const object = classRef(p.get('object'), next)
+      return object && member ? { ref: object.ref, path: [...object.path, member] } : undefined
+    }
+    if (!p.isIdentifier()) return undefined
+    const binding = p.scope.getBinding(p.node.name)
+    if (
+      binding?.path.isImportSpecifier() ||
+      binding?.path.isImportDefaultSpecifier() ||
+      binding?.path.isImportNamespaceSpecifier()
+    ) {
+      const decl = binding.path.parentPath
+      if (!decl.isImportDeclaration()) return undefined
+      return {
+        ref: `${importPath(file, decl.node.source.value)}#${binding.path.isImportSpecifier() ? key(binding.path.node.imported) : binding.path.isImportDefaultSpecifier() ? 'default' : '*'}`,
+        path: [],
+      }
+    }
+    if (!binding?.constant || !binding.path.isVariableDeclarator()) return undefined
+    const init = binding.path.get('init') as NodePath
+    if (t.isObjectExpression(unwrapped(init.node)))
+      return binding.scope.path.isProgram() ? { ref: local(p.node.name), path: [] } : undefined
+    return classRef(init, next)
+  }
+  const classInput = (p: NodePath, mode: ClassUse['mode'] = 'classes', depth = 0): void => {
+    if (!p.node || depth >= 12) {
+      note('Class-input source summary resolution limit; object classification is unchecked')
+      return
+    }
+    const reference = classRef(p)
+    if (reference) {
+      const use = { ...reference, mode }
+      const uses = (result.classUses ??= [])
+      if (!uses.some((entry) => canonical(entry) === canonical(use))) uses.push(use)
+      return
+    }
+    const rec = (path: NodePath) => classInput(path, mode, depth + 1)
+    if (p.isTSAsExpression() || p.isTSSatisfiesExpression() || p.isTSNonNullExpression())
+      rec(p.get('expression') as NodePath)
+    else if (p.isArrayExpression())
+      for (const element of p.get('elements')) rec(element as NodePath)
+    else if (p.isConditionalExpression()) {
+      rec(p.get('consequent'))
+      rec(p.get('alternate'))
+    } else if (p.isLogicalExpression()) {
+      rec(p.get('right'))
+      if (p.node.operator !== '&&') rec(p.get('left'))
+    } else if (p.isCallExpression() && classHelpers.has(helper(p.get('callee'))))
+      for (const arg of p.get('arguments')) rec(arg as NodePath)
+  }
+  traverse(ast, {
+    JSXAttribute(p) {
+      if (key(p.node.name) !== 'className') return
+      const value = p.get('value')
+      if (value.isJSXExpressionContainer()) classInput(value.get('expression'))
+    },
+    CallExpression(p) {
+      if (helper(p.get('callee')) !== 'cva') return
+      const args = p.get('arguments')
+      if (args[0]) classInput(args[0] as NodePath)
+      if (args[1]?.isObjectExpression())
+        for (const prop of args[1].get('properties'))
+          if (prop.isObjectProperty() && key(prop.node.key) === 'variants')
+            classInput(prop.get('value'), 'variants')
+    },
+  })
   const seen = new Set<string>()
   const fn = (name: string, node: t.Function) => {
     const params = new Map<string, string>()
@@ -311,6 +416,49 @@ export function summarize(ast: t.File, file: string): SourceSummary {
     }
   })
   return result
+}
+
+/** Resolve only detached supplied source summaries; no consumer discovery or module execution. */
+export function classUseIndex(
+  items: { file: string; summary: SourceSummary }[]
+): (ref: string) => ClassUse[] {
+  const modules = new Map(items.map(({ file, summary }) => [modulePath(file), summary]))
+  const resolve = (ref: string, active = new Set<string>()): string | undefined => {
+    if (active.has(ref) || active.size >= 12) return undefined
+    const next = new Set(active).add(ref)
+    const at = ref.lastIndexOf('#')
+    const raw = ref.slice(0, at)
+    const module = raw === '@sim/emcn' ? 'packages/emcn/src/index' : raw
+    const path = modules.has(module) ? module : `${module}/index`
+    const summary = modules.get(path)
+    if (!summary) return undefined
+    const name = ref.slice(at + 1)
+    const target = summary.exports[name]
+    if (target && target !== `${path}#${name}`) return resolve(target, next)
+    if (summary.classObjects?.includes(name)) return `${path}#${name}`
+    const alias = summary.values[name]
+    if (alias && typeof alias === 'object' && 'ref' in alias) return resolve(alias.ref, next)
+    const candidates = [
+      ...new Set(
+        summary.stars.flatMap((star) => {
+          const found = resolve(`${star}#${name}`, next)
+          return found ? [found] : []
+        })
+      ),
+    ]
+    return candidates.length === 1 ? candidates[0] : undefined
+  }
+  const uses = new Map<string, ClassUse[]>()
+  for (const { summary } of items)
+    for (const use of summary.classUses ?? []) {
+      const ref = resolve(use.ref)
+      if (!ref) continue
+      const bucket = uses.get(ref) ?? []
+      const entry = { ...use, ref }
+      if (!bucket.some((old) => canonical(old) === canonical(entry))) bucket.push(entry)
+      uses.set(ref, bucket)
+    }
+  return (ref) => uses.get(resolve(ref) ?? ref) ?? []
 }
 
 const summarySizes = new WeakMap<SourceSummary, number>()
