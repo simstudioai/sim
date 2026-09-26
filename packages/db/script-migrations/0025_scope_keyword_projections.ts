@@ -1,6 +1,7 @@
 import {
   installMembershipKey,
   installTinChunkSync,
+  installTinMembershipSync,
 } from '@sim/db/script-migrations/0019_tin_keyword_projection'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
@@ -63,7 +64,9 @@ async function installKeywordSearchSync(tx: TransactionSql): Promise<void> {
 /**
  * Projects or removes a whole base's GIN keyword rows when its search-index marker changes, under
  * the membership lock taken exclusively, as the Tin projection's knowledge base trigger does. It is
- * its own trigger because that one exists only where Tin is installed.
+ * its own trigger because that one exists only where Tin is installed. The chunks are key-share
+ * locked as they are read, as the projection backfills lock theirs: a chunk delete in flight is
+ * waited for and its chunk skipped, rather than failing the adoption on the row's foreign key.
  */
 async function installKeywordSearchMembership(tx: TransactionSql): Promise<void> {
   await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_knowledge_base_keyword_search()
@@ -77,6 +80,7 @@ async function installKeywordSearchMembership(tx: TransactionSql): Promise<void>
       INSERT INTO embedding_keyword_search AS s (id, knowledge_base_id, document_id, enabled, content_tsv)
       SELECT id, knowledge_base_id, document_id, enabled, content_tsv
       FROM embedding WHERE knowledge_base_id = NEW.id
+      ORDER BY id FOR KEY SHARE
       ${KEYWORD_SEARCH_UPSERT};
       RETURN NEW;
     END;
@@ -88,13 +92,16 @@ async function installKeywordSearchMembership(tx: TransactionSql): Promise<void>
 }
 
 /**
- * The Tin chunk trigger's body as `0019_tin_keyword_projection` now installs it, where that
- * migration installed it: without the delete an insert outside a search index ran.
+ * The Tin trigger bodies as `0019_tin_keyword_projection` now installs them, where that migration
+ * installed them: the chunk trigger without the delete an insert outside a search index ran, and
+ * the knowledge base trigger key-share locking the chunks it projects.
  */
 async function installTinSync(tx: TransactionSql): Promise<void> {
   const [row] = await tx<Array<{ installed: boolean }>>`
     SELECT to_regprocedure('sync_embedding_keyword_tin()') IS NOT NULL AS installed`
-  if (row?.installed) await installTinChunkSync(tx)
+  if (!row?.installed) return
+  await installTinChunkSync(tx)
+  await installTinMembershipSync(tx)
 }
 
 /**

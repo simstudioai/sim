@@ -241,6 +241,53 @@ describe('keyword projections scoped to search indexes in PostgreSQL', () => {
     expect(await keywordIds()).toEqual(['waiting'])
   })
 
+  /**
+   * Adopts `legacy` while a second connection holds a delete of one of its chunks open, and resolves
+   * once both have committed.
+   */
+  async function adoptWhileDeleting(): Promise<void> {
+    await sql`INSERT INTO embedding (id, knowledge_base_id, document_id, content_tsv) VALUES
+      ('kept', 'legacy', 'doc', to_tsvector('english', 'Kept chunk')),
+      ('deleted', 'legacy', 'doc', to_tsvector('english', 'Deleted chunk'))`
+    let deleted!: () => void
+    const deletedSignal = new Promise<void>((resolve) => {
+      deleted = resolve
+    })
+    let release!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const deleter = sql.begin(async (tx) => {
+      await tx`DELETE FROM embedding WHERE id = 'deleted'`
+      deleted()
+      await released
+    })
+    await deletedSignal
+    const [{ pid }] = await other`SELECT pg_backend_pid() AS pid`
+    const adoption =
+      other`UPDATE knowledge_base SET is_search_index = true WHERE id = 'legacy'`.execute()
+    await waitUntilBlocked(admin, pid)
+    release()
+    await deleter
+    await adoption
+  }
+
+  it('adopts a base while one of its chunks is being deleted', async () => {
+    await adoptWhileDeleting()
+    expect(await keywordIds()).toEqual(['kept'])
+    expect(await tinIds()).toEqual(['kept'])
+  })
+
+  it('adopts a base into Tin while a chunk is being deleted, with no keyword trigger ahead of it', async () => {
+    await sql`ALTER TABLE knowledge_base DISABLE TRIGGER knowledge_base_keyword_search_sync`
+    try {
+      await adoptWhileDeleting()
+    } finally {
+      await sql`ALTER TABLE knowledge_base ENABLE TRIGGER knowledge_base_keyword_search_sync`
+    }
+    expect(await tinIds()).toEqual(['kept'])
+  })
+
   it('runs no fan-out for an inserted document, and still fans out a changed ACL', async () => {
     const projections = ['embedding_search', 'embedding_keyword_tin'] as const
     const scans = await sql.begin(async (tx) => {
