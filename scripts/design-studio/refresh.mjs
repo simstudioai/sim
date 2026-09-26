@@ -521,51 +521,42 @@ function extraInventory(scanDir) {
       )
     return null
   }
-  for (const [kind, source] of [['finding', findings]]) {
-    for (const item of source) {
-      const fingerprint =
-        kind === 'finding'
-          ? sha(
-              JSON.stringify([
-                'finding',
-                item.file,
-                item.context,
-                item.rule,
-                item.property,
-                item.value,
-              ])
-            )
-          : sha(JSON.stringify(['review-item', item.file, item.owner, item.kind, item.value]))
-      const decision =
-        matched.get(fingerprint) ??
-        (item.legacyFingerprint ? matched.get(item.legacyFingerprint) : undefined)
-      const fixtureId = sourceFixture(item)
-      const sourceGroup = sourceGroups.get(
-        JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
-      ) ?? [item]
-      const fixture = fixtureId ? { type: 'extra', id: fixtureId } : sampleFixture(sourceGroup)
-      const entry = {
-        id: `${kind}:${item.id}`,
-        kind: 'extra',
-        name: item.context ?? item.owner ?? item.rule ?? item.kind,
-        value: item.value,
-        family: item.rule ?? item.kind,
-        source: { file: item.file, line: item.line },
-        usages: [{ file: item.file, line: item.line, relationship: 'authored' }],
-        rationale: decision?.rationale ?? item.reason ?? '',
-        decision: decision?.status ?? 'unreviewed',
-        fixture,
-        previewKind: fixtureId
-          ? 'source-component'
-          : fixture.sample.className || fixture.sample.values.length || fixture.sample.property
-            ? 'source-style-sample'
-            : 'indicative-sample',
-        status: 'pending-capture',
-        images: {},
-      }
-      if (item.file.startsWith('packages/emcn/')) centralSignals.push(entry)
-      entries.push(entry)
+  for (const item of findings) {
+    const kind = 'finding'
+    const fingerprint =
+      item.identity ??
+      sha(
+        JSON.stringify(['finding', item.file, item.context, item.rule, item.property, item.value])
+      )
+    const decision =
+      matched.get(fingerprint) ??
+      (item.legacyFingerprint ? matched.get(item.legacyFingerprint) : undefined)
+    const fixtureId = sourceFixture(item)
+    const sourceGroup = sourceGroups.get(
+      JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
+    ) ?? [item]
+    const fixture = fixtureId ? { type: 'extra', id: fixtureId } : sampleFixture(sourceGroup)
+    const entry = {
+      id: `${kind}:${item.id}`,
+      kind: 'extra',
+      name: item.context ?? item.owner ?? item.rule ?? item.kind,
+      value: item.value,
+      family: item.rule ?? item.kind,
+      source: { file: item.file, line: item.line },
+      usages: [{ file: item.file, line: item.line, relationship: 'authored' }],
+      rationale: decision?.rationale ?? item.reason ?? '',
+      decision: decision?.status ?? 'unreviewed',
+      fixture,
+      previewKind: fixtureId
+        ? 'source-component'
+        : fixture.sample.className || fixture.sample.values.length || fixture.sample.property
+          ? 'source-style-sample'
+          : 'indicative-sample',
+      status: 'pending-capture',
+      images: {},
     }
+    if (item.file.startsWith('packages/emcn/')) centralSignals.push(entry)
+    entries.push(entry)
   }
   return { entries, centralSignals, decisions: decisionDetails }
 }

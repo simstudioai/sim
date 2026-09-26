@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import {
   type ColourAssignmentReport,
@@ -31,9 +32,12 @@ import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
 import { validateOutput, writeResults } from './report'
 
+const requiredRuntime = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+).packageManager.replace(/^bun@/, '') as string
 const usage = `Usage: bun run design:scan --repo <checkout-or-bare-repo> (--ref <commit-or-ref> | --working-tree) --output <new-external-directory>
 Optional: --order forward|reverse --batch-size 25 --reviews <external.json>
-Requires Bun 1.4.1. Working-tree mode includes non-ignored untracked source. No application code is executed.
+Requires Bun ${requiredRuntime}. Working-tree mode includes non-ignored untracked source. No application code is executed.
 Exits: 0 complete without findings; 1 completed with findings; 2 operational failure.
 Batch size controls progress reporting only; it does not change resolution or findings.`
 
@@ -64,7 +68,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       (values.ref && values['working-tree'])
     )
       throw new Error(usage)
-    if (process.versions.bun !== '1.4.1') throw new Error('Use the pinned Bun 1.4.1 runtime')
+    if (process.versions.bun !== requiredRuntime)
+      throw new Error(`Use the pinned Bun ${requiredRuntime} runtime`)
     if (values.order !== 'forward' && values.order !== 'reverse')
       throw new Error('Order must be forward or reverse')
     const batchSize = Number(values['batch-size'])

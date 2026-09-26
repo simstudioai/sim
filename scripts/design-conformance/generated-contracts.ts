@@ -306,6 +306,12 @@ async function generate(
       )
     if (t.isMemberExpression(node) && t.isIdentifier(node.object)) {
       const found = locate(file, node.object.name)
+      if (!found && modules.get(file)?.imports.has(node.object.name))
+        note(
+          file,
+          node.loc?.start.line ?? 1,
+          `Unresolved imported styling: ${node.object.name}.${key(node.property)}`
+        )
       if (found)
         return strings(found.file, found.node, new Set(seen).add(`${file}#${node.object.name}`))
     }
@@ -556,7 +562,11 @@ async function generate(
         importSource,
         exportName: publicName,
         source: { file: sourceFile, line, name },
-        kind: isIcon ? 'icon' : fn ? 'component' : 'nonvisual',
+        kind: isIcon
+          ? 'icon'
+          : signatures.length || type.getConstructSignatures().length
+            ? 'component'
+            : 'nonvisual',
         variants: {},
         slots,
         relationships: [],

@@ -104,7 +104,7 @@ When the user runs `/ship`:
 
 When central EMCN sources, global styles, recipes or `@designAllow`/`@designProtect` metadata change, run `bun run design:generate`, review the result and commit `contracts.generated.json` alongside the source. `check:design-generated` is part of `check:audits`; stale output is an infrastructure error. Regeneration does not suppress the source finding.
 
-During product UI work, run `bun run check:design --base origin/staging --working-tree` so staged, unstaged and nonignored new files are included. Review findings against EMCN and `globals.css`; explain intentional new Extras rather than weakening the checker. After committing and before **every push**, run this from the repository root with Bun 1.4.1:
+During product UI work, run `bun run check:design --base origin/staging --working-tree` so staged, unstaged and nonignored new files are included. Review findings against EMCN and `globals.css`; explain intentional new Extras rather than weakening the checker. After committing and before **every push**, run this from the repository root with the repository-pinned Bun version:
 
 ```bash
 bun run check:design --base origin/staging --head HEAD
