@@ -272,6 +272,32 @@ describe('search refinement with the real query cache and URL state', () => {
 })
 
 describe('live search submission feedback', () => {
+  it('cancels a pending search without accepting its late response and allows a fresh submission', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    await render({ organizationPage: true, params: '?q=launch' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(requests).toHaveLength(1)
+    await act(async () => {
+      const stop = container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')
+      if (!stop) throw new Error('No stop control for the pending search')
+      stop.click()
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(requests[0].signal.aborted).toBe(true)
+    await complete(0, { title: 'Cancelled result' })
+    expect(container.querySelector('[data-source-link]')).toBeNull()
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')!.click()
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(requests).toHaveLength(2)
+    await complete(1, { title: 'Fresh result' })
+    expect(container.querySelector('[data-source-link]')?.textContent).toBe('Fresh result')
+  })
+
   it('acknowledges the submitted query before exposing refinement controls', async () => {
     const shape = resolveDeploymentShape()
     seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
@@ -286,8 +312,8 @@ describe('live search submission feedback', () => {
       )
     ).toBe(false)
     expect(
-      container.querySelector<HTMLButtonElement>('button[aria-label="Searching"]')?.disabled
-    ).toBe(true)
+      container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')?.disabled
+    ).toBe(false)
     await complete(0)
     expect(
       container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')?.disabled

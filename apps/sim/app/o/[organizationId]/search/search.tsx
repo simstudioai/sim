@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { ComposerActionButton, toast } from '@sim/emcn'
-import { ArrowUp, Loader } from '@sim/emcn/icons'
+import { ArrowUp, StopFilled } from '@sim/emcn/icons'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -39,14 +39,13 @@ interface SearchFieldProps {
 function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
-  const isSearching =
-    useIsFetching({
-      queryKey: knowledgeKeys.searchQuery(
-        resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
-        initialValue.trim(),
-        userId
-      ),
-    }) > 0
+  const queryClient = useQueryClient()
+  const queryKey = knowledgeKeys.searchQuery(
+    resourceScopeKey({ kind: 'organization', organizationId: organization.id }),
+    initialValue.trim(),
+    userId
+  )
+  const isSearching = useIsFetching({ queryKey }) > 0
   const latestDraftKey = `${userId}:organization:${organization.id}:search`
   const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
   const ownerQuery = initialValue || latestDraft?.searchQuery || ''
@@ -99,14 +98,14 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
       submitControl={
         <ComposerActionButton
           type='button'
-          onClick={() => submit()}
-          disabled={!canSubmit || pending}
-          aria-label={pending ? 'Searching' : 'Search'}
+          onClick={() => (pending ? void queryClient.cancelQueries({ queryKey }) : submit())}
+          disabled={!canSubmit}
+          aria-label={pending ? 'Stop search' : 'Search'}
           aria-busy={pending}
           active={canSubmit}
         >
           {pending ? (
-            <Loader className='size-[16px] animate-spin text-white motion-reduce:animate-none dark:text-black' />
+            <StopFilled className='block size-[14px] fill-white dark:fill-black' />
           ) : (
             <ArrowUp className='block size-[16px] text-white dark:text-black' />
           )}
