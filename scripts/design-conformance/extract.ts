@@ -1055,7 +1055,8 @@ export function extract(
       if (value.isNullLiteral()) return null
       if (value.isUnaryExpression({ operator: '-' }) && value.get('argument').isNumericLiteral())
         return -(value.node.argument as t.NumericLiteral).value
-      if (!value.isArrayExpression() || value.node.elements.length > 64) return undefined
+      if (depth > 0 || !value.isArrayExpression() || value.node.elements.length > 64)
+        return undefined
       const values = value
         .get('elements')
         .map((element) =>

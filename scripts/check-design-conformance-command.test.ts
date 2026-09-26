@@ -56,10 +56,11 @@ function commit(repo: string) {
   return git(repo, ['rev-parse', 'HEAD']).toString().trim()
 }
 
-function run(args: string[], entry = cli, env: NodeJS.ProcessEnv = {}) {
+function run(args: string[], entry = cli, env: NodeJS.ProcessEnv = {}, timeout?: number) {
   return spawnSync('bun', ['--no-env-file', entry, ...args], {
     cwd: temp,
     encoding: 'utf8',
+    timeout,
     env: { ...process.env, GITHUB_ACTIONS: 'false', ...env },
   })
 }
@@ -589,6 +590,45 @@ test.each([
       ).toBe(true)
   }
 )
+
+test('nested CVA condition arrays finish within the real CLI timeout and remain unchecked', () => {
+  const { repo } = fixture()
+  const sourceFile = 'packages/emcn/src/components/recipe.ts'
+  const write = (file: string, source: string) => {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    writeFileSync(path.join(repo, file), source)
+  }
+  write('packages/emcn/src/index.ts', "export {recipe} from './components/recipe'")
+  const source = (leaf: string) => {
+    let nested = JSON.stringify(leaf)
+    for (let depth = 0; depth < 3; depth++) nested = `[${Array(32).fill(nested).join(',')}]`
+    const compound = `{size:[${Array(64).fill('nested').join(',')}],class:'rounded-lg'}`
+    return `import {cva} from 'class-variance-authority';const nested=${nested};export const recipe=cva('p-2',{variants:{size:{small:'',large:''}},compoundVariants:[${Array(24).fill(compound).join(',')}]});throw Error('Source must not execute')`
+  }
+  write(sourceFile, source('small'))
+  const base = commit(repo)
+  write(sourceFile, source('large'))
+  const child = run(
+    ['--repo', repo, '--base', base, '--working-tree', '--format', 'json'],
+    cli,
+    {},
+    15000
+  )
+  expect(
+    child.error,
+    `CLI must finish before its subprocess timeout: ${child.error?.message}`
+  ).toBeUndefined()
+  expect(child.status, child.stderr).toBe(0)
+  const report = JSON.parse(child.stdout) as Report
+  expect(report.status).toBe('completed')
+  expect(report.findings.filter((finding) => finding.file === sourceFile)).toHaveLength(0)
+  expect(
+    report.unchecked.some(
+      (note) =>
+        note.file === sourceFile && note.reason.startsWith('CVA compound condition is unchecked')
+    )
+  ).toBe(true)
+}, 25_000)
 
 test.each([
   ['grid line integer', 'gridColumnStart', 'grid-column-start', '1', 1, ''],
