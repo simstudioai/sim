@@ -5,11 +5,11 @@ import type { Sql, TransactionSql } from 'postgres'
 const logger = createLogger('KnowledgeProjection')
 
 /**
- * The transaction setting that skips the synchronous projection triggers. No application writer
- * sets it: every writer's projection rows are written by those triggers in its own transaction.
- * Releases that carried the `knowledge-async-projection` flag set it to leave a chunk write's rows
- * to the projector, which is why a mark can still carry content to project. Either way the
- * triggers mark the document in `knowledge_projection_dirty`.
+ * The transaction setting that skips the synchronous projection triggers. Only the projector sets
+ * it: every other writer's projection rows are written by those triggers in its own transaction.
+ * A mark can still carry content to project, because earlier releases also set it on chunk writes
+ * to leave their rows to the projector. Either way the triggers mark the document in
+ * `knowledge_projection_dirty`.
  */
 const KNOWLEDGE_PROJECTION_MODE_SETTING = 'sim.projection_mode'
 
