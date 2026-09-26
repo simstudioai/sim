@@ -761,6 +761,7 @@ function resolveWorkflowVariables(
     if (!variablesByName.has(name)) variablesByName.set(name, variable)
   }
   const replacements = new Map<string, string>()
+  const boundNames = new Set<string>()
 
   return code.replace(createWorkflowVariablePattern(), (_match, name: string) => {
     const variableName = name.trim()
@@ -800,7 +801,11 @@ function resolveWorkflowVariables(
     }
 
     const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-    contextVariables[safeVarName] = variableValue
+    // The original reverse rewrite gave the first reference precedence on binding-name collisions.
+    if (!boundNames.has(safeVarName)) {
+      contextVariables[safeVarName] = variableValue
+      boundNames.add(safeVarName)
+    }
     replacements.set(variableName, safeVarName)
     return safeVarName
   })

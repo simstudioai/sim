@@ -136,6 +136,35 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  it('stops reading a wide object when its traversal budget is exhausted', async () => {
+    const value: Record<string, unknown> = {}
+    for (let index = 0; index < 10_001; index++) {
+      Object.defineProperty(value, String(index), {
+        enumerable: true,
+        get() {
+          if (index === 10_000) throw new Error('Read beyond the traversal budget')
+          return ''
+        },
+      })
+    }
+    const state = {
+      ...DEPS_STATE,
+      blocks: {
+        ...DEPS_STATE.blocks,
+        target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+      },
+    }
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/exceeds.*values/i)
+    expect(result.stdout).toBe('')
+  })
+
   it.each([
     { reason: 'text size', value: 'x'.repeat(1024 * 1024 + 1) },
     { reason: 'reference count', value: '<fetchrows.result>'.repeat(10_001) },

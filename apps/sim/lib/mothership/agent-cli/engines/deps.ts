@@ -191,11 +191,22 @@ export const workflowDepsCommand: AgentCliEngine = {
         }
         leaves.push(value)
       } else if (Array.isArray(value) || isRecordLike(value)) {
-        const children: unknown[] = Array.isArray(value) ? value : Object.values(value)
+        const children: unknown[] = Array.isArray(value) ? value : []
         if (inputNodes + pending.length + children.length > MAX_DEPENDENCY_INPUT_NODES) {
           return agentCliFail(
             `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_INPUT_NODES} values`
           )
+        }
+        if (!Array.isArray(value)) {
+          for (const key in value) {
+            if (!Object.hasOwn(value, key)) continue
+            if (inputNodes + pending.length + children.length >= MAX_DEPENDENCY_INPUT_NODES) {
+              return agentCliFail(
+                `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_INPUT_NODES} values`
+              )
+            }
+            children.push(value[key])
+          }
         }
         for (let index = children.length - 1; index >= 0; index--) pending.push(children[index])
       }

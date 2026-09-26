@@ -167,7 +167,7 @@ const functionOutputFileSchema = z
 export const functionExecuteBodySchema = z
   .object({
     code: z.string().min(1, 'Code is required').max(MAX_FUNCTION_CODE_LENGTH),
-    sourceCode: z.string().optional(),
+    sourceCode: z.string().max(MAX_FUNCTION_CODE_LENGTH).optional(),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
     language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),
