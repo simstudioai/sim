@@ -1,4 +1,4 @@
-import { toArray, toRecord } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { load } from 'cheerio'
 import { nativeText } from '@/lib/sim-search/live/dates'
 import { NativeSearchError, string } from '@/lib/sim-search/live/http'
@@ -305,7 +305,13 @@ export async function readGranolaMcp(
           'unavailable',
           'Granola returned a different meeting transcript.'
         )
-      const content = plainText(payload.transcript ?? payload.text ?? result)
+      const value = payload.transcript ?? payload.text ?? result
+      const content =
+        typeof value === 'string'
+          ? value
+          : Array.isArray(value) || isRecordLike(value)
+            ? JSON.stringify(value)
+            : ''
       if (content) transcript = `Transcript\n${content}`
     } catch (error) {
       if (!(error instanceof NativeSearchError) || error.status === 'reconnect') throw error

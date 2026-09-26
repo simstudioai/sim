@@ -100,6 +100,54 @@ describe('meeting MCP provider wire contracts', () => {
     expect(document.content.length).toBeLessThanOrEqual(200_000)
   })
 
+  it.each(['segments', 'record'] as const)(
+    'preserves supplied Granola %s speaker, audio source, and transcript details',
+    async (shape) => {
+      const segments = [
+        { speaker: 'Speaker A', source: 'System audio', text: 'The rollout needs approval.' },
+        { source: 'Microphone', text: 'I will check the rollback procedure.' },
+      ]
+      const transcript =
+        shape === 'segments' ? segments : { segments, recorder: 'Recorder Example' }
+      const client: ManagedSearchMcpClient = {
+        async call(name) {
+          if (name === 'get_meetings')
+            return {
+              meetings: [
+                { id: meetingId, title: 'Synthetic planning', notes: 'Approval is pending.' },
+              ],
+            }
+          return { meeting_id: meetingId, transcript }
+        },
+      }
+      const document = await readGranolaMcp(client, meetingId)
+      expect(document.content).toContain('Speaker A')
+      expect(document.content).toContain('System audio')
+      expect(document.content).toContain('Microphone')
+      expect(document.content).toContain('The rollout needs approval.')
+      expect(document.content).toContain('I will check the rollback procedure.')
+      if (shape === 'record') expect(document.content).toContain('Recorder Example')
+    }
+  )
+
+  it('keeps legacy Granola transcript labels and wording unchanged', async () => {
+    const transcript =
+      '[00:01] Speaker A (System audio): The rollout needs approval.\n[00:03] Microphone: I will check.'
+    const client: ManagedSearchMcpClient = {
+      async call(name) {
+        if (name === 'get_meetings')
+          return {
+            meetings: [
+              { id: meetingId, title: 'Synthetic planning', notes: 'Approval is pending.' },
+            ],
+          }
+        return { meeting_id: meetingId, transcript }
+      },
+    }
+    const document = await readGranolaMcp(client, meetingId)
+    expect(document.content).toContain(transcript)
+  })
+
   it('fails on unknown Fireflies list formats rather than claiming zero matches', async () => {
     const client = {
       async call() {

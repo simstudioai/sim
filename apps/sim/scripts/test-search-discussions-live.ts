@@ -287,7 +287,10 @@ async function runQuery(test: QueryCase) {
       const expected = page.documents.find((document) => document.id === test.expectedId)
       assert.ok(expected, 'Expected discussion result missing')
       const oracle = oracleRows.find((row) => string(row.number) === test.expectedId)
-      const matches = array(oracle?.text_matches).filter((match) => string(match.fragment))
+      const matches = array(oracle?.text_matches).filter((match) => {
+        const type = string(match.object_type)
+        return (type === 'IssueComment' || type === 'ReviewComment') && string(match.fragment)
+      })
       assert.ok(matches.length, 'Oracle did not supply a matched discussion fragment')
       for (const match of matches) {
         assert.ok(

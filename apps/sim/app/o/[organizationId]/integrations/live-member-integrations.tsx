@@ -66,6 +66,12 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
     (data.viewerMcpAccounts ?? []).filter(
       (account) => mcpProviders.get(account.mcpServerId) === provider
     )
+  const accountsForProvider = (provider: string) =>
+    liveSearchMcpConnector(provider)
+      ? mcpAccounts(provider)
+      : (data.viewerAccounts ?? []).filter(
+          (account) => liveSearchProviderForCredential(account.providerId) === provider
+        )
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
@@ -77,8 +83,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   )
   const query = search.trim().toLowerCase()
   const visible = available.filter(([provider, meta]) =>
-    `${provider} ${meta.name} ${(data.viewerAccounts ?? [])
-      .filter((account) => liveSearchProviderForCredential(account.providerId) === provider)
+    `${provider} ${meta.name} ${accountsForProvider(provider)
       .map((account) => account.displayName)
       .join(' ')}`
       .toLowerCase()
@@ -120,11 +125,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
               (server) => server.managedConnectorId === provider && server.enabled
             )
           : undefined
-        const accounts = liveSearchMcpConnector(provider)
-          ? mcpAccounts(provider)
-          : (data.viewerAccounts ?? []).filter(
-              (account) => liveSearchProviderForCredential(account.providerId) === provider
-            )
+        const accounts = accountsForProvider(provider)
         const ready =
           group?.status === 'active' &&
           Boolean(option || server) &&
