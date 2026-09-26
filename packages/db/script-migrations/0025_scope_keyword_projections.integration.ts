@@ -141,6 +141,21 @@ describe('keyword projections scoped to search indexes in PostgreSQL', () => {
     expect(await tinIds()).toEqual([])
   })
 
+  it('keeps the scoped and guarded Tin trigger when Tin is adopted after this migration', async () => {
+    await installProjection(sql)
+    const [trigger] = await sql<{ definition: string }[]>`
+      SELECT pg_get_triggerdef(oid) AS definition FROM pg_trigger
+      WHERE tgname = 'embedding_keyword_tin_sync' AND tgrelid = 'embedding'::regclass`
+    expect(trigger?.definition).toContain('sim.projection_mode')
+    const scans = await sql.begin(async (tx) => {
+      const before = await scansOf(tx, ['embedding_keyword_tin'])
+      await tx`INSERT INTO embedding (id, knowledge_base_id, document_id, content_tsv)
+        VALUES ('in-legacy', 'legacy', 'doc', to_tsvector('english', 'Release notes'))`
+      return (await scansOf(tx, ['embedding_keyword_tin'])) - before
+    })
+    expect(scans).toBe(0)
+  })
+
   it('projects a base adopted as a search index, and removes it when it is not', async () => {
     await sql`INSERT INTO embedding (id, knowledge_base_id, document_id, enabled, content_tsv) VALUES
       ('legacy-1', 'legacy', 'doc', true, to_tsvector('english', 'Quarterly planning')),
@@ -152,6 +167,27 @@ describe('keyword projections scoped to search indexes in PostgreSQL', () => {
     ])
     await sql`UPDATE knowledge_base SET is_search_index = false WHERE id = 'legacy'`
     expect(await keywordIds()).toEqual([])
+  })
+
+  it('leaves a current keyword row unwritten when its base is adopted', async () => {
+    await sql`INSERT INTO embedding (id, knowledge_base_id, document_id, content_tsv)
+      VALUES ('kept', 'legacy', 'doc', to_tsvector('english', 'Kept chunk'))`
+    /** A row written before the projection was scoped, already current. */
+    await sql`INSERT INTO embedding_keyword_search (id, knowledge_base_id, document_id, enabled, content_tsv)
+      SELECT id, knowledge_base_id, document_id, enabled, content_tsv FROM embedding WHERE id = 'kept'`
+    const updated = await sql.begin(async (tx) => {
+      const read = async () => {
+        const [row] = await tx<Array<{ updated: number }>>`
+          SELECT n_tup_upd::int AS updated FROM pg_stat_xact_user_tables
+          WHERE relid = 'embedding_keyword_search'::regclass`
+        return row.updated
+      }
+      const before = await read()
+      await tx`UPDATE knowledge_base SET is_search_index = true WHERE id = 'legacy'`
+      return (await read()) - before
+    })
+    expect(updated).toBe(0)
+    expect(await keywordIds()).toEqual(['kept'])
   })
 
   it('projects a chunk whose insert commits while its base is being adopted', async () => {

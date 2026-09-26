@@ -115,7 +115,11 @@ export async function backfillSearchVectors(sql: Sql): Promise<number> {
   return count
 }
 
-/** Keeps keyword scoring independent of the full-vector and chunk-content storage working sets. */
+/**
+ * Keeps keyword scoring independent of the full-vector and chunk-content storage working sets. Only
+ * search-index chunks are filled: they are the only rows the projection holds once
+ * `0025_scope_keyword_projections` scopes its triggers, so a rerun cannot refill the rest.
+ */
 export async function backfillSearchKeywords(sql: Sql): Promise<number> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
@@ -159,6 +163,7 @@ export async function backfillSearchKeywords(sql: Sql): Promise<number> {
         ), batch AS MATERIALIZED (
           SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.content_tsv
           FROM missing m INNER JOIN embedding e ON e.id = m.id
+          INNER JOIN knowledge_base k ON k.id = e.knowledge_base_id AND k.is_search_index
           ORDER BY e.id FOR KEY SHARE OF e
         ), inserted AS (
           INSERT INTO embedding_keyword_search (id, knowledge_base_id, document_id, enabled, content_tsv)

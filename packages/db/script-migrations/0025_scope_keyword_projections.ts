@@ -1,4 +1,7 @@
-import { installMembershipKey } from '@sim/db/script-migrations/0019_tin_keyword_projection'
+import {
+  installMembershipKey,
+  installTinChunkSync,
+} from '@sim/db/script-migrations/0019_tin_keyword_projection'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
@@ -12,10 +15,23 @@ const TRIGGER_LOCK_TIMEOUT = '5s'
 const TRIGGER_LOCK_RETRY_BUDGET_MS = 20 * 60_000
 const TRIGGER_LOCK_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
-/** How both GIN keyword writers bring an existing row up to its chunk, as `0016_backfill_search_vectors` does. */
+/** The columns a GIN keyword row copies from its chunk. */
+const KEYWORD_SEARCH_COLUMNS = [
+  'knowledge_base_id',
+  'document_id',
+  'enabled',
+  'content_tsv',
+] as const
+
+/**
+ * How both GIN keyword writers bring an existing row (aliased `s`) up to its chunk. A row already
+ * current is left unwritten, as the projector's upserts leave it, so adopting a base whose rows
+ * survived rewrites only what changed while it holds the membership lock.
+ */
 const KEYWORD_SEARCH_UPSERT = `ON CONFLICT (id) DO UPDATE SET
-          knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
-          enabled = EXCLUDED.enabled, content_tsv = EXCLUDED.content_tsv`
+        ${KEYWORD_SEARCH_COLUMNS.map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
+      WHERE (${KEYWORD_SEARCH_COLUMNS.map((column) => `s.${column}`).join(', ')})
+        IS DISTINCT FROM (${KEYWORD_SEARCH_COLUMNS.map((column) => `EXCLUDED.${column}`).join(', ')})`
 
 /**
  * The GIN keyword projection's chunk trigger, scoped to search indexes as the Tin projection is:
@@ -36,7 +52,7 @@ async function installKeywordSearchSync(tx: TransactionSql): Promise<void> {
         END IF;
         RETURN NEW;
       END IF;
-      INSERT INTO embedding_keyword_search (id, knowledge_base_id, document_id, enabled, content_tsv)
+      INSERT INTO embedding_keyword_search AS s (id, knowledge_base_id, document_id, enabled, content_tsv)
       VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled, NEW.content_tsv)
       ${KEYWORD_SEARCH_UPSERT};
       RETURN NEW;
@@ -58,7 +74,7 @@ async function installKeywordSearchMembership(tx: TransactionSql): Promise<void>
         DELETE FROM embedding_keyword_search WHERE knowledge_base_id = NEW.id;
         RETURN NEW;
       END IF;
-      INSERT INTO embedding_keyword_search (id, knowledge_base_id, document_id, enabled, content_tsv)
+      INSERT INTO embedding_keyword_search AS s (id, knowledge_base_id, document_id, enabled, content_tsv)
       SELECT id, knowledge_base_id, document_id, enabled, content_tsv
       FROM embedding WHERE knowledge_base_id = NEW.id
       ${KEYWORD_SEARCH_UPSERT};
@@ -72,35 +88,13 @@ async function installKeywordSearchMembership(tx: TransactionSql): Promise<void>
 }
 
 /**
- * The Tin chunk trigger's body from `0019_tin_keyword_projection`, where that migration installed
- * it, without the delete an insert outside a search index ran: a new chunk id has no Tin row, and a
- * base adopted meanwhile waits on the membership lock the insert holds.
+ * The Tin chunk trigger's body as `0019_tin_keyword_projection` now installs it, where that
+ * migration installed it: without the delete an insert outside a search index ran.
  */
 async function installTinSync(tx: TransactionSql): Promise<void> {
   const [row] = await tx<Array<{ installed: boolean }>>`
     SELECT to_regprocedure('sync_embedding_keyword_tin()') IS NOT NULL AS installed`
-  if (!row?.installed) return
-  await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_keyword_tin()
-    RETURNS trigger LANGUAGE plpgsql AS $$
-    BEGIN
-      PERFORM pg_advisory_xact_lock_shared(knowledge_tin_membership_key(NEW.knowledge_base_id));
-      IF NOT EXISTS (
-        SELECT 1 FROM knowledge_base WHERE id = NEW.knowledge_base_id AND is_search_index
-      ) THEN
-        IF TG_OP = 'UPDATE' THEN
-          DELETE FROM embedding_keyword_tin WHERE id = NEW.id;
-        END IF;
-        RETURN NEW;
-      END IF;
-      INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
-      VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
-        knowledge_tin_base_token(NEW.knowledge_base_id) || ' ' || knowledge_tin_stream(NEW.content_tsv))
-      ON CONFLICT (id) DO UPDATE SET
-        knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
-        enabled = EXCLUDED.enabled, content = EXCLUDED.content;
-      RETURN NEW;
-    END;
-    $$`)
+  if (row?.installed) await installTinChunkSync(tx)
 }
 
 /**

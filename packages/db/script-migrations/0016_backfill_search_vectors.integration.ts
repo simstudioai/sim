@@ -44,9 +44,11 @@ describe('search projection upgrade in PostgreSQL', () => {
     await sql.unsafe(
       `ALTER TABLE embedding_search ${fields.map((field) => `DROP COLUMN ${field}`).join(', ')}`
     )
-    await sql`INSERT INTO knowledge_base (id, user_id, name, workspace_id, embedding_model) VALUES
-      ('prefix', 'reader', 'Prefix fixture', 'workspace', 'text-embedding-3-small'),
-      ('full', 'reader', 'Full fixture', 'workspace', 'gemini-embedding-001')`
+    /** A workspace holds one search index, so each fixture index has its own. */
+    await sql`INSERT INTO knowledge_base (id, user_id, name, workspace_id, embedding_model, is_search_index) VALUES
+      ('prefix', 'reader', 'Prefix fixture', 'workspace', 'text-embedding-3-small', true),
+      ('full', 'reader', 'Full fixture', 'full-workspace', 'gemini-embedding-001', true),
+      ('legacy', 'reader', 'Legacy fixture', 'workspace', 'text-embedding-3-small', false)`
     await backfillEmbeddingSearch(sql)
     await sql.unsafe(`INSERT INTO embedding
       (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, embedding)
@@ -151,6 +153,22 @@ describe('search projection upgrade in PostgreSQL', () => {
     await sql`DELETE FROM embedding WHERE id = 'chunk-2'`
     expect(await sql`SELECT id FROM embedding_keyword_search WHERE id = 'chunk-2'`).toHaveLength(0)
     expect(await backfillSearchKeywords(sql)).toBe(0)
+  })
+
+  it('leaves the chunks of a base that is not a search index unfilled', async () => {
+    await sql.unsafe(`INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, embedding)
+      VALUES ('legacy-chunk', 'legacy', 'legacy-document', 0, 'legacy-hash', 'Synthetic fixture', 17, 4, 0, 17,
+        array_fill(0.01::real, ARRAY[1536])::vector(1536))`)
+    await sql`DELETE FROM embedding_keyword_search WHERE id = 'legacy-chunk'`
+    try {
+      expect(await backfillSearchKeywords(sql)).toBe(0)
+      expect(
+        await sql`SELECT id FROM embedding_keyword_search WHERE id = 'legacy-chunk'`
+      ).toHaveLength(0)
+    } finally {
+      await sql`DELETE FROM embedding WHERE id = 'legacy-chunk'`
+    }
   })
 
   it('repairs an interrupted index build and preserves valid indexes on replay', async () => {
