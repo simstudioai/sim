@@ -4,7 +4,7 @@ import { lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { productScope } from '#control-analysis/scope'
 import { typographySource } from '#control-analysis/typography'
-import { centralInventory, registry } from '#design-conformance/contracts'
+import { centralInventory, isRegistry, registry } from '#design-conformance/contracts'
 import { verifiedText } from '#design-conformance/io'
 import type { Entry } from '#design-conformance/model'
 import { TOKEN_FILE } from '#design-conformance/model'
@@ -14,6 +14,13 @@ export interface SourceEntry extends Entry {
   bytes: number
   kind: string
 }
+
+/** Files whose authored bytes participate in local design analysis. */
+export const inspectedSource = (file: string) =>
+  centralInventory(file) ||
+  isRegistry(file) ||
+  productScope(file) === 'check' ||
+  typographySource(file)
 
 /** Git tree/blob reads only: no checkout, textconv, filters, hooks or application imports. */
 export class GitSource {
@@ -73,7 +80,7 @@ export class GitSource {
       if (stat.isDirectory())
         return [{ path: file, mode: '160000', kind: 'commit', blob: '', bytes: 0 }]
       const mode = stat.isSymbolicLink() ? '120000' : stat.mode & 0o111 ? '100755' : '100644'
-      if (!centralInventory(file) && productScope(file) !== 'check' && !typographySource(file))
+      if (!inspectedSource(file))
         return [{ path: file, mode, kind: 'blob', blob: '', bytes: stat.size }]
       if (realpathSync(path.dirname(absolute)) !== path.dirname(absolute))
         throw new Error(`Source has a symlinked parent directory: ${file}`)

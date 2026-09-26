@@ -22,7 +22,7 @@ import {
 } from '#design-conformance/model'
 import { githubAnnotations, githubSummary, textReport } from '#design-conformance/reporting'
 import { gitSnapshot } from '#design-conformance/system-snapshot'
-import { GitSource } from '#design-conformance/worktree-source'
+import { GitSource, inspectedSource } from '#design-conformance/worktree-source'
 
 export const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const usage =
@@ -97,18 +97,21 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
 function workingChanges(before: GitSource, after: GitSource): Change[] {
   const old = new Map(before.entries.map((entry) => [entry.path, entry]))
   const current = new Map(after.entries.map((entry) => [entry.path, entry]))
-  return [...new Set([...old.keys(), ...current.keys()])].sort().flatMap((file) => {
-    const previous = old.get(file)
-    const next = current.get(file)
-    if (previous?.blob === next?.blob && previous?.mode === next?.mode) return []
-    return [
-      {
-        before: previous ?? null,
-        after: next ?? null,
-        status: previous ? (next ? 'M' : 'D') : 'A',
-      },
-    ]
-  })
+  return [...new Set([...old.keys(), ...current.keys()])]
+    .sort()
+    .filter(inspectedSource)
+    .flatMap((file) => {
+      const previous = old.get(file)
+      const next = current.get(file)
+      if (previous?.blob === next?.blob && previous?.mode === next?.mode) return []
+      return [
+        {
+          before: previous ?? null,
+          after: next ?? null,
+          status: previous ? (next ? 'M' : 'D') : 'A',
+        },
+      ]
+    })
 }
 
 /** The regular command always preserves 0/1/2; only the CI wrapper tolerates findings. */

@@ -311,6 +311,7 @@ jobs:
 
       # Only findings (exit 1) are non-blocking; operational errors still fail CI.
       - name: Design conformance (warnings)
+        if: always() && steps.audit_base.outcome == 'success'
         env:
           DESIGN_BASE: ${{ steps.audit_base.outputs.ref }}
           DESIGN_HEAD: ${{ steps.audit_base.outputs.head }}

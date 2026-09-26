@@ -120,7 +120,7 @@
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
     "test:workflow-sync": "bun --no-env-file scripts/test-integration.ts lib/workspaces/__integration__",
-    "type-check": "bun run type-check:design && turbo run type-check",
+    "type-check": "bun run type-check:design && bun run type-check:studio && turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
     "test:scripts": "vitest run --config scripts/vitest.config.ts",
     "check:design": "bun --no-env-file scripts/check-design-conformance.ts",

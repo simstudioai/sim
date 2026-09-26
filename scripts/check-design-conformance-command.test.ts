@@ -32,6 +32,7 @@ function fixture() {
   git(repo, ['init', '-q'])
   writeFileSync(path.join(repo, TOKEN_FILE), ':root{--text-body:#434343}')
   writeFileSync(path.join(repo, ui), 'const A=()=> <p className="text-[var(--text-body)]"/>')
+  writeFileSync(path.join(repo, 'README.md'), '# Fixture\n')
   const base = commit(repo)
   writeFileSync(path.join(repo, ui), 'const A=()=> <p className="text-[#434343]"/>')
   const head = commit(repo)
@@ -88,6 +89,30 @@ test('working-tree mode checks staged, unstaged and new product files without co
   expect(report.findings.some((finding) => finding.file === newFile)).toBe(true)
   expect(run(['--repo', repo, '--base', head, '--working-tree', '--head', 'HEAD']).status).toBe(2)
   expect(run(['--repo', repo, '--base', head, '--head', 'HEAD']).status).toBe(0)
+})
+
+test('working-tree mode ignores unrelated tracked and untracked files', () => {
+  const { repo, head } = fixture()
+  mkdirSync(path.join(repo, 'tools'), { recursive: true })
+  writeFileSync(path.join(repo, 'tools/notes.txt'), 'Not product styling')
+  const result = run(['--repo', repo, '--base', head, '--working-tree', '--format', 'json'])
+  expect(result.status).toBe(0)
+  const report = JSON.parse(result.stdout) as Report
+  expect(report.status).toBe('completed')
+  expect(report.findings).toHaveLength(0)
+})
+
+test('working-tree mode includes a changed central contract registry', () => {
+  const { repo } = fixture()
+  const file = 'scripts/design-conformance/contracts.json'
+  mkdirSync(path.join(repo, path.dirname(file)), { recursive: true })
+  writeFileSync(path.join(repo, file), '{"version":1}\n')
+  const base = commit(repo)
+  writeFileSync(path.join(repo, file), '{"version":2}\n')
+  const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+  expect(result.status).toBe(1)
+  const report = JSON.parse(result.stdout) as Report
+  expect(report.findings.some((finding) => finding.file === file)).toBe(true)
 })
 
 test('text, JSON and output files preserve finding identity and normal command exit codes', () => {

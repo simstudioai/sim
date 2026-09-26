@@ -6,4 +6,4 @@ Applies to `packages/emcn/**`. Read `.claude/rules/emcn-components.md` before ch
 - Components own their exact geometry tokens (e.g. `Button` uses `rounded-[5px]`) but never their own font-weight: every primitive inherits the document 400 and steps up only deliberately.
 - TSDoc for public components and APIs.
 
-Central component, recipe and icon changes are design-system decisions. Run `bun run check:design --base origin/staging --working-tree` and explain intended shared changes in the PR. Review warnings remain visible. See `scripts/design-conformance/README.md`.
+Central component, recipe and icon changes are design-system decisions. Run `bun run check:design --base origin/staging --working-tree` (using the actual PR target as the base) and explain intended shared changes in the PR. Review warnings remain visible. See `scripts/design-conformance/README.md`.
