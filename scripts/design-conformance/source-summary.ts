@@ -183,7 +183,10 @@ export function summarize(ast: t.File, file: string): SourceSummary {
           : ''
         : key(p.node.property)
       const object = classRef(p.get('object'), next)
-      return object && member ? { ref: object.ref, path: [...object.path, member] } : undefined
+      if (!object || !member) return undefined
+      return object.ref.endsWith('#*')
+        ? { ref: object.ref.slice(0, -1) + member, path: object.path }
+        : { ref: object.ref, path: [...object.path, member] }
     }
     if (!p.isIdentifier()) return undefined
     const binding = p.scope.getBinding(p.node.name)

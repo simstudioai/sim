@@ -1086,3 +1086,107 @@ test('the relocated registry remains a central-system change and formatting stay
   expect((await compare('{"version":1}', '{"version":2}')).findings[0].kind).toBe('system-change')
   expect((await compare('{"version":1}', '{ "version": 1 }')).flagged).toBe(false)
 })
+
+test.each([
+  {
+    name: 'namespace export',
+    use: 'cn(styles.palette)',
+    before: "{'bg-red-500':true}",
+    after: "{'bg-blue-500':true}",
+    notify: true,
+  },
+  {
+    name: 'nested namespace export member',
+    use: 'cn(styles.palette.tone)',
+    before: "{tone:{'bg-red-500':true}}",
+    after: "{tone:{'bg-blue-500':true}}",
+    notify: true,
+  },
+  {
+    name: 'namespace barrel export alias',
+    use: 'cn(styles.colors)',
+    before: "{'bg-red-500':true}",
+    after: "{'bg-blue-500':true}",
+    barrel: true,
+    notify: true,
+  },
+  {
+    name: 'local namespace binding alias',
+    use: 'cn(forwarded.palette.tone)',
+    prefix: 'const forwarded=styles;',
+    before: "{tone:{'bg-red-500':true}}",
+    after: "{tone:{'bg-blue-500':true}}",
+    notify: true,
+  },
+  {
+    name: 'named import alias control',
+    use: 'cn(colors.tone)',
+    named: true,
+    before: "{tone:{'bg-red-500':true}}",
+    after: "{tone:{'bg-blue-500':true}}",
+    notify: true,
+  },
+  {
+    name: 'unused nested namespace member',
+    use: 'cn(styles.palette.tone)',
+    before: "{tone:{'bg-red-500':true},unused:{'bg-green-500':true}}",
+    after: "{tone:{'bg-red-500':true},unused:{'bg-blue-500':true}}",
+    notify: false,
+  },
+  {
+    name: 'shadowed namespace binding',
+    use: 'cn(styles.palette)',
+    prefix: "const styles={palette:{'rounded-md':true}};",
+    shadow: true,
+    before: "{'bg-red-500':true}",
+    after: "{'bg-blue-500':true}",
+    notify: false,
+  },
+  {
+    name: 'dynamic namespace export',
+    use: 'cn(styles[choice])',
+    prefix: 'declare const choice:string;',
+    before: "{'bg-red-500':true}",
+    after: "{'bg-blue-500':true}",
+    notify: false,
+  },
+  {
+    name: 'dynamic nested namespace member',
+    use: 'cn(styles.palette[choice])',
+    prefix: 'declare const choice:string;',
+    before: "{tone:{'bg-red-500':true}}",
+    after: "{tone:{'bg-blue-500':true}}",
+    notify: false,
+  },
+])('namespace class inputs survive source-only edits through the real CLI: $name', (scenario) => {
+  const { repo } = fixture()
+  const sourceFile = 'packages/emcn/src/lib/palette.ts'
+  const write = (file: string, source: string) => {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    writeFileSync(path.join(repo, file), source)
+  }
+  write('packages/emcn/src/index.ts', "export {palette} from './lib/palette'")
+  write('packages/emcn/src/lib/barrel.ts', "export {palette as colors} from './palette'")
+  write(sourceFile, `export const palette=${scenario.before} as const`)
+  const imported = scenario.named
+    ? "import {palette as colors} from '../lib/palette'"
+    : `import * as styles from '../lib/${scenario.barrel ? 'barrel' : 'palette'}'`
+  write(
+    'packages/emcn/src/components/consumer.tsx',
+    `${imported};declare function cn(...args:unknown[]):string;${scenario.shadow ? `function Consumer(){${scenario.prefix}return <div className={${scenario.use}}/>}` : `${scenario.prefix ?? ''}const Consumer=()=> <div className={${scenario.use}}/>`}`
+  )
+  write(ui, 'const A=()=> <div/>')
+  const base = commit(repo)
+  write(sourceFile, `export const palette=${scenario.after} as const`)
+  const child = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+  expect([0, 1], child.stderr).toContain(child.status)
+  const report = JSON.parse(child.stdout) as Report
+  expect(report.status, child.stdout).toBe('completed')
+  expect(git(repo, ['diff', '--name-only', base]).toString().trim()).toBe(sourceFile)
+  expect(
+    report.findings.filter(
+      (finding) => finding.file === sourceFile && finding.property === 'background-color'
+    ),
+    child.stdout
+  ).toHaveLength(scenario.notify ? 1 : 0)
+})
