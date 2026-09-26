@@ -38,7 +38,7 @@ src/main/           # main process (bundled to dist/main.cjs)
 src/preload/        # isolated renderer bridges
   index.ts          # hosted-app contextBridge IPC bridge (dist/preload.cjs)
   browser/          # minimal agent-browser credential helper (dist/browser-preload.cjs)
-native/             # Node-API/AppKit bridge for native macOS Help docs search
+native/             # Node-API bridges for directory enumeration and macOS Help docs search
 static/             # bundled local pages (offline.html, server.html), served over sim-shell:
 e2e/                # Playwright _electron smoke suite
 ```
@@ -190,7 +190,7 @@ Copilot can inspect user-selected local directories through the ordinary VFS too
 
 The native `read_local_file` and `import_local_files` tools also accept absolute or `~/` paths. They reuse the same remembered folder grants as the VFS tools. For an unapproved path, Electron displays a bundled, isolated dialog showing the canonical folder and connected server. **Allow folder** grants read and import access to that folder and its subfolders across chats and normal app restarts. A file request proposes its containing folder explicitly; no wider folder is approved silently. Closing or declining the dialog returns no contents. Users can add or forget folders through **File → Folder Access**. As with VFS grants, sign-out and server changes clear access, and unavailable secure storage limits persistence to the app session. New consent prompts are serialized, but reads of approved folders proceed independently. Existing encrypted path-based approvals retain their scope and acquire folder-identity metadata on their first restore.
 
-Approved native reads can return bounded text, directory listings, images, or PDFs to the chat. Approved imports transfer file bytes to Workspace Files. Electron revalidates every pending call before using a grant, including remembered grants, checks canonical containment and grant identity throughout the operation, and opens files with no-follow and descriptor identity checks. A model or hosted renderer cannot answer the local consent dialog. These permissions govern the native file tools; the separately enabled terminal still runs with the user's OS privileges.
+Approved native reads can return bounded text, directory listings, images, or PDFs to the chat. Approved imports transfer file bytes to Workspace Files. Electron revalidates every pending call before using a grant, including remembered grants, checks canonical containment and grant identity throughout the operation, and opens files with no-follow and descriptor identity checks. Directory enumeration uses `fdopendir` on the verified descriptor, so replacing a parent path cannot redirect the listing. A model or hosted renderer cannot answer the local consent dialog. These permissions govern the native file tools; the separately enabled terminal still runs with the user's OS privileges.
 
 ## Auto-update, channels, rollout, rollback
 

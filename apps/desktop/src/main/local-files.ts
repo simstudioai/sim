@@ -1,5 +1,5 @@
-import { constants, type Dirent } from 'node:fs'
-import { lstat, open, opendir, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, open, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
   DesktopLocalFileEntry,
@@ -13,6 +13,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { PDFDocument } from 'pdf-lib'
 import type { LocalFileAccess } from '@/main/local-filesystem'
+import { readNativeDirectory } from '@/main/native-directory'
 
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
@@ -72,45 +73,11 @@ async function openApprovedPath(path: string, access: LocalFileAccess, directory
 async function readApprovedDirectory(path: string, access: LocalFileAccess) {
   const handle = await openApprovedPath(path, access, true)
   try {
-    const before = await handle.stat({ bigint: true })
-    const verify = async () => {
-      const canonical = await access.resolve(path)
-      const current = await lstat(canonical, { bigint: true })
-      const after = await handle.stat({ bigint: true })
-      if (
-        canonical !== path ||
-        !current.isDirectory() ||
-        current.dev !== before.dev ||
-        current.ino !== before.ino ||
-        current.ctimeNs !== before.ctimeNs ||
-        current.mtimeNs !== before.mtimeNs ||
-        after.ctimeNs !== before.ctimeNs ||
-        after.mtimeNs !== before.mtimeNs
-      ) {
-        throw new Error('The local directory changed while it was being read. Try again.')
-      }
-    }
-    const directory = await opendir(path)
-    try {
-      await verify()
-      const entries: Dirent[] = []
-      let count = 0
-      const sort = () => entries.sort((left, right) => compareStrings(left.name, right.name))
-      for (let entry = await directory.read(); entry; entry = await directory.read()) {
-        entries.push(entry)
-        count++
-        if (entries.length === MAX_ENTRIES * 2) {
-          sort()
-          entries.length = MAX_ENTRIES
-          await access.resolve(path)
-        }
-      }
-      await verify()
-      sort()
-      return { entries: entries.slice(0, MAX_ENTRIES), truncated: count > MAX_ENTRIES }
-    } finally {
-      await directory.close()
-    }
+    const listing = await readNativeDirectory(handle.fd, MAX_ENTRIES)
+    if ((await access.resolve(path)) !== path)
+      throw new Error('The local directory changed while it was being read. Try again.')
+    listing.entries.sort((left, right) => compareStrings(left.name, right.name))
+    return listing
   } finally {
     await handle.close()
   }
@@ -129,16 +96,7 @@ async function inspect(
       path,
       representation: 'directory',
       truncated,
-      entries: entries.map((entry) => ({
-        name: entry.name,
-        kind: entry.isFile()
-          ? 'file'
-          : entry.isDirectory()
-            ? 'directory'
-            : entry.isSymbolicLink()
-              ? 'symlink'
-              : 'other',
-      })),
+      entries,
     }
   }
   if (!info.isFile()) throw new Error('The path is not a regular file or directory.')
