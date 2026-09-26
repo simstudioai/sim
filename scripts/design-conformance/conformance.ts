@@ -393,9 +393,6 @@ function displayInput(atom: Atom | undefined, value: string): string {
 }
 function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
   const unchecked = [...facts.unchecked]
-  const ownersWithFields = new Set(
-    (facts.surfaces ?? []).filter((s) => s.fieldContainer).map((s) => s.owner)
-  )
   const surfaces = (facts.surfaces ?? []).map((surface) => {
     if (!surface.atoms.length && !surface.fieldContainer && !surface.structuralViolation)
       return { ...surface, target: index.canonicalTarget(surface.target) }
@@ -451,9 +448,7 @@ function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
               )
               .map((s) => `; central definition ${s}`)
               .join('')}`
-          : ownersWithFields.has(surface.owner)
-            ? undefined
-            : surface.structuralViolation,
+          : surface.structuralViolation,
     }
   })
   return { ...facts, surfaces, atoms: surfaces.flatMap((s) => s.atoms), unchecked }

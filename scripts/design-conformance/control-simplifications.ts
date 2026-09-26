@@ -776,8 +776,14 @@ export function inspectSimplifications(
   }
   for (const use of controls.records) {
     if (use.file.startsWith('packages/emcn/') || use.syntax !== 'jsx' || use.hidden) continue
+    const imageInput =
+      use.target === 'native:input' &&
+      !use.inputs.type?.unresolved &&
+      !!use.inputs.type?.values?.length &&
+      use.inputs.type.values.every((value) => value === 'image')
     const isButton =
       use.target === 'native:button' ||
+      imageInput ||
       (use.target.startsWith('native:') &&
         !use.inputs.role?.unresolved &&
         !!use.inputs.role?.values?.length &&
@@ -822,6 +828,7 @@ export function inspectSimplifications(
         })
       )
     }
+    if (state === 'empty' && imageInput) state = texts(statics.property(props, 'alt'))
     if (state === 'empty')
       state = siblings(detail.content.children.map((c) => contentName(c, detail)))
     if (state === 'empty') state = texts(statics.property(props, 'title'))
@@ -836,7 +843,7 @@ export function inspectSimplifications(
         {
           target: direct(use),
           children: 'statically empty or decorative',
-          namingChannels: 'no nonempty aria-label, labelledby, text or title',
+          namingChannels: 'no nonempty aria-label, labelledby, alt, text or title',
         }
       )
   }

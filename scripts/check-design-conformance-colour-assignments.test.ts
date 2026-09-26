@@ -548,3 +548,23 @@ test('HSL channel tokens require a colour function at the visible sink', () => {
     flagged({ ...global, [css]: '.a{--alias:var(--background);color:hsl(var(--alias))}' })
   ).toEqual([])
 })
+
+test('imperative paint properties inspect literals, tokens and unresolved values', () => {
+  for (const statement of ['node.style.color=VALUE', "node.style.setProperty('color',VALUE)"]) {
+    expect(
+      flagged({
+        [ui]: `export function update(node){${statement.replace('VALUE', "'#ff00ff'")}}`,
+      }).some((f) => f.rule === 'central-colour-assignment')
+    ).toBe(true)
+    expect(
+      flagged({
+        [ui]: `export function update(node){${statement.replace('VALUE', "'var(--text-body)'")}}`,
+      })
+    ).toEqual([])
+    expect(
+      inspect({
+        [ui]: `export function update(node,value){${statement.replace('VALUE', 'value')}}`,
+      }).unchecked.length
+    ).toBeGreaterThan(0)
+  }
+})

@@ -424,8 +424,17 @@ export class ColourAssignments {
               unresolved: evaluated.unknown || evaluated.undefined || !values.length,
               input: pending.input,
             })
-          else if (colourProperty.test(kebab(name)))
+          else if (colourProperty.test(kebab(name))) {
+            this.assignments.push({
+              ...pending,
+              name: kebab(name),
+              values,
+              unresolved: evaluated.unknown || evaluated.undefined || !values.length,
+              input: pending.input,
+              direct: true,
+            })
             for (const value of values) this.use(value, pending, kebab(name))
+          }
         }
         if (names.unknown || names.undefined || !names.values.length)
           this.assignments.push({

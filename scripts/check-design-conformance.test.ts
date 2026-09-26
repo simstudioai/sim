@@ -55,6 +55,7 @@ async function diff(
 const text = (classes: string) => `const A=()=> <p className=${JSON.stringify(classes)}>Text</p>`
 const shared = (body: string) =>
   `import {Button,Chip,ChipInput,ChipTextarea,ChipModalBody,ChipModalField,ChipTag,cn} from '@sim/emcn';const A=()=> <>${body}</>`
+// This fixture extracts the real EMCN inventory, including a cold type program.
 for (const classes of [
   'text-small text-[var(--text-body)]',
   'font-mono',
@@ -64,8 +65,11 @@ for (const classes of [
   'text-sm',
   'text-white',
 ])
-  test(`approved ${classes} passes`, async () =>
-    expect((await diff('', text(classes))).flagged).toBe(false))
+  test(
+    `approved ${classes} passes`,
+    async () => expect((await diff('', text(classes))).flagged).toBe(false),
+    15000
+  )
 for (const classes of [
   'text-[#434343]',
   'text-[13px]',

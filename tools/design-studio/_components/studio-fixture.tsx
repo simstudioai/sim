@@ -1,6 +1,7 @@
 'use client'
 
 import { type CSSProperties, useEffect, useState } from 'react'
+import { cn } from '@sim/emcn'
 import * as Icons from '@sim/emcn/icons'
 import { ComponentPreview } from '@studio/_components/component-fixtures'
 import type { StudioSample } from '@studio/_lib/manifest'
@@ -30,17 +31,6 @@ interface StudioFixtureProps {
   sample?: StudioSample
 }
 
-const SAMPLE_RADII: Record<string, string> = {
-  'rounded-none': '0',
-  'rounded-sm': '2px',
-  'rounded-md': '6px',
-  'rounded-lg': '8px',
-  'rounded-xl': '12px',
-  'rounded-2xl': '16px',
-  'rounded-3xl': '24px',
-  'rounded-full': '9999px',
-}
-
 function GenericSample({ sample }: { sample: StudioSample }) {
   const authoredStyle: CSSProperties = {}
   if (/^(?:\d+(?:\.\d+)?(?:px|rem|em|%)|0)$/.test(sample.value)) {
@@ -55,8 +45,6 @@ function GenericSample({ sample }: { sample: StudioSample }) {
   const classTokens = sample.className.split(/\s+/)
   for (const token of classTokens) {
     if (token.includes(':')) continue
-    const radius = SAMPLE_RADII[token]
-    if (radius) authoredStyle.borderRadius = radius
     const arbitrary = /^([\w-]+)-\[(.+)\]!?$/.exec(token)
     if (!arbitrary) continue
     const [, utility, raw] = arbitrary
@@ -124,7 +112,7 @@ function GenericSample({ sample }: { sample: StudioSample }) {
   if (sample.kind === 'text') {
     return (
       <p
-        className={`max-w-80 text-center text-[var(--text-body)] ${visualClasses}`}
+        className={cn('max-w-80 text-center text-[var(--text-body)]', visualClasses)}
         style={authoredStyle}
       >
         The quick brown fox jumps over the lazy dog.
@@ -137,7 +125,7 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       return (
         <label
           style={authoredStyle}
-          className={`inline-flex items-center gap-3 text-[var(--text-body)] ${visualClasses}`}
+          className={cn('inline-flex items-center gap-3 text-[var(--text-body)]', visualClasses)}
         >
           <input type='checkbox' defaultChecked />
           Example label
@@ -151,7 +139,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
           readOnly
           value='Example text'
           style={authoredStyle}
-          className={`max-w-60 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)] ${visualClasses}`}
+          className={cn(
+            'max-w-60 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)]',
+            visualClasses
+          )}
         />
       )
     }
@@ -162,7 +153,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
           readOnly
           value='Example input'
           style={authoredStyle}
-          className={`max-w-60 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)] ${visualClasses}`}
+          className={cn(
+            'max-w-60 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)]',
+            visualClasses
+          )}
         />
       )
     }
@@ -171,7 +165,7 @@ function GenericSample({ sample }: { sample: StudioSample }) {
         <a
           href='#sample-link'
           style={authoredStyle}
-          className={`text-[var(--text-body)] underline underline-offset-4 ${visualClasses}`}
+          className={cn('text-[var(--text-body)] underline underline-offset-4', visualClasses)}
         >
           Example link ↗
         </a>
@@ -181,7 +175,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       return (
         <span
           style={authoredStyle}
-          className={`flex size-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-body)] text-xs ${visualClasses}`}
+          className={cn(
+            'flex size-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-body)] text-xs',
+            visualClasses
+          )}
         >
           AL
         </span>
@@ -191,7 +188,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       return (
         <span
           style={authoredStyle}
-          className={`inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-3 py-1 text-[var(--text-body)] text-xs ${visualClasses}`}
+          className={cn(
+            'inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] px-3 py-1 text-[var(--text-body)] text-xs',
+            visualClasses
+          )}
         >
           Example tag
         </span>
@@ -202,7 +202,7 @@ function GenericSample({ sample }: { sample: StudioSample }) {
         <div
           role='menuitem'
           style={authoredStyle}
-          className={`rounded-md px-3 py-2 text-[var(--text-body)] text-sm ${visualClasses}`}
+          className={cn('rounded-md px-3 py-2 text-[var(--text-body)] text-sm', visualClasses)}
         >
           Example menu item
         </div>
@@ -212,7 +212,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       return (
         <div
           style={authoredStyle}
-          className={`min-w-40 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-3 text-[var(--text-body)] text-sm shadow-sm ${visualClasses}`}
+          className={cn(
+            'min-w-40 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-3 text-[var(--text-body)] text-sm shadow-sm',
+            visualClasses
+          )}
         >
           Example content
         </div>
@@ -222,7 +225,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       return (
         <div
           style={authoredStyle}
-          className={`min-w-40 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-4 py-3 text-[var(--text-body)] text-sm ${visualClasses}`}
+          className={cn(
+            'min-w-40 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-4 py-3 text-[var(--text-body)] text-sm',
+            visualClasses
+          )}
         >
           Example content
         </div>
@@ -232,7 +238,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
       <button
         type='button'
         style={authoredStyle}
-        className={`min-h-9 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)] ${visualClasses}`}
+        className={cn(
+          'min-h-9 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-[var(--text-body)]',
+          visualClasses
+        )}
       >
         {visualClasses.includes('size-') ? '●' : 'Example action'}
       </button>
@@ -241,7 +250,10 @@ function GenericSample({ sample }: { sample: StudioSample }) {
   return (
     <div
       style={authoredStyle}
-      className={`flex h-24 w-48 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-body)] ${visualClasses}`}
+      className={cn(
+        'flex h-24 w-48 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-body)]',
+        visualClasses
+      )}
     >
       <span className='text-xs'>Sample surface</span>
     </div>

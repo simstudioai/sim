@@ -1191,15 +1191,22 @@ export function extract(
       traverse(ast, {
         JSXElement(p) {
           const group = elements.get(p.node)
-          if (!group || group.target !== 'div') return
-          const f = shape(p.node)
-          group.fieldGroup = f.field
-          if (
-            f.label &&
-            f.control &&
-            !p.node.children.some((c) => t.isJSXElement(c) && shape(c).label && shape(c).control)
-          )
-            group.fieldContainer = true
+          if (!group) return
+          if (group.target === 'div') {
+            const f = shape(p.node)
+            group.fieldGroup = f.field
+            if (
+              f.label &&
+              f.control &&
+              !p.node.children.some((c) => t.isJSXElement(c) && shape(c).label && shape(c).control)
+            )
+              group.fieldContainer = true
+          }
+          if (group.structuralViolation) {
+            const parent = p.findParent((q) => q.isJSXElement())
+            if (parent?.isJSXElement() && elements.get(parent.node)?.fieldContainer)
+              group.structuralViolation = undefined
+          }
         },
       })
     }

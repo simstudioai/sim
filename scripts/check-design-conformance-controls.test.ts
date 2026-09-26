@@ -259,3 +259,18 @@ test('undefined class alternatives cannot exempt visible unnamed buttons', () =>
     matching(run('<Button className="hidden"><X/></Button>'), 'control-accessible-name')
   ).toHaveLength(0)
 })
+
+test('native image inputs require an accessible name from alt or ARIA', () => {
+  expect(
+    matching(run('<input type="image" src="/action.png"/>'), 'control-accessible-name')
+  ).toHaveLength(1)
+  expect(
+    matching(run('<input type="image" src="/action.png" alt="Submit"/>'), 'control-accessible-name')
+  ).toEqual([])
+  expect(
+    matching(
+      run('<input type="image" src="/action.png" aria-label="Submit"/>'),
+      'control-accessible-name'
+    )
+  ).toEqual([])
+})

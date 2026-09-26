@@ -571,3 +571,18 @@ test('source-proven modal composition distinguishes prose from actual field grou
     ).findings.some((f) => f.contract === 'component-chrome')
   ).toBe(true)
 })
+
+test('modal field deduplication stays within the actual field container', async () => {
+  const p = `${root}two-fields.tsx`
+  const code =
+    'import {ChipModalBody,ChipInput,ChipModalField} from "@sim/emcn";export const A=()=> <ChipModalBody><div><label>First</label><ChipInput/></div><section><label>Second</label><ChipInput/></section></ChipModalBody>'
+  const result = await compare({}, { [p]: code })
+  expect(result.findings.filter((f) => f.contract === 'modal-field')).toHaveLength(2)
+  const wrapped = code.replace(
+    '<div><label>First</label><ChipInput/></div><section><label>Second</label><ChipInput/></section>',
+    '<ChipModalField title="First"/><ChipModalField title="Second"/>'
+  )
+  expect(
+    (await compare({}, { [p]: wrapped })).findings.filter((f) => f.contract === 'modal-field')
+  ).toEqual([])
+})
