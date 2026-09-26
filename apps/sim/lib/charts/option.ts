@@ -46,7 +46,29 @@ export function mapTooltipEntries(
 
 const CATEGORY_LABEL_LAYOUT_KEYS = ['inside', 'width', 'margin'] as const
 
-const BAR_GROUP_GAP = 4
+/** ECharts' default `barGap`: the space between grouped bars, relative to bar width. */
+const DEFAULT_BAR_GAP = '20%'
+
+/**
+ * Pixel gap between side-by-side bars. ECharts reads `barGap` from the last series that sets
+ * it: a number is pixels, a percentage is relative to the bar width, and a negative gap
+ * overlaps the bars, which then need no extra space.
+ */
+function barGapPixels(option: Record<string, unknown>, barWidth: number): number {
+  const series = Array.isArray(option.series) ? option.series : [option.series]
+  let gap: unknown = DEFAULT_BAR_GAP
+  for (const entry of series) {
+    const barGap = toRecord(entry).barGap
+    if (barGap !== undefined) gap = barGap
+  }
+  const pixels =
+    typeof gap === 'number'
+      ? gap
+      : typeof gap === 'string' && gap.endsWith('%')
+        ? (barWidth * Number.parseFloat(gap)) / 100
+        : Number(gap)
+  return Number.isFinite(pixels) ? pixels : 0
+}
 
 /**
  * Bar thickness per slot in one category row: stacked series share a slot, every other series
@@ -212,8 +234,11 @@ export function horizontalBarChartHeight(
 ): number | null {
   if (!isHorizontalBarOption(option)) return null
   const slots = barSlotWidths(option)
-  const barsHeight =
-    slots.reduce((total, width) => total + width, 0) + BAR_GROUP_GAP * (slots.length - 1)
+  const gap = barGapPixels(option, Math.max(...slots))
+  const barsHeight = Math.max(
+    Math.max(...slots),
+    slots.reduce((total, width) => total + width, 0) + gap * (slots.length - 1)
+  )
   const rowHeight =
     barsHeight + (authorsCategoryLabelColumn(option) ? LEFT_LABEL_ROW_GAP : ABOVE_BAR_LABEL_SPACE)
   return Math.max(MIN_CHART_HEIGHT, HORIZONTAL_BAR_CHROME_HEIGHT + rowCount * rowHeight)

@@ -46,6 +46,23 @@ describe('horizontal bar label layout', () => {
     expect(authored.yAxis[0]).not.toHaveProperty('axisLabel')
   })
 
+  it('reserves the authored gap between grouped bars in each row', () => {
+    const grouped = (barGap?: string | number) => ({
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category' },
+      series: [
+        { type: 'bar', barWidth: 20, ...(barGap === undefined ? {} : { barGap }) },
+        { type: 'bar', barWidth: 20 },
+      ],
+    })
+    const rows = 10
+    const base = horizontalBarChartHeight(grouped('0%'), rows) ?? 0
+    expect(horizontalBarChartHeight(grouped(), rows)).toBe(base + rows * 4)
+    expect(horizontalBarChartHeight(grouped('150%'), rows)).toBe(base + rows * 30)
+    expect(horizontalBarChartHeight(grouped(40), rows)).toBe(base + rows * 40)
+    expect(horizontalBarChartHeight(grouped('-100%'), rows)).toBe(base - rows * 20)
+  })
+
   it('keeps every authored tooltip entry when turning off the shadow pointer', () => {
     const result = buildChartRenderOption({
       option: {
