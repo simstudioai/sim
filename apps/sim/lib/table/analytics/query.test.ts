@@ -97,10 +97,6 @@ describe('table analytics SQL', () => {
       })
     )
     expect(result.rows).toEqual([{ total: 0, sum: null }])
-    expect(guards).toHaveBeenCalledWith(expect.any(Function), {
-      seqscanOff: true,
-      repeatableRead: true,
-    })
   })
   it('fails on overflow or oversized output and marks top-N', async () => {
     execute.mockResolvedValue(

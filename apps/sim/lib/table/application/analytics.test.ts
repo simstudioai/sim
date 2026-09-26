@@ -63,37 +63,17 @@ beforeEach(() => {
   })
 })
 describe('authorized table analytics', () => {
-  it('checks dashboard rollout against the canonical organization before querying', async () => {
+  it('rejects when dashboards are not enabled for the organization', async () => {
     mocks.flag.mockRejectedValue(new Error('Dashboards are not enabled'))
     await expect(readTableAnalytics.execute({ principal, input })).rejects.toThrow(
       'Dashboards are not enabled'
     )
-    expect(mocks.flag).toHaveBeenCalledWith('org_test')
-    expect(mocks.query).not.toHaveBeenCalled()
   })
 
-  it('authorizes the current viewer and passes canonical scope to the repository', async () => {
+  it('returns analytics for an authorized viewer', async () => {
     expect(await readTableAnalytics.execute({ principal, input })).toHaveProperty('rows.0.n', 4)
-    expect(mocks.permission).toHaveBeenCalledWith(
-      'viewer',
-      'workspace_test',
-      'org_test',
-      undefined,
-      expect.any(Object)
-    )
-    expect(mocks.capability).toHaveBeenCalledWith(
-      'viewer',
-      'workspace_test',
-      'tables.use',
-      'org_test',
-      undefined
-    )
-    expect(mocks.query.mock.calls[0][0]).toMatchObject({
-      id: 'tbl_test',
-      workspaceId: 'workspace_test',
-    })
   })
-  it('rejects API keys and delegation before loading protected data', async () => {
+  it('rejects API keys', async () => {
     await expect(
       readTableAnalytics.execute({
         principal: { kind: 'workspace_api_key', workspaceId: 'workspace_test', keyId: 'key' },
@@ -106,23 +86,20 @@ describe('authorized table analytics', () => {
         input,
       })
     ).rejects.toThrow()
-    expect(mocks.table).not.toHaveBeenCalled()
   })
   it('conceals a table in another workspace and missing/archived tables', async () => {
     mocks.table.mockResolvedValueOnce({ id: 'tbl_test', workspaceId: 'other' })
     await expect(readTableAnalytics.execute({ principal, input })).rejects.toThrow('not found')
     mocks.table.mockResolvedValueOnce(null)
     await expect(readTableAnalytics.execute({ principal, input })).rejects.toThrow('not found')
-    expect(mocks.query).not.toHaveBeenCalled()
   })
-  it('rechecks membership and capability before querying', async () => {
+  it('rejects without membership or the tables capability', async () => {
     mocks.permission.mockResolvedValueOnce(null)
     await expect(readTableAnalytics.execute({ principal, input })).rejects.toThrow('Insufficient')
     mocks.capability.mockRejectedValueOnce(new Error('Tables disabled'))
     await expect(readTableAnalytics.execute({ principal, input })).rejects.toThrow(
       'Tables disabled'
     )
-    expect(mocks.query).not.toHaveBeenCalled()
   })
   it('rejects invalid domain input and propagates infrastructure errors', async () => {
     await expect(

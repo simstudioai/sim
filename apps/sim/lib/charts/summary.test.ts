@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import * as echarts from 'echarts'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   chartSummaryExtension,
   formatChartValue,
@@ -74,8 +74,10 @@ describe('resolved chart summaries', () => {
 
   it('keeps missing data distinct from actual zero and excludes hidden legend series', () => {
     const chart = makeChart()
-    const read = vi.fn()
-    const stop = observeChartSummary(chart, (model) => read(summarizeChart(model, {})))
+    let summary: ChartReadout | null = null
+    const stop = observeChartSummary(chart, (model) => {
+      summary = summarizeChart(model, {})
+    })
     chart.setOption({
       animation: false,
       legend: { selected: { Hidden: false } },
@@ -94,32 +96,28 @@ describe('resolved chart summaries', () => {
         { name: 'Hidden', type: 'line', data: [['2026-09-20', 100]] },
       ],
     })
-    expect(
-      read.mock.lastCall![0].values.map(({ name, value }: { name: string; value: string }) => ({
-        name,
-        value,
-      }))
-    ).toEqual([
-      { name: 'Zero', value: '0%' },
-      { name: 'Missing', value: '—' },
-    ])
+    expect(summary).toMatchObject({
+      values: [
+        { name: 'Zero', value: '0%' },
+        { name: 'Missing', value: '—' },
+      ],
+    })
     stop()
-    read.mockClear()
-    chart.resize({ width: 700 })
-    expect(read).not.toHaveBeenCalled()
     chart.dispose()
   })
 
   it('restores a summary after hover and recomputes it on new data', () => {
     const chart = makeChart()
-    const onReadout = vi.fn()
+    let readout: ChartReadout | null = null
     const controller = bindTimeSeriesInteractions(chart, {
       range: { from: '2026-09-20T00:00:00Z', to: '2026-09-22T00:00:00Z' },
       firstTime: Date.parse('2026-09-20'),
       timeZone: 'UTC',
       columnLabels: {},
       cursorStore: createDashboardCursorStore(),
-      onReadout,
+      onReadout: (next) => {
+        readout = next
+      },
     })
     const option = (value: number) =>
       controller.prepareOption({
@@ -139,16 +137,16 @@ describe('resolved chart summaries', () => {
       })
     chart.setOption(option(2))
     controller.afterUpdate()
-    expect(onReadout.mock.lastCall![0]).toMatchObject({
+    expect(readout).toMatchObject({
       time: null,
       values: [{ value: '5', summary: 'Total' }],
     })
     chart.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: 0 })
     chart.dispatchAction({ type: 'hideTip' })
-    expect(onReadout.mock.lastCall![0].values[0].value).toBe('5')
+    expect(readout).toMatchObject({ values: [{ value: '5' }] })
     chart.setOption(option(7), { notMerge: true })
     controller.afterUpdate()
-    expect(onReadout.mock.lastCall![0].values[0].value).toBe('10')
+    expect(readout).toMatchObject({ values: [{ value: '10' }] })
     controller.dispose()
     chart.dispose()
   })

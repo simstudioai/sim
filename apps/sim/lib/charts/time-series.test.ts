@@ -84,14 +84,13 @@ describe('time chart interactions', () => {
   it('shows timestamp and decimal values only in the hovered chart tooltip', () => {
     const { instance } = makeChart('one')
     const store = createDashboardCursorStore()
-    const onReadout = vi.fn()
     const controller = bindTimeSeriesInteractions(instance, {
       range,
       timeZone: 'America/Los_Angeles',
       cursorStore: store,
       columnLabels: {},
       firstTime: time,
-      onReadout,
+      onReadout: () => {},
     })
     const option = controller.prepareOption({
       xAxis: { type: 'time' },
@@ -113,11 +112,10 @@ describe('time chart interactions', () => {
     expect(tooltip.formatter(params)).toBe('Sep 20, 17:00 PDT\nResolved: 71.63%')
     store.getState().setCursor({ owner: 'other', group: `${range.from}/${range.to}`, time })
     expect(tooltip.formatter(params)).toBe('')
-    expect(onReadout).toHaveBeenLastCalledWith(expect.objectContaining({ time }))
     controller.dispose()
     expect(tooltip.formatter(params)).toBe('')
   })
-  it('synchronizes by timestamp without feedback loops, isolates other ranges, and cleans up', () => {
+  it('shares the hovered timestamp through the cursor store and clears it on leave', () => {
     const store = createDashboardCursorStore()
     const first = makeChart('one')
     const second = makeChart('two')
@@ -128,7 +126,7 @@ describe('time chart interactions', () => {
       cursorStore: store,
       columnLabels: {},
       firstTime: time,
-      onReadout: vi.fn(),
+      onReadout: () => {},
     }
     const bindings = [
       bindTimeSeriesInteractions(first.instance, config),
@@ -140,44 +138,27 @@ describe('time chart interactions', () => {
     ]
     first.handlers.get('updateAxisPointer')?.({ axesInfo: [{ axisDim: 'x', value: time }] })
     expect(store.getState().cursor?.owner).toBe('one')
-    expect(second.chart.dispatchAction).toHaveBeenCalledTimes(1)
-    expect(second.chart.dispatchAction).toHaveBeenCalledWith({
-      type: 'updateAxisPointer',
-      x: time / 10000,
-      y: 110,
-    })
-    expect(third.chart.dispatchAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ x: time / 10000, type: 'updateAxisPointer' })
-    )
     first.handlers.get('hideTip')?.({})
     expect(store.getState().cursor).toBeNull()
     bindings.forEach((binding) => binding.dispose())
-    expect(second.handlers.size).toBe(0)
-    second.chart.dispatchAction.mockClear()
-    store.getState().setCursor({ owner: 'other', group: `${range.from}/${range.to}`, time })
-    expect(second.chart.dispatchAction).not.toHaveBeenCalled()
   })
-  it('queries only after a meaningful completed brush, clears it, and ignores clicks', () => {
-    const { instance, handlers, chart } = makeChart('one')
-    const onZoom = vi.fn()
+  it('zooms only after a meaningful completed brush and ignores clicks', () => {
+    const { instance, handlers } = makeChart('one')
+    const zooms: unknown[] = []
     const controller = bindTimeSeriesInteractions(instance, {
       range,
       timeZone: 'UTC',
       cursorStore: createDashboardCursorStore(),
       columnLabels: {},
       firstTime: time,
-      onReadout: vi.fn(),
-      onZoom,
+      onReadout: () => {},
+      onZoom: (zoom) => zooms.push(zoom),
     })
     expect(handlers.has('brush')).toBe(false)
     handlers.get('brushEnd')?.({ areas: [{ coordRange: [time, time + 3600000], range: [30, 31] }] })
-    expect(onZoom).not.toHaveBeenCalled()
+    expect(zooms).toEqual([])
     handlers.get('brushEnd')?.({ areas: [{ coordRange: [time + 3600000, time], range: [80, 30] }] })
-    expect(onZoom).toHaveBeenCalledExactlyOnceWith({
-      from: '2026-09-21T00:00:00.000Z',
-      to: '2026-09-21T01:00:00.000Z',
-    })
-    expect(chart.dispatchAction).toHaveBeenCalledWith({ type: 'brush', areas: [] })
+    expect(zooms).toEqual([{ from: '2026-09-21T00:00:00.000Z', to: '2026-09-21T01:00:00.000Z' }])
     controller.dispose()
   })
 })

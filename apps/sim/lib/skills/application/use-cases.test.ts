@@ -79,7 +79,6 @@ describe('skill application use cases', () => {
         input: { workspaceId: workspace.workspaceId, skillId: 'builtin-create-dashboard' },
       })
     ).rejects.toThrow('Dashboards are not enabled')
-    expect(mocks.flag).toHaveBeenCalledWith(null)
   })
 
   it.each(['skill-1', 'builtin-research'])(

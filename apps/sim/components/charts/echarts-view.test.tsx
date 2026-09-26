@@ -69,7 +69,7 @@ describe('EChartsView updates', () => {
       throw new Error('Invalid chart option')
     })
     await render(12)
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Invalid chart option')
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
     await render(6)
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })

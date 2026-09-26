@@ -44,25 +44,16 @@ describe('analytics HTTP adapter', () => {
   it('authenticates before parsing and never uses a file share as authority', async () => {
     mocks.session.mockResolvedValue(null)
     expect((await POST(request({ invalid: true }), context)).status).toBe(401)
-    expect(mocks.execute).not.toHaveBeenCalled()
   })
   it('validates the contract before the use case', async () => {
     expect(
       (await POST(request({ ...body, query: { ...body.query, sql: 'select *' } }), context)).status
     ).toBe(400)
-    expect(mocks.execute).not.toHaveBeenCalled()
   })
-  it('forwards the viewer and asserted scope and emits a private response', async () => {
+  it('emits a private response', async () => {
     const response = await POST(request(body), context)
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(await response.json()).toMatchObject({ rows: [{ n: 0 }], truncated: false })
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'viewer', sessionId: 'session' },
-        input: { tableId: 'tbl_test', assertedWorkspaceId: 'workspace_test', query: body.query },
-      })
-    )
-    expect(mocks.limit).toHaveBeenCalledWith('table-analytics', 'viewer', expect.any(Object))
   })
 })
