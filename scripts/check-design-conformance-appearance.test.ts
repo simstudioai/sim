@@ -379,13 +379,10 @@ test('HTML and icon recursion are bounded, cycles do not create inferred styling
   expect(diff(element('p-2'), huge).flagged).toBe(false)
   expect(diff('', huge).unchecked[0].reason).toContain('2 MiB')
 })
-test('existing literal tools BlockConfig colour changes flag; new integrations and generic metadata pass', () => {
+test('provider BlockConfig brand colours pass while rendered product colours still flag', () => {
   const a = `import type {BlockConfig} from '@/blocks/types'; const Service:BlockConfig={type:'service',category:'tools',bgColor:'#ff6700',name:'Service'}`
   const file = 'apps/sim/blocks/blocks/service.ts'
-  expect(diff(a, a.replace('#ff6700', '#ffffff'), file).findings[0]).toMatchObject({
-    property: 'background-color',
-    category: 'colours',
-  })
+  expect(diff(a, a.replace('#ff6700', '#ffffff'), file).flagged).toBe(false)
   expect(diff('', a, file).flagged).toBe(false)
   expect(diff(a, '', file).flagged).toBe(false)
   expect(diff(a, a.replace("bgColor:'#ff6700'", 'bgColor:computed()'), file).flagged).toBe(false)

@@ -1,11 +1,7 @@
 import valueParser from 'postcss-value-parser'
+import { productScope } from '#control-analysis/scope'
 import { appearanceDiff } from '#design-conformance/appearance'
-import {
-  artworkDiff,
-  artworkFile,
-  conformanceScope,
-  localArtworkDiff,
-} from '#design-conformance/artwork'
+import { artworkDiff, artworkFile, localArtworkDiff } from '#design-conformance/artwork'
 import {
   centralFile,
   componentContract,
@@ -51,6 +47,9 @@ interface Checked {
   governed: number
   ungoverned: number
 }
+
+/** Reuse the maintained finding rules when auditing an entire source tree. */
+export { inspect as inspectSnapshotFacts, prepared as prepareSnapshotFacts }
 function inputSlot(atom: Atom): string {
   return atom.context.split('/')[0] || (atom.kind === 'style' ? 'style' : 'className')
 }
@@ -308,6 +307,20 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
           continue
         }
         out.governed++
+        if (
+          familyName === 'colours' &&
+          variablesIn(atom.value).some((reference) => reference.startsWith('--landing-'))
+        ) {
+          emit(
+            'central-colour',
+            d.category,
+            property,
+            atom.value,
+            atom,
+            'Landing-only token is not product colour authority'
+          )
+          continue
+        }
         if (atom.reference && system.resolve(atom.reference)) continue
         const value = expand(d.value.replace(/ !important$/, ''))
         if (neutral.test(value)) continue
@@ -447,6 +460,7 @@ export class ConformanceLinter {
       flagged: error ? null : false,
       findings: [],
       unchecked: [],
+      coverageFailures: [],
       coverage: {
         checkedFiles: 0,
         excludedFiles: 0,
@@ -543,7 +557,7 @@ export class ConformanceLinter {
         const get = (e: Entry | null, s: DesignSystem): Facts =>
           e &&
           !artworkFile(e.path) &&
-          conformanceScope(e.path) === 'check' &&
+          productScope(e.path) === 'check' &&
           /^100(?:644|755)$/.test(e.mode)
             ? this.facts(read(e), e.path, s)
             : { atoms: [], surfaces: [], unchecked: [] }
@@ -649,8 +663,8 @@ export class ConformanceLinter {
             reason:
               'Legacy mixed branding/icon library remains excluded until provider artwork and product artwork have separate ownership',
           })
-        if (![change.before, change.after].some((e) => e && conformanceScope(e.path) === 'check')) {
-          if (conformanceScope(file) === 'unsupported') {
+        if (![change.before, change.after].some((e) => e && productScope(e.path) === 'check')) {
+          if (productScope(file) === 'unsupported') {
             report.coverage.unsupportedFiles++
             report.unchecked.push({
               file,
@@ -664,7 +678,7 @@ export class ConformanceLinter {
         }
         report.coverage.checkedFiles++
         const get = (e: Entry | null, facts: Facts, index: SourceIndex): Facts => {
-          if (!e || conformanceScope(e.path) !== 'check')
+          if (!e || productScope(e.path) !== 'check')
             return { atoms: [], surfaces: [], unchecked: [] }
           if (!/^100(?:644|755)$/.test(e.mode))
             return {
@@ -791,12 +805,18 @@ export class ConformanceLinter {
           for (const note of r.unchecked) report.unchecked.push({ ...note, file, side })
         report.coverage.governedInputs = (report.coverage.governedInputs ?? 0) + a.governed
         report.coverage.ungovernedInputs = (report.coverage.ungovernedInputs ?? 0) + a.ungoverned
-        if (
-          [...before.unchecked, ...after.unchecked].some((n) =>
-            /^(?:Parser failure|Source exceeds)/.test(n.reason)
-          )
-        )
+        const failures = [
+          ...before.unchecked.map((n) => ({
+            ...n,
+            file: change.before?.path ?? file,
+            side: 'before' as const,
+          })),
+          ...after.unchecked.map((n) => ({ ...n, file, side: 'after' as const })),
+        ].filter((n) => /^(?:Parser failure|Extraction failure|Source exceeds)/.test(n.reason))
+        if (failures.length) {
+          report.coverageFailures?.push(...failures)
           continue
+        }
         /**
          * Debt is preserved only within its existing file and source owner. Extracting
          * or renaming noncompliant styling surfaces it for review under this policy.
@@ -836,6 +856,11 @@ export class ConformanceLinter {
         (f) => f.kind === 'system-change'
       ).length
       report.flagged = report.findings.length > 0
+      if (report.coverageFailures?.length) {
+        report.status = 'failed'
+        report.flagged = null
+        report.error = `${report.coverageFailures.length} changed product file inspection failure(s); comparison incomplete`
+      }
       this.metrics.peakSummaryBytes = Math.max(this.metrics.peakSummaryBytes, summaryBudget.bytes)
       beforeIndex.release()
       afterIndex.release()

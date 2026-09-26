@@ -314,7 +314,16 @@ jobs:
         env:
           DESIGN_BASE: ${{ steps.audit_base.outputs.ref }}
           DESIGN_HEAD: ${{ steps.audit_base.outputs.head }}
+          DESIGN_REPORT_PATH: ${{ runner.temp }}/design-conformance.json
         run: bun --no-env-file scripts/design-conformance/ci.ts --base "$DESIGN_BASE" --head "$DESIGN_HEAD"
+
+      - name: Save design conformance report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-conformance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/design-conformance.json
+          if-no-files-found: ignore
 
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"

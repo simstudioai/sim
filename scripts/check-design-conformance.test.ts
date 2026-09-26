@@ -107,6 +107,119 @@ test('component ownership flags central-token chrome overrides', async () => {
     ).flagged
   ).toBe(false)
 })
+test('basic EMCN components report caller changes to their owned appearance', async () => {
+  const examples = [
+    [
+      'Label',
+      '<Label className="text-[var(--text-muted)]">Name</Label>',
+      'text-[var(--text-muted)]',
+    ],
+    ['Textarea', '<Textarea className="rounded-lg" />', 'rounded-lg'],
+    ['Combobox', '<Combobox options={[]} className="rounded-lg" />', 'rounded-lg'],
+    ['Checkbox', '<Checkbox className="size-5" />', 'size-5'],
+    ['Switch', '<Switch className="bg-[var(--brand)]" />', 'bg-[var(--brand)]'],
+    [
+      'ChipTag',
+      '<ChipTag className="text-[var(--text-body)]">Tag</ChipTag>',
+      'text-[var(--text-body)]',
+    ],
+    ['Avatar', '<Avatar className="rounded-md" />', 'rounded-md'],
+    ['AvatarFallback', '<AvatarFallback className="border-0">A</AvatarFallback>', 'border-0'],
+    ['Banner', '<Banner className="bg-[var(--brand)]" />', 'bg-[var(--brand)]'],
+    ['Skeleton', '<Skeleton className="bg-[var(--brand)]" />', 'bg-[var(--brand)]'],
+    [
+      'OverflowText',
+      '<OverflowText label="Name" className="overflow-visible" />',
+      'overflow-visible',
+    ],
+    ['Code.Container', '<Code.Container className="border-0">Code</Code.Container>', 'border-0'],
+    [
+      'Code.Gutter',
+      '<Code.Gutter width={20} className="rounded-none">1</Code.Gutter>',
+      'rounded-none',
+    ],
+    [
+      'Code.Viewer',
+      '<Code.Viewer code="x" className="rounded-md border-0 bg-[var(--brand)]!" />',
+      'rounded-md',
+    ],
+    ['DropdownMenuContent', '<DropdownMenuContent className="rounded-md" />', 'rounded-md'],
+    ['DropdownMenuItem', '<DropdownMenuItem className="gap-2">Open</DropdownMenuItem>', 'gap-2'],
+    ['PopoverItem', '<PopoverItem className="px-4">Open</PopoverItem>', 'px-4'],
+    ['PopoverSection', '<PopoverSection className="px-4">Group</PopoverSection>', 'px-4'],
+    ['InputOTPSlot', '<InputOTPSlot index={0} className="rounded-lg" />', 'rounded-lg'],
+    [
+      'SecretInput',
+      '<SecretInput value="x" onChange={()=>{}} className="rounded-lg" />',
+      'rounded-lg',
+    ],
+    ['CopyCodeButton', '<CopyCodeButton code="x" className="rounded-lg" />', 'rounded-lg'],
+  ] as const
+  for (const [name, jsx, value] of examples) {
+    const result = await diff(
+      '',
+      `import {${name.split('.')[0]}} from '@sim/emcn';const A=()=>${jsx}`
+    )
+    expect(
+      result.findings.some(
+        (finding) => finding.rule === 'component-chrome' && finding.value === value
+      ),
+      name
+    ).toBe(true)
+    if (name === 'Code.Viewer')
+      expect(
+        new Set(
+          result.findings
+            .filter((finding) => finding.rule === 'component-chrome')
+            .map((finding) => finding.value)
+        )
+      ).toEqual(new Set(['rounded-md', 'border-0', 'bg-[var(--brand)]!']))
+  }
+})
+test('contextual appearance and unrelated lookalikes remain available', async () => {
+  const examples = [
+    '<Skeleton className="h-4 w-8 rounded-full" />',
+    '<OverflowText label="Long name" className="text-[var(--text-body)] w-full" />',
+    '<Banner className="text-[var(--text-body)]" />',
+    '<Code.Viewer code="x" className="max-w-full [word-break:break-all]" />',
+  ]
+  for (const jsx of examples) {
+    const result = await diff(
+      '',
+      `import {Skeleton,OverflowText,Banner,Code} from '@sim/emcn';const A=()=>${jsx}`
+    )
+    expect(
+      result.findings.filter((finding) => finding.rule === 'component-chrome'),
+      jsx
+    ).toEqual([])
+  }
+  const local = await diff(
+    '',
+    `const Code={Viewer:({className}:any)=><div className={className}/>};const A=()=> <Code.Viewer className="rounded-md" />`
+  )
+  expect(local.findings.filter((finding) => finding.rule === 'component-chrome')).toEqual([])
+})
+test('Code.Viewer ownership works through namespace imports and inline styles', async () => {
+  const report = await diff(
+    '',
+    `import * as E from '@sim/emcn'; const A=()=> <E.Code.Viewer code="x" className="rounded-md" style={{backgroundColor:'var(--brand)'}} />`
+  )
+  expect(
+    report.findings
+      .filter((finding) => finding.rule === 'component-chrome')
+      .map((finding) => finding.property)
+  ).toEqual(expect.arrayContaining(['border-radius', 'background-color']))
+})
+test('another Code.Viewer override is new debt inside the same owner', async () => {
+  const viewer = '<Code.Viewer code="x" className="border-0" />'
+  const source = (body: string) => `import {Code} from '@sim/emcn';const A=()=> <div>${body}</div>`
+  const report = await diff(source(viewer), source(`${viewer}${viewer}`))
+  expect(
+    report.findings
+      .filter((finding) => finding.rule === 'component-chrome' && finding.value === 'border-0')
+      .map((finding) => finding.property)
+  ).toEqual(['border-style', 'border-width'])
+})
 test('copied mistakes add occurrences; untouched debt and wording pass', async () => {
   const item = '<p className="text-[#434343]">Text</p>'
   expect((await diff(shared(item), shared(item + item))).findings.length).toBe(1)
@@ -235,16 +348,20 @@ test('CSS and rendered HTML retain central checks', async () => {
     ).flagged
   ).toBe(false)
 })
-test('unknowns and parser limits never imply a violation', async () => {
+test('unresolved expressions remain unchecked while failed product inspection fails the check', async () => {
   for (const source of [
     `import helper from './helper';const A=()=> <p className={helper()}/>`,
     `const a=b;const b=a;const A=()=> <p className={a}/>`,
-    `const A=()=> <`,
-    ' '.repeat(2 * 1024 * 1024 + 1),
   ]) {
     const r = await diff('', source)
     expect(r.flagged).toBe(false)
     expect(r.unchecked.length).toBeGreaterThan(0)
+  }
+  for (const source of [`const A=()=> <`, ' '.repeat(2 * 1024 * 1024 + 1)]) {
+    const r = await diff('', source)
+    expect(r.status).toBe('failed')
+    expect(r.flagged).toBeNull()
+    expect(r.coverageFailures?.length).toBeGreaterThan(0)
   }
 })
 test('missing required central input is an operational failure', async () => {

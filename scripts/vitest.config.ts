@@ -18,7 +18,7 @@ export default mergeConfig(
     },
     test: {
       root: fileURLToPath(new URL('..', import.meta.url)),
-      include: ['scripts/*.test.ts'],
+      include: ['scripts/*.test.ts', 'scripts/design-scan/*.test.ts', 'scripts/design-studio/*.test.mjs'],
     },
   })
 )

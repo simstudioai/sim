@@ -33,11 +33,16 @@ function uncheckedDescription(note: Report['unchecked'][number]): string {
 
 export function textReport(report: Report): string {
   if (report.status === 'failed')
-    return `Design check failed: ${line(report.error ?? 'Operational failure')}\n`
+    return [
+      `Design check failed: ${line(report.error ?? 'Operational failure')}`,
+      ...(report.coverageFailures ?? []).map((note) => `  ${uncheckedDescription(note)}`),
+      '',
+    ].join('\n')
   const counts = findingCounts(report)
   const lines = [
     `Design check: ${report.flagged ? 'findings reported' : 'no new findings'}${report.unchecked.length ? '; coverage incomplete' : ''} (${report.policyVersion}).`,
     `Usage violations: ${counts.usage}; system changes: ${counts.system}; unchecked diagnostics: ${report.unchecked.length}.`,
+    `Advisory review items: ${report.reviewItems?.length ?? 0}; reviewed decisions: ${report.reviewDecisions?.matches.length ?? 0}; stale decisions: ${report.reviewDecisions?.stale.length ?? 0}; ambiguous decisions: ${report.reviewDecisions?.ambiguous.length ?? 0}.`,
   ]
   for (const [kind, title] of [
     ['usage-violation', 'Usage violations'],
@@ -59,6 +64,19 @@ export function textReport(report: Report): string {
     lines.push(
       'Unchecked inputs remain outside the result; no findings does not prove complete coverage.'
     )
+  }
+  if (report.reviewItems?.length) {
+    lines.push('', 'Advisory ownership and recipe review')
+    for (const item of report.reviewItems)
+      lines.push(
+        `  ${line(item.file)}:${item.line} (${line(item.kind)}) — ${line(item.value)}: ${line(item.reason)}`
+      )
+  }
+  if (report.reviewDecisions?.stale.length || report.reviewDecisions?.ambiguous.length) {
+    lines.push('', 'Review decisions requiring renewal')
+    for (const fingerprint of report.reviewDecisions.stale) lines.push(`  stale: ${fingerprint}`)
+    for (const fingerprint of report.reviewDecisions.ambiguous)
+      lines.push(`  ambiguous: ${fingerprint}`)
   }
   return `${lines.join('\n')}\n`
 }

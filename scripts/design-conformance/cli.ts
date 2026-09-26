@@ -1,4 +1,6 @@
+import { matchReviews, readReviewLedger } from '#control-analysis/review-ledger'
 import { ConformanceLinter } from '#design-conformance/conformance'
+import { addControlComparison, controlSource } from '#design-conformance/control-comparison'
 import {
   compareGit,
   gitText,
@@ -14,12 +16,12 @@ import { gitSnapshot } from '#design-conformance/system-snapshot'
 let output: string | undefined
 let policy: Policy = 'conformance'
 try {
-  const args = options()
+  const args = options({ reviews: { type: 'string' } })
   output = args.output as string | undefined
   policy = policyOption(args.policy)
   if (!args.repo || !args.base || !args.head)
     throw new Error(
-      'Usage: lint:diff --repo <repository> --base <revision> --head <revision> [--catalogue <file>] [--output <report.json>]'
+      'Usage: lint:diff --repo <repository> --base <revision> --head <revision> [--catalogue <file>] [--output <report.json>] [--reviews <external.json>]'
     )
   if (policy === 'conformance' && args.catalogue)
     throw new Error(
@@ -39,16 +41,27 @@ try {
     )
     report =
       linter instanceof ConformanceLinter
-        ? await linter.analyze(
+        ? addControlComparison(
+            await linter.analyze(
+              changes,
+              (entry) => gitText(args.repo as string, entry),
+              commits,
+              gitSnapshot(args.repo as string, commits.mergeBase)
+            ),
             changes,
-            (entry) => gitText(args.repo as string, entry),
-            commits,
-            gitSnapshot(args.repo as string, commits.mergeBase)
+            () => controlSource(args.repo as string, commits.mergeBase),
+            () => controlSource(args.repo as string, commits.head)
           )
         : linter.analyze(changes, (entry) => gitText(args.repo as string, entry), commits)
   } catch (error) {
     report = linter.report(null, error instanceof Error ? error.message : 'Operational failure')
   }
+  if (args.reviews && report.status === 'completed')
+    report.reviewDecisions = matchReviews(
+      readReviewLedger(args.reviews as string, args.repo as string),
+      report.findings,
+      report.reviewItems ?? []
+    )
   if (output) writeJson(output, report)
   else process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
   process.exitCode = report.status === 'failed' ? 2 : report.flagged ? 1 : 0

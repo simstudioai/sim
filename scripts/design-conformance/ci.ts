@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { appendFileSync, copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -66,7 +66,9 @@ export function runWarningCheck(argv: string[]): number {
       { stdio: 'inherit' }
     )
     if (child.error) throw child.error
-    return warningExitCode(child.status, child.signal, JSON.parse(readFileSync(output, 'utf8')))
+    const report = JSON.parse(readFileSync(output, 'utf8'))
+    if (process.env.DESIGN_REPORT_PATH) copyFileSync(output, process.env.DESIGN_REPORT_PATH)
+    return warningExitCode(child.status, child.signal, report)
   } finally {
     rmSync(temp, { recursive: true, force: true })
   }

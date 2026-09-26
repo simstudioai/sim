@@ -45,7 +45,7 @@ export interface Registry {
 }
 const bytes = readFileSync(new URL('./contracts.json', import.meta.url), 'utf8')
 export const registry: Registry = JSON.parse(bytes)
-if (registry.version !== '1.3.0' || registry.policy !== 'design-conformance/1.3.0')
+if (registry.version !== '1.9.1' || registry.policy !== 'design-conformance/1.9.1')
   throw new Error('Incompatible conformance contract registry')
 export const contractsHash = hash(bytes)
 export function componentContract(target: string): ComponentContract | undefined {

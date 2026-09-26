@@ -27,6 +27,7 @@ export function artworkFile(file: string): boolean {
 
 /** Apply reviewed product/landing ownership without changing legacy scope. */
 export function conformanceScope(file: string): ReturnType<typeof scope> {
+  if (file.startsWith('apps/sim/app/(docs)/')) return 'exclude'
   if (registry.ownership?.[file]?.scope === 'landing') return 'exclude'
   if (registry.artwork?.brandAssets?.[file]) return 'exclude'
   if (registry.artwork?.brandingFiles.includes(file)) return 'exclude'

@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, expect, test } from 'vitest'
+import { findingFingerprint } from '#control-analysis/review-ledger'
 import { ciRefs, warningExitCode } from '#design-conformance/ci'
 import { repositoryRoot } from '#design-conformance/command'
 import { ConformanceLinter } from '#design-conformance/conformance'
@@ -66,8 +67,28 @@ test('command defaults to the checkout repository and HEAD independently of the 
     git(repositoryRoot, ['rev-parse', 'HEAD']).toString().trim()
   )
   expect(run([]).status).toBe(2)
-  expect(run(['--help']).stdout).toContain('uncommitted edits are not inspected')
+  expect(run(['--help']).stdout).toContain('--working-tree')
 }, 30_000)
+
+test('working-tree mode checks staged, unstaged and new product files without committing', () => {
+  const { repo, head } = fixture()
+  writeFileSync(path.join(repo, ui), 'const A=()=> <p className="text-[var(--text-body)]"/>')
+  git(repo, ['add', ui])
+  writeFileSync(path.join(repo, ui), 'const A=()=> <p className="text-[#123456]"/>')
+  const newFile = 'apps/sim/components/new.tsx'
+  writeFileSync(
+    path.join(repo, newFile),
+    'export const New=()=> <button className="text-[#123456]"/>'
+  )
+  const result = run(['--repo', repo, '--base', head, '--working-tree', '--format', 'json'])
+  expect(result.status).toBe(1)
+  const report = JSON.parse(result.stdout) as Report
+  expect(report.commits?.head).toMatch(/^working-tree:[a-f\d]{64}$/)
+  expect(report.findings.some((finding) => finding.file === ui)).toBe(true)
+  expect(report.findings.some((finding) => finding.file === newFile)).toBe(true)
+  expect(run(['--repo', repo, '--base', head, '--working-tree', '--head', 'HEAD']).status).toBe(2)
+  expect(run(['--repo', repo, '--base', head, '--head', 'HEAD']).status).toBe(0)
+})
 
 test('text, JSON and output files preserve finding identity and normal command exit codes', () => {
   const { repo, base, head } = fixture()
@@ -85,6 +106,82 @@ test('text, JSON and output files preserve finding identity and normal command e
   expect(run([...args, '--head', base]).status).toBe(0)
   expect(run([...args, '--format', 'invalid']).status).toBe(2)
   expect(run([...args, '--output', path.join(temp, 'missing/report.json')]).status).toBe(2)
+})
+
+test('external review decisions annotate but never remove a diff finding', () => {
+  const { repo, base } = fixture()
+  const args = ['--repo', repo, '--base', base, '--format', 'json']
+  const raw = JSON.parse(run(args).stdout) as Report
+  const reviews = path.join(temp, 'reviews.json')
+  const decision = JSON.stringify({
+    version: '1.0.0',
+    entries: [
+      {
+        fingerprint: findingFingerprint(raw.findings[0]),
+        status: 'retained-extra',
+        rationale: 'Reviewed test treatment',
+        evidence: '/external/review',
+      },
+    ],
+  })
+  writeFileSync(reviews, decision)
+  const annotated = JSON.parse(run([...args, '--reviews', reviews]).stdout) as Report
+  expect(annotated.findings).toEqual(raw.findings)
+  expect(annotated.reviewDecisions?.matches).toHaveLength(1)
+  const internal = path.join(repo, 'reviews.json')
+  writeFileSync(internal, decision)
+  expect(run([...args, '--reviews', internal]).status).toBe(2)
+})
+
+test('landing and docs edits stay out of the diff while product reuse restores helper checks', () => {
+  const repo = mkdtempSync(path.join(temp, 'scope-'))
+  git(repo, ['init', '-q'])
+  const write = (file: string, text: string) => {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    writeFileSync(path.join(repo, file), text)
+  }
+  const mdx = 'apps/sim/lib/content/mdx.tsx'
+  const landing = 'apps/sim/app/(landing)/page.tsx'
+  const docs = 'apps/docs/app/page.tsx'
+  const simDocs = 'apps/sim/app/(docs)/page.tsx'
+  write(TOKEN_FILE, ':root{--text-body:#434343}')
+  write(mdx, 'export const mdxComponents={code:()=> <code className="rounded-[4px] text-[19px]"/>}')
+  write(
+    landing,
+    'import {mdxComponents} from "@/lib/content/mdx"; export const Page=()=> <p>Landing</p>'
+  )
+  write(docs, 'export const Page=()=> <p className="text-[#123456]">Docs</p>')
+  write(simDocs, 'export const Page=()=> <p className="text-[#123456]">Docs</p>')
+  const base = commit(repo)
+  write(mdx, 'export const mdxComponents={code:()=> <code className="rounded-[5px] text-[20px]"/>}')
+  write(
+    landing,
+    'import {mdxComponents} from "@/lib/content/mdx"; export const Page=()=> <p className="text-[#123456]">Landing</p>'
+  )
+  write(docs, 'export const Page=()=> <p className="text-[#abcdef]">Docs</p>')
+  write(simDocs, 'export const Page=()=> <p className="text-[#abcdef]">Docs</p>')
+  const landingHead = commit(repo)
+  const scoped = run(['--repo', repo, '--base', base, '--format', 'json'])
+  expect(scoped.status).toBe(0)
+  expect((JSON.parse(scoped.stdout) as Report).findings).toEqual([])
+
+  write(
+    'apps/sim/components/product.tsx',
+    'import {mdxComponents} from "@/lib/content/mdx"; export const Product=()=> <div>{mdxComponents.code()}</div>'
+  )
+  write(mdx, 'export const mdxComponents={code:()=> <code className="rounded-[6px] text-[21px]"/>}')
+  commit(repo)
+  const mixed = run(['--repo', repo, '--base', landingHead, '--format', 'json'])
+  expect(mixed.status).toBe(0)
+  const mixedReport = JSON.parse(mixed.stdout) as Report
+  expect(mixedReport.findings.some((finding) => finding.file === mdx)).toBe(false)
+  expect(
+    mixedReport.unchecked.some(
+      (note) =>
+        note.file === 'apps/sim/components/product.tsx' &&
+        note.reason.includes('excluded landing source')
+    )
+  ).toBe(true)
 })
 
 test('CI tolerates genuine findings and preserves the report, but fails missing revisions and central inputs', () => {
@@ -111,21 +208,24 @@ test.each([
     source: ' '.repeat(2 * 1024 * 1024 + 1),
     reason: 'Source exceeds the 2 MiB parsing limit',
   },
-])('skipped changed files remain actionable without findings: $label', ({ source, reason }) => {
+])('changed product inspection failures fail the comparison: $label', ({ source, reason }) => {
   const { repo, head: base } = fixture()
   writeFileSync(path.join(repo, ui), source)
   commit(repo)
   const args = ['--repo', repo, '--base', base]
   const output = path.join(repo, 'report.json')
   const human = run([...args, '--output', output])
-  expect(human.status).toBe(0)
-  expect(human.stdout).toContain('coverage incomplete')
-  expect(human.stdout).toContain(`${ui}:1 (after`)
-  expect(human.stdout).toContain(reason)
+  expect(human.status).toBe(2)
+  expect(human.stderr).toContain('comparison incomplete')
   const report: Report = JSON.parse(readFileSync(output, 'utf8'))
-  expect(report.status).toBe('completed')
-  expect(report.flagged).toBe(false)
+  expect(report.status).toBe('failed')
+  expect(report.flagged).toBe(null)
   expect(report.findings).toEqual([])
+  expect(report.coverageFailures).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ file: ui, side: 'after', reason: expect.stringContaining(reason) }),
+    ])
+  )
   expect(report.unchecked).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ file: ui, side: 'after', reason: expect.stringContaining(reason) }),
@@ -133,12 +233,10 @@ test.each([
   )
   const summary = path.join(repo, 'summary.md')
   const child = run(args, ci, { GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: summary })
-  expect(child.status).toBe(0)
-  expect(child.stdout).toContain(`${ui}:1 (after`)
-  expect(child.stderr).not.toContain('::warning')
+  expect(child.status).toBe(2)
+  expect(child.stderr).toContain('comparison incomplete')
   const markdown = readFileSync(summary, 'utf8')
-  expect(markdown).toContain(`${ui}:1 (after`)
-  expect(markdown).toContain(reason)
+  expect(markdown).toContain('Operational failure')
 })
 
 test.each([

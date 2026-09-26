@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import type { Route, SourceSummary } from '#design-conformance/source-summary'
 
-export const VERSION = '3.3.1'
+export const VERSION = '3.10.7'
 export const CATALOGUE_VERSION = '1.0.0'
 export type Policy = 'appearance' | 'tokens' | 'conformance'
 export const policyVersion = (policy: Policy) =>
   policy === 'conformance'
-    ? 'design-conformance/1.3.0'
+    ? 'design-conformance/1.9.1'
     : policy === 'tokens'
       ? 'token-lint/2.0.0'
       : 'appearance-diff/2.1.0'
@@ -117,6 +117,29 @@ export interface Finding {
   before?: string | null
 }
 export interface Report {
+  reviewDecisions?: import('#control-analysis/review-ledger').ReviewDecisions
+  reviewItems?: import('#control-analysis/review').ReviewItem[]
+  /** Changed product files whose styling could not be compared. */
+  coverageFailures?: (Note & { file: string; side: 'before' | 'after' })[]
+  layoutAllowances?: import('#control-analysis/layout-allowances').LayoutAllowance[]
+  shadowExtras?: import('#control-analysis/shadow-extras').ShadowExtra[]
+  typographyReview?: import('#control-analysis/typography').TypographyReview
+  colourAssignments?: {
+    version: '1.0.0'
+    before: { checked: number; verified: number; invalid: number; unresolved: number }
+    after: { checked: number; verified: number; invalid: number; unresolved: number }
+    introduced: number
+    verifiedUsages: import('#control-analysis/colour-assignments').VerifiedColourUsage[]
+  }
+  controlSimplifications?: {
+    version: '1.0.0'
+    before: { controls: number; styleChecks: number; nameChecks: number; artwork: number }
+    after: { controls: number; styleChecks: number; nameChecks: number; artwork: number }
+    existingBefore: number
+    existingAfter: number
+    introduced: number
+    unresolved: number
+  }
   contractsHash?: string
   centralSourceHashes?: { before: string; after: string }
   schemaVersion: string
@@ -167,11 +190,12 @@ export function implementationHash(): string {
 export function scope(file: string): 'check' | 'exclude' | 'unsupported' {
   if (!/^(apps\/sim\/|packages\/(emcn|workflow-renderer)\/)/.test(file)) return 'exclude'
   if (
-    /(?:^|\/)(?:node_modules|__tests__|__fixtures__|fixtures|dist|build|public|emails?|icons?|iso|og|desktop)(?:\/|\.)|\.(?:test|spec|generated|d)\.[cm]?[jt]sx?$/.test(
+    /(?:^|\/)(?:node_modules|__tests__|__fixtures__|fixtures|dist|build|public|emails?|icons?|iso|og)(?:\/|\.)|\.(?:test|spec|generated|d)\.[cm]?[jt]sx?$/.test(
       file
     )
   )
     return 'exclude'
+  if (file.startsWith('apps/sim/lib/desktop/')) return 'exclude'
   if (
     /apps\/sim\/app\/(?:\(landing\)|api)\/|apps\/sim\/(?:content|emails)\/|(?:opengraph|twitter)-image\.|(?:^|\/)og-utils\./.test(
       file

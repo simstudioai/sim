@@ -108,7 +108,9 @@ export class Linter {
       status: error ? 'failed' : 'completed',
       flagged: error ? null : false,
       findings: [],
+      reviewItems: [],
       unchecked: [],
+      coverageFailures: [],
       coverage: { checkedFiles: 0, excludedFiles: 0, unsupportedFiles: 0 },
       ...(error ? { error } : {}),
     }

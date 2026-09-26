@@ -138,6 +138,7 @@ export function extract(
       )
     })
   }
+  let parsed = false
   try {
     if (file.endsWith('.css')) {
       css(text)
@@ -196,6 +197,7 @@ export function extract(
       plugins: ['typescript', 'jsx'],
       errorRecovery: false,
     })
+    parsed = true
     if (options?.conformance) facts.syntax = summarize(ast, file)
     const emitted = new Set<string>()
     const mediaNames = new Set(media)
@@ -217,7 +219,7 @@ export function extract(
         const route: string[] = []
         let q: NodePath | null = p
         while (q && !q.isJSXElement() && !q.isVariableDeclarator()) {
-          route.unshift(`${q.listKey ?? ''}:${q.key}:${q.node.type}`)
+          route.unshift(`${q.listKey ?? ''}:${q.key}:${q.node?.type ?? 'empty'}`)
           if (q.isJSXAttribute()) break
           q = q.parentPath
         }
@@ -246,13 +248,14 @@ export function extract(
           property,
           expression,
           position: route.join('/'),
-          line: p.node.loc?.start.line ?? 1,
+          line: p.node?.loc?.start.line ?? p.parentPath?.node?.loc?.start.line ?? 1,
         })
       }
-      const input = text.slice(p.node.start ?? 0, p.node.end ?? 0).replace(/\s+/g, ' ')
+      const node = p.node ?? p.parentPath?.node
+      const input = text.slice(node?.start ?? 0, node?.end ?? 0).replace(/\s+/g, ' ')
       facts.unchecked.push({
-        line: p.node.loc?.start.line ?? 1,
-        context: p.node.type,
+        line: p.node?.loc?.start.line ?? p.parentPath?.node?.loc?.start.line ?? 1,
+        context: node?.type ?? 'empty-expression',
         reason: appearance
           ? `${reason}; ${channel}:${property} input ${input.length > 180 ? `${input.slice(0, 180)}…` : input}`
           : reason,
@@ -1046,60 +1049,6 @@ export function extract(
       ObjectProperty(p) {
         html(p)
       },
-      VariableDeclarator(p) {
-        if (!appearance || !/^apps\/sim\/blocks\//.test(file)) return
-        const id = p.node.id
-        let annotation =
-          t.isIdentifier(id) && t.isTSTypeAnnotation(id.typeAnnotation)
-            ? id.typeAnnotation.typeAnnotation
-            : undefined
-        let init = p.get('init') as NodePath
-        if (init.isTSSatisfiesExpression() || init.isTSAsExpression()) {
-          annotation ??= init.node.typeAnnotation
-          init = init.get('expression') as NodePath
-        }
-        if (
-          !t.isTSTypeReference(annotation) ||
-          !t.isIdentifier(annotation.typeName) ||
-          imported(p, annotation.typeName.name) !== 'apps/sim/blocks/types#BlockConfig' ||
-          !init.isObjectExpression()
-        )
-          return
-        const props = init.get('properties')
-        if (props.some((q) => !q.isObjectProperty() || q.node.computed)) return
-        const prop = (key: string) =>
-          props.find((q) => q.isObjectProperty() && name(q.get('key')) === key)
-        const category = prop('category')
-        const type = prop('type')
-        const color = prop('bgColor')
-        if (
-          !category?.isObjectProperty() ||
-          !category.get('value').isStringLiteral({ value: 'tools' }) ||
-          !type?.isObjectProperty() ||
-          !type.get('value').isStringLiteral()
-        )
-          return
-        const tag = literal(type.get('value'))
-        const s = surface(
-          'integration',
-          'BlockConfig',
-          `integration-tag:${tag}`,
-          color?.node.loc?.start.line ?? p.node.loc?.start.line
-        )
-        if (color?.isObjectProperty())
-          within(s, () => {
-            const value = color.get('value')
-            if (value.isStringLiteral())
-              emit(value, 'style', 'background-color', value.node.value, 'labelled-workflow-tag')
-            else
-              note(
-                value,
-                'Computed integration-tag colour is unchecked',
-                'style',
-                'background-color'
-              )
-          })
-      },
       CallExpression(p) {
         if (helper(p.get('callee')) !== 'cva') return
         within(surface('recipe', owner(p), 'cva', p.node.loc?.start.line), () => {
@@ -1245,13 +1194,13 @@ export function extract(
         },
       })
     }
-  } catch {
+  } catch (error) {
     facts.atoms = []
     facts.surfaces = []
     facts.unchecked.push({
       line: 1,
       context: '',
-      reason: 'Parser failure: file styling is unchecked',
+      reason: `${parsed ? 'Extraction failure' : 'Parser failure'}: ${String(error).slice(0, 240)}; file styling is unchecked`,
     })
   } finally {
     // All binding resolution is file-local. Drop Babel's path/scope caches at that boundary

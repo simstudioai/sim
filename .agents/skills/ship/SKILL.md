@@ -102,7 +102,7 @@ When the user runs `/ship`:
 
 ## Committed design check
 
-After committing and before **every push**, run this from the repository root with Bun 1.4.1:
+During product UI work, run `bun run check:design --base origin/staging --working-tree` so staged, unstaged and nonignored new files are included. Review findings against EMCN and `globals.css`; explain intentional new Extras rather than weakening the checker. After committing and before **every push**, run this from the repository root with Bun 1.4.1:
 
 ```bash
 bun run check:design --base origin/staging --head HEAD

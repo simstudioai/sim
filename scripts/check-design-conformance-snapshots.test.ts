@@ -43,7 +43,7 @@ test('default CLI checks conformance with exits 0, 1 and explicit incompatible-i
   const dirty = run([])
   expect(dirty.status).toBe(1)
   const r = JSON.parse(dirty.stdout.toString())
-  expect(r.policyVersion).toBe('design-conformance/1.3.0')
+  expect(r.policyVersion).toBe('design-conformance/1.9.1')
   expect(r.findings[0].kind).toBe('usage-violation')
   const clean = spawnSync('bun', [
     '--no-env-file',
