@@ -17,6 +17,24 @@ describe('compact bar tooltips', () => {
       '2026: —'
     )
   })
+  it('formats each series with its own value axis', () => {
+    const option = applyChartTooltipDefaults({
+      xAxis: { type: 'category' },
+      yAxis: [{ type: 'value', axisLabel: { formatter: '{value}%' } }, { type: 'value' }],
+      series: [
+        { type: 'bar', name: 'Rate' },
+        { type: 'bar', name: 'Count', yAxisIndex: 1 },
+      ],
+    })
+    const formatter = toRecord(option.tooltip).formatter
+    if (typeof formatter !== 'function') throw new Error('Expected the bar tooltip formatter')
+    expect(
+      formatter([
+        { seriesIndex: 0, seriesName: 'Rate', axisValueLabel: 'Mon', value: 75 },
+        { seriesIndex: 1, seriesName: 'Count', axisValueLabel: 'Mon', value: 75 },
+      ])
+    ).toBe('Mon · Rate: 75%\nMon · Count: 75')
+  })
   it('uses a floating tooltip with row hover and preserves authored overrides', () => {
     expect(applyChartTooltipDefaults({ series: [{ type: 'bar' }] }).tooltip).toMatchObject({
       trigger: 'axis',

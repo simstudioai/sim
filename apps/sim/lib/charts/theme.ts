@@ -19,7 +19,7 @@ function encodedTooltipValue(entry: Record<string, unknown>, dimension: 'x' | 'y
 export function formatBarTooltip(
   params: unknown,
   valueAxis: 'x' | 'y' = 'y',
-  valueFormatter?: string
+  valueFormatter?: string | ((seriesIndex: number) => string | undefined)
 ): string {
   const entries = (Array.isArray(params) ? params : [params]).filter(isRecordLike)
   return entries
@@ -31,7 +31,11 @@ export function formatBarTooltip(
           ? entry.seriesName
           : ''
       const label = entries.length > 1 && name ? `${category} · ${name}` : category || name
-      return `${label}: ${formatChartValue(value, valueFormatter)}`
+      const formatter =
+        typeof valueFormatter === 'function'
+          ? valueFormatter(Number(entry.seriesIndex ?? 0))
+          : valueFormatter
+      return `${label}: ${formatChartValue(value, formatter)}`
     })
     .join('\n')
 }
@@ -54,19 +58,19 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
   if (series.length && series.every((entry) => toRecord(entry).type === 'bar')) {
     const yAxis = toRecord(Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis)
     const valueAxisName = yAxis.type === 'category' ? 'x' : 'y'
-    const valueAxis = option[`${valueAxisName}Axis`]
-    const formatter = toRecord(
-      toRecord(Array.isArray(valueAxis) ? valueAxis[0] : valueAxis).axisLabel
-    ).formatter
+    const valueAxes = option[`${valueAxisName}Axis`]
+    /** Each series reads units from its own value axis, so a secondary axis keeps its format. */
+    const formatters = series.map((entry) => {
+      const index = Number(toRecord(entry)[`${valueAxisName}AxisIndex`] ?? 0)
+      const axis = toRecord(Array.isArray(valueAxes) ? valueAxes[index] : valueAxes)
+      const formatter = toRecord(axis.axisLabel).formatter
+      return typeof formatter === 'string' ? formatter : undefined
+    })
     option.tooltip = mapTooltipEntries(option.tooltip, (tooltip) => ({
       trigger: 'axis',
       showContent: true,
       formatter: (params: unknown) =>
-        formatBarTooltip(
-          params,
-          valueAxisName,
-          typeof formatter === 'string' ? formatter : undefined
-        ),
+        formatBarTooltip(params, valueAxisName, (seriesIndex) => formatters[seriesIndex]),
       ...tooltip,
       axisPointer: { type: 'shadow', ...toRecord(tooltip.axisPointer) },
     }))
