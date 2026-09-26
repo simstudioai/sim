@@ -1,7 +1,12 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { app } from 'electron'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import {
   executeLocalFileRequest as executeApprovedLocalFileRequest,
   type LocalFileAuthorization,
@@ -17,6 +22,7 @@ function executeLocalFileRequest(request: unknown, authorization: LocalFileAutho
 
 let root: string
 beforeEach(async () => {
+  vi.mocked(app.getAppPath).mockReturnValue(fileURLToPath(new URL('../..', import.meta.url)))
   root = await mkdtemp(join(tmpdir(), 'sim-native-files-'))
 })
 afterEach(async () => {

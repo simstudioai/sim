@@ -253,40 +253,113 @@ test('native file tools remember folder consent across chats and restarts until 
         rmSync(other)
       }
     })
-    await test.step('a directory swapped out and back cannot leak outside entries', async () => {
+    await test.step('swapping an ancestor cannot redirect directory enumeration', async () => {
+      const parent = join(realpathSync(source), 'parent')
+      const child = join(parent, 'child')
+      const backup = join(realpathSync(source), 'parent-backup')
+      const otherParent = join(outside, 'parent')
+      mkdirSync(child, { recursive: true })
+      mkdirSync(join(otherParent, 'child'), { recursive: true })
+      writeFileSync(join(child, 'allowed.txt'), 'allowed')
+      writeFileSync(join(otherParent, 'child', 'private.txt'), 'outside')
+      calls.ancestorRace = { toolName: 'read_local_file', args: { path: child } }
       await app?.evaluate(
         (_electron, paths) => {
           const fs = process.getBuiltinModule(
             'node:fs/promises'
           ) as typeof import('node:fs/promises')
-          const originalOpen = fs.opendir
-          const originalRead = fs.readdir
-          const swapped = async <T>(operation: () => Promise<T>): Promise<T> => {
-            fs.opendir = originalOpen
-            fs.readdir = originalRead
-            await fs.rename(paths.source, paths.backup)
-            await fs.symlink(paths.outside, paths.source)
-            try {
-              return await operation()
-            } finally {
-              await fs.rm(paths.source)
-              await fs.rename(paths.backup, paths.source)
+          const originalStat = fs.lstat
+          const originalRealpath = fs.realpath
+          let swapped = false
+          const restore = async () => {
+            fs.lstat = originalStat
+            fs.realpath = originalRealpath
+            if (swapped) {
+              await fs.rm(paths.parent)
+              await fs.rename(paths.backup, paths.parent)
+              swapped = false
             }
           }
-          fs.opendir = (path, options) =>
-            path === paths.source
-              ? swapped(() => originalOpen(path, options))
-              : originalOpen(path, options)
-          fs.readdir = ((...args: Parameters<typeof fs.readdir>) =>
-            args[0] === paths.source
-              ? swapped(() => originalRead(...args))
-              : originalRead(...args)) as typeof fs.readdir
+          ;(
+            globalThis as typeof globalThis & { restoreLocalFileRace?: () => Promise<void> }
+          ).restoreLocalFileRace = restore
+          fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
+            const result = await originalStat(...args)
+            if (args[0] === paths.child) {
+              fs.lstat = originalStat
+              await fs.rename(paths.parent, paths.backup)
+              await fs.symlink(paths.otherParent, paths.parent)
+              swapped = true
+            }
+            return result
+          }) as typeof fs.lstat
+          fs.realpath = (async (...args: Parameters<typeof fs.realpath>) => {
+            if (swapped && args[0] === paths.child) await restore()
+            return originalRealpath(...args)
+          }) as typeof fs.realpath
         },
-        { source: realpathSync(source), backup: join(root, 'reports-backup'), outside }
+        { parent, child, backup, otherParent }
       )
-      expect(await invoke({ operation: 'read', toolCallId: 'directory' })).toMatchObject({
-        ok: false,
-      })
+      try {
+        expect(await invoke({ operation: 'read', toolCallId: 'ancestorRace' })).toMatchObject({
+          ok: true,
+          data: { entries: [{ name: 'allowed.txt', kind: 'file' }] },
+        })
+      } finally {
+        await app?.evaluate(async () => {
+          const runtime = globalThis as typeof globalThis & {
+            restoreLocalFileRace?: () => Promise<void>
+          }
+          await runtime.restoreLocalFileRace?.()
+          runtime.restoreLocalFileRace = undefined
+        })
+        rmSync(parent, { recursive: true, force: true })
+        rmSync(otherParent, { recursive: true, force: true })
+      }
+    })
+    await test.step('cancelling after a file opens prevents its contents from returning', async () => {
+      await app?.evaluate(
+        (_electron, path) => {
+          const fs = process.getBuiltinModule(
+            'node:fs/promises'
+          ) as typeof import('node:fs/promises')
+          const original = fs.open
+          fs.open = async (...args: Parameters<typeof fs.open>) => {
+            const handle = await original(...args)
+            if (args[0] === path) {
+              fs.open = original
+              await new Promise<void>((resolve) => {
+                ;(
+                  globalThis as typeof globalThis & { releaseLocalFileRead?: () => void }
+                ).releaseLocalFileRead = resolve
+              })
+            }
+            return handle
+          }
+        },
+        realpathSync(join(source, 'report.txt'))
+      )
+      const reading = invoke({ operation: 'read', toolCallId: 'text' })
+      void reading.catch(() => {})
+      try {
+        await expect
+          .poll(() =>
+            app?.evaluate(
+              () =>
+                typeof (globalThis as typeof globalThis & { releaseLocalFileRead?: () => void })
+                  .releaseLocalFileRead === 'function'
+            )
+          )
+          .toBe(true)
+        await invoke({ operation: 'cancel', toolCallId: 'text' })
+      } finally {
+        await app?.evaluate(() => {
+          const runtime = globalThis as typeof globalThis & { releaseLocalFileRead?: () => void }
+          runtime.releaseLocalFileRead?.()
+          runtime.releaseLocalFileRead = undefined
+        })
+      }
+      expect(await reading).toMatchObject({ ok: false })
     })
     await test.step('cancelling in the renderer closes consent without remembering access', async () => {
       calls.cancelled = {
