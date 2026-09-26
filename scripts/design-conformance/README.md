@@ -77,6 +77,8 @@ Static analysis handles bounded immutable constants/imports, finite alternatives
 
 Exported object class inputs are classified from same-file and supplied central consumers. The diff check does not search unchanged arbitrary product consumers; without use evidence, object keys and values remain unchecked rather than being guessed as class maps or variant tables.
 
+CVA configuration follows read-only local aliases within the 12-node resolution limit. Compound conditions support scalars or flat arrays of at most 64 elements, with array order and duplicates normalized. Imported, executable, mutable and nested-array inputs remain unchecked.
+
 Inline React styles preserve strings and custom variables. Only proven numeric values receive React's dimensional `px` conversion; unitless properties follow the pinned React serializer. A numeric-looking central reference without scalar type evidence remains explicitly unchecked.
 
 ## Debt and review records
