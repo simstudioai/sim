@@ -295,6 +295,8 @@ export const workflowHasResponseBlock = (
 
 /** Headers that control the app origin or HTTP transport belong to the server. */
 const RESERVED_RESPONSE_HEADERS = new Set([
+  'accept-ch',
+  'accept-ch-lifetime',
   'alt-svc',
   'clear-site-data',
   'connection',
@@ -303,6 +305,7 @@ const RESERVED_RESPONSE_HEADERS = new Set([
   'content-length',
   'content-location',
   'content-range',
+  'critical-ch',
   'document-policy',
   'keep-alive',
   'link',
@@ -311,6 +314,8 @@ const RESERVED_RESPONSE_HEADERS = new Set([
   'origin-agent-cluster',
   'permissions-policy',
   'proxy-authenticate',
+  'public-key-pins',
+  'public-key-pins-report-only',
   'referrer-policy',
   'refresh',
   'report-to',
@@ -322,8 +327,14 @@ const RESERVED_RESPONSE_HEADERS = new Set([
   'transfer-encoding',
   'upgrade',
   'www-authenticate',
+  'x-content-security-policy',
+  'x-dns-prefetch-control',
+  'x-download-options',
   'x-frame-options',
+  'x-permitted-cross-domain-policies',
   'x-sendfile',
+  'x-ua-compatible',
+  'x-webkit-csp',
   'x-xss-protection',
 ])
 
