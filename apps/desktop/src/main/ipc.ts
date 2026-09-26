@@ -86,9 +86,9 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
-import { type LocalFileAccess, LocalFilePermissions } from '@/main/local-file-permissions'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
 import { executeLocalFileRequest } from '@/main/local-files'
-import type { LocalFilesystemService } from '@/main/local-filesystem'
+import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
@@ -597,7 +597,7 @@ async function authorizeLocalFilesystemTool(
  * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const localFilePermissions = new LocalFilePermissions()
+  const localFilePermissions = new LocalFilePermissions(deps.localFilesystem)
   const browserScopeBySender = new WeakMap<WebContents, string>()
   const terminalScopeBySender = new WeakMap<WebContents, string>()
   const browserPendingScopesBySender = new WeakMap<WebContents, Set<string>>()

@@ -11,7 +11,7 @@ import { MAX_DESKTOP_IMPORT_FILE_BYTES } from '@sim/desktop-bridge'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { PDFDocument } from 'pdf-lib'
-import type { LocalFileAccess } from '@/main/local-file-permissions'
+import type { LocalFileAccess } from '@/main/local-filesystem'
 
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
