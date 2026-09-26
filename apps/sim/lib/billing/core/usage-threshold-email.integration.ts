@@ -8,6 +8,7 @@ import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { emailUnsubscribeMock } from '@sim/testing/mocks/email-unsubscribe.mock'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -21,18 +22,21 @@ vi.mock('@sim/db', () => ({ db: { select, update }, dbReplica: { select } }))
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/components/emails', () => emailTemplatesMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({ getEmailPreferences: async () => null }))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 
 import { maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
 
 const { mockSendEmail } = emailMailerMockFns
 
 const schemaName = `usage_threshold_${generateId().replaceAll('-', '')}`
+/** Every statement sent to the database, as the driver issued it. */
+const statements: string[] = []
 const connection = postgres(databaseUrl, {
   max: 4,
   prepare: false,
   connection: { search_path: schemaName },
   onnotice: () => undefined,
+  debug: (_connection, query) => statements.push(query),
 })
 const database = drizzle(connection, { schema }) as typeof db
 
@@ -162,6 +166,17 @@ describe('usage threshold email', () => {
 
     expect(delivered()).toEqual([reached(), warning()])
     expect(await claims()).toEqual(claimOf(80, SEPTEMBER, 12_500))
+  })
+
+  it('stops at one account read once the threshold is claimed', async () => {
+    await notify(90)
+    statements.length = 0
+
+    await notify(95)
+
+    expect(statements).toHaveLength(1)
+    expect(statements[0]).toMatch(/^select [\s\S]* from "organization" where/i)
+    expect(delivered()).toEqual([warning()])
   })
 
   it('keeps the claim for a later completion when nobody can be notified', async () => {

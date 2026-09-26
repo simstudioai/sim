@@ -16,6 +16,10 @@ import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -24,10 +28,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 afterAll(() => {
   resetDbChainMock()
 })
-
-const { mockGetEmailPreferences } = vi.hoisted(() => ({
-  mockGetEmailPreferences: vi.fn(() => Promise.resolve(null as unknown)),
-}))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
@@ -45,9 +45,7 @@ vi.mock('@/components/emails', () => emailTemplatesMock)
 
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  getEmailPreferences: mockGetEmailPreferences,
-}))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
@@ -57,6 +55,7 @@ import {
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
 
+const { mockGetEmailPreferences } = emailUnsubscribeMockFns
 const mockIsOrgAdminRole = workspaceAuthzMockFns.mockIsOrgAdminRole
 const {
   mockGetFreeTierLimit,
@@ -341,6 +340,7 @@ describe('maybeSendUsageThresholdEmail', () => {
   }
 
   it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
+    queueTableRows(schemaMock.userStats, [{ unclaimed: true }])
     await maybeSendUsageThresholdEmail({
       ...paidUser,
       usageBefore: 19,
@@ -354,6 +354,7 @@ describe('maybeSendUsageThresholdEmail', () => {
 
   it('fans out to org admins at 100% and skips non-admin members', async () => {
     mockIsOrgAdminRole.mockImplementation((role: unknown) => role === 'admin')
+    queueTableRows(schemaMock.organization, [{ unclaimed: true }])
     queueTableRows(schemaMock.member, [
       { email: 'admin@example.com', name: 'Admin', enabled: null, role: 'admin' },
       { email: 'member@example.com', name: 'Member', enabled: null, role: 'member' },

@@ -256,6 +256,10 @@ export {
   emailTemplatesMockFns,
 } from './email-templates.mock'
 export {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from './email-unsubscribe.mock'
+export {
   embeddingsMock,
   embeddingsMockFns,
   MockEmbeddingOutputLimitError,

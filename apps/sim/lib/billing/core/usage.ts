@@ -6,7 +6,9 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
+  type CreditsThresholdClaim,
   claimCreditsThreshold,
+  isCreditsThresholdUnclaimed,
   resolveLimitEmailRecipients,
 } from '@/lib/billing/core/limit-notifications'
 import {
@@ -694,6 +696,8 @@ export async function getEffectiveCurrentPeriodCost(
  *   that lags the ledger, and the claim ({@link claimCreditsThreshold}) is what keeps repeated or
  *   concurrent callers to one email. A new period or a changed limit re-arms both thresholds.
  * - Skips when billing is disabled.
+ * - Returns after one indexed read once the threshold is claimed, so the completions that follow
+ *   in the period cost no recipient lookup or write.
  * - Respects user-level notifications toggle and unsubscribe preferences, resolved before the
  *   claim so an account with nobody to notify never consumes it.
  * - For organization plans, emails owners/admins who have notifications enabled.
@@ -725,16 +729,17 @@ export async function maybeSendUsageThresholdEmail(params: {
     if (threshold === undefined) return
     const stateId = params.scope === 'user' ? params.userId : params.organizationId
     if (!stateId) return
-    const recipients = await resolveLimitEmailRecipients(params.scope, params)
-    if (recipients.length === 0) return
-    const claimed = await claimCreditsThreshold({
+    const claim: CreditsThresholdClaim = {
       scope: params.scope,
       id: stateId,
       periodStart: params.periodStart,
       limit: params.limit,
       threshold,
-    })
-    if (!claimed) return
+    }
+    if (!(await isCreditsThresholdUnclaimed(claim))) return
+    const recipients = await resolveLimitEmailRecipients(params.scope, params)
+    if (recipients.length === 0) return
+    if (!(await claimCreditsThreshold(claim))) return
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'

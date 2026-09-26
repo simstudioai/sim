@@ -81,32 +81,64 @@ async function claimThreshold(
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/**
- * Claim a credits threshold (80 or 100), returning whether THIS call won it. The claim is keyed
- * on the billing period and the limit: `credits` holds the highest threshold emailed while
- * `creditsPeriod` (the period's start day) and `creditsLimit` (the limit in cents) still match,
- * so a new period or a changed limit — in either direction — re-arms both thresholds with no
- * reset write, while within one a claim of 100 also retires 80, and never the reverse.
- */
-export function claimCreditsThreshold(params: {
+/** One account's credits threshold, keyed on its billing period and limit. */
+export interface CreditsThresholdClaim {
   scope: 'user' | 'organization'
   id: string
   periodStart: Date
   limit: number
   threshold: 80 | 100
-}): Promise<boolean> {
-  const { scope, id, threshold } = params
-  const periodDay = Math.floor(params.periodStart.getTime() / DAY_MS)
-  const limitCents = Math.round(params.limit * 100)
-  const column = scope === 'user' ? userStats.limitNotifications : organization.limitNotifications
-  const next = sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${threshold}::int, 'creditsPeriod', ${periodDay}::bigint, 'creditsLimit', ${limitCents}::bigint)`
-  const unclaimed = sql`not (
-    (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodDay}::bigint
-    and (${column} ->> 'creditsLimit')::bigint is not distinct from ${limitCents}::bigint
-    and coalesce((${column} ->> 'credits')::int, 0) >= ${threshold}::int
-  )`
+}
 
-  return writeLimitNotifications(scope, id, next, unclaimed)
+/**
+ * The stored claims for a credits threshold, and the condition under which it is still unclaimed:
+ * `credits` holds the highest threshold emailed while `creditsPeriod` (the period's start day) and
+ * `creditsLimit` (the limit in cents) still match, so a new period or a changed limit — in either
+ * direction — re-arms both thresholds with no reset write, while within one a claim of 100 also
+ * retires 80, and never the reverse.
+ */
+function creditsThresholdSql(claim: CreditsThresholdClaim) {
+  const periodDay = Math.floor(claim.periodStart.getTime() / DAY_MS)
+  const limitCents = Math.round(claim.limit * 100)
+  const column =
+    claim.scope === 'user' ? userStats.limitNotifications : organization.limitNotifications
+  return {
+    next: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${claim.threshold}::int, 'creditsPeriod', ${periodDay}::bigint, 'creditsLimit', ${limitCents}::bigint)`,
+    unclaimed: sql<boolean>`not (
+      (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodDay}::bigint
+      and (${column} ->> 'creditsLimit')::bigint is not distinct from ${limitCents}::bigint
+      and coalesce((${column} ->> 'credits')::int, 0) >= ${claim.threshold}::int
+    )`,
+  }
+}
+
+/**
+ * Whether a credits threshold is still unclaimed, read with one indexed lookup of the account
+ * row. A cheap pre-check only: callers run it on every completion above a threshold, so once
+ * the threshold is claimed they stop there instead of resolving recipients. The atomic
+ * {@link claimCreditsThreshold} remains the real dedup.
+ */
+export async function isCreditsThresholdUnclaimed(claim: CreditsThresholdClaim): Promise<boolean> {
+  const { unclaimed } = creditsThresholdSql(claim)
+  const [row] =
+    claim.scope === 'user'
+      ? await db
+          .select({ unclaimed })
+          .from(userStats)
+          .where(eq(userStats.userId, claim.id))
+          .limit(1)
+      : await db
+          .select({ unclaimed })
+          .from(organization)
+          .where(eq(organization.id, claim.id))
+          .limit(1)
+  return row?.unclaimed === true
+}
+
+/** Claim a credits threshold, returning whether THIS call won it. */
+export function claimCreditsThreshold(claim: CreditsThresholdClaim): Promise<boolean> {
+  const { next, unclaimed } = creditsThresholdSql(claim)
+  return writeLimitNotifications(claim.scope, claim.id, next, unclaimed)
 }
 
 /** Re-arm a category (reset its stored threshold to 0) once usage falls back into the low band. */
