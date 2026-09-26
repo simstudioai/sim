@@ -102,37 +102,14 @@ const FEATURE_FLAGS = {
   },
   'knowledge-member-access': {
     description:
-      'Permission-aware indexing and retrieval. Organization Search UI, MCP, and search APIs ' +
-      'require this flag and credential-groups for the canonical orgId; user/admin/workspace ' +
-      'targeting cannot enable another organization. Workspace member sync uses workspaceId; ' +
-      'workspace retrieval defaults may additionally use user/admin targeting. Source ACL ' +
-      'mirroring remains independent of managed identities. Off-AppConfig falls back to ' +
-      'KNOWLEDGE_MEMBER_ACCESS.',
+      'Organization Search (live) and the permission-aware workspace connector modes: members ' +
+      '(per-member sync, which also requires credential-groups) and admin (source ACL ' +
+      'mirroring, independent of managed identities). Organization Search UI, MCP, and ' +
+      'search APIs require this flag and credential-groups for the canonical orgId; ' +
+      'user/admin/workspace targeting cannot enable another organization. Workspace connector ' +
+      'modes use workspaceId; workspace retrieval defaults may additionally use user/admin ' +
+      'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
-  },
-  'knowledge-tin-keyword': {
-    description:
-      'Rank keyword retrieval for members whose permitted set is too large to enumerate through ' +
-      'the Tin text index instead of GIN. Has no effect where the Tin keyword index is absent or ' +
-      'invalid. Off-AppConfig falls back to KNOWLEDGE_TIN_KEYWORD.',
-    fallback: 'KNOWLEDGE_TIN_KEYWORD',
-  },
-  'knowledge-async-projection': {
-    description:
-      'Knowledge writers (document processing and connector ACL writes) leave search projection ' +
-      'rows to the background knowledge projector instead of rewriting them in their own ' +
-      'transaction. Global on/off only; turn it on only once no release older than the ' +
-      'projector serves search. Off-AppConfig falls back to KNOWLEDGE_ASYNC_PROJECTION.',
-    fallback: 'KNOWLEDGE_ASYNC_PROJECTION',
-  },
-  'knowledge-projection-fill': {
-    description:
-      'The knowledge projector also fills search projection rows written before they carried ' +
-      "their document's source and ACL, marking at most 100 documents at once so fresh writes " +
-      'never wait behind much of it. Global on/off only; off pauses the fill, and search keeps ' +
-      'deciding unfilled rows on their document. Off-AppConfig falls back to ' +
-      'KNOWLEDGE_PROJECTION_FILL.',
-    fallback: 'KNOWLEDGE_PROJECTION_FILL',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

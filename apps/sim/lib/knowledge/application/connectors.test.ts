@@ -1,4 +1,4 @@
-import { document, knowledgeConnector, member } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
@@ -40,8 +40,6 @@ const hoisted = vi.hoisted(() => ({
   provision: vi.fn(),
   decryptApiKey: vi.fn(),
   viewerMemberships: vi.fn(),
-  getAccess: vi.fn(),
-  getForConnectors: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -125,7 +123,6 @@ import {
   createApprovedSearchSource,
   createKnowledgeConnector,
   deleteKnowledgeConnector,
-  listWorkspaceMemberConnectors,
   resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
@@ -153,8 +150,6 @@ const mocks = {
 mocks.canUseCredential.mockReturnValue(undefined)
 authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue(null)
 knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider.mockImplementation(() => ({
-  get: mocks.getAccess,
-  getForConnectors: mocks.getForConnectors,
   liveSourceConnectorCondition: async () => ({ type: 'live-sources' }),
 }))
 
@@ -321,55 +316,6 @@ describe('knowledge connector application use cases', () => {
   })
 
   afterAll(resetDbChainMock)
-
-  it('counts workspace central Confluence documents only after candidate site admission', async () => {
-    const identity = {
-      kind: 'user' as const,
-      userId: 'reader',
-      tokens: ['ws', 's:confluence:-:alice'],
-    }
-    mocks.getAccess.mockResolvedValue(identity)
-    mocks.getForConnectors.mockResolvedValue({
-      ...identity,
-      confluenceSiteGrants: [
-        {
-          connectorId: 'cf-source',
-          contentCredentialId: 'crawler',
-          readerCredentialId: 'personal',
-          readerSubjectToken: 's:confluence:-:alice',
-          domain: 'company.atlassian.net',
-          cloudId: 'cloud-1',
-        },
-      ],
-    })
-    mocks.viewerMemberships.mockResolvedValue(new Map([['cf-source', 'connected']]))
-    queueTableRows(knowledgeConnector, [
-      {
-        id: 'cf-source',
-        knowledgeBaseId: 'knowledge-b',
-        knowledgeBaseName: 'Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorType: 'confluence',
-        accessMode: 'admin',
-        sourceConfig: { domain: 'company.atlassian.net', spaceKey: ['DEMO'] },
-        memberSyncStatus: 'idle',
-      },
-    ])
-    queueTableRows(document, [])
-    queueTableRows(knowledgeConnector, [{ connectorId: 'cf-source' }])
-    queueTableRows(document, [{ connectorId: 'cf-source', count: 2 }])
-    const result = await listWorkspaceMemberConnectors.execute({
-      principal: createSessionPrincipal({ userId: 'reader', sessionId: 'test' }),
-      input: { workspaceId: 'workspace-b' },
-    })
-    expect(mocks.getForConnectors).toHaveBeenCalledWith(['cf-source'], undefined)
-    expect(result.connectors).toEqual([
-      expect.objectContaining({ connectorId: 'cf-source', viewerDocumentCount: 2 }),
-    ])
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])).toContain(
-      'confluence_read_grant'
-    )
-  })
 
   it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')

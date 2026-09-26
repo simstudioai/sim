@@ -280,27 +280,3 @@ export function toManifestDocument(
 export function encodeVectorBase64(vector: readonly number[]): string {
   return Buffer.from(Float32Array.from(vector).buffer).toString('base64')
 }
-
-export class KnowledgeBundleVectorError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'KnowledgeBundleVectorError'
-  }
-}
-
-/** Reverses {@link encodeVectorBase64}, refusing any width or value pgvector could not store. */
-export function decodeVectorBase64(encoded: string, dimension: number): number[] {
-  const bytes = Buffer.from(encoded, 'base64')
-  if (bytes.byteLength !== dimension * Float32Array.BYTES_PER_ELEMENT) {
-    throw new KnowledgeBundleVectorError(
-      `Vector holds ${bytes.byteLength} bytes; expected ${dimension} float32 values`
-    )
-  }
-  const vector = Array.from(
-    new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
-  )
-  if (!vector.every(Number.isFinite)) {
-    throw new KnowledgeBundleVectorError('Vector contains a non-finite value')
-  }
-  return vector
-}

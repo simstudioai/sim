@@ -16,12 +16,10 @@ const { PgDialect } = await import('drizzle-orm/pg-core')
 const { embeddingSearch } = await import('@sim/db/schema')
 const { sql: rawSql } = await import('drizzle-orm')
 const sqlColumn = (name: string) => rawSql.raw(`"row"."${name}"`)
-const {
-  knowledgeAccessCondition,
-  knowledgeCandidateAccessConditionForConnectors,
-  projectionCandidateAccessCondition,
-  restrictSearchAccessPlan,
-} = await import('@/lib/knowledge/access/predicate')
+const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
+const { restrictSearchAccessPlan } = await import('@/lib/sim-search/indexed/retrieval/access-plan')
+const { knowledgeCandidateAccessConditionForConnectors, projectionCandidateAccessCondition } =
+  await import('@/lib/sim-search/indexed/retrieval/projection-access')
 const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/types')
 
 function render(condition: ReturnType<typeof knowledgeAccessCondition>) {

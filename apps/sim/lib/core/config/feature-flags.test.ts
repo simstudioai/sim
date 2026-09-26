@@ -38,8 +38,6 @@ import {
 const envRef = mockEnvObject
 setEnv({
   APPCONFIG_APPLICATION: 'sim-staging',
-  KNOWLEDGE_PROJECTION_FILL: undefined,
-  KNOWLEDGE_ASYNC_PROJECTION: undefined,
   APPCONFIG_ENVIRONMENT: 'staging',
   TABLES_V2_API: undefined,
   TABLE_ROW_TTL: undefined,
@@ -48,7 +46,6 @@ setEnv({
   AGENT_MEMORY_HISTORY: undefined,
   CREDENTIAL_GROUPS: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,
-  KNOWLEDGE_TIN_KEYWORD: undefined,
   SLACK_SEARCH_SHARED_APP: undefined,
 })
 
@@ -142,9 +139,6 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
-    envRef.KNOWLEDGE_TIN_KEYWORD = undefined
-    envRef.KNOWLEDGE_ASYNC_PROJECTION = undefined
-    envRef.KNOWLEDGE_PROJECTION_FILL = undefined
     envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
 
@@ -178,45 +172,6 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
       envRef.SLACK_SEARCH_SHARED_APP = true
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
-    })
-  })
-
-  describe('knowledge-tin-keyword flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(false)
-      envRef.KNOWLEDGE_TIN_KEYWORD = true
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-tin-keyword': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-  })
-
-  describe('knowledge-async-projection flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(false)
-      envRef.KNOWLEDGE_ASYNC_PROJECTION = true
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-async-projection': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-  })
-
-  describe('knowledge-projection-fill flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(false)
-      envRef.KNOWLEDGE_PROJECTION_FILL = true
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-projection-fill': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
     })
   })
 

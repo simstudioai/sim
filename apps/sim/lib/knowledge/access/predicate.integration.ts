@@ -23,13 +23,12 @@ const { mergeMirroredAcls, hideUnlistedDocuments } = await import(
   '@/lib/knowledge/connectors/mirrored-acls'
 )
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const {
-  knowledgeAccessCondition,
-  knowledgeCandidateAccessConditionForConnectors,
-  projectionCandidateAccessCondition,
-  restrictSearchAccessPlan,
-  knowledgeMetadataCandidateAccessCondition,
-} = await import('@/lib/knowledge/access/predicate')
+const { knowledgeAccessCondition, knowledgeMetadataCandidateAccessCondition } = await import(
+  '@/lib/knowledge/access/predicate'
+)
+const { restrictSearchAccessPlan } = await import('@/lib/sim-search/indexed/retrieval/access-plan')
+const { knowledgeCandidateAccessConditionForConnectors, projectionCandidateAccessCondition } =
+  await import('@/lib/sim-search/indexed/retrieval/projection-access')
 const { confluencePageAcl } = await import('@/lib/knowledge/access/confluence-permissions')
 
 /** Every table and index belongs to an isolated disposable schema. */

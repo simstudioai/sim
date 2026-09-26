@@ -4,7 +4,6 @@ import {
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
 import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
 import {
@@ -370,7 +369,6 @@ describe('member engine with a dedicated content credential', () => {
   })
 
   it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const result = await arrange({ isSearchIndex: true, members: true })()
     expect(result.skipReason).toBe('connector_not_syncable')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()

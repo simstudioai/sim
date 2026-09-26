@@ -13,7 +13,6 @@ import { vi } from 'vitest'
  */
 export const knowledgeAccessScopeMockFns = {
   mockResolveKnowledgeAccessScope: vi.fn(),
-  mockResolveUserKnowledgeAccessScope: vi.fn(),
   mockCreateKnowledgeAccessProvider: vi.fn(),
   mockCreateUserKnowledgeAccessProvider: vi.fn(),
 }
@@ -33,7 +32,6 @@ export const knowledgeAccessScopeMock = {
     tokens: ['pub', 'ws'] as const,
   }),
   resolveKnowledgeAccessScope: knowledgeAccessScopeMockFns.mockResolveKnowledgeAccessScope,
-  resolveUserKnowledgeAccessScope: knowledgeAccessScopeMockFns.mockResolveUserKnowledgeAccessScope,
   createKnowledgeAccessProvider: knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider,
   createUserKnowledgeAccessProvider:
     knowledgeAccessScopeMockFns.mockCreateUserKnowledgeAccessProvider,

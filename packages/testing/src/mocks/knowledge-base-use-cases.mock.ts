@@ -15,8 +15,6 @@ import { vi } from 'vitest'
 export const knowledgeBaseUseCasesMockFns = {
   mockListKnowledgeBasesAuthorize: vi.fn(),
   mockListKnowledgeBasesExecute: vi.fn(),
-  mockListKnowledgeBaseCatalogAuthorize: vi.fn(),
-  mockListKnowledgeBaseCatalogExecute: vi.fn(),
   mockRestoreKnowledgeBaseAuthorize: vi.fn(),
   mockRestoreKnowledgeBaseExecute: vi.fn(),
   mockCreateKnowledgeBaseAuthorize: vi.fn(),
@@ -52,11 +50,6 @@ export const knowledgeBaseUseCasesMock = {
     operation: { id: 'knowledge.list' },
     authorize: fns.mockListKnowledgeBasesAuthorize,
     execute: fns.mockListKnowledgeBasesExecute,
-  },
-  listKnowledgeBaseCatalog: {
-    operation: { id: 'knowledge.list' },
-    authorize: fns.mockListKnowledgeBaseCatalogAuthorize,
-    execute: fns.mockListKnowledgeBaseCatalogExecute,
   },
   restoreKnowledgeBase: {
     operation: { id: 'knowledge.restore' },

@@ -68,7 +68,6 @@ vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
   assertConnectorMirrorsSourceAcls: hoisted.mirror,
 }))
 vi.mock('@/lib/knowledge/application/connectors', () => ({
-  requireConnectorWorkspaceId: (context: { workspaceId: string }) => context.workspaceId,
   requireSuccessfulOutcome: vi.fn(),
   resolveConnectorCredentialAccessToken: hoisted.token,
   validateConnectorSourceConfig: hoisted.validate,

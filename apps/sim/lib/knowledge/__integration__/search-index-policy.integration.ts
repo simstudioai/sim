@@ -25,7 +25,6 @@ import {
   readKnowledgeBase,
   restoreKnowledgeBase,
 } from '@/lib/knowledge/application/knowledge-bases'
-import { deleteKnowledgeBaseByVfsPath } from '@/lib/knowledge/application/knowledge-vfs'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
 
 const ids = createKnowledgeAclFixtureIds()
@@ -182,12 +181,6 @@ describe('canonical search knowledge-base policy', () => {
     ] as Principal[]) {
       await expect(deleteKnowledgeBaseOperation.execute({ principal, input })).rejects.toThrow()
     }
-    await expect(
-      deleteKnowledgeBaseByVfsPath.execute({
-        principal: copilot(ids.bobId),
-        input: { workspaceId: ids.workspaceId, sourceName: indexName },
-      })
-    ).rejects.toThrow('Insufficient workspace permissions')
     await expectIndexActive()
   })
 

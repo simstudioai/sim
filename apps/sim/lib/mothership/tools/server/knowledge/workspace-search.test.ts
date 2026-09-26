@@ -1,16 +1,17 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
 } from '@sim/testing/mocks/mothership-organization-chats.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
-vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+vi.mock('@/lib/sim-search/indexed', () => ({
   searchOrganizationKnowledge: {
     get operation() {
       return knowledgeOperations.search
@@ -23,8 +24,6 @@ vi.mock('@/lib/knowledge/application/workspace-search', () => ({
     },
     execute: hoisted.search,
   },
-}))
-vi.mock('@/lib/knowledge/application/read-search-document', () => ({
   readSearchDocument: {
     get operation() {
       return knowledgeOperations.readDocument
@@ -60,7 +59,10 @@ const context = {
   }),
 }
 describe('Assistant retrieval tools', () => {
+  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
+    /** These cover the indexed arm of Sim's search and read tools. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     mocks.search.mockResolvedValue({
       retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],

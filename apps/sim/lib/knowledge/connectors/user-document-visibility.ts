@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
 import { sql } from 'drizzle-orm'
-import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
+import { sourceAclFreshnessCutoff } from '@/lib/knowledge/access/predicate'
 import { userToken } from '@/lib/knowledge/access/tokens'
 
 /**
@@ -27,7 +27,7 @@ export async function hasVisibleUserDocuments(
     WHERE ${document.connectorId} = ${connectorId}
       AND ${document.userExcluded} = false
       AND ${document.archivedAt} IS NULL
-      AND ${document.aclVerifiedAt} > statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')
+      AND ${document.aclVerifiedAt} > ${sourceAclFreshnessCutoff()}
     LIMIT 1
   `)
   return rows.length > 0

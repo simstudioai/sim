@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import { toast } from '@sim/emcn'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   organizationAccountsQueriesMock,
   organizationAccountsQueriesMockFns,
@@ -23,11 +24,11 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock(
-  '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup',
+  '@/app/o/[organizationId]/settings/components/integrations/indexed/organization-integrations-setup',
   () => ({ OrganizationIntegrationsSetup: () => <div>Provider setup</div> })
 )
 vi.mock(
-  '@/app/o/[organizationId]/settings/components/integrations/organization-source-stats',
+  '@/app/o/[organizationId]/settings/components/integrations/indexed/organization-source-stats',
   () => ({
     OrganizationSourceStats: ({ organizationId }: { organizationId: string }) => (
       <div>Stats for {organizationId}</div>
@@ -37,6 +38,7 @@ vi.mock(
 vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
 
 const mockContext = organizationProviderMockFns.mockUseOrganizationContext
@@ -66,6 +68,9 @@ describe('organization integration invitations', () => {
   let container: HTMLDivElement
 
   beforeEach(() => {
+    /** These cover the indexed organization Integrations settings. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    resetDeploymentShape()
     vi.spyOn(toast, 'success').mockReturnValue('toast-id')
     vi.spyOn(toast, 'error').mockReturnValue('toast-id')
     mocks.updatePending = false
@@ -94,6 +99,8 @@ describe('organization integration invitations', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
+    resetEnvFlagsMock()
+    resetDeploymentShape()
   })
 
   async function render(searchParams = '') {

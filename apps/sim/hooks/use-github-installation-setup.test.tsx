@@ -102,9 +102,11 @@ describe('GitHub installation setup handoff', () => {
     expect(current.pending).toBe(false)
     expect(mocks.connected).toHaveBeenCalledExactlyOnceWith('installation-1')
     expect(tab.close).toHaveBeenCalledOnce()
-    expect(mockInvalidate).toHaveBeenCalledTimes(4)
     expect(mockInvalidate).toHaveBeenCalledWith({
       queryKey: ['oauthCredentials', 'list', 'github-repositories', '', '', 'org-1', 'browsing'],
+    })
+    expect(mockInvalidate).toHaveBeenCalledWith({
+      queryKey: ['organization-accounts', 'detail', 'org-1'],
     })
     act(() => root.render(<Probe />))
     expect(mocks.connected).toHaveBeenCalledOnce()

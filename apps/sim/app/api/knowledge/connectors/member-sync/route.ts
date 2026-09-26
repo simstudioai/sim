@@ -59,6 +59,18 @@ function reclaimedNextMemberSyncAt(): SQL {
 }
 
 /**
+ * Only the member engine takes the member lease, and only on a members-mode connector, which a
+ * mode switch cannot leave while the lease is held; so both reclaims match `access_mode` too, the
+ * predicate `kc_member_sync_due_idx` is partial on, and read that index instead of the table.
+ */
+function reclaimableMemberSync(status: 'running' | 'pending'): SQL | undefined {
+  return and(
+    eq(knowledgeConnector.accessMode, 'members'),
+    eq(knowledgeConnector.memberSyncStatus, status)
+  )
+}
+
+/**
  * The write shared by both reclaims: a run that stopped making progress
  * re-enters the member failure ladder, which is the content engine's ladder
  * over the member columns.
@@ -108,7 +120,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .set(reclaimPayload(STALE_LOCK_ERROR_MESSAGE))
         .where(
           and(
-            eq(knowledgeConnector.memberSyncStatus, 'running'),
+            reclaimableMemberSync('running'),
             sql`${memberSyncLockLease()} <= ${sql.param(staleCutoff, knowledgeConnector.memberSyncLockLeaseAt)}`,
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
@@ -120,7 +132,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .set(reclaimPayload(LOST_DISPATCH_ERROR_MESSAGE))
         .where(
           and(
-            eq(knowledgeConnector.memberSyncStatus, 'pending'),
+            reclaimableMemberSync('pending'),
             sql`${memberSyncLockLease()} <= ${sql.param(staleCutoff, knowledgeConnector.memberSyncLockLeaseAt)}`,
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)

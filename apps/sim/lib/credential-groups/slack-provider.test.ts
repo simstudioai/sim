@@ -105,6 +105,7 @@ describe('Slack member scope policy', () => {
   })
 
   it('uses the option policy for enrollment instead of widening it', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     const scopes = SLACK_MANAGED_USER_SCOPES
     const current = context(scopes)
     const policy = await adapter.getPolicy(current.option, {

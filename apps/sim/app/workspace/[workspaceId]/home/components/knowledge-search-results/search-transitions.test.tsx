@@ -6,6 +6,7 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -235,6 +236,16 @@ async function complete(
 }
 
 describe('search refinement with the real query cache and URL state', () => {
+  /** The source refinement chips belong to the indexed search results. */
+  beforeEach(() => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    resetDeploymentShape()
+  })
+  afterEach(() => {
+    resetEnvFlagsMock()
+    resetDeploymentShape()
+  })
+
   it('does not restore cleared access data as a placeholder', async () => {
     await render()
     await complete(0)

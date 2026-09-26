@@ -55,6 +55,12 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   ],
 }))
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
+/** The barrel's other use cases need the application layer mocked above; ownership is exercised as is. */
+vi.mock('@/lib/sim-search/indexed', async () => ({
+  ownsIndexedPersonalSearchAccount: (
+    await import('@/lib/sim-search/indexed/integrations/personal-account-ownership')
+  ).ownsIndexedPersonalSearchAccount,
+}))
 
 import {
   prepareOrganizationPersonalConnection,
@@ -167,6 +173,7 @@ describe('organization personal token authorization', () => {
     expect(mocks.token).not.toHaveBeenCalled()
   })
   it('uses the authenticated person inventory and organization token scope without a workspace', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     await expect(resolveOrganizationPersonalToken.execute({ principal, input })).resolves.toEqual({
       accessToken: 'secret',
       refreshed: false,
@@ -213,6 +220,7 @@ describe('organization personal token authorization', () => {
   })
 
   it('does not confuse paused indexing with account authorization', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     mocks.inventory.mockResolvedValue({
       connections: [
         { indexingStatus: 'paused', accounts: [{ credentialId: 'own', status: 'connected' }] },
