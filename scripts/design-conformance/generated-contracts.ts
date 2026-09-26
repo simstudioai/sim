@@ -77,6 +77,7 @@ interface ModuleFacts {
   stars: string[]
   references: WeakMap<t.Node, { name: string; node?: t.Node; imported?: string; mutable?: boolean }>
   mutable: Set<string>
+  unsafeKeyBindings: Set<string>
 }
 /** The complete source inventory is independent of consumer uses and policy registrations. */
 export const metadataSource = (file: string) =>
@@ -216,6 +217,7 @@ async function generate(
       stars: [],
       references: new WeakMap(),
       mutable: new Set(),
+      unsafeKeyBindings: new Set(),
     }
     for (const st of ast.program.body) {
       if (t.isImportDeclaration(st))
@@ -345,6 +347,20 @@ async function generate(
       const fn = functionOf(node)
       if (fn) facts.functions.set(name, fn)
     }
+    const unsafeRoot = (raw: t.Node) => {
+      let node = unwrap(raw)
+      while (t.isMemberExpression(node)) node = unwrap(node.object)
+      if (t.isIdentifier(node))
+        facts.unsafeKeyBindings.add(facts.references.get(node)?.name ?? node.name)
+    }
+    t.traverseFast(ast, (node) => {
+      if (t.isAssignmentExpression(node)) unsafeRoot(node.left)
+      else if (t.isUpdateExpression(node)) unsafeRoot(node.argument)
+      else if (t.isUnaryExpression(node) && node.operator === 'delete') unsafeRoot(node.argument)
+      else if (t.isCallExpression(node) || t.isNewExpression(node))
+        for (const argument of node.arguments)
+          if (t.isIdentifier(argument) || t.isMemberExpression(argument)) unsafeRoot(argument)
+    })
     modules.set(file, facts)
   }
   const locate = (
@@ -411,6 +427,17 @@ async function generate(
       if (ref?.endsWith('#*')) return locate(ref.slice(0, -2), key(node.property))
     }
     return undefined
+  }
+  /** Follow potentially mutated aliases without publishing notes for unrelated code. */
+  deferredNotes = []
+  try {
+    for (const [file, facts] of modules)
+      for (const name of [...facts.unsafeKeyBindings]) {
+        const found = locate(file, name)
+        if (found) modules.get(found.file)?.unsafeKeyBindings.add(found.name)
+      }
+  } finally {
+    deferredNotes = undefined
   }
   const absentAppearance = (file: string, raw: t.Node) => {
     const node = unwrap(raw)
@@ -564,6 +591,48 @@ async function generate(
     return found ? scalar(found.file, found.node, new Set(seen).add(node)) : undefined
   }
   type Field = { file: string; name: string; value: t.Node }
+  const visitFunctionSource = (fn: t.Function, callback: (node: t.Node) => void) => {
+    const visit = (node: t.Node) => {
+      if (t.isFunction(node)) return
+      callback(node)
+      for (const childKey of t.VISITOR_KEYS[node.type] ?? []) {
+        const child = (node as unknown as Record<string, t.Node | t.Node[] | undefined>)[childKey]
+        if (Array.isArray(child)) {
+          for (const item of child) if (item) visit(item)
+        } else if (child) visit(child)
+      }
+    }
+    for (const parameter of fn.params) visit(parameter)
+    visit(fn.body)
+  }
+  const returnCache = new WeakMap<
+    t.Function,
+    { values: t.Node[]; mutation: boolean; calls: boolean }
+  >()
+  const helperReturns = (fn: t.Function) => {
+    const cached = returnCache.get(fn)
+    if (cached) return cached
+    const result = { values: [] as t.Node[], mutation: !!(fn.async || fn.generator), calls: false }
+    visitFunctionSource(fn, (node) => {
+      if (t.isReturnStatement(node)) result.values.push(node.argument ?? t.nullLiteral())
+      if (
+        t.isAssignmentExpression(node) ||
+        t.isUpdateExpression(node) ||
+        (t.isUnaryExpression(node) && node.operator === 'delete')
+      )
+        result.mutation = true
+      if (
+        t.isCallExpression(node) ||
+        t.isNewExpression(node) ||
+        t.isAwaitExpression(node) ||
+        t.isYieldExpression(node)
+      )
+        result.calls = true
+    })
+    if (!t.isBlockStatement(fn.body)) result.values.push(fn.body)
+    returnCache.set(fn, result)
+    return result
+  }
   const objectFields = (
     file: string,
     raw: t.Node,
@@ -1020,7 +1089,7 @@ async function generate(
           }
         }
         for (const param of fn.params) if (t.isObjectPattern(param)) recordDefaults(param)
-        t.traverseFast(fn.body, (node) => {
+        visitFunctionSource(fn, (node) => {
           if (
             t.isVariableDeclarator(node) &&
             t.isObjectPattern(node.id) &&
@@ -1132,6 +1201,7 @@ async function generate(
   for (const [publicName, meta] of metadataByExport) {
     const entry = out.exports[publicName]
     const usedRecipes = new Set<string>()
+    const helperDefaults = new Map<string, Set<string | boolean | number>>()
     const params = new Map<string, string>()
     const objects = new Set<string>()
     const rests = new Map<string, Set<string>>()
@@ -1175,6 +1245,201 @@ async function generate(
                 (!n.computed || t.isStringLiteral(n.property))
               ? key(n.property)
               : undefined
+      const recipeHelperDefaults = (file: string, call: t.CallExpression): string[] => {
+        const found = expressionReference(file, call.callee)
+        if (!found || !t.isFunction(found.node)) return []
+        const fn = found.node
+        const referenceName = (node: t.Node) =>
+          modules.get(found.file)?.references.get(node)?.name ?? key(node)
+        const inputs = new Map<string, { name: string; fallback?: t.Node }>()
+        const helperRests = new Map<string, Set<string>>()
+        const helperObjects = new Set<string>()
+        const pattern = (node: t.ObjectPattern) => {
+          const consumed = new Set(
+            node.properties.flatMap((property) =>
+              t.isObjectProperty(property) ? [key(property.key)] : []
+            )
+          )
+          for (const property of node.properties) {
+            if (t.isRestElement(property) && t.isIdentifier(property.argument))
+              helperRests.set(referenceName(property.argument), consumed)
+            if (!t.isObjectProperty(property)) continue
+            const value = t.isAssignmentPattern(property.value)
+              ? property.value.left
+              : property.value
+            if (t.isIdentifier(value))
+              inputs.set(referenceName(value), {
+                name: key(property.key),
+                ...(t.isAssignmentPattern(property.value)
+                  ? { fallback: property.value.right }
+                  : {}),
+              })
+          }
+        }
+        for (const parameter of fn.params) {
+          const value = t.isAssignmentPattern(parameter) ? parameter.left : parameter
+          if (t.isObjectPattern(value)) pattern(value)
+          if (t.isIdentifier(value)) helperObjects.add(referenceName(value))
+        }
+        visitFunctionSource(fn, (node) => {
+          if (
+            t.isVariableDeclarator(node) &&
+            t.isObjectPattern(node.id) &&
+            t.isIdentifier(node.init) &&
+            helperObjects.has(referenceName(node.init))
+          )
+            pattern(node.id)
+        })
+        if (![...inputs.values()].some((input) => input.fallback)) return []
+        const returned = helperReturns(fn)
+        const targets: { file: string; call: t.CallExpression; recipe: string }[] = []
+        const seen = new Set<t.Node>()
+        let unsupported =
+          returned.mutation || call.arguments.some((argument) => t.isSpreadElement(argument))
+        visitFunctionSource(fn, (node) => {
+          if (t.isNewExpression(node) || t.isAwaitExpression(node) || t.isYieldExpression(node))
+            unsupported = true
+          if (!t.isCallExpression(node)) return
+          const callee = expressionReference(found.file, node.callee)
+          if (
+            !(callee && out.recipes[`${callee.file}#${callee.name}`]) &&
+            !/^(?:cn|clsx|classNames|twMerge)$/.test(callee?.name ?? key(node.callee))
+          )
+            unsupported = true
+        })
+        const collect = (source: string, raw: t.Node) => {
+          const node = unwrap(raw)
+          if (seen.has(node) || seen.size >= 64) {
+            unsupported = true
+            return
+          }
+          seen.add(node)
+          if (t.isIdentifier(node)) {
+            const value = expressionReference(source, node)
+            if (value) collect(value.file, value.node)
+            else unsupported = true
+          } else if (t.isConditionalExpression(node)) {
+            collect(source, node.consequent)
+            collect(source, node.alternate)
+          } else if (t.isLogicalExpression(node)) {
+            collect(source, node.right)
+            if (node.operator !== '&&') collect(source, node.left)
+          } else if (t.isCallExpression(node)) {
+            const callee = expressionReference(source, node.callee)
+            const recipe = callee && `${callee.file}#${callee.name}`
+            if (recipe && out.recipes[recipe]) targets.push({ file: source, call: node, recipe })
+            else if (/^(?:cn|clsx|classNames|twMerge)$/.test(callee?.name ?? key(node.callee))) {
+              for (const argument of node.arguments)
+                if (t.isExpression(argument)) collect(source, argument)
+            } else unsupported = true
+          } else unsupported = true
+        }
+        for (const value of returned.values) collect(found.file, value)
+        if (!targets.length) return []
+        const reasons: string[] = []
+        const unresolved = (name: string) => {
+          defaultsUnknown.add(`${publicName}#${name}`)
+          const reason = `Recipe helper default of ${entry.exportName}.${name} is unresolved or conflicting; default remains unchecked`
+          note(file, call.loc?.start.line ?? 1, reason)
+          reasons.push(reason)
+        }
+        const actualArgument = call.arguments[0]
+        const wholeDefault = t.isAssignmentPattern(fn.params[0]) ? fn.params[0].right : undefined
+        const callerFile =
+          actualArgument &&
+          t.isExpression(actualArgument) &&
+          !absentAppearance(file, actualArgument)
+            ? file
+            : found.file
+        const callerArgument =
+          actualArgument &&
+          t.isExpression(actualArgument) &&
+          !absentAppearance(file, actualArgument)
+            ? actualArgument
+            : wholeDefault
+        const caller = callerArgument
+          ? objectFields(callerFile, callerArgument)
+          : { fields: [], unknown: [] }
+        const unsafeCaller = (axis: string) =>
+          caller.unknown.some(
+            (unknown) =>
+              !(
+                unknown.file === meta.file &&
+                t.isIdentifier(unknown.node) &&
+                rests.get(bindingName(unknown.node))?.has(axis)
+              )
+          )
+        for (const target of targets) {
+          const recipe = out.recipes[target.recipe]
+          const argument = target.call.arguments[0]
+          const body =
+            argument && t.isExpression(argument)
+              ? objectFields(target.file, argument)
+              : { fields: [], unknown: [] }
+          for (const axis of Object.keys(recipe.variants)) {
+            if (!meta.props?.getProperty(axis)) continue
+            const field = body.fields.find((field) => field.name === axis)
+            const restOf = (unknown: { file: string; node: t.Node }) =>
+              unknown.file === found.file && t.isIdentifier(unknown.node)
+                ? helperRests.get(referenceName(unknown.node))
+                : undefined
+            const forwarded =
+              !field &&
+              body.unknown.some((unknown) => {
+                const consumed = restOf(unknown)
+                return consumed && !consumed.has(axis)
+              })
+            const input: { name: string; fallback?: t.Node } | undefined =
+              field && t.isIdentifier(unwrap(field.value))
+                ? inputs.get(referenceName(unwrap(field.value)))
+                : forwarded
+                  ? { name: axis }
+                  : undefined
+            const callerField = input && caller.fields.find((field) => field.name === input.name)
+            const publicInput = callerField
+              ? propOf(callerField.file, callerField.value)
+              : undefined
+            const name = publicInput ?? axis
+            const unsafeBody = body.unknown.some((unknown) => {
+              const consumed = restOf(unknown)
+              return !consumed || (!consumed.has(axis) && !forwarded)
+            })
+            if (unsupported || unsafeBody || (input && unsafeCaller(input.name))) {
+              unresolved(name)
+              continue
+            }
+            let value: string | boolean | number | undefined
+            let unknown = false
+            if (input) {
+              if (callerField && publicInput) value = meta.defaults[publicInput]
+              else if (callerField) {
+                value = scalar(callerField.file, callerField.value)
+                unknown =
+                  value === undefined && !absentAppearance(callerField.file, callerField.value)
+              }
+              if (value === undefined && !unknown && input.fallback) {
+                value = scalar(found.file, input.fallback)
+                unknown = value === undefined
+              }
+              if (value === undefined && !unknown) value = recipe.defaults[axis]
+            } else if (field) {
+              value = scalar(field.file, field.value)
+              unknown = value === undefined
+            } else value = recipe.defaults[axis]
+            if (unknown) {
+              unresolved(name)
+              continue
+            }
+            if (value !== undefined) {
+              const candidates = helperDefaults.get(name) ?? new Set()
+              candidates.add(value)
+              helperDefaults.set(name, candidates)
+              if (candidates.size > 1) unresolved(name)
+            }
+          }
+        }
+        return sorted(reasons)
+      }
       const visitValue = (
         file: string,
         raw: t.Node,
@@ -1218,7 +1483,13 @@ async function generate(
         }
         const operations: (Attribute | { unknown: UnknownProps })[] = []
         const unknownBundles: string[] = []
-        const spread = (file: string, raw: t.Node, seen = new Set<t.Node>(), into = operations) => {
+        const spread = (
+          file: string,
+          raw: t.Node,
+          seen = new Set<t.Node>(),
+          into = operations,
+          fromHelper = false
+        ) => {
           const value = unwrap(raw)
           if (file === meta.file && t.isIdentifier(value)) {
             const name = bindingName(value)
@@ -1243,8 +1514,30 @@ async function generate(
             deferredNotes = previous
           }
           if (found) {
-            spread(found.file, found.node, next, into)
+            if (fromHelper && modules.get(found.file)?.unsafeKeyBindings.has(found.name))
+              into.push({ unknown: { file, node: value, notes } })
+            else spread(found.file, found.node, next, into, fromHelper)
             return
+          }
+          if (t.isCallExpression(value)) {
+            let helper: ReturnType<typeof expressionReference>
+            const previous = deferredNotes
+            try {
+              deferredNotes = notes
+              helper = expressionReference(file, value.callee)
+            } finally {
+              deferredNotes = previous
+            }
+            if (helper && t.isFunction(helper.node)) {
+              const returns = helperReturns(helper.node)
+              if (!returns.mutation && !returns.calls) {
+                const alternatives: typeof operations = []
+                for (const returned of returns.values)
+                  spread(helper.file, returned, next, alternatives, true)
+                finiteAlternatives(file, value, alternatives, notes, into)
+                return
+              }
+            }
           }
           if (t.isConditionalExpression(value) || t.isLogicalExpression(value)) {
             const branches = t.isConditionalExpression(value)
@@ -1253,32 +1546,8 @@ async function generate(
                 ? [value.right]
                 : [value.left, value.right]
             const alternatives: typeof operations = []
-            for (const branch of branches) spread(file, branch, next, alternatives)
-            const finite = alternatives.every(
-              (operation) => !('unknown' in operation) || operation.unknown.keys !== undefined
-            )
-            into.push({
-              unknown: {
-                file,
-                node: value,
-                ...(finite
-                  ? {
-                      keys: sorted(
-                        alternatives.flatMap((operation) =>
-                          'unknown' in operation ? (operation.unknown.keys ?? []) : [operation.name]
-                        )
-                      ),
-                      finiteKeys: true,
-                    }
-                  : {}),
-                notes: [
-                  ...notes,
-                  ...alternatives.flatMap((operation) =>
-                    'unknown' in operation ? (operation.unknown.notes ?? []) : []
-                  ),
-                ],
-              },
-            })
+            for (const branch of branches) spread(file, branch, next, alternatives, fromHelper)
+            finiteAlternatives(file, value, alternatives, notes, into)
             return
           }
           if (t.isObjectExpression(value)) {
@@ -1290,7 +1559,8 @@ async function generate(
                   t.isNumericLiteral(property.key))
               )
                 into.push({ name: key(property.key), file, value: property.value })
-              else if (t.isSpreadElement(property)) spread(file, property.argument, next, into)
+              else if (t.isSpreadElement(property))
+                spread(file, property.argument, next, into, fromHelper)
               else
                 into.push({
                   unknown: {
@@ -1312,6 +1582,39 @@ async function generate(
           )
             return
           into.push({ unknown: { file, node: value, notes } })
+        }
+        const finiteAlternatives = (
+          file: string,
+          value: t.Node,
+          alternatives: typeof operations,
+          notes: GeneratedContracts['diagnostics'],
+          into: typeof operations
+        ) => {
+          const finite = alternatives.every(
+            (operation) => !('unknown' in operation) || operation.unknown.keys !== undefined
+          )
+          into.push({
+            unknown: {
+              file,
+              node: value,
+              ...(finite
+                ? {
+                    keys: sorted(
+                      alternatives.flatMap((operation) =>
+                        'unknown' in operation ? (operation.unknown.keys ?? []) : [operation.name]
+                      )
+                    ),
+                    finiteKeys: true,
+                  }
+                : {}),
+              notes: [
+                ...notes,
+                ...alternatives.flatMap((operation) =>
+                  'unknown' in operation ? (operation.unknown.notes ?? []) : []
+                ),
+              ],
+            },
+          })
         }
         if (t.isJSXOpeningElement(node)) {
           tag = t.isJSXIdentifier(node.name)
@@ -1444,9 +1747,11 @@ async function generate(
           }
           const inputs = attr.input ? new Set([attr.input]) : inputsOf(attr.file, attr.value)
           const recipes = new Set<string>()
+          const helperNotes: string[] = []
           if (!attr.input)
             visitValue(attr.file, attr.value, (file, child) => {
               if (!t.isCallExpression(child)) return
+              helperNotes.push(...recipeHelperDefaults(file, child))
               const found = expressionReference(file, child.callee)
               const id = found && `${found.file}#${found.name}`
               if (id && out.recipes[id]) {
@@ -1455,6 +1760,7 @@ async function generate(
               }
             })
           stylingNotes = []
+          stylingNotes.push(...helperNotes)
           const classChannel = /(?:^className$|ClassName$)/.test(slotName)
           const owned = protectedFor(
             classChannel && !attr.input
@@ -1520,7 +1826,8 @@ async function generate(
         if (!supported.length) continue
         const fallback = defaultsUnknown.has(`${publicName}#${prop.name}`)
           ? undefined
-          : (meta.defaults[prop.name] ??
+          : ([...(helperDefaults.get(prop.name) ?? [])][0] ??
+            meta.defaults[prop.name] ??
             recipes.map((r) => out.recipes[r].defaults[prop.name]).find((v) => v !== undefined))
         entry.variants[prop.name] = {
           values: supported,

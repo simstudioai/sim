@@ -381,6 +381,274 @@ declare function cn(...args:unknown[]):string`
 )
 
 test.each([
+  { name: 'local branch returns', body: "if(flag)return {'data-a':true};return {'data-b':true}" },
+  { name: 'constant returned alias', body: "const attrs={'data-a':flag};return attrs" },
+  {
+    name: 'imported alias through a barrel',
+    body: "if(flag)return {'data-a':true};return {'data-b':true}",
+    imported: 'named',
+  },
+  {
+    name: 'namespace helper through a barrel',
+    body: "return {'data-a':flag}",
+    imported: 'namespace',
+  },
+  { name: 'aliased helper', body: "return {'data-a':flag}", alias: true },
+  {
+    name: 'uninvoked nested helper',
+    body: "const unused=()=>({className:'rounded-full'});return {'data-a':flag}",
+  },
+  {
+    name: 'declared return types cannot approve absent bodies',
+    declaration: "export declare function attributes(flag?:boolean):{'data-a':boolean}",
+    unchecked: true,
+  },
+  {
+    name: 'computed return keys',
+    body: "return {[flag?'data-a':'className']:'rounded-full'}",
+    unchecked: true,
+  },
+  { name: 'unknown return spreads', body: 'return {...unknown()}', unchecked: true },
+  {
+    name: 'unknown calls before finite returned keys',
+    body: "unknown();return {'data-a':flag}",
+    unchecked: true,
+  },
+  {
+    name: 'mutated returned object',
+    body: "const attrs:Record<string,unknown>={'data-a':flag};attrs.className='rounded-full';return attrs",
+    unchecked: true,
+  },
+  {
+    name: 'returned object escaping to an unknown call',
+    body: "const attrs={'data-a':flag};decorate(attrs);return attrs",
+    unchecked: true,
+  },
+  {
+    name: 'mutated outer returned binding',
+    prefix: "const attrs:Record<string,unknown>={'data-a':true};attrs.className='rounded-full';",
+    body: 'return attrs',
+    unchecked: true,
+  },
+  {
+    name: 'possible returned className override',
+    body: "if(flag)return {className:'rounded-full'};return {'data-a':true}",
+    unchecked: true,
+  },
+  {
+    name: 'later explicit className overrides helper styling keys',
+    body: "if(flag)return {className:'rounded-full'};return {'data-a':true}",
+    before: true,
+  },
+])(
+  'helper props keys follow bounded return source: $name',
+  (scenario) => {
+    const root = fixture()
+    const helper = `${scenario.prefix ?? ''}${scenario.declaration ?? `export function attributes(flag?:boolean){${scenario.body}}`};declare function unknown():Record<string,unknown>;declare function decorate(value:unknown):void`
+    write(root, 'packages/emcn/src/components/helpers.ts', helper)
+    write(
+      root,
+      'packages/emcn/src/components/helper-barrel.ts',
+      "export {attributes as buildAttributes} from './helpers'"
+    )
+    const importSource =
+      scenario.imported === 'namespace'
+        ? "import * as helpers from './helper-barrel'"
+        : scenario.imported === 'named'
+          ? "import {buildAttributes as attributes} from './helper-barrel'"
+          : "import {attributes} from './helpers'"
+    const helperCall =
+      scenario.imported === 'namespace'
+        ? 'helpers.buildAttributes(flag)'
+        : scenario.alias
+          ? 'build(flag)'
+          : 'attributes(flag)'
+    const classAttribute = 'className={cn(recipe({gap}),className)}'
+    const spreadAttribute = `{...${helperCall}}`
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `${importSource};import {cva} from 'class-variance-authority';${scenario.alias ? 'const build=attributes;' : ''}
+const recipe=cva('rounded-md',{variants:{gap:{none:'gap-0',sm:'gap-0.5'}},defaultVariants:{gap:'none'}})
+export function Example({className,gap,flag}:{className?:string;gap?:'none'|'sm';flag?:boolean}){return <button ${scenario.before ? `${spreadAttribute} ${classAttribute}` : `${classAttribute} ${spreadAttribute}`}/>}
+declare function cn(...args:unknown[]):string;throw new Error('Product modules must not execute')`
+    )
+    const result = run(root)
+    expect(result.status, result.stderr).toBe(0)
+    const metadata = generated(root)
+    const entry = metadata.exports.Example
+    if (scenario.unchecked) {
+      expect(entry.slots.className.protected).toEqual([])
+      expect(entry.slots.className.unchecked.join('\n')).toMatch(/rendered props bundle/i)
+      expect(entry.variants.gap.default).toBeUndefined()
+    } else {
+      expect(entry.slots.className.protected).toEqual(['border-radius', 'gap'])
+      expect(entry.slots.className.unchecked).toBeUndefined()
+      expect(entry.variants.gap.default).toBe('none')
+      expect(metadata.diagnostics).toEqual([])
+    }
+  },
+  60_000
+)
+
+test.each([
+  {
+    name: 'effective destructured helper default',
+    wrapper: "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap,...props})",
+    call: 'wrapped({gap})',
+    expected: 'sm',
+  },
+  {
+    name: 'finite bound helper default',
+    wrapper:
+      "const DEFAULT='sm' as const;const wrapped=({gap=DEFAULT,...props}:Options={})=>recipe({gap,...props})",
+    call: 'wrapped({gap})',
+    expected: 'sm',
+  },
+  {
+    name: 'component default remains effective',
+    wrapper: "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap,...props})",
+    call: 'wrapped({gap})',
+    componentDefault: 'none',
+    expected: 'none',
+  },
+  {
+    name: 'explicit helper argument overrides its default',
+    wrapper: "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap,...props})",
+    call: "wrapped({gap:'none'})",
+    expected: 'none',
+  },
+  {
+    name: 'helper body overrides its parameter default',
+    wrapper: "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap:'none',...props})",
+    call: 'wrapped({gap})',
+    expected: 'none',
+  },
+  {
+    name: 'unknown helper default remains unchecked',
+    wrapper: 'const wrapped=({gap=unknown(),...props}:Options={})=>recipe({gap,...props})',
+    call: 'wrapped({gap})',
+    unchecked: true,
+  },
+  {
+    name: 'unknown helper calls cannot approve defaults',
+    wrapper:
+      "const wrapped=({gap='sm',...props}:Options={})=>{unknown();return recipe({gap,...props})}",
+    call: 'wrapped({gap})',
+    unchecked: true,
+  },
+  {
+    name: 'spread helper arguments remain unchecked',
+    wrapper: "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap,...props})",
+    call: 'wrapped(...unknownArguments())',
+    unchecked: true,
+  },
+  {
+    name: 'nested uninvoked helper bindings are ignored',
+    wrapper:
+      "const wrapped=({gap='sm',...props}:Options={})=>{const nested=()=>{const {gap='none'}=props;unknown();return gap};return recipe({gap,...props})}",
+    call: 'wrapped({gap})',
+    expected: 'sm',
+  },
+  {
+    name: 'conflicting effective wrapper defaults remain unchecked',
+    wrapper:
+      "const wrapped=({gap='sm',...props}:Options={})=>recipe({gap,...props});const other=({gap='none',...props}:Options={})=>recipe({gap,...props})",
+    call: 'cn(wrapped({gap}),other({gap}))',
+    unchecked: true,
+  },
+])(
+  'effective recipe helper defaults: $name',
+  (scenario) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `import {cva} from 'class-variance-authority'
+const recipe=cva('rounded-md',{variants:{gap:{none:'gap-0',sm:'gap-0.5'}},defaultVariants:{gap:'none'}})
+type Options={gap?:'none'|'sm'};${scenario.wrapper}
+export function Example({className,gap${scenario.componentDefault ? `='${scenario.componentDefault}'` : ''}}:{className?:string;gap?:'none'|'sm'}){return <button className={cn(${scenario.call},className)}/>}
+declare function cn(...args:unknown[]):string;declare function unknown():'none'|'sm';declare function unknownArguments():[Options];throw new Error('Product modules must not execute')`
+    )
+    const result = run(root)
+    expect(result.status, result.stderr).toBe(0)
+    const metadata = generated(root)
+    const entry = metadata.exports.Example
+    expect(entry.slots.className.protected).toContain('border-radius')
+    if (scenario.unchecked) {
+      expect(entry.variants.gap.default).toBeUndefined()
+      expect(
+        metadata.diagnostics.some((d: { reason: string }) =>
+          /helper.*default.*unchecked/i.test(d.reason)
+        )
+      ).toBe(true)
+    } else expect(entry.variants.gap.default).toBe(scenario.expected)
+  },
+  60_000
+)
+
+test('actual ChipButtonGroup helper preserves consumer ownership and effective gap default', () => {
+  const root = fixture()
+  for (const file of [
+    'components/chip-button-group/chip-button-group.tsx',
+    'components/chip-switch/chip-switch.tsx',
+    'components/scroll-fade/scroll-fade.ts',
+    'components/scroll-fade/scroll-fade.module.css',
+    'components/chip/segmented-control.ts',
+    'components/chip/chip.tsx',
+    'components/chip/chip-chrome.ts',
+    'lib/cn.ts',
+    'hooks/use-scroll-edges.ts',
+  ])
+    write(
+      root,
+      `packages/emcn/src/${file}`,
+      readFileSync(path.resolve('packages/emcn/src', file), 'utf8')
+    )
+  write(
+    root,
+    'packages/emcn/src/index.ts',
+    "export {ChipButtonGroup} from './components/chip-button-group/chip-button-group';export {ChipSwitch} from './components/chip-switch/chip-switch'"
+  )
+  write(
+    root,
+    'apps/sim/components/use-example.tsx',
+    "import {ChipButtonGroup} from '@sim/emcn';export const View=()=> <ChipButtonGroup value='a' onValueChange={()=>{}} className='rounded-full'><span/></ChipButtonGroup>"
+  )
+  const generation = run(root)
+  expect(generation.status, generation.stderr).toBe(0)
+  const metadata = generated(root)
+  expect(metadata.exports.ChipButtonGroup.slots.className.protected).toContain('border-radius')
+  expect(metadata.exports.ChipButtonGroup.variants.gap.default).toBe('sm')
+  expect(metadata.exports.ChipButtonGroup.variants.size.default).toBe('default')
+  expect(metadata.exports.ChipSwitch.variants.size.default).toBe('default')
+  const result = spawnSync(
+    bun,
+    [
+      '--no-env-file',
+      checkCli,
+      '--repo',
+      root,
+      '--base',
+      'HEAD',
+      '--working-tree',
+      '--format',
+      'json',
+    ],
+    { encoding: 'utf8', timeout: 60_000 }
+  )
+  expect(result.status, result.stderr).not.toBe(2)
+  const report = JSON.parse(result.stdout)
+  expect(report.infrastructure.fresh).toBe(true)
+  expect(
+    report.findings.some(
+      (f: { file: string; rule: string }) =>
+        f.file === 'apps/sim/components/use-example.tsx' && f.rule === 'component-chrome'
+    )
+  ).toBe(true)
+}, 60_000)
+
+test.each([
   { name: 'native accessibility ternary', spread: "labelled?{role:'img','aria-label':'Name'}:{}" },
   {
     name: 'component accessibility ternary',
