@@ -21,6 +21,8 @@ export interface PersistedLocalFilesystemGrant {
   id: string
   name: string
   rootPath: string
+  dev?: number
+  ino?: number
   bookmark?: string
 }
 
@@ -55,6 +57,13 @@ function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGran
     grant.rootPath.length > 0 &&
     grant.rootPath.length <= MAX_GRANT_PATH_LENGTH &&
     !grant.rootPath.includes('\0') &&
+    ((grant.dev === undefined && grant.ino === undefined) ||
+      (typeof grant.dev === 'number' &&
+        Number.isSafeInteger(grant.dev) &&
+        grant.dev >= 0 &&
+        typeof grant.ino === 'number' &&
+        Number.isSafeInteger(grant.ino) &&
+        grant.ino >= 0)) &&
     (grant.bookmark === undefined ||
       (typeof grant.bookmark === 'string' &&
         grant.bookmark.length > 0 &&
