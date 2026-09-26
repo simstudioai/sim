@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type ChatTurnLogContext, logChatTurn } from '@/lib/mothership/chat/chat-log'
 import {
   buildPersistedAssistantMessage,
   withStoppedContentBlock,
@@ -23,6 +24,8 @@ export function buildOnComplete(params: {
   organizationId?: string
   userId?: string
   requestMode?: 'assistant' | 'agent' | 'plan'
+  /** Present for workspace and organization Chat turns, which feed the operator chat log. */
+  chatLog?: ChatTurnLogContext
   /**
    * Root agent span for this request. When present, the final
    * assistant message + invoked tool calls are recorded as
@@ -46,6 +49,7 @@ export function buildOnComplete(params: {
     userId,
     runController,
     otelRoot,
+    chatLog,
   } = params
   const notifyChatStatus = params.notifyChatStatus ?? params.notifyWorkspaceStatus ?? false
 
@@ -78,6 +82,7 @@ export function buildOnComplete(params: {
           finalization.updated ||
           finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
+        if (chatLog && shouldPublishCompletion) logChatTurn(chatLog, result, 'aborted')
         if (notifyChatStatus && shouldPublishCompletion) {
           publishChatStatusChanged(
             { workspaceId, organizationId, userId },
@@ -97,7 +102,7 @@ export function buildOnComplete(params: {
       const assistantMessage = buildPersistedAssistantMessage(result, requestId, params.requestMode)
       const hasPartial =
         !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
-      await finalizeAssistantTurn({
+      const finalization = await finalizeAssistantTurn({
         runController,
         chatId,
         userMessageId,
@@ -107,6 +112,9 @@ export function buildOnComplete(params: {
         ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
       })
 
+      if (chatLog && finalization.updated) {
+        logChatTurn(chatLog, result, result.success ? 'success' : 'error')
+      }
       if (notifyChatStatus) {
         publishChatStatusChanged(
           { workspaceId, organizationId, userId },
@@ -138,9 +146,19 @@ export function buildOnError(params: {
   organizationId?: string
   userId?: string
   requestMode?: 'assistant' | 'agent' | 'plan'
+  /** Present for workspace and organization Chat turns, which feed the operator chat log. */
+  chatLog?: ChatTurnLogContext
 }) {
-  const { chatId, userMessageId, requestId, workspaceId, organizationId, userId, runController } =
-    params
+  const {
+    chatId,
+    userMessageId,
+    requestId,
+    workspaceId,
+    organizationId,
+    userId,
+    runController,
+    chatLog,
+  } = params
   const notifyChatStatus = params.notifyChatStatus ?? params.notifyWorkspaceStatus ?? false
 
   return async (error: Error, result?: OrchestratorResult) => {
@@ -151,19 +169,16 @@ export function buildOnError(params: {
       // cancelled / non-success completion path, so the partial assistant turn
       // (text + tool calls + subagent work) survives the refetch instead of the
       // chat collapsing to an empty assistant row.
-      const assistantMessage = buildPersistedAssistantMessage(
-        {
-          content: '',
-          contentBlocks: [],
-          toolCalls: [],
-          ...result,
-          success: false,
-          error: result?.error || getErrorMessage(error),
-        },
-        requestId,
-        params.requestMode
-      )
-      await finalizeAssistantTurn({
+      const failed: OrchestratorResult = {
+        content: '',
+        contentBlocks: [],
+        toolCalls: [],
+        ...result,
+        success: false,
+        error: result?.error || getErrorMessage(error),
+      }
+      const assistantMessage = buildPersistedAssistantMessage(failed, requestId, params.requestMode)
+      const finalization = await finalizeAssistantTurn({
         runController,
         chatId,
         userMessageId,
@@ -171,6 +186,7 @@ export function buildOnError(params: {
         streamMarkerPolicy: 'active-or-cleared',
       })
 
+      if (chatLog && finalization.updated) logChatTurn(chatLog, failed, 'error')
       if (notifyChatStatus) {
         publishChatStatusChanged(
           { workspaceId, organizationId, userId },
