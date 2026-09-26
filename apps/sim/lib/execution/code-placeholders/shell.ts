@@ -26,13 +26,19 @@ interface HeredocDeclaration {
 type ShellQuote = 'none' | 'single' | 'double' | 'ansi'
 
 interface ShellScanFrame {
-  kind: 'root' | 'command' | 'arithmetic' | 'backtick' | 'array'
+  kind: 'root' | 'command' | 'arithmetic' | 'backtick' | 'array' | 'conditional'
   quote: ShellQuote
   parenthesisDepth: number
   bracketDepth?: number
-  /** A bare name[index] is arithmetic only when its closing bracket is followed by assignment. */
-  arrayAssignment?: boolean
+  /** Some operands become arithmetic only after a following assignment or comparison operator. */
+  arithmeticEnabled?: boolean
   arithmeticParent?: ShellScanFrame
+  conditional?: {
+    parent?: ShellScanFrame
+    previousOperand?: ShellScanFrame
+    word?: ShellScanFrame
+    numericOperand: boolean
+  }
   wordStart?: number
   commandPosition?: boolean
   declarationCommand?: boolean
@@ -142,6 +148,7 @@ function readShellArrayStart(
   const assignment =
     parent.quote === 'none' &&
     !parent.literalRoot &&
+    parent.kind !== 'conditional' &&
     wordStart &&
     (parent.kind === 'array' || parent.commandPosition !== false || parent.declarationCommand) &&
     (hasName || (character === '[' && parent.kind === 'array'))
@@ -152,7 +159,7 @@ function readShellArrayStart(
     quote: 'none',
     parenthesisDepth: character === '(' ? 1 : 0,
     ...(character === '['
-      ? { bracketDepth: 1, ...(!parameter ? { arrayAssignment: false } : {}) }
+      ? { bracketDepth: 1, ...(!parameter ? { arithmeticEnabled: false } : {}) }
       : {}),
     literalRoot: false,
   }
@@ -330,6 +337,52 @@ function trackShellCommandPosition(code: string, index: number, frame: ShellScan
     frame.redirectionTarget = false
   } else if (redirection) {
     frame.redirectionTarget = true
+  }
+}
+
+/** Keep operand contexts pending until the following conditional operator is known. */
+function trackShellConditionalOperand(code: string, index: number, frame: ShellScanFrame): void {
+  const conditional = frame.conditional
+  if (!conditional || frame.quote !== 'none') return
+  const character = code[index]
+  const closing =
+    frame.wordStart === undefined &&
+    code.startsWith(']]', index) &&
+    (index + 2 === code.length || /\s|[;&|()<>]/.test(code[index + 2]))
+  const separator = /[&|()]/.test(character) || closing
+  if (!separator && !/\s/.test(character)) {
+    if (character === '\\' && /^\r?\n/.test(code.slice(index + 1, index + 3))) return
+    if (frame.wordStart === undefined) {
+      frame.wordStart = index
+      conditional.word = {
+        kind: 'arithmetic',
+        quote: 'none',
+        parenthesisDepth: 0,
+        literalRoot: false,
+        arithmeticEnabled: conditional.numericOperand,
+        arithmeticParent: conditional.parent,
+      }
+      conditional.numericOperand = false
+      frame.arithmeticParent = conditional.word
+    }
+    return
+  }
+
+  if (frame.wordStart !== undefined) {
+    const word = code.slice(frame.wordStart, index).replace(/\\\r?\n/g, '')
+    if (/^-(?:eq|ne|lt|le|gt|ge)$/.test(word)) {
+      if (conditional.previousOperand) conditional.previousOperand.arithmeticEnabled = true
+      conditional.numericOperand = true
+    } else {
+      conditional.previousOperand = conditional.word
+    }
+    frame.wordStart = undefined
+    conditional.word = undefined
+    frame.arithmeticParent = conditional.parent
+  }
+  if (separator) {
+    conditional.previousOperand = undefined
+    conditional.numericOperand = false
   }
 }
 
@@ -542,7 +595,7 @@ function getUnsupportedShellPosition(
   context: ShellOccurrenceContext
 ): string | undefined {
   for (let frame = context.arithmeticFrame; frame; frame = frame.arithmeticParent) {
-    if (frame.arrayAssignment !== false) return 'in a shell arithmetic expression'
+    if (frame.arithmeticEnabled !== false) return 'in a shell arithmetic expression'
   }
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
   if (context.quote !== 'none') return undefined
@@ -588,6 +641,7 @@ function collectShellOccurrenceContexts(
     if (!frame) break
 
     trackShellCommandPosition(code, index, frame)
+    trackShellConditionalOperand(code, index, frame)
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
       contexts.set(occurrence, {
@@ -622,7 +676,10 @@ function collectShellOccurrenceContexts(
     const expansion = readShellExpansionStart(
       code,
       index,
-      frame.quote === 'none' && !frame.literalRoot && frame.kind !== 'arithmetic'
+      frame.quote === 'none' &&
+        !frame.literalRoot &&
+        frame.kind !== 'arithmetic' &&
+        frame.kind !== 'conditional'
     )
     const array = readShellArrayStart(code, index, frame)
     if (array) {
@@ -662,6 +719,34 @@ function collectShellOccurrenceContexts(
     if (frame.kind === 'backtick' && character === '`') {
       frames.pop()
       index += 1
+      continue
+    }
+    if (
+      frame.kind === 'conditional' &&
+      frame.wordStart === undefined &&
+      code.startsWith(']]', index)
+    ) {
+      frames.pop()
+      index += 2
+      continue
+    }
+    if (
+      !frame.literalRoot &&
+      frame.commandPosition !== false &&
+      code.startsWith('[[', index) &&
+      (index === 0 || /\s|[;&|()]/.test(code[index - 1])) &&
+      (index + 2 === end || /\s|[()]/.test(code[index + 2]))
+    ) {
+      const conditional: ShellScanFrame = {
+        kind: 'conditional',
+        quote: 'none',
+        parenthesisDepth: 0,
+        literalRoot: false,
+        conditional: { numericOperand: false },
+      }
+      pushShellFrame(frames, conditional)
+      if (conditional.conditional) conditional.conditional.parent = conditional.arithmeticParent
+      index += 2
       continue
     }
     if (!frame.literalRoot && shellCommentStarts(code, index)) {
@@ -715,8 +800,8 @@ function collectShellOccurrenceContexts(
       if (character === ']') {
         frame.bracketDepth -= 1
         if (frame.bracketDepth === 0) {
-          if (frame.arrayAssignment !== undefined) {
-            frame.arrayAssignment = code[index + 1] === '=' || code.startsWith('+=', index + 1)
+          if (frame.arithmeticEnabled !== undefined) {
+            frame.arithmeticEnabled = code[index + 1] === '=' || code.startsWith('+=', index + 1)
           }
           frames.pop()
         }

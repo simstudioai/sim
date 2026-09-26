@@ -1032,6 +1032,13 @@ describe('code placeholder compiler', () => {
     'if values[{{KEY}}]=x; then :; fi',
     'declare -a values[{{KEY}}]=x',
     'printf %s done # end of command\nvalues[{{KEY}}]=x',
+    '[[ 1 -eq {{KEY}} ]]',
+    '[[ "{{KEY}}" -ne 1 ]]',
+    '[[ 1 -lt "{{KEY}}" ]]',
+    '[[ {{KEY}} -le 1 ]]',
+    '[[ 1 -gt {{KEY}} ]]',
+    '[[ {{KEY}} -ge 1 ]]',
+    '[[ "$(printf %s "{{KEY}}")" -eq 1 ]]',
     'values[ 1 + {{KEY}} ]=x',
     'values[$(printf %s "{{KEY}}")]=x',
     'values=([{{KEY}}]=x)',
@@ -1109,6 +1116,18 @@ describe('code placeholder compiler', () => {
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
       'config[word]=1\nconfig[word]+=2\nconfig[word]=3\n'
     )
+  })
+
+  it('preserves string operands beside numeric shell comparisons', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        '[[ "{{KEY}}" == word && 1 -eq 1 ]] && printf "%s\\n" "{{KEY}}"',
+        '[[ 2 -gt 1 && ( "{{KEY}}" == word || "{{KEY}}" == "-eq" ) ]] && printf "%s\\n" "{{KEY}}"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'word' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe('word\nword\n')
   })
 
   it.each([
