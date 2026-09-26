@@ -1014,6 +1014,72 @@ describe('code placeholder compiler', () => {
     }
   })
 
+  it.each([
+    'total=$(( {{KEY}} * 2 ))',
+    'echo "$(( {{KEY}} * 2 ))"',
+    'total=$[ {{KEY}} * 2 ]',
+    'echo "$[ {{KEY}} * 2 ]"',
+    '(( total = {{KEY}} * 2 ))',
+    'for (( i = 0; i < {{KEY}}; i++ )); do :; done',
+    'echo "$(( 1 + ({{KEY}} * 2) ))"',
+    'echo "$(( $(printf %s "{{KEY}}") * 2 ))"',
+    'echo "$[ values[0] + {{KEY}} ]"',
+    'cat <<EOF\n$(( {{KEY}} * 2 ))\nEOF',
+    'cat <<EOF\n$[ {{KEY}} * 2 ]\nEOF',
+  ])('rejects shell placeholders that feed arithmetic evaluation: %s', async (code) => {
+    await expect(
+      compileCodePlaceholders({
+        code,
+        language: CodeLanguage.Shell,
+        environmentVariables: { KEY: 'x[$(printf unsafe >&2)]' },
+      })
+    ).rejects.toThrow('is not supported in a shell arithmetic expression')
+  })
+
+  it('keeps arithmetic discovery separate from runtime placeholder rejection', async () => {
+    await expect(
+      analyzeCodePlaceholders('echo "$(( {{KEY}} * 2 ))"', CodeLanguage.Shell)
+    ).resolves.toEqual(['KEY'])
+    const missing = await compileCodePlaceholders({
+      code: 'echo "$(( {{MISSING}} + 1 ))"',
+      language: CodeLanguage.Shell,
+    })
+    expect(missing.code).toContain('{{MISSING}}')
+  })
+
+  it('restores shell quote contexts after arithmetic and leaves literal arithmetic text alone', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'printf "%s\\n" "$(( (2 + 1) << 1 )):$[ 2 + 1 ]:{{KEY}}"',
+        "printf '%s\\n' '$(( {{KEY}} ))'",
+        'cat <<EOF',
+        '(( {{KEY}} ))',
+        'EOF',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'one two' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      '6:3:one two\n$(( one two ))\n(( one two ))\n'
+    )
+  })
+
+  it.each([
+    ['unquoted', "cat <<EOF >/dev/null\nToday's report\nEOF"],
+    ['quoted', "cat <<'EOF' >/dev/null\nToday's report\nEOF"],
+    ['double quote in prose', 'cat <<EOF >/dev/null\nSay "hello\nEOF'],
+    ['literal backtick', "cat <<'EOF' >/dev/null\nAn unmatched `\nEOF"],
+    ['multiple bodies', "cat <<ONE <<'TWO' >/dev/null\nToday's report\nONE\nSay \"hello\nTWO"],
+  ])('preserves quoted shell values after a %s heredoc', async (_name, prefix) => {
+    const value = 'one two $(printf unsafe)'
+    const compiled = await compileCodePlaceholders({
+      code: `${prefix}\nprintf "<%s>\\n" "{{KEY}}"`,
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: value },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(`<${value}>\n`)
+  })
+
   it('renders quoted shell heredocs nested in double-quoted command substitutions', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
@@ -1259,6 +1325,58 @@ describe('direct environment reads in shell', () => {
 
     expect(quoted.resolvedSecretNames).toEqual([])
     expect(unquoted.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
+  it.each(['EOF', "'EOF'"])(
+    'records direct shell reads after a %s heredoc without lexing its prose',
+    async (delimiter) => {
+      const compiled = await compileCodePlaceholders({
+        code: `cat <<${delimiter} >/dev/null\nToday's report\nEOF\necho "$API_KEY"`,
+        language: CodeLanguage.Shell,
+        environmentVariables: { API_KEY: 'synthetic-value' },
+      })
+      expect(executeShell(compiled.code, [{ name: 'API_KEY', value: 'synthetic-value' }])).toBe(
+        'synthetic-value\n'
+      )
+      expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+    }
+  )
+
+  it.each(["Today's $API_KEY", '# $API_KEY'])(
+    'records direct shell reads in expanding heredoc prose: %s',
+    async (body) => {
+      const compiled = await compileCodePlaceholders({
+        code: `cat <<EOF\n${body}\nEOF`,
+        language: CodeLanguage.Shell,
+        environmentVariables: { API_KEY: 'synthetic-value' },
+      })
+      expect(
+        executeShell(compiled.code, [{ name: 'API_KEY', value: 'synthetic-value' }])
+      ).toContain('synthetic-value')
+      expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+    }
+  )
+
+  it('skips heredoc delimiters and literal bodies but keeps reads on the header line', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'cat <<$DELIMITER; echo "$HEADER"',
+        'body',
+        '$DELIMITER',
+        "cat <<'EOF'",
+        "Today's $LITERAL",
+        'EOF',
+        'echo "$AFTER"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: {
+        DELIMITER: 'unused-delimiter',
+        HEADER: 'header-value',
+        LITERAL: 'unused-literal',
+        AFTER: 'after-value',
+      },
+    })
+    expect(compiled.resolvedSecretNames).toEqual(['HEADER', 'AFTER'])
   })
 
   it('ignores a shell variable that is not a configured secret', async () => {

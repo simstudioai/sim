@@ -29,11 +29,14 @@ interface ShellScanFrame {
   kind: 'root' | 'command' | 'arithmetic' | 'backtick'
   quote: ShellQuote
   parenthesisDepth: number
+  bracketDepth?: number
   literalRoot: boolean
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
+  /** Enclosing arithmetic also re-evaluates the output of a nested command substitution. */
+  arithmetic?: boolean
   unsupported?: 'escaped sequence'
 }
 
@@ -68,6 +71,31 @@ function shellArithmeticCommandStarts(code: string, index: number): boolean {
   if (code[index] !== '(' || code[index + 1] !== '(') return false
   const previous = code[index - 1]
   return previous === undefined || /\s|[;&|()<>]/.test(previous)
+}
+
+function readShellExpansionStart(
+  code: string,
+  index: number,
+  allowArithmeticCommand: boolean
+): { frame: ShellScanFrame; length: number } | undefined {
+  const dollar = code[index] === '$'
+  const bracket = dollar && code[index + 1] === '['
+  const arithmetic =
+    bracket ||
+    (dollar && code[index + 1] === '(' && code[index + 2] === '(') ||
+    (allowArithmeticCommand && shellArithmeticCommandStarts(code, index))
+  if (!arithmetic && !(dollar && code[index + 1] === '(')) return undefined
+
+  return {
+    frame: {
+      kind: arithmetic ? 'arithmetic' : 'command',
+      quote: 'none',
+      parenthesisDepth: bracket ? 0 : arithmetic ? 2 : 1,
+      ...(bracket ? { bracketDepth: 1 } : {}),
+      literalRoot: false,
+    },
+    length: dollar && arithmetic && !bracket ? 3 : 2,
+  }
 }
 
 function decodeAnsiCCharacter(code: string, index: number): { value: string; end: number } {
@@ -219,25 +247,17 @@ function parseHeredocHeaders(
       else if (character === "'") frame.quote = 'none'
       continue
     }
+    const expansion = readShellExpansionStart(
+      code,
+      index,
+      frame.quote === 'none' && frame.kind !== 'arithmetic'
+    )
     if (frame.quote === 'double') {
       if (character === '\\') index += 1
       else if (character === '"') frame.quote = 'none'
-      else if (character === '$' && code[index + 1] === '(' && code[index + 2] === '(') {
-        frames.push({
-          kind: 'arithmetic',
-          quote: 'none',
-          parenthesisDepth: 2,
-          literalRoot: false,
-        })
-        index += 2
-      } else if (character === '$' && code[index + 1] === '(') {
-        frames.push({
-          kind: 'command',
-          quote: 'none',
-          parenthesisDepth: 1,
-          literalRoot: false,
-        })
-        index += 1
+      else if (expansion) {
+        frames.push(expansion.frame)
+        index += expansion.length - 1
       } else if (character === '`') {
         frames.push({
           kind: 'backtick',
@@ -270,34 +290,9 @@ function parseHeredocHeaders(
       index += 1
       continue
     }
-    if (character === '$' && code[index + 1] === '(' && code[index + 2] === '(') {
-      frames.push({
-        kind: 'arithmetic',
-        quote: 'none',
-        parenthesisDepth: 2,
-        literalRoot: false,
-      })
-      index += 2
-      continue
-    }
-    if (shellArithmeticCommandStarts(code, index)) {
-      frames.push({
-        kind: 'arithmetic',
-        quote: 'none',
-        parenthesisDepth: 2,
-        literalRoot: false,
-      })
-      index += 1
-      continue
-    }
-    if (character === '$' && code[index + 1] === '(') {
-      frames.push({
-        kind: 'command',
-        quote: 'none',
-        parenthesisDepth: 1,
-        literalRoot: false,
-      })
-      index += 1
+    if (expansion) {
+      frames.push(expansion.frame)
+      index += expansion.length - 1
       continue
     }
     if (character === '`') {
@@ -307,6 +302,14 @@ function parseHeredocHeaders(
         parenthesisDepth: 0,
         literalRoot: false,
       })
+      continue
+    }
+    if (frame.bracketDepth !== undefined) {
+      if (character === '[') frame.bracketDepth += 1
+      if (character === ']') {
+        frame.bracketDepth -= 1
+        if (frame.bracketDepth === 0) frames.pop()
+      }
       continue
     }
     if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
@@ -388,6 +391,14 @@ function collectHeredocs(code: string): HeredocDeclaration[] {
   return declarations
 }
 
+/** Delimiter words and complete bodies are data, not part of the enclosing shell's quote state. */
+function heredocExcludedRanges(heredocs: HeredocDeclaration[]): Array<[number, number]> {
+  return heredocs.flatMap((heredoc) => [
+    [heredoc.operatorStart, heredoc.operatorEnd],
+    [heredoc.bodyStart, heredoc.removalEnd],
+  ])
+}
+
 function shellExpansion(name: string, quote: ShellQuote): string {
   const expansion = `\${${name}}`
   if (quote === 'double') return expansion
@@ -422,10 +433,11 @@ function isShellAssignmentName(code: string, occurrence: CodePlaceholderOccurren
 function getUnsupportedShellPosition(
   code: string,
   occurrence: CodePlaceholderOccurrence,
-  quote: ShellQuote
+  context: ShellOccurrenceContext
 ): string | undefined {
+  if (context.arithmetic) return 'in a shell arithmetic expression'
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
-  if (quote !== 'none') return undefined
+  if (context.quote !== 'none') return undefined
 
   const lineStart = Math.max(
     code.lastIndexOf('\n', occurrence.start - 1),
@@ -444,8 +456,10 @@ function collectShellOccurrenceContexts(
   occurrences: CodePlaceholderOccurrence[],
   start: number,
   end: number,
-  literalRoot: boolean
+  literalRoot: boolean,
+  excludedRanges: ReadonlyArray<readonly [number, number]> = []
 ): Map<CodePlaceholderOccurrence, ShellOccurrenceContext> {
+  const excludedEndByStart = new Map(excludedRanges)
   const occurrenceByStart = new Map(
     occurrences
       .filter((occurrence) => occurrence.start >= start && occurrence.end <= end)
@@ -457,12 +471,20 @@ function collectShellOccurrenceContexts(
   ]
 
   for (let index = start; index < end; ) {
+    const excludedEnd = excludedEndByStart.get(index)
+    if (excludedEnd !== undefined) {
+      index = excludedEnd
+      continue
+    }
     const frame = frames.at(-1)
     if (!frame) break
 
     const occurrence = occurrenceByStart.get(index)
     if (occurrence) {
-      contexts.set(occurrence, { quote: frame.quote })
+      contexts.set(occurrence, {
+        quote: frame.quote,
+        arithmetic: frames.some((candidate) => candidate.kind === 'arithmetic'),
+      })
       index = occurrence.end
       continue
     }
@@ -488,6 +510,11 @@ function collectShellOccurrenceContexts(
       }
       continue
     }
+    const expansion = readShellExpansionStart(
+      code,
+      index,
+      frame.quote === 'none' && !frame.literalRoot && frame.kind !== 'arithmetic'
+    )
     if (frame.quote === 'double') {
       if (character === '\\') {
         const escaped = occurrenceByStart.get(index + 1)
@@ -500,14 +527,9 @@ function collectShellOccurrenceContexts(
       } else if (character === '"') {
         frame.quote = 'none'
         index += 1
-      } else if (character === '$' && code[index + 1] === '(') {
-        frames.push({
-          kind: 'command',
-          quote: 'none',
-          parenthesisDepth: 1,
-          literalRoot: false,
-        })
-        index += 2
+      } else if (expansion) {
+        frames.push(expansion.frame)
+        index += expansion.length
       } else if (character === '`') {
         frames.push({
           kind: 'backtick',
@@ -557,14 +579,9 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (character === '$' && code[index + 1] === '(') {
-      frames.push({
-        kind: 'command',
-        quote: 'none',
-        parenthesisDepth: 1,
-        literalRoot: false,
-      })
-      index += 2
+    if (expansion) {
+      frames.push(expansion.frame)
+      index += expansion.length
       continue
     }
     if (character === '`') {
@@ -577,12 +594,21 @@ function collectShellOccurrenceContexts(
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === '(') {
+    if (frame.bracketDepth !== undefined) {
+      if (character === '[') frame.bracketDepth += 1
+      if (character === ']') {
+        frame.bracketDepth -= 1
+        if (frame.bracketDepth === 0) frames.pop()
+      }
+      index += 1
+      continue
+    }
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if (frame.kind === 'command' && character === ')') {
+    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
       frame.parenthesisDepth -= 1
       if (frame.parenthesisDepth === 0) frames.pop()
       index += 1
@@ -635,37 +661,39 @@ function recordShellDirectEnvironmentReads(
   }
   if (matches.length === 0) return
 
-  /**
-   * A heredoc with a quoted delimiter (`<<'EOF'`) is literal, so nothing in its body expands.
-   * The frame scanner below models quoting within a line, not heredoc bodies, so those are
-   * excluded up front — otherwise a `$NAME` printed verbatim would be reported as a read that
-   * never happened, and a usage trail must not claim uses that did not occur.
-   */
-  const literalHeredocBodies = collectHeredocs(code)
-    .filter((heredoc) => heredoc.quoted)
-    .map((heredoc): [number, number] => [heredoc.bodyStart, heredoc.bodyEnd])
-
-  const candidates: CodePlaceholderOccurrence[] = []
-  for (const candidate of matches) {
-    if (isOffsetInRanges(candidate.index, literalHeredocBodies)) continue
-    candidates.push({
+  const heredocs = collectHeredocs(code)
+  const candidates = matches.map(
+    (candidate): CodePlaceholderOccurrence => ({
       start: candidate.index,
       end: candidate.index + candidate[0].length,
       raw: candidate[0],
       name: (candidate[1] ?? candidate[2]) as string,
     })
+  )
+  const contexts = collectShellOccurrenceContexts(
+    code,
+    candidates,
+    0,
+    code.length,
+    false,
+    heredocExcludedRanges(heredocs)
+  )
+  /** Unquoted bodies expand parameters, but prose quotes and comment markers remain literal. */
+  for (const heredoc of heredocs) {
+    if (heredoc.quoted) continue
+    const bodyContexts = collectShellOccurrenceContexts(
+      code,
+      candidates,
+      heredoc.bodyStart,
+      heredoc.bodyEnd,
+      true
+    )
+    for (const [candidate, shellContext] of bodyContexts) contexts.set(candidate, shellContext)
   }
-  if (candidates.length === 0) return
 
-  const contexts = collectShellOccurrenceContexts(code, candidates, 0, code.length, false)
   for (const candidate of candidates) {
     const shellContext = contexts.get(candidate)
-    /**
-     * No context means the scanner never reached this offset — it skipped the region as a
-     * comment. Absence is therefore evidence the expansion does not run, not permission to
-     * record it, so this reads as an allowlist rather than a denylist. Single quotes suppress
-     * expansion outright.
-     */
+    /** Comments, delimiter words, literal bodies and single-quoted strings do not expand. */
     if (!shellContext || shellContext.quote === 'single') continue
     context.recordDirectEnvironmentRead(candidate.name, candidate.start)
   }
@@ -699,12 +727,9 @@ export async function compileShellPlaceholders(
   const heredocs = collectHeredocs(input.code)
   const shellOccurrences = context.occurrences.filter(isLegacyShellPlaceholder)
   const edits: SourceEdit[] = []
-  const excludedRanges: Array<[number, number]> = []
+  const excludedRanges = heredocExcludedRanges(heredocs)
 
   for (const heredoc of heredocs) {
-    excludedRanges.push([heredoc.operatorStart, heredoc.operatorEnd])
-    excludedRanges.push([heredoc.bodyStart, heredoc.removalEnd])
-
     const delimiterOccurrences = shellOccurrences.filter(
       (occurrence) =>
         occurrence.start >= heredoc.operatorStart && occurrence.end <= heredoc.operatorEnd
@@ -795,7 +820,7 @@ export async function compileShellPlaceholders(
       const unsupportedPosition = getUnsupportedShellPosition(
         input.code,
         occurrence,
-        occurrenceContext.quote
+        occurrenceContext
       )
       if (unsupportedPosition) {
         if (context.hasValue(occurrence.name)) {
@@ -828,7 +853,8 @@ export async function compileShellPlaceholders(
     rootOccurrences,
     0,
     input.code.length,
-    false
+    false,
+    excludedRanges
   )
   for (const occurrence of rootOccurrences) {
     const occurrenceContext = rootContexts.get(occurrence)
@@ -850,7 +876,7 @@ export async function compileShellPlaceholders(
     const unsupportedPosition = getUnsupportedShellPosition(
       input.code,
       occurrence,
-      occurrenceContext.quote
+      occurrenceContext
     )
     if (unsupportedPosition) {
       if (context.hasValue(occurrence.name)) {
