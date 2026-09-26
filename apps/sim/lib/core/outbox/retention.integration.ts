@@ -98,17 +98,24 @@ describe('completed outbox retention in PostgreSQL', () => {
     expect(await remainingIds()).toEqual(new Set(kept))
   })
 
-  it('drains a backlog larger than one batch within a call', async () => {
+  it('deletes at most one oldest batch per type per run, and the next run continues', async () => {
     const createdAt = expired().toISOString()
-    await database.current!.execute(sql`
-      INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at)
-      SELECT 'retention:' || n, ${RECOVER}, '{}'::json, 'completed',
-        ${createdAt}::timestamp, ${createdAt}::timestamp - n * interval '1 millisecond'
-      FROM generate_series(0, ${OUTBOX_PRUNE_BATCH_SIZE}::integer) AS n
-    `)
+    for (const [prefix, eventType] of [
+      ['recover', RECOVER],
+      ['storage', STORAGE_CLEANUP],
+    ]) {
+      await database.current!.execute(sql`
+        INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at)
+        SELECT ${prefix} || ':' || n, ${eventType}, '{}'::json, 'completed',
+          ${createdAt}::timestamp, ${createdAt}::timestamp - n * interval '1 millisecond'
+        FROM generate_series(0, ${OUTBOX_PRUNE_BATCH_SIZE}::integer) AS n
+      `)
+    }
     const pending = await seed(RECOVER, 'pending', expired())
 
-    expect(await pruneCompletedOutboxEvents()).toBe(OUTBOX_PRUNE_BATCH_SIZE + 1)
+    expect(await pruneCompletedOutboxEvents()).toBe(2 * OUTBOX_PRUNE_BATCH_SIZE)
+    expect(await remainingIds()).toEqual(new Set(['recover:0', 'storage:0', pending]))
+    expect(await pruneCompletedOutboxEvents()).toBe(2)
     expect(await remainingIds()).toEqual(new Set([pending]))
   })
 })

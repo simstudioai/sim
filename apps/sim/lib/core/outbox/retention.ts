@@ -9,8 +9,12 @@ const logger = createLogger('OutboxRetention')
 
 /** How long a completed event stays readable for operators after it was enqueued. */
 export const COMPLETED_OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60_000
-export const OUTBOX_PRUNE_BATCH_SIZE = 5_000
-const OUTBOX_PRUNE_BUDGET_MS = 10_000
+/**
+ * Rows deleted per type per run. The processor runs once a minute, so each type drains at most
+ * 1,000 rows × 1,440 runs = 1.44M rows a day: a steady trickle whose WAL and dead tuples
+ * autovacuum absorbs, yet five times what recovery can enqueue (200 per run × 1,440 runs).
+ */
+export const OUTBOX_PRUNE_BATCH_SIZE = 1_000
 
 /**
  * Event types whose completed rows nothing reads again: each carries a fresh random id and is
@@ -44,24 +48,16 @@ async function pruneCompletedBatch(eventType: string, cutoff: Date): Promise<num
 }
 
 /**
- * Deletes completed prunable events enqueued before the retention window, one oldest-first
- * batch per type in turn through the type/creation index, until the budget is spent. Pending,
- * processing and dead-letter rows are never deleted.
+ * Deletes one oldest-first batch of completed prunable events per type, enqueued before the
+ * retention window, through the type/creation index. One bounded batch per run keeps a large
+ * backlog from turning into a burst of deletes; overlapping runs skip each other's locked rows.
+ * Pending, processing and dead-letter rows are never deleted.
  */
 export async function pruneCompletedOutboxEvents(now = new Date()): Promise<number> {
-  const deadlineAt = Date.now() + OUTBOX_PRUNE_BUDGET_MS
   const cutoff = new Date(now.getTime() - COMPLETED_OUTBOX_RETENTION_MS)
   let pruned = 0
-  let backlogged: string[] = [...PRUNABLE_OUTBOX_EVENT_TYPES]
-  while (backlogged.length > 0 && Date.now() < deadlineAt) {
-    const remaining: string[] = []
-    for (const eventType of backlogged) {
-      if (Date.now() >= deadlineAt) break
-      const deleted = await pruneCompletedBatch(eventType, cutoff)
-      pruned += deleted
-      if (deleted === OUTBOX_PRUNE_BATCH_SIZE) remaining.push(eventType)
-    }
-    backlogged = remaining
+  for (const eventType of PRUNABLE_OUTBOX_EVENT_TYPES) {
+    pruned += await pruneCompletedBatch(eventType, cutoff)
   }
   if (pruned > 0) logger.info('Pruned completed outbox events', { pruned })
   return pruned
