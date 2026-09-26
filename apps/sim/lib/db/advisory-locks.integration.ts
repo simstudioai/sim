@@ -13,7 +13,10 @@ import { acquireAdvisoryXactLock, tryAcquireAdvisoryXactLock } from '@/lib/db/ad
 const connection = postgres(readTestDatabaseUrl(), { max: 4, prepare: false, onnotice: () => {} })
 const db = drizzle(connection, { schema })
 
-/** Holds `key` in an open transaction until the returned release function is called. */
+/**
+ * Holds `key` in an open transaction until the returned release function is
+ * called. Rejects if the holder transaction fails before taking the lock.
+ */
 async function holdLock(tag: string, key: string): Promise<() => Promise<void>> {
   let release!: () => void
   let acquired!: () => void
@@ -28,7 +31,7 @@ async function holdLock(tag: string, key: string): Promise<() => Promise<void>> 
     acquired()
     await released
   })
-  await held
+  await Promise.race([held, transaction])
   return async () => {
     release()
     await transaction
@@ -50,9 +53,12 @@ describe('advisory xact locks', () => {
   it('blocks a second transaction on the same key until the holder commits', async () => {
     const key = `lock-test:${generateId()}`
     const release = await holdLock('lock_test', key)
-    const error = await acquireWithTimeout('lock_test', key, 200).catch((e: unknown) => e)
-    expect(getPostgresErrorCode(error)).toBe('55P03')
-    await release()
+    try {
+      const error = await acquireWithTimeout('lock_test', key, 200).catch((e: unknown) => e)
+      expect(getPostgresErrorCode(error)).toBe('55P03')
+    } finally {
+      await release()
+    }
     await expect(acquireWithTimeout('lock_test', key, 200)).resolves.toBeUndefined()
   })
 
@@ -70,8 +76,12 @@ describe('advisory xact locks', () => {
   it('reports whether the non-blocking variant acquired the lock', async () => {
     const key = `lock-test:${generateId()}`
     const release = await holdLock('lock_test', key)
-    const whileHeld = await db.transaction((tx) => tryAcquireAdvisoryXactLock(tx, 'lock_test', key))
-    await release()
+    let whileHeld: boolean
+    try {
+      whileHeld = await db.transaction((tx) => tryAcquireAdvisoryXactLock(tx, 'lock_test', key))
+    } finally {
+      await release()
+    }
     const afterRelease = await db.transaction((tx) =>
       tryAcquireAdvisoryXactLock(tx, 'lock_test', key)
     )
@@ -83,15 +93,18 @@ describe('advisory xact locks', () => {
     const release = await holdLock('lock_test', key)
     const waiter = acquireWithTimeout('lock_test_waiter', key, 5_000)
     let waitingQuery: string | undefined
-    for (let attempt = 0; attempt < 50 && !waitingQuery; attempt++) {
-      const [row] = await connection<{ query: string }[]>`
-        SELECT query FROM pg_stat_activity
-        WHERE wait_event_type = 'Lock' AND wait_event = 'advisory' AND query LIKE ${'%lock_test_waiter%'}`
-      waitingQuery = row?.query
-      if (!waitingQuery) await sleep(20)
+    try {
+      for (let attempt = 0; attempt < 50 && !waitingQuery; attempt++) {
+        const [row] = await connection<{ query: string }[]>`
+          SELECT query FROM pg_stat_activity
+          WHERE wait_event_type = 'Lock' AND wait_event = 'advisory' AND query LIKE ${'%lock_test_waiter%'}`
+        waitingQuery = row?.query
+        if (!waitingQuery) await sleep(20)
+      }
+    } finally {
+      await release()
+      await waiter
     }
-    await release()
-    await waiter
     expect(waitingQuery).toMatch(/pg_advisory_xact_lock\(.*\) \/\*lock='lock_test_waiter'\*\/$/)
   })
 
