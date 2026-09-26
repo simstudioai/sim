@@ -380,6 +380,73 @@ declare function cn(...args:unknown[]):string`
   60_000
 )
 
+test.each([
+  { name: 'native accessibility ternary', spread: "labelled?{role:'img','aria-label':'Name'}:{}" },
+  {
+    name: 'component accessibility ternary',
+    spread: "labelled?{role:'img','aria-label':'Name'}:{}",
+    target: 'Base',
+  },
+  { name: 'logical and accessibility fields', spread: "labelled&&{'aria-hidden':true}" },
+  { name: 'bound conditional accessibility fields', spread: 'accessibility' },
+  { name: 'logical or finite object fields', spread: 'accessibility||{}' },
+  { name: 'logical nullish finite object fields', spread: 'accessibility??{}' },
+  { name: 'nested finite branch fields', spread: "{...accessibility,'aria-live':'polite'}" },
+  {
+    name: 'later explicit className overrides possible styling keys',
+    spread: "labelled?{className:'bg-red-500'}:{}",
+    before: true,
+  },
+  {
+    name: 'possible conditional styling keys stay unchecked',
+    spread: "labelled?{className:'bg-red-500'}:{}",
+    unchecked: true,
+  },
+  {
+    name: 'possible logical styling keys stay unchecked',
+    spread: "labelled&&{className:'bg-red-500'}",
+    unchecked: true,
+  },
+  {
+    name: 'genuinely unknown conditional branch stays unchecked',
+    spread: "labelled?styleFactory():{'aria-hidden':true}",
+    unchecked: true,
+  },
+])(
+  'finite branch props preserve effective chrome: $name',
+  (scenario) => {
+    const root = fixture()
+    const classAttribute = 'className={cn(recipe({size}),className)}'
+    const spreadAttribute = `{...(${scenario.spread})}`
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `import {cva} from 'class-variance-authority'
+const recipe=cva('rounded-md',{variants:{size:{sm:'h-6',md:'h-8'}},defaultVariants:{size:'md'}})
+interface Props{className?:string;size?:'sm'|'md';labelled?:boolean}
+function Base({className}:{className?:string}){return <button className={className}/>}
+export function Example({className,size,labelled}:Props){const accessibility=labelled?{role:'img','aria-label':'Name'}:null;return <${scenario.target ?? 'button'} ${scenario.before ? `${spreadAttribute} ${classAttribute}` : `${classAttribute} ${spreadAttribute}`}/>}
+declare function cn(...args:unknown[]):string;declare function styleFactory():Record<string,unknown>
+throw new Error('Product modules must not execute')`
+    )
+    const result = run(root)
+    expect(result.status, result.stderr).toBe(0)
+    const metadata = generated(root)
+    const entry = metadata.exports.Example
+    if (scenario.unchecked) {
+      expect(entry.slots.className.protected).toEqual([])
+      expect(entry.slots.className.unchecked.join('\n')).toMatch(/rendered props bundle/i)
+      expect(entry.variants.size.default).toBeUndefined()
+    } else {
+      expect(entry.slots.className.protected).toEqual(['border-radius', 'height'])
+      expect(entry.variants.size.default).toBe('md')
+      expect(entry.slots.className.unchecked).toBeUndefined()
+      expect(metadata.diagnostics).toEqual([])
+    }
+  },
+  60_000
+)
+
 const noPropChrome = { className: [], innerClassName: [], style: [], innerStyle: [] }
 const secondPropChrome = {
   ...noPropChrome,

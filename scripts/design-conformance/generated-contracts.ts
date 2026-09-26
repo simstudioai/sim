@@ -1216,24 +1216,24 @@ async function generate(
           file: string
           node: t.Node
           keys?: string[]
+          finiteKeys?: boolean
           reason?: string
           notes?: GeneratedContracts['diagnostics']
         }
         const operations: (Attribute | { unknown: UnknownProps })[] = []
         const unknownBundles: string[] = []
-        const spread = (file: string, raw: t.Node, seen = new Set<t.Node>()) => {
+        const spread = (file: string, raw: t.Node, seen = new Set<t.Node>(), into = operations) => {
           const value = unwrap(raw)
           if (file === meta.file && t.isIdentifier(value)) {
             const name = bindingName(value)
             if (rests.has(name) || objects.has(name)) {
               for (const input of Object.keys(entry.slots))
-                if (!rests.get(name)?.has(input))
-                  operations.push({ name: input, file, value, input })
+                if (!rests.get(name)?.has(input)) into.push({ name: input, file, value, input })
               return
             }
           }
           if (seen.has(value) || seen.size >= 12) {
-            operations.push({ unknown: { file, node: value } })
+            into.push({ unknown: { file, node: value } })
             return
           }
           const next = new Set(seen).add(value)
@@ -1247,7 +1247,42 @@ async function generate(
             deferredNotes = previous
           }
           if (found) {
-            spread(found.file, found.node, next)
+            spread(found.file, found.node, next, into)
+            return
+          }
+          if (t.isConditionalExpression(value) || t.isLogicalExpression(value)) {
+            const branches = t.isConditionalExpression(value)
+              ? [value.consequent, value.alternate]
+              : value.operator === '&&'
+                ? [value.right]
+                : [value.left, value.right]
+            const alternatives: typeof operations = []
+            for (const branch of branches) spread(file, branch, next, alternatives)
+            const finite = alternatives.every(
+              (operation) => !('unknown' in operation) || operation.unknown.keys !== undefined
+            )
+            into.push({
+              unknown: {
+                file,
+                node: value,
+                ...(finite
+                  ? {
+                      keys: sorted(
+                        alternatives.flatMap((operation) =>
+                          'unknown' in operation ? (operation.unknown.keys ?? []) : [operation.name]
+                        )
+                      ),
+                      finiteKeys: true,
+                    }
+                  : {}),
+                notes: [
+                  ...notes,
+                  ...alternatives.flatMap((operation) =>
+                    'unknown' in operation ? (operation.unknown.notes ?? []) : []
+                  ),
+                ],
+              },
+            })
             return
           }
           if (t.isObjectExpression(value)) {
@@ -1258,10 +1293,10 @@ async function generate(
                   t.isStringLiteral(property.key) ||
                   t.isNumericLiteral(property.key))
               )
-                operations.push({ name: key(property.key), file, value: property.value })
-              else if (t.isSpreadElement(property)) spread(file, property.argument, next)
+                into.push({ name: key(property.key), file, value: property.value })
+              else if (t.isSpreadElement(property)) spread(file, property.argument, next, into)
               else
-                operations.push({
+                into.push({
                   unknown: {
                     file,
                     node: property,
@@ -1280,7 +1315,7 @@ async function generate(
             t.isIdentifier(value, { name: 'undefined' })
           )
             return
-          operations.push({ unknown: { file, node: value, notes } })
+          into.push({ unknown: { file, node: value, notes } })
         }
         if (t.isJSXOpeningElement(node)) {
           tag = t.isJSXIdentifier(node.name)
@@ -1365,9 +1400,10 @@ async function generate(
         }
         for (const { unknown, overwritten } of pending) {
           const keys = unknown.keys ?? (native ? ['className', 'style'] : undefined)
-          const affected = native
-            ? keys?.filter((name) => /^(?:className|style|.*ClassName|.*Style)$/.test(name))
-            : keys
+          const affected =
+            native || unknown.finiteKeys
+              ? keys?.filter((name) => /^(?:className|style|.*ClassName|.*Style)$/.test(name))
+              : keys
           if (affected?.every((name) => overwritten.has(name))) continue
           const reason = unknown.reason ?? 'Unresolved rendered props bundle'
           note(unknown.file, unknown.node.loc?.start.line ?? 1, reason)
