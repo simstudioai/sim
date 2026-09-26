@@ -683,29 +683,13 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       setState({ status: 'ready', version })
     })
 
-    autoUpdater.on('error', (error) => {
-      const checkId = activeUpdaterCheckId
-      if (checkId !== null) {
-        finishUpdaterCheck(checkId)
-        if (updaterRequestId === checkId) updaterRequestId = null
-      }
-      const message = getErrorMessage(error, 'unknown')
-      if (stagedVersion !== null && !installInFlight && !relaunchRequested) {
-        acceptedUpdateVersion = null
-        pendingStagingVersion = null
-        logger.warn('Update refresh failed; keeping the staged update', { message })
-        if (state.status !== 'ready') setState({ status: 'ready', version: stagedVersion })
-        return
-      }
-      if (state.status === 'available') {
-        logger.warn('Update re-check failed; keeping the offered update', { message })
-        return
-      }
+    /** Network failures belong to their request promises; native errors invalidate staging. */
+    squirrelUpdater.on('error', (error) => {
       if (
-        checkId === null &&
         state.status !== 'downloading' &&
         state.status !== 'ready' &&
-        !installInFlight
+        !installInFlight &&
+        !relaunchRequested
       ) {
         return
       }
@@ -716,6 +700,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       pendingStagingVersion = null
       deps.setRelaunchPending?.(false)
       autoUpdater.autoInstallOnAppQuit = false
+      const message = getErrorMessage(error, 'unknown')
+      logger.warn('Native update failed', { message })
       deps.events.record('update_error', { message })
       setState({ status: 'error', version: state.version })
     })
@@ -802,7 +788,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           if (updaterRequestId === checkId) updaterRequestId = null
           if (activeUpdaterCheckId !== checkId) return
           finishUpdaterCheck(checkId)
-          logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
+          const message = getErrorMessage(error, 'unknown')
+          logger.warn('Update check failed', { message })
+          deps.events.record('update_error', { message })
           if (state.status === 'checking') setState({ status: 'error' })
         })
     }
@@ -817,10 +805,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           return
         }
         if (isRefreshingOffer()) {
-          if (interactive) return
           if (state.status === 'ready' && !canRefreshStagedUpdate()) return
-        }
-        if (interactive) {
+        } else if (interactive) {
           setState({ status: 'checking' })
         }
         if (originFeedConfigured) {

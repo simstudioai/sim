@@ -88,10 +88,11 @@ describe('initUpdater state machine', () => {
   }
 
   /** Replays a native Squirrel.Mac event, e.g. `update-downloaded` once a bundle is staged. */
-  function emitSquirrel(event: string) {
+  function emitSquirrel(event: string, ...args: unknown[]) {
+    if (event === 'error') emit(event, ...args)
     for (const [name, listener] of vi.mocked(squirrelUpdater.on).mock.calls) {
       if (name === event) {
-        ;(listener as () => void)()
+        ;(listener as (...values: unknown[]) => void)(...args)
       }
     }
   }
@@ -274,7 +275,7 @@ describe('initUpdater state machine', () => {
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
-  it('does not install when the updater fails during pre-install teardown', async () => {
+  it('does not install when native staging fails during teardown with a background check pending', async () => {
     let finishTeardown: (() => void) | undefined
     const setRelaunchPending = vi.fn()
     const { handle } = await createUpdater({
@@ -290,6 +291,7 @@ describe('initUpdater state machine', () => {
     emit('update-available', { version: '2.0.0' })
     emit('update-downloaded', { version: '2.0.0' })
     emitSquirrel('update-downloaded')
+    await vi.advanceTimersByTimeAsync(10_000)
     vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
       response: 1,
       checkboxChecked: false,
@@ -297,13 +299,46 @@ describe('initUpdater state machine', () => {
     handle.install()
     await vi.advanceTimersByTimeAsync(0)
 
-    emit('error', new Error('native installer failed'))
+    emitSquirrel('error', new Error('native installer failed'))
     finishTeardown?.()
     await vi.advanceTimersByTimeAsync(0)
 
     expect(handle.getState()).toEqual({ status: 'error', version: '2.0.0' })
     expect(setRelaunchPending).not.toHaveBeenCalledWith(true)
     expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('finishes a confirmed restart when an earlier background check fails during teardown', async () => {
+    let finishTeardown: (() => void) | undefined
+    let failRefresh: ((error: Error) => void) | undefined
+    const { handle } = await createUpdater({
+      beforeInstall: () =>
+        new Promise<void>((resolve) => {
+          finishTeardown = resolve
+        }),
+    })
+    await stageUpdate(handle, '2.0.0')
+    autoUpdaterMock.checkForUpdates.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failRefresh = (error) => {
+            emit('error', error)
+            reject(error)
+          }
+        })
+    )
+    await vi.advanceTimersByTimeAsync(10_000)
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+
+    failRefresh?.(new Error('Background feed unavailable'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
+    expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(true)
+    finishTeardown?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
   it('bypasses renderer unload guards only after teardown succeeds', async () => {
@@ -382,16 +417,17 @@ describe('initUpdater state machine', () => {
     emit('update-available', { version: '2.0.0' })
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000 - 10_000)
     emit('update-not-available')
+    autoUpdaterMock.checkForUpdates.mockRejectedValueOnce(new Error('net::ERR_NETWORK_CHANGED'))
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
-    emit('error', new Error('net::ERR_NETWORK_CHANGED'))
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+    autoUpdaterMock.downloadUpdate.mockRejectedValueOnce(new Error('download interrupted'))
     emit('update-available', { version: '2.1.0' })
-    emit('error', new Error('download interrupted'))
+    await vi.advanceTimersByTimeAsync(0)
     expect(handle.getState()).toEqual({ status: 'ready', version: '2.0.0' })
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
     emit('update-available', { version: '2.2.0' })
     emit('update-downloaded', { version: '2.2.0' })
-    emit('error', new Error('Squirrel could not verify the replacement'))
+    emitSquirrel('error', new Error('Squirrel could not verify the replacement'))
 
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(6)
     expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(3)

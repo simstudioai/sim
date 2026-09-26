@@ -116,7 +116,8 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
 
     await check('replacement cannot restart into stale native update', async () => {
       offeredVersion = '2.1.0'
-      await expect.poll(async () => (await read()).nativeArchive, { timeout: 20_000 }).toBe('2.1.0')
+      await shell.evaluate(() => globalThis.desktopUpdaterFixture.check())
+      await expect.poll(async () => (await read()).nativeArchive).toBe('2.1.0')
       expect((await read()).state).toEqual({
         status: 'downloading',
         version: '2.1.0',
