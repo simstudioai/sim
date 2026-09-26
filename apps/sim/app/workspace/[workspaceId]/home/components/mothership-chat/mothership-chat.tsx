@@ -93,6 +93,7 @@ interface MothershipChatProps {
    * `ChatSurfaceContextValue`, which this forwards to.
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'
@@ -363,6 +364,7 @@ export function MothershipChat({
   chatId,
   onContextAdd,
   onContextRemove,
+  onViewSources,
   onWorkspaceResourceSelect,
   draftScopeKey,
   layout = 'mothership-view',
@@ -808,6 +810,7 @@ export function MothershipChat({
       userId={userId}
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
+      onViewSources={onViewSources}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div className={cn('flex h-full min-h-0 flex-col', inter.className, className)}>

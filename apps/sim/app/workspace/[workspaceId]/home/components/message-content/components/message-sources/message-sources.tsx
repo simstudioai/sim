@@ -1,6 +1,18 @@
 'use client'
 
-import { cn, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@sim/emcn'
+import { useState } from 'react'
+import {
+  Chip,
+  cn,
+  overflowFadeSizeClass,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  Tooltip,
+  useScrollEdges,
+} from '@sim/emcn'
 import { BookOpen } from '@sim/emcn/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
@@ -12,6 +24,7 @@ const BUTTON_CLASSES =
 
 interface MessageSourcesProps {
   sources: readonly SourceTagData[]
+  onViewAll?: () => void
 }
 
 /**
@@ -20,12 +33,15 @@ interface MessageSourcesProps {
  * there for whoever wants it without a second block under the answer. Opens a
  * popover of one dense row per document.
  */
-export function MessageSources({ sources }: MessageSourcesProps) {
+export function MessageSources({ sources, onViewAll }: MessageSourcesProps) {
+  const [open, setOpen] = useState(false)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const edges = useScrollEdges(scrollElement, { enabled: open })
   if (sources.length === 0) return null
   const label = `${sources.length} ${sources.length === 1 ? 'source' : 'sources'}`
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <PopoverTrigger asChild>
@@ -43,11 +59,34 @@ export function MessageSources({ sources }: MessageSourcesProps) {
         sideOffset={4}
         className={cn('w-[420px] p-0', inter.className)}
       >
-        <div className='flex flex-col py-1'>
-          {sources.map((source) => (
-            <SourceCard key={source.url} source={source} dense />
-          ))}
+        <div
+          ref={setScrollElement}
+          className={cn(
+            'flex max-h-[320px] flex-col overflow-y-auto py-1',
+            scrollFadeClass,
+            overflowFadeSizeClass
+          )}
+          {...scrollFadeAttributes(edges)}
+        >
+          <div className='flex flex-col'>
+            {sources.map((source) => (
+              <SourceCard key={source.url} source={source} dense />
+            ))}
+          </div>
         </div>
+        {onViewAll && (
+          <div className='border-[var(--border)] border-t p-1'>
+            <Chip
+              leftIcon={BookOpen}
+              onClick={() => {
+                setOpen(false)
+                onViewAll()
+              }}
+            >
+              View all sources
+            </Chip>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

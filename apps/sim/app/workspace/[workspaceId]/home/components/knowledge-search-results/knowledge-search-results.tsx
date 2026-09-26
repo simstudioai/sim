@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Chip, ChipDatePicker, ChipLink, cn } from '@sim/emcn'
+import { Chip, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import {
   WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
   type WorkspaceKnowledgeSearchResult,
@@ -15,6 +16,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import {
   isHttpUrl,
@@ -24,7 +26,6 @@ import {
   resourceUrlKeys,
   searchFilterParsers,
   searchFiltersFromParams,
-  UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
@@ -171,7 +172,7 @@ function SearchResults({
     isFetching: basesFetching,
     refetch: refetchIndex,
   } = useSearchIndex(scope)
-  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const [filters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const custom = filters.updated === 'custom'
   const pageFilters = useMemo(
     () => searchFiltersFromParams(filters, searchedAt),
@@ -263,9 +264,7 @@ function SearchResults({
               Choose the days to search.
             </p>
           ) : fetching ? (
-            <p role='status' className='sr-only'>
-              {pending ? 'Searching…' : 'Updating results…'}
-            </p>
+            <ActivityStatus label={pending ? 'Searching' : 'Updating results'} isActive />
           ) : pending && !failed ? null : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               {failed
@@ -293,63 +292,7 @@ function SearchResults({
           </Chip>
         )}
       </div>
-      {suppliedFilters === undefined && showFilters && (
-        <div
-          role='group'
-          aria-label='Search filters'
-          className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
-        >
-          <Chip
-            shape='round'
-            active={filters.source === null}
-            aria-pressed={filters.source === null}
-            onClick={() => setFilters({ source: null })}
-          >
-            All sources
-          </Chip>
-          {sourceTypes.map((type) => (
-            <Chip
-              key={type}
-              shape='round'
-              active={filters.source === type}
-              aria-pressed={filters.source === type}
-              onClick={() => setFilters({ source: filters.source === type ? null : type })}
-            >
-              {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
-            </Chip>
-          ))}
-          <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
-          {UPDATED_WINDOWS.map((window) => (
-            <Chip
-              key={window.id}
-              shape='round'
-              active={filters.updated === window.id}
-              aria-pressed={filters.updated === window.id}
-              onClick={() =>
-                setFilters(
-                  window.id === 'custom'
-                    ? { updated: window.id }
-                    : { updated: window.id, from: null, to: null }
-                )
-              }
-            >
-              {window.label}
-            </Chip>
-          ))}
-          {custom && (
-            <ChipDatePicker
-              mode='range'
-              placeholder='Updated between'
-              startDate={filters.from?.toISOString().slice(0, 10)}
-              endDate={filters.to?.toISOString().slice(0, 10)}
-              onRangeChange={(start, end) =>
-                void setFilters({ from: new Date(start), to: new Date(end) })
-              }
-              onClear={() => void setFilters({ from: null, to: null })}
-            />
-          )}
-        </div>
-      )}
+      {suppliedFilters === undefined && showFilters && <SearchFilters sourceTypes={sourceTypes} />}
       {showResults && (
         <div
           role='region'
@@ -405,8 +348,9 @@ function LiveSearchResults({
   onSummarize,
   onSearchChange,
 }: SearchResultsProps) {
+  const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(() => Date.now())
-  const [params, setParams] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const [params] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const filters = useMemo(
     () => suppliedFilters ?? searchFiltersFromParams(params, searchedAt),
     [suppliedFilters, params.source, params.updated, params.from, params.to, searchedAt]
@@ -437,6 +381,8 @@ function LiveSearchResults({
     nativeQueries,
     onSearchChange,
   ])
+  const showFilters = hasShownFilters || data !== undefined || awaitingRange || isError
+  if (showFilters && !hasShownFilters) setHasShownFilters(true)
   const documents = groupResultsByDocument(data?.results ?? [])
   const accounts = data?.live?.accounts ?? []
   const sources = [
@@ -448,9 +394,9 @@ function LiveSearchResults({
   return (
     <div aria-busy={!awaitingRange && isFetching} className='flex flex-col'>
       {!awaitingRange && isFetching && (
-        <p role='status' className='sr-only'>
-          {isPending ? 'Searching…' : 'Updating results…'}
-        </p>
+        <div className='px-2 py-2'>
+          <ActivityStatus label={isPending ? 'Searching' : 'Updating results'} isActive />
+        </div>
       )}
       {(awaitingRange || isError) && (
         <div className='flex items-center gap-2 px-2 py-2'>
@@ -468,45 +414,7 @@ function LiveSearchResults({
           )}
         </div>
       )}
-      {!suppliedFilters && (
-        <div className='flex flex-wrap gap-2 px-2 py-2'>
-          <Chip variant='border' onClick={() => void setParams({ source: null })}>
-            All sources
-          </Chip>
-          {sources.map((source) => (
-            <Chip key={source} variant='border' onClick={() => void setParams({ source })}>
-              {connectorDisplayName(source)}
-            </Chip>
-          ))}
-          {UPDATED_WINDOWS.map((window) => (
-            <Chip
-              key={window.id}
-              variant='border'
-              onClick={() =>
-                void setParams(
-                  window.id === 'custom'
-                    ? { updated: window.id }
-                    : { updated: window.id, from: null, to: null }
-                )
-              }
-            >
-              {window.label}
-            </Chip>
-          ))}
-          {params.updated === 'custom' && (
-            <ChipDatePicker
-              mode='range'
-              placeholder='Updated between'
-              startDate={params.from?.toISOString().slice(0, 10)}
-              endDate={params.to?.toISOString().slice(0, 10)}
-              onRangeChange={(start, end) =>
-                void setParams({ from: new Date(start), to: new Date(end) })
-              }
-              onClear={() => void setParams({ from: null, to: null })}
-            />
-          )}
-        </div>
-      )}
+      {!suppliedFilters && showFilters && <SearchFilters sourceTypes={sources} />}
       {!awaitingRange &&
         !isPending &&
         !isFetching &&

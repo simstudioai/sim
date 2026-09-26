@@ -62,6 +62,11 @@ import type {
   WorkspaceKnowledgeSearchBody,
   WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
+import {
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
@@ -114,6 +119,7 @@ beforeEach(() => {
       disconnect() {}
     }
   )
+  resetDeploymentShape()
   mocks.userId = 'reader'
   requests = []
   mockRequestJson.mockImplementation(
@@ -171,18 +177,19 @@ async function render({
   })
 }
 
-function button(label: string) {
-  const result = [...container.querySelectorAll('button')].find(
-    (item) => item.textContent === label
-  )
-  if (!result) throw new Error(`Missing button: ${label}`)
-  return result
-}
-
 async function click(label: string) {
   await act(async () => {
-    button(label).focus()
-    button(label).click()
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Filter by source"]'
+    )!
+    trigger.focus()
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await vi.advanceTimersByTimeAsync(1)
+    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (element) => element.textContent === label
+    )
+    if (!item) throw new Error(`Missing source filter: ${label}`)
+    item.click()
     await vi.advanceTimersByTimeAsync(1)
   })
 }
@@ -246,5 +253,54 @@ describe('search refinement with the real query cache and URL state', () => {
       await vi.advanceTimersByTimeAsync(1)
     })
     expect(container.textContent).not.toContain('Release plan')
+  })
+})
+
+describe('live search submission feedback', () => {
+  it('acknowledges the submitted query before exposing refinement controls', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    await render({ organizationPage: true, params: '?q=launch' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(requests).toHaveLength(1)
+    expect(
+      [...container.querySelectorAll('button')].some(
+        (element) => element.textContent === 'All sources'
+      )
+    ).toBe(false)
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Searching"]')?.disabled
+    ).toBe(true)
+    await complete(0)
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')?.disabled
+    ).toBe(false)
+    expect(container.querySelector('[role="group"][aria-label="Search filters"]')).not.toBeNull()
+    await act(async () => {
+      const input = container.querySelector('textarea')!
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        input,
+        'roadmap'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submit = async () =>
+      act(async () => {
+        container
+          .querySelector('textarea')!
+          .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        await vi.advanceTimersByTimeAsync(100)
+      })
+    await submit()
+    expect(requests).toHaveLength(2)
+    expect(requests[1].body.query).toBe('roadmap')
+    await submit()
+    expect(requests).toHaveLength(2)
+    await complete(1)
+    await submit()
+    expect(requests).toHaveLength(3)
+    expect(requests[2].body.query).toBe('roadmap')
   })
 })
