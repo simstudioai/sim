@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
 import { workspaceOperationReceipt } from '@sim/db/schema'
 import { sortObjectKeysDeep } from '@sim/utils/object'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import type { DeploymentOperationStatus } from '@/lib/workflows/deployment-lifecycle'
 import type { ImportedWorkflowBlock } from '@/lib/workflows/operations/import-workflow'
@@ -94,8 +95,10 @@ export async function lockWorkspaceOperationRequest(
   workspaceId: string,
   requestId: string
 ): Promise<void> {
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify(['workspace-operation', workspaceId, requestId])}, 0))`
+  await acquireAdvisoryXactLock(
+    tx,
+    'workspace_operation',
+    JSON.stringify(['workspace-operation', workspaceId, requestId])
   )
 }
 

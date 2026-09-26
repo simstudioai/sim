@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 const INVITATION_MUTATION_LOCK_TIMEOUT_MS = 10_000
@@ -27,6 +28,6 @@ export async function acquireInvitationMutationLocks(
   ].sort()
 
   for (const key of keys) {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
+    await acquireAdvisoryXactLock(tx, 'invitation_mutation', key)
   }
 }

@@ -10,6 +10,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
@@ -156,9 +157,7 @@ export async function nextImportStartOrderKey(tableId: string): Promise<string |
  * restores per-table serialization. Released at COMMIT/ROLLBACK.
  */
 export async function acquireRowOrderLock(trx: DbTransaction, tableId: string) {
-  await trx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(trx, 'user_table_rows_pos', `user_table_rows_pos:${tableId}`)
 }
 
 /** Next append position for a table (max(position) + 1, or 0 if empty). */
@@ -610,9 +609,7 @@ export async function guardBatch(
   revalidate: MutationRevalidator | undefined
 ): Promise<TableDefinition | undefined> {
   if (!revalidate) return undefined
-  await trx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
   return revalidate(trx)
 }
 

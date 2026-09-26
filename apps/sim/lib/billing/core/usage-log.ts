@@ -27,6 +27,7 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -740,7 +741,7 @@ export async function recordCumulativeUsage(
           set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)
       `)
       enterStage('lock')
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
+      await acquireAdvisoryXactLock(tx, 'usage_log_event', eventKey)
 
       enterStage('read')
       const [existing] = await tx

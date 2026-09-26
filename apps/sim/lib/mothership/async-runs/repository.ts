@@ -27,6 +27,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import {
@@ -132,7 +133,7 @@ export async function withRunAdmissionLock<T>(
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
     const key = JSON.stringify(['copilot-run-admission', userId, streamId])
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
+    await acquireAdvisoryXactLock(tx, 'copilot_run_admission', key)
     return action(tx)
   })
 }

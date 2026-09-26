@@ -10,7 +10,7 @@ import {
   resourcePolicy,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceScope,
@@ -40,6 +40,7 @@ import {
   createOrganizationAccountsGroup,
   createWorkspaceAccountsGroup,
 } from '@/lib/credential-groups/workspace-accounts'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 type WorkspaceCredentialGroupRecord = CredentialGroupRecord & { workspaceId: string }
@@ -275,8 +276,10 @@ export async function ensureWorkspaceAccountsGroup(
   const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
   let wasCreated = false
   const provision = async (tx: DbOrTx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${resourceScopeKey(scope)}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'search_accounts',
+      `search-accounts:${resourceScopeKey(scope)}`
     )
     const [existing] = await tx
       .select()

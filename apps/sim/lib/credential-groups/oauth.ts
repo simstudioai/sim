@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import {
   resourceScopeColumns,
   resourceScopeFields,
@@ -41,6 +41,7 @@ import {
   decryptManagedOAuthTokenSet,
   encryptManagedOAuthTokenSet,
 } from '@/lib/credentials/managed-oauth'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 
 function scopesEqual(left: string[], right: string[]): boolean {
   const normalizedLeft = [...new Set(left)].sort()
@@ -160,8 +161,10 @@ async function persistGrant(
   const completion: CredentialGroupOAuthCompletion = await db.transaction(async (tx) => {
     if (!context.credentialOwnerId) throw new CredentialGroupInvitationUnavailableError()
     await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'credential_group_oauth',
+      `credential-group-oauth:${context.enrollmentId}:${context.option.id}`
     )
     const [enrollment] = await tx
       .select({
