@@ -1026,6 +1026,15 @@ describe('code placeholder compiler', () => {
     'echo "$[ values[0] + {{KEY}} ]"',
     'cat <<EOF\n$(( {{KEY}} * 2 ))\nEOF',
     'cat <<EOF\n$[ {{KEY}} * 2 ]\nEOF',
+    'values[{{KEY}}]=x',
+    'values[{{KEY}}]+=x',
+    'values[ 1 + {{KEY}} ]=x',
+    'values[$(printf %s "{{KEY}}")]=x',
+    'values=([{{KEY}}]=x)',
+    'values+=([{{KEY}}]=x)',
+    `echo "\${values[{{KEY}}]}"`,
+    `echo "\${#values[{{KEY}}]}"`,
+    `cat <<EOF\n\${values[{{KEY}}]}\nEOF`,
   ])('rejects shell placeholders that feed arithmetic evaluation: %s', async (code) => {
     await expect(
       compileCodePlaceholders({
@@ -1061,6 +1070,25 @@ describe('code placeholder compiler', () => {
     })
     expect(executeShell(compiled.code, compiled.bindings)).toBe(
       '6:3:one two\n$(( one two ))\n(( one two ))\n'
+    )
+  })
+
+  it('keeps bracket words and array values outside arithmetic positions', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'printf "%s\\n" "values[{{KEY}}]=literal" values[{{KEY}}]',
+        'values=("{{KEY}}" item[{{KEY}}])',
+        'values[0]="{{KEY}}"',
+        `printf "%s\\n" "\${values[@]}"`,
+        'cat <<EOF',
+        'values[{{KEY}}]=literal',
+        'EOF',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: 'word' },
+    })
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      'values[word]=literal\nvalues[word]\nword\nitem[word]\nvalues[word]=literal\n'
     )
   })
 

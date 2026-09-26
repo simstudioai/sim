@@ -26,17 +26,22 @@ interface HeredocDeclaration {
 type ShellQuote = 'none' | 'single' | 'double' | 'ansi'
 
 interface ShellScanFrame {
-  kind: 'root' | 'command' | 'arithmetic' | 'backtick'
+  kind: 'root' | 'command' | 'arithmetic' | 'backtick' | 'array'
   quote: ShellQuote
   parenthesisDepth: number
   bracketDepth?: number
+  /** A bare name[index] is arithmetic only when its closing bracket is followed by assignment. */
+  arrayAssignment?: boolean
   literalRoot: boolean
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
-  /** Enclosing arithmetic also re-evaluates the output of a nested command substitution. */
-  arithmetic?: boolean
+  /**
+   * Enclosing arithmetic also re-evaluates nested substitutions. Keep frame references so a
+   * bare subscript can be classified when its closing bracket confirms an assignment.
+   */
+  arithmeticFrames?: ShellScanFrame[]
   unsupported?: 'escaped sequence'
 }
 
@@ -95,6 +100,49 @@ function readShellExpansionStart(
       literalRoot: false,
     },
     length: dollar && arithmetic && !bracket ? 3 : 2,
+  }
+}
+
+function readShellArrayStart(
+  code: string,
+  index: number,
+  parent: ShellScanFrame
+): ShellScanFrame | undefined {
+  const character = code[index]
+  if (character !== '[' && character !== '(') return undefined
+
+  let nameEnd = index
+  if (character === '(') {
+    if (code[index - 1] !== '=') return undefined
+    nameEnd -= 1
+    if (code[nameEnd - 1] === '+') nameEnd -= 1
+  }
+  let nameStart = nameEnd
+  while (nameStart > 0 && /[A-Za-z0-9_]/.test(code[nameStart - 1])) nameStart -= 1
+  const hasName = nameStart < nameEnd && /[A-Za-z_]/.test(code[nameStart])
+  const parameterStart =
+    code[nameStart - 1] === '#' || code[nameStart - 1] === '!' ? nameStart - 3 : nameStart - 2
+  const parameter =
+    character === '[' &&
+    hasName &&
+    code.slice(parameterStart, parameterStart + 2) === '${' &&
+    !isBackslashEscaped(code, parameterStart)
+  const wordStart = nameStart === 0 || /\s|[;&|()]/.test(code[nameStart - 1])
+  const assignment =
+    parent.quote === 'none' &&
+    !parent.literalRoot &&
+    wordStart &&
+    (hasName || (character === '[' && parent.kind === 'array'))
+  if (!parameter && !assignment) return undefined
+
+  return {
+    kind: character === '[' ? 'arithmetic' : 'array',
+    quote: 'none',
+    parenthesisDepth: character === '(' ? 1 : 0,
+    ...(character === '['
+      ? { bracketDepth: 1, ...(!parameter ? { arrayAssignment: false } : {}) }
+      : {}),
+    literalRoot: false,
   }
 }
 
@@ -435,7 +483,9 @@ function getUnsupportedShellPosition(
   occurrence: CodePlaceholderOccurrence,
   context: ShellOccurrenceContext
 ): string | undefined {
-  if (context.arithmetic) return 'in a shell arithmetic expression'
+  if (context.arithmeticFrames?.some((frame) => frame.arrayAssignment !== false)) {
+    return 'in a shell arithmetic expression'
+  }
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
   if (context.quote !== 'none') return undefined
 
@@ -483,7 +533,7 @@ function collectShellOccurrenceContexts(
     if (occurrence) {
       contexts.set(occurrence, {
         quote: frame.quote,
-        arithmetic: frames.some((candidate) => candidate.kind === 'arithmetic'),
+        arithmeticFrames: frames.filter((candidate) => candidate.kind === 'arithmetic'),
       })
       index = occurrence.end
       continue
@@ -515,6 +565,12 @@ function collectShellOccurrenceContexts(
       index,
       frame.quote === 'none' && !frame.literalRoot && frame.kind !== 'arithmetic'
     )
+    const array = readShellArrayStart(code, index, frame)
+    if (array) {
+      frames.push(array)
+      index += 1
+      continue
+    }
     if (frame.quote === 'double') {
       if (character === '\\') {
         const escaped = occurrenceByStart.get(index + 1)
@@ -598,17 +654,28 @@ function collectShellOccurrenceContexts(
       if (character === '[') frame.bracketDepth += 1
       if (character === ']') {
         frame.bracketDepth -= 1
-        if (frame.bracketDepth === 0) frames.pop()
+        if (frame.bracketDepth === 0) {
+          if (frame.arrayAssignment !== undefined) {
+            frame.arrayAssignment = code[index + 1] === '=' || code.startsWith('+=', index + 1)
+          }
+          frames.pop()
+        }
       }
       index += 1
       continue
     }
-    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === '(') {
+    if (
+      (frame.kind === 'command' || frame.kind === 'arithmetic' || frame.kind === 'array') &&
+      character === '('
+    ) {
       frame.parenthesisDepth += 1
       index += 1
       continue
     }
-    if ((frame.kind === 'command' || frame.kind === 'arithmetic') && character === ')') {
+    if (
+      (frame.kind === 'command' || frame.kind === 'arithmetic' || frame.kind === 'array') &&
+      character === ')'
+    ) {
       frame.parenthesisDepth -= 1
       if (frame.parenthesisDepth === 0) frames.pop()
       index += 1
