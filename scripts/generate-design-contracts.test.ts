@@ -380,6 +380,228 @@ declare function cn(...args:unknown[]):string`
   60_000
 )
 
+const noPropChrome = { className: [], innerClassName: [], style: [], innerStyle: [] }
+const secondPropChrome = {
+  ...noPropChrome,
+  className: ['border-style', 'border-width', 'color'],
+  style: ['border-style', 'border-width', 'color'],
+}
+test.each([
+  {
+    name: 'later explicit className and style override a bundle',
+    render: '<button {...first} className={className} style={style}/>',
+    protected: noPropChrome,
+  },
+  {
+    name: 'explicit undefined className and style still override bundle fields',
+    render: '<button {...first} className={undefined} style={undefined}/>',
+    protected: noPropChrome,
+  },
+  {
+    name: 'a later spread overrides explicit attributes',
+    render:
+      '<button className={cn("rounded-md",innerClassName)} style={{backgroundColor:"red",...innerStyle}} {...second}/>',
+    protected: secondPropChrome,
+  },
+  {
+    name: 'repeated spreads keep the final className and style',
+    render: '<button {...first} {...second}/>',
+    protected: secondPropChrome,
+  },
+  {
+    name: 'overriding className retains only effective style chrome',
+    render: '<button {...first} className={className}/>',
+    protected: {
+      ...noPropChrome,
+      className: ['background-color'],
+      innerStyle: ['background-color'],
+    },
+  },
+  {
+    name: 'overriding style retains only effective class chrome',
+    render: '<button {...first} style={style}/>',
+    protected: { ...noPropChrome, innerClassName: ['border-radius'], style: ['border-radius'] },
+  },
+  {
+    name: 'nested repeated spreads keep final fields',
+    render: '<button {...{...first,...second}}/>',
+    protected: secondPropChrome,
+  },
+  {
+    name: 'overridden unresolved field values do not diagnose styling',
+    render:
+      '<button {...{className:styleFactory(),style:styleFactory()}} className={className} style={style}/>',
+    protected: noPropChrome,
+  },
+  {
+    name: 'overridden unknown bundles do not diagnose native styling',
+    render: '<button {...unknown} className={className} style={style}/>',
+    protected: noPropChrome,
+  },
+  {
+    name: 'effective unknown bundles keep uncertainty without claiming earlier chrome',
+    render: '<button {...first} {...unknown}/>',
+    protected: noPropChrome,
+    unchecked: true,
+  },
+  {
+    name: 'createElement respects finite fields after an unknown object spread',
+    render: "createElement('button',{...unknown,...second})",
+    protected: secondPropChrome,
+  },
+  {
+    name: 'createElement retains an effective unknown object spread boundary',
+    render: "createElement('button',{...first,...unknown})",
+    protected: noPropChrome,
+    unchecked: true,
+  },
+])(
+  'rendered props precedence: $name',
+  (scenario) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `import {createElement} from 'react'
+interface Props{className?:string;innerClassName?:string;style?:{color?:string};innerStyle?:{color?:string}}
+export function Example({className,innerClassName,style,innerStyle}:Props){
+const first={className:cn('rounded-md',innerClassName),style:{backgroundColor:'red',...innerStyle}};
+const second={className:cn('border-2',className),style:{color:'red',...style}};
+const unknown=styleFactory();return ${scenario.render}
+}
+declare function cn(...args:unknown[]):string;declare function styleFactory():Record<string,unknown>`
+    )
+    const result = run(root)
+    expect(result.status, result.stderr).toBe(0)
+    const metadata = generated(root)
+    expect(
+      Object.fromEntries(
+        Object.entries(metadata.exports.Example.slots).map(([name, slot]) => [
+          name,
+          (slot as { protected: string[] }).protected,
+        ])
+      )
+    ).toEqual(scenario.protected)
+    if (scenario.unchecked) {
+      expect(
+        metadata.diagnostics.some((d: { reason: string }) =>
+          /rendered props bundle/i.test(d.reason)
+        )
+      ).toBe(true)
+      for (const slot of Object.values(metadata.exports.Example.slots))
+        expect((slot as { unchecked: string[] }).unchecked.join('\n')).toMatch(
+          /rendered props bundle/i
+        )
+    } else {
+      expect(metadata.diagnostics).toEqual([])
+      for (const slot of Object.values(metadata.exports.Example.slots))
+        expect((slot as { unchecked?: string[] }).unchecked).toBeUndefined()
+    }
+  },
+  60_000
+)
+
+test('rendered props precedence removes shadowed public props forwarding', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    'interface Props{className?:string;style?:{color?:string}};export function Example(props:Props){return <button {...props} className="rounded-md" style={undefined}/>}'
+  )
+  expect(run(root).status).toBe(0)
+  const slots = generated(root).exports.Example.slots
+  expect(slots.className.protected).toEqual([])
+  expect(slots.style.protected).toEqual([])
+}, 60_000)
+
+test('rendered props precedence avoids false consumer chrome warnings', () => {
+  const root = fixture()
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    'export function Example({className}:{className?:string}){const bundle={className:"rounded-md"};return <button {...bundle} className={className}/>}'
+  )
+  write(
+    root,
+    'apps/sim/components/use-example.tsx',
+    "import {Example} from '@sim/emcn';export const View=()=> <Example className='rounded-full'/>"
+  )
+  expect(run(root).status).toBe(0)
+  const result = spawnSync(
+    bun,
+    [
+      '--no-env-file',
+      checkCli,
+      '--repo',
+      root,
+      '--base',
+      'HEAD',
+      '--working-tree',
+      '--format',
+      'json',
+    ],
+    { encoding: 'utf8', timeout: 60000 }
+  )
+  expect(result.status, result.stderr).not.toBe(2)
+  const report = JSON.parse(result.stdout)
+  expect(report.infrastructure.fresh).toBe(true)
+  expect(
+    report.findings.some(
+      (finding: { file: string; rule: string }) =>
+        finding.file === 'apps/sim/components/use-example.tsx' &&
+        finding.rule === 'component-chrome'
+    )
+  ).toBe(false)
+}, 60_000)
+
+test.each(['inferred', 'annotated'])(
+  'rendered props precedence keeps optional public spreads unchecked with %s default ownership',
+  (mode) => {
+    const root = fixture()
+    write(
+      root,
+      'packages/emcn/src/components/example.tsx',
+      `${mode === 'annotated' ? '/** @designProtect className border-radius */' : ''}
+export function Example(props:{className?:string}){return <button className="rounded-md" {...props}/>} `
+    )
+    write(
+      root,
+      'apps/sim/components/use-example.tsx',
+      "import {Example} from '@sim/emcn';export const View=()=> <Example className='rounded-full'/>"
+    )
+    expect(run(root).status).toBe(0)
+    const slot = generated(root).exports.Example.slots.className
+    expect(slot.unchecked.join('\n')).toMatch(/props.*override/i)
+    if (mode === 'annotated') expect(slot.protected).toContain('border-radius')
+    const result = spawnSync(
+      bun,
+      [
+        '--no-env-file',
+        checkCli,
+        '--repo',
+        root,
+        '--base',
+        'HEAD',
+        '--working-tree',
+        '--format',
+        'json',
+      ],
+      { encoding: 'utf8', timeout: 60000 }
+    )
+    expect(result.status, result.stderr).not.toBe(2)
+    const report = JSON.parse(result.stdout)
+    expect(report.infrastructure.fresh).toBe(true)
+    expect(
+      report.unchecked.some(
+        (note: { file: string; reason: string }) =>
+          note.file === 'apps/sim/components/use-example.tsx' &&
+          /props.*override/i.test(note.reason)
+      )
+    ).toBe(true)
+  },
+  60_000
+)
+
 test('finite bound CVA config and spreads retain axes, chrome and recipe defaults', () => {
   const root = fixture()
   write(

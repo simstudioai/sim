@@ -137,8 +137,13 @@ async function generate(
     diagnostics: compiled ? [...centralCompilerDiagnostics(compiled)] : [],
   }
   let stylingNotes: string[] | undefined
+  let deferredNotes: GeneratedContracts['diagnostics'] | undefined
   let acceptedStylingInput: ((file: string, node: t.Node) => boolean) | undefined
   const note = (file: string, line: number, reason: string) => {
+    if (deferredNotes) {
+      deferredNotes.push({ file, line, reason })
+      return
+    }
     stylingNotes?.push(reason)
     if (!out.diagnostics.some((d) => d.file === file && d.line === line && d.reason === reason))
       out.diagnostics.push({ file, line, reason })
@@ -406,6 +411,15 @@ async function generate(
     }
     return undefined
   }
+  const absentAppearance = (file: string, raw: t.Node) => {
+    const node = unwrap(raw)
+    return (
+      t.isNullLiteral(node) ||
+      (t.isIdentifier(node, { name: 'undefined' }) &&
+        !modules.get(file)?.references.has(node) &&
+        !modules.get(file)?.bindings.has('undefined'))
+    )
+  }
   const memberValues = (
     file: string,
     node: t.Node,
@@ -448,6 +462,7 @@ async function generate(
   }
   const strings = (file: string, node: t.Node, seen = new Set<string>()): string[] => {
     node = unwrap(node)
+    if (absentAppearance(file, node)) return []
     if (seen.size >= 12) {
       note(file, node.loc?.start.line ?? 1, 'Styling expression resolution limit')
       return []
@@ -1196,33 +1211,76 @@ async function generate(
       t.traverseFast(meta.fn.body, (node) => {
         let tag: string
         let root: t.Node
-        const attributes: { name?: string; file: string; value: t.Node }[] = []
-        const spreadInputs = new Set<string>()
+        type Attribute = { name: string; file: string; value: t.Node; input?: string }
+        type UnknownProps = {
+          file: string
+          node: t.Node
+          keys?: string[]
+          reason?: string
+          notes?: GeneratedContracts['diagnostics']
+        }
+        const operations: (Attribute | { unknown: UnknownProps })[] = []
         const unknownBundles: string[] = []
-        const spread = (file: string, value: t.Node) => {
+        const spread = (file: string, raw: t.Node, seen = new Set<t.Node>()) => {
+          const value = unwrap(raw)
           if (file === meta.file && t.isIdentifier(value)) {
             const name = bindingName(value)
             if (rests.has(name) || objects.has(name)) {
               for (const input of Object.keys(entry.slots))
-                if (!rests.get(name)?.has(input)) spreadInputs.add(input)
+                if (!rests.get(name)?.has(input))
+                  operations.push({ name: input, file, value, input })
               return
             }
           }
-          const resolved = objectFields(file, value)
-          attributes.push(
-            ...resolved.fields.map((field) => ({
-              name: field.name,
-              file: field.file,
-              value: field.value,
-            }))
-          )
-          for (const unknown of resolved.unknown) {
-            if (unknown.node === value) {
-              const reason = 'Unresolved rendered props bundle'
-              note(unknown.file, unknown.node.loc?.start.line ?? 1, reason)
-              unknownBundles.push(reason)
-            } else spread(unknown.file, unknown.node)
+          if (seen.has(value) || seen.size >= 12) {
+            operations.push({ unknown: { file, node: value } })
+            return
           }
+          const next = new Set(seen).add(value)
+          const notes: GeneratedContracts['diagnostics'] = []
+          const previous = deferredNotes
+          let found: ReturnType<typeof expressionReference>
+          try {
+            deferredNotes = notes
+            found = expressionReference(file, value)
+          } finally {
+            deferredNotes = previous
+          }
+          if (found) {
+            spread(found.file, found.node, next)
+            return
+          }
+          if (t.isObjectExpression(value)) {
+            for (const property of value.properties)
+              if (
+                t.isObjectProperty(property) &&
+                (!property.computed ||
+                  t.isStringLiteral(property.key) ||
+                  t.isNumericLiteral(property.key))
+              )
+                operations.push({ name: key(property.key), file, value: property.value })
+              else if (t.isSpreadElement(property)) spread(file, property.argument, next)
+              else
+                operations.push({
+                  unknown: {
+                    file,
+                    node: property,
+                    ...(t.isObjectMethod(property) && !property.computed
+                      ? { keys: [key(property.key)] }
+                      : {}),
+                  },
+                })
+            return
+          }
+          if (
+            t.isNullLiteral(value) ||
+            t.isBooleanLiteral(value) ||
+            t.isNumericLiteral(value) ||
+            t.isStringLiteral(value) ||
+            t.isIdentifier(value, { name: 'undefined' })
+          )
+            return
+          operations.push({ unknown: { file, node: value, notes } })
         }
         if (t.isJSXOpeningElement(node)) {
           tag = t.isJSXIdentifier(node.name)
@@ -1233,11 +1291,15 @@ async function generate(
           root = t.isJSXMemberExpression(node.name) ? node.name.object : node.name
           for (const attr of node.attributes)
             if (t.isJSXSpreadAttribute(attr)) spread(meta.file, attr.argument)
-            else if (t.isJSXAttribute(attr) && attr.value)
-              attributes.push({
+            else if (t.isJSXAttribute(attr))
+              operations.push({
                 name: key(attr.name),
                 file: meta.file,
-                value: t.isJSXExpressionContainer(attr.value) ? attr.value.expression : attr.value,
+                value: attr.value
+                  ? t.isJSXExpressionContainer(attr.value)
+                    ? attr.value.expression
+                    : attr.value
+                  : t.booleanLiteral(true),
               })
         } else if (
           t.isCallExpression(node) &&
@@ -1268,11 +1330,60 @@ async function generate(
         const [targetFile, targetName] = ref.split('#')
         const target = `${targetFile}#${member.length ? `${targetName === '*' ? '' : `${targetName}.`}${member.join('.')}` : targetName}`
         const native = /^[a-z]/.test(tag)
+        // JSX and object spreads assign from left to right. Resolve this ordering
+        // before tracing ownership, so overwritten values cannot supply chrome.
+        const effective = new Map<string, Attribute>()
+        const pending: { unknown: UnknownProps; overwritten: Set<string> }[] = []
+        for (const operation of operations) {
+          if ('unknown' in operation) {
+            if (operation.unknown.keys)
+              for (const name of operation.unknown.keys) effective.delete(name)
+            else effective.clear()
+            pending.push({ unknown: operation.unknown, overwritten: new Set() })
+            continue
+          }
+          const previous = effective.get(operation.name)
+          if (
+            operation.input &&
+            previous &&
+            !previous.input &&
+            propOf(previous.file, previous.value) !== operation.input
+          ) {
+            pending.push({
+              unknown: {
+                file: operation.file,
+                node: operation.value,
+                keys: [operation.name],
+                reason: `Rendered public props may override authored ${operation.name}; default ownership remains unchecked`,
+              },
+              overwritten: new Set(),
+            })
+          }
+          if (!operation.input)
+            for (const boundary of pending) boundary.overwritten.add(operation.name)
+          effective.set(operation.name, operation)
+        }
+        for (const { unknown, overwritten } of pending) {
+          const keys = unknown.keys ?? (native ? ['className', 'style'] : undefined)
+          const affected = native
+            ? keys?.filter((name) => /^(?:className|style|.*ClassName|.*Style)$/.test(name))
+            : keys
+          if (affected?.every((name) => overwritten.has(name))) continue
+          const reason = unknown.reason ?? 'Unresolved rendered props bundle'
+          note(unknown.file, unknown.node.loc?.start.line ?? 1, reason)
+          unknownBundles.push(reason)
+          for (const diagnostic of unknown.notes ?? []) {
+            note(diagnostic.file, diagnostic.line, diagnostic.reason)
+            unknownBundles.push(diagnostic.reason)
+          }
+        }
+        const attributes = [...effective.values()]
+        const spreadInputs = new Set(attributes.flatMap((attr) => (attr.input ? [attr.input] : [])))
         if (!native) entry.relationships.push(target)
         const iconProp = propOf(meta.file, root)
         if (iconProp && /icon/i.test(iconProp) && attributes.some((a) => a.name === 'className')) {
           const classes = attributes
-            .filter((a) => a.name === 'className')
+            .filter((a) => a.name === 'className' && !a.input)
             .flatMap((a) => strings(a.file, a.value))
           stylingNotes = []
           const protectedProperties = protectedFor(classes, meta.file, node.loc?.start.line ?? 1)
@@ -1292,29 +1403,29 @@ async function generate(
         const nodeOwned: string[] = []
         const nodeNotes: string[] = [...unknownBundles]
         for (const attr of attributes) {
-          const slotName = attr.name ?? ''
+          const slotName = attr.name
           if (!/^(?:className|style|.*ClassName|.*Style)$/.test(slotName)) {
-            const forwarded = propOf(attr.file, attr.value)
+            const forwarded = attr.input ?? propOf(attr.file, attr.value)
             if (!native && forwarded && entry.slots[forwarded])
               entry.slots[forwarded].forwards.push({ target, slot: slotName })
             continue
           }
-          const inputs = inputsOf(attr.file, attr.value)
+          const inputs = attr.input ? new Set([attr.input]) : inputsOf(attr.file, attr.value)
           const recipes = new Set<string>()
-          visitValue(attr.file, attr.value, (file, child) => {
-            if (!t.isCallExpression(child)) return
-            const found = expressionReference(file, child.callee)
-            const id = found && `${found.file}#${found.name}`
-            if (id && out.recipes[id]) {
-              recipes.add(id)
-              usedRecipes.add(id)
-            }
-          })
-          if (spreadInputs.has(slotName)) inputs.add(slotName)
+          if (!attr.input)
+            visitValue(attr.file, attr.value, (file, child) => {
+              if (!t.isCallExpression(child)) return
+              const found = expressionReference(file, child.callee)
+              const id = found && `${found.file}#${found.name}`
+              if (id && out.recipes[id]) {
+                recipes.add(id)
+                usedRecipes.add(id)
+              }
+            })
           stylingNotes = []
           const classChannel = /(?:^className$|ClassName$)/.test(slotName)
           const owned = protectedFor(
-            classChannel
+            classChannel && !attr.input
               ? [
                   ...strings(attr.file, attr.value),
                   ...[...recipes].flatMap((r) => out.recipes[r].classes),
@@ -1324,7 +1435,7 @@ async function generate(
             attr.value.loc?.start.line ?? 1
           )
           for (const recipe of recipes) stylingNotes.push(...(recipeNotes.get(recipe) ?? []))
-          if (/(?:^style$|Style$)/.test(slotName)) {
+          if (/(?:^style$|Style$)/.test(slotName) && !attr.input) {
             const resolved = objectFields(attr.file, attr.value)
             for (const field of resolved.fields) {
               const property = field.name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
@@ -1333,7 +1444,7 @@ async function generate(
             for (const unknown of resolved.unknown)
               if (
                 !inputsOf(unknown.file, unknown.node).size &&
-                !t.isNullLiteral(unwrap(unknown.node))
+                !absentAppearance(unknown.file, unknown.node)
               )
                 note(unknown.file, unknown.node.loc?.start.line ?? 1, 'Unresolved styling object')
           }
