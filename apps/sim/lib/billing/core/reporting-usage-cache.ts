@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
+import type Redis from 'ioredis'
 import { LRUCache } from 'lru-cache'
 import {
   type BillingEntity,
@@ -37,9 +38,8 @@ export const REPORTING_USAGE_CACHE_TTL_MS = 30_000
 const SHARED_TTL_JITTER_MS = 5_000
 
 /**
- * How long a read waits on Redis before summing the ledger instead. The shared client queues
- * commands while disconnected and has long timeouts, so without this a Redis outage would stall
- * every gate behind it rather than cost one sum.
+ * How long a read waits on a connected Redis before summing the ledger instead, so a socket that
+ * has silently stopped answering costs one sum rather than the shared client's long timeouts.
  */
 const SHARED_READ_TIMEOUT_MS = 250
 
@@ -54,13 +54,25 @@ function sharedReportingUsageKey(key: string): string {
 }
 
 /**
+ * The shared client, only while its connection is ready. A disconnected client parks commands in
+ * its offline queue and replays them on reconnect, which would land a stale sum with a fresh
+ * expiry, and `NX` would then keep newer sums out; so while it is not ready, no command is issued
+ * at all and the ledger answers instead. Trigger.dev's `init` hook warms the connection, so it is
+ * ready by the time a task reads.
+ */
+function readyRedisClient(): Redis | null {
+  const redis = getRedisClient()
+  return redis?.status === 'ready' ? redis : null
+}
+
+/**
  * A sum another process stored, or `undefined` when there is none to use. Redis being absent,
- * slow, or failing, and a value that is not a non-negative number, are all misses: the caller
- * sums the ledger, so the cache can cost a read its latency but never its answer.
+ * not ready, slow, or failing, and a value that is not a non-negative number, are all misses:
+ * the caller sums the ledger, so the cache can cost a read its latency but never its answer.
  */
 async function readSharedReportingUsageCost(key: string): Promise<number | undefined> {
   try {
-    const redis = getRedisClient()
+    const redis = readyRedisClient()
     if (!redis) return undefined
     const stored = await withinDeadline(
       () => redis.get(sharedReportingUsageKey(key)),
@@ -89,7 +101,7 @@ function warnSharedWriteFailed(error: unknown): void {
  */
 function writeSharedReportingUsageCost(key: string, cost: number): void {
   try {
-    const redis = getRedisClient()
+    const redis = readyRedisClient()
     if (!redis) return
     const ttlMs = REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
     redis

@@ -1,13 +1,13 @@
 /**
  * The level-triggered usage threshold email against real claim state in a disposable PostgreSQL
- * schema. Only delivery is stubbed: the mailer is the external boundary, and a sent email is the
- * outcome under test.
+ * schema. Only delivery is stubbed: the mailer is the external boundary, so the outcomes under
+ * test are the messages handed to it and the claim state left in the database.
  */
 import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
-import { emailTemplatesMock } from '@sim/testing/mocks/email-templates.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -59,6 +59,40 @@ function notify(
   })
 }
 
+/** Every message handed to the mailer so far, as who received which email. */
+function delivered(): { to: string; subject: string }[] {
+  return mockSendEmail.mock.calls.map(([message]) => ({ to: message.to, subject: message.subject }))
+}
+
+function warning(): { to: string; subject: string } {
+  return {
+    to: `${adminId}@example.com`,
+    subject: emailTemplatesMockFns.mockGetEmailSubject('usage-threshold'),
+  }
+}
+
+function reached(): { to: string; subject: string } {
+  return {
+    to: `${adminId}@example.com`,
+    subject: emailTemplatesMockFns.mockGetLimitEmailSubject('credits', 'reached'),
+  }
+}
+
+/** The organization's persisted threshold claims. */
+async function claims(): Promise<Record<string, number>> {
+  const [row] = await connection<{ limit_notifications: Record<string, number> | null }[]>`
+    SELECT limit_notifications FROM organization WHERE id = ${organizationId}`
+  return row.limit_notifications ?? {}
+}
+
+function claimOf(threshold: 80 | 100, periodStart = SEPTEMBER, limitCents = 10_000) {
+  return {
+    credits: threshold,
+    creditsPeriod: Math.floor(periodStart.getTime() / 86_400_000),
+    creditsLimit: limitCents,
+  }
+}
+
 async function setNotificationsEnabled(enabled: boolean): Promise<void> {
   await connection`INSERT INTO settings VALUES (${adminId}, ${adminId}, ${enabled})
     ON CONFLICT (id) DO UPDATE SET billing_usage_notifications_enabled = ${enabled}`
@@ -97,7 +131,8 @@ describe('usage threshold email', () => {
     await Promise.all([notify(85), notify(85), notify(86)])
     await notify(90)
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(delivered()).toEqual([warning()])
+    expect(await claims()).toEqual(claimOf(80))
   })
 
   it('still sends the reached email after the warning, but never the warning after it', async () => {
@@ -106,7 +141,8 @@ describe('usage threshold email', () => {
     await notify(100)
     await notify(85)
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(2)
+    expect(delivered()).toEqual([warning(), reached()])
+    expect(await claims()).toEqual(claimOf(100))
   })
 
   it('re-arms both thresholds whenever the billing period changes, even to an earlier one', async () => {
@@ -115,7 +151,8 @@ describe('usage threshold email', () => {
     await notify(100, { periodStart: OCTOBER })
     await notify(85)
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(4)
+    expect(delivered()).toEqual([reached(), warning(), reached(), warning()])
+    expect(await claims()).toEqual(claimOf(80))
   })
 
   it('warns again at a raised limit after the old one was reached', async () => {
@@ -123,23 +160,27 @@ describe('usage threshold email', () => {
     await notify(100, { limit: 125 })
     await notify(110, { limit: 125 })
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(2)
+    expect(delivered()).toEqual([reached(), warning()])
+    expect(await claims()).toEqual(claimOf(80, SEPTEMBER, 12_500))
   })
 
   it('keeps the claim for a later completion when nobody can be notified', async () => {
     await setNotificationsEnabled(false)
     await notify(90)
+    expect(delivered()).toEqual([])
+    expect(await claims()).toEqual({})
+
     await setNotificationsEnabled(true)
     await notify(90)
-
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(delivered()).toEqual([warning()])
   })
 
   it('keeps the claim when a completion recorded no cost', async () => {
     await notify(90, { costDelta: 0 })
-    expect(mockSendEmail).not.toHaveBeenCalled()
+    expect(delivered()).toEqual([])
+    expect(await claims()).toEqual({})
 
     await notify(90)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(delivered()).toEqual([warning()])
   })
 })

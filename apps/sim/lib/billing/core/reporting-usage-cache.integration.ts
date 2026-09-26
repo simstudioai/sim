@@ -3,6 +3,8 @@
  * real Redis. Skipped without `TEST_REDIS_URL`. Each test uses a fresh payer, so the in-process
  * cache is always cold and every read models a new process.
  */
+
+import { type AddressInfo, createServer, type Socket } from 'node:net'
 import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
@@ -78,16 +80,14 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await connection.end()
   })
 
-  it('serves a sum another process stored without summing the ledger', async () => {
+  it('serves a sum another process stored instead of the ledger', async () => {
     await redis.set(sharedKey(payer), '12.5', 'PX', 30_000)
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(12.5)
-    expect(transaction).not.toHaveBeenCalled()
   })
 
   it('sums the ledger exactly on a miss and stores the sum for other processes', async () => {
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
-    expect(transaction).toHaveBeenCalledTimes(1)
 
     await vi.waitFor(async () => expect(await redis.get(sharedKey(payer))).toBe('5.75'))
     const ttl = await redis.pttl(sharedKey(payer))
@@ -99,7 +99,6 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await redis.set(sharedKey(payer), 'not-a-number', 'PX', 30_000)
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
-    expect(transaction).toHaveBeenCalledTimes(1)
   })
 
   it('never lets a slower, older sum replace one stored while it ran', async () => {
@@ -121,20 +120,45 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
   })
 
-  it('sums the ledger promptly when Redis is unreachable', async () => {
-    const unreachable = new Redis('redis://127.0.0.1:1', {
-      enableOfflineQueue: true,
-      maxRetriesPerRequest: null,
-      retryStrategy: () => 1_000,
-    })
-    unreachable.on('error', () => undefined)
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(unreachable)
+  it('sums the ledger without issuing or queuing a command while Redis is not ready', async () => {
+    const notReady = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(notReady)
     try {
+      await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
+      expect(notReady.status).toBe('wait')
+
+      await notReady.connect()
+      await notReady.ping()
+      expect(await redis.get(sharedKey(payer))).toBeNull()
+    } finally {
+      notReady.disconnect()
+    }
+  })
+
+  it('sums the ledger promptly when a connected Redis stops answering', async () => {
+    const sockets = new Set<Socket>()
+    /** Completes the client's handshake, then never answers a read. */
+    const silent = createServer((socket) => {
+      sockets.add(socket)
+      socket.on('data', (data) => {
+        const text = data.toString()
+        if (/\bGET\b/i.test(text)) return
+        socket.write('+OK\r\n'.repeat(text.match(/^\*\d+\r\n/gm)?.length ?? 0))
+      })
+    })
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve))
+    const { port } = silent.address() as AddressInfo
+    const hung = new Redis({ host: '127.0.0.1', port, lazyConnect: true, enableReadyCheck: false })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(hung)
+    try {
+      await hung.connect()
       const startedAt = Date.now()
       await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
       expect(Date.now() - startedAt).toBeLessThan(2_000)
     } finally {
-      unreachable.disconnect()
+      hung.disconnect()
+      for (const socket of sockets) socket.destroy()
+      silent.close()
     }
   })
 })

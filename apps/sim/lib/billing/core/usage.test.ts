@@ -331,6 +331,15 @@ describe('maybeSendUsageThresholdEmail', () => {
     resetEnvFlagsMock()
   })
 
+  /** Who received which email, identified by its subject and rendered template. */
+  function sentMessages() {
+    return mockSendEmail.mock.calls.map(([message]) => ({
+      to: message.to,
+      subject: message.subject,
+      html: message.html,
+    }))
+  }
+
   it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
     await maybeSendUsageThresholdEmail({
       ...paidUser,
@@ -338,13 +347,9 @@ describe('maybeSendUsageThresholdEmail', () => {
       costDelta: 1,
     })
 
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'user', planName: 'Pro' })
-    )
-    expect(mockRenderCreditsExhausted).not.toHaveBeenCalled()
-    expect(mockRenderUsageThreshold).not.toHaveBeenCalled()
-    expect(mockGetLimitEmailSubject).toHaveBeenCalledWith('credits', 'reached')
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(sentMessages()).toEqual([
+      { to: 'user-1@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
   })
 
   it('fans out to org admins at 100% and skips non-admin members', async () => {
@@ -365,12 +370,8 @@ describe('maybeSendUsageThresholdEmail', () => {
       limit: 500,
     })
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'admin@example.com', emailType: 'notifications' })
-    )
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'organization' })
-    )
+    expect(sentMessages()).toEqual([
+      { to: 'admin@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
   })
 })
