@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { claimCreditsThreshold } from '@/lib/billing/core/limit-notifications'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
@@ -686,7 +687,11 @@ export async function getEffectiveCurrentPeriodCost(
 }
 
 /**
- * Send usage threshold notification when crossing from <80% to ≥80%.
+ * Send the usage threshold notification for the level usage is at: the 80% warning or the 100%
+ * limit-reached email, each at most once per billing period.
+ * - Level-triggered: any caller at or above a threshold may send it, so it tolerates a usage read
+ *   that lags the ledger, and the per-period claim ({@link claimCreditsThreshold}) is what keeps
+ *   repeated or concurrent callers to one email.
  * - Skips when billing is disabled.
  * - Respects user-level notifications toggle and unsubscribe preferences.
  * - For organization plans, emails owners/admins who have notifications enabled.
@@ -694,20 +699,27 @@ export async function getEffectiveCurrentPeriodCost(
 export async function maybeSendUsageThresholdEmail(params: {
   scope: 'user' | 'organization'
   planName: string
-  percentBefore: number
-  percentAfter: number
+  /** Start of the billing period the usage belongs to; each period re-arms both thresholds. */
+  periodStart: Date
   userId?: string
   userEmail?: string
   userName?: string
   organizationId?: string
   /** Workspace the usage occurred in, used to build a live upgrade/billing link. */
   workspaceId?: string
-  currentUsageAfter: number
+  currentUsage: number
   limit: number
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
-    if (params.limit <= 0 || params.currentUsageAfter <= 0) return
+    if (params.limit <= 0 || params.currentUsage <= 0) return
+
+    const percentUsed = (params.currentUsage / params.limit) * 100
+    const threshold = percentUsed >= 100 ? 100 : percentUsed >= 80 ? 80 : undefined
+    if (threshold === undefined) return
+    const stateId = params.scope === 'user' ? params.userId : params.organizationId
+    if (!stateId) return
+    if (!(await claimCreditsThreshold(params.scope, stateId, params.periodStart, threshold))) return
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
@@ -725,14 +737,6 @@ export async function maybeSendUsageThresholdEmail(params: {
       params.scope === 'organization' && params.workspaceId
         ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
         : `${baseUrl}/account/settings/billing`
-
-    // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)
-    const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
-    // Check for 100% threshold — every plan and scope (usage limit reached)
-    const crosses100 = params.percentBefore < 100 && params.percentAfter >= 100
-
-    // Skip if no thresholds crossed
-    if (!crosses80 && !crosses100) return
 
     /**
      * Delivers to the account's notification recipients: the payer for personal
@@ -773,8 +777,7 @@ export async function maybeSendUsageThresholdEmail(params: {
       }
     }
 
-    // !crosses100: one "reached" email, not a "nearing" and a "reached" in the same moment
-    if (crosses80 && !isFreeUser && !crosses100) {
+    if (threshold === 80 && !isFreeUser) {
       const ctaLink = billingSettingsLink
       await deliverToScope(async (email, name) => {
         const prefs = await getEmailPreferences(email)
@@ -784,8 +787,8 @@ export async function maybeSendUsageThresholdEmail(params: {
         const html = await renderUsageThresholdEmail({
           userName: name,
           planName: params.planName,
-          percentUsed: Math.min(100, Math.round(params.percentAfter)),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage: params.currentUsage,
           limit: params.limit,
           ctaLink,
         })
@@ -799,8 +802,7 @@ export async function maybeSendUsageThresholdEmail(params: {
       })
     }
 
-    // For 80% threshold email (free users only — skip if they also crossed 100% in same call)
-    if (crosses80 && isFreeUser && !crosses100) {
+    if (threshold === 80 && isFreeUser) {
       const upgradeLink = upgradeCreditsLink
       await deliverToScope(async (email, name) => {
         const prefs = await getEmailPreferences(email)
@@ -809,8 +811,8 @@ export async function maybeSendUsageThresholdEmail(params: {
         const { renderFreeTierUpgradeEmail, getEmailSubject, sendEmail } = await loadEmailDelivery()
         const html = await renderFreeTierUpgradeEmail({
           userName: name,
-          percentUsed: Math.min(100, Math.round(params.percentAfter)),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage: params.currentUsage,
           limit: params.limit,
           upgradeLink,
         })
@@ -824,15 +826,14 @@ export async function maybeSendUsageThresholdEmail(params: {
 
         logger.info('Free tier upgrade email sent', {
           email,
-          percentUsed: Math.round(params.percentAfter),
-          currentUsage: params.currentUsageAfter,
+          percentUsed: Math.round(percentUsed),
+          currentUsage: params.currentUsage,
           limit: params.limit,
         })
       })
     }
 
-    // Paid and org accounts get raise-your-limit copy — upgrading is not their remedy
-    if (crosses100) {
+    if (threshold === 100) {
       const useFreeCopy = isFreeUser && params.scope === 'user'
 
       await deliverToScope(async (email, name) => {
@@ -856,7 +857,7 @@ export async function maybeSendUsageThresholdEmail(params: {
               userName: name,
               planName: params.planName,
               scope: params.scope,
-              currentUsage: params.currentUsageAfter,
+              currentUsage: params.currentUsage,
               limit: params.limit,
               ctaLink: billingSettingsLink,
             })
@@ -874,7 +875,7 @@ export async function maybeSendUsageThresholdEmail(params: {
           email,
           scope: params.scope,
           planName: params.planName,
-          currentUsage: params.currentUsageAfter,
+          currentUsage: params.currentUsage,
           limit: params.limit,
         })
       })

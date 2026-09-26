@@ -315,6 +315,7 @@ describe('maybeSendUsageThresholdEmail', () => {
     userEmail: 'user-1@example.com',
     userName: 'Ada',
     workspaceId: 'ws-1',
+    periodStart: new Date('2026-09-01T00:00:00.000Z'),
     limit: 20,
   }
 
@@ -323,6 +324,7 @@ describe('maybeSendUsageThresholdEmail', () => {
     setEnvFlags({ isBillingEnabled: true })
     mockGetEmailPreferences.mockResolvedValue(null)
     mockIsOrgAdminRole.mockReturnValue(true)
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'claimed' }])
   })
 
   afterAll(() => {
@@ -332,15 +334,14 @@ describe('maybeSendUsageThresholdEmail', () => {
   it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
     await maybeSendUsageThresholdEmail({
       ...paidUser,
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 20,
+      currentUsage: 20,
     })
 
     expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'user', planName: 'Pro' })
     )
     expect(mockRenderCreditsExhausted).not.toHaveBeenCalled()
+    expect(mockRenderUsageThreshold).not.toHaveBeenCalled()
     expect(mockGetLimitEmailSubject).toHaveBeenCalledWith('credits', 'reached')
     expect(mockSendEmail).toHaveBeenCalledTimes(1)
   })
@@ -357,9 +358,8 @@ describe('maybeSendUsageThresholdEmail', () => {
       planName: 'Team',
       organizationId: 'org-1',
       workspaceId: 'ws-1',
-      percentBefore: 95,
-      percentAfter: 100,
-      currentUsageAfter: 500,
+      periodStart: new Date('2026-09-01T00:00:00.000Z'),
+      currentUsage: 500,
       limit: 500,
     })
 
@@ -370,18 +370,5 @@ describe('maybeSendUsageThresholdEmail', () => {
     expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'organization' })
     )
-  })
-
-  it('sends only the reached email when one execution crosses 80 and 100 together', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 70,
-      percentAfter: 100,
-      currentUsageAfter: 20,
-    })
-
-    expect(mockRenderUsageThreshold).not.toHaveBeenCalled()
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
   })
 })

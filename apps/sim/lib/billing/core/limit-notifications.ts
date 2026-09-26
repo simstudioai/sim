@@ -17,6 +17,9 @@ const logger = createLogger('LimitNotifications')
 /** Limit categories that send per-category threshold emails (credits has its own path). */
 export type LimitCategory = Extract<UpgradeReason, 'storage' | 'tables' | 'seats'>
 
+/** Every category whose emailed threshold is persisted, including credits. */
+type ClaimCategory = LimitCategory | Extract<UpgradeReason, 'credits'>
+
 const WARN_THRESHOLD = 80
 const REACH_THRESHOLD = 100
 /** Usage must drop below this band before the same threshold can re-notify (hysteresis). */
@@ -41,7 +44,7 @@ function thresholdFor(percent: number): 0 | 80 | 100 {
 async function claimThreshold(
   scope: 'user' | 'organization',
   id: string,
-  category: LimitCategory,
+  category: ClaimCategory,
   threshold: number
 ): Promise<boolean> {
   const setExpr = sql`jsonb_set(coalesce(${scope === 'user' ? userStats.limitNotifications : organization.limitNotifications}, '{}'::jsonb), ARRAY[${category}], to_jsonb(${threshold}::int))`
@@ -64,6 +67,24 @@ async function claimThreshold(
           .returning({ id: organization.id })
 
   return claimed.length > 0
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Claim a credits threshold (80 or 100) once per billing period, returning whether THIS call won
+ * it. The stored value is the period's start day followed by the threshold, so it only grows: a
+ * later period outranks every claim of an earlier one and re-arms both thresholds with no reset
+ * write, while within a period a claim of 100 also retires 80, and never the reverse.
+ */
+export function claimCreditsThreshold(
+  scope: 'user' | 'organization',
+  id: string,
+  periodStart: Date,
+  threshold: 80 | 100
+): Promise<boolean> {
+  const periodDay = Math.floor(periodStart.getTime() / DAY_MS)
+  return claimThreshold(scope, id, 'credits', periodDay * 1000 + threshold)
 }
 
 /** Re-arm a category (reset its stored threshold to 0) once usage falls back into the low band. */

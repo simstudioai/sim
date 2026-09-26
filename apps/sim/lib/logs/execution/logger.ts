@@ -16,6 +16,7 @@ import {
   type BillingAttributionSnapshot,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
@@ -1291,9 +1292,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
             )[0]
           : undefined
 
-      // Resolve the billing context + the pre-increment usage snapshot for the
-      // threshold email BEFORE recording, so currentUsageAfter = before +
-      // costDelta doesn't double-count this boundary's own increment.
+      /**
+       * The billing context and pre-increment usage for the threshold email are read BEFORE
+       * recording, so usage after = before + costDelta doesn't double-count this boundary's own
+       * increment. The organization read is the soft one: the email is level-triggered and
+       * claimed once per period, so a lagging sum only delays it.
+       */
       type EmailContext =
         | {
             scope: 'user'
@@ -1301,12 +1305,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
             userEmail: string
             userName: string | null
             planName: string
+            periodStart: Date
             before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
           }
         | {
             scope: 'organization'
             organizationId: string
             planName: string
+            periodStart: Date
             orgLimit: number
             orgUsageBefore: number
           }
@@ -1326,19 +1332,22 @@ export class ExecutionLogger implements IExecutionLoggerService {
           payerSubscription.plan,
           payerSubscription.seats
         )
-        const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
-        const orgLedger = await getBillingPeriodUsageCost(
-          billingAttribution.billingEntity,
-          exactBillingContext.billingPeriod
-        )
         emailContext = {
           scope: 'organization',
           organizationId,
           planName: getDisplayPlanName(payerSubscription.plan),
+          periodStart: exactBillingContext.billingPeriod.start,
           orgLimit,
-          orgUsageBefore: orgLedger,
+          orgUsageBefore: await readSoftGateUsageCost(
+            billingAttribution.billingEntity,
+            exactBillingContext.billingPeriod
+          ),
         }
-      } else if (billingAttribution?.billingEntity.type === 'user' && usr?.email) {
+      } else if (
+        billingAttribution?.billingEntity.type === 'user' &&
+        exactBillingContext &&
+        usr?.email
+      ) {
         const sub = await getHighestPriorityPersonalSubscription(usr.id)
         const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
         emailContext = {
@@ -1347,6 +1356,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           userEmail: usr.email,
           userName: usr.name,
           planName: getDisplayPlanName(sub?.plan),
+          periodStart: exactBillingContext.billingPeriod.start,
           before: await checkResolvedUsageStatus(usr.id, sub),
         }
       }
@@ -1366,40 +1376,26 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
       // Best-effort usage-threshold email.
       if (emailContext?.scope === 'user') {
-        const limit = emailContext.before.limit
-        const percentBefore = emailContext.before.percentUsed
-        const percentAfter =
-          limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
-        const currentUsageAfter = emailContext.before.currentUsage + costDelta
-
         await maybeSendUsageThresholdEmail({
           scope: 'user',
           userId: emailContext.userId,
           userEmail: emailContext.userEmail,
           userName: emailContext.userName || undefined,
           planName: emailContext.planName,
+          periodStart: emailContext.periodStart,
           workspaceId: updatedLog.workspaceId,
-          percentBefore,
-          percentAfter,
-          currentUsageAfter,
-          limit,
+          currentUsage: emailContext.before.currentUsage + costDelta,
+          limit: emailContext.before.limit,
         })
       } else if (emailContext?.scope === 'organization') {
-        const { orgLimit, orgUsageBefore } = emailContext
-        const percentBefore = orgLimit > 0 ? Math.min(100, (orgUsageBefore / orgLimit) * 100) : 0
-        const percentAfter =
-          orgLimit > 0 ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100) : percentBefore
-        const currentUsageAfter = orgUsageBefore + costDelta
-
         await maybeSendUsageThresholdEmail({
           scope: 'organization',
           organizationId: emailContext.organizationId,
           planName: emailContext.planName,
+          periodStart: emailContext.periodStart,
           workspaceId: updatedLog.workspaceId,
-          percentBefore,
-          percentAfter,
-          currentUsageAfter,
-          limit: orgLimit,
+          currentUsage: emailContext.orgUsageBefore + costDelta,
+          limit: emailContext.orgLimit,
         })
       }
     } catch (e) {
