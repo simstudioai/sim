@@ -54,143 +54,6 @@ function keyName(node) {
   return ''
 }
 
-function moduleFile(from, specifier) {
-  const base = path.resolve(path.dirname(from), specifier)
-  return [
-    base + '.tsx',
-    base + '.ts',
-    path.join(base, 'index.tsx'),
-    path.join(base, 'index.ts'),
-  ].find(existsSync)
-}
-
-function isVisualExport(name, includeLowercase) {
-  return (
-    (/^[A-Z][a-zA-Z0-9]*$/.test(name) && /[a-z]/.test(name)) ||
-    (includeLowercase && /^[a-z][A-Za-z0-9]*Icon$/.test(name))
-  )
-}
-
-function namedExports(file, includeLowercase = false, visited = new Set()) {
-  if (visited.has(file)) return []
-  visited.add(file)
-  const result = []
-  const ast = parseFile(file)
-  for (const statement of ast.program.body) {
-    if (statement.type === 'ExportNamedDeclaration') {
-      if (statement.source) {
-        const target = moduleFile(file, statement.source.value)
-        if (!target) continue
-        for (const specifier of statement.specifiers) {
-          if (specifier.type !== 'ExportSpecifier' || specifier.exportKind === 'type') continue
-          const name = keyName(specifier.exported)
-          if (isVisualExport(name, includeLowercase)) result.push({ name, source: target })
-        }
-      } else if (
-        statement.declaration &&
-        ['VariableDeclaration', 'FunctionDeclaration', 'ClassDeclaration'].includes(
-          statement.declaration.type
-        )
-      ) {
-        const declaration = statement.declaration
-        const names =
-          declaration.type === 'VariableDeclaration'
-            ? declaration.declarations.map((item) => keyName(item.id))
-            : [keyName(declaration.id)]
-        for (const name of names) {
-          if (isVisualExport(name, includeLowercase)) result.push({ name, source: file })
-        }
-      }
-    } else if (statement.type === 'ExportAllDeclaration' && statement.source) {
-      const target = moduleFile(file, statement.source.value)
-      if (target) result.push(...namedExports(target, includeLowercase, visited))
-    }
-  }
-  return result
-}
-
-function sourceLine(file, name) {
-  const lines = readFileSync(file, 'utf8').split('\n')
-  const expression = new RegExp(`\\b(?:function|const|class)\\s+${name}\\b`)
-  const index = lines.findIndex((line) => expression.test(line))
-  return index < 0 ? 1 : index + 1
-}
-
-function variants(file) {
-  const axes = []
-  const ast = parseFile(file)
-  walk(ast, (node) => {
-    if (node.type !== 'CallExpression' || keyName(node.callee) !== 'cva') return
-    const options = node.arguments[1]
-    if (options?.type !== 'ObjectExpression') return
-    const variantNode = options.properties.find(
-      (prop) => prop.type === 'ObjectProperty' && keyName(prop.key) === 'variants'
-    )?.value
-    if (variantNode?.type !== 'ObjectExpression') return
-    const defaults = options.properties.find(
-      (prop) => prop.type === 'ObjectProperty' && keyName(prop.key) === 'defaultVariants'
-    )?.value
-    for (const axis of variantNode.properties) {
-      if (axis.type !== 'ObjectProperty' || axis.value.type !== 'ObjectExpression') continue
-      const axisName = keyName(axis.key)
-      const values = axis.value.properties
-        .filter((value) => value.type === 'ObjectProperty')
-        .map((value) => keyName(value.key))
-        .filter(Boolean)
-      if (!axisName || !values.length) continue
-      const defaultValue =
-        defaults?.type === 'ObjectExpression'
-          ? keyName(
-              defaults.properties.find(
-                (prop) => prop.type === 'ObjectProperty' && keyName(prop.key) === axisName
-              )?.value
-            )
-          : ''
-      axes.push({ name: axisName, values, defaultValue })
-    }
-  })
-  return axes
-}
-
-/** Literal prop unions supplement local CVA declarations (including shared recipes). */
-function unionVariants(file, exportName) {
-  const axes = []
-  const allowed = new Set(['variant', 'size', 'appearance', 'tone', 'shape', 'status', 'padding'])
-  const owners = new Set([
-    `${exportName}Props`,
-    `${exportName}BaseProps`,
-    `${exportName}ContextValue`,
-  ])
-  walk(parseFile(file), (node) => {
-    if (
-      !['TSInterfaceDeclaration', 'TSTypeAliasDeclaration'].includes(node.type) ||
-      !owners.has(node.id?.name)
-    )
-      return
-    const body =
-      node.type === 'TSInterfaceDeclaration'
-        ? node.body.body
-        : node.typeAnnotation?.type === 'TSTypeLiteral'
-          ? node.typeAnnotation.members
-          : []
-    for (const property of body) {
-      if (property.type !== 'TSPropertySignature') continue
-      const axis = keyName(property.key)
-      if (!allowed.has(axis)) continue
-      const annotation = property.typeAnnotation?.typeAnnotation
-      if (annotation?.type !== 'TSUnionType') continue
-      const values = annotation.types.map((type) =>
-        type.type === 'TSLiteralType' && type.literal?.type === 'StringLiteral'
-          ? type.literal.value
-          : null
-      )
-      if (values.length < 2 || values.some((value) => value === null)) continue
-      axes.push({ name: axis, values, defaultValue: '' })
-    }
-  })
-  return axes
-}
-
 function productFiles() {
   const roots = ['apps/sim', 'apps/desktop/src/renderer', 'packages/workflow-renderer/src']
   const excluded = new Set([
@@ -332,12 +195,16 @@ function componentFamily(source) {
 }
 
 function componentInventory() {
-  const publicBarrel = path.join(repo, 'packages/emcn/src/index.ts')
-  const iconsBarrel = path.join(repo, 'packages/emcn/src/icons/index.ts')
-  const componentExports = namedExports(publicBarrel).filter((item) =>
-    item.source.includes(`${path.sep}components${path.sep}`)
+  const metadata = JSON.parse(
+    readFileSync(path.join(repo, 'scripts/design-conformance/contracts.generated.json'), 'utf8')
   )
-  const iconExports = namedExports(iconsBarrel, true)
+  const discovered = Object.entries(metadata.exports).map(([, facts]) => ({
+    name: facts.exportName,
+    source: path.join(repo, facts.source.file),
+    facts,
+  }))
+  const componentExports = discovered.filter((item) => item.facts.kind !== 'icon')
+  const iconExports = discovered.filter((item) => item.facts.kind === 'icon')
   const byName = new Map()
   for (const item of componentExports)
     if (!byName.has(`component:${item.name}`))
@@ -350,12 +217,6 @@ function componentInventory() {
   )
   const fixtureCases = fixtureInventory()
   const entries = []
-  const familyFirst = new Map()
-  const variantOwnerByFamily = {
-    'chip-modal': 'ChipModalField',
-    'dropdown-menu': 'DropdownMenuItem',
-    'resource-row': 'ResourceRow',
-  }
   const focusable = new Set(['Button', 'Input', 'Checkbox', 'Chip', 'ChipInput', 'Textarea'])
   const openable = new Set([
     'DropdownMenu',
@@ -374,32 +235,21 @@ function componentInventory() {
     'ChipTimePicker',
     'ChipCombobox',
   ])
-  const nonvisualNames = new Map([
-    ['DropdownMenuGroup', 'Structural flex group; child menu items own the visible chrome.'],
-    ['DropdownMenuPortal', 'Portal only; it renders its children in another DOM subtree.'],
-    ['DropdownMenuSub', 'State provider; submenu chrome belongs to its trigger and content.'],
-    ['DropdownMenuRadioGroup', 'Selection context; the radio items own the visible chrome.'],
-    ['ModalPortal', 'Portal only; it renders its children in another DOM subtree.'],
-    ['ModalTabs', 'Tab state root; the list, triggers and panels own the visible treatment.'],
-    ['PopoverAnchor', 'Position anchor with no owned visible chrome.'],
-    [
-      'ToastProvider',
-      'Toast context and layer host; individual toast surfaces are runtime feedback.',
-    ],
-  ])
-  const nonvisual = []
-  for (const item of byName.values()) {
-    if (nonvisualNames.has(item.name) && item.kind === 'component') {
-      nonvisual.push({
-        name: item.name,
-        source: { file: relative(item.source), line: sourceLine(item.source, item.name) },
-        reason: nonvisualNames.get(item.name),
-      })
-    }
-    if (item.kind !== 'component') continue
-    const family = componentFamily(item.source)
-    if (!familyFirst.has(family)) familyFirst.set(family, item.name)
-  }
+  const nonvisualNames = new Map(
+    discovered
+      .filter((item) => item.facts.kind === 'nonvisual')
+      .map((item) => [
+        item.name,
+        'Structural or delegated export; its visible descendants own the treatment.',
+      ])
+  )
+  const nonvisual = discovered
+    .filter((item) => item.facts.kind === 'nonvisual')
+    .map((item) => ({
+      name: item.name,
+      source: item.facts.source,
+      reason: nonvisualNames.get(item.name),
+    }))
   for (const item of byName.values()) {
     const family = item.kind === 'icon' ? 'Icons' : componentFamily(item.source)
     const ownCase = item.name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
@@ -422,7 +272,7 @@ function componentInventory() {
       kind: item.kind,
       name: item.name,
       family,
-      source: { file: relative(item.source), line: sourceLine(item.source, item.name) },
+      source: { file: item.facts.source.file, line: item.facts.source.line },
       rationale: nonvisualNames.get(item.name),
       usages: uses.get(`${item.kind}:${item.name}`) ?? [],
       fixture,
@@ -440,12 +290,11 @@ function componentInventory() {
     entries.push(base)
     if (item.kind !== 'component') continue
     const seenVariants = new Set()
-    const axes = [
-      ...((variantOwnerByFamily[family] ?? familyFirst.get(family)) === item.name
-        ? variants(item.source)
-        : []),
-      ...unionVariants(item.source, item.name),
-    ]
+    const axes = Object.entries(item.facts.variants).map(([name, axis]) => ({
+      name,
+      values: axis.values.map(String),
+      defaultValue: axis.default === undefined ? undefined : String(axis.default),
+    }))
     const supportsVariants = Boolean(fixture && fixtureCases.get(fixture.id)?.acceptsVariant)
     for (const axis of axes)
       for (const value of axis.values) {
@@ -613,7 +462,6 @@ function sampleFixture(items) {
 
 function extraInventory(scanDir) {
   const findings = JSON.parse(readFileSync(path.join(scanDir, 'findings.json'), 'utf8'))
-  const advisories = JSON.parse(readFileSync(path.join(scanDir, 'review-items.json'), 'utf8'))
   const decisionsPath = path.join(scanDir, 'review-decisions.json')
   const decisions = existsSync(decisionsPath)
     ? JSON.parse(readFileSync(decisionsPath, 'utf8'))
@@ -633,7 +481,7 @@ function extraInventory(scanDir) {
   const entries = []
   const centralSignals = []
   const sourceGroups = new Map()
-  for (const item of [...findings, ...advisories]) {
+  for (const item of findings) {
     const key = JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
     const group = sourceGroups.get(key) ?? []
     group.push(item)
@@ -641,6 +489,10 @@ function extraInventory(scanDir) {
   }
   function sourceFixture(item) {
     const { file, owner, context } = item
+    if (item.rule === 'local-shadow')
+      return item.value === 'browser-loading-glow' ? 'browser-loading' : 'rich-selection'
+    if (item.rule === 'specialised-typography')
+      return file.endsWith('/thinking-loader.module.css') ? 'thinking' : 'rich-type'
     if (file.endsWith('/knowledge-iso.tsx')) return 'knowledge'
     if (file.endsWith('/thinking-loader.tsx') || file.endsWith('/thinking-loader.module.css'))
       return 'thinking'
@@ -669,10 +521,7 @@ function extraInventory(scanDir) {
       )
     return null
   }
-  for (const [kind, source] of [
-    ['finding', findings],
-    ['review-item', advisories],
-  ]) {
+  for (const [kind, source] of [['finding', findings]]) {
     for (const item of source) {
       const fingerprint =
         kind === 'finding'
@@ -687,7 +536,9 @@ function extraInventory(scanDir) {
               ])
             )
           : sha(JSON.stringify(['review-item', item.file, item.owner, item.kind, item.value]))
-      const decision = matched.get(fingerprint)
+      const decision =
+        matched.get(fingerprint) ??
+        (item.legacyFingerprint ? matched.get(item.legacyFingerprint) : undefined)
       const fixtureId = sourceFixture(item)
       const sourceGroup = sourceGroups.get(
         JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
@@ -715,44 +566,6 @@ function extraInventory(scanDir) {
       if (item.file.startsWith('packages/emcn/')) centralSignals.push(entry)
       entries.push(entry)
     }
-  }
-  const shadows = JSON.parse(readFileSync(path.join(scanDir, 'shadow-extras.json'), 'utf8'))
-  for (const item of shadows.approved ?? [])
-    entries.push({
-      id: `shadow-extra:${item.id}`,
-      kind: 'extra',
-      name: item.id,
-      family: 'Shadows',
-      source: { file: item.file, line: item.line },
-      usages: [{ file: item.file, line: item.line, relationship: 'authored' }],
-      rationale: item.reason ?? 'Scanner-classified shadow treatment',
-      decision: 'scanner-classified',
-      previewKind: 'source-component',
-      fixture:
-        item.id === 'browser-loading-glow'
-          ? { type: 'extra', id: 'browser-loading' }
-          : { type: 'extra', id: 'rich-selection' },
-      status: 'pending-capture',
-      images: {},
-    })
-  const typography = JSON.parse(readFileSync(path.join(scanDir, 'typography-review.json'), 'utf8'))
-  for (const item of typography.classifications ?? []) {
-    if (item.disposition !== 'extra') continue
-    const fixtureId = item.file.endsWith('/thinking-loader.module.css') ? 'thinking' : 'rich-type'
-    entries.push({
-      id: `typography-extra:${sha(JSON.stringify([item.file, item.line, item.property, item.value, item.reason])).slice(0, 16)}`,
-      kind: 'extra',
-      name: `${item.property}: ${item.value}`,
-      family: 'Typography',
-      source: { file: item.file, line: item.line },
-      usages: [{ file: item.file, line: item.line, relationship: 'authored' }],
-      rationale: item.reason,
-      decision: 'scanner-classified',
-      fixture: { type: 'extra', id: fixtureId },
-      previewKind: 'source-component',
-      status: 'pending-capture',
-      images: {},
-    })
   }
   return { entries, centralSignals, decisions: decisionDetails }
 }
@@ -1064,6 +877,22 @@ async function main() {
   const relativeOutput = path.relative(repo, outputRoot)
   if (!relativeOutput.startsWith('..') && !path.isAbsolute(relativeOutput))
     throw new Error('Studio output must be outside the product checkout')
+  const generation = spawnSync(
+    process.versions.bun ? bun : (process.env.DESIGN_TEST_BUN ?? 'bun'),
+    [
+      '--no-env-file',
+      path.join(toolRoot, '../generate-design-contracts.ts'),
+      '--repo',
+      repo,
+      '--check',
+    ],
+    { cwd: repo, encoding: 'utf8' }
+  )
+  if (generation.status !== 0)
+    throw new Error(
+      generation.stderr ||
+        'Design infrastructure freshness check failed; run bun run design:generate'
+    )
   const initialLedgerHash = ledger ? sha(readFileSync(ledger)) : ''
   mkdirSync(outputRoot, { recursive: true })
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${git(['rev-parse', '--short=10', 'HEAD'])}`
@@ -1137,7 +966,7 @@ async function main() {
     ].join('\n')
   )
   const manifest = {
-    version: 1,
+    version: 2,
     runId,
     identity,
     sourceRevision: sourceRevision(),

@@ -45,7 +45,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   write(
     repo,
     'packages/emcn/src/components/example/example.tsx',
-    "const exampleVariants = cva('', { variants: { size: { sm: '', lg: '' } }, defaultVariants: { size: 'sm' } })\ninterface ExampleProps { variant?: 'plain' | 'filled' }\nexport const Example = () => <button />\n"
+    "import {cva} from 'class-variance-authority'\nconst exampleVariants = cva('', { variants: { size: { sm: '', lg: '' } }, defaultVariants: { size: 'sm' } })\ninterface ExampleProps { variant?: 'plain' | 'filled' }\nexport const Example = ({variant, size}: ExampleProps & {size?: 'sm' | 'lg'}) => <button className={exampleVariants({size})} />\n"
   )
   write(
     repo,
@@ -77,6 +77,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
     'apps/sim/docs/page.tsx',
     "import { Example } from '@sim/emcn'\nexport default function Page() { return <Example /> }\n"
   )
+  write(repo, 'apps/sim/app/_styles/globals.css', ':root{--brand:#abc}')
   command(repo, 'git', ['init', '-q'])
   command(repo, 'git', ['add', '.'])
   command(repo, 'git', [
@@ -105,8 +106,30 @@ test('refresh catalogs every detection independently of review decisions', () =>
     kind: 'recipe-review',
     value: 'rounded',
   }
-  write(scan, 'findings.json', JSON.stringify([finding]))
-  write(scan, 'review-items.json', JSON.stringify([advisory]))
+  write(
+    scan,
+    'findings.json',
+    JSON.stringify([
+      finding,
+      {
+        ...advisory,
+        rule: advisory.kind,
+        property: advisory.kind,
+        context: advisory.owner,
+        legacyFingerprint: createHash('sha256')
+          .update(
+            JSON.stringify([
+              'review-item',
+              advisory.file,
+              advisory.owner,
+              advisory.kind,
+              advisory.value,
+            ])
+          )
+          .digest('hex'),
+      },
+    ])
+  )
   write(
     scan,
     'review-decisions.json',
@@ -139,6 +162,12 @@ test('refresh catalogs every detection independently of review decisions', () =>
   writeFileSync(ledger, JSON.stringify({ version: '1.0.0', entries: [] }))
 
   const refresh = () => {
+    command(repo, process.env.DESIGN_TEST_BUN ?? 'bun', [
+      '--no-env-file',
+      path.resolve('scripts/generate-design-contracts.ts'),
+      '--repo',
+      repo,
+    ])
     const result = spawnSync('node', [script, '--inventory-only'], {
       env: {
         ...process.env,
@@ -163,9 +192,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
     first.components.map((entry) => entry.id),
     [
       'component:Example',
-      'component:Example:size=lg',
-      'component:Example:variant=plain',
       'component:Example:variant=filled',
+      'component:Example:variant=plain',
+      'component:Example:size=lg',
       'icon:StarIcon',
     ]
   )
@@ -176,7 +205,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
   assert.equal(first.extras.length, 2)
   assert.deepEqual(
     first.extras.map((entry) => entry.id),
-    ['finding:finding-one', 'review-item:advisory-one']
+    ['finding:finding-one', 'finding:advisory-one']
   )
   assert.equal(first.extras[0].fixture.type, 'sample')
   assert.equal(first.extras[0].fixture.sample.kind, 'surface')
@@ -297,8 +326,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
 
   write(
     scan,
-    'review-items.json',
+    'findings.json',
     JSON.stringify([
+      finding,
       advisory,
       {
         id: 'central-one',
@@ -320,13 +350,13 @@ test('refresh catalogs every detection independently of review decisions', () =>
   )
   const central = refresh()
   assert.equal(central.extras.length, 4)
-  assert.equal(central.extras[2].id, 'review-item:central-one')
-  assert.equal(central.extras[3].id, 'review-item:unmatched-central')
+  assert.equal(central.extras[2].id, 'finding:central-one')
+  assert.equal(central.extras[3].id, 'finding:unmatched-central')
   assert.deepEqual(
     central.components
       .find((entry) => entry.id === 'component:Example')
       ?.signals?.map((signal) => signal.id),
-    ['review-item:central-one']
+    ['finding:central-one']
   )
 
   write(
@@ -354,9 +384,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
   ]
   write(
     scan,
-    'review-items.json',
+    'findings.json',
     JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'review-items.json'), 'utf8')),
+      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
       ...newSignals,
     ])
   )
@@ -373,9 +403,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
 
   write(
     scan,
-    'review-items.json',
+    'findings.json',
     JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'review-items.json'), 'utf8')),
+      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
       {
         id: 'moved-icon',
         file: 'apps/sim/components/icons.tsx',
@@ -386,7 +416,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
       },
     ])
   )
-  const movedIcon = refresh().extras.find((entry) => entry.id === 'review-item:moved-icon')
+  const movedIcon = refresh().extras.find((entry) => entry.id === 'finding:moved-icon')
   assert.deepEqual(movedIcon.fixture, { type: 'extra', id: 'workflowIcon' })
 
   const richCss =
@@ -395,9 +425,9 @@ test('refresh catalogs every detection independently of review decisions', () =>
     'apps/sim/app/workspace/[workspaceId]/integrations/components/integrations-showcase/integrations-showcase.tsx'
   write(
     scan,
-    'review-items.json',
+    'findings.json',
     JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'review-items.json'), 'utf8')),
+      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
       {
         id: 'code-moved',
         file: richCss,
@@ -449,10 +479,10 @@ test('refresh catalogs every detection independently of review decisions', () =>
     ])
   )
   const semantic = new Map(refresh().extras.map((entry) => [entry.id, entry]))
-  assert.equal(semantic.get('review-item:code-moved').fixture.id, 'rich-code')
-  assert.equal(semantic.get('review-item:selection-moved').fixture.id, 'rich-selection')
-  assert.equal(semantic.get('review-item:other-css').fixture.type, 'sample')
-  assert.equal(semantic.get('review-item:tile-moved').fixture.id, 'integration-tile')
-  assert.equal(semantic.get('review-item:showcase-moved').fixture.id, 'showcase')
-  assert.equal(semantic.get('review-item:other-showcase').fixture.type, 'sample')
-})
+  assert.equal(semantic.get('finding:code-moved').fixture.id, 'rich-code')
+  assert.equal(semantic.get('finding:selection-moved').fixture.id, 'rich-selection')
+  assert.equal(semantic.get('finding:other-css').fixture.type, 'sample')
+  assert.equal(semantic.get('finding:tile-moved').fixture.id, 'integration-tile')
+  assert.equal(semantic.get('finding:showcase-moved').fixture.id, 'showcase')
+  assert.equal(semantic.get('finding:other-showcase').fixture.type, 'sample')
+}, 60000)

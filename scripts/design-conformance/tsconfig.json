@@ -4,5 +4,10 @@
     "types": ["bun", "node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["./*.ts", "../design-scan/*.ts", "../check-design-conformance*.ts"]
+  "include": [
+    "./*.ts",
+    "../design-scan/*.ts",
+    "../check-design-conformance*.ts",
+    "../generate-design-contracts*.ts"
+  ]
 }

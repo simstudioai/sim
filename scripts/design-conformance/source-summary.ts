@@ -1,6 +1,7 @@
 import { posix } from 'node:path'
 import * as t from '@babel/types'
 import { componentContract, registry } from '#design-conformance/contracts'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import { canonical, type Facts, type Note, type Surface } from '#design-conformance/model'
 
 type Value = string | number | { ref: string } | { parts: Value[]; binary?: boolean }
@@ -323,7 +324,8 @@ export class SourceIndex {
   constructor(
     items: { file: string; facts: Facts }[],
     readonly limit = registry.limits.summaryBytes ?? 32 * 1024 * 1024,
-    readonly budget = { bytes: 0 }
+    readonly budget = { bytes: 0 },
+    readonly metadata?: GeneratedContracts
   ) {
     for (const item of new Map(items.map((item) => [modulePath(item.file), item])).values()) {
       if (!item.facts.syntax) continue
@@ -382,7 +384,7 @@ export class SourceIndex {
       }
       this.modules.set(modulePath(item.file), { file: item.file, facts })
     }
-    for (const name of Object.keys(registry.components)) {
+    for (const name of Object.keys(this.metadata?.exports ?? {})) {
       const ref = `@sim/emcn#${name}`
       const resolved = this.resolve(ref)
       if (resolved) this.centralTargets.set(`${modulePath(resolved.file)}#${resolved.name}`, ref)
@@ -398,6 +400,9 @@ export class SourceIndex {
         this.callers.set(id, bucket)
       }
   }
+  contract(target: string) {
+    return componentContract(target, this.metadata)
+  }
   release(): void {
     this.modules.clear()
     this.callers.clear()
@@ -406,7 +411,7 @@ export class SourceIndex {
   }
   canonicalTarget(ref: string): string {
     if (!ref.includes('#')) return ref
-    if (componentContract(ref)) return ref
+    if (this.contract(ref)) return ref
     const resolved = this.resolve(ref)
     return resolved
       ? (this.centralTargets.get(`${modulePath(resolved.file)}#${resolved.name}`) ?? ref)
@@ -416,18 +421,14 @@ export class SourceIndex {
     target = this.canonicalTarget(target)
     const id = `${target}:${slot}`
     if (seen.has(id) || seen.size >= 12) return []
-    if (componentContract(target)) return [{ target, slot }]
+    if (this.contract(target)) return [{ target, slot }]
     const next = new Set(seen).add(id)
     const resolved = this.resolve(target)
     const paths = resolved?.facts.syntax?.slots[resolved.name]?.[slot] ?? []
-    const relationship = registry.rendering?.[target]
-    const declared =
-      relationship && this.modules.has(modulePath(relationship.source))
-        ? (relationship.forwarding?.[slot] ?? [])
-        : []
     return [
       ...new Map(
-        [...declared, ...paths.flatMap((p) => (p[0] ? [p[0]] : []))]
+        paths
+          .flatMap((p) => (p[0] ? [p[0]] : []))
           .flatMap((r) => this.forwarded(r.target, r.slot, next))
           .map((r) => [canonical(r), r])
       ).values(),
@@ -448,6 +449,10 @@ export class SourceIndex {
   ): { file: string; name: string; facts: Facts } | undefined {
     if (seen.has(ref) || seen.size >= 12) return undefined
     const next = new Set(seen).add(ref)
+    const central = ref.startsWith('@sim/emcn#') ? this.metadata?.exports[ref.slice(10)] : undefined
+    const implementation = central && this.modules.get(modulePath(central.source.file))
+    if (central && implementation?.facts.syntax?.slots[central.source.name])
+      return { file: implementation.file, name: central.source.name, facts: implementation.facts }
     const { item, name } = this.split(ref)
     if (!item?.facts.syntax) return undefined
     const target = item.facts.syntax.exports[name]
@@ -511,15 +516,19 @@ export class SourceIndex {
       return [[route.target]]
     }
     const next = new Set(seen).add(id)
-    const relationship = registry.rendering?.[route.target]
-    const registered = relationship?.slots?.[route.slot]
-    if (registered && this.modules.has(modulePath(relationship.source))) return [registered]
-    if (componentContract(route.target)) return [[route.target]]
+    const central = !!this.contract(route.target)
+    if (central && route.slot !== 'children') return [[route.target]]
     const resolved = this.resolve(route.target)
     const paths = resolved?.facts.syntax?.slots[resolved.name]?.[route.slot]
-    if (!paths?.length) return [[route.target]]
+    if (
+      !paths?.length ||
+      (central && paths.every((path) => path.every((item) => !item.target.includes('#'))))
+    )
+      return [[route.target]]
     return this.limited(
-      paths.flatMap((p) => this.expandRoutes(p, next)),
+      paths.flatMap((p) =>
+        this.expandRoutes(p, next).map((path) => (central ? [route.target, ...path] : path))
+      ),
       id
     )
   }

@@ -1,6 +1,6 @@
 {
-  "version": "1.9.1",
-  "policy": "design-conformance/1.9.1",
+  "version": "2.0.0",
+  "policy": "design-conformance/2.0.0",
   "sources": [
     "apps/sim/app/_styles/globals.css",
     "apps/sim/tailwind.config.ts",
@@ -18,7 +18,9 @@
       "source": ".claude/rules/sim-styling.md#Color Tokens"
     },
     "central-colour-assignment": {
-      "properties": ["custom-colour-assignment"],
+      "properties": [
+        "custom-colour-assignment"
+      ],
       "permission": "Every assigned colour, conditional branch and fallback must resolve to an existing global colour token; runtime values remain flagged",
       "source": "apps/sim/app/_styles/globals.css#colour-tokens"
     },
@@ -140,232 +142,6 @@
       "none"
     ]
   },
-  "components": {
-    "Label": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "line-height"]
-    },
-    "Textarea": {
-      "extends": "Input"
-    },
-    "Combobox": {
-      "extends": "Input"
-    },
-    "Checkbox": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "width", "height", "border-radius", "borders", "box-shadow"]
-    },
-    "Switch": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "width", "height", "border-radius", "borders", "box-shadow"]
-    },
-    "ChipTag": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "padding", "height", "gap", "border-radius", "borders", "box-shadow"]
-    },
-    "Avatar": {
-      "slots": ["className", "style"],
-      "protected": ["width", "height", "border-radius"]
-    },
-    "AvatarFallback": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-size", "font-weight", "border-radius", "borders"]
-    },
-    "Banner": {
-      "slots": ["className", "style"],
-      "protected": ["background-color", "padding"]
-    },
-    "Skeleton": {
-      "slots": ["className", "style"],
-      "protected": ["background-color"]
-    },
-    "OverflowText": {
-      "slots": ["className", "style"],
-      "protected": ["overflow", "overflow-x", "overflow-y", "text-overflow", "white-space", "mask-image", "-webkit-mask-image"]
-    },
-    "Code.Container": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "border-radius", "borders"]
-    },
-    "Code.Gutter": {
-      "slots": ["className", "style"],
-      "protected": ["background-color", "padding", "border-radius"]
-    },
-    "Code.Viewer": {
-      "extends": "Code.Container"
-    },
-    "DropdownMenuContent": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-size", "padding", "border-radius", "borders", "box-shadow"]
-    },
-    "DropdownMenuItem": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-size", "padding", "height", "gap", "border-radius", "borders"]
-    },
-    "PopoverItem": {
-      "extends": "DropdownMenuItem"
-    },
-    "PopoverSection": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-size", "font-weight", "padding"]
-    },
-    "InputOTPSlot": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-size", "width", "height", "border-radius", "borders", "box-shadow"]
-    },
-    "SecretInput": {
-      "extends": "ChipInput"
-    },
-    "CopyCodeButton": {
-      "extends": "Button"
-    },
-    "Badge": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "padding", "gap", "border-radius", "borders", "box-shadow"]
-    },
-    "Input": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "padding", "border-radius", "borders", "box-shadow"]
-    },
-    "PopoverContent": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "padding", "border-radius", "borders", "box-shadow"]
-    },
-    "Tooltip.Content": {
-      "slots": ["className", "style"],
-      "protected": ["colours", "font-family", "font-size", "font-weight", "padding", "border-radius", "borders", "box-shadow"]
-    },
-    "Button": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "colours",
-        "font-family",
-        "font-size",
-        "font-weight",
-        "padding",
-        "height",
-        "border-radius",
-        "borders",
-        "box-shadow"
-      ]
-    },
-    "Chip": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "colours",
-        "font-family",
-        "font-size",
-        "font-weight",
-        "padding",
-        "height",
-        "gap",
-        "border-radius",
-        "borders",
-        "box-shadow"
-      ]
-    },
-    "ChipInput": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "colours",
-        "font-family",
-        "font-size",
-        "font-weight",
-        "padding",
-        "height",
-        "gap",
-        "border-radius",
-        "borders",
-        "box-shadow"
-      ],
-      "iconSlots": [
-        "icon"
-      ]
-    },
-    "ChipTextarea": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "colours",
-        "font-family",
-        "font-size",
-        "font-weight",
-        "padding",
-        "gap",
-        "border-radius",
-        "borders",
-        "box-shadow"
-      ]
-    },
-    "ChipSelect": {
-      "extends": "Chip"
-    },
-    "ChipDropdown": {
-      "extends": "Chip"
-    },
-    "ChipCombobox": {
-      "extends": "Chip"
-    },
-    "ChipSwitch": {
-      "extends": "Chip"
-    },
-    "ChipLink": {
-      "extends": "Chip"
-    },
-    "ChipModal": {
-      "extends": "Chip"
-    },
-    "ChipModalBody": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "padding",
-        "gap"
-      ]
-    },
-    "ChipModalHeader": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "padding",
-        "gap"
-      ]
-    },
-    "ChipModalFooter": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "padding",
-        "gap"
-      ]
-    },
-    "ChipModalField": {
-      "slots": [
-        "className",
-        "style"
-      ],
-      "protected": [
-        "*"
-      ]
-    }
-  },
   "branding": {
     "@sim/emcn#ChipTag": [
       "brandColor",
@@ -388,22 +164,6 @@
   "adoption": {
     "namedUtilities": "Only named utilities directly referenced in central styling definitions or explicitly listed builtins; no application occurrence or arbitrary numeric literal grants permission.",
     "fontWeights": "Explicit documented normal/medium/semibold policy overrides observed historical component debt."
-  },
-  "rendering": {
-    "@sim/emcn#Wizard": {
-      "slots": {
-        "children": [
-          "@sim/emcn#ChipModalBody"
-        ]
-      },
-      "source": "packages/emcn/src/components/wizard/wizard.tsx"
-    },
-    "@sim/emcn#Wizard.Step": {
-      "slots": {
-        "children": []
-      },
-      "source": "packages/emcn/src/components/wizard/wizard.tsx"
-    }
   },
   "transparentPrimitives": {
     "@radix-ui/react-radio-group#Root": {

@@ -131,7 +131,7 @@ export function summary(inventory: Inventory, grouped = groups(inventory.finding
     '',
     '## Classification and cleanup',
     '',
-    'Record review decisions in triage.csv: routine-fix, designer-decision, explained-exception, or false-positive, with a concrete rationale. A grouping never supplies missing provenance or grants an exemption. Keep original finding IDs and JSON unchanged. Fix confirmed issues in focused PRs using existing tokens, props or recipes; do not create a token for every literal or pick replacements by numerical closeness alone.',
+    'Record review decisions in triage.csv: routine-fix, designer-decision, explained-exception, or false-positive, with a concrete rationale. A grouping never supplies missing provenance or grants an exemption. Keep original finding IDs and JSON unchanged. Review findings in focused PRs using existing tokens, props or recipes; do not create a token for every literal or pick replacements by numerical closeness alone.',
     '',
     '## Limits',
     '',
@@ -187,7 +187,6 @@ export function writeResults(
       /^(?:Parser failure|Extraction failure|Source exceeds)/.test(note.reason)
     )
     json('coverage-failures.json', coverageFailures)
-    if (review) json('review-items.json', review.items)
     if (reviewDecisions) json('review-decisions.json', reviewDecisions)
     json('coverage.json', inventory.coverage)
     json('identity.json', {
@@ -230,7 +229,7 @@ export function writeResults(
           '',
           `${simplifications.findings.length} source-proven findings; ${simplifications.unchecked.length} explicit analysis gaps.`,
           '',
-          'These counts are separate from the frozen styling rules and may overlap them. No automatic edits or Extra approvals.',
+          'These counts are included in the unified findings list and may overlap them. No automatic edits or Extra approvals.',
           '',
           ...Object.entries(simplifications.coverage).map(([key, count]) => `- ${key}: ${count}`),
           '',
@@ -254,7 +253,6 @@ export function writeResults(
         simplificationDiagnostics: simplifications?.unchecked.length ?? 0,
         stylingAnalysisDiagnostics: inventory.unchecked.length,
         stylingCoverageFailures: coverageFailures.length,
-        advisoryReviewItems: review?.items.length ?? 0,
         reviewedExtras:
           reviewDecisions?.matches.filter((item) => item.status === 'retained-extra').length ?? 0,
         staleReviewDecisions: reviewDecisions?.stale.length ?? 0,
@@ -271,7 +269,7 @@ export function writeResults(
           r.relationship.includes('delegates-to-child')
         ).length,
         exhaustiveConformanceEstablished: false,
-        note: 'Local controls and unknown inputs are review items, not automatically violations or Extras. Counts include wrapper projections.',
+        note: 'Findings record detected treatments; unresolved inputs stay separate. Counts include wrapper projections.',
       })
       writeFileSync(
         path.join(temp, 'controls.csv'),

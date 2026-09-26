@@ -1,7 +1,13 @@
+import { findingFingerprint } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { artworkFile, localArtworkDiff } from '#design-conformance/artwork'
 import { inspectSnapshotFacts, prepareSnapshotFacts } from '#design-conformance/conformance'
-import { centralInventory, isRegistry, registry } from '#design-conformance/contracts'
+import {
+  centralInventory,
+  componentContract,
+  isRegistry,
+  registry,
+} from '#design-conformance/contracts'
 import { designSystem } from '#design-conformance/design-system'
 import { extract } from '#design-conformance/extract'
 import { canonical, type Facts, type Finding, hash } from '#design-conformance/model'
@@ -97,7 +103,7 @@ export async function inspectInventory(
         file: entry.path,
         line: 1,
         context: 'artwork-ownership',
-        reason: 'Legacy mixed provider/product artwork remains excluded under the frozen registry',
+        reason: 'Mixed provider/product artwork is inventoried by the maintained artwork pass',
       })
     const scope = productScope(entry.path)
     if (scope === 'exclude') counts.excluded++
@@ -126,7 +132,11 @@ export async function inspectInventory(
     }
   }
   const read = (entry: SourceEntry) =>
-    extract(source.read(entry), entry.path, true, { conformance: true, resolve: system.resolve })
+    extract(source.read(entry), entry.path, true, {
+      conformance: true,
+      resolve: system.resolve,
+      contract: (target) => componentContract(target, system.metadata),
+    })
   /** Keep only detached metadata between passes; no ASTs or application execution. */
   const metadata = [...central, ...consumers]
     .sort((a, b) => compare(a.path, b.path))
@@ -148,7 +158,7 @@ export async function inspectInventory(
       }
     })
   /** Canonical construction and inspection order keep budget decisions independent of discovery. */
-  const index = new SourceIndex(metadata)
+  const index = new SourceIndex(metadata, undefined, undefined, system.metadata)
   metadata.length = 0
   const orderedEntries = options.order === 'reverse' ? [...consumers].reverse() : consumers
   const factsByFile = new Map<string, Facts>()
@@ -173,7 +183,12 @@ export async function inspectInventory(
         finding.context,
       ])
     )
-    findings.set(id, { ...finding, id, observedFrom: [finding.file] })
+    findings.set(id, {
+      ...finding,
+      identity: findingFingerprint(finding),
+      id,
+      observedFrom: [finding.file],
+    })
   }
   let governed = 0
   let ungoverned = 0
@@ -239,11 +254,11 @@ export async function inspectInventory(
       rootsInspected: consumers.length,
     },
     limitations: [
-      'Frozen engine policy 1.3.0 is unchanged; maintained passes add assignment checks and exact reviewed shadow Extra classification. Findings identify source-rule conflicts, not confirmed visual defects or every independently implemented control.',
+      'Shared generated contracts and maintained analysis identify styling inputs and source review evidence; findings do not prove visual defects.',
       'All supported source summaries share one index, replacing the old 64-module per-consumer closure. Frozen resolution depth 12, composition branch limit 64 and shared metadata budget 32 MiB still apply; failures remain explicit.',
       'Dynamic helpers, arbitrary runtime CSS cascade, cross-file CSS-variable assignments and undocumented slot delegation remain unsupported. Central provenance does not prove intended design.',
       'Each authored input is checked once with the available global caller context. observedFrom identifies the inspected owner, not runtime multiplicity.',
-      'Source declarations may be unused. User-authored content, landing, desktop, docs and other frozen scope exclusions remain outside this audit.',
+      'Source declarations may be unused. User-authored content, landing, docs, native desktop/build code and intentional presentation exclusions remain outside this audit. Browser desktop product screens remain in scope.',
       'The maintained colour-assignment pass additionally checks local CSS-variable writers. Verified alias provenance resolves matching colour usage findings; all unresolved writes and diagnostics remain visible. Provenance does not prove CSS cascade, inheritance or runtime coverage.',
     ],
   }

@@ -13,6 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, expect, test } from 'vitest'
 import { findingFingerprint } from '#control-analysis/review-ledger'
+import { testComponents } from '#design-conformance/test-source'
 import { GitSource } from '#design-conformance/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
@@ -29,7 +30,7 @@ const sources: Record<string, string> = {
     '@theme {--text-small:13px;--font-mono:monospace;--radius-lg:8px;--shadow-card:0 1px 2px #000;} :root{--text-body:#434343;--text-muted:#777;--text-error:#f00;--border:#ddd}',
   'packages/emcn/src/index.ts': "export * from './components/button/button'",
   'packages/emcn/src/components/button/button.tsx':
-    "export const Button=()=> <button className='rounded-lg text-[var(--text-body)]'/>; export const centralColour='#434343'",
+    "export const Button=({className,...props}:import('react').HTMLAttributes<HTMLButtonElement>)=> <button {...props} className={cn('h-8 rounded-lg px-2 bg-[var(--text-body)] text-[var(--text-body)]',className)}/>; export const centralColour='#434343'",
 }
 function fixture(files: Record<string, string> = {}, includeCentral = true) {
   const base = mkdtempSync(path.join(os.tmpdir(), 'sim-one-off-fixture-'))
@@ -58,7 +59,7 @@ const text = (classes: string) =>
   `export const A=()=> <p className=${JSON.stringify(classes)}>Text</p>`
 
 test('full scan records the maintained analyzer identity', () => {
-  expect(scannerIdentity().policy).toBe('design-conformance/1.9.1')
+  expect(scannerIdentity().policy).toBe('design-conformance/2.0.0')
   expect(scannerIdentity().sourceHash).toMatch(/^[a-f\d]{64}$/)
 })
 
@@ -134,7 +135,7 @@ test('separate occurrences remain separate and closure reuse does not multiply t
   expect(groups(r.findings)[0].occurrences).toBe(2)
 })
 
-test('scope and artwork ownership follow the frozen policy', async () => {
+test('scope and artwork ownership follow the shared policy', async () => {
   const svg = "export const Art=()=> <svg><path d='M0 0L2 2'/></svg>"
   const f = fixture({
     [component]: svg,
@@ -151,6 +152,36 @@ test('scope and artwork ownership follow the frozen policy', async () => {
   expect(r.findings).toHaveLength(1)
   expect(r.findings[0].rule).toBe('central-artwork')
   expect(r.findings[0].file).toBe(component)
+})
+
+test('full scan emits one chrome occurrence per owned property across shared passes', () => {
+  const f = fixture({
+    [component]:
+      "import {Button} from '@sim/emcn';export const A=()=> <Button className='rounded-full'>Save</Button>",
+  })
+  const output = path.join(f.base, 'ownership')
+  const result = spawnSync(
+    'bun',
+    [
+      '--no-env-file',
+      fileURLToPath(new URL('./scan.ts', import.meta.url)),
+      '--repo',
+      f.repo,
+      '--ref',
+      'HEAD',
+      '--output',
+      output,
+    ],
+    { encoding: 'utf8' }
+  )
+  expect(result.status, result.stderr).toBe(1)
+  const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
+  expect(
+    findings.filter(
+      (f: { rule: string; file: string; value: string }) =>
+        f.file === component && f.rule === 'component-chrome' && f.value === 'rounded-full'
+    )
+  ).toHaveLength(1)
 })
 
 test('registered block swatches are excluded for providers, built-in blocks and triggers', () => {
@@ -178,11 +209,11 @@ test('registered block swatches are excluded for providers, built-in blocks and 
     { encoding: 'utf8' }
   )
   expect(result.status, result.stderr).toBe(0)
-  const items = JSON.parse(readFileSync(path.join(output, 'review-items.json'), 'utf8'))
+  const items = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
   expect(
     items.some(
-      (item: { file: string; kind: string }) =>
-        [provider, product, trigger].includes(item.file) && item.kind === 'block-colour'
+      (item: { file: string; rule: string }) =>
+        [provider, product, trigger].includes(item.file) && item.rule === 'block-colour'
     )
   ).toBe(false)
 })
@@ -210,12 +241,12 @@ test('full scan excludes Monaco theme colours but still checks styling beside th
   )
   expect(result.status, result.stderr).toBe(1)
   const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
-  const items = JSON.parse(readFileSync(path.join(output, 'review-items.json'), 'utf8'))
+  const items = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
   expect(findings.some((finding: { value: string }) => finding.value.includes('#123456'))).toBe(
     true
   )
   expect(findings.some((finding: { value: string }) => finding.value === '#1b1b1b')).toBe(false)
-  expect(items.some((item: { kind: string }) => item.kind === 'syntax-colour')).toBe(false)
+  expect(items.some((item: { rule: string }) => item.rule === 'syntax-colour')).toBe(false)
 })
 
 test('full scan excludes verified landing helpers until product imports them', () => {
@@ -632,6 +663,7 @@ test('central recipe appearance never grants renderer ownership or approves late
 
 test('public scanner reports layout separately while retaining chrome and unknown spreads', () => {
   const f = fixture({
+    ...testComponents,
     [component]: `import {ChipModalField as Field,ChipModal} from '@sim/emcn'; export const View=({props})=> <><Field className='flex-1 p-4 flex-row' {...props}/><ChipModal className='h-[90vh]'/></>`,
   })
   const output = path.join(f.base, 'layout-output')

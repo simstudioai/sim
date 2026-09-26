@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import type { Route, SourceSummary } from '#design-conformance/source-summary'
 
-export const VERSION = '3.10.7'
+export const VERSION = '4.0.0'
 export const CATALOGUE_VERSION = '1.0.0'
 export type Policy = 'appearance' | 'tokens' | 'conformance'
 export const policyVersion = (policy: Policy) =>
   policy === 'conformance'
-    ? 'design-conformance/1.9.1'
+    ? 'design-conformance/2.0.0'
     : policy === 'tokens'
       ? 'token-lint/2.0.0'
       : 'appearance-diff/2.1.0'
@@ -102,6 +102,9 @@ export interface Commits {
   mergeBase: string
 }
 export interface Finding {
+  identity?: string
+  legacyFingerprint?: string
+  related?: string[]
   kind?: 'usage-violation' | 'system-change'
   contract?: string
   provenance?: { source: string; input: string; permitted: string; composition?: string }
@@ -117,8 +120,10 @@ export interface Finding {
   before?: string | null
 }
 export interface Report {
+  infrastructure?: ReturnType<
+    typeof import('#design-conformance/generated-contracts').infrastructureStatus
+  >
   reviewDecisions?: import('#control-analysis/review-ledger').ReviewDecisions
-  reviewItems?: import('#control-analysis/review').ReviewItem[]
   /** Changed product files whose styling could not be compared. */
   coverageFailures?: (Note & { file: string; side: 'before' | 'after' })[]
   layoutAllowances?: import('#control-analysis/layout-allowances').LayoutAllowance[]

@@ -58,3 +58,7 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 - Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.
+
+## Generated design contracts
+
+Run `bun run design:generate` after public API, styling, recipe or ownership changes and commit `scripts/design-conformance/contracts.generated.json` with the source. CI checks freshness through `check:design-generated`. Ownership is derived from implementation; intentional customization belongs in component TSDoc (`@designAllow <slot> <CSS properties or policy groups>`, `@designProtect` for ownership that cannot be inferred). Review the diff findings after generation; they retain originating central changes. Browser reports and captures remain local, outside the repository.

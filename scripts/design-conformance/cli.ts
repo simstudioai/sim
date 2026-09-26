@@ -41,7 +41,7 @@ try {
     )
     report =
       linter instanceof ConformanceLinter
-        ? addControlComparison(
+        ? await addControlComparison(
             await linter.analyze(
               changes,
               (entry) => gitText(args.repo as string, entry),
@@ -60,7 +60,7 @@ try {
     report.reviewDecisions = matchReviews(
       readReviewLedger(args.reviews as string, args.repo as string),
       report.findings,
-      report.reviewItems ?? []
+      []
     )
   if (output) writeJson(output, report)
   else process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)

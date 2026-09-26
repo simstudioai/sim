@@ -20,8 +20,8 @@
     "test:search-performance": "KNOWLEDGE_SEARCH_PERFORMANCE_TEST=true bun --no-env-file scripts/test-integration.ts search-latency",
     "format": "biome format --write scripts/design-conformance scripts/check-design-conformance*.ts && turbo run format",
     "format:check": "biome format scripts/design-conformance scripts/check-design-conformance*.ts && turbo run format:check",
-    "lint": "biome check --write scripts/design-conformance scripts/design-scan scripts/design-studio tools/design-studio scripts/check-design-conformance*.ts && turbo run lint",
-    "lint:check": "biome check scripts/design-conformance scripts/design-scan scripts/design-studio tools/design-studio scripts/check-design-conformance*.ts && turbo run lint:check",
+    "lint": "biome check --write scripts/design-conformance scripts/design-scan scripts/design-studio tools/design-studio scripts/check-design-conformance*.ts scripts/generate-design-contracts*.ts && turbo run lint",
+    "lint:check": "biome check scripts/design-conformance scripts/design-scan scripts/design-studio tools/design-studio scripts/check-design-conformance*.ts scripts/generate-design-contracts*.ts && turbo run lint:check",
     "lint:helm": "helm lint helm/sim --strict --values helm/sim/ci/default-values.yaml",
     "lint:all": "bun run lint && bun run lint:helm",
     "check": "bun run format:check",
@@ -129,7 +129,9 @@
     "studio:dev": "next dev tools/design-studio --hostname 127.0.0.1 --port 3001",
     "type-check:studio": "tsc --noEmit -p tools/design-studio/tsconfig.json",
     "type-check:design": "tsc --noEmit -p scripts/design-conformance/tsconfig.json",
-    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts"
+    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts",
+    "design:generate": "bun --no-env-file scripts/generate-design-contracts.ts",
+    "check:design-generated": "bun run --no-env-file scripts/generate-design-contracts.ts --check"
   },
   "overrides": {
     "react": "19.2.4",

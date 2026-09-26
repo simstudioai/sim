@@ -1,11 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import type { ControlSource } from '#control-analysis/model'
-import { ReviewCollector, supplementalChromeContracts } from '#control-analysis/review'
+import { ReviewCollector } from '#control-analysis/review'
 import { findingFingerprint, matchReviews } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { inspectSimplifications } from '#control-analysis/simplifications'
-import { componentContract } from '#design-conformance/contracts'
 import { extract } from '#design-conformance/extract'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 
 const globals = 'apps/sim/app/_styles/globals.css'
 const ui = 'apps/sim/components/example.tsx'
@@ -21,18 +22,22 @@ function source(files: Record<string, string>): ControlSource {
     read: (entry) => files[entry.path],
   }
 }
+const metadata = JSON.parse(
+  readFileSync('scripts/design-conformance/contracts.generated.json', 'utf8')
+) as GeneratedContracts
 const inspect = (files: Record<string, string>) =>
   inspectSimplifications(
     source({
       [globals]: ':root { --caution: #f59e0b; --color-yellow-500: #eab308; --text-body: #444; }',
       ...files,
-    })
+    }),
+    [],
+    'forward',
+    undefined,
+    undefined,
+    undefined,
+    metadata
   )
-
-test('standalone component coverage mirrors the maintained linter contracts', () => {
-  for (const [name, contract] of Object.entries(supplementalChromeContracts))
-    expect(componentContract(`@sim/emcn#${name}`)?.protected, name).toEqual(contract.protected)
-})
 
 test('browser desktop UI is checked while landing, docs, native desktop and API remain excluded', () => {
   expect(productScope('apps/sim/app/desktop/auth/page.tsx')).toBe('check')
@@ -153,8 +158,8 @@ test('registered EMCN chrome catches local overrides while layout-only width rem
   )
   expect(overrides.some((finding) => finding.value === 'max-w-xs')).toBe(false)
   const barrel = inspect({
-    'packages/emcn/src/index.ts': `export { Badge } from './components/badge'`,
-    'packages/emcn/src/components/badge.tsx': `export function Badge(props){return <span {...props}/>}`,
+    'packages/emcn/src/index.ts': `export { Badge } from './components/badge/badge'`,
+    'packages/emcn/src/components/badge/badge.tsx': `export function Badge({className,...props}:import('react').HTMLAttributes<HTMLSpanElement>){return <span {...props} className={cn('p-2',className)}/>} `,
     'apps/sim/components/barrel.ts': `export { Badge as StatusBadge } from '@sim/emcn'`,
     [ui]: `import {StatusBadge} from './barrel'; export const View=()=> <StatusBadge className='p-8'>A</StatusBadge>`,
   })
@@ -210,13 +215,13 @@ test('Monaco theme palette is excluded while other product styling remains check
   })
   expect(report.review.findings.some((finding) => finding.value === '#1b1b1b')).toBe(false)
   expect(report.review.findings.some((finding) => finding.value === '#000')).toBe(true)
-  expect(report.review.items.some((item) => item.kind === 'syntax-colour')).toBe(false)
+  expect(report.review.findings.some((item) => item.rule === 'syntax-colour')).toBe(false)
   const otherTheme = inspect({
     [ui]: `const rules=[{token:'keyword',foreground:'33b4ff'}];
       productTheme.editor.defineTheme('dark',{rules,colors:{'editor.background':'#1b1b1b'}})`,
   })
   expect(otherTheme.review.findings.some((finding) => finding.value === '#1b1b1b')).toBe(true)
-  expect(otherTheme.review.items.some((item) => item.kind === 'syntax-colour')).toBe(true)
+  expect(otherTheme.review.findings.some((item) => item.rule === 'syntax-colour')).toBe(true)
   const dataOnly = inspect({
     [ui]: `const html='<style>body{color:#000}</style>';
     const payload={foreground:'#33b4ff'}; export const View=()=> <span>OK</span>`,
@@ -230,11 +235,11 @@ test('mixed artwork inventory selects first-party glyphs without treating provid
       export function ProviderLogo(){return <svg/>}`,
   })
   expect(
-    report.review.items.some(
-      (item) => item.kind === 'mixed-product-artwork' && item.owner === 'SearchIcon'
+    report.review.findings.some(
+      (item) => item.rule === 'mixed-product-artwork' && item.context === 'SearchIcon'
     )
   ).toBe(true)
-  expect(report.review.items.some((item) => item.owner === 'ProviderLogo')).toBe(false)
+  expect(report.review.findings.some((item) => item.context === 'ProviderLogo')).toBe(false)
 })
 
 test('complete EMCN recipes do not make native controls local-chrome advisories', () => {
@@ -254,7 +259,7 @@ test('complete EMCN recipes do not make native controls local-chrome advisories'
       export const chipFilledFillTokens='bg-blue-500'`,
   })
   // The tiny fixture lacks the full EMCN export graph. Supply the already
-  // resolved central recipe refs to exercise advisory classification itself.
+  // resolved central recipe refs to exercise design finding classification itself.
   const controls = {
     ...report.controls,
     records: report.controls.records.map((record) => ({
@@ -268,13 +273,13 @@ test('complete EMCN recipes do not make native controls local-chrome advisories'
             : record.recipes,
     })),
   }
-  const items = new ReviewCollector(source({ [globals]: ':root {}' })).finish(controls).items
-  const local = items.filter((item) => item.kind === 'local-control')
+  const items = new ReviewCollector(source({ [globals]: ':root {}' })).finish(controls).findings
+  const local = items.filter((item) => item.rule === 'local-control')
   expect(local.some((item) => item.value === 'button')).toBe(true)
   expect(local).toHaveLength(2)
-  const overrides = items.filter((item) => item.kind === 'emcn-recipe-override')
-  expect(overrides.map((item) => item.owner).sort()).toEqual(['TonedAction', 'UnknownAction'])
-  expect(overrides.find((item) => item.owner === 'TonedAction')?.value).toContain(
+  const overrides = items.filter((item) => item.rule === 'emcn-recipe-override')
+  expect(overrides.map((item) => item.context).sort()).toEqual(['TonedAction', 'UnknownAction'])
+  expect(overrides.find((item) => item.context === 'TonedAction')?.value).toContain(
     'text-[var(--text-muted)]'
   )
 })
@@ -288,7 +293,7 @@ test('repeated layout alone is quiet while repeated chrome remains reviewable', 
       export const ChromeB=()=> <div className='rounded-md border border-[var(--border)]'/>
       export const ChromeC=()=> <div className='rounded-md border border-[var(--border)]'/>`,
   })
-  const repeated = report.review.items.filter((item) => item.kind === 'repeated-treatment')
+  const repeated = report.review.findings.filter((item) => item.rule === 'repeated-treatment')
   expect(repeated.some((item) => item.value === 'flex gap-2 items-center')).toBe(false)
   expect(repeated.some((item) => item.value.includes('rounded-md'))).toBe(true)
 })
@@ -303,7 +308,7 @@ test('runtime CSS review distinguishes source-proven boundaries without approvin
       export const Preview=()=> <style>{READONLY_PREVIEW_STYLES}</style>`,
     [ui]: `export const View=({css})=> <style>{css}</style>`,
   })
-  const kinds = report.review.items.map((item) => item.kind)
+  const kinds = report.review.findings.map((item) => item.rule)
   expect(kinds).toContain('runtime-style-editor-tooltip')
   expect(kinds).toContain('runtime-style-preview-disabled')
   expect(kinds).toContain('runtime-style')
@@ -326,7 +331,7 @@ test('customer branding and shared preview cursor selectors have distinct review
     'apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.tsx': `
       export const PreviewWorkflow=({cursorStyle})=> <style>{\`.preview-mode .react-flow { cursor: \${cursorStyle}; }\`}</style>`,
   })
-  expect(report.review.items.map((item) => item.kind)).toEqual(
+  expect(report.review.findings.map((item) => item.rule)).toEqual(
     expect.arrayContaining(['runtime-style-customer-brand', 'runtime-style-preview-cursor'])
   )
   expect(report.review.unchecked).toEqual(

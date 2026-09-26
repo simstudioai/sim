@@ -4,6 +4,7 @@ import { appearanceDiff } from '#design-conformance/appearance'
 import { artworkDiff, artworkFile, localArtworkDiff } from '#design-conformance/artwork'
 import {
   centralFile,
+  centralInventory,
   componentContract,
   contractsHash,
   isRegistry,
@@ -209,7 +210,7 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
         undefined,
         surface.structuralViolation
       )
-    const contract = componentContract(surface.target)
+    const contract = componentContract(surface.target, system.metadata)
     for (const atom of surface.atoms) {
       if (
         atom.kind === 'token' ||
@@ -230,6 +231,18 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
       for (const d of expanded(ds, system)) {
         const property = family(d.property)
         const slot = inputSlot(atom)
+        if (
+          contract &&
+          !contract.slots?.includes(slot) &&
+          !out.unchecked.some(
+            (n) => n.context === atom.context && n.reason === `Unknown styling slot: ${slot}`
+          )
+        )
+          out.unchecked.push({
+            line: atom.line,
+            context: atom.context,
+            reason: `Unknown styling slot: ${slot}`,
+          })
         const variants = atom.kind === 'class' ? utility(atom.value).variants : ''
         const ownsTarget = !/(?:^|:)(?:before|after|\*|\*\*):|\[&[_>+~ ]|&::(?:before|after)/.test(
           variants
@@ -237,7 +250,7 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
         const contracts = [
           { contract, slot },
           ...(atom.forwarded ?? []).map((r) => ({
-            contract: componentContract(r.target),
+            contract: componentContract(r.target, system.metadata),
             slot: r.slot,
           })),
         ]
@@ -246,14 +259,25 @@ function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
           contracts.some(
             ({ contract: c, slot: s }) =>
               c?.slots?.includes(s) &&
-              c.protected?.some((p) => p === '*' || p === property || p === d.category)
+              (c.slotOwnership?.[s]?.protected ?? c.protected)?.some(
+                (p) => p === '*' || p === property || p === d.category
+              ) &&
+              !c.slotOwnership?.[s]?.allowed.some(
+                (p) => p === '*' || p === property || p === d.category
+              )
           )
         const protectedIcon = surface.iconSlot && ['dimensions', 'colours'].includes(d.category)
         const modalSpacing =
           ownsTarget &&
           surface.fieldGroup &&
           (surface.renderContexts ?? [surface.ancestors ?? []]).some(
-            (c) => c[0] === '@sim/emcn#ChipModalBody' && !c.includes('@sim/emcn#ChipModalField')
+            (c) =>
+              c.find(
+                (target) =>
+                  !target.includes('#') ||
+                  target === '@sim/emcn#ChipModalBody' ||
+                  target === '@sim/emcn#ChipModalField'
+              ) === '@sim/emcn#ChipModalBody' && !c.includes('@sim/emcn#ChipModalField')
           ) &&
           surface.target === 'div' &&
           (property === 'padding' ||
@@ -382,7 +406,7 @@ function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
     )
     const atoms = surface.atoms.flatMap((input) => {
       const forwarded =
-        surface.componentRef && !componentContract(surface.target)
+        surface.componentRef && !index.contract(surface.target)
           ? index.forwarded(surface.componentRef, inputSlot(input))
           : []
       const atom = forwarded.length ? { ...input, forwarded } : input
@@ -421,7 +445,9 @@ function prepared(facts: Facts, file: string, index: SourceIndex): Facts {
           ? `Use ChipModalField for this labelled modal field; rendered through ${[...new Set([...index.chain(surface, file), ...ancestors])].filter((a) => a.includes('#')).join(' -> ')}${index
               .chain(surface, file)
               .flatMap((r) =>
-                registry.rendering?.[r]?.source ? [registry.rendering[r].source] : []
+                index.metadata?.exports[r.replace('@sim/emcn#', '')]?.source.file
+                  ? [index.metadata.exports[r.replace('@sim/emcn#', '')].source.file]
+                  : []
               )
               .map((s) => `; central definition ${s}`)
               .join('')}`
@@ -492,7 +518,11 @@ export class ConformanceLinter {
     }
     this.metrics.parsedFiles++
     this.metrics.sourceBytes += Buffer.byteLength(source)
-    const facts = extract(source, file, true, { conformance: true, resolve: system.resolve })
+    const facts = extract(source, file, true, {
+      conformance: true,
+      resolve: system.resolve,
+      contract: (target) => componentContract(target, system.metadata),
+    })
     const bytes = Buffer.byteLength(canonical(facts))
     while (this.factsBytes + bytes > registry.limits.factsCacheBytes && this.factsCache.size) {
       const k = this.factsCache.keys().next().value as string
@@ -523,8 +553,8 @@ export class ConformanceLinter {
       const entries = new Map(input.snapshot.entries.map((e) => [e.path, e]))
       const proposed = new Map<string, string>()
       for (const c of changes) {
-        if (c.before && centralFile(c.before.path)) entries.delete(c.before.path)
-        if (c.after && centralFile(c.after.path)) {
+        if (c.before && centralInventory(c.before.path)) entries.delete(c.before.path)
+        if (c.after && centralInventory(c.after.path)) {
           entries.set(c.after.path, c.after)
           proposed.set(c.after.blob, read(c.after))
         }
@@ -545,6 +575,36 @@ export class ConformanceLinter {
       }
       const next = afterInput.snapshot.hash === old.hash ? old : await this.system(afterInput)
       report.centralSourceHashes = { before: old.hash, after: next.hash }
+      // Public API and ownership decisions are design changes even after regeneration.
+      for (const name of new Set([
+        ...Object.keys(old.metadata.exports),
+        ...Object.keys(next.metadata.exports),
+      ])) {
+        const before = old.metadata.exports[name]
+        const after = next.metadata.exports[name]
+        const semantic = (entry: typeof before) =>
+          entry
+            ? canonical({ ...entry, source: { file: entry.source.file, name: entry.source.name } })
+            : null
+        if (semantic(before) === semantic(after)) continue
+        const source = after?.source ?? before?.source
+        if (!source || registry.artwork?.brandAssets?.[source.file]) continue
+        report.findings.push({
+          kind: 'system-change',
+          rule: 'central-definition',
+          contract: 'central-definition',
+          category: 'component-api',
+          property: 'public-design-contract',
+          value: semantic(after) ?? '<removed>',
+          before: semantic(before),
+          file: source.file,
+          line: source.line,
+          column: 1,
+          context: name,
+          reason:
+            'Public design API or source ownership metadata changed; regenerate infrastructure and review the originating decision',
+        })
+      }
       const raw = new Map<Change, { before: Facts; after: Facts }>()
       const centralItems = (system: DesignSystem) =>
         system.summaries.map(({ file, summary }) => ({
@@ -567,8 +627,18 @@ export class ConformanceLinter {
         if (change.after) afterItems.push({ file: change.after.path, facts: pair.after })
       }
       const summaryBudget = { bytes: 0 }
-      const beforeIndex = new SourceIndex(beforeItems, registry.limits.summaryBytes, summaryBudget)
-      const afterIndex = new SourceIndex(afterItems, registry.limits.summaryBytes, summaryBudget)
+      const beforeIndex = new SourceIndex(
+        beforeItems,
+        registry.limits.summaryBytes,
+        summaryBudget,
+        old.metadata
+      )
+      const afterIndex = new SourceIndex(
+        afterItems,
+        registry.limits.summaryBytes,
+        summaryBudget,
+        next.metadata
+      )
       beforeItems.length = 0
       afterItems.length = 0
       const centralBefore = new Map<string, Facts>()

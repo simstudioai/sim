@@ -41,11 +41,11 @@ export function textReport(report: Report): string {
   const counts = findingCounts(report)
   const lines = [
     `Design check: ${report.flagged ? 'findings reported' : 'no new findings'}${report.unchecked.length ? '; coverage incomplete' : ''} (${report.policyVersion}).`,
-    `Usage violations: ${counts.usage}; system changes: ${counts.system}; unchecked diagnostics: ${report.unchecked.length}.`,
-    `Advisory review items: ${report.reviewItems?.length ?? 0}; reviewed decisions: ${report.reviewDecisions?.matches.length ?? 0}; stale decisions: ${report.reviewDecisions?.stale.length ?? 0}; ambiguous decisions: ${report.reviewDecisions?.ambiguous.length ?? 0}.`,
+    `Product findings: ${counts.usage}; system changes: ${counts.system}; unchecked diagnostics: ${report.unchecked.length}.`,
+    `Reviewed decisions: ${report.reviewDecisions?.matches.length ?? 0}; stale decisions: ${report.reviewDecisions?.stale.length ?? 0}; ambiguous decisions: ${report.reviewDecisions?.ambiguous.length ?? 0}.`,
   ]
   for (const [kind, title] of [
-    ['usage-violation', 'Usage violations'],
+    ['usage-violation', 'Product findings'],
     ['system-change', 'Central-system changes — review required'],
     [undefined, 'Legacy policy findings'],
   ] as const) {
@@ -64,13 +64,6 @@ export function textReport(report: Report): string {
     lines.push(
       'Unchecked inputs remain outside the result; no findings does not prove complete coverage.'
     )
-  }
-  if (report.reviewItems?.length) {
-    lines.push('', 'Advisory ownership and recipe review')
-    for (const item of report.reviewItems)
-      lines.push(
-        `  ${line(item.file)}:${item.line} (${line(item.kind)}) — ${line(item.value)}: ${line(item.reason)}`
-      )
   }
   if (report.reviewDecisions?.stale.length || report.reviewDecisions?.ambiguous.length) {
     lines.push('', 'Review decisions requiring renewal')
@@ -109,7 +102,7 @@ export function githubSummary(report: Report): string {
     '',
     '| Result | Count |',
     '| --- | ---: |',
-    `| Usage violations | ${counts.usage} |`,
+    `| Product findings | ${counts.usage} |`,
     `| Central-system changes | ${counts.system} |`,
     `| Legacy findings | ${counts.legacy} |`,
     `| Unchecked diagnostics | ${report.unchecked.length} |`,

@@ -25,6 +25,7 @@ import {
 } from '#control-analysis/static-inputs'
 import { inspectTypography, type TypographyReview } from '#control-analysis/typography'
 import { artworkSyntax } from '#design-conformance/artwork'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import { canonical, hash } from '#design-conformance/model'
 import type { SourceIndex } from '#design-conformance/source-summary'
 
@@ -417,7 +418,8 @@ export function inspectSimplifications(
   order: 'forward' | 'reverse' = 'forward',
   sourceIndex?: SourceIndex,
   centralReference?: Parameters<typeof inspectControls>[4],
-  ownershipReview?: TypographyReview
+  ownershipReview?: TypographyReview,
+  metadata?: GeneratedContracts
 ): {
   controls: ControlInventory
   simplifications: SimplificationReport
@@ -427,7 +429,7 @@ export function inspectSimplifications(
   review: ReviewReport
 } {
   const colourAssignments = new ColourAssignments(source)
-  const review = new ReviewCollector(source)
+  const review = new ReviewCollector(source, metadata ?? sourceIndex?.metadata)
   const details = new Map<string, Detail>()
   const recipes = new Map<string, { base: Expr; config: Expr }>()
   const artworks: Artwork[] = []
@@ -788,16 +790,52 @@ export function inspectSimplifications(
       )
   }
   const colourReport = colourAssignments.finish(statics)
+  const typography = ownershipReview ?? inspectTypography(source)
+  const shadows = inspectShadowExtras(
+    source,
+    (name) => colourAssignments.globalColour(name),
+    colourReport
+  )
+  const stylingReview = review.finish(controls)
+  for (const item of shadows.approved)
+    stylingReview.findings.push({
+      id: hash(canonical(['local-shadow', item])),
+      observedFrom: [item.file],
+      rule: 'local-shadow',
+      contract: 'local-shadow',
+      kind: 'usage-violation',
+      category: 'effects',
+      property: 'box-shadow',
+      value: item.id,
+      reason: item.reason,
+      file: item.file,
+      line: item.line,
+      column: 1,
+      context: item.selector,
+    })
+  for (const item of typography.classifications)
+    if (item.disposition === 'extra')
+      stylingReview.findings.push({
+        id: hash(canonical(['specialised-typography', item])),
+        observedFrom: [item.file],
+        rule: 'specialised-typography',
+        contract: 'specialised-typography',
+        kind: 'usage-violation',
+        category: 'typography',
+        property: item.property,
+        value: item.value,
+        reason: item.reason,
+        file: item.file,
+        line: item.line,
+        column: 1,
+        context: item.property,
+      })
   return {
     controls,
     colourAssignments: colourReport,
-    review: review.finish(controls),
-    typographyReview: ownershipReview ?? inspectTypography(source),
-    shadowExtras: inspectShadowExtras(
-      source,
-      (name) => colourAssignments.globalColour(name),
-      colourReport
-    ),
+    review: stylingReview,
+    typographyReview: typography,
+    shadowExtras: shadows,
     simplifications: {
       version: '1.0.0',
       findings: findings.sort(

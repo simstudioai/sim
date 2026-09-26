@@ -121,7 +121,7 @@ test('text, JSON and output files preserve finding identity and normal command e
   const out = path.join(temp, 'finding.json')
   const human = run([...args, '--output', out])
   expect(human.status).toBe(1)
-  expect(human.stdout).toContain('Usage violations')
+  expect(human.stdout).toContain('Product findings')
   expect(human.stdout).toContain('permitted:')
   expect(human.stdout).toContain(`${ui}:`)
   const json = run([...args, '--format', 'json'])
@@ -306,7 +306,7 @@ test('a multi-commit push includes earlier changes and a divergent PR uses its m
   const target = commit(repo)
   expect(compareGit(repo, target, head).commits.mergeBase).toBe(base)
   expect(run(['--repo', repo, '--base', target, '--head', head], ci).stdout).toContain(
-    'Usage violations: 1'
+    'Product findings: 1'
   )
 })
 
@@ -351,7 +351,7 @@ test('GitHub annotations escape source values and normal logs cannot inject work
   expect(annotation).toContain('%0A::error::injected')
   expect(annotation).not.toContain('\n')
   expect(textReport(report)).not.toContain('\n::error::injected')
-  expect(githubSummary(report)).toContain('| Usage violations | 1 |')
+  expect(githubSummary(report)).toContain('| Product findings | 1 |')
 })
 
 test('unchecked diagnostics preserve both sides and safely render source-authored text', () => {

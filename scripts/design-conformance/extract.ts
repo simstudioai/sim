@@ -5,7 +5,7 @@ import * as t from '@babel/types'
 import { type DefaultTreeAdapterMap, parse as parseHtml } from 'parse5'
 import postcss from 'postcss'
 import { artworkSyntax } from '#design-conformance/artwork'
-import { componentContract } from '#design-conformance/contracts'
+import type { ComponentContract } from '#design-conformance/contracts'
 import type { Reference } from '#design-conformance/design-system'
 import { iconScope } from '#design-conformance/icon-scope'
 import {
@@ -44,7 +44,11 @@ export function extract(
   text: string,
   file: string,
   appearance = true,
-  options?: { conformance: boolean; resolve: (ref: string) => Reference | undefined }
+  options?: {
+    conformance: boolean
+    resolve: (ref: string) => Reference | undefined
+    contract?: (target: string) => ComponentContract | undefined
+  }
 ): Facts {
   const facts: Facts = { atoms: [], unchecked: [], surfaces: [] }
   let current: Surface | undefined
@@ -939,9 +943,9 @@ export function extract(
             const container =
               imported(attr, attr.parentPath.node.name.name) ?? attr.parentPath.node.name.name
             if (
-              componentContract(container)?.iconSlots?.includes(
-                t.isJSXIdentifier(attr.node.name) ? attr.node.name.name : ''
-              )
+              options
+                ?.contract?.(container)
+                ?.iconSlots?.includes(t.isJSXIdentifier(attr.node.name) ? attr.node.name.name : '')
             )
               group.iconSlot = container
           }

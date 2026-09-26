@@ -49,7 +49,7 @@ export interface StudioEntry {
 }
 
 export interface StudioManifest {
-  version: 1
+  version: 2
   runId: string
   status: 'complete' | 'incomplete'
   identity: { commit: string; treeHash: string; scanner: unknown }
@@ -95,7 +95,7 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
     const runDirectory = path.join(studioOutputRoot(), `run-${latest.runId}`)
     if (path.resolve(latest.path) !== runDirectory) return null
     manifest = JSON.parse(readFileSync(path.join(runDirectory, 'manifest.json'), 'utf8'))
-    if (manifest.version !== 1 || manifest.runId !== latest.runId) return null
+    if (manifest.version !== 2 || manifest.runId !== latest.runId) return null
   } catch {
     return null
   }

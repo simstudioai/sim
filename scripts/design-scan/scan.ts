@@ -6,6 +6,7 @@ import {
 import type { ControlInventory } from '#control-analysis/inventory'
 import { classifyLayout, type LayoutAllowance } from '#control-analysis/layout-allowances'
 import type { ReviewReport } from '#control-analysis/review'
+import { mergeSourceFindings } from '#control-analysis/review'
 import {
   matchReviews,
   type ReviewDecisions,
@@ -33,7 +34,7 @@ import { validateOutput, writeResults } from './report'
 const usage = `Usage: bun run design:scan --repo <checkout-or-bare-repo> (--ref <commit-or-ref> | --working-tree) --output <new-external-directory>
 Optional: --order forward|reverse --batch-size 25 --reviews <external.json>
 Requires Bun 1.4.1. Working-tree mode includes non-ignored untracked source. No application code is executed.
-Exits: 0 complete without findings or review/analysis items; 1 completed with findings or outstanding review/analysis; 2 operational failure.
+Exits: 0 complete without findings; 1 completed with findings; 2 operational failure.
 Batch size controls progress reporting only; it does not change resolution or findings.`
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -119,7 +120,10 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         const layout = classifyLayout(
           classifyTypography(
             mergeShadowFindings(
-              [...remaining, ...colourAssignments.findings, ...review.findings],
+              mergeSourceFindings(
+                [...remaining, ...colourAssignments.findings, ...simplifications.findings],
+                review.findings
+              ),
               shadowExtras.findings
             ),
             typographyReview
@@ -152,11 +156,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     if (!controls) throw new Error('Control analysis did not complete')
     source.assertUnchanged()
     const reviewDecisions: ReviewDecisions | undefined = values.reviews
-      ? matchReviews(
-          readReviewLedger(values.reviews, values.repo),
-          inventory.findings,
-          review?.items ?? []
-        )
+      ? matchReviews(readReviewLedger(values.reviews, values.repo), inventory.findings, [])
       : undefined
     writeResults(
       output,
@@ -181,22 +181,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     process.stdout.write(
       `${inventory.findings.length} styling rule findings; ${controls.records.length} control/source candidates; ${inventory.unchecked.length} styling and ${controls.unchecked.length} control analysis diagnostics. Results: ${JSON.stringify(output)}\n`
     )
-    return simplifications?.findings.length ||
-      simplifications?.unchecked.length ||
-      inventory.findings.length ||
-      inventory.unchecked.length ||
-      controls.unchecked.length ||
-      controls.records.some((r) =>
-        [
-          'local-control',
-          'mixed-origin',
-          'interaction-candidate',
-          'external-control',
-          'unresolved',
-        ].includes(r.origin)
-      )
-      ? 1
-      : 0
+    return inventory.findings.length ? 1 : 0
   } catch (error) {
     process.stderr.write(
       `Inventory failed: ${JSON.stringify(error instanceof Error ? error.message : String(error))}\n`

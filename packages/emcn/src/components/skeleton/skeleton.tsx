@@ -3,6 +3,8 @@ import { cn } from '../../lib/cn'
 /**
  * Placeholder loading skeleton with a subtle pulse animation.
  * @param props - Standard div attributes including className for sizing.
+ * @designAllow className border-radius dimensions
+ * @designAllow style border-radius dimensions
  */
 function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (

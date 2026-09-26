@@ -3,6 +3,7 @@ import { classifyLayout } from '#control-analysis/layout-allowances'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { type Finding, hash, TOKEN_FILE } from '#design-conformance/model'
 import { snapshotHash } from '#design-conformance/system-snapshot'
+import { testComponents } from '#design-conformance/test-source'
 
 const file = 'apps/sim/components/example.tsx'
 const source = 'import {ChipModalField as Field,ChipModal,ChipInput} from "@sim/emcn";'
@@ -14,7 +15,8 @@ const entry = (path: string, text: string) => ({
 async function inspect(body: string) {
   const code = source + body
   const css = '@theme { --spacing: .25rem; --text-sm: .875rem; }'
-  const central = entry(TOKEN_FILE, css)
+  const texts: Record<string, string> = { ...testComponents, [TOKEN_FILE]: css }
+  const entries = Object.entries(texts).map(([file, source]) => entry(file, source))
   const raw = await new ConformanceLinter().analyze(
     [{ status: 'A', before: null, after: entry(file, code) }],
     () => code,
@@ -23,10 +25,10 @@ async function inspect(body: string) {
       snapshot: {
         version: '1.0.0',
         commit: 'a'.repeat(40),
-        hash: snapshotHash([central]),
-        entries: [central],
+        hash: snapshotHash(entries),
+        entries,
       },
-      read: () => css,
+      read: (e) => texts[e.path],
     }
   )
   return { raw, ...classifyLayout(raw.findings) }

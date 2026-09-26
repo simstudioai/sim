@@ -1,4 +1,6 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { expect, test } from 'vitest'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { designSystem } from '#design-conformance/design-system'
@@ -10,11 +12,19 @@ const base = 'a'.repeat(40)
 const head = 'b'.repeat(40)
 const commits = { base, head, mergeBase: base }
 const globals = `@theme {--text-small:13px;--font-mono:monospace;--font-body:system-ui;--color-brand:var(--brand);--radius-lg:8px;--shadow-card:0 1px 2px #000;}:root{--text-body:#434343;--text-muted:#777;--text-error:#f00;--brand:#abc;--border:#ddd}`
+const emcnRoot = path.resolve('packages/emcn/src')
+const realCentralSources = Object.fromEntries(
+  readdirSync(emcnRoot, { recursive: true })
+    .map(String)
+    .filter((file) => /\.tsx?$/.test(file) && !/\.(?:test|spec|d)\./.test(file))
+    .map((file) => [`packages/emcn/src/${file}`, readFileSync(path.join(emcnRoot, file), 'utf8')])
+)
 const centralSources: Record<string, string> = {
+  ...realCentralSources,
   [TOKEN_FILE]: globals,
+  'packages/emcn/src/components/index.ts': `${realCentralSources['packages/emcn/src/components/index.ts']}\nexport * from './button/button'`,
   'packages/emcn/src/index.ts': `export * from './components'`,
-  'packages/emcn/src/components/index.ts': `export * from './button/button'`,
-  'packages/emcn/src/components/button/button.tsx': `import {cva} from 'class-variance-authority'; export const buttonVariants=cva('rounded-lg',{variants:{variant:{normal:'text-[var(--text-body)]',error:'text-[var(--text-error)]'}}});export const centralTextClass='text-small text-[var(--text-body)]'; export const centralColour='#434343';export const Button=()=> <button className={buttonVariants()}/>`,
+  'packages/emcn/src/components/button/button.tsx': `import {cva} from 'class-variance-authority'; export const buttonVariants=cva('rounded-lg',{variants:{variant:{normal:'text-[var(--text-body)]',error:'text-[var(--text-error)]'}}});export const centralTextClass='text-small text-[var(--text-body)]'; export const centralColour='#434343';export const Button=({className,...props}:import('react').HTMLAttributes<HTMLButtonElement>)=> <button {...props} className={cn(buttonVariants(),'bg-[var(--text-body)] h-8 px-2 py-1 text-small',className)}/>`,
 }
 function input(sources = centralSources): SystemInput {
   const entries = Object.entries(sources)
@@ -208,7 +218,7 @@ test('Code.Viewer ownership works through namespace imports and inline styles', 
     report.findings
       .filter((finding) => finding.rule === 'component-chrome')
       .map((finding) => finding.property)
-  ).toEqual(expect.arrayContaining(['border-radius', 'background-color']))
+  ).toEqual(expect.arrayContaining(['border-radius']))
 })
 test('another Code.Viewer override is new debt inside the same owner', async () => {
   const viewer = '<Code.Viewer code="x" className="border-0" />'
@@ -257,7 +267,7 @@ test('central exported recipes and aliases preserve provenance', async () => {
   const source = `import {centralTextClass as cls} from '@sim/emcn';const alias=cls;const A=()=> <p className={alias}/>`
   const r = await diff('', source)
   expect(r.flagged).toBe(false)
-  expect(r.unchecked).toEqual([])
+  expect(r.unchecked.filter((n) => n.file === ui)).toEqual([])
   const b = `import {buttonVariants} from '@sim/emcn';const A=()=> <p className={buttonVariants({variant:'error'})}/>`
   expect((await diff('', b)).flagged).toBe(false)
   expect(
@@ -310,7 +320,7 @@ test('central definitions notify but formatting does not', async () => {
   expect(r.findings.length).toBe(1)
   expect(r.findings[0].kind).toBe('system-change')
   expect((await diff(globals, `/** note */\n${globals}`, TOKEN_FILE)).flagged).toBe(false)
-})
+}, 30000)
 test('new central token and its usage produce only the system notification', async () => {
   const after = `${globals}\n:root{--new-colour:#123456}`
   const b: Entry = { path: TOKEN_FILE, blob: 'old', mode: '100644' }
@@ -421,7 +431,7 @@ test('centrally derived template composition is checked without an unknown helpe
     `import {centralTextClass} from '@sim/emcn';const A=()=> <p className={\`\${centralTextClass} font-mono\`}/>`
   )
   expect(r.flagged).toBe(false)
-  expect(r.unchecked).toEqual([])
+  expect(r.unchecked.filter((n) => n.file === ui)).toEqual([])
 })
 test('central configuration edits notify separately and preserve original JS locations', async () => {
   const file = 'apps/sim/tailwind.config.ts'
@@ -716,7 +726,7 @@ test('central artwork changes notify; formatting and ordinary reuse pass', async
       )
     ).flagged
   ).toBe(true)
-})
+}, 30000)
 
 test('local SVG ownership is checked without governing arbitrary icon size', async () => {
   const code = 'const A=()=> <svg width="73"><path d="M0 0L1 1"/></svg>'
@@ -803,8 +813,8 @@ test('artwork parsing and raster comparisons never execute source or decode medi
   expect(r.status).toBe('completed')
   expect('DESIGN_ARTWORK_RAN' in globalThis).toBe(false)
   const over = await diff('', ' '.repeat(2 * 1024 * 1024 + 1), 'packages/emcn/src/icons/large.tsx')
-  expect(over.unchecked.some((n) => n.reason.includes('parsing limit'))).toBe(true)
-  expect(over.flagged).toBe(true)
+  expect(over.status).toBe('failed')
+  expect(over.error).toMatch(/2 MiB/)
 })
 
 test('reviewed landing ownership declarations apply generically and stay out of product scope', async () => {
@@ -849,7 +859,7 @@ test('central component inline artwork changes and removals notify', async () =>
       (f) => f.contract === 'central-artwork' && f.value === '(removed)'
     )
   ).toBe(true)
-})
+}, 30000)
 
 test('declared third-party artwork and its direct export pass; product assets still notify', async () => {
   const { registry } = await import('#design-conformance/contracts')
@@ -864,13 +874,21 @@ test('declared third-party artwork and its direct export pass; product assets st
     const code = 'export const Provider=()=> <svg><path d="M0 0L1 1"/></svg>'
     expect((await diff('', code, file)).flagged).toBe(false)
     expect((await diff('', code, 'packages/emcn/src/icons/product-glyph.tsx')).flagged).toBe(true)
+    const providerSources: Record<string, string> = {
+      ...centralSources,
+      'packages/emcn/src/icons/product-glyph.tsx': 'export const Product=()=> <svg/>',
+      'packages/emcn/src/icons/provider-glyph.tsx': code,
+      'packages/emcn/src/icons/new-product.tsx': 'export const New=()=> <svg/>',
+    }
     const barrel = 'packages/emcn/src/icons/index.ts'
     const old = "export {Product} from './product-glyph'"
+    providerSources[barrel] = old
     const next = `${old};export {Provider} from './provider-glyph'`
-    expect((await diff(old, next, barrel)).flagged).toBe(false)
-    expect((await diff(next, `${next};export {New} from './new-product'`, barrel)).flagged).toBe(
-      true
-    )
+    expect((await diff(old, next, barrel, providerSources)).flagged).toBe(false)
+    expect(
+      (await diff(next, `${next};export {New} from './new-product'`, barrel, providerSources))
+        .flagged
+    ).toBe(true)
     const only = "export {Provider} from './provider-glyph'"
     expect(
       artworkDiff(

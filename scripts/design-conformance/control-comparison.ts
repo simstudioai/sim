@@ -5,12 +5,17 @@ import {
 } from '#control-analysis/colour-assignments'
 import { classifyLayout } from '#control-analysis/layout-allowances'
 import type { ControlSource, SourceEntry } from '#control-analysis/model'
+import { mergeSourceFindings } from '#control-analysis/review'
+import { findingFingerprint } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { mergeShadowFindings, withoutApprovedShadows } from '#control-analysis/shadow-extras'
 import { inspectSimplifications } from '#control-analysis/simplifications'
 import { classifyTypography } from '#control-analysis/typography'
+import { centralInventory } from '#design-conformance/contracts'
+import { generateContracts } from '#design-conformance/generated-contracts'
 import { git, verifiedText } from '#design-conformance/io'
 import { type Change, canonical, type Finding, type Report } from '#design-conformance/model'
+import { snapshotHash } from '#design-conformance/system-snapshot'
 
 /** Source is immutable Git data, including unchanged dependencies; never loaded as modules. */
 export function controlSource(repo: string, commit: string): ControlSource {
@@ -122,19 +127,27 @@ export function compareSimplifications<T extends Finding>(
 }
 
 /** Both public conformance commands call this analyzer; CI only formats its ordinary findings. */
-export function addControlComparison(
+export async function addControlComparison(
   report: Report,
   changes: Change[],
   before: () => ControlSource,
   after: () => ControlSource
-): Report {
+): Promise<Report> {
   if (
     report.status !== 'completed' ||
     !changes.some((c) => [c.before, c.after].some((e) => e && productScope(e.path) === 'check'))
   )
     return report
-  const beforeAnalysis = inspectSimplifications(before())
-  const afterAnalysis = inspectSimplifications(after())
+  const inspect = async (source: ControlSource) => {
+    const entries = source.entries.filter((e) => centralInventory(e.path))
+    const metadata = await generateContracts({
+      snapshot: { version: '1.0.0', commit: '', entries, hash: snapshotHash(entries) },
+      read: (e) => source.read(e),
+    })
+    return inspectSimplifications(source, [], 'forward', undefined, undefined, undefined, metadata)
+  }
+  const beforeAnalysis = await inspect(before())
+  const afterAnalysis = await inspect(after())
   const b = beforeAnalysis.simplifications
   const a = afterAnalysis.simplifications
   for (const [side, analysis] of [
@@ -175,21 +188,10 @@ export function addControlComparison(
     afterAnalysis.colourAssignments
   )
   report.findings.push(...findings, ...colourFindings)
-  const existingChrome = new Map<string, number>()
-  const chromeKey = (finding: Finding) =>
-    canonical([finding.file, finding.line, finding.rule, finding.property, finding.value])
-  for (const finding of report.findings) {
-    const key = chromeKey(finding)
-    existingChrome.set(key, (existingChrome.get(key) ?? 0) + 1)
-  }
-  for (const finding of compareSimplifications(beforeAnalysis.review, afterAnalysis.review)) {
-    const key = chromeKey(finding)
-    const existing = existingChrome.get(key) ?? 0
-    if (existing) existingChrome.set(key, existing - 1)
-    else report.findings.push(finding)
-  }
-  const existingReview = new Set(beforeAnalysis.review.items.map((item) => item.id))
-  report.reviewItems = afterAnalysis.review.items.filter((item) => !existingReview.has(item.id))
+  report.findings = mergeSourceFindings(
+    report.findings,
+    compareSimplifications(beforeAnalysis.review, afterAnalysis.review)
+  )
   const existingReviewNotes = new Set(
     beforeAnalysis.review.unchecked.map((note) => canonical([note.file, note.context, note.reason]))
   )
@@ -258,6 +260,10 @@ export function addControlComparison(
     unresolved: a.unchecked.length,
   }
   report.coverage.violations = report.findings.filter((f) => f.kind === 'usage-violation').length
+  report.findings = report.findings.map((finding) => ({
+    ...finding,
+    identity: findingFingerprint(finding),
+  }))
   report.flagged = report.findings.length > 0
   if (report.coverageFailures?.length) {
     report.status = 'failed'

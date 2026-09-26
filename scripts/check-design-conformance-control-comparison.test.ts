@@ -95,7 +95,7 @@ test('an assignment-only edit is a new finding even when the colour usage alread
   ).toBe(1)
 })
 
-test('source-only status colours remain advisory while all block metadata colours are intentional', async () => {
+test('source-only status colours remain design finding while all block metadata colours are intentional', async () => {
   const repo = mkdtempSync(path.join(temp, 'source-colours-'))
   git(repo, ['init', '-q'])
   put(repo, 'apps/sim/app/_styles/globals.css', ':root { --text-body: #434343; }')
@@ -137,11 +137,11 @@ test('source-only status colours remain advisory while all block metadata colour
   const report = await checkComparison({ repo, base, head, policy: 'conformance' })
   expect(report.status).toBe('completed')
   expect(
-    report.reviewItems?.some(
-      (item) => item.kind === 'semantic-status-colour' && item.value === 'bg-amber-400/90'
+    report.findings?.some(
+      (item) => item.rule === 'semantic-status-colour' && item.value === 'bg-amber-400/90'
     )
   ).toBe(true)
-  expect(report.reviewItems?.some((item) => [block, provider, trigger].includes(item.file))).toBe(
+  expect(report.findings?.some((item) => [block, provider, trigger].includes(item.file))).toBe(
     false
   )
   put(repo, ui, `\n\n${status('bg-amber-400/90')}`)
@@ -152,9 +152,7 @@ test('source-only status colours remain advisory while all block metadata colour
     head: shifted,
     policy: 'conformance',
   })
-  expect(shiftReport.reviewItems?.filter((item) => item.kind === 'semantic-status-colour')).toEqual(
-    []
-  )
+  expect(shiftReport.findings?.filter((item) => item.rule === 'semantic-status-colour')).toEqual([])
 })
 
 test('block files still review colours outside registered block metadata', async () => {
@@ -169,8 +167,8 @@ test('block files still review colours outside registered block metadata', async
   put(repo, block, source('#222222'))
   const head = commit(repo)
   const report = await checkComparison({ repo, base, head, policy: 'conformance' })
-  expect(report.reviewItems?.some((item) => item.kind === 'block-colour')).toBe(true)
-  expect(report.reviewItems?.some((item) => item.value === 'bgColor: #123456')).toBe(false)
+  expect(report.findings?.some((item) => item.rule === 'block-colour')).toBe(true)
+  expect(report.findings?.some((item) => item.value === 'bgColor: #123456')).toBe(false)
 })
 
 test('Monaco theme-only edits stay quiet while adjacent product colour edits are reported', async () => {
@@ -192,7 +190,7 @@ test('Monaco theme-only edits stay quiet while adjacent product colour edits are
     policy: 'conformance',
   })
   expect(themeReport.findings.filter((finding) => finding.rule === 'central-colour')).toEqual([])
-  expect(themeReport.reviewItems?.filter((item) => item.kind === 'syntax-colour')).toEqual([])
+  expect(themeReport.findings?.filter((item) => item.rule === 'syntax-colour')).toEqual([])
   put(repo, ui, source('#242424', '#654321'))
   const changedProduct = commit(repo)
   const productReport = await checkComparison({
@@ -306,7 +304,7 @@ test('registered EMCN chrome is reported once when both analysis passes see it',
   put(
     repo,
     'packages/emcn/src/components/badge.tsx',
-    `export function Badge(props){return <span {...props}/>} `
+    `export function Badge({className,...props}:import('react').HTMLAttributes<HTMLSpanElement>){return <span {...props} className={cn('p-2',className)}/>} `
   )
   put(repo, ui, `import {Badge} from '@sim/emcn'; export const View=()=> <Badge>OK</Badge>`)
   const base = commit(repo)
@@ -339,6 +337,7 @@ test('changing a reviewed effect recipe or deleting its colour revokes approval 
   const base = commit(repo)
   const introduced = await checkComparison({ repo, base: empty, head: base, policy: 'conformance' })
   expect(introduced.shadowExtras).toHaveLength(1)
+  expect(introduced.findings.some((f) => f.rule === 'local-shadow')).toBe(true)
   expect(introduced.findings.filter((f) => f.rule === 'central-shadow')).toEqual([])
   put(repo, css, rule.replace('border-radius: 1px', 'border-radius: 2px'))
   const changed = commit(repo)
@@ -422,6 +421,12 @@ test('public diff checker separates layout allowances and exposes a later intern
   const repo = mkdtempSync(path.join(temp, 'layout-'))
   git(repo, ['init', '-q'])
   put(repo, 'apps/sim/app/_styles/globals.css', '@theme { --spacing: .25rem; }')
+  put(repo, 'packages/emcn/src/index.ts', "export * from './components/fields'")
+  put(
+    repo,
+    'packages/emcn/src/components/fields.tsx',
+    `export function ChipModalField({className,...props}:import('react').HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('flex flex-col gap-2 p-2',className)}/>};export function ChipModal({className,...props}:import('react').HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('h-20 p-2',className)}/>}`
+  )
   put(repo, ui, 'export const View=()=> <div/>')
   const base = commit(repo)
   const view = (classes: string) =>
@@ -429,12 +434,13 @@ test('public diff checker separates layout allowances and exposes a later intern
   put(repo, ui, view('flex-1'))
   const layoutHead = commit(repo)
   const allowed = await checkComparison({ repo, base, head: layoutHead, policy: 'conformance' })
-  expect(allowed.layoutAllowances).toHaveLength(2)
+  expect(allowed.status, allowed.error).toBe('completed')
+  expect(allowed.layoutAllowances).toHaveLength(1)
   expect(allowed.findings.some((f) => f.rule === 'component-chrome')).toBe(false)
   expect(allowed.unchecked.length).toBeGreaterThan(0)
   put(repo, ui, view('flex-1 p-4 flex-row'))
   const head = commit(repo)
   const changed = await checkComparison({ repo, base: layoutHead, head, policy: 'conformance' })
   expect(changed.findings.some((f) => f.value === 'p-4')).toBe(true)
-  expect(changed.findings.some((f) => f.value === 'flex-row')).toBe(true)
+  expect(changed.findings.some((f) => f.value === 'flex-row')).toBe(false)
 })

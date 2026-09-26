@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import { hash } from '#design-conformance/model'
 
 export interface ComponentContract {
   slots?: string[]
   protected?: string[]
   iconSlots?: string[]
-  extends?: string
+  slotOwnership?: Record<string, { protected: string[]; allowed: string[] }>
 }
 export interface CentralRecipeModule {
   exports: Record<string, { property: string; source: string }>
@@ -19,21 +20,12 @@ export interface Registry {
   }
   ownership?: Record<string, { scope: 'landing'; source: string; reason: string }>
   centralRecipes?: Record<string, CentralRecipeModule>
-  rendering?: Record<
-    string,
-    {
-      slots: Record<string, string[]>
-      source: string
-      forwarding?: Record<string, { target: string; slot: string }[]>
-    }
-  >
   transparentPrimitives?: Record<string, { target: string; slots: string[] }>
   version: string
   policy: string
   sources: string[]
   rules: Record<string, { properties: string[]; permission: string; source: string }>
   builtins: Record<string, string[]>
-  components: Record<string, ComponentContract>
   branding: Record<string, string[] | string>
   limits: {
     summaryBytes?: number
@@ -45,13 +37,22 @@ export interface Registry {
 }
 const bytes = readFileSync(new URL('./contracts.json', import.meta.url), 'utf8')
 export const registry: Registry = JSON.parse(bytes)
-if (registry.version !== '1.9.1' || registry.policy !== 'design-conformance/1.9.1')
+if (registry.version !== '2.0.0' || registry.policy !== 'design-conformance/2.0.0')
   throw new Error('Incompatible conformance contract registry')
 export const contractsHash = hash(bytes)
-export function componentContract(target: string): ComponentContract | undefined {
-  if (!target.startsWith('@sim/emcn#')) return undefined
-  const item = registry.components[target.split('#')[1]]
-  return item?.extends ? { ...registry.components[item.extends], ...item } : item
+/** Callers inspecting a snapshot must supply that snapshot's generated metadata. */
+export function componentContract(
+  target: string,
+  metadata?: GeneratedContracts
+): ComponentContract | undefined {
+  if (!target.startsWith('@sim/emcn#') || !metadata) return undefined
+  const item = metadata.exports[target.slice(10)]
+  if (!item) return undefined
+  return {
+    slots: Object.keys(item.slots),
+    slotOwnership: item.slots,
+    iconSlots: Object.keys(item.slots).filter((s) => /icon/i.test(s)),
+  }
 }
 export const isRegistry = (file: string) =>
   file === 'scripts/design-conformance/contracts.json' ||
@@ -67,4 +68,7 @@ export function centralFile(file: string): boolean {
   )
 }
 export const centralInventory = (file: string) =>
-  centralFile(file) || registry.sources.includes(file)
+  centralFile(file) ||
+  registry.sources.includes(file) ||
+  (/^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) &&
+    !/\.(?:test|spec|generated|d)\./.test(file))

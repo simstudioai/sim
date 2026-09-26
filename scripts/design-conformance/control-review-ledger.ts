@@ -78,11 +78,14 @@ export function matchReviews(
 ): ReviewDecisions {
   const candidates = new Map<string, { kind: ReviewMatch['kind']; file: string; line: number }[]>()
   for (const finding of findings) {
-    const fingerprint = findingFingerprint(finding)
-    candidates.set(fingerprint, [
-      ...(candidates.get(fingerprint) ?? []),
-      { kind: 'finding', file: finding.file, line: finding.line },
-    ])
+    for (const fingerprint of new Set([
+      findingFingerprint(finding),
+      ...(finding.legacyFingerprint ? [finding.legacyFingerprint] : []),
+    ]))
+      candidates.set(fingerprint, [
+        ...(candidates.get(fingerprint) ?? []),
+        { kind: 'finding', file: finding.file, line: finding.line },
+      ])
   }
   for (const item of items) {
     const fingerprint = itemFingerprint(item)

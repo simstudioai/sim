@@ -12,8 +12,9 @@ import {
   regular,
 } from '#control-analysis/model'
 import { productScope } from '#control-analysis/scope'
-import { componentContract } from '#design-conformance/contracts'
-import { canonical, hash, TOKEN_FILE } from '#design-conformance/model'
+import { centralInventory, componentContract } from '#design-conformance/contracts'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
+import { canonical, type Finding, hash, TOKEN_FILE } from '#design-conformance/model'
 import { utility } from '#design-conformance/normalize'
 
 export interface ReviewItem {
@@ -29,7 +30,6 @@ export interface ReviewItem {
 }
 export interface ReviewReport {
   version: '1.0.0'
-  items: ReviewItem[]
   findings: InventoryFinding[]
   unchecked: Diagnostic[]
 }
@@ -145,154 +145,6 @@ const recipeTail = (record: ControlInventory['records'][number]) => {
   return { visual: [...visual].sort(compare), unresolved }
 }
 
-// The standalone scanner retains its frozen component registry. Mirror only the
-// newly reviewed caller slots here; the maintained diff checker uses contracts.json.
-const supplementalChrome = {
-  Label: {
-    source: 'label/label.tsx#Label',
-    protected: ['colours', 'font-family', 'font-size', 'font-weight', 'line-height'],
-  },
-  Textarea: {
-    source: 'textarea/textarea.tsx#Textarea',
-    protected: [
-      'colours',
-      'font-family',
-      'font-size',
-      'font-weight',
-      'padding',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-  Combobox: {
-    source: 'combobox/combobox.tsx#Combobox',
-    protected: [
-      'colours',
-      'font-family',
-      'font-size',
-      'font-weight',
-      'padding',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-  Checkbox: {
-    source: 'checkbox/checkbox.tsx#Checkbox',
-    protected: ['colours', 'width', 'height', 'border-radius', 'borders', 'box-shadow'],
-  },
-  Switch: {
-    source: 'switch/switch.tsx#Switch',
-    protected: ['colours', 'width', 'height', 'border-radius', 'borders', 'box-shadow'],
-  },
-  ChipTag: {
-    source: 'chip-tag/chip-tag.tsx#ChipTag',
-    protected: [
-      'colours',
-      'font-family',
-      'font-size',
-      'font-weight',
-      'padding',
-      'height',
-      'gap',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-  Avatar: { source: 'avatar/avatar.tsx#Avatar', protected: ['width', 'height', 'border-radius'] },
-  AvatarFallback: {
-    source: 'avatar/avatar.tsx#AvatarFallback',
-    protected: ['colours', 'font-size', 'font-weight', 'border-radius', 'borders'],
-  },
-  Banner: { source: 'banner/banner.tsx#Banner', protected: ['background-color', 'padding'] },
-  Skeleton: { source: 'skeleton/skeleton.tsx#Skeleton', protected: ['background-color'] },
-  OverflowText: {
-    source: 'overflow-text/overflow-text.tsx#OverflowText',
-    protected: [
-      'overflow',
-      'overflow-x',
-      'overflow-y',
-      'text-overflow',
-      'white-space',
-      'mask-image',
-      '-webkit-mask-image',
-    ],
-  },
-  'Code.Container': {
-    source: 'code/code.tsx#Container',
-    protected: ['colours', 'font-family', 'font-size', 'border-radius', 'borders'],
-  },
-  'Code.Gutter': {
-    source: 'code/code.tsx#Gutter',
-    protected: ['background-color', 'padding', 'border-radius'],
-  },
-  'Code.Viewer': {
-    source: 'code/code.tsx#Viewer',
-    protected: ['colours', 'font-family', 'font-size', 'border-radius', 'borders'],
-  },
-  DropdownMenuContent: {
-    source: 'dropdown-menu/dropdown-menu.tsx#DropdownMenuContent',
-    protected: ['colours', 'font-size', 'padding', 'border-radius', 'borders', 'box-shadow'],
-  },
-  DropdownMenuItem: {
-    source: 'dropdown-menu/dropdown-menu.tsx#DropdownMenuItem',
-    protected: ['colours', 'font-size', 'padding', 'height', 'gap', 'border-radius', 'borders'],
-  },
-  PopoverItem: {
-    source: 'popover/popover.tsx#PopoverItem',
-    protected: ['colours', 'font-size', 'padding', 'height', 'gap', 'border-radius', 'borders'],
-  },
-  PopoverSection: {
-    source: 'popover/popover.tsx#PopoverSection',
-    protected: ['colours', 'font-size', 'font-weight', 'padding'],
-  },
-  InputOTPSlot: {
-    source: 'input-otp/input-otp.tsx#InputOTPSlot',
-    protected: [
-      'colours',
-      'font-size',
-      'width',
-      'height',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-  SecretInput: {
-    source: 'secret-input/secret-input.tsx#SecretInput',
-    protected: [
-      'colours',
-      'font-family',
-      'font-size',
-      'font-weight',
-      'padding',
-      'height',
-      'gap',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-  CopyCodeButton: {
-    source: 'code/copy-code-button.tsx#CopyCodeButton',
-    protected: [
-      'colours',
-      'font-family',
-      'font-size',
-      'font-weight',
-      'padding',
-      'height',
-      'border-radius',
-      'borders',
-      'box-shadow',
-    ],
-  },
-} as const
-
-export const supplementalChromeContracts = supplementalChrome
-
 const supplementalProperties = (token: string): { property: string; category: string }[] => {
   const { base } = utility(token)
   if (/^rounded(?:-|$)/.test(base))
@@ -334,7 +186,7 @@ const supplementalProperties = (token: string): { property: string; category: st
   return []
 }
 
-/** Advisory source inventory. It never executes application modules or approves styling. */
+/** Source styling inventory. It never executes application modules or approves styling. */
 export class ReviewCollector {
   private readonly items = new Map<string, ReviewItem>()
   private readonly findings = new Map<string, InventoryFinding>()
@@ -352,7 +204,10 @@ export class ReviewCollector {
   }[] = []
   private resolve?: (ref: string) => string[]
 
-  constructor(source: ControlSource) {
+  constructor(
+    source: ControlSource,
+    private readonly metadata?: GeneratedContracts
+  ) {
     const globals = source.entries.find((entry) => entry.path === TOKEN_FILE)
     if (globals && regular(globals)) {
       postcss.parse(source.read(globals)).walkDecls((decl) => {
@@ -453,7 +308,7 @@ export class ReviewCollector {
     reason: string,
     related?: string[]
   ) {
-    const id = hash(canonical([kind, file, ownerName, value]))
+    const id = hash(canonical([kind, file, ownerName, value, line]))
     this.items.set(id, {
       id,
       kind,
@@ -573,7 +428,7 @@ export class ReviewCollector {
       column: 1,
       context,
       provenance: {
-        source: 'scripts/design-conformance/contracts.json#components',
+        source: 'scripts/design-conformance/contracts.generated.json#exports',
         input: token,
         permitted: 'Use the EMCN component API or review a shared variant',
       },
@@ -913,41 +768,24 @@ export class ReviewCollector {
     for (const candidate of this.chromeCandidates) {
       if (candidate.file.startsWith('packages/emcn/')) continue
       const targets = [candidate.target, ...(this.resolve?.(candidate.target) ?? [])]
-      const names = [
-        ...new Set(
-          targets.flatMap((target) => {
-            if (!/^\??packages\/emcn\//.test(target)) return []
-            const matched = target.match(/#(Badge|Input|PopoverContent|Tooltip\.Content)(?:@\d+)?$/)
-            return matched ? [`@sim/emcn#${matched[1]}`] : []
-          })
-        ),
-      ]
-      if (names.length === 1)
-        for (const classes of candidate.classes)
-          for (const token of classes.trim().split(/\s+/))
-            this.componentFinding(candidate.file, candidate.line, candidate.owner, names[0], token)
-      const supplementalNames = [
-        ...new Set(
-          targets.flatMap((target) =>
-            Object.entries(supplementalChrome).flatMap(([name, contract]) =>
+      const names = Object.entries(this.metadata?.exports ?? {})
+        .filter(([name, entry]) =>
+          targets.some(
+            (target) =>
               target === `@sim/emcn#${name}` ||
-              (name.startsWith('Code.') &&
-                target
-                  .replace(/^\?/, '')
-                  .startsWith('packages/emcn/src/components/code/code.tsx#Code@') &&
-                target.endsWith(`.${name.split('.')[1]}`)) ||
+              target === `?packages/emcn/src/index:missing#${name}` ||
               target.replace(/^\?/, '').replace(/@\d+$/, '') ===
-                `packages/emcn/src/components/${contract.source}`
-                ? [name]
-                : []
-            )
+                `${entry.source.file.replace(/\.[cm]?[jt]sx?$/, '')}#${entry.source.name}` ||
+              target.replace(/^\?/, '').replace(/@\d+$/, '') ===
+                `${entry.source.file}#${entry.source.name}`
           )
-        ),
-      ]
-      if (supplementalNames.length !== 1) continue
-      const name = supplementalNames[0] as keyof typeof supplementalChrome
-      if (componentContract(`@sim/emcn#${name}`)) continue
-      const contract = supplementalChrome[name]
+        )
+        .map(([name]) => name)
+      if (names.length !== 1) continue
+      const name = names[0]
+      const contract = componentContract(`@sim/emcn#${name}`, this.metadata)
+      const slot = contract?.slotOwnership?.className
+      if (!slot) continue
       for (const classes of candidate.classes)
         for (const token of classes.trim().split(/\s+/)) {
           const variants = utility(token).variants
@@ -955,9 +793,8 @@ export class ReviewCollector {
             continue
           for (const { property, category } of supplementalProperties(token))
             if (
-              (contract.protected as readonly string[]).some(
-                (p) => p === property || p === category
-              )
+              slot.protected.some((p) => p === '*' || p === property || p === category) &&
+              !slot.allowed.some((p) => p === '*' || p === property || p === category)
             )
               this.componentFinding(
                 candidate.file,
@@ -989,7 +826,10 @@ export class ReviewCollector {
       )
     }
     for (const [file, candidate] of this.visualCandidates)
-      if (!controls.records.some((record) => record.file === file && !record.projection))
+      if (
+        !centralInventory(file) &&
+        !controls.records.some((record) => record.file === file && !record.projection)
+      )
         this.add(
           'local-visual-primitive',
           file,
@@ -1000,6 +840,7 @@ export class ReviewCollector {
         )
     for (const record of controls.records) {
       if (
+        centralInventory(record.file) ||
         record.projection ||
         record.hidden ||
         record.origin !== 'local-control' ||
@@ -1046,9 +887,43 @@ export class ReviewCollector {
     const sort = <T>(values: T[]) => values.sort((a, b) => compare(canonical(a), canonical(b)))
     return {
       version: '1.0.0',
-      items: sort([...this.items.values()]),
-      findings: sort([...this.findings.values()]),
+      findings: sort([
+        ...this.findings.values(),
+        ...[...this.items.values()].map((item) => ({
+          id: item.id,
+          observedFrom: [item.file],
+          kind: 'usage-violation' as const,
+          rule: item.kind,
+          category: item.kind,
+          property: item.kind,
+          file: item.file,
+          line: item.line,
+          column: 1,
+          context: item.owner,
+          value: item.value,
+          reason: item.reason,
+          legacyFingerprint: hash(
+            canonical(['review-item', item.file, item.owner, item.kind, item.value])
+          ),
+          ...(item.related ? { related: item.related } : {}),
+        })),
+      ]),
       unchecked: sort([...this.unchecked.values()]),
     }
   }
+}
+
+/** Merge independent passes without multiplying the same authored occurrence. */
+export function mergeSourceFindings<T extends Finding>(primary: T[], additional: T[]): T[] {
+  const key = (f: Finding) => canonical([f.file, f.line, f.rule, f.property, f.value])
+  const counts = new Map<string, number>()
+  for (const f of primary) counts.set(key(f), (counts.get(key(f)) ?? 0) + 1)
+  const output = [...primary]
+  for (const f of additional) {
+    const id = key(f)
+    const count = counts.get(id) ?? 0
+    if (count) counts.set(id, count - 1)
+    else output.push(f)
+  }
+  return output
 }

@@ -5,6 +5,7 @@ import postcss from 'postcss'
 import { extractCentralRecipes } from '#design-conformance/central-recipes'
 import { centralFile, contractsHash, registry } from '#design-conformance/contracts'
 import { extract } from '#design-conformance/extract'
+import { type GeneratedContracts, generateContracts } from '#design-conformance/generated-contracts'
 import {
   type Atom,
   type Catalogue,
@@ -44,6 +45,7 @@ interface Module {
   unchecked: string[]
 }
 export interface DesignSystem {
+  metadata: GeneratedContracts
   recipes: Record<string, ReturnType<typeof extractCentralRecipes>>
   summaries: { file: string; summary: SourceSummary }[]
   resolutionHash: string
@@ -495,14 +497,20 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
     }
     return undefined
   }
+  const metadata = await generateContracts(input, system)
+  unchecked.push(...metadata.diagnostics.map((d) => ({ file: d.file, reason: d.reason })))
   return {
+    metadata,
     recipes,
     summaries: input.snapshot.entries.flatMap((e) => {
       const summary = info.get(moduleName(e.path))?.summary
       return summary ? [{ file: e.path, summary }] : []
     }),
     resolutionHash: hash(
-      canonical([...info].map(([file, m]) => [file, m.values, m.exports, m.stars]))
+      canonical([
+        metadata.sourceHash,
+        [...info].map(([file, m]) => [file, m.values, m.exports, m.stars]),
+      ])
     ),
     definitions,
     hash: input.snapshot.hash,

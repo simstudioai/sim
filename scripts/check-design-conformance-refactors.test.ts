@@ -1,12 +1,15 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Proposed source fixtures. */
+
 import { expect, test } from 'vitest'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { type Change, type Entry, hash, TOKEN_FILE } from '#design-conformance/model'
 import { snapshotHash } from '#design-conformance/system-snapshot'
+import { testComponents } from '#design-conformance/test-source'
 
 const root = 'apps/sim/components/'
 const base = 'a'.repeat(40)
-const central = {
+const central: Record<string, string> = {
+  ...testComponents,
   [TOKEN_FILE]:
     '@theme {--text-small:13px;--radius-lg:8px;--shadow-card:0 1px 2px #000;} :root {--ink:#123456}',
   'packages/emcn/src/components/wizard/wizard.tsx': `export const Wizard=({children})=><ChipModalBody>{children}</ChipModalBody>`,
@@ -41,6 +44,7 @@ async function compare(
   const sources = {
     ...central,
     ...inventory,
+    'packages/emcn/src/index.ts': `${central['packages/emcn/src/index.ts']}\n${inventory['packages/emcn/src/index.ts'] ?? ''}`,
     ...Object.fromEntries(Object.entries(before).filter(([p]) => p.startsWith('packages/emcn/'))),
   }
   const entries = Object.entries(sources)

@@ -169,7 +169,8 @@
     {
       "includes": [
         "scripts/design-conformance/catalogue.json",
-        "scripts/design-conformance/contracts.json"
+        "scripts/design-conformance/contracts.json",
+        "scripts/design-conformance/contracts.generated.json"
       ],
       "formatter": {
         "enabled": false

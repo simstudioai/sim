@@ -4,6 +4,11 @@ import { matchReviews, readReviewLedger } from '#control-analysis/review-ledger'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { addControlComparison, controlSource } from '#design-conformance/control-comparison'
 import {
+  GENERATED_FILE,
+  generateContracts,
+  infrastructureStatus,
+} from '#design-conformance/generated-contracts'
+import {
   compareGit,
   gitText,
   loadCatalogue,
@@ -69,7 +74,7 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
     }
     const report =
       linter instanceof ConformanceLinter
-        ? addControlComparison(
+        ? await addControlComparison(
             await linter.analyze(
               changes,
               read,
@@ -81,12 +86,30 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
             () => after ?? controlSource(args.repo, commits.head)
           )
         : linter.analyze(changes, read, commits)
+    if (report.status === 'completed' && args.policy === 'conformance') {
+      const source = after ?? new GitSource(args.repo, commits.head)
+      const metadata = await generateContracts(source.central())
+      const artifact = source.entries.find((e) => e.path === GENERATED_FILE)
+      report.infrastructure = infrastructureStatus(
+        metadata,
+        artifact ? source.read(artifact) : undefined
+      )
+      if (!report.infrastructure.fresh)
+        report.unchecked.push({
+          file: GENERATED_FILE,
+          line: 1,
+          context: 'generated infrastructure',
+          side: 'after',
+          reason:
+            'Generated design infrastructure is stale; run bun run design:generate and commit the output. Fresh source metadata was used for this comparison.',
+        })
+    }
     after?.assertUnchanged()
     if (args.reviews && report.status === 'completed')
       report.reviewDecisions = matchReviews(
         readReviewLedger(args.reviews, args.repo),
         report.findings,
-        report.reviewItems ?? []
+        []
       )
     return report
   } catch (error) {
