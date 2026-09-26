@@ -204,7 +204,7 @@ test('finite literal branch and landing-only token cannot be approved by the oth
     'apps/sim/components/example.css': '.product { border-radius: var(--landing-radius); }',
   })
   expect(radius.review.findings.filter((finding) => finding.rule === 'central-token')).toHaveLength(
-    2
+    3
   )
 })
 

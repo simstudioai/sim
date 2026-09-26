@@ -194,6 +194,95 @@ test('text, JSON and output files preserve finding identity and normal command e
   expect(run([...args, '--output', path.join(temp, 'missing/report.json')]).status).toBe(2)
 })
 
+test.each([
+  {
+    label: 'landing tokens in sibling JSX attributes',
+    file: ui,
+    rule: 'central-token',
+    source: (count: number) =>
+      `export const View=()=> <div>${'<span className="rounded-[var(--landing-radius)]"/>'.repeat(count)}</div>`,
+  },
+  {
+    label: 'landing tokens within one JSX literal',
+    file: ui,
+    rule: 'central-token',
+    source: (count: number) =>
+      `export const View=()=> <span style={{borderRadius:'${'var(--landing-radius) '.repeat(count)}'}}/>`,
+  },
+  {
+    label: 'landing tokens in sibling CSS declarations',
+    file: 'apps/sim/components/example.css',
+    rule: 'central-token',
+    source: (count: number) =>
+      `.product { ${'border-radius:var(--landing-radius);'.repeat(count)} }`,
+  },
+  {
+    label: 'landing tokens within one CSS declaration',
+    file: 'apps/sim/components/example.css',
+    rule: 'central-token',
+    source: (count: number) =>
+      `.product { border-radius:${'var(--landing-radius) '.repeat(count)}; }`,
+  },
+  {
+    label: 'central colours in sibling theme calls',
+    file: ui,
+    rule: 'central-colour',
+    source: (count: number, observations = 1) =>
+      `export function View(){${Array.from(
+        { length: count },
+        (_, index) =>
+          `const colors${index}={'editor.background':'#123456'};${`productTheme.editor.defineTheme('local',{colors:colors${index}});`.repeat(observations)}`
+      ).join('')}}`,
+  },
+  {
+    label: 'central colours within rendered HTML CSS',
+    file: ui,
+    rule: 'central-colour',
+    source: (count: number, observations = 1) =>
+      `export function View(){const html=\`<style>.product { ${'color:#123456;'.repeat(count)} }</style>\`;${"new Blob([html],{type:'text/html'});".repeat(observations)}}`,
+  },
+])(
+  'the real CLI counts $label without treating line shifts as debt',
+  ({ file, rule, source }) => {
+    const { repo } = fixture()
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    writeFileSync(path.join(repo, ui), 'export const View=()=> <span/>')
+    const clean = commit(repo)
+    writeFileSync(path.join(repo, file), source(1))
+    const base = commit(repo)
+    writeFileSync(path.join(repo, file), source(3))
+    const head = commit(repo)
+    const compare = (before: string, after: string) => {
+      const child = run(['--repo', repo, '--base', before, '--head', after, '--format', 'json'])
+      const report = JSON.parse(child.stdout) as Report
+      expect(report.status, report.error).toBe('completed')
+      return { child, report, findings: report.findings.filter((finding) => finding.rule === rule) }
+    }
+    const added = compare(base, head)
+    expect(added.child.status).toBe(1)
+    expect(added.findings).toHaveLength(2)
+    expect(
+      githubAnnotations(added.report).filter((annotation) => annotation.includes(`file=${file},`))
+    ).toHaveLength(2)
+    const all = compare(clean, head)
+    expect(all.findings).toHaveLength(3)
+    expect(
+      new Set(all.findings.map((finding) => ('id' in finding ? finding.id : undefined))).size
+    ).toBe(3)
+    expect(new Set(all.findings.map((finding) => finding.identity)).size).toBe(1)
+    if (rule === 'central-colour') {
+      writeFileSync(path.join(repo, file), source(3, 2))
+      const observedAgain = commit(repo)
+      expect(compare(head, observedAgain).child.status).toBe(0)
+    }
+    writeFileSync(path.join(repo, file), `\n\n${source(3)}`)
+    const shifted = commit(repo)
+    expect(compare(head, shifted).child.status).toBe(0)
+    expect(compare(shifted, base).child.status).toBe(0)
+  },
+  30_000
+)
+
 test('external review decisions annotate but never remove a diff finding', () => {
   const { repo, base } = fixture()
   const args = ['--repo', repo, '--base', base, '--format', 'json']

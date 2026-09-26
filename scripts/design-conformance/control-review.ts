@@ -260,7 +260,8 @@ export class ReviewCollector {
               entry.path,
               decl.source?.start?.line ?? 1,
               decl.parent?.type === 'rule' ? decl.parent.selector : 'css',
-              match[1]
+              match[1],
+              (decl.source?.start?.offset ?? 0) + match.index
             )
           if (!['line-height', 'letter-spacing'].includes(decl.prop) || /var\(--/.test(decl.value))
             return
@@ -365,9 +366,10 @@ export class ReviewCollector {
     ownerName: string,
     property: string,
     value: string,
-    reason: string
+    reason: string,
+    occurrence: number
   ) {
-    const id = hash(canonical([file, ownerName, property, value, reason]))
+    const id = hash(canonical([file, ownerName, property, value, reason, occurrence]))
     this.findings.set(id, {
       id,
       observedFrom: [file],
@@ -389,8 +391,14 @@ export class ReviewCollector {
       },
     })
   }
-  private landingFinding(file: string, line: number, ownerName: string, value: string) {
-    const id = hash(canonical([file, ownerName, 'central-token', value]))
+  private landingFinding(
+    file: string,
+    line: number,
+    ownerName: string,
+    value: string,
+    occurrence: number
+  ) {
+    const id = hash(canonical([file, ownerName, 'central-token', value, occurrence]))
     this.findings.set(id, {
       id,
       observedFrom: [file],
@@ -663,24 +671,39 @@ export class ReviewCollector {
           value.traverse({
             StringLiteral: (literal) => {
               for (const match of literal.node.value.matchAll(/var\(\s*(--landing-[\w-]+)/g))
-                this.landingFinding(file, site(literal), owner(p), match[1])
+                this.landingFinding(
+                  file,
+                  site(literal),
+                  owner(p),
+                  match[1],
+                  (literal.node.start ?? 0) + match.index
+                )
             },
           })
         }
         if (key(p.node.name) !== 'className') return
         const strings: string[] = []
-        if (t.isStringLiteral(p.node.value)) strings.push(p.node.value.value)
+        const collect = (literal: t.StringLiteral) => {
+          strings.push(literal.value)
+          for (const match of literal.value.matchAll(/var\(\s*(--landing-[\w-]+)/g))
+            this.landingFinding(
+              file,
+              literal.loc?.start.line ?? site(p),
+              owner(p),
+              match[1],
+              (literal.start ?? 0) + match.index
+            )
+        }
+        if (t.isStringLiteral(p.node.value)) collect(p.node.value)
         else if (t.isJSXExpressionContainer(p.node.value)) {
           const value = p.get('value') as NodePath<t.JSXExpressionContainer>
           value.traverse({
             StringLiteral: (literal) => {
-              strings.push(literal.node.value)
+              collect(literal.node)
             },
           })
         }
         for (const classes of strings) {
-          for (const match of classes.matchAll(/var\(\s*(--landing-[\w-]+)/g))
-            this.landingFinding(file, site(p), owner(p), match[1])
           const tokens = classes.trim().split(/\s+/).filter(Boolean)
           if (tokens.length >= 3) {
             const normalized = [...new Set(tokens)].sort(compare).join(' ')
@@ -742,7 +765,8 @@ export class ReviewCollector {
                   owner(p),
                   key(entry.key),
                   entry.value.value,
-                  'Monaco editor chrome has a local literal colour'
+                  'Monaco editor chrome has a local literal colour',
+                  entry.value.start ?? 0
                 )
           if (name === 'rules' && t.isArrayExpression(source))
             for (const entry of source.elements)
@@ -804,7 +828,8 @@ export class ReviewCollector {
             owner(p),
             'generated-css',
             match[1],
-            'Rendered HTML contains a local literal CSS colour'
+            'Rendered HTML contains a local literal CSS colour',
+            (template.start ?? 0) + match.index
           )
       },
     })
