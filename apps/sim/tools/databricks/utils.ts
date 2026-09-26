@@ -4,7 +4,7 @@ import type {
   DatabricksGenieSpace,
   DatabricksStatementResult,
 } from '@/tools/databricks/types'
-import type { OutputProperty, ToolConfig } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /** Message states after which Genie will not change a chat-mode message further. */
@@ -267,155 +267,6 @@ export function mapGenieSpace(space: GenieSpacePayload): DatabricksGenieSpace {
   }
 }
 
-export const GENIE_SPACE_OUTPUT_PROPERTIES = {
-  spaceId: { type: 'string', description: 'Genie space ID' },
-  title: { type: 'string', description: 'Space title' },
-  description: { type: 'string', description: 'Space description', optional: true },
-  warehouseId: {
-    type: 'string',
-    description: 'SQL warehouse the space runs queries on',
-    optional: true,
-  },
-  parentPath: {
-    type: 'string',
-    description: 'Workspace folder containing the space',
-    optional: true,
-  },
-  createTime: {
-    type: 'string',
-    description: 'When the space was created (ISO 8601)',
-    optional: true,
-  },
-  updateTime: {
-    type: 'string',
-    description: 'When the space was last modified (ISO 8601)',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
-  conversationId: { type: 'string', description: 'Genie conversation ID' },
-  messageId: { type: 'string', description: 'Genie message ID' },
-  status: {
-    type: 'string',
-    description:
-      'Message status (SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED)',
-  },
-  content: { type: 'string', description: 'The question that was asked' },
-  answer: { type: 'string', description: "Genie's text answer or summary", optional: true },
-  followUpQuestion: {
-    type: 'string',
-    description: 'Clarifying question Genie asked instead of, or alongside, an answer',
-    optional: true,
-  },
-  queryTitle: { type: 'string', description: 'Title of the generated query', optional: true },
-  sql: { type: 'string', description: 'SQL query Genie generated', optional: true },
-  queryDescription: {
-    type: 'string',
-    description: 'Plain-language description of the generated SQL',
-    optional: true,
-  },
-  queryAttachmentId: {
-    type: 'string',
-    description: 'Attachment ID of the generated query, used to fetch or re-run its result',
-    optional: true,
-  },
-  statementId: {
-    type: 'string',
-    description: 'SQL statement ID of the generated query',
-    optional: true,
-  },
-  rowCount: {
-    type: 'number',
-    description: 'Number of rows the generated query returned',
-    optional: true,
-  },
-  thoughts: {
-    type: 'array',
-    description: 'How Genie interpreted the question and built the SQL (Public Preview)',
-    items: {
-      type: 'object',
-      properties: {
-        type: {
-          type: 'string',
-          description:
-            'Thought category (THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS)',
-          optional: true,
-        },
-        content: { type: 'string', description: 'Markdown-formatted thought' },
-      },
-    },
-  },
-  suggestedQuestions: {
-    type: 'array',
-    description: 'Follow-up questions suggested by Genie',
-    items: { type: 'string', description: 'Suggested question' },
-  },
-  visualizations: {
-    type: 'array',
-    description: 'Charts Genie generated (only when visualization was requested)',
-    items: {
-      type: 'object',
-      properties: {
-        attachmentId: {
-          type: 'string',
-          description: 'Visualization attachment ID, used to download the chart',
-        },
-        title: { type: 'string', description: 'Chart title', optional: true },
-        queryAttachmentId: {
-          type: 'string',
-          description: 'Query attachment the chart was built from',
-          optional: true,
-        },
-      },
-    },
-  },
-  error: { type: 'string', description: 'Why Genie failed to answer', optional: true },
-  errorType: { type: 'string', description: 'Genie error type', optional: true },
-  createdTimestamp: {
-    type: 'number',
-    description: 'When the message was created',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-export const STATEMENT_RESULT_OUTPUT_PROPERTIES = {
-  columns: {
-    type: 'array',
-    description: 'Column schema of the query result',
-    optional: true,
-    items: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'Column name' },
-        position: { type: 'number', description: 'Column position (0-based)' },
-        typeName: {
-          type: 'string',
-          description:
-            'Column type (STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.)',
-        },
-      },
-    },
-  },
-  data: {
-    type: 'array',
-    description:
-      'Result rows as a 2D array; each non-null value is a string and null values stay null',
-    optional: true,
-    items: { type: 'array', description: 'A single row of column values' },
-  },
-  totalRows: {
-    type: 'number',
-    description: 'Total number of rows in the result',
-    optional: true,
-  },
-  truncated: {
-    type: 'boolean',
-    description: 'Whether the result set was truncated',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
 /** Parameters addressing a query attachment; Get Query Result and Execute Query share them. */
 export const GENIE_QUERY_ATTACHMENT_PARAMS = {
   ...GENIE_MESSAGE_PARAMS,
@@ -426,15 +277,6 @@ export const GENIE_QUERY_ATTACHMENT_PARAMS = {
     description: 'The query attachment ID (queryAttachmentId from Ask Genie or Get Genie Message)',
   },
 } as const satisfies ToolConfig['params']
-
-export const GENIE_QUERY_RESULT_OUTPUTS = {
-  statementId: { type: 'string', description: 'SQL statement ID of the query' },
-  status: {
-    type: 'string',
-    description: 'Statement status (PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED)',
-  },
-  ...STATEMENT_RESULT_OUTPUT_PROPERTIES,
-} as const satisfies Record<string, OutputProperty>
 
 /** Path of a Genie agent (agent mode addresses the Genie space by its ID). */
 export function genieAgentPath(spaceId: string): string {
@@ -577,38 +419,3 @@ export function genieAgentErrorMessage(error: unknown): string {
   if (typeof message === 'string' && message) return message
   return error ? JSON.stringify(error) : 'Genie agent response failed'
 }
-
-export const GENIE_AGENT_ITEM_OUTPUT_PROPERTIES = {
-  type: {
-    type: 'string',
-    description: 'Item type (message, reasoning, function_call, function_call_output)',
-  },
-  id: { type: 'string', description: 'Item ID' },
-  status: { type: 'string', description: 'Item status', optional: true },
-  role: {
-    type: 'string',
-    description: 'Message role (user, assistant, or system) for message items',
-    optional: true,
-  },
-  text: {
-    type: 'string',
-    description: 'Text of a message or reasoning item',
-    optional: true,
-  },
-  callId: {
-    type: 'string',
-    description: 'Pairs a function_call with its function_call_output',
-    optional: true,
-  },
-  name: { type: 'string', description: 'Function name (execute_sql)', optional: true },
-  arguments: {
-    type: 'string',
-    description: 'Function call arguments as a JSON string (title and sql)',
-    optional: true,
-  },
-  output: {
-    type: 'string',
-    description: 'Query result: the query title followed by a Markdown table',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>

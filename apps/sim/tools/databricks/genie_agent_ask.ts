@@ -1,10 +1,10 @@
-import type {
-  DatabricksGenieAgentAskParams,
-  DatabricksGenieAgentAskResponse,
+import {
+  type DatabricksGenieAgentAskParams,
+  type DatabricksGenieAgentAskResponse,
+  GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksUrl,
-  GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
   GENIE_SPACE_PARAMS,
   genieAgentErrorMessage,
   genieAgentPath,
@@ -137,7 +137,7 @@ export const genieAgentAskTool: ToolConfig<
     report: {
       type: 'string',
       description: "The agent's final report, with citation links",
-      optional: true,
+      nullable: true,
     },
     queries: {
       type: 'array',
@@ -146,8 +146,8 @@ export const genieAgentAskTool: ToolConfig<
         type: 'object',
         properties: {
           callId: { type: 'string', description: 'Function call ID' },
-          title: { type: 'string', description: 'Query title', optional: true },
-          sql: { type: 'string', description: 'SQL the agent ran', optional: true },
+          title: { type: 'string', description: 'Query title', nullable: true },
+          sql: { type: 'string', description: 'SQL the agent ran', nullable: true },
         },
       },
     },
@@ -162,12 +162,12 @@ export const genieAgentAskTool: ToolConfig<
     createdAt: {
       type: 'number',
       description: 'When the response was created (Unix epoch seconds)',
-      optional: true,
+      nullable: true,
     },
     error: {
       type: 'string',
       description: 'System error message the agent reported alongside its report',
-      optional: true,
+      nullable: true,
     },
   },
 }

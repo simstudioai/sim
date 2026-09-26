@@ -1,12 +1,12 @@
-import type {
-  DatabricksGenieGetSpaceParams,
-  DatabricksGenieGetSpaceResponse,
+import {
+  type DatabricksGenieGetSpaceParams,
+  type DatabricksGenieGetSpaceResponse,
+  GENIE_SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
   GENIE_READ_RETRY,
-  GENIE_SPACE_OUTPUT_PROPERTIES,
   GENIE_SPACE_PARAMS,
   genieSpacePath,
   mapGenieSpace,
@@ -70,7 +70,7 @@ export const genieGetSpaceTool: ToolConfig<
       type: 'string',
       description:
         'Serialized space configuration as a JSON string (data sources, instructions, sample questions)',
-      optional: true,
+      nullable: true,
     },
   },
 }

@@ -1,11 +1,11 @@
-import type {
-  DatabricksGenieGetMessageResponse,
-  DatabricksGenieMessageParams,
+import {
+  type DatabricksGenieGetMessageResponse,
+  type DatabricksGenieMessageParams,
+  GENIE_MESSAGE_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
-  GENIE_MESSAGE_OUTPUT_PROPERTIES,
   GENIE_MESSAGE_PARAMS,
   GENIE_READ_RETRY,
   genieMessagePath,

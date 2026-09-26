@@ -1,12 +1,12 @@
-import type {
-  DatabricksGenieAttachmentParams,
-  DatabricksGenieQueryResultResponse,
+import {
+  type DatabricksGenieAttachmentParams,
+  type DatabricksGenieQueryResultResponse,
+  GENIE_QUERY_RESULT_OUTPUTS,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
   GENIE_QUERY_ATTACHMENT_PARAMS,
-  GENIE_QUERY_RESULT_OUTPUTS,
   genieAttachmentPath,
   mapStatementResult,
 } from '@/tools/databricks/utils'

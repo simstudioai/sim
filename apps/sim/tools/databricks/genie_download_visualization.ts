@@ -2,7 +2,12 @@ import type {
   DatabricksGenieAttachmentParams,
   DatabricksGenieDownloadVisualizationResponse,
 } from '@/tools/databricks/types'
-import { databricksUrl, GENIE_MESSAGE_PARAMS, genieAttachmentPath } from '@/tools/databricks/utils'
+import {
+  databricksUrl,
+  GENIE_MESSAGE_PARAMS,
+  GENIE_READ_RETRY,
+  genieAttachmentPath,
+} from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieDownloadVisualizationTool: ToolConfig<
@@ -34,6 +39,7 @@ export const genieDownloadVisualizationTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     responseType: 'binary',
+    retry: GENIE_READ_RETRY,
   },
 
   transformResponse: async (response: Response, params) => {

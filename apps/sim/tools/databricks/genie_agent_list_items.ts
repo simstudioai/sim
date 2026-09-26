@@ -1,11 +1,11 @@
-import type {
-  DatabricksGenieAgentListItemsParams,
-  DatabricksGenieAgentListItemsResponse,
+import {
+  type DatabricksGenieAgentListItemsParams,
+  type DatabricksGenieAgentListItemsResponse,
+  GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
-  GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
   genieAgentPath,
@@ -106,17 +106,17 @@ export const genieAgentListItemsTool: ToolConfig<
         properties: GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
       },
     },
-    firstId: { type: 'string', description: 'ID of the first item in the page', optional: true },
+    firstId: { type: 'string', description: 'ID of the first item in the page', nullable: true },
     lastId: {
       type: 'string',
       description: 'ID of the last item in the page; pass it as After for the next page',
-      optional: true,
+      nullable: true,
     },
     hasMore: { type: 'boolean', description: 'Whether more items follow this page' },
     status: {
       type: 'string',
       description: 'Status of the latest response in the conversation',
-      optional: true,
+      nullable: true,
     },
   },
 }

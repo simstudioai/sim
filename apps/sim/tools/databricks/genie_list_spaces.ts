@@ -1,13 +1,13 @@
-import type {
-  DatabricksGenieListSpacesParams,
-  DatabricksGenieListSpacesResponse,
+import {
+  type DatabricksGenieListSpacesParams,
+  type DatabricksGenieListSpacesResponse,
+  GENIE_SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
   databricksErrorMessage,
   databricksUrl,
   GENIE_READ_RETRY,
-  GENIE_SPACE_OUTPUT_PROPERTIES,
   mapGenieSpace,
 } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -81,7 +81,7 @@ export const genieListSpacesTool: ToolConfig<
     nextPageToken: {
       type: 'string',
       description: 'Token for the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

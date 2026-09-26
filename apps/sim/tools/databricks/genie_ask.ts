@@ -1,22 +1,23 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import type {
-  DatabricksGenieAskParams,
-  DatabricksGenieAskResponse,
-  DatabricksGenieGetMessageResponse,
-  DatabricksGenieQueryResultResponse,
+import {
+  type DatabricksGenieAskParams,
+  type DatabricksGenieAskResponse,
+  type DatabricksGenieGetMessageResponse,
+  type DatabricksGenieQueryResultResponse,
+  GENIE_MESSAGE_OUTPUT_PROPERTIES,
+  STATEMENT_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
-  GENIE_MESSAGE_OUTPUT_PROPERTIES,
   GENIE_SPACE_PARAMS,
   GENIE_TERMINAL_STATUSES,
   genieConversationPath,
   genieSpacePath,
   mapGenieMessage,
-  STATEMENT_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -129,74 +130,92 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     }
 
     let message = result.output
-    const startedAt = Date.now()
-    let attempt = 0
 
-    while (!GENIE_TERMINAL_STATUSES.has(message.status)) {
-      if (Date.now() - startedAt >= MAX_POLL_TIME_MS) {
-        logger.warn(`Genie message ${messageId} did not complete within ${MAX_POLL_TIME_MS} ms`)
+    /**
+     * A nested call can throw instead of returning a failed result, and the executor falls back
+     * to the pending first response when post-processing throws. Convert every failure here so
+     * the ask fails with its conversation and message IDs intact.
+     */
+    try {
+      const startedAt = Date.now()
+      let attempt = 0
+
+      while (!GENIE_TERMINAL_STATUSES.has(message.status)) {
+        if (Date.now() - startedAt >= MAX_POLL_TIME_MS) {
+          logger.warn(`Genie message ${messageId} did not complete within ${MAX_POLL_TIME_MS} ms`)
+          return {
+            ...result,
+            output: message,
+            success: false,
+            error: `Genie did not answer within ${MAX_POLL_TIME_MS / 1000}s (last status: ${message.status}). Use Get Genie Message with this conversation and message ID to check on it.`,
+          }
+        }
+
+        attempt += 1
+        const intervalMs = Math.min(1000 * attempt, MAX_POLL_INTERVAL_MS)
+        await sleep(intervalMs)
+
+        const polled = (await executeTool(
+          'databricks_genie_get_message',
+          messageParams
+        )) as DatabricksGenieGetMessageResponse
+        if (!polled.success) {
+          return {
+            ...result,
+            output: message,
+            success: false,
+            error: polled.error ?? 'Failed to poll Genie message',
+          }
+        }
+        message = { ...message, ...polled.output }
+      }
+
+      if (message.status === 'FAILED' || message.status === 'CANCELLED') {
         return {
           ...result,
           output: message,
           success: false,
-          error: `Genie did not answer within ${MAX_POLL_TIME_MS / 1000}s (last status: ${message.status}). Use Get Genie Message with this conversation and message ID to check on it.`,
+          error: message.error ?? `Genie message ${message.status.toLowerCase()}`,
         }
       }
 
-      attempt += 1
-      const intervalMs = Math.min(1000 * attempt, MAX_POLL_INTERVAL_MS)
-      await sleep(intervalMs)
+      if (message.status !== 'COMPLETED' || !message.queryAttachmentId) {
+        return { ...result, output: message }
+      }
 
-      const polled = (await executeTool(
-        'databricks_genie_get_message',
-        messageParams
-      )) as DatabricksGenieGetMessageResponse
-      if (!polled.success) {
+      const queryResult = (await executeTool('databricks_genie_get_query_result', {
+        ...messageParams,
+        attachmentId: message.queryAttachmentId,
+      })) as DatabricksGenieQueryResultResponse
+      if (!queryResult.success) {
         return {
           ...result,
           output: message,
           success: false,
-          error: polled.error ?? 'Failed to poll Genie message',
+          error: queryResult.error ?? 'Failed to get Genie query result',
         }
       }
-      message = { ...message, ...polled.output }
-    }
 
-    if (message.status === 'FAILED' || message.status === 'CANCELLED') {
+      return {
+        ...result,
+        output: {
+          ...message,
+          columns: queryResult.output.columns,
+          data: queryResult.output.data,
+          totalRows: queryResult.output.totalRows,
+          truncated: queryResult.output.truncated,
+        },
+      }
+    } catch (error) {
+      logger.error(`Error waiting for Genie message ${messageId}`, {
+        message: getErrorMessage(error, 'Unknown error'),
+      })
       return {
         ...result,
         output: message,
         success: false,
-        error: message.error ?? `Genie message ${message.status.toLowerCase()}`,
+        error: `Error waiting for Genie to answer: ${getErrorMessage(error, 'Unknown error')}`,
       }
-    }
-
-    if (message.status !== 'COMPLETED' || !message.queryAttachmentId) {
-      return { ...result, output: message }
-    }
-
-    const queryResult = (await executeTool('databricks_genie_get_query_result', {
-      ...messageParams,
-      attachmentId: message.queryAttachmentId,
-    })) as DatabricksGenieQueryResultResponse
-    if (!queryResult.success) {
-      return {
-        ...result,
-        output: message,
-        success: false,
-        error: queryResult.error ?? 'Failed to get Genie query result',
-      }
-    }
-
-    return {
-      ...result,
-      output: {
-        ...message,
-        columns: queryResult.output.columns,
-        data: queryResult.output.data,
-        totalRows: queryResult.output.totalRows,
-        truncated: queryResult.output.truncated,
-      },
     }
   },
 

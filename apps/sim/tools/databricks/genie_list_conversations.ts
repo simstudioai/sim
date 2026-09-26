@@ -100,17 +100,17 @@ export const genieListConversationsTool: ToolConfig<
         type: 'object',
         properties: {
           conversationId: { type: 'string', description: 'Conversation ID' },
-          title: { type: 'string', description: 'Conversation title', optional: true },
+          title: { type: 'string', description: 'Conversation title', nullable: true },
           createdTimestamp: {
             type: 'number',
             description: 'When the conversation was created',
-            optional: true,
+            nullable: true,
           },
           agentType: {
             type: 'string',
             description:
               'Conversation mode (GENIE_CONVERSATION_TYPE_CHAT or GENIE_CONVERSATION_TYPE_AGENT)',
-            optional: true,
+            nullable: true,
           },
         },
       },
@@ -118,7 +118,7 @@ export const genieListConversationsTool: ToolConfig<
     nextPageToken: {
       type: 'string',
       description: 'Token for the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

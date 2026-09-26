@@ -1,4 +1,4 @@
-import type { ToolFileData, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /** Base parameters shared by all Databricks tools */
 export interface DatabricksBaseParams {
@@ -458,6 +458,199 @@ export interface DatabricksGenieAgentListItemsResponse extends ToolResponse {
     status: string | null
   }
 }
+
+export const GENIE_SPACE_OUTPUT_PROPERTIES = {
+  spaceId: { type: 'string', description: 'Genie space ID' },
+  title: { type: 'string', description: 'Space title' },
+  description: { type: 'string', description: 'Space description', nullable: true },
+  warehouseId: {
+    type: 'string',
+    description: 'SQL warehouse the space runs queries on',
+    nullable: true,
+  },
+  parentPath: {
+    type: 'string',
+    description: 'Workspace folder containing the space',
+    nullable: true,
+  },
+  createTime: {
+    type: 'string',
+    description: 'When the space was created (ISO 8601)',
+    nullable: true,
+  },
+  updateTime: {
+    type: 'string',
+    description: 'When the space was last modified (ISO 8601)',
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
+  conversationId: { type: 'string', description: 'Genie conversation ID' },
+  messageId: { type: 'string', description: 'Genie message ID' },
+  status: {
+    type: 'string',
+    description:
+      'Message status (SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED)',
+  },
+  content: { type: 'string', description: 'The question that was asked' },
+  answer: { type: 'string', description: "Genie's text answer or summary", nullable: true },
+  followUpQuestion: {
+    type: 'string',
+    description: 'Clarifying question Genie asked instead of, or alongside, an answer',
+    nullable: true,
+  },
+  queryTitle: { type: 'string', description: 'Title of the generated query', nullable: true },
+  sql: { type: 'string', description: 'SQL query Genie generated', nullable: true },
+  queryDescription: {
+    type: 'string',
+    description: 'Plain-language description of the generated SQL',
+    nullable: true,
+  },
+  queryAttachmentId: {
+    type: 'string',
+    description: 'Attachment ID of the generated query, used to fetch or re-run its result',
+    nullable: true,
+  },
+  statementId: {
+    type: 'string',
+    description: 'SQL statement ID of the generated query',
+    nullable: true,
+  },
+  rowCount: {
+    type: 'number',
+    description: 'Number of rows the generated query returned',
+    nullable: true,
+  },
+  thoughts: {
+    type: 'array',
+    description: 'How Genie interpreted the question and built the SQL (Public Preview)',
+    items: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          description:
+            'Thought category (THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS)',
+          nullable: true,
+        },
+        content: { type: 'string', description: 'Markdown-formatted thought' },
+      },
+    },
+  },
+  suggestedQuestions: {
+    type: 'array',
+    description: 'Follow-up questions suggested by Genie',
+    items: { type: 'string', description: 'Suggested question' },
+  },
+  visualizations: {
+    type: 'array',
+    description: 'Charts Genie generated (only when visualization was requested)',
+    items: {
+      type: 'object',
+      properties: {
+        attachmentId: {
+          type: 'string',
+          description: 'Visualization attachment ID, used to download the chart',
+        },
+        title: { type: 'string', description: 'Chart title', nullable: true },
+        queryAttachmentId: {
+          type: 'string',
+          description: 'Query attachment the chart was built from',
+          nullable: true,
+        },
+      },
+    },
+  },
+  error: { type: 'string', description: 'Why Genie failed to answer', nullable: true },
+  errorType: { type: 'string', description: 'Genie error type', nullable: true },
+  createdTimestamp: {
+    type: 'number',
+    description: 'When the message was created',
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const STATEMENT_RESULT_OUTPUT_PROPERTIES = {
+  columns: {
+    type: 'array',
+    description: 'Column schema of the query result',
+    nullable: true,
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Column name' },
+        position: { type: 'number', description: 'Column position (0-based)' },
+        typeName: {
+          type: 'string',
+          description:
+            'Column type (STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.)',
+        },
+      },
+    },
+  },
+  data: {
+    type: 'array',
+    description:
+      'Result rows as a 2D array; each non-null value is a string and null values stay null',
+    nullable: true,
+    items: { type: 'array', description: 'A single row of column values' },
+  },
+  totalRows: {
+    type: 'number',
+    description: 'Total number of rows in the result',
+    nullable: true,
+  },
+  truncated: {
+    type: 'boolean',
+    description: 'Whether the result set was truncated',
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const GENIE_QUERY_RESULT_OUTPUTS = {
+  statementId: { type: 'string', description: 'SQL statement ID of the query' },
+  status: {
+    type: 'string',
+    description: 'Statement status (PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED)',
+  },
+  ...STATEMENT_RESULT_OUTPUT_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+export const GENIE_AGENT_ITEM_OUTPUT_PROPERTIES = {
+  type: {
+    type: 'string',
+    description: 'Item type (message, reasoning, function_call, function_call_output)',
+  },
+  id: { type: 'string', description: 'Item ID' },
+  status: { type: 'string', description: 'Item status', nullable: true },
+  role: {
+    type: 'string',
+    description: 'Message role (user, assistant, or system) for message items',
+    nullable: true,
+  },
+  text: {
+    type: 'string',
+    description: 'Text of a message or reasoning item',
+    nullable: true,
+  },
+  callId: {
+    type: 'string',
+    description: 'Pairs a function_call with its function_call_output',
+    nullable: true,
+  },
+  name: { type: 'string', description: 'Function name (execute_sql)', nullable: true },
+  arguments: {
+    type: 'string',
+    description: 'Function call arguments as a JSON string (title and sql)',
+    nullable: true,
+  },
+  output: {
+    type: 'string',
+    description: 'Query result: the query title followed by a Markdown table',
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
 
 /** Union type for all Databricks responses */
 export type DatabricksResponse =

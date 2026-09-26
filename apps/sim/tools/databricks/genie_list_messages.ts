@@ -1,11 +1,11 @@
-import type {
-  DatabricksGenieListMessagesParams,
-  DatabricksGenieListMessagesResponse,
+import {
+  type DatabricksGenieListMessagesParams,
+  type DatabricksGenieListMessagesResponse,
+  GENIE_MESSAGE_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
   databricksUrl,
-  GENIE_MESSAGE_OUTPUT_PROPERTIES,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
   type GenieMessagePayload,
@@ -96,7 +96,7 @@ export const genieListMessagesTool: ToolConfig<
     nextPageToken: {
       type: 'string',
       description: 'Token for the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }
