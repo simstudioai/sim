@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { init } from 'echarts'
 import { describe, expect, it } from 'vitest'
 import {

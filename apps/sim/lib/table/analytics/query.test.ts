@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fillAnalyticsBuckets, resolveAnalyticsBucket } from '@/lib/table/analytics/buckets'

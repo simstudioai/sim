@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { toRecord } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import { applyChartTooltipDefaults, formatBarTooltip, formatPieTooltip } from '@/lib/charts/theme'

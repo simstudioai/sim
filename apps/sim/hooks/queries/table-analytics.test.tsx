@@ -68,9 +68,7 @@ describe('dashboard range transitions', () => {
   afterEach(() => {
     act(() => root.unmount())
     client.clear()
-    vi.resetAllMocks()
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('keeps results while the new range loads, then replaces them', async () => {

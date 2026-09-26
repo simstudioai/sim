@@ -58,8 +58,6 @@ describe('dashboard empty-range transitions', () => {
   })
   afterEach(() => {
     act(() => root.unmount())
-    vi.resetAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it('keeps the chart mounted through populated, empty, and populated ranges', async () => {
