@@ -3,6 +3,7 @@ import { parse } from '@babel/parser'
 import * as t from '@babel/types'
 import { compareStrings } from '@sim/utils/string'
 import postcss from 'postcss'
+import valueParser from 'postcss-value-parser'
 import { extractCentralRecipes } from '#design-conformance/central-recipes'
 import { centralFile, contractsHash, registry } from '#design-conformance/contracts'
 import { extract } from '#design-conformance/extract'
@@ -19,6 +20,7 @@ import {
 import {
   type Compiler,
   compiler,
+  compilerTheme,
   declarations,
   defaultTheme,
   rawColours,
@@ -58,10 +60,14 @@ export interface DesignSystem {
   variableFamilies: Map<string, Set<string>>
   adopted: Map<string, Set<string>>
   resolve: (ref: string) => Reference | undefined
-  unchecked: { file: string; reason: string }[]
+  unchecked: { file: string; line?: number; reason: string }[]
 }
 const modules = new Map<string, Module>()
 const compilers = new Map<string, Compiler>()
+const compilerDiagnostics = new WeakMap<
+  Compiler,
+  { file: string; line: number; reason: string }[]
+>()
 const keyName = (n: t.Node) =>
   t.isIdentifier(n) ? n.name : t.isStringLiteral(n) || t.isNumericLiteral(n) ? String(n.value) : ''
 const moduleName = (file: string) => file.replace(/\.[cm]?[jt]sx?$/, '')
@@ -330,11 +336,99 @@ function moduleInfo(source: string, file: string): Module {
   modules.set(identity, out)
   return out
 }
+/** Keep unresolved import boundaries visible without loading packages or executable build code. */
+export const centralCompilerDiagnostics = (compiled: Compiler) =>
+  compilerDiagnostics.get(compiled) ?? []
+
+/** All callers compile the same immutable central CSS and declarative historical theme inputs. */
+export async function centralCompiler(input: SystemInput): Promise<Compiler> {
+  const sources = new Map<string, string>()
+  for (const entry of input.snapshot.entries) {
+    if (!entry.path.endsWith('.css') && !/tailwind\.config\.[cm]?[jt]s$/.test(entry.path)) continue
+    if (!/^100(?:644|755)$/.test(entry.mode))
+      throw new Error(`Central compiler input is not a regular file: ${entry.path}`)
+    const source = input.read(entry)
+    if (Buffer.byteLength(source) > registry.limits.sourceBytes)
+      throw new Error(`Central compiler input exceeds parser limit: ${entry.path}`)
+    sources.set(entry.path, source)
+  }
+  const identity = hash(
+    canonical([defaultTheme, contractsHash, [...sources].sort(([a], [b]) => compareStrings(a, b))])
+  )
+  const cached = compilers.get(identity)
+  if (cached) return cached
+  const blocks = [defaultTheme]
+  const visited = new Set<string>()
+  const diagnostics: { file: string; line: number; reason: string }[] = []
+  const visit = (file: string, active = new Set<string>()) => {
+    if (active.has(file) || active.size >= 12) {
+      diagnostics.push({
+        file,
+        line: 1,
+        reason:
+          'Central stylesheet import is cyclic or exceeds the 12-file resolution limit; imported theme is unchecked',
+      })
+      return
+    }
+    const source = sources.get(file)
+    if (source === undefined) return
+    visited.add(file)
+    const next = new Set(active).add(file)
+    postcss.parse(source, { from: file }).each((node) => {
+      if (node.type !== 'atrule') return
+      if (['theme', 'custom-variant', 'utility'].includes(node.name)) {
+        blocks.push(node.toString() + (node.nodes ? '' : ';'))
+        return
+      }
+      if (node.name !== 'import') return
+      const parsed = valueParser(node.params).nodes.filter(
+        (part) => part.type !== 'space' && part.type !== 'comment'
+      )
+      const first = parsed[0]
+      const target =
+        first?.type === 'string'
+          ? first.value
+          : first?.type === 'function' && first.value === 'url'
+            ? valueParser.stringify(first.nodes).replace(/^['"]|['"]$/g, '')
+            : ''
+      if (target === 'tailwindcss' || target.startsWith('tailwindcss/')) return
+      const local = target.startsWith('.')
+        ? posix.normalize(posix.join(posix.dirname(file), target))
+        : undefined
+      if (local && sources.has(local)) {
+        if (parsed.length > 1)
+          diagnostics.push({
+            file,
+            line: node.source?.start?.line ?? 1,
+            reason: `Conditional stylesheet import ${target} has unresolved runtime context; its declarative compiler inputs are included conservatively`,
+          })
+        visit(local, next)
+      } else
+        diagnostics.push({
+          file,
+          line: node.source?.start?.line ?? 1,
+          reason: `Stylesheet import ${target || node.params} is outside the supplied central snapshot; imported styling is unchecked`,
+        })
+    })
+  }
+  if (sources.has(TOKEN_FILE)) visit(TOKEN_FILE)
+  for (const [file] of [...sources].sort(([a], [b]) => compareStrings(a, b))) {
+    if (file.endsWith('.css') && centralFile(file) && !visited.has(file)) visit(file)
+    if (/tailwind\.config\.[cm]?[jt]s$/.test(file)) {
+      const theme = moduleInfo(sources.get(file) as string, file).theme
+      if (theme) blocks.push(theme)
+    }
+  }
+  const compiled = await compiler(blocks.join('\n'), identity)
+  compilerDiagnostics.set(compiled, diagnostics)
+  if (compilers.size >= 8) compilers.delete(compilers.keys().next().value as string)
+  compilers.set(identity, compiled)
+  return compiled
+}
 export async function designSystem(input: SystemInput): Promise<DesignSystem> {
   const recipes: DesignSystem['recipes'] = {}
   const variables: Record<string, string[]> = {}
   const origins: Record<string, string[]> = {}
-  const blocks: string[] = []
   const definitions: Record<string, Atom[]> = {}
   const info = new Map<string, Module>()
   const unchecked: DesignSystem['unchecked'] = (input.unchecked ?? []).map((reason) => ({
@@ -356,10 +450,6 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
           origins[d.prop] = [...new Set([...(origins[d.prop] ?? []), entry.path])].sort()
         }
       })
-      css.each((n) => {
-        if (n.type === 'atrule' && ['theme', 'custom-variant', 'utility'].includes(n.name))
-          blocks.push(n.toString() + (n.nodes ? '' : ';'))
-      })
     }
     if (/\.[cm]?[jt]sx?$/.test(entry.path)) {
       const m = moduleInfo(source, entry.path)
@@ -368,7 +458,6 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
       definitions[entry.path] = m.definitions
       for (const reason of m.unchecked) unchecked.push({ file: entry.path, reason })
       if (m.theme) {
-        blocks.push(m.theme)
         postcss.parse(m.theme).walkDecls((d) => {
           variables[d.prop] = [d.value]
           origins[d.prop] = [entry.path]
@@ -426,14 +515,9 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
     for (const name of Object.keys(variables))
       if (name.startsWith(prefix) && variableFamilies.get(name)?.has(family))
         adopted.get(family)?.add(name.slice(prefix.length))
-  const theme = [defaultTheme, ...blocks].join('\n')
-  const themeHash = hash(theme)
-  let system = compilers.get(themeHash)
-  if (!system) {
-    system = await compiler(theme)
-    if (compilers.size >= 8) compilers.delete(compilers.keys().next().value as string)
-    compilers.set(themeHash, system)
-  }
+  const system = await centralCompiler(input)
+  const theme = compilerTheme(system)
+  unchecked.push(...centralCompilerDiagnostics(system))
   // Literal named utilities in central styling definitions are explicit adoptions of
   // existing Tailwind tokens. Arbitrary literals and consumer occurrences add no permissions.
   for (const [file, module] of info)
@@ -499,7 +583,9 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
     return undefined
   }
   const metadata = await generateContracts(input, system)
-  unchecked.push(...metadata.diagnostics.map((d) => ({ file: d.file, reason: d.reason })))
+  unchecked.push(
+    ...metadata.diagnostics.map((d) => ({ file: d.file, line: d.line, reason: d.reason }))
+  )
   return {
     metadata,
     recipes,

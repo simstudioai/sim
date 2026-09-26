@@ -368,6 +368,18 @@ test('central definitions notify but formatting does not', async () => {
   expect(r.findings[0].kind).toBe('system-change')
   expect((await diff(globals, `/** note */\n${globals}`, TOKEN_FILE)).flagged).toBe(false)
 }, 30000)
+test('changing a global custom-property priority remains an originating system decision', async () => {
+  const before = ':root{--priority-ink:#abc}'
+  const report = await diff(before, ':root{--priority-ink:#abc!important}', TOKEN_FILE, {
+    [TOKEN_FILE]: before,
+    'packages/emcn/src/index.ts': 'export {}',
+  })
+  expect(
+    report.findings.some(
+      (finding) => finding.kind === 'system-change' && finding.property === '--priority-ink'
+    )
+  ).toBe(true)
+})
 test('new central token and its usage produce only the system notification', async () => {
   const after = `${globals}\n:root{--new-colour:#123456}`
   const b: Entry = { path: TOKEN_FILE, blob: 'old', mode: '100644' }
@@ -434,6 +446,40 @@ test('historical theme syntax is parsed without source/plugin execution', async 
   const s = await designSystem(input(sources))
   expect(s.adopted.get('colours')?.has('special')).toBe(true)
   expect((await diff('', text('text-special text-huge'), ui, sources)).flagged).toBe(false)
+})
+test('central compilation follows local CSS imports in authored order', async () => {
+  const imported = 'packages/emcn/src/lib/imported.css'
+  const sources = {
+    [TOKEN_FILE]:
+      '@import "../../../../packages/emcn/src/lib/imported.css"; @utility audit-chrome{border-radius:7px}',
+    [imported]: '@utility audit-chrome{border-radius:37px}',
+    'packages/emcn/src/index.ts': 'export {}',
+  }
+  const system = await designSystem(input(sources))
+  const css = system.compiler.candidatesToCss(['audit-chrome'])[0]
+  expect(css).toContain('37px')
+  expect(css).toContain('7px')
+  expect(css!.indexOf('37px')).toBeLessThan(css!.indexOf('7px'))
+})
+test('legacy theme changes refresh source-owned chrome even when EMCN and CSS bytes stay unchanged', async () => {
+  const config = 'apps/sim/tailwind.config.ts'
+  const sources = {
+    [TOKEN_FILE]: '@theme{--text-small:13px}',
+    [config]: "export default {theme:{extend:{colors:{special:'#abc'}}}}",
+    'packages/emcn/src/index.ts': "export * from './components/example'",
+    'packages/emcn/src/components/example.tsx':
+      "export function Example({className}:{className?:string}){return <p className={cn('text-special',className)}/>};declare function cn(...args:unknown[]):string",
+  }
+  const before = await designSystem(input(sources))
+  const after = await designSystem(
+    input({
+      ...sources,
+      [config]: "export default {theme:{extend:{fontSize:{special:'37px'}}}}",
+    })
+  )
+  expect(before.metadata.exports.Example.slots.className.protected).toContain('color')
+  expect(after.metadata.exports.Example.slots.className.protected).toContain('font-size')
+  expect(after.metadata.exports.Example.slots.className.protected).not.toContain('color')
 })
 
 test('central aliases inherit permissions without granting local literal aliases permission', async () => {
@@ -787,7 +833,9 @@ test('local SVG ownership is checked without governing arbitrary icon size', asy
   expect((await diff('', code, 'apps/sim/components/feature/icons.tsx')).flagged).toBe(true)
   const mixed = await diff('', code, 'apps/sim/components/icons.tsx')
   expect(mixed.flagged).toBe(false)
-  expect(mixed.unchecked[0].reason).toContain('mixed branding/icon library')
+  expect(mixed.unchecked.some((note) => note.reason.includes('mixed branding/icon library'))).toBe(
+    true
+  )
 })
 
 test('wording and context edits leave debt quiet; moving its owner or adding copies flags', async () => {

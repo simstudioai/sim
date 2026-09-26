@@ -221,6 +221,75 @@ test('central tokens and declarative theme infrastructure flag semantically', ()
     ).flagged
   ).toBe(true)
 })
+test('CSS order changes notify only when declarations can compete through a shorthand', () => {
+  for (const [first, second] of [
+    ['padding:1px', 'padding-top:2px'],
+    ['border:1px solid red', 'border-left-color:blue'],
+    ['font:12px serif', 'line-height:2'],
+    ['background:red', 'background-color:blue'],
+  ]) {
+    const report = diff(`.x{${first};${second}}`, `.x{${second};${first}}`, TOKEN_FILE)
+    expect(report.findings.some((finding) => finding.rule === 'style-precedence-changed')).toBe(
+      true
+    )
+  }
+  expect(diff('.x{padding:1px;color:red}', '.x{color:red;padding:1px}', TOKEN_FILE).flagged).toBe(
+    false
+  )
+  expect(
+    diff(
+      '.x{padding:1px!important;padding-top:2px}',
+      '.x{padding-top:2px;padding:1px!important}',
+      TOKEN_FILE
+    ).flagged
+  ).toBe(false)
+  expect(
+    diff('.x{color:red}.x{color:blue}', '.x{color:blue}.x{color:red}', TOKEN_FILE).flagged
+  ).toBe(true)
+})
+test.each([
+  ['.x{@apply p-2}', '.x{@apply p-4}'],
+  ['@layer first,second;', '@layer second,first;'],
+  [
+    '@layer first{.x{color:red}}@layer second{.x{color:blue}}',
+    '@layer second{.x{color:blue}}@layer first{.x{color:red}}',
+  ],
+  ['@layer{.a{color:red}}@layer{.b{color:blue}}', '@layer{.b{color:blue}}@layer{.a{color:red}}'],
+  [
+    '@property --ink{syntax:"<color>";inherits:false;initial-value:red}',
+    '@property --ink{syntax:"<color>";inherits:true;initial-value:red}',
+  ],
+  [
+    '@property --ink{syntax:"<color>";inherits:false;initial-value:red}',
+    '@property --ink{syntax:"*";inherits:false;initial-value:red}',
+  ],
+  [
+    '@font-face{font-family:Audit;src:url(first.woff2)}',
+    '@font-face{font-family:Audit;src:url(second.woff2)}',
+  ],
+])('central CSS infrastructure changes remain visible: %s', (before, after) => {
+  expect(diff(before, after, TOKEN_FILE).findings.length).toBeGreaterThan(0)
+  expect(diff(before, `/* formatting */\n${before}`, TOKEN_FILE).flagged).toBe(false)
+})
+test.each([
+  ['@layer{.x{top:0;cursor:pointer}}', '@layer{.x{top:12px;cursor:wait}}'],
+  ['@layer{.x{padding:1px;color:red}}', '@layer{.x{color:red;padding:1px}}'],
+])('anonymous CSS layer fingerprints preserve semantic exclusions: %s', (before, after) => {
+  const report = diff(before, after, TOKEN_FILE)
+  expect(report.flagged).toBe(false)
+  expect(report.unchecked).toEqual([])
+})
+test('unsupported CSS presentation stays diagnostic while coordinates and interaction settings remain excluded', () => {
+  const report = diff('', '.x{paint-order:stroke fill}@future-paint custom;', TOKEN_FILE)
+  expect(report.unchecked.some((note) => note.reason.includes('paint-order'))).toBe(true)
+  expect(report.unchecked.some((note) => note.reason.includes('@future-paint'))).toBe(true)
+  expect(
+    diff('.x{top:0;cursor:pointer}', '.x{top:12px;cursor:wait}', TOKEN_FILE).unchecked
+  ).toEqual([])
+  expect(diff('.x{top:0;cursor:pointer}', '.x{top:12px;cursor:wait}', TOKEN_FILE).flagged).toBe(
+    false
+  )
+})
 test('uncertainty, media and backend expressions do not notify', () => {
   const a = "import {style} from './helper'; const A=()=> <div className={style(data)}/>"
   const r = diff(a, a.replace('data', 'otherData'))

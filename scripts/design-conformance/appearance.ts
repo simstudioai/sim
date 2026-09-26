@@ -8,7 +8,13 @@ import {
   type Surface,
   TOKEN_FILE,
 } from '#design-conformance/model'
-import { type Compiler, declarations, normalizeValue, utility } from '#design-conformance/normalize'
+import {
+  type Compiler,
+  competingProperties,
+  declarations,
+  normalizeValue,
+  utility,
+} from '#design-conformance/normalize'
 
 interface Value {
   property: string
@@ -48,9 +54,29 @@ export function appearanceDiff(
     )
   )
     return { findings, unchecked }
+  const surfaces = (facts: Facts): Surface[] => {
+    const result: Surface[] = []
+    const rules = new Map<string, Surface>()
+    for (const source of facts.surfaces ?? []) {
+      if (source.owner !== 'css' || source.atoms.every((atom) => atom.property.startsWith('@'))) {
+        result.push(source)
+        continue
+      }
+      const key = canonical([source.kind, source.target])
+      const existing = rules.get(key)
+      if (existing) existing.atoms.push(...source.atoms)
+      else {
+        const merged = { ...source, atoms: [...source.atoms] }
+        rules.set(key, merged)
+        result.push(merged)
+      }
+    }
+    return result
+  }
   const views = (facts: Facts): View[] =>
-    (facts.surfaces ?? []).map((source) => {
+    surfaces(facts).map((source) => {
       const values = new Map<string, Value>()
+      const cascade = new Map<string, { property: string; value: string }[]>()
       for (const atom of source.atoms) {
         if (file === TOKEN_FILE && atom.kind === 'token') continue
         const prop = atom.property
@@ -59,7 +85,9 @@ export function appearanceDiff(
           ? [
               {
                 property: prop,
-                value: normalizeValue(atom.value),
+                value:
+                  normalizeValue(atom.value) +
+                  (/\s!important\s*$/.test(atom.value) ? ' !important' : ''),
                 category: prop.startsWith('default:')
                   ? 'variants'
                   : prop.startsWith('prop:')
@@ -89,7 +117,48 @@ export function appearanceDiff(
           }
           if (entry.values.at(-1) !== d.value) entry.values.push(d.value)
           values.set(key, entry)
+          if (atom.kind !== 'token' && !d.property.startsWith('@')) {
+            const sequence = cascade.get(context) ?? []
+            sequence.push({ property: d.property, value: d.value })
+            cascade.set(context, sequence)
+          }
         }
+      }
+      for (const [context, sequence] of cascade) {
+        const competing: string[] = []
+        for (const important of [false, true]) {
+          const declarations = sequence.filter(
+            (entry) => / !important$/.test(entry.value) === important
+          )
+          const properties = [...new Set(declarations.map((entry) => entry.property))]
+          if (properties.length > 256) {
+            unchecked.push({
+              line: source.line,
+              context,
+              reason:
+                'CSS cascade order exceeds the 256-property comparison limit; shorthand precedence is unchecked',
+            })
+            continue
+          }
+          const overlapping = new Set<string>()
+          for (let i = 0; i < properties.length; i++)
+            for (let j = i + 1; j < properties.length; j++)
+              if (competingProperties(properties[i], properties[j])) {
+                overlapping.add(properties[i])
+                overlapping.add(properties[j])
+              }
+          if (overlapping.size)
+            competing.push(
+              canonical(declarations.filter((entry) => overlapping.has(entry.property)))
+            )
+        }
+        if (competing.length)
+          values.set(canonical([context, 'declaration-order']), {
+            property: 'declaration-order',
+            context,
+            category: 'cascade',
+            values: competing,
+          })
       }
       // Independent declaration order is irrelevant; competing values retain composition order.
       const signature = canonical([
@@ -200,6 +269,7 @@ export function appearanceDiff(
           : 'new-custom-style'
       if (v.property.startsWith('default:')) rule = 'variant-default-changed'
       if (v.property.startsWith('@')) rule = 'styling-infrastructure-changed'
+      if (v.property === 'declaration-order') rule = 'style-precedence-changed'
       if (
         previous &&
         current &&

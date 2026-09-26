@@ -2,6 +2,7 @@ import { posix } from 'node:path'
 import { parse } from '@babel/parser'
 import traverse, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
+import { compareStrings } from '@sim/utils/string'
 import { type DefaultTreeAdapterMap, parse as parseHtml } from 'parse5'
 import postcss from 'postcss'
 import { immutable } from '#control-analysis/static-inputs'
@@ -11,11 +12,13 @@ import type { Reference } from '#design-conformance/design-system'
 import { iconScope } from '#design-conformance/icon-scope'
 import {
   type Atom,
+  category,
   type Facts,
   hash,
   type Surface,
   type UnresolvedInput,
 } from '#design-conformance/model'
+import { excludedCssProperty, normalizeValue } from '#design-conformance/normalize'
 import {
   htmlArtwork,
   htmlSink,
@@ -103,46 +106,142 @@ export function extract(
   const css = (source: string, origin = { line: 1, column: 1 }, inline = false) => {
     const root = postcss.parse(inline ? `x{${source}}` : source)
     const groups = new Map<unknown, Surface>()
-    root.walkDecls((d) => {
+    const contextOf = (node: postcss.Node) => {
       const context: string[] = []
-      let parent = d.parent
+      let parent = node.parent
       while (parent && parent.type !== 'root') {
-        if (parent.type === 'rule' && !inline) context.unshift(parent.selector)
-        if (parent.type === 'atrule') context.unshift(`@${parent.name} ${parent.params}`)
+        if (parent.type === 'rule' && 'selector' in parent && !inline)
+          context.unshift(String(parent.selector))
+        if (parent.type === 'atrule' && 'name' in parent && 'params' in parent)
+          context.unshift(`@${parent.name} ${parent.params}`)
         parent = parent.parent
       }
+      return context.join(' > ')
+    }
+    const groupOf = (node: postcss.Node, context: string) => {
+      let group = groups.get(node.parent)
+      if (!group) {
+        group = surface(
+          'definition',
+          'css',
+          context,
+          (node.source?.start?.line ?? 1) + origin.line - 1
+        )
+        groups.set(node.parent, group)
+      }
+      return group
+    }
+    root.walkDecls((d) => {
+      const context = contextOf(d)
+      const descriptor =
+        d.parent?.type === 'atrule' &&
+        [
+          'property',
+          'font-face',
+          'font-palette-values',
+          'counter-style',
+          'font-feature-values',
+        ].includes(d.parent.name)
+          ? `@${d.parent.name}:${d.prop}`
+          : undefined
+      if (
+        !descriptor &&
+        !d.prop.startsWith('--') &&
+        !category(d.prop) &&
+        !excludedCssProperty(d.prop)
+      )
+        facts.unchecked.push({
+          line: (d.source?.start?.line ?? 1) + origin.line - 1,
+          context,
+          reason: `Unsupported CSS presentation property ${d.prop}; its authored value is unchecked`,
+        })
       const record = () =>
         add(
           d.prop.startsWith('--') ? 'token' : 'style',
-          d.prop,
+          descriptor ?? d.prop,
           d.value + (d.important ? ' !important' : ''),
           (d.source?.start?.line ?? 1) + origin.line - 1,
           (d.source?.start?.column ?? 1) +
             ((d.source?.start?.line ?? 1) === 1 ? origin.column - 1 - (inline ? 2 : 0) : 0),
-          context.join(' > ')
+          context
         )
       if (inline && current) record()
-      else {
-        let group = groups.get(d.parent)
-        if (!group) {
-          group = surface(
-            'definition',
-            'css',
-            context.join(' > '),
-            (d.source?.start?.line ?? 1) + origin.line - 1
-          )
-          groups.set(d.parent, group)
-        }
-        within(group, record)
-      }
+      else within(groupOf(d, context), record)
     })
+    const layers: { context: string; name: string; content?: string[][] }[] = []
     root.walkAtRules((rule) => {
-      if (!['plugin', 'custom-variant', 'source', 'import'].includes(rule.name)) return
-      within(
-        surface('definition', 'css-infrastructure', `@${rule.name}`, rule.source?.start?.line),
-        () => add('style', `@${rule.name}`, rule.params, rule.source?.start?.line)
+      const line = (rule.source?.start?.line ?? 1) + origin.line - 1
+      const context = contextOf(rule)
+      if (rule.name === 'apply') {
+        const record = () =>
+          add('style', '@apply', rule.params, line, rule.source?.start?.column ?? 1, context)
+        if (inline && current) record()
+        else within(groupOf(rule, context), record)
+        return
+      }
+      if (rule.name === 'layer') {
+        const layer: (typeof layers)[number] = {
+          context,
+          name: rule.params.trim() || '<anonymous>',
+        }
+        if (!rule.params.trim()) {
+          const content: string[][] = []
+          rule.walkDecls((decl) => {
+            if (excludedCssProperty(decl.prop)) return
+            content.push([
+              contextOf(decl),
+              decl.prop,
+              normalizeValue(decl.value) + (decl.important ? ' !important' : ''),
+            ])
+          })
+          rule.walkAtRules((nested) => {
+            content.push([contextOf(nested), `@${nested.name}`, normalizeValue(nested.params)])
+          })
+          layer.content = content.sort((left, right) =>
+            compareStrings(JSON.stringify(left), JSON.stringify(right))
+          )
+        }
+        layers.push(layer)
+        return
+      }
+      if (
+        ['plugin', 'custom-variant', 'source', 'import', 'charset', 'namespace'].includes(rule.name)
+      ) {
+        within(surface('definition', 'css-infrastructure', `@${rule.name}`, line), () =>
+          add('style', `@${rule.name}`, rule.params, line, rule.source?.start?.column ?? 1, context)
+        )
+        return
+      }
+      if (
+        ![
+          'theme',
+          'utility',
+          'media',
+          'supports',
+          'container',
+          'scope',
+          'starting-style',
+          'keyframes',
+          '-webkit-keyframes',
+          'property',
+          'font-face',
+          'font-palette-values',
+          'counter-style',
+          'font-feature-values',
+          'font-display',
+          'page',
+        ].includes(rule.name)
       )
+        facts.unchecked.push({
+          line,
+          context,
+          reason: `Unsupported CSS at-rule @${rule.name}; its presentation effects are unchecked`,
+        })
     })
+    if (layers.length)
+      within(surface('definition', 'css-infrastructure', '@layer', origin.line), () =>
+        add('style', '@layer-order', JSON.stringify(layers), origin.line)
+      )
   }
   let parsed = false
   try {

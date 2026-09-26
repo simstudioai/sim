@@ -10,6 +10,7 @@ import {
   category,
   type Declaration,
   family,
+  hash,
 } from '#design-conformance/model'
 
 const require = createRequire(import.meta.url)
@@ -18,9 +19,10 @@ export const defaultTheme = readFileSync(
   path.join(path.dirname(require.resolve('tailwindcss/package.json')), 'theme.css'),
   'utf8'
 )
+const compilerInputs = new WeakMap<object, { identity: string; theme: string }>()
 /** Only declarative theme data reaches the pinned compiler; module/import loading always fails. */
-export async function compiler(theme: string) {
-  return __unstable__loadDesignSystem(theme, {
+export async function compiler(theme: string, identity = hash(theme)) {
+  const compiled = await __unstable__loadDesignSystem(theme, {
     loadModule: async () => {
       throw new Error('Application modules are not executable inputs')
     },
@@ -28,8 +30,119 @@ export async function compiler(theme: string) {
       throw new Error('Stylesheet imports are not executable inputs')
     },
   })
+  compilerInputs.set(compiled, { identity, theme })
+  return compiled
 }
 export type Compiler = Awaited<ReturnType<typeof compiler>>
+/** Source metadata caches must distinguish all inputs used to construct their compiler. */
+export function compilerIdentity(compiled: Compiler): string {
+  const identity = compilerInputs.get(compiled)?.identity
+  if (!identity) throw new Error('Design compiler has no verified input identity')
+  return identity
+}
+/** The catalogue and metadata compiler describe the same declarative input. */
+export function compilerTheme(compiled: Compiler): string {
+  const theme = compilerInputs.get(compiled)?.theme
+  if (theme === undefined) throw new Error('Design compiler has no verified theme input')
+  return theme
+}
+
+/** These interaction and coordinate properties are outside authored appearance comparisons. */
+export const excludedCssProperty = (property: string) =>
+  /^(?:top|bottom|left|right|inset(?:-.+)?|translate|cursor|pointer-events|user-select|touch-action|scroll-behavior|overscroll-behavior(?:-.+)?)$/.test(
+    property
+  )
+
+const shorthandProperties: Record<string, string[]> = {
+  gap: ['row-gap', 'column-gap'],
+  overflow: ['overflow-x', 'overflow-y'],
+  flex: ['flex-grow', 'flex-shrink', 'flex-basis'],
+  'flex-flow': ['flex-direction', 'flex-wrap'],
+  background: [
+    'background-color',
+    'background-image',
+    'background-position',
+    'background-size',
+    'background-repeat',
+    'background-origin',
+    'background-clip',
+    'background-attachment',
+  ],
+  font: [
+    'font-family',
+    'font-size',
+    'font-style',
+    'font-weight',
+    'font-stretch',
+    'font-variant',
+    'line-height',
+  ],
+  'text-decoration': [
+    'text-decoration-line',
+    'text-decoration-color',
+    'text-decoration-style',
+    'text-decoration-thickness',
+  ],
+  outline: ['outline-color', 'outline-width', 'outline-style'],
+  'list-style': ['list-style-type', 'list-style-position', 'list-style-image'],
+  transition: [
+    'transition-property',
+    'transition-duration',
+    'transition-delay',
+    'transition-timing-function',
+    'transition-behavior',
+  ],
+  animation: [
+    'animation-name',
+    'animation-duration',
+    'animation-delay',
+    'animation-timing-function',
+    'animation-iteration-count',
+    'animation-direction',
+    'animation-fill-mode',
+    'animation-play-state',
+    'animation-timeline',
+    'animation-range-start',
+    'animation-range-end',
+  ],
+}
+
+/** Conservatively identify overlapping standard shorthands without simulating the runtime cascade. */
+export function competingProperties(left: string, right: string): boolean {
+  if (left === right) return false
+  const affected = (property: string): string[] => {
+    if (shorthandProperties[property]) return shorthandProperties[property]
+    const box = /^(padding|margin)(?:-(.+))?$/.exec(property)
+    if (box) {
+      const sides = ['top', 'right', 'bottom', 'left']
+      return box[2] && sides.includes(box[2])
+        ? [property]
+        : sides.map((side) => `${box[1]}-${side}`)
+    }
+    const border =
+      /^border(?:-(top|right|bottom|left|inline(?:-start|-end)?|block(?:-start|-end)?))?(?:-(color|width|style))?$/.exec(
+        property
+      )
+    if (border) {
+      const sides = ['top', 'right', 'bottom', 'left']
+      const targets = border[1] && sides.includes(border[1]) ? [border[1]] : sides
+      return targets.flatMap((side) =>
+        (border[2] ? [border[2]] : ['color', 'width', 'style']).map(
+          (part) => `border-${side}-${part}`
+        )
+      )
+    }
+    if (/^border(?:-.+)?-radius$/.test(property))
+      return property === 'border-radius' || /start|end/.test(property)
+        ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(
+            (corner) => `border-${corner}-radius`
+          )
+        : [property]
+    return [property]
+  }
+  const current = new Set(affected(left))
+  return affected(right).some((property) => current.has(property))
+}
 export function utility(candidate: string): { base: string; variants: string } {
   let depth = 0
   let last = -1
