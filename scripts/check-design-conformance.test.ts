@@ -960,6 +960,12 @@ test('declared third-party artwork and its direct export pass; product assets st
   const { registry } = await import('#design-conformance/contracts')
   const { artworkDiff } = await import('#design-conformance/artwork')
   const file = 'packages/emcn/src/icons/provider-glyph.tsx'
+  const artworkSources: Record<string, string> = {
+    [TOKEN_FILE]: globals,
+    'packages/emcn/src/index.ts': "export * from './components'",
+    'packages/emcn/src/components/index.ts': 'export {}',
+    'packages/emcn/src/icons/index.ts': 'export {}',
+  }
   registry.artwork!.brandAssets ??= {}
   registry.artwork!.brandAssets[file] = {
     source: `${file}#Provider`,
@@ -967,10 +973,12 @@ test('declared third-party artwork and its direct export pass; product assets st
   }
   try {
     const code = 'export const Provider=()=> <svg><path d="M0 0L1 1"/></svg>'
-    expect((await diff('', code, file)).flagged).toBe(false)
-    expect((await diff('', code, 'packages/emcn/src/icons/product-glyph.tsx')).flagged).toBe(true)
+    expect((await diff('', code, file, artworkSources)).flagged).toBe(false)
+    expect(
+      (await diff('', code, 'packages/emcn/src/icons/product-glyph.tsx', artworkSources)).flagged
+    ).toBe(true)
     const providerSources: Record<string, string> = {
-      ...centralSources,
+      ...artworkSources,
       'packages/emcn/src/icons/product-glyph.tsx': 'export const Product=()=> <svg/>',
       'packages/emcn/src/icons/provider-glyph.tsx': code,
       'packages/emcn/src/icons/new-product.tsx': 'export const New=()=> <svg/>',
@@ -995,7 +1003,9 @@ test('declared third-party artwork and its direct export pass; product assets st
         () => only
       ).findings
     ).toHaveLength(0)
-    expect((await diff('', 'const A=()=> <svg><path d="M0 0L1 1"/></svg>')).flagged).toBe(true)
+    expect(
+      (await diff('', 'const A=()=> <svg><path d="M0 0L1 1"/></svg>', ui, artworkSources)).flagged
+    ).toBe(true)
   } finally {
     delete registry.artwork!.brandAssets[file]
   }
