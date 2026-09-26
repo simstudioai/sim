@@ -34,6 +34,16 @@ export function isHorizontalBarOption(option: Record<string, unknown>): boolean 
   )
 }
 
+/** Applies `update` to every tooltip entry, keeping ECharts' array form when authored. */
+export function mapTooltipEntries(
+  tooltip: unknown,
+  update: (entry: Record<string, unknown>) => Record<string, unknown>
+): Record<string, unknown> | Record<string, unknown>[] {
+  return Array.isArray(tooltip)
+    ? tooltip.map((entry) => update(toRecord(entry)))
+    : update(toRecord(tooltip))
+}
+
 const CATEGORY_LABEL_LAYOUT_KEYS = ['inside', 'width', 'margin'] as const
 
 const BAR_GROUP_GAP = 4
@@ -114,8 +124,10 @@ export function buildChartRenderOption({
       padding: [0, 0, barWidth / 2 + 8, 0],
       ...toRecord(axis.axisLabel),
     }
-    const tooltip = toRecord(option.tooltip)
-    option.tooltip = { ...tooltip, axisPointer: { type: 'none', ...toRecord(tooltip.axisPointer) } }
+    option.tooltip = mapTooltipEntries(option.tooltip, (tooltip) => ({
+      ...tooltip,
+      axisPointer: { type: 'none', ...toRecord(tooltip.axisPointer) },
+    }))
   }
   if (rows !== null && rows !== undefined) {
     // The resolved rows become the FIRST dataset (id "table", datasetIndex 0).
@@ -212,7 +224,8 @@ export function isAboveBarLabelLayout(option: Record<string, unknown>): boolean 
   if (!isHorizontalBarOption(option)) return false
   const axis = toRecord(Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis)
   const axisLabel = toRecord(axis.axisLabel)
-  const pointer = toRecord(toRecord(option.tooltip).axisPointer)
+  const tooltip = Array.isArray(option.tooltip) ? option.tooltip[0] : option.tooltip
+  const pointer = toRecord(toRecord(tooltip).axisPointer)
   return (
     axisLabel.inside === true && axisLabel.verticalAlign === 'bottom' && pointer.type === 'none'
   )

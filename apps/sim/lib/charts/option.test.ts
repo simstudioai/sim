@@ -6,6 +6,7 @@ import {
   buildChartRenderOption,
   CHART_BAR_MAX_WIDTH,
   horizontalBarChartHeight,
+  isAboveBarLabelLayout,
 } from '@/lib/charts/option'
 
 describe('chart dataset injection', () => {
@@ -43,6 +44,19 @@ describe('horizontal bar label layout', () => {
       }),
     ])
     expect(authored.yAxis[0]).not.toHaveProperty('axisLabel')
+  })
+
+  it('keeps every authored tooltip entry when turning off the shadow pointer', () => {
+    const result = buildChartRenderOption({
+      option: {
+        tooltip: [{ show: true, confine: true }],
+        xAxis: { type: 'value' },
+        yAxis: { type: 'category' },
+        series: [{ type: 'bar' }],
+      },
+    })
+    expect(result.tooltip).toEqual([{ show: true, confine: true, axisPointer: { type: 'none' } }])
+    expect(isAboveBarLabelLayout(result)).toBe(true)
   })
 
   it('keeps the label column for grouped bars and sizes rows for every bar in the group', () => {

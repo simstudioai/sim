@@ -1,5 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { CHART_BAR_MAX_WIDTH } from '@/lib/charts/option'
+import { CHART_BAR_MAX_WIDTH, mapTooltipEntries } from '@/lib/charts/option'
 import { formatChartValue } from '@/lib/charts/summary'
 
 function encodedTooltipValue(entry: Record<string, unknown>, dimension: 'x' | 'y' | 'value') {
@@ -58,8 +58,7 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
     const formatter = toRecord(
       toRecord(Array.isArray(valueAxis) ? valueAxis[0] : valueAxis).axisLabel
     ).formatter
-    const tooltip = toRecord(option.tooltip)
-    option.tooltip = {
+    option.tooltip = mapTooltipEntries(option.tooltip, (tooltip) => ({
       trigger: 'axis',
       showContent: true,
       formatter: (params: unknown) =>
@@ -70,7 +69,7 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
         ),
       ...tooltip,
       axisPointer: { type: 'shadow', ...toRecord(tooltip.axisPointer) },
-    }
+    }))
   } else if (series.length && series.every((entry) => toRecord(entry).type === 'pie')) {
     const valueFields = series.map((entry) => {
       const encoded = toRecord(toRecord(entry).encode).value
@@ -78,12 +77,12 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
     })
     /** Native formatting handles automatic encodings; table charts supply named measures. */
     if (!valueFields.every((field): field is string => typeof field === 'string')) return option
-    option.tooltip = {
+    option.tooltip = mapTooltipEntries(option.tooltip, (tooltip) => ({
       trigger: 'item',
       formatter: (params: unknown) =>
         formatPieTooltip(params, valueFields[Number(toRecord(params).seriesIndex)]),
-      ...toRecord(option.tooltip),
-    }
+      ...tooltip,
+    }))
   }
   return option
 }

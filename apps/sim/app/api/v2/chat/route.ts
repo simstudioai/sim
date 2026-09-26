@@ -337,7 +337,6 @@ export const POST = withRouteHandler(
        */
       const requestPayload: Record<string, unknown> = {
         message,
-        mode: 'agent',
         userId,
         protocolVersion: PROTOCOL_VERSION,
         workspaceId,
