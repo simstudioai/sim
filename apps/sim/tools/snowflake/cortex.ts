@@ -111,6 +111,16 @@ function splitQualifiedName(name: string): string[] {
   return parts
 }
 
+/**
+ * Resolves an identifier the way Snowflake does: unquoted names are case-insensitive and stored
+ * uppercase, while quoted names keep their exact case. Used only to compare two sources.
+ */
+function canonicalIdentifier(identifier: string): string {
+  return identifier.startsWith('"')
+    ? identifier.slice(1, -1).replaceAll('""', '"')
+    : identifier.toUpperCase()
+}
+
 /** Database and schema of a `DB.SCHEMA.VIEW` view name or an `@DB.SCHEMA.STAGE/file` stage path. */
 function sourceContext(
   kind: 'semantic_view' | 'semantic_model_file',
@@ -124,36 +134,58 @@ function sourceContext(
   return { database, schema }
 }
 
+/** Context of one `semantic_models` entry, or null when it is not fully qualified. */
+function modelEntryContext(
+  entry: Record<string, string>
+): { database: string; schema: string } | null {
+  return entry.semantic_view !== undefined
+    ? sourceContext('semantic_view', entry.semantic_view)
+    : sourceContext('semantic_model_file', entry.semantic_model_file)
+}
+
 /**
  * Database and schema to run the generated SQL in. Generated SQL can reference the semantic
- * view unqualified, so it runs in the fully qualified view's (or staged model's) schema. With
- * several sources, Snowflake does not document how `semantic_model_selection` names the chosen
- * one, so the context is set only when every source shares the same database and schema;
- * otherwise the credential's default context applies.
+ * view unqualified, so it runs in the fully qualified view's (or staged model's) schema.
+ *
+ * With several sources, the response's `semantic_model_selection.index` names the source
+ * Cortex Analyst chose, and the SQL runs in that source's schema. Without a usable index, the
+ * context is set only when every source shares one database and schema (compared the way
+ * Snowflake resolves identifiers); otherwise the credential's default context applies.
  */
 export function cortexAnalystSqlContext(
   params: Pick<
     SnowflakeCortexAnalystAskParams,
     'semanticView' | 'semanticModelFile' | 'semanticModels'
-  >
+  >,
+  selectedIndex?: number | null
 ): { database?: string; schema?: string } {
-  const contexts = hasValue(params.semanticView)
-    ? [sourceContext('semantic_view', String(params.semanticView))]
-    : hasValue(params.semanticModelFile)
-      ? [sourceContext('semantic_model_file', String(params.semanticModelFile))]
-      : hasValue(params.semanticModels)
-        ? parseSemanticModels(params.semanticModels).map((entry) =>
-            entry.semantic_view !== undefined
-              ? sourceContext('semantic_view', entry.semantic_view)
-              : sourceContext('semantic_model_file', entry.semantic_model_file)
-          )
-        : []
+  if (hasValue(params.semanticView)) {
+    return sourceContext('semantic_view', String(params.semanticView)) ?? {}
+  }
+  if (hasValue(params.semanticModelFile)) {
+    return sourceContext('semantic_model_file', String(params.semanticModelFile)) ?? {}
+  }
+  if (!hasValue(params.semanticModels)) return {}
+
+  const entries = parseSemanticModels(params.semanticModels)
+  if (
+    typeof selectedIndex === 'number' &&
+    Number.isInteger(selectedIndex) &&
+    selectedIndex >= 0 &&
+    selectedIndex < entries.length
+  ) {
+    return modelEntryContext(entries[selectedIndex]) ?? {}
+  }
+
+  const contexts = entries.map(modelEntryContext)
   const [first] = contexts
   if (
     !first ||
     contexts.some(
       (context) =>
-        !context || context.database !== first.database || context.schema !== first.schema
+        !context ||
+        canonicalIdentifier(context.database) !== canonicalIdentifier(first.database) ||
+        canonicalIdentifier(context.schema) !== canonicalIdentifier(first.schema)
     )
   ) {
     return {}
@@ -212,10 +244,21 @@ interface CortexAnalystContentPayload {
 
 export interface CortexAnalystResponsePayload {
   request_id?: string
-  semantic_model_selection?: unknown
+  semantic_model_selection?: {
+    index?: number
+    identifier?: {
+      semantic_model_file?: string
+      semantic_view?: string
+      inline_semantic_model?: string
+    }
+  } | null
   message?: { role?: string; content?: CortexAnalystContentPayload[] }
   warnings?: Array<{ message?: string }>
-  response_metadata?: { model_names?: unknown; question_category?: string }
+  response_metadata?: {
+    model_names?: unknown
+    question_category?: string
+    cortex_search_retrieval?: unknown
+  }
 }
 
 function stringArray(value: unknown): string[] {
@@ -233,13 +276,17 @@ function stringArray(value: unknown): string[] {
  * array, so every form is read.
  *
  * The analyst turn is echoed into `conversation` so it can be replayed as history on the next
- * ask: text, `sql` statements without their confidence metadata, and suggestion lists, so a
- * follow-up can refer to a suggested question. Snowflake's own Cortex Analyst client replays
- * suggestion blocks the same way.
+ * ask: text, `sql` statements without their confidence metadata, and suggestion lists (under the
+ * `suggestions` type the API's content enum defines), so a follow-up can refer to a suggested
+ * question. Snowflake's own Cortex Analyst client replays suggestion blocks the same way.
+ *
+ * `requestIdHeader` is the `X-Snowflake-Request-Id` response header, which Snowflake's client
+ * falls back to when the body carries no `request_id`.
  */
 export function mapCortexAnalystResponse(
   data: CortexAnalystResponsePayload,
-  sentMessages: SnowflakeCortexAnalystMessage[]
+  sentMessages: SnowflakeCortexAnalystMessage[],
+  requestIdHeader?: string | null
 ): SnowflakeCortexAnalystAskOutput {
   const content = data.message?.content ?? []
   const texts: string[] = []
@@ -276,14 +323,17 @@ export function mapCortexAnalystResponse(
       }
       if (block.type === 'suggestions' || block.type === 'suggestion') {
         const suggested = stringArray(block.suggestions)
-        return suggested.length > 0 ? [{ type: block.type, suggestions: suggested }] : []
+        return suggested.length > 0 ? [{ type: 'suggestions', suggestions: suggested }] : []
       }
       return []
     }),
   }
 
+  const selection = data.semantic_model_selection
+  const identifier = selection?.identifier
+
   return {
-    requestId: data.request_id ?? null,
+    requestId: data.request_id || requestIdHeader || null,
     text: texts.length > 0 ? texts.join('\n\n') : null,
     sql,
     verifiedQuery,
@@ -293,7 +343,15 @@ export function mapCortexAnalystResponse(
       .filter((message): message is string => typeof message === 'string'),
     questionCategory: data.response_metadata?.question_category ?? null,
     modelNames: stringArray(data.response_metadata?.model_names),
-    semanticModelSelection: data.semantic_model_selection ?? null,
+    semanticModelSelection: selection
+      ? {
+          index: typeof selection.index === 'number' ? selection.index : null,
+          semanticView: identifier?.semantic_view ?? null,
+          semanticModelFile: identifier?.semantic_model_file ?? null,
+          inlineSemanticModel: identifier?.inline_semantic_model ?? null,
+        }
+      : null,
+    cortexSearchRetrieval: data.response_metadata?.cortex_search_retrieval ?? null,
     conversation: [...sentMessages, analystMessage],
     execution: null,
   }

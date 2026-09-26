@@ -95,7 +95,8 @@ export const cortexAnalystAskTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Snowflake role for running the generated SQL',
+      description:
+        'Snowflake role for running the generated SQL. Cortex Analyst itself always answers under the access token role',
     },
     maxRows: {
       type: 'number',
@@ -134,7 +135,11 @@ export const cortexAnalystAskTool: ToolConfig<
       : []
     return {
       success: true,
-      output: mapCortexAnalystResponse(data, sentMessages),
+      output: mapCortexAnalystResponse(
+        data,
+        sentMessages,
+        response.headers.get('X-Snowflake-Request-Id')
+      ),
     }
   },
   postProcess: async (result, params, executeTool) => {
@@ -144,11 +149,15 @@ export const cortexAnalystAskTool: ToolConfig<
     /** A thrown nested call would otherwise leave the answer without its promised rows. */
     try {
       const execution = (await executeTool('snowflake_execute_sql', {
-        oauthCredential: params.oauthCredential,
+        /*
+         * The token and host were already resolved for this call. Passing the credential ID
+         * instead would re-resolve it without the caller's scope, which Chat does not forward
+         * to nested tools.
+         */
         accessToken: params.accessToken,
         domain: params.domain,
         statement: sql,
-        ...cortexAnalystSqlContext(params),
+        ...cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index),
         warehouse: params.warehouse,
         role: params.role,
         maxRows: params.maxRows,

@@ -959,7 +959,16 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         { label: 'Semantic Model YAML', id: 'semantic_model' },
         { label: 'Multiple Semantic Sources', id: 'semantic_models' },
       ],
-      value: () => 'semantic_view',
+      /* A block written by Copilot or the API seeds this from the source field it filled. */
+      value: (params) =>
+        params?.semanticModelFile
+          ? 'semantic_model_file'
+          : params?.semanticModel
+            ? 'semantic_model'
+            : params?.semanticModels
+              ? 'semantic_models'
+              : 'semantic_view',
+      paramVisibility: 'user-only',
       condition: { field: 'operation', value: 'cortex_analyst_ask' },
     },
     {
@@ -1443,7 +1452,12 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     semanticModelSelection: {
       type: 'json',
       description:
-        'Which semantic source Cortex Analyst chose when several were given (returned as-is; Snowflake does not document its shape)',
+        'Semantic source Cortex Analyst chose when several were given ({index, semanticView, semanticModelFile, inlineSemanticModel})',
+    },
+    cortexSearchRetrieval: {
+      type: 'json',
+      description:
+        'Entities Cortex Analyst resolved with Cortex Search ([{service, query, response_body}])',
     },
     conversation: {
       type: 'json',

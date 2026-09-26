@@ -14,6 +14,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 [Snowflake](https://www.snowflake.com/) stores data in databases and schemas and uses virtual warehouses to run queries. Sim connects over the SQL API with a programmatic access token.
 
 Use the block to execute SQL, synchronize rows, move staged data, manage warehouses and tasks, and inspect history. To unload a query result, first materialize it as a view or with `CREATE TABLE AS SELECT`.
+
+**Cortex Analyst.** Ask Cortex Analyst turns a plain-English question into SQL against a semantic view or semantic model, and can run that SQL to return rows. Pass the returned `conversation` back as history to ask follow-up questions, and start a new conversation after a handful of turns, since Snowflake reprocesses the whole history on every question. Before you use it:
+
+- The access token's role needs the `SNOWFLAKE.CORTEX_USER` or `SNOWFLAKE.CORTEX_ANALYST_USER` database role, `SELECT` on the tables behind the semantic view, and read access to the stage when the model is a staged YAML file.
+- Cortex Analyst always answers under the access token's role. The block's execution role, warehouse, and row limit apply only when it runs the generated SQL.
+- Cortex Analyst runs natively in a limited set of cloud regions. Other accounts need cross-region inference turned on.
+- Snowflake bills each successful answer, and running the SQL uses warehouse credits on top.
+- Snowflake now recommends Cortex Agents for new builds; Cortex Analyst remains available.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1371,7 +1379,7 @@ Ask Snowflake Cortex Analyst a question in natural language against a semantic v
 | `history` | json | No | Earlier conversation messages in order, as returned in the conversation output of a previous ask |
 | `executeSql` | boolean | No | Run the generated SQL with the same credential and return the result rows |
 | `warehouse` | string | No | Warehouse for running the generated SQL; defaults to the PAT user setting |
-| `role` | string | No | Snowflake role for running the generated SQL |
+| `role` | string | No | Snowflake role for running the generated SQL. Cortex Analyst itself always answers under the access token role |
 | `maxRows` | number | No | Maximum result rows when running the SQL; defaults to 1000 \(Sim limit 10000\) |
 | `statementTimeoutSeconds` | number | No | Timeout in seconds for running the SQL; 0 uses the Snowflake maximum |
 
@@ -1386,13 +1394,18 @@ Ask Snowflake Cortex Analyst a question in natural language against a semantic v
 |   ↳ `name` | string | Verified query name |
 |   ↳ `question` | string | Question the verified query answers |
 |   ↳ `sql` | string | SQL of the verified query |
-|   ↳ `verifiedAt` | number | When the query was verified \(numeric timestamp\) |
+|   ↳ `verifiedAt` | number | When the query was last verified \(Unix epoch seconds, UTC\) |
 |   ↳ `verifiedBy` | string | Who verified the query |
 | `suggestions` | array | Questions the semantic model can answer, returned instead of SQL when the question was ambiguous |
 | `warnings` | array | Warnings Cortex Analyst raised about the request |
 | `questionCategory` | string | How Cortex Analyst categorized the question \(for example CLEAR_SQL\) |
 | `modelNames` | array | Models used to generate the response |
-| `semanticModelSelection` | json | Which semantic source Cortex Analyst chose, returned as-is when several were given \(Snowflake does not document its shape\) |
+| `semanticModelSelection` | object | Which semantic source Cortex Analyst chose when several were given, or null for a single source |
+|   ↳ `index` | number | Zero-based position of the chosen source in Semantic Sources |
+|   ↳ `semanticView` | string | Chosen semantic view |
+|   ↳ `semanticModelFile` | string | Chosen staged semantic model file |
+|   ↳ `inlineSemanticModel` | string | Chosen inline semantic model YAML |
+| `cortexSearchRetrieval` | json | Entities Cortex Analyst resolved with Cortex Search \(\[\{service, query, response_body\}\]\), passed through as returned |
 | `conversation` | array | Full conversation including this question and answer \(analyst turns keep their text and SQL\); pass it as History to ask a follow-up. Snowflake recommends starting a new conversation after many turns |
 |   ↳ `role` | string | user or analyst |
 |   ↳ `content` | array | Message content blocks \(text, sql, suggestions\) |

@@ -374,6 +374,14 @@ export interface SnowflakeCortexAnalystVerifiedQuery {
   verifiedBy: string | null
 }
 
+/** The semantic source Cortex Analyst chose from `semantic_models`. */
+export interface SnowflakeCortexAnalystModelSelection {
+  index: number | null
+  semanticView: string | null
+  semanticModelFile: string | null
+  inlineSemanticModel: string | null
+}
+
 export interface SnowflakeCortexAnalystAskParams extends SnowflakeResultParams {
   question: string
   semanticView?: string
@@ -393,7 +401,8 @@ export interface SnowflakeCortexAnalystAskOutput {
   warnings: string[]
   questionCategory: string | null
   modelNames: string[]
-  semanticModelSelection: unknown
+  semanticModelSelection: SnowflakeCortexAnalystModelSelection | null
+  cortexSearchRetrieval: unknown
   conversation: SnowflakeCortexAnalystMessage[]
   execution: SnowflakeStatementOutput | null
 }
@@ -446,7 +455,7 @@ export const SNOWFLAKE_CORTEX_ANALYST_ASK_OUTPUTS = {
       sql: { type: 'string', description: 'SQL of the verified query', nullable: true },
       verifiedAt: {
         type: 'number',
-        description: 'When the query was verified (numeric timestamp)',
+        description: 'When the query was last verified (Unix epoch seconds, UTC)',
         nullable: true,
       },
       verifiedBy: { type: 'string', description: 'Who verified the query', nullable: true },
@@ -474,9 +483,33 @@ export const SNOWFLAKE_CORTEX_ANALYST_ASK_OUTPUTS = {
     items: { type: 'string', description: 'Model name' },
   },
   semanticModelSelection: {
+    type: 'object',
+    description:
+      'Which semantic source Cortex Analyst chose when several were given, or null for a single source',
+    nullable: true,
+    properties: {
+      index: {
+        type: 'number',
+        description: 'Zero-based position of the chosen source in Semantic Sources',
+        nullable: true,
+      },
+      semanticView: { type: 'string', description: 'Chosen semantic view', nullable: true },
+      semanticModelFile: {
+        type: 'string',
+        description: 'Chosen staged semantic model file',
+        nullable: true,
+      },
+      inlineSemanticModel: {
+        type: 'string',
+        description: 'Chosen inline semantic model YAML',
+        nullable: true,
+      },
+    },
+  },
+  cortexSearchRetrieval: {
     type: 'json',
     description:
-      'Which semantic source Cortex Analyst chose, returned as-is when several were given (Snowflake does not document its shape)',
+      'Entities Cortex Analyst resolved with Cortex Search ([{service, query, response_body}]), passed through as returned',
     nullable: true,
   },
   conversation: {
