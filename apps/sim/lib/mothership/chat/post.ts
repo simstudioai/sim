@@ -1495,6 +1495,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               messageId: userMessageId,
               requestId,
               userId: authenticatedUserId,
+              ...(authenticatedUserEmail ? { userEmail: authenticatedUserEmail } : {}),
               userMessage: body.message,
               mode: requestMode,
               startedAt: Date.now(),

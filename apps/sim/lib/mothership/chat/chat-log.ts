@@ -10,18 +10,30 @@ const logger = createLogger('ChatLog')
 
 const CHAT_LOG_TIMEOUT_MS = 5_000
 
-/** The turn a Chat send admitted — rebuilt identically when a relay pod recovers it. */
+/** The turn a Chat send admitted — rebuilt when a relay pod recovers it. */
 export interface ChatTurnLogContext {
   chatId: string
   messageId: string
   requestId: string
   userId: string
+  userEmail?: string
   userMessage: string
   mode: 'assistant' | 'agent' | 'plan'
   startedAt: number
 }
 
 export type ChatTurnStatus = 'success' | 'error' | 'aborted'
+
+/** The user's email for a recovered turn, whose send-time session is gone; skipped when the log is off. */
+export async function readChatLogEmail(userId: string): Promise<string | undefined> {
+  if (!env.SIM_LOGGING_WORKFLOW_URL) return undefined
+  const [row] = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  return row?.email
+}
 
 /**
  * Operator funnel: posts each finished Chat turn to the Sim workflow at
@@ -53,12 +65,6 @@ async function sendChatTurn(
   status: ChatTurnStatus,
   durationMs: number
 ): Promise<void> {
-  const [row] = await db
-    .select({ email: user.email })
-    .from(user)
-    .where(eq(user.id, context.userId))
-    .limit(1)
-
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (env.SIM_LOGGING_WORKFLOW_API_KEY) headers['X-API-Key'] = env.SIM_LOGGING_WORKFLOW_API_KEY
 
@@ -69,7 +75,7 @@ async function sendChatTurn(
     chatId: context.chatId,
     messageId: context.messageId,
     userId: context.userId,
-    userEmail: row?.email,
+    userEmail: context.userEmail,
     userMessage: context.userMessage,
     assistantResponse: result.content,
     status,
