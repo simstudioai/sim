@@ -49,6 +49,11 @@ describe('bounded embedding insert transactions', () => {
   beforeAll(async () => {
     fixtures.root = mkdtempSync(path.join(tmpdir(), 'sim-embedding-batches-'))
     await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
+    /** A search index, the only kind of base whose chunks the keyword projection holds. */
+    await db
+      .update(knowledgeBase)
+      .set({ isSearchIndex: true })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockResolvedValue(undefined)
   })
 

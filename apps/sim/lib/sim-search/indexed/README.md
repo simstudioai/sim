@@ -14,7 +14,7 @@ While the gate is off:
 - Indexed-only surfaces refuse with `SearchIndexDormantError` (a `409`): the Stats report and connecting a source that crawls into a search index. The indexed document page is not found.
 - A knowledge search that names a search-index knowledge base (the Knowledge block, v1, v2, Sim's knowledge tool) still answers from the documents it already holds, decided on each document exactly as a workspace knowledge base is.
 - Nothing crawls into search indexes: content syncs, member syncs, and processing recovery skip them (`lib/knowledge/connectors/indexing-policy.ts`).
-- The projector owes search-index documents nothing: their marks are released with the rest, and it writes no Tin keyword rows.
+- The projector owes search-index documents nothing: their marks are released with the rest, and it writes no Tin keyword rows. The GIN keyword projection follows `is_search_index` alone, so it keeps its search-index rows either way.
 
 ## Layout
 
@@ -28,7 +28,7 @@ The dormant UI sits in `indexed/` folders next to the component that picks it fr
 ## Re-enabling
 
 1. Set `SIM_SEARCH_LIVE=false` in both the app and the Trigger.dev environment, and deploy. The container entrypoint (`apps/sim/bootstrap.ts`) mirrors it to `NEXT_PUBLIC_SIM_SEARCH_LIVE` for the client; crawling, processing, and projection read it in whichever process runs them.
-2. Confirm the Tin objects exist (`0019_tin_keyword_projection`, `0024_knowledge_projection_async`), backfill `embedding_keyword_tin` for every search-index knowledge base, and build its index.
+2. Confirm the keyword projection objects exist (`0019_tin_keyword_projection`, `0024_knowledge_projection_async`, `0025_scope_keyword_projections`). Both keyword projections, `embedding_keyword_search` and `embedding_keyword_tin`, hold only search-index rows, written by the chunk triggers and by the trigger on `knowledge_base.is_search_index`. Backfill both for every search-index knowledge base whose rows were removed while dormant, and build the Tin index.
 3. Resume and fully resync the connectors of search-index knowledge bases, so content that went stale while dormant is indexed again.
 
 Projection rows written before projections carried their document's source and ACL are decided on their document until they are rewritten.

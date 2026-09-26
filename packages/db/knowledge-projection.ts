@@ -106,6 +106,10 @@ export type SourceAclProjection = (typeof SOURCE_ACL_PROJECTIONS)[number]
 const mirrorsSourceAcl = (projection: KnowledgeProjection): projection is SourceAclProjection =>
   (SOURCE_ACL_PROJECTIONS as readonly string[]).includes(projection)
 
+/** The keyword projections, which hold only the rows of search-index knowledge bases. */
+const holdsSearchIndexesOnly = (projection: KnowledgeProjection) =>
+  projection === 'embedding_keyword_search' || projection === 'embedding_keyword_tin'
+
 /**
  * The chunks one page covers: the next {@link PROJECTION_ROW_BATCH_SIZE} of the document in
  * chunk order, read off `emb_doc_chunk_idx`. Every projection pages the same way, so a page is
@@ -163,10 +167,16 @@ function contentPageStatement(projection: KnowledgeProjection): string {
   }
   if (projection === 'embedding_keyword_search') {
     const compared = ['knowledge_base_id', 'document_id', 'enabled', 'content_tsv']
-    return `WITH ${PAGE}, written AS (
-        INSERT INTO embedding_keyword_search AS s (${['id', ...compared].join(', ')})
-        SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled, e.content_tsv
+    return `WITH ${PAGE}, source AS MATERIALIZED (
+        SELECT e.id, ${compared.map((column) => `e.${column}`).join(', ')}, k.is_search_index
         FROM page p JOIN embedding e ON e.id = p.id
+        JOIN knowledge_base k ON k.id = e.knowledge_base_id
+      ), removed AS (
+        DELETE FROM embedding_keyword_search s USING source
+        WHERE s.id = source.id AND NOT source.is_search_index
+      ), written AS (
+        INSERT INTO embedding_keyword_search AS s (${['id', ...compared].join(', ')})
+        SELECT id, ${compared.join(', ')} FROM source WHERE is_search_index
         ON CONFLICT (id) DO UPDATE SET
           ${compared.map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
         WHERE (${compared.map((column) => `s.${column}`).join(', ')})
@@ -249,8 +259,9 @@ export interface KnowledgeProjectionOptions {
   /**
    * Whether search-index rows are read, that is whether indexed organization search is on (see
    * {@link MarkScope}). Only then is the Tin keyword projection written, since it holds only
-   * search-index rows; the other projections are written either way, and Tin is still skipped
-   * where it is not installed.
+   * search-index rows; the other projections are written either way, the GIN keyword projection
+   * for search-index bases alone whatever this says, and Tin is still skipped where it is not
+   * installed.
    */
   searchIndexes: boolean
   /** Called after each page commits, for tests that interleave writes with a run. */
@@ -375,8 +386,8 @@ async function projectDocumentRows(
     if (Date.now() >= deadline) return { pages, written, finished: false }
     const page = await sql.begin(async (tx) => {
       await enterProjectorTransaction(tx, PROJECTION_PAGE_LOCK_TIMEOUT_MS)
-      /** Shares the base's Tin membership lock, as the embedding trigger does, so a flip of its marker waits. */
-      if (projection === 'embedding_keyword_tin')
+      /** Shares the base's membership lock, as the embedding triggers do, so a flip of its marker waits. */
+      if (holdsSearchIndexesOnly(projection))
         await tx`SELECT pg_advisory_xact_lock_shared(knowledge_tin_membership_key(${mark.knowledgeBaseId}))`
       const [row] = await tx.unsafe<
         Array<{ scanned: number; written: number; last_chunk: number | null }>
