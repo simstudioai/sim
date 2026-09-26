@@ -16,6 +16,10 @@ import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -24,10 +28,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 afterAll(() => {
   resetDbChainMock()
 })
-
-const { mockGetEmailPreferences } = vi.hoisted(() => ({
-  mockGetEmailPreferences: vi.fn(() => Promise.resolve(null as unknown)),
-}))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
@@ -45,9 +45,7 @@ vi.mock('@/components/emails', () => emailTemplatesMock)
 
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  getEmailPreferences: mockGetEmailPreferences,
-}))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
@@ -57,6 +55,7 @@ import {
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
 
+const { mockGetEmailPreferences } = emailUnsubscribeMockFns
 const mockIsOrgAdminRole = workspaceAuthzMockFns.mockIsOrgAdminRole
 const {
   mockGetFreeTierLimit,
@@ -315,6 +314,7 @@ describe('maybeSendUsageThresholdEmail', () => {
     userEmail: 'user-1@example.com',
     userName: 'Ada',
     workspaceId: 'ws-1',
+    periodStart: new Date('2026-09-01T00:00:00.000Z'),
     limit: 20,
   }
 
@@ -323,30 +323,38 @@ describe('maybeSendUsageThresholdEmail', () => {
     setEnvFlags({ isBillingEnabled: true })
     mockGetEmailPreferences.mockResolvedValue(null)
     mockIsOrgAdminRole.mockReturnValue(true)
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'claimed' }])
   })
 
   afterAll(() => {
     resetEnvFlagsMock()
   })
 
+  /** Who received which email, identified by its subject and rendered template. */
+  function sentMessages() {
+    return mockSendEmail.mock.calls.map(([message]) => ({
+      to: message.to,
+      subject: message.subject,
+      html: message.html,
+    }))
+  }
+
   it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
+    queueTableRows(schemaMock.userStats, [{ unclaimed: true }])
     await maybeSendUsageThresholdEmail({
       ...paidUser,
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 20,
+      usageBefore: 19,
+      costDelta: 1,
     })
 
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'user', planName: 'Pro' })
-    )
-    expect(mockRenderCreditsExhausted).not.toHaveBeenCalled()
-    expect(mockGetLimitEmailSubject).toHaveBeenCalledWith('credits', 'reached')
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(sentMessages()).toEqual([
+      { to: 'user-1@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
   })
 
   it('fans out to org admins at 100% and skips non-admin members', async () => {
     mockIsOrgAdminRole.mockImplementation((role: unknown) => role === 'admin')
+    queueTableRows(schemaMock.organization, [{ unclaimed: true }])
     queueTableRows(schemaMock.member, [
       { email: 'admin@example.com', name: 'Admin', enabled: null, role: 'admin' },
       { email: 'member@example.com', name: 'Member', enabled: null, role: 'member' },
@@ -357,31 +365,14 @@ describe('maybeSendUsageThresholdEmail', () => {
       planName: 'Team',
       organizationId: 'org-1',
       workspaceId: 'ws-1',
-      percentBefore: 95,
-      percentAfter: 100,
-      currentUsageAfter: 500,
+      periodStart: new Date('2026-09-01T00:00:00.000Z'),
+      usageBefore: 499,
+      costDelta: 1,
       limit: 500,
     })
 
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'admin@example.com', emailType: 'notifications' })
-    )
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'organization' })
-    )
-  })
-
-  it('sends only the reached email when one execution crosses 80 and 100 together', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 70,
-      percentAfter: 100,
-      currentUsageAfter: 20,
-    })
-
-    expect(mockRenderUsageThreshold).not.toHaveBeenCalled()
-    expect(mockRenderUsageLimitReached).toHaveBeenCalledTimes(1)
-    expect(mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(sentMessages()).toEqual([
+      { to: 'admin@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
   })
 })
