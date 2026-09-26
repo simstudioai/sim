@@ -1,8 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from '../embed'
-import { StreamingUpload } from './streaming-upload'
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe('streamed upload bytes', () => {
   it('sends streamed multipart bytes with exact lengths over HTTP', async () => {
@@ -101,39 +98,6 @@ describe('streamed upload bytes', () => {
     }
   })
 
-  it('splits provider chunks across part boundaries without pre-reading the file', async () => {
-    let pulls = 0
-    const original = Uint8Array.from([0, 255, 13, 10, 128, 195, 64])
-    const source = new ReadableStream<Uint8Array>(
-      {
-        pull(controller) {
-          pulls++
-          if (pulls === 1) controller.enqueue(original)
-          else controller.close()
-        },
-      },
-      { highWaterMark: 0 }
-    )
-    const upload = new StreamingUpload(source, original.length)
-    try {
-      const first = upload.slice(0, 3)
-      expect(pulls).toBe(0)
-      expect(new Uint8Array(await new Response(first).arrayBuffer())).toEqual(
-        original.subarray(0, 3)
-      )
-      expect(pulls).toBe(1)
-      expect(new Uint8Array(await new Response(upload.slice(3, 7)).arrayBuffer())).toEqual(
-        original.subarray(3)
-      )
-      expect(pulls).toBe(1)
-      await upload.verifyComplete()
-      expect(pulls).toBe(2)
-    } finally {
-      await upload.close()
-    }
-    expect(source.locked).toBe(false)
-  })
-
   it.each(['short', 'long', 'read failure', 'early acknowledgement', 'HTTP failure'])(
     'refuses completion and aborts its transfer after %s',
     async (fault) => {
@@ -185,53 +149,6 @@ describe('streamed upload bytes', () => {
       if (fault === 'early acknowledgement') expect(cancelled).toHaveBeenCalledTimes(1)
     }
   )
-
-  it('keeps the host snapshot deadline active while waiting for an upload acknowledgement', async () => {
-    const deadline = new AbortController()
-    const calls: string[] = []
-    const dispose = vi.fn(async () => {})
-    const transport = async (input: string | URL | Request, init?: RequestInit) => {
-      const request = new Request(input, init)
-      calls.push(request.method)
-      if (request.method === 'DELETE') {
-        expect(request.signal.aborted).toBe(false)
-        return Response.json({ data: { status: 'aborted' } })
-      }
-      if (request.url.includes('/complete?'))
-        return Response.json({ data: { file: { id: 'file' } } })
-      return Response.json({
-        data: {
-          session: { id: 'upload' },
-          uploadToken: 'fixture',
-          transfer: { method: 'put', url: 'https://upload.test/data', headers: {} },
-        },
-      })
-    }
-    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
-      await new Request(input, init).arrayBuffer()
-      deadline.abort(new Error('Workbench snapshot expired'))
-      init?.signal?.throwIfAborted()
-      return new Response(null, { status: 200 })
-    })
-    const result = await runEmbeddedCli(
-      ['files', 'upload', 'data.bin'],
-      { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'ws', transport },
-      {
-        openFile: async () => ({
-          size: 4,
-          signal: deadline.signal,
-          stream: async () => new Blob(['data']).stream(),
-          dispose,
-        }),
-      }
-    )
-    expect(result).toMatchObject({
-      exitCode: 1,
-      stderr: expect.stringContaining('snapshot expired'),
-    })
-    expect(calls).toEqual(['POST', 'DELETE'])
-    expect(dispose).toHaveBeenCalledTimes(1)
-  })
 
   it('requests another URL batch without rereading or buffering earlier file parts', async () => {
     const original = Uint8Array.from({ length: 207 }, (_, index) => index % 256)

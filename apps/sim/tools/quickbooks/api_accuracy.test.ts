@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { quickBooksAddAttachmentBodySchema } from '@/lib/api/contracts/tools/quickbooks'
 import { isSensitiveKey, redactApiKeys } from '@/lib/core/security/redaction'

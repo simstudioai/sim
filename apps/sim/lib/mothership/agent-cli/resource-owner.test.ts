@@ -1,11 +1,12 @@
-/** @vitest-environment node */
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import type { EmbeddedCliIdentity } from 'sim/embed'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ target: vi.fn(), transport: vi.fn(), file: vi.fn() }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: mocks.target,
-}))
+const mocks = vi.hoisted(() => ({ transport: vi.fn(), file: vi.fn() }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
   createScopedCliTransport: () => mocks.transport,
 }))
@@ -31,6 +32,9 @@ vi.mock('@/lib/mothership/agent-cli/run-cli', () => ({
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { getChatResourceKey } from '@/lib/mothership/resources/types'
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
+
+const mockResolveInvocationWorkspace =
+  mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
 
 const first = '00000000-0000-4000-8000-000000000001'
 const second = '00000000-0000-4000-8000-000000000002'
@@ -58,8 +62,7 @@ const context = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  mocks.target.mockImplementation(async (_context, target) => ({
+  mockResolveInvocationWorkspace.mockImplementation(async (_context, target) => ({
     workspaceId: target ?? first,
     userId: 'actor',
     permission: 'write',

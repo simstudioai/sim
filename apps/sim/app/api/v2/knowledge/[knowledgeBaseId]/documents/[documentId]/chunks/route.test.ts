@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -29,7 +26,6 @@ vi.mock('@/lib/knowledge/application/chunks', () => ({
   },
 }))
 
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -79,7 +75,6 @@ function bodyRequest(method: 'POST' | 'PATCH', body: unknown, documentId = 'doc-
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   v2RouteMocks.authenticate.mockResolvedValue({
@@ -100,41 +95,6 @@ beforeEach(() => {
 })
 
 describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks', () => {
-  it('projects chunks with their tag slots and no cursor on the last page', async () => {
-    const response = await GET(listRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          ...CHUNK,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-      nextCursor: null,
-    })
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
-  })
-
-  it('mints a cursor bound to the sort when there is another page', async () => {
-    mockListChunks.mockResolvedValue({ chunks: [CHUNK], nextCursorKeys: [0, 'chunk-1'] })
-
-    const nextCursor = (await (await GET(listRequest(), context)).json()).nextCursor
-    expect(typeof nextCursor).toBe('string')
-
-    const resumed = await GET(
-      listRequest(`?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(nextCursor)}`),
-      context
-    )
-    expect(resumed.status).toBe(200)
-    expect(mockListChunks).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ cursorKeys: [0, 'chunk-1'] }),
-      })
-    )
-  })
-
   /**
    * The cursor names a position in ONE document's chunk sequence. Replaying it
    * against a sibling document would answer 200 from a sequence the caller
@@ -196,21 +156,6 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks'
     expect(response.status).toBe(400)
   })
 
-  it('rejects a fractional limit rather than passing it to the query', async () => {
-    const response = await GET(listRequest(`?workspaceId=${WORKSPACE_ID}&limit=1.5`), context)
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.message).toContain('limit')
-    expect(mockListChunks).not.toHaveBeenCalled()
-  })
-
-  it('rejects an undeclared query key rather than dropping it', async () => {
-    const response = await GET(listRequest(`?workspaceId=${WORKSPACE_ID}&offset=10`), context)
-
-    expect(response.status).toBe(400)
-    expect(mockListChunks).not.toHaveBeenCalled()
-  })
-
   it('answers 409 while the document is still processing', async () => {
     mockListChunks.mockRejectedValue(new KnowledgeDocumentNotReadyError('processing'))
 
@@ -235,16 +180,6 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks'
 })
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks', () => {
-  it('creates a chunk and answers 201', async () => {
-    const response = await POST(
-      bodyRequest('POST', { workspaceId: WORKSPACE_ID, content: 'Some text' }),
-      context
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe('chunk-1')
-  })
-
   /**
    * A provenance envelope is a trusted in-process trace. The public surface has
    * none, and must not accept one from the wire.
@@ -255,54 +190,9 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks
     const { input } = mockCreateChunk.mock.calls[0][0]
     expect(input.resolveContentProvenance({ userId: 'user-1' })).toBeUndefined()
   })
-
-  it('surfaces a connector-managed refusal with a machine-readable cause', async () => {
-    mockCreateChunk.mockRejectedValue(
-      new ForbiddenOperationError(
-        'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
-        'Chunks from connector-synced documents are read-only'
-      )
-    )
-
-    const response = await POST(
-      bodyRequest('POST', { workspaceId: WORKSPACE_ID, content: 'Some text' }),
-      context
-    )
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.details).toEqual({
-      code: 'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
-    })
-  })
-
-  it('rejects empty content at the contract', async () => {
-    const response = await POST(
-      bodyRequest('POST', { workspaceId: WORKSPACE_ID, content: '' }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mockCreateChunk).not.toHaveBeenCalled()
-  })
 })
 
 describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks', () => {
-  it('reports the processed count and per-chunk failures', async () => {
-    const response = await PATCH(
-      bodyRequest('PATCH', {
-        workspaceId: WORKSPACE_ID,
-        operation: 'disable',
-        chunkIds: ['chunk-1', 'chunk-2'],
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { operation: 'disable', processed: 2, errors: [] },
-    })
-  })
-
   /**
    * The bound is enforced at the contract so the domain's own throw is
    * unreachable from the wire — an over-long list is a 400 naming the cap

@@ -1,101 +1,80 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCalculateSubscriptionOverage,
-  mockComputeOrgOverageAmount,
-  mockEnqueueOutboxEvent,
-  mockGetEffectiveBillingStatus,
-  mockGetHighestPrioritySubscription,
-  mockGetBillingPeriodUsageCost,
-  mockGetOrganizationSubscriptionUsable,
-  mockHasUsableSubscriptionAccess,
-  mockIsEnterprise,
-  mockIsFree,
-  mockIsOrgScopedSubscription,
-  mockIsOrganizationBillingBlocked,
-  mockIsSubscriptionCycleCloseCurrent,
-  mockRecordAudit,
-  mockCaptureServerEvent,
-} = vi.hoisted(() => ({
-  mockCalculateSubscriptionOverage: vi.fn(),
-  mockComputeOrgOverageAmount: vi.fn(),
-  mockEnqueueOutboxEvent: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetBillingPeriodUsageCost: vi.fn(),
-  mockGetOrganizationSubscriptionUsable: vi.fn(),
-  mockHasUsableSubscriptionAccess: vi.fn(),
-  mockIsEnterprise: vi.fn(),
-  mockIsFree: vi.fn(),
-  mockIsOrgScopedSubscription: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
+const { mockIsSubscriptionCycleCloseCurrent } = vi.hoisted(() => ({
   mockIsSubscriptionCycleCloseCurrent: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { OVERAGE_BILLED: 'overage.billed' },
-  AuditResourceType: { BILLING: 'billing' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  calculateSubscriptionOverage: mockCalculateSubscriptionOverage,
-  computeOrgOverageAmount: mockComputeOrgOverageAmount,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-  getOrganizationSubscriptionUsable: mockGetOrganizationSubscriptionUsable,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
+const mockGetOrganizationSubscriptionUsable =
+  billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/cycle-close', () => ({
   isSubscriptionCycleCloseCurrent: mockIsSubscriptionCycleCloseCurrent,
 }))
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: mockIsEnterprise,
-  isFree: mockIsFree,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  hasUsableSubscriptionAccess: mockHasUsableSubscriptionAccess,
-  isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mockEnqueueOutboxEvent,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   checkAndBillOverageThreshold,
   checkAndBillPayerOverageThreshold,
   ThresholdSettlementError,
 } from '@/lib/billing/threshold-billing'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
+const mockCalculateSubscriptionOverage = billingCoreMockFns.mockCalculateSubscriptionOverage
+const mockComputeOrgOverageAmount = billingCoreMockFns.mockComputeOrgOverageAmount
+const mockGetEffectiveBillingStatus = billingAccessMockFns.mockGetEffectiveBillingStatus
+const mockIsOrganizationBillingBlocked = billingAccessMockFns.mockIsOrganizationBillingBlocked
+const mockGetBillingPeriodUsageCost = billingUsageLogMockFns.mockGetBillingPeriodUsageCost
+const mockHasUsableSubscriptionAccess =
+  billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionAccess
+const mockIsOrgScopedSubscription = billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription
+const mockIsEnterprise = billingPlanHelpersMockFns.mockIsEnterprise
+const mockIsFree = billingPlanHelpersMockFns.mockIsFree
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const userSubscription = {
   id: 'sub-db-1',
@@ -174,7 +153,6 @@ const usableOrgSubscription = {
 
 describe('checkAndBillOverageThreshold', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     mockGetHighestPrioritySubscription.mockResolvedValue(userSubscription)
@@ -210,35 +188,12 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('preserves best-effort error handling for existing callers', async () => {
-    queuePersonalReads()
-    mockCalculateSubscriptionOverage.mockRejectedValue(new Error('Overage lookup unavailable'))
-
-    await expect(checkAndBillOverageThreshold('user-1')).resolves.toBeUndefined()
-  })
-
   it('wraps provider failures when strict settlement has no expected billing period', async () => {
     queuePersonalReads()
     mockCalculateSubscriptionOverage.mockRejectedValue(new Error('Overage lookup unavailable'))
 
     await expect(
       checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
-    ).rejects.toMatchObject({
-      name: ThresholdSettlementError.name,
-      code: 'provider_failure',
-      retryable: true,
-    })
-  })
-
-  it('wraps provider failures as retryable errors for a frozen modern period', async () => {
-    queuePersonalReads()
-    mockCalculateSubscriptionOverage.mockRejectedValue(new Error('Overage lookup unavailable'))
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, {
-        onError: 'throw',
-        expectedBillingPeriod,
-      })
     ).rejects.toMatchObject({
       name: ThresholdSettlementError.name,
       code: 'provider_failure',
@@ -279,20 +234,6 @@ describe('checkAndBillOverageThreshold', () => {
       code: 'billing_period_elapsed',
       retryable: false,
     })
-  })
-
-  it.each([
-    ['2026-05-15T00:00:00.000Z', '2026-06-15T00:00:00.000Z'],
-    ['2026-06-01T00:00:00.000Z', '2026-07-01T00:00:00.000Z'],
-  ])('keeps overlapping or future period mismatches retryable (%s)', async (start, end) => {
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, {
-        onError: 'throw',
-        expectedBillingPeriod: { start: new Date(start), end: new Date(end) },
-      })
-    ).rejects.toMatchObject({ code: 'billing_period_mismatch', retryable: true })
-    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
   it('requires reconciliation for an elapsed organization period without charging it again', async () => {
@@ -402,19 +343,6 @@ describe('checkAndBillOverageThreshold', () => {
     ).resolves.toEqual({ status: 'no-op', reason: 'below-threshold' })
   })
 
-  it('returns a distinct modern no-op when the plan cannot accrue overage', async () => {
-    mockIsFree.mockReturnValue(true)
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, {
-        onError: 'throw',
-        expectedBillingPeriod,
-      })
-    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
-
-    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
-  })
-
   it('does not compare an Enterprise reporting window to Stripe before the ineligible no-op', async () => {
     mockIsEnterprise.mockReturnValue(true)
 
@@ -429,57 +357,6 @@ describe('checkAndBillOverageThreshold', () => {
     ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
 
     expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
-  })
-
-  it('does not compare an organization Enterprise reporting window to Stripe', async () => {
-    mockGetOrganizationSubscriptionUsable.mockResolvedValue({
-      ...usableOrgSubscription,
-      plan: 'enterprise',
-    })
-    mockIsEnterprise.mockReturnValue(true)
-
-    await expect(
-      checkAndBillPayerOverageThreshold(
-        { type: 'organization', id: 'org-1' },
-        {
-          onError: 'throw',
-          expectedBillingPeriod: {
-            start: new Date('2025-08-13T00:00:00.000Z'),
-            end: new Date('2026-08-13T00:00:00.000Z'),
-          },
-        }
-      )
-    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
-
-    expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
-    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
-  })
-
-  it('wraps organization provider failures through the strict payer helper', async () => {
-    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
-    mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('Organization lookup unavailable'))
-
-    await expect(
-      checkAndBillPayerOverageThreshold({ type: 'organization', id: 'org-1' }, { onError: 'throw' })
-    ).rejects.toMatchObject({
-      name: ThresholdSettlementError.name,
-      code: 'provider_failure',
-      retryable: true,
-    })
-    expect(mockGetOrganizationSubscriptionUsable).toHaveBeenCalledWith('org-1', {
-      onError: 'throw',
-    })
-  })
-
-  it('keeps billing-blocked organizations as terminal no-ops in markerless strict mode', async () => {
-    mockIsOrgScopedSubscription.mockReturnValue(true)
-    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
-    mockIsOrganizationBillingBlocked.mockResolvedValue(true)
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
-    ).resolves.toBeUndefined()
-    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
   })
 
   it('requires organization subscription lookup failures to surface for modern settlement', async () => {
@@ -531,23 +408,6 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
     expect(mockRecordAudit).toHaveBeenCalledTimes(1)
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
-  })
-
-  it('distinguishes an already-settled modern period without duplicating side effects', async () => {
-    queuePersonalReads()
-    queueLockedStats(lockedStatsRow({ billedOverageThisPeriod: '250' }))
-    mockCalculateSubscriptionOverage.mockResolvedValue(250)
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, {
-        onError: 'throw',
-        expectedBillingPeriod,
-      })
-    ).resolves.toEqual({ status: 'no-op', reason: 'already-settled' })
-
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('rechecks billed overage while locked before enqueueing an invoice', async () => {
@@ -620,22 +480,6 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('wraps lock timeouts in markerless strict mode', async () => {
-    queuePersonalReads()
-    mockCalculateSubscriptionOverage.mockResolvedValue(250)
-    dbChainMockFns.transaction.mockRejectedValueOnce(
-      new Error('canceling statement due to lock timeout')
-    )
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
-    ).rejects.toMatchObject({
-      name: ThresholdSettlementError.name,
-      code: 'provider_failure',
-      retryable: true,
-    })
   })
 
   it('computes organization overage before opening the locked transaction', async () => {

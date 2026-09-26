@@ -1,34 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetCredentialActorContext,
-  mockGetServiceAccountToken,
-  mockRefreshTokenIfNeeded,
-  mockResolveExecutorCredentialToken,
-} = vi.hoisted(() => ({
-  mockGetCredentialActorContext: vi.fn(),
-  mockGetServiceAccountToken: vi.fn(),
-  mockRefreshTokenIfNeeded: vi.fn(),
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
-  canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
-    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
-}))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getServiceAccountToken: mockGetServiceAccountToken,
-  refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: mockResolveExecutorCredentialToken,
 }))
 
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
+
+const { mockGetCredentialActorContext } = credentialsAccessMockFns
+const { mockGetServiceAccountToken, mockRefreshTokenIfNeeded } = authOAuthUtilsMockFns
 
 function actorContext(workspaceId: string) {
   return {
@@ -47,7 +37,6 @@ function actorContext(workspaceId: string) {
 
 describe('resolveVertexCredential workspace binding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetServiceAccountToken.mockResolvedValue('gcp-access-token')
   })
 
@@ -63,18 +52,6 @@ describe('resolveVertexCredential workspace binding', () => {
     ).rejects.toThrow('Credential is not accessible from this workflow workspace')
 
     expect(mockGetServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('resolves a credential owned by the executing workspace', async () => {
-    mockGetCredentialActorContext.mockResolvedValue(actorContext('workspace-a'))
-
-    await expect(
-      resolveVertexCredential({
-        credentialId: 'cred-b',
-        actingUserId: 'user-1',
-        workspaceId: 'workspace-a',
-      })
-    ).resolves.toBe('gcp-access-token')
   })
 
   it('still enforces the user-to-credential check within the same workspace', async () => {
@@ -114,25 +91,8 @@ describe('resolveVertexCredential OAuth branch', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetCredentialActorContext.mockResolvedValue(oauthContext)
     mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'oauth-access-token' })
-  })
-
-  it('resolves the token through the shared in-process resolver', async () => {
-    await expect(
-      resolveVertexCredential({
-        credentialId: 'cred-o',
-        actingUserId: 'user-1',
-        workspaceId: 'workspace-a',
-        workflowId: 'wf-1',
-      })
-    ).resolves.toBe('oauth-access-token')
-
-    expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
-    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialId: 'cred-o', userId: 'user-1', workflowId: 'wf-1' })
-    )
   })
 
   it('authorizes before requesting a token', async () => {

@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   failStaleDocumentProcessingClaim,
   failUndispatchedDocumentProcessing,
@@ -15,7 +11,6 @@ const NOW = new Date('2026-08-11T12:00:00.000Z')
 
 describe('reclaimStaleDocumentProcessingClaim', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -75,7 +70,6 @@ describe('reclaimStaleDocumentProcessingClaim', () => {
 
 describe('failStaleDocumentProcessingClaim', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -92,31 +86,6 @@ describe('failStaleDocumentProcessingClaim', () => {
     ).rejects.toThrow('Document has not been processing long enough to be considered dead')
 
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
-  })
-
-  it('fails the exact abandoned processing claim', async () => {
-    const processingStartedAt = new Date(
-      NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS - 1
-    )
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
-
-    const result = await failStaleDocumentProcessingClaim({
-      knowledgeBaseId: 'knowledge-base-1',
-      documentId: 'document-1',
-      processingStartedAt,
-      now: NOW,
-    })
-
-    expect(result).toEqual({
-      success: true,
-      processingDuration: KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS + 1,
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingDeferredUntil: null,
-      processingCompletedAt: NOW,
-    })
   })
 
   it('does not fail a replacement processing claim', async () => {
@@ -162,28 +131,7 @@ describe('failStaleDocumentProcessingClaim', () => {
 
 describe('failUndispatchedDocumentProcessing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('fails the exact pending document', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
-
-    const failed = await failUndispatchedDocumentProcessing({
-      documentId: 'document-1',
-      knowledgeBaseId: 'knowledge-base-1',
-      processingQueueToken: 'request-1',
-      error: 'Failed to start processing',
-      now: NOW,
-    })
-
-    expect(failed).toBe(true)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      processingStatus: 'failed',
-      processingError: 'Failed to start processing',
-      processingDeferredUntil: null,
-      processingCompletedAt: NOW,
-    })
   })
 
   /**

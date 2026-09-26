@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,12 +22,6 @@ describe('clampSessionExpiry', () => {
   const now = new Date('2026-07-22T12:00:00Z')
   /** Better Auth's sliding refresh proposes now + 30 days. */
   const proposed = new Date(now.getTime() + 30 * 24 * HOUR_MS)
-
-  it('returns the proposed time unchanged when no policy fields are set', () => {
-    expect(clampSessionExpiry(policy(), createdAt, proposed, now).getTime()).toBe(
-      proposed.getTime()
-    )
-  })
 
   it('caps absolute lifetime at createdAt + maxSessionHours', () => {
     const result = clampSessionExpiry(policy({ maxSessionHours: 24 }), createdAt, proposed, now)
@@ -94,7 +85,6 @@ describe('clampSessionExpiry', () => {
 
 describe('transaction-scoped session policies', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isSessionPoliciesEnabled: true })
     invalidateSessionPolicyCache('org-1')

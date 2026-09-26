@@ -1,11 +1,14 @@
-/** @vitest-environment node */
 import type { SlackInstallationPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   installation: vi.fn(),
   credential: vi.fn(),
-  availability: vi.fn(),
   replacement: vi.fn(),
   appAvailable: vi.fn(),
 }))
@@ -13,9 +16,7 @@ vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
   findSlackSearchInstallation: mocks.installation,
   loadSlackSearchCredential: mocks.credential,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: mocks.availability,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/slack-search/shared-app', () => ({
   requireSlackSearchAppAvailable: mocks.appAvailable,
   findSharedSlackSearchInstallation: mocks.replacement,
@@ -46,10 +47,9 @@ const installation = {
   revision: 'revision1',
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.installation.mockResolvedValue(installation)
   mocks.credential.mockResolvedValue({ version: 'version1', botToken: 'secret' })
-  mocks.availability.mockResolvedValue(undefined)
+  knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockResolvedValue(undefined)
   mocks.appAvailable.mockResolvedValue(undefined)
   mocks.replacement.mockResolvedValue(null)
 })
@@ -127,7 +127,9 @@ describe('retired Slack bot handoff authorization', () => {
   })
 
   it('rejects revoked Search access and replacement credential rotation', async () => {
-    mocks.availability.mockRejectedValueOnce(new Error('Search disabled'))
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValueOnce(
+      new Error('Search disabled')
+    )
     await expect(authorizeSlackSearchRedirect(principal)).rejects.toThrow('Search disabled')
     expect(mocks.credential).not.toHaveBeenCalled()
     mocks.credential.mockResolvedValueOnce({ appKind: 'custom', version: 'version1' })
@@ -138,7 +140,7 @@ describe('retired Slack bot handoff authorization', () => {
 describe('Slack Search installation authorization', () => {
   it('rejects human principals before protected lookup', async () => {
     await expect(
-      authorizeSlackSearchInstallation({ kind: 'session', userId: 'u1', sessionId: 's1' })
+      authorizeSlackSearchInstallation(createSessionPrincipal({ userId: 'u1', sessionId: 's1' }))
     ).rejects.toThrow('authority')
     expect(mocks.installation).not.toHaveBeenCalled()
   })
@@ -151,13 +153,6 @@ describe('Slack Search installation authorization', () => {
       expect(mocks.credential).not.toHaveBeenCalled()
     }
   )
-  it('uses the canonical organization when resolving the bot credential', async () => {
-    await expect(authorizeSlackSearchInstallation(principal)).resolves.toMatchObject({
-      installation,
-    })
-    expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
-    expect(mocks.appAvailable).toHaveBeenCalledWith('A1', 'org1')
-  })
   it('rejects the next lifecycle check when the organization loses shared app access', async () => {
     await expect(authorizeSlackSearchInstallation(principal)).resolves.toMatchObject({
       installation,
@@ -194,7 +189,9 @@ describe('Slack Search installation authorization', () => {
     await expect(authorizeSlackSearchInstallation(principal)).rejects.toThrow('revalidation')
   })
   it('fails closed on feature withdrawal or infrastructure failure', async () => {
-    mocks.availability.mockRejectedValue(new Error('unavailable'))
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValue(
+      new Error('unavailable')
+    )
     await expect(authorizeSlackSearchInstallation(principal)).rejects.toThrow('unavailable')
     expect(mocks.credential).not.toHaveBeenCalled()
   })

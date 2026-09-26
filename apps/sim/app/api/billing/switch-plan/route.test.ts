@@ -1,55 +1,42 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOrganizationMock } from '@sim/testing/mocks/billing-organization.mock'
+import { billingPlanMock } from '@sim/testing/mocks/billing-plan.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCanManageWorkspaceBilling,
-  mockGetEffectiveBillingStatus,
-  mockGetOrganizationSubscription,
-  mockGetWorkspaceHostContextForViewer,
-} = vi.hoisted(() => ({
+const { mockCanManageWorkspaceBilling, mockGetWorkspaceHostContextForViewer } = vi.hoisted(() => ({
   mockCanManageWorkspaceBilling: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
   mockGetWorkspaceHostContextForViewer: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: vi.fn(),
-  getHighestPrioritySubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  writeBillingInterval: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/billing/workspace-permissions', () => ({
   canManageWorkspaceBilling: mockCanManageWorkspaceBilling,
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
 }))
 
 import { POST } from '@/app/api/billing/switch-plan/route'
+
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+
+const { mockGetEffectiveBillingStatus } = billingAccessMockFns
 
 const mockGetSession = authMockFns.mockGetSession
 
@@ -61,7 +48,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('POST /api/billing/switch-plan', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
     mockCanManageWorkspaceBilling.mockReturnValue(true)
     mockGetOrganizationSubscription.mockResolvedValue({

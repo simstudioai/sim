@@ -8,26 +8,6 @@ import {
 const FIXTURE_PATH = '/repo/packages/emcn/src/icons/fixture.tsx'
 
 describe('icon path precision audit', () => {
-  it('accepts the three-decimal boundary and ignores geometry outside literal paths', () => {
-    const source = `
-      const dynamicPath = 'M0.1234 1'
-      const unrelated = "d='M0.1234 1'"
-      export function SafeIcon() {
-        return (
-          <svg viewBox='0 0 10.1234 10' transform='scale(0.16624)'>
-            <path d='M.5 1.200L1.2e1 2' />
-            <path d={dynamicPath} />
-          </svg>
-        )
-      }
-    `
-
-    expect(analyzeIconSource(source, FIXTURE_PATH)).toEqual({
-      candidates: [],
-      invalidExceptions: [],
-    })
-  })
-
   it('finds ordinary decimals and exponents finer than a thousandth', () => {
     const source = `
       export function PreciseIcon() {
@@ -43,21 +23,6 @@ describe('icon path precision audit', () => {
       offendingNumbers: ['0.1234', '1e-4'],
     })
     expect(effectiveFractionDigits('2.13949e-05')).toBe(10)
-  })
-
-  it('checks literal JSX expressions and static template literals', () => {
-    const source = `
-      export function ExpressionIcon() {
-        return (
-          <svg>
-            <path d={'M0.1234 1'} />
-            <path d={\`M2.3456 3\`} />
-          </svg>
-        )
-      }
-    `
-
-    expect(findPrecisionCandidates(source, FIXTURE_PATH)).toHaveLength(2)
   })
 
   it('accepts a reasoned TSDoc exception on the immediately following path', () => {

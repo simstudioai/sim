@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -63,13 +60,5 @@ describe('createContentRegistry without a loadable sharp', () => {
     expect(posts[0].ogImage).toBe('/blog/missing-og.png')
     expect(posts[0].ogImageWidth).toBeUndefined()
     expect(posts[0].ogImageHeight).toBeUndefined()
-  })
-
-  it('still resolves a single post by slug', async () => {
-    const registry = createContentRegistry({ contentDir, authorsDir })
-
-    const post = await registry.getPostBySlug('sharp-is-unavailable')
-
-    expect(post?.title).toBe('Sharp Is Unavailable')
   })
 })

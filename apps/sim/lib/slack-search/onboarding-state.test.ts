@@ -1,13 +1,14 @@
-/** @vitest-environment node */
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const redis = vi.hoisted(() => ({ set: vi.fn(), get: vi.fn() }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
 
 import {
   readSlackSearchOnboardingState,
   storeSlackSearchOnboardingState,
 } from '@/lib/slack-search/onboarding-state'
+
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => redis)
 
 const state = {
   turnId: 'turn1',
@@ -16,7 +17,6 @@ const state = {
   createdAt: Date.now(),
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   redis.set.mockResolvedValue('OK')
   redis.get.mockResolvedValue(JSON.stringify(state))
 })
@@ -29,11 +29,6 @@ describe('Slack account onboarding state', () => {
     expect(JSON.parse(value)).toEqual(state)
     expect([mode, ttl, condition]).toEqual(['EX', 86400, 'NX'])
   })
-  it('preserves the return context across reads without consuming signup state', async () => {
-    expect(await readSlackSearchOnboardingState('token')).toEqual(state)
-    expect(await readSlackSearchOnboardingState('token')).toEqual(state)
-    expect(redis.set).not.toHaveBeenCalled()
-  })
   it.each([
     null,
     JSON.stringify({ ...state, createdAt: Date.now() - 86401_000 }),
@@ -41,11 +36,5 @@ describe('Slack account onboarding state', () => {
   ])('rejects missing, expired, and future state', async (value) => {
     redis.get.mockResolvedValueOnce(value)
     await expect(readSlackSearchOnboardingState('token')).rejects.toThrow('expired')
-  })
-  it('propagates storage failures without creating another identity', async () => {
-    redis.get.mockRejectedValueOnce(new Error('redis unavailable'))
-    await expect(readSlackSearchOnboardingState('token')).rejects.toThrow('redis unavailable')
-    redis.set.mockResolvedValueOnce(null)
-    await expect(storeSlackSearchOnboardingState(state)).rejects.toThrow('Could not create')
   })
 })

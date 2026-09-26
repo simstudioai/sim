@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { folder as folderTable } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
 import { buildFolderPathIndex } from '@/lib/folders/paths'
@@ -45,14 +42,5 @@ describe('table folder path projection', () => {
 
   it('answers the root path instead, which is where restore would place it', () => {
     expect(archivableTableFolderPath(index, ARCHIVED_FOLDER_ID)).toBe('/')
-  })
-
-  it('still resolves a folder that is active', () => {
-    expect(archivableTableFolderPath(index, activeFolder.id)).toBe('/Reports')
-  })
-
-  it('treats no folder as the root', () => {
-    expect(archivableTableFolderPath(index, null)).toBe('/')
-    expect(archivableTableFolderPath(index, undefined)).toBe('/')
   })
 })

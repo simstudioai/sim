@@ -15,6 +15,7 @@ import {
   resourceFromItem,
   useAvailableResources,
   useResourceTreeSections,
+  WorkspaceResourceSubmenu,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import type { AvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 import {
@@ -38,7 +39,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -62,6 +63,22 @@ const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-
  * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
+
+/**
+ * Families an organization chat's workspace submenus leave out: the mention-only
+ * ones, plus Browser and Terminal, which belong to this desktop rather than to a
+ * workspace and so sit once after the workspaces.
+ */
+const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  ...MENTION_ONLY_RESOURCE_TYPES,
+  'browser',
+  'terminal',
+]
+
+function isNativeResourceGroup({ type }: { type: MothershipResourceType }): boolean {
+  return type === 'browser' || type === 'terminal'
+}
+
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
@@ -77,6 +94,8 @@ interface PlusMenuDropdownProps {
    */
   warm?: boolean
   onResourceSelect: (resource: MothershipResource) => void
+  /** Tags a whole workspace; offered only in organization chats. */
+  onWorkspaceSelect: (workspace: { id: string; name: string }) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   pendingCursorRef: React.MutableRefObject<number | null>
@@ -91,6 +110,7 @@ export const PlusMenuDropdown = React.memo(
       organizationId,
       warm,
       onResourceSelect,
+      onWorkspaceSelect,
       onClose,
       textareaRef,
       pendingCursorRef,
@@ -121,7 +141,7 @@ export const PlusMenuDropdown = React.memo(
       enabled: inventoryEnabled,
       includeFolderMentions: true,
     })
-    const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(
+    const { data: allWorkspaces = [], isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
     )
     const workspaces = allWorkspaces.filter(
@@ -138,12 +158,9 @@ export const PlusMenuDropdown = React.memo(
       : workspaceInventory
     const { structureFolders } = combined
     const availableResources = organizationId
-      ? [
-          ...combined.groups,
-          ...workspaceInventory.groups.filter(
-            (group) => group.type === 'browser' || group.type === 'terminal'
-          ),
-        ].sort(byResourceMenuOrder)
+      ? [...combined.groups, ...workspaceInventory.groups.filter(isNativeResourceGroup)].sort(
+          byResourceMenuOrder
+        )
       : combined.groups
     const isHydrating = combined.isHydrating || Boolean(organizationId && workspacesPending)
 
@@ -183,9 +200,14 @@ export const PlusMenuDropdown = React.memo(
       terminalTabs,
     ])
 
+    /**
+     * Built from this workspace's own inventory, which has no foldered families in an
+     * organization chat: there each workspace submenu builds its own sections, because
+     * ids are only unique within a workspace.
+     */
     const treeSections = useResourceTreeSections({
-      groups: availableResources,
-      structureFolders,
+      groups: workspaceInventory.groups,
+      structureFolders: workspaceInventory.structureFolders,
       selectFolders: true,
     })
 
@@ -219,11 +241,20 @@ export const PlusMenuDropdown = React.memo(
       if (isMention) setActiveIndex(0)
     }, [isMention, mentionQuery])
 
-    const handleSelect = (resource: MothershipResource) => {
-      onResourceSelect(resource)
+    const closeAfterSelect = () => {
       setOpen(false)
       setSearch('')
       setActiveIndex(0)
+    }
+
+    const handleSelect = (resource: MothershipResource) => {
+      onResourceSelect(resource)
+      closeAfterSelect()
+    }
+
+    const handleWorkspaceSelect = (workspace: { id: string; name: string }) => {
+      onWorkspaceSelect(workspace)
+      closeAfterSelect()
     }
 
     const handleSelectRef = useRef(handleSelect)
@@ -373,7 +404,7 @@ export const PlusMenuDropdown = React.memo(
           {!isMention && (
             <DropdownMenuSearchInput
               ref={searchRef}
-              placeholder='Search resources...'
+              placeholder='Search resources'
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -386,10 +417,22 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
+              {organizationId &&
+                workspaces.map((workspace) => (
+                  <WorkspaceResourceSubmenu
+                    key={workspace.id}
+                    workspace={workspace}
+                    excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                    selectFolders
+                    onSelect={handleSelect}
+                    onSelectWorkspace={handleWorkspaceSelect}
+                  />
+                ))}
               <ResourceMenuSections
-                flat={Boolean(organizationId)}
-                sections={organizationId ? [] : treeSections}
-                groups={visibleResources}
+                sections={treeSections}
+                groups={
+                  organizationId ? visibleResources.filter(isNativeResourceGroup) : visibleResources
+                }
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
               />

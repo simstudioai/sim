@@ -1,16 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { loadAllSelectorOptions } from '@/lib/selectors/client/execute-selector'
 import { MAX_SELECTOR_OPTIONS, MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const input = {
   selectorKey: 'bitbucket.workspaces' as const,
@@ -19,10 +18,6 @@ const input = {
 }
 
 describe('loadAllSelectorOptions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('distinguishes a complete boundary-sized catalog from a capped page walk', async () => {
     mockRequestJson.mockResolvedValueOnce({
       kind: 'list',

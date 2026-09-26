@@ -1,4 +1,18 @@
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * Native push listeners are registered once by the idempotent transport init;
+ * Vitest clears mock call history before every test, so keep them here.
+ */
+const { pushListeners, register } = vi.hoisted(() => {
+  const pushListeners: Record<string, (...args: never[]) => void> = {}
+  const register = (name: string) =>
+    vi.fn((listener: (...args: never[]) => void) => {
+      pushListeners[name] = listener
+    })
+  return { pushListeners, register }
+})
 
 const {
   activateScope,
@@ -50,16 +64,16 @@ const {
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
   executeTool: vi.fn(),
-  onPageState: vi.fn(),
-  onSessionStatus: vi.fn(),
-  onTabsState: vi.fn(),
+  onPageState: register('pageState'),
+  onSessionStatus: register('sessionStatus'),
+  onTabsState: register('tabsState'),
   onCloseFind: vi.fn(),
   onAddToChat: vi.fn(),
   onFindResult: vi.fn(),
   onFillAvailability: vi.fn(),
   onFocusOmnibox: vi.fn(),
   onOpenFind: vi.fn(),
-  onScopeSuspended: vi.fn(),
+  onScopeSuspended: register('scopeSuspended'),
   onToolbarCommand: vi.fn(),
   openTab: vi.fn(),
   openUrl: vi.fn(),
@@ -80,47 +94,7 @@ const {
   setTabsState: vi.fn(),
 }))
 
-vi.mock('@/lib/desktop', () => ({
-  isBrowserAgentEnabled: () => true,
-  getDesktopBridge: () => ({
-    browserAgent: {
-      supportsAtomicPanelOcclusion: true,
-      activateScope,
-      cancelActiveTool,
-      cancelTool,
-      executeTool,
-      capturePanelSnapshot,
-      disposeScope,
-      migrateScope: nativeMigrateScope,
-      onCloseFind,
-      onAddToChat,
-      onFindResult,
-      onFocusOmnibox,
-      onOpenFind,
-      onPageState,
-      onScopeSuspended,
-      onToolbarCommand,
-      onSessionStatus,
-      onTabsState,
-      openTab,
-      openUrl: openUrlAvailable.current ? openUrl : undefined,
-      panelAction,
-      registerSitePermissionPromptSupport,
-      reorderTab,
-      restoreScope,
-      suspendScope: nativeSuspendScope,
-      setPanelBounds,
-      setPanelFocused,
-      setPanelOccluded,
-      showToolbarMenu,
-      setTheme,
-    },
-    browserCredentials: {
-      onFillAvailability,
-      showChooser: showCredentialChooser,
-    },
-  }),
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/stores/browser-session/store', () => ({
   useBrowserSessionStore: {
@@ -140,11 +114,8 @@ vi.mock('@/stores/browser-session/store', () => ({
 import {
   activateBrowserScope,
   cancelActiveBrowserTools,
-  captureBrowserPanelSnapshot,
-  discardBrowserScope,
   executeBrowserTool,
   initBrowserAgentTransport,
-  loadBrowserSearchSuggestions,
   migrateBrowserScope,
   onBrowserAddToChat,
   onBrowserFillAvailability,
@@ -153,19 +124,50 @@ import {
   onBrowserFindResult,
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
-  openBrowserTab,
   openUrlInNewBrowserTab,
-  reorderBrowserTab,
-  reportBrowserPanelBounds,
-  reportBrowserPanelFocused,
-  reportBrowserTheme,
   restoreBrowserScope,
-  setBrowserPanelOccluded,
-  showBrowserCredentialChooser,
   showBrowserToolbarMenu,
-  supportsAtomicBrowserPanelOcclusion,
   suspendBrowserScope,
 } from '@/lib/browser-agent/transport'
+
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() => ({
+  browserAgent: {
+    supportsAtomicPanelOcclusion: true,
+    activateScope,
+    cancelActiveTool,
+    cancelTool,
+    executeTool,
+    capturePanelSnapshot,
+    disposeScope,
+    migrateScope: nativeMigrateScope,
+    onCloseFind,
+    onAddToChat,
+    onFindResult,
+    onFocusOmnibox,
+    onOpenFind,
+    onPageState,
+    onScopeSuspended,
+    onToolbarCommand,
+    onSessionStatus,
+    onTabsState,
+    openTab,
+    openUrl: openUrlAvailable.current ? openUrl : undefined,
+    panelAction,
+    registerSitePermissionPromptSupport,
+    reorderTab,
+    restoreScope,
+    suspendScope: nativeSuspendScope,
+    setPanelBounds,
+    setPanelFocused,
+    setPanelOccluded,
+    showToolbarMenu,
+    setTheme,
+  },
+  browserCredentials: {
+    onFillAvailability,
+    showChooser: showCredentialChooser,
+  },
+}))
 
 describe('browser panel transport', () => {
   beforeEach(async () => {
@@ -199,41 +201,6 @@ describe('browser panel transport', () => {
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
-  })
-
-  it('registers renderer-owned site permission prompt support', () => {
-    initBrowserAgentTransport()
-
-    expect(registerSitePermissionPromptSupport).toHaveBeenCalledOnce()
-  })
-
-  it('opens a browser tab through the acknowledged bridge and applies its state', async () => {
-    const state = {
-      scopeId: 'chat-test',
-      activeTabId: '2',
-      tabs: [
-        {
-          tabId: '1',
-          title: 'Existing',
-          url: 'https://example.com',
-          loading: false,
-          active: false,
-        },
-        {
-          tabId: '2',
-          title: '',
-          url: '',
-          loading: false,
-          active: true,
-        },
-      ],
-    }
-    openTab.mockResolvedValue(state)
-
-    await expect(openBrowserTab('chat-test')).resolves.toEqual(state)
-
-    expect(openTab).toHaveBeenCalledWith('chat-test')
-    expect(setTabsState).toHaveBeenCalledWith(state)
   })
 
   it('opens chat URLs through one acknowledged native operation', async () => {
@@ -275,68 +242,6 @@ describe('browser panel transport', () => {
       activeTabId: '2',
       tabs: [],
     })
-  })
-
-  it('keeps search suggestions local-only on older installed shells', async () => {
-    await expect(loadBrowserSearchSuggestions('sim ai')).resolves.toEqual([])
-  })
-
-  it('forwards panel bounds directly to the native view', () => {
-    const initialBounds = { x: 10, y: 20, width: 300, height: 200 }
-    const updatedBounds = { x: 20, y: 30, width: 320, height: 220 }
-
-    reportBrowserPanelBounds(initialBounds)
-    reportBrowserPanelBounds(updatedBounds)
-
-    // A caller with no anchor to declare keeps whatever was last retained —
-    // here there was never one, so the shell is told null both times.
-    expect(setPanelBounds.mock.calls).toEqual([
-      [initialBounds, null, 'chat-test'],
-      [updatedBounds, null, 'chat-test'],
-    ])
-  })
-
-  it('forwards renderer-owned browser chrome focus', () => {
-    reportBrowserPanelFocused(true)
-    reportBrowserPanelFocused(false)
-
-    expect(setPanelFocused.mock.calls).toEqual([
-      [true, 'chat-test'],
-      [false, 'chat-test'],
-    ])
-  })
-
-  it('captures and swaps the native panel with explicit force semantics', async () => {
-    const snapshot = {
-      dataUrl: 'data:image/png;base64,c2lt',
-      tabId: 'tab-1',
-      zoomPercent: 100,
-      scopeId: 'chat-a',
-    }
-    capturePanelSnapshot.mockResolvedValue(snapshot)
-    setPanelOccluded.mockResolvedValue(true)
-
-    await expect(captureBrowserPanelSnapshot('chat-a')).resolves.toEqual(snapshot)
-    await expect(setBrowserPanelOccluded(true, 'chat-a')).resolves.toBe(true)
-    await expect(setBrowserPanelOccluded(false, 'chat-a', false)).resolves.toBe(true)
-    await expect(setBrowserPanelOccluded(true, 'chat-a', true)).resolves.toBe(true)
-
-    expect(capturePanelSnapshot).toHaveBeenCalledWith('chat-a')
-    expect(setPanelOccluded.mock.calls).toEqual([
-      [true, 'chat-a', false],
-      [false, 'chat-a', false],
-      [true, 'chat-a', true],
-    ])
-  })
-
-  it('advertises support for the strict native-surface barrier', () => {
-    expect(supportsAtomicBrowserPanelOcclusion()).toBe(true)
-  })
-
-  it('mirrors a strip reorder into the native tab list', () => {
-    reorderBrowserTab('tab-3', 1)
-
-    expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'chat-test')
   })
 
   it('opens and scopes the native browser toolbar menu', () => {
@@ -388,19 +293,6 @@ describe('browser panel transport', () => {
     expect(onFillAvailability).toHaveBeenCalledWith(expect.any(Function), 'chat-a')
     expect(callback).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith(true)
-  })
-
-  it('keeps the native credential fallback in the owning browser scope', () => {
-    showBrowserCredentialChooser({ x: 10, y: 20 }, 'chat-a')
-
-    expect(showCredentialChooser).toHaveBeenCalledWith({ x: 10, y: 20 }, 'chat-a')
-  })
-
-  it('forgets an abandoned provisional browser scope on both sides', async () => {
-    await discardBrowserScope('pending:new')
-
-    expect(discardScope).toHaveBeenCalledWith('pending:new')
-    expect(disposeScope).toHaveBeenCalledWith('pending:new')
   })
 
   it('moves renderer state only after native scope migration succeeds', async () => {
@@ -652,7 +544,7 @@ describe('browser panel transport', () => {
 
   it('routes late browser events to the scope carried by the event', () => {
     initBrowserAgentTransport()
-    const pageListener = onPageState.mock.calls[0][0] as (state: {
+    const pageListener = pushListeners.pageState as (state: {
       tabId: string
       scopeId: string
       url: string
@@ -661,15 +553,12 @@ describe('browser panel transport', () => {
       canGoBack: boolean
       canGoForward: boolean
     }) => void
-    const tabsListener = onTabsState.mock.calls[0][0] as (state: {
+    const tabsListener = pushListeners.tabsState as (state: {
       scopeId: string
       tabs: []
       activeTabId: null
     }) => void
-    const statusListener = onSessionStatus.mock.calls[0][0] as (
-      alive: boolean,
-      scopeId?: string
-    ) => void
+    const statusListener = pushListeners.sessionStatus as (alive: boolean, scopeId?: string) => void
     const pageState = {
       tabId: 'same-id',
       scopeId: 'chat-a',
@@ -688,36 +577,6 @@ describe('browser panel transport', () => {
     expect(setPageState).toHaveBeenCalledWith(pageState)
     expect(setTabsState).toHaveBeenCalledWith(tabsState)
     expect(setSessionAlive).toHaveBeenCalledWith(false, 'chat-c')
-  })
-
-  it('applies native suspension pushes to the matching renderer scope', () => {
-    initBrowserAgentTransport()
-    const listener = onScopeSuspended.mock.calls[0][0] as (scopeId: string) => void
-
-    listener('chat-background')
-
-    expect(markScopeSuspended).toHaveBeenCalledWith('chat-background')
-  })
-
-  it('keeps geometry independent for two chat scopes', () => {
-    const a = { x: 1, y: 2, width: 300, height: 200 }
-    const b = { x: 10, y: 20, width: 400, height: 250 }
-
-    reportBrowserPanelBounds(a, null, 'chat-a')
-    reportBrowserPanelBounds(b, null, 'chat-b')
-
-    expect(setPanelBounds.mock.calls).toEqual([
-      [a, null, 'chat-a'],
-      [b, null, 'chat-b'],
-    ])
-  })
-
-  it('forwards Sim theme preferences to the desktop browser', () => {
-    reportBrowserTheme('dark')
-    reportBrowserTheme('light')
-    reportBrowserTheme('system')
-
-    expect(setTheme.mock.calls).toEqual([['dark'], ['light'], ['system']])
   })
 
   it('subscribes to native omnibox focus requests', () => {

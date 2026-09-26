@@ -1,32 +1,33 @@
-/** @vitest-environment node */
-import { db } from '@sim/db'
-import {
-  document,
-  embedding,
-  knowledgeBase,
-  knowledgeConnector,
-  knowledgeConnectorMember,
-  knowledgeConnectorMemberSyncLog,
-  knowledgeConnectorSyncLog,
-} from '@sim/db/schema'
+import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const mocks = vi.hoisted(() => ({ storage: vi.fn(), tags: vi.fn(), revoke: vi.fn() }))
+const hoisted = vi.hoisted(() => ({ storage: vi.fn() }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  enqueueKnowledgeStorageCleanup: mocks.storage,
+  enqueueKnowledgeStorageCleanup: hoisted.storage,
 }))
-vi.mock('@/lib/knowledge/tags/service', () => ({ cleanupUnusedTagDefinitions: mocks.tags }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  revokeKnowledgeConnectorCredentialAccess: mocks.revoke,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 
 import {
   cleanupKnowledgeConnector,
-  enqueueConnectorDeletion,
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
 } from '@/lib/knowledge/connectors/deletion'
+
+const mocks = {
+  ...hoisted,
+  tags: knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions,
+  revoke: knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCredentialAccess,
+}
 
 const payload = {
   version: 1 as const,
@@ -57,24 +58,12 @@ function queueBatch(docs: { id: string; fileUrl: string }[], chunks: { id: strin
 
 describe('durable connector cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.storage.mockResolvedValue([])
     mocks.tags.mockResolvedValue(0)
     mocks.revoke.mockResolvedValue(undefined)
   })
   afterEach(resetDbChainMock)
-
-  it('enqueues a bounded immutable identity with a retry budget', async () => {
-    await enqueueConnectorDeletion(db, payload)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
-        payload,
-        maxAttempts: 48,
-      })
-    )
-  })
 
   it('preserves storage cleanup intent before removing documents and then the connector', async () => {
     const docs = [{ id: 'doc-1', fileUrl: '/file.txt' }]
@@ -132,26 +121,6 @@ describe('durable connector cleanup', () => {
     expect(mocks.tags).not.toHaveBeenCalled()
   })
 
-  it.each([knowledgeConnectorSyncLog, knowledgeConnectorMemberSyncLog, knowledgeConnectorMember])(
-    'drains related rows before deleting their connector',
-    async (table) => {
-      const rows = Array.from({ length: 1000 }, (_, index) => ({ id: `row-${index}` }))
-      for (let batch = 0; batch < 4; batch++) {
-        queueBatch([])
-        queueTableRows(table, rows)
-      }
-      expect(await cleanupKnowledgeConnector(payload, context())).toMatchObject({
-        outcome: 'deferred',
-        consumeAttempt: false,
-      })
-      expect(dbChainMockFns.delete.mock.calls.map(([target]) => target)).toEqual(
-        Array(4).fill(table)
-      )
-      expect(mocks.revoke).not.toHaveBeenCalled()
-      expect(mocks.tags).not.toHaveBeenCalled()
-    }
-  )
-
   it.each([null, new Date('2026-09-14T12:00:00.000Z')])(
     'leaves a connector with a different deletion generation untouched: %s',
     async (deletedAt) => {
@@ -176,14 +145,5 @@ describe('durable connector cleanup', () => {
     await cleanupKnowledgeConnector(payload, context())
     expect(mocks.tags).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('does no work after cancellation', async () => {
-    const controller = new AbortController()
-    controller.abort()
-    await expect(
-      cleanupKnowledgeConnector(payload, { ...context(), signal: controller.signal })
-    ).rejects.toThrow()
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 })

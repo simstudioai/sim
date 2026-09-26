@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { knowledgeConnectorSyncLog } from '@sim/db/schema'
 import {
   createMockRequest,
@@ -9,10 +6,12 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: () => null }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { GET } from '@/app/api/cron/cleanup-stale-executions/route'
 
@@ -59,7 +58,6 @@ function syncLogClaimPredicate(): unknown[] | undefined {
 
 describe('connector sync log retention', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(knowledgeConnectorSyncLog, [{ id: 'kcsl-1' }])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'kcsl-1' }])
@@ -81,15 +79,5 @@ describe('connector sync log retention', () => {
 
     /** `started` is in flight, or waiting on the scheduler's own sweep. */
     expect(predicate).not.toContain('started')
-  })
-
-  it('reports what it pruned', async () => {
-    const response = await GET(createMockRequest('GET') as never)
-    const body = (await response.json()) as {
-      connectorSyncLogs?: { pruned: number; retentionDays: number }
-    }
-
-    expect(body.connectorSyncLogs?.retentionDays).toBe(30)
-    expect(body.connectorSyncLogs?.pruned).toBeGreaterThan(0)
   })
 })

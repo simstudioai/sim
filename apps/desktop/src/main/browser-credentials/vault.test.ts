@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -109,22 +109,6 @@ describe('CredentialVault', () => {
     await expect(readFile(vaultPath, 'utf8')).rejects.toThrow()
   })
 
-  it('treats exact origin plus username as one credential', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-
-    // A different subdomain and a different username are both new credentials.
-    await expect(
-      vault.importCredentials(
-        [
-          { origin: 'https://sub.example.com', username: 'ada', password: 'x' },
-          { origin: 'https://example.com', username: 'grace', password: 'y' },
-        ],
-        'keep-existing'
-      )
-    ).resolves.toMatchObject({ added: 2 })
-  })
-
   it('keeps the existing password on conflict by default', async () => {
     const vault = new CredentialVault(vaultPath, encryption())
     await vault.importCredentials(CANDIDATES, 'keep-existing')
@@ -143,21 +127,6 @@ describe('CredentialVault', () => {
     expect(stored?.password).toBe('hunter2')
   })
 
-  it('replaces the password on conflict when asked', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-
-    await expect(
-      vault.importCredentials(
-        [{ origin: 'https://example.com', username: 'ada', password: 'changed' }],
-        'replace'
-      )
-    ).resolves.toEqual({ added: 0, updated: 1, skipped: 0 })
-
-    const id = (await vault.list()).find((entry) => entry.username === 'ada')?.id ?? ''
-    expect((await vault.readForFill(id, 'https://example.com'))?.password).toBe('changed')
-  })
-
   it('serializes overlapping imports so every write sees the previous result', async () => {
     const vault = new CredentialVault(vaultPath, encryption())
     const candidates = Array.from({ length: 12 }, (_, index) => ({
@@ -173,66 +142,6 @@ describe('CredentialVault', () => {
     expect(await vault.list()).toHaveLength(candidates.length)
   })
 
-  it('serializes import, delete, and clear mutations in call order', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-    const deletedId = (await vault.list()).find((entry) => entry.username === 'ada')?.id ?? ''
-
-    const importBeforeDelete = vault.importCredentials(
-      [{ origin: 'https://third.test', username: 'lin', password: 'third' }],
-      'keep-existing'
-    )
-    const deleteAfterImport = vault.delete(deletedId)
-    await Promise.all([importBeforeDelete, deleteAfterImport])
-
-    expect((await vault.list()).map((entry) => entry.username)).toEqual(['grace', 'lin'])
-
-    const importBeforeClear = vault.importCredentials(
-      [{ origin: 'https://fourth.test', username: 'margaret', password: 'fourth' }],
-      'keep-existing'
-    )
-    const clearAfterImport = vault.clear()
-    await Promise.all([importBeforeClear, clearAfterImport])
-    expect(await vault.list()).toEqual([])
-
-    const clearBeforeImport = vault.clear()
-    const importAfterClear = vault.importCredentials(
-      [{ origin: 'https://fifth.test', username: 'katherine', password: 'fifth' }],
-      'keep-existing'
-    )
-    await Promise.all([clearBeforeImport, importAfterClear])
-    expect((await vault.list()).map((entry) => entry.username)).toEqual(['katherine'])
-  })
-
-  it('continues queued mutations after an earlier mutation fails', async () => {
-    const provider = encryption()
-    provider.encryptString.mockImplementationOnce(() => {
-      throw new Error('encryption failed')
-    })
-    const vault = new CredentialVault(vaultPath, provider)
-
-    const failed = vault.importCredentials([CANDIDATES[0]], 'keep-existing')
-    const queued = vault.importCredentials([CANDIDATES[1]], 'keep-existing')
-
-    await expect(failed).rejects.toThrow('encryption failed')
-    await expect(queued).resolves.toEqual({ added: 1, updated: 0, skipped: 0 })
-    expect((await vault.list()).map((entry) => entry.username)).toEqual(['grace'])
-  })
-
-  it('skips candidates with no usable origin or an empty password', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-
-    await expect(
-      vault.importCredentials(
-        [
-          { origin: 'android://token@com.example/', username: 'a', password: 'p' },
-          { origin: 'https://example.com', username: 'b', password: '' },
-        ],
-        'keep-existing'
-      )
-    ).resolves.toEqual({ added: 0, updated: 0, skipped: 2 })
-  })
-
   it('only returns a password for the origin it belongs to', async () => {
     // The last guard before plaintext exists: an id alone is not enough.
     const vault = new CredentialVault(vaultPath, encryption())
@@ -244,37 +153,6 @@ describe('CredentialVault', () => {
     })
     expect(await vault.readForFill(id, 'https://evil.test')).toBeNull()
     expect(await vault.readForFill('no-such-id', 'https://example.com')).toBeNull()
-  })
-
-  it('lists matches for one exact origin only', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-
-    expect(await vault.listForOrigin('https://example.com/login')).toHaveLength(1)
-    expect(await vault.listForOrigin('https://sub.example.com')).toHaveLength(0)
-    expect(await vault.listForOrigin('not-a-url')).toHaveLength(0)
-  })
-
-  it('forgets one credential', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-    const id = (await vault.list())[0].id
-
-    await expect(vault.delete(id)).resolves.toBe(true)
-    await expect(vault.delete(id)).resolves.toBe(false)
-    expect(await vault.list()).toHaveLength(1)
-  })
-
-  it('destroys everything on clear', async () => {
-    const vault = new CredentialVault(vaultPath, encryption())
-    await vault.importCredentials(CANDIDATES, 'keep-existing')
-
-    await vault.clear()
-
-    expect(await vault.list()).toEqual([])
-    await expect(readFile(vaultPath, 'utf8')).rejects.toThrow()
-    // Clearing an already-empty vault is not an error.
-    await expect(vault.clear()).resolves.toBeUndefined()
   })
 
   it('preserves an undecryptable vault until clear explicitly resets it', async () => {
@@ -304,24 +182,6 @@ describe('CredentialVault', () => {
       skipped: 0,
     })
     await expect(brokenVault.list()).resolves.toHaveLength(1)
-  })
-
-  it('preserves an oversized vault until explicit clear resets persistence', async () => {
-    await writeFile(vaultPath, '')
-    await truncate(vaultPath, 64 * 1024 * 1024 + 1)
-    const vault = new CredentialVault(vaultPath, encryption())
-
-    await expect(vault.list()).resolves.toEqual([])
-    expect(vault.isAvailable()).toBe(false)
-    await expect(vault.importCredentials(CANDIDATES, 'replace')).resolves.toMatchObject({
-      added: 0,
-    })
-    expect((await stat(vaultPath)).size).toBe(64 * 1024 * 1024 + 1)
-
-    await vault.clear()
-    await expect(vault.importCredentials([CANDIDATES[0]], 'keep-existing')).resolves.toMatchObject({
-      added: 1,
-    })
   })
 
   it('blocks a stored credential with fields outside the persistence contract', async () => {

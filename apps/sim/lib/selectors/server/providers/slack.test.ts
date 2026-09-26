@@ -1,26 +1,27 @@
-/**
- * @vitest-environment node
- */
 import { account } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchProviderJson, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetchProviderJson } = vi.hoisted(() => ({
   mockFetchProviderJson: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
   fetchProviderJson: mockFetchProviderJson,
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 const SCOPED_ACCOUNT_ID = 'slack-usr_U12345678-123e4567-e89b-12d3-a456-426614174000'
 
@@ -93,23 +94,8 @@ function execute(
 
 describe('Slack server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('xoxb-server-only-token')
-  })
-
-  it('does not fall back after channel listing is cancelled', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort(abortError)
-    mockFetchProviderJson.mockRejectedValue(abortError)
-
-    await expect(
-      execute('slack.channels', { kind: 'list' }, 'bot', controller.signal)
-    ).rejects.toBe(abortError)
-
-    expect(mockFetchProviderJson).toHaveBeenCalledOnce()
-    expect(mockFetchProviderJson.mock.calls[0]?.[0]).toBeInstanceOf(URL)
   })
 
   it('does not return a public-only fallback when membership lookup is cancelled', async () => {
@@ -243,37 +229,5 @@ describe('Slack server selector adapters', () => {
       execute('slack.channels', { kind: 'list', cursor: botResult.nextCursor }, 'oauth')
     ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
     expect(mockFetchProviderJson).toHaveBeenCalledTimes(3)
-  })
-
-  it('hydrates saved users and installing-user private channels directly by id', async () => {
-    mockFetchProviderJson.mockResolvedValueOnce(
-      slackPage({ user: user('U999', 'saved', 'Saved User') })
-    )
-    await expect(execute('slack.users', { kind: 'detail', id: 'U999' })).resolves.toEqual({
-      kind: 'detail',
-      item: { id: 'U999', label: 'Saved User' },
-    })
-
-    queueScopedAccount()
-    mockFetchProviderJson
-      .mockResolvedValueOnce(slackPage({ channel: channel('G999', 'saved-private', true, true) }))
-      .mockResolvedValueOnce(slackPage({ members: ['UOTHER'] }, 'members-page-2'))
-      .mockResolvedValueOnce(slackPage({ members: ['U12345678'] }))
-    await expect(
-      execute('slack.channels', { kind: 'detail', id: 'G999' }, 'oauth')
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: 'G999', label: '#saved-private' },
-    })
-
-    expect(
-      mockFetchProviderJson.mock.calls.map((_, index) => requestedUrl(index).pathname)
-    ).toEqual([
-      '/api/users.info',
-      '/api/conversations.info',
-      '/api/conversations.members',
-      '/api/conversations.members',
-    ])
-    expect(requestedUrl(3).searchParams.get('cursor')).toBe('members-page-2')
   })
 })

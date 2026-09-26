@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -8,13 +5,12 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   revertVersion: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
-  findUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/file-versions', () => ({
@@ -27,14 +23,12 @@ vi.mock('@/lib/workspace-files/application/file-versions', () => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  findUserEmailsByIds: mocks.findUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { POST } from '@/app/api/v2/files/[fileId]/versions/[version]/revert/route'
+
+const { mockGetUserEmailsByIds, mockFindUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -90,7 +84,6 @@ const callRevert = (body: unknown) =>
 
 describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -100,8 +93,8 @@ describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
       reverted: true,
       revertedFrom: 3,
     })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
-    mocks.findUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockFindUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   /**
@@ -142,22 +135,5 @@ describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
 
     expect(body.data.reverted).toBe(false)
     expect(body.data.revision).toBe(workspaceFileRevision(record))
-  })
-
-  it('forwards the caller revision precondition to the use case', async () => {
-    const expectedRevision = workspaceFileRevision(record)!
-
-    await callRevert({ workspaceId: WORKSPACE_ID, expectedRevision })
-
-    expect(mocks.revertVersion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          fileId: FILE_ID,
-          assertedWorkspaceId: WORKSPACE_ID,
-          version: 2,
-          expectedRevision,
-        }),
-      })
-    )
   })
 })

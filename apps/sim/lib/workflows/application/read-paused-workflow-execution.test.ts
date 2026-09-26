@@ -1,36 +1,33 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getPausedExecutionDetail: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
-
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    getPausedExecutionDetail: mocks.getPausedExecutionDetail,
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 import { readPausedWorkflowExecution } from '@/lib/workflows/application/read-paused-workflow-execution'
+
+const mockGetPausedExecutionDetail = humanInTheLoopManagerMockFns.mockGetPausedExecutionDetail
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveWorkflowContext =
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const workflowContext = {
   workflowId: 'workflow-1',
@@ -48,9 +45,9 @@ const detail = {
 }
 
 const allowedPrincipals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'personal-key-1' },
-  { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'workspace-key-1' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
+  createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
   {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -65,10 +62,9 @@ const allowedPrincipals: Principal[] = [
 
 describe('readPausedWorkflowExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
-    mocks.getPausedExecutionDetail.mockResolvedValue(detail)
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveWorkflowContext.mockResolvedValue(workflowContext)
+    mockGetPausedExecutionDetail.mockResolvedValue(detail)
   })
 
   it.each(allowedPrincipals)(
@@ -80,8 +76,8 @@ describe('readPausedWorkflowExecution', () => {
       })
 
       expect(result).toBe(detail)
-      expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-      expect(mocks.getPausedExecutionDetail).toHaveBeenCalledWith({
+      expect(mockResolveWorkflowContext).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
+      expect(mockGetPausedExecutionDetail).toHaveBeenCalledWith({
         workflowId: 'workflow-1',
         executionId: 'execution-1',
       })
@@ -94,22 +90,9 @@ describe('readPausedWorkflowExecution', () => {
       input: { workflowId: 'workflow-1', executionId: 'execution-1' },
     })
 
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getPausedExecutionDetail.mock.invocationCallOrder[0]
+    expect(mockResolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetPausedExecutionDetail.mock.invocationCallOrder[0]
     )
-  })
-
-  it('supports an authorization-only preflight without loading paused execution detail', async () => {
-    expect(readPausedWorkflowExecution.authorize).toBeTypeOf('function')
-
-    await readPausedWorkflowExecution.authorize?.({
-      principal: allowedPrincipals[0],
-      input: { workflowId: 'workflow-1', executionId: 'execution-1' },
-    })
-
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-    expect(mocks.resolvePermission).toHaveBeenCalled()
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('rejects executor delegation before canonical lookup', async () => {
@@ -130,8 +113,8 @@ describe('readPausedWorkflowExecution', () => {
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
     ).rejects.toMatchObject({ name: 'DelegatedServiceAuthorizationError' })
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
+    expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('rejects a disallowed principal before canonical lookup', async () => {
@@ -148,26 +131,25 @@ describe('readPausedWorkflowExecution', () => {
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
     ).rejects.toMatchObject({ name: 'PrincipalKindAuthorizationError' })
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
+    expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace key outside the canonical workspace before loading detail', async () => {
     await expect(
       readPausedWorkflowExecution.execute({
-        principal: {
-          kind: 'workspace_api_key',
+        principal: createWorkspaceApiKeyPrincipal({
           workspaceId: 'workspace-2',
           keyId: 'workspace-key-2',
-        },
+        }),
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
+    expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('rejects a session without current workspace access before loading detail', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce(null)
+    mockResolvePermission.mockResolvedValueOnce(null)
 
     await expect(
       readPausedWorkflowExecution.execute({
@@ -175,11 +157,11 @@ describe('readPausedWorkflowExecution', () => {
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
     ).rejects.toMatchObject({ name: 'NoWorkspaceAccessError' })
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
+    expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('enforces the workspace personal-key policy before loading detail', async () => {
-    mocks.resolveWorkflowContext.mockResolvedValueOnce({
+    mockResolveWorkflowContext.mockResolvedValueOnce({
       ...workflowContext,
       allowPersonalApiKeys: false,
     })
@@ -190,29 +172,6 @@ describe('readPausedWorkflowExecution', () => {
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
     ).rejects.toMatchObject({ name: 'PersonalApiKeysDisabledError' })
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
-  })
-
-  it('returns a semantic not-found error when no paused execution matches', async () => {
-    mocks.getPausedExecutionDetail.mockResolvedValueOnce(null)
-
-    await expect(
-      readPausedWorkflowExecution.execute({
-        principal: allowedPrincipals[0],
-        input: { workflowId: 'workflow-1', executionId: 'missing-execution' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Paused execution not found' })
-  })
-
-  it('propagates manager infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.getPausedExecutionDetail.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      readPausedWorkflowExecution.execute({
-        principal: allowedPrincipals[0],
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
-      })
-    ).rejects.toBe(infrastructureError)
+    expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
   })
 })

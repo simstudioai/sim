@@ -1,3 +1,4 @@
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 /**
  * Pins the two properties a `keyed` delivery's idempotency token depends on, at
  * the layer that supplies them.
@@ -14,25 +15,16 @@
  *
  * `nodeMetadata.executionOrder` carries both halves because the block executor
  * assigns it once per invocation, before the retry wrapper.
- *
- * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-  isMcpTool: () => false,
-}))
+vi.mock('@/tools', () => toolsMock)
 
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 
-describe('keyed invocation identity', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
+describe('keyed invocation identity', () => {
   it('derives the same token for every retry layer of one invocation', () => {
     const context = {
       executionId: 'exec-1',

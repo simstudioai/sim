@@ -1,33 +1,34 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 
-const mocks = vi.hoisted(() => ({
-  permission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
   snapshot: vi.fn(),
   clean: vi.fn(),
   receipt: vi.fn(),
   dispose: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (role: string | null) => role !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
-  resolveOwnedChatContext: mocks.context,
+  resolveOwnedChatContext: hoisted.context,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
-  isSessionFileProvenanceClean: mocks.clean,
+  isSessionFileProvenanceClean: hoisted.clean,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
-  openSessionFileSnapshot: mocks.snapshot,
+  openSessionFileSnapshot: hoisted.snapshot,
 }))
 vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
   createWorkbenchFileProvenance: () => ({
     observeUpload: (_machine: unknown, stream: unknown) => stream,
-    uploadProvenance: mocks.receipt,
+    uploadProvenance: hoisted.receipt,
   }),
 }))
 
@@ -36,11 +37,15 @@ import {
   readChatSandboxFile,
 } from '@/lib/mothership/chat/application/read-sandbox-file'
 
-const principal: Principal = { kind: 'session', userId: 'u', sessionId: 's' }
+const mocks = {
+  ...hoisted,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal: Principal = createSessionPrincipal({ userId: 'u', sessionId: 's' })
 const input = { workspaceId: 'ws', chatId: 'chat', path: '/tmp/image.png' }
 const machine = { providerId: 'e2b', sandboxId: 'physical' }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.permission.mockResolvedValue('read')
   mocks.context.mockResolvedValue({
     workspaceId: 'ws',
@@ -54,7 +59,7 @@ beforeEach(() => {
   mocks.receipt.mockReturnValue({ status: 'unknown' })
   mocks.snapshot.mockImplementation(async (_key, _path, _signal, observer) => ({
     size: 3,
-    dispose: mocks.dispose,
+    dispose: hoisted.dispose,
     stream: async () =>
       observer(
         machine,
@@ -183,14 +188,14 @@ it('never lets a broad clean marker override an exact secret-bearing file receip
 })
 
 it('accepts the verified personal API principal through the same canonical chat authorization', async () => {
-  const personal = { kind: 'personal_api_key' as const, userId: 'u', keyId: 'verified-key' }
+  const personal = createPersonalApiKeyPrincipal({ userId: 'u', keyId: 'verified-key' })
   expect((await readChatSandboxFile.execute({ principal: personal, input })).name).toBe('image.png')
   expect(mocks.context).toHaveBeenCalledWith(personal, 'chat')
 })
 it('rejects a workspace API key before canonical lookup or sandbox access', async () => {
   await expect(
     Reflect.apply(readChatSandboxFile.execute, null, [
-      { principal: { kind: 'workspace_api_key', workspaceId: 'ws', keyId: 'key' }, input },
+      { principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws', keyId: 'key' }), input },
     ])
   ).rejects.toThrow()
   expect(mocks.context).not.toHaveBeenCalled()

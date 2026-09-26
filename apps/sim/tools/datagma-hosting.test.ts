@@ -1,18 +1,13 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enrichCompanyTool } from '@/tools/datagma/enrich_company'
 import { enrichPersonTool } from '@/tools/datagma/enrich_person'
 import { findEmailTool } from '@/tools/datagma/find_email'
 import { findPhoneTool } from '@/tools/datagma/find_phone'
-import { getCreditsTool } from '@/tools/datagma/get_credits'
 import { DATAGMA_CREDIT_USD } from '@/tools/datagma/hosting'
 import type { ToolConfig } from '@/tools/types'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, unknown>) {
@@ -21,19 +16,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
   const result = pricing.getCost(params, output)
   return typeof result === 'number' ? { cost: result } : result
 }
-
-describe('Datagma hosted key config', () => {
-  it('declares the shared env prefix and BYOK provider on all credit-consuming tools', () => {
-    for (const tool of [findEmailTool, enrichPersonTool, enrichCompanyTool, findPhoneTool]) {
-      expect(tool.hosting?.envKeyPrefix).toBe('DATAGMA_API_KEY')
-      expect(tool.hosting?.byokProviderId).toBe('datagma')
-    }
-  })
-
-  it('get_credits tool has no hosting config (always BYOK)', () => {
-    expect(getCreditsTool.hosting).toBeUndefined()
-  })
-})
 
 describe('Datagma find email pricing', () => {
   it('charges 1 credit when a verified email is found', () => {

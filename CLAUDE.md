@@ -2,516 +2,134 @@
 
 You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
 
+This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.claude/rules/*.md` (indexed in `apps/sim/AGENTS.md`): Claude loads each one by path, and any other agent reads the file a section points to before editing in that area. Skills live in `.agents/skills/`.
+
 ## Global Standards
 
-- **Linting / Audit**: `bun run check:api-validation` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, or ad-hoc client wire types — see "API Contracts" and "API Route Pattern" below
-- **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID — no manual `withMetadata({ requestId })` needed
-- **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must run inside `withRouteHandler`. Ordinary internal and v2 handlers use the shared JSON/binary route builders, which already apply it; never double-wrap a builder. Use raw `withRouteHandler` only for documented protocol or lifecycle exceptions. See "API Route Pattern" below
-- **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
-- **Styling**: Never update global styles. Keep all styling local to components
-- **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
-- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations:
+- **Package manager**: `bun` and `bunx`, never `npm` and `npx`.
+- **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
+- **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
+- **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
+- **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations:
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
-  - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`
-  - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — extract message string from unknown caught value; never write `e instanceof Error ? e.message : 'fallback'`
+  - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`; never `e instanceof Error ? e : new Error(String(e))`
+  - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — never `e instanceof Error ? e.message : 'fallback'`
   - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
-  - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
+  - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — never `Object.fromEntries(Object.entries(...).filter(...))`
   - `isRecordLike(value)` from `@sim/utils/object` — never redeclare `typeof value === 'object' && value !== null && !Array.isArray(value)`
-  - `toRecord(value)` / `toRecordOrNull(value)` / `toArray(value)` from `@sim/utils/object` — coerce an untyped payload value to a record or array; never inline `isRecordLike(v) ? v : {}` or `Array.isArray(v) ? v : []`. Where the source is already typed, keep the inline `Array.isArray` check: it narrows, while `toArray` asserts
+  - `toRecord(value)` / `toRecordOrNull(value)` / `toArray(value)` from `@sim/utils/object` — coerce an untyped payload value; never inline `isRecordLike(v) ? v : {}` or `Array.isArray(v) ? v : []`. Where the source is already typed, keep the inline `Array.isArray` check: it narrows, while `toArray` asserts
   - `toStringOrNull(value)` / `toNumberOrNull(value)` / `toBooleanOrNull(value)` from `@sim/utils/coerce` — read one scalar out of an untyped payload; never declare a local one-liner byte-identical to one of these. Keep a local helper that differs: `undefined` instead of `null` changes the wire shape, and a `Number.isFinite` or string-parse variant is a stricter check these omit
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `escapeRegExp(value)` from `@sim/utils/string` — never inline `replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
-  - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
-- **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. The constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`
-- **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
-- **Type-checking**: Run `bun run type-check` (per workspace) or `bunx turbo run type-check` (all of them). Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, but it is what makes a bare `tsc` resolve to the native TypeScript 7 compiler instead of the ~10x slower JavaScript TypeScript 6 one that `@typescript/typescript6` pulls in transitively. `bun run check:native-typecheck` enforces this
+  - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — never reimplement exponential backoff inline
+- **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a recovered tab would render Sim Cloud as self-hosted; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`.
+- **Type-checking**: `bun run type-check` (per workspace) or `bunx turbo run type-check` (all). Never remove the `@typescript/native` alias from the root `devDependencies`. Nothing imports it; it exists so a bare `tsc` resolves to the native TypeScript 7 compiler. `apps/sim` needs `@typescript/typescript6`, whose `@typescript/old` dependency (an alias of `typescript@6`) ships its own `tsc` bin, and bin winners are picked by lexical sort, so without the alias `tsc` silently becomes the ~10x slower JavaScript compiler. `bun run check:native-typecheck` enforces this, and also fails when a newly added dependency that sorts ahead of `@typescript/native` ships a `tsc` bin ([microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567)).
+- **Checks**: `bun run lint` autofixes formatting; `bun run check:audits` runs every `check:*` audit CI enforces.
 
 ## Architecture
 
-### Core Principles
-
-1. Single Responsibility: Each component, hook, store has one clear purpose
-2. Composition Over Complexity: Break down complex logic into smaller pieces
-3. Type Safety First: TypeScript interfaces for all props, state, return types
-4. Predictable State: Zustand for global state, useState for UI-only concerns
-
-### Application Operation Boundary
-
-- Every protected read, write, canonical resource lookup, or authorization-sensitive reference resolution enters through an authorized application use case.
-- Define one stable semantic operation with its minimum role, workspace-key policy, allowed principal kinds, and delegated services. Internal APIs, v2 APIs, Copilot, and trusted tools call the same use case when the domain behavior is the same.
-- Surface adapters authenticate and construct a `Principal`, apply request-rate policy, parse contracts, map input, and present results. They never query protected data, decide resource authorization, implement business transactions, or record semantic audit.
-- Application use cases load canonical context, compare asserted scope, authorize current access, execute managers/repositories, project semantic audit, and trigger shared domain effects. Managers accept canonical IDs and scope, never credentials or principals.
-- Copilot is a surface adapter. Use `createCopilotApplicationAdapter` and the domain's registered operation object; do not create Copilot-only authorization or business implementations.
-- Protected compound mutations belong in one top-level semantic application operation. Do not sequence independently committing mutations in a route or tool adapter.
-- Never substitute a billing owner, uploader, creator, or API-key owner for the acting principal. Fail fast when the identity model or operation policy cannot express the caller.
-- Use the `migrate-application-operation` skill whenever creating or migrating a protected endpoint, tool command, or resource method.
-
-### Root Structure
+### Repository layout
 
 ```
 apps/
-├── sim/                    # Next.js app (UI + API routes + workflow editor)
-│   ├── app/                # Next.js app router (pages, API routes)
+├── sim/                    # Next.js app: UI, API routes, workflow builder, executor
+│   ├── app/                # App router — pages and API routes (app/api/**)
 │   ├── blocks/             # Block definitions and registry
-│   ├── components/         # Shared UI (emcn/, ui/)
+│   ├── tools/              # Tool definitions and registry
+│   ├── triggers/           # Trigger definitions and registry
+│   ├── connectors/         # Knowledge base connectors
 │   ├── executor/           # Workflow execution engine
-│   ├── hooks/              # Shared hooks (queries/, selectors/)
-│   ├── lib/                # App-wide utilities
 │   ├── providers/          # LLM provider integrations
+│   ├── components/         # Shared app UI (ui/, icons, …)
+│   ├── hooks/              # Shared hooks (queries/, selectors/)
 │   ├── stores/             # Zustand stores
-│   ├── tools/              # Tool definitions
-│   └── triggers/           # Trigger definitions
-└── realtime/               # Bun Socket.IO server (collaborative canvas)
+│   ├── lib/                # App-wide modules, incl. lib/api/contracts and lib/<domain>/application
+│   └── ee/                 # Enterprise features
+├── realtime/               # Bun Socket.IO server (collaborative workflow builder)
+├── desktop/                # Electron shell around the hosted web app
+├── docs/                   # Documentation site
+└── pii/                    # Python PII detection service (not in the JS/turbo build)
 
 packages/
-├── audit/                  # @sim/audit
+├── emcn/                   # @sim/emcn — design system (chip family, tokens, icons)
+├── db/                     # @sim/db — Drizzle schema, migrations, client
 ├── auth/                   # @sim/auth — shared Better Auth verifier
-├── db/                     # @sim/db — drizzle schema + client
-├── logger/                 # @sim/logger
 ├── platform-authz/         # @sim/platform-authz — workspace + workflow authz (subpath exports)
-├── realtime-protocol/      # @sim/realtime-protocol — socket op constants + zod schemas
-├── security/               # @sim/security — safeCompare
+├── audit/ logger/ security/ utils/ runtime-secrets/ deployment-config/
+├── realtime-protocol/ browser-protocol/ terminal-protocol/ desktop-bridge/
+├── workflow-types/ workflow-persistence/ workflow-renderer/
+├── testing/                # @sim/testing — test factories and mocks
 ├── tsconfig/               # shared tsconfig presets
-├── utils/                  # @sim/utils
-├── workflow-persistence/   # @sim/workflow-persistence
-└── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel types
+└── cli/ sim-cli/ sim-setup/ ts-sdk/ python-sdk/   # published CLIs and SDKs
 ```
 
 ### Package boundaries
 
 - `apps/* → packages/*` only. Packages never import from `apps/*`.
-- `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. Do not add imports from `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` to any package consumed by `apps/realtime`. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
+- `apps/realtime` avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. Never add imports from `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` to any package it consumes; it calls back into `apps/sim` only over internal HTTP with `INTERNAL_API_SECRET`. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
 - Auth is shared across both apps via the Better Auth "Shared Database Session" pattern (same `BETTER_AUTH_SECRET`, same DB via `@sim/db`).
 
-### Naming Conventions
-
-- Components: PascalCase (`WorkflowList`)
-- Hooks: `use` prefix (`useWorkflowOperations`)
-- Files: kebab-case (`workflow-list.tsx`)
-- Stores: `stores/feature/store.ts`
-- Constants: SCREAMING_SNAKE_CASE
-- Interfaces: PascalCase with suffix (`WorkflowListProps`)
-
-## Imports
-
-**Always use absolute imports.** Never use relative imports.
-
-```typescript
-// ✓ Good
-import { useWorkflowStore } from '@/stores/workflows/store'
-
-// ✗ Bad
-import { useWorkflowStore } from '../../../stores/workflows/store'
-```
-
-Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export from non-barrel files; import directly from the source.
-
-### Import Order
-
-1. React/core libraries
-2. External libraries
-3. UI components (`@sim/emcn`, `@/components/ui`)
-4. Utilities (`@/lib/...`)
-5. Stores (`@/stores/...`)
-6. Feature imports
-7. CSS imports
-
-Use `import type { X }` for type-only imports.
-
-## TypeScript
-
-1. No `any` - Use proper types or `unknown` with type guards
-2. Always define props interface for components
-3. `as const` for constant objects/arrays
-4. Explicit ref types: `useRef<HTMLDivElement>(null)`
-
-## Components
-
-```typescript
-'use client' // Only if using hooks
-
-const CONFIG = { SPACING: 8 } as const
-
-interface ComponentProps {
-  requiredProp: string
-  optionalProp?: boolean
-}
-
-export function Component({ requiredProp, optionalProp = false }: ComponentProps) {
-  // Order: refs → external hooks → store hooks → custom hooks → state → useMemo → useCallback → useEffect → return
-}
-```
-
-Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
-
-Behavior-preserving render-performance idioms — lazy-init object refs, hoist closure-free values/functions to module scope, pre-index repeated lookups with `Map`/`Set`, and never mutating a shared array in place — are in `.claude/rules/sim-react-performance.md` (which also explains why `toSorted`/`toReversed` are unsafe on client render paths despite the ES2023 tsconfig lib — SWC does not polyfill prototype methods, so use `[...arr].sort()`). For the render-timing effect/state anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
-
-## API Contracts
-
-Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family — `folders.ts`, `chats.ts`, `knowledge.ts`, etc.). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
-
-- Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`
-- Contracts export named schemas (e.g., `createFolderBodySchema`) AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`)
-- Clients (hooks, utilities, components) import the named type aliases from the contract file. They must never write `z.input<...>` / `z.output<...>` themselves
-- Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts` (e.g., `workspaceIdSchema`, `workflowIdSchema`). Reuse these instead of redefining string-based ID schemas
-- Audit script: `bun run check:api-validation` enforces boundary policy and prints ratchet metrics for route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters. It must pass on PRs. `bun run check:api-validation:strict` is the strict CI gate and additionally fails on annotations with empty reasons
-
-Domain validators that are not HTTP boundaries — tools, blocks, triggers, connectors, realtime handlers, and internal helpers — may still use Zod directly. The contract rule is boundary-only.
-
-### Boundary annotations
-
-A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
-
-- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call in client hooks (`apps/sim/hooks/queries/**`, `apps/sim/hooks/selectors/**`) AND any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
-- `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files
-- `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`
-- `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough)
-
-Placement rule: the annotation must immediately precede the call or cast. Up to three non-empty preceding comment lines are tolerated, so additional context comments above the annotation are fine. The reason must be non-empty after trimming — annotations with empty reasons fail strict mode (`annotationsMissingReason`).
-
-Whole-file allowlists for routes (legitimate non-boundary or auth-handled routes that legitimately import Zod for non-boundary reasons) go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.
-
-Examples:
-
-```ts
-// boundary-raw-fetch: streaming SSE chunks must be processed as they arrive
-const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { signal })
-```
-
-```ts
-// double-cast-allowed: legacy provider type lacks the discriminator field we need
-const provider = config as unknown as LegacyProvider
-```
-
-## API Route Pattern
-
-Every route method must run inside `withRouteHandler`. Ordinary internal and v2 JSON/binary routes use `defineInternalJsonRoute`, `defineV2JsonRoute`, or the matching binary/stream builder. These builders already apply `withRouteHandler`; never wrap them again. Use raw `withRouteHandler` only for explicit protocol or lifecycle exceptions such as streaming, multipart control, large-body admission, OAuth, or public execution.
-
-Routes never `import { z } from 'zod'` and never define route-local boundary schemas. Declarative builders consume contracts and own authentication, admission, parsing, use-case execution, response validation, and error projection. A raw special route consumes the same contracts and validates with canonical helpers from `@/lib/api/server`, after authentication and cheap admission:
-
-- `parseRequest(contract, request, context, options?)` — fully contract-bound routes; parses params, query, body, and headers in one call. Pass `{}` for `context` on routes without route params, or the route's `context` argument when route params exist. Returns a discriminated union; check `parsed.success` and return `parsed.response` on failure
-- `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`
-- `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`
-- `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`
-
-### Ordinary authorized JSON route
-
-```typescript
-export const PATCH = defineInternalJsonRoute({
-  contract: renameWidgetContract,
-  auth: internalSessionAuth,
-  operation: widgetOperations.rename,
-  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal behavior' }),
-  errorPolicy: internalWidgetErrorPolicy,
-  mapInput: ({ params, body }) => ({
-    widgetId: params.widgetId,
-    assertedWorkspaceId: params.workspaceId,
-    name: body.name,
-  }),
-  useCase: renameWidget,
-  present: ({ widget }) => ({ success: true, widget }),
-})
-```
-
-The contract, operation, and use case must agree at definition time. Authentication and request-rate admission happen before parsing; canonical loading and authorization happen in the application use case. The presenter returns only the surface success body.
-
-Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
-
-Never export a bare `async function GET/POST/...`. Export the result of a shared builder or, for a documented special route, `withRouteHandler(...)`.
-
-### Adding a new boundary feature end-to-end
-
-When adding a new route + client surface, follow this order. Each step has one place it lives.
-
-1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). Define one schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, then wrap with `defineRouteContract`. Export named type aliases (`z.input` for inputs, `z.output` for outputs).
-2. **Define the semantic operation and application use case** under `apps/sim/lib/<domain>/application/`. The use case owns canonical loading, asserted-scope checks, current authorization, business behavior, semantic audit, and shared domain effects.
-3. **Implement the route adapter** in `apps/sim/app/api/<path>/route.ts` with the appropriate shared builder. Declare auth, operation, rate policy, error policy, input mapping, use case, and presenter. Auth always runs **before** parsing. Use raw `withRouteHandler` only for an explicit special route, and keep protected work in application use cases.
-4. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
-5. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
-
-### Schema review checklist (read the contract diff like a DB migration)
-
-LLMs will write contracts that compile but are sloppy. The human reviewer should optimize attention on:
-
-- **`required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
-- **Response schema matches the route's actual JSON output**. The most common drift bug — route emits a field the schema doesn't declare, or omits a required field. Walk every `NextResponse.json(...)` callsite against the schema.
-- **Error messages are descriptive**. `'fileName cannot be empty'` beats `'Required'`. Use the second arg of `min(1, '...')`, `nonempty('...')`, etc. For cross-field refines, use `superRefine` with a `path` and a message that names the failing field.
-- **Bounds are set** on arrays (`.min(1)`, `.max(N)`), strings (`.min(1).max(N)` for IDs/names), and numbers (`.min().max()` for limits/sizes).
-- **`z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
-- **Discriminated unions over plain unions** when the wire has a discriminant field — gives clients exhaustive narrowing.
-
-CI (`bun run check:api-validation:strict`) catches structural violations (Zod imports in routes, raw `request.json()`, double casts, missing annotations). It does **not** catch these schema-quality judgments — that's the human's job in PR review.
-
-## Hooks
-
-```typescript
-interface UseFeatureProps { id: string }
-
-export function useFeature({ id }: UseFeatureProps) {
-  const idRef = useRef(id)
-  const [data, setData] = useState<Data | null>(null)
-  
-  useEffect(() => { idRef.current = id }, [id])
-  
-  const fetchData = useCallback(async () => { ... }, []) // Empty deps when using refs
-  
-  return { data, fetchData }
-}
-```
-
-## Zustand Stores
-
-Stores live in `stores/`. Complex stores split into `store.ts` + `types.ts`.
-
-```typescript
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-
-const initialState = { items: [] as Item[] }
-
-export const useFeatureStore = create<FeatureState>()(
-  devtools(
-    (set, get) => ({
-      ...initialState,
-      setItems: (items) => set({ items }),
-      reset: () => set(initialState),
-    }),
-    { name: 'feature-store' }
-  )
-)
-```
-
-Use `devtools` middleware. Use `persist` only when data should survive reload with `partialize` to persist only necessary state.
-
-## React Query
-
-All React Query hooks live in `hooks/queries/`. All server state must go through React Query — never use `useState` + `fetch` in components for data fetching or mutations.
-
-### Client Boundary
-
-Hooks consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
-
-- Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code
-- `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation
-- Documented exceptions for raw `fetch`: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests. Mark each raw `fetch` with a TSDoc comment explaining which exception applies. The `// boundary-raw-fetch` annotation is required not only in client hooks but for any same-origin `/api/...` fetch anywhere under `apps/sim/**` outside an API route handler — strict CI flags these regardless of location
-
-```typescript
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { requestJson } from '@/lib/api/client/request'
-import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
-
-export const ENTITY_LIST_STALE_TIME = 60 * 1000
-
-async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
-  const data = await requestJson(listEntitiesContract, {
-    query: { workspaceId },
-    signal,
-  })
-  return data.entities
-}
-
-export function useEntityList(workspaceId?: string) {
-  return useQuery({
-    queryKey: entityKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
-    staleTime: ENTITY_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
-  })
-}
-```
-
-### Query Key Factory
-
-Every file must have a hierarchical key factory with an `all` root key and intermediate plural keys for prefix invalidation:
-
-```typescript
-export const entityKeys = {
-  all: ['entity'] as const,
-  lists: () => [...entityKeys.all, 'list'] as const,
-  list: (workspaceId?: string) => [...entityKeys.lists(), workspaceId ?? ''] as const,
-  details: () => [...entityKeys.all, 'detail'] as const,
-  detail: (id?: string) => [...entityKeys.details(), id ?? ''] as const,
-}
-```
-
-### Query Hooks
-
-- Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime`, assigned from a named exported constant, never an inline numeric literal — a server-side prefetch hydrating the same query key must import and reuse that constant so the two never drift out of sync
-- Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
-
-```typescript
-export function useEntityList(workspaceId?: string) {
-  return useQuery({
-    queryKey: entityKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
-    staleTime: ENTITY_LIST_STALE_TIME,
-    placeholderData: keepPreviousData, // OK: workspaceId varies
-  })
-}
-```
-
-### Mutation Hooks
-
-- Use targeted invalidation (`entityKeys.lists()`) not broad (`entityKeys.all`) when possible
-- For optimistic updates: use `onSettled` (not `onSuccess`) for cache reconciliation — `onSettled` fires on both success and error
-- Don't include mutation objects in `useCallback` deps — `.mutate()` is stable in TanStack Query v5
-
-```typescript
-export function useUpdateEntity() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (variables) => { /* ... */ },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: entityKeys.detail(variables.id) })
-      const previous = queryClient.getQueryData(entityKeys.detail(variables.id))
-      queryClient.setQueryData(entityKeys.detail(variables.id), /* optimistic */)
-      return { previous }
-    },
-    onError: (_err, variables, context) => {
-      queryClient.setQueryData(entityKeys.detail(variables.id), context?.previous)
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: entityKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: entityKeys.detail(variables.id) })
-    },
-  })
-}
-```
-
-## URL / Query-Param State
-
-Shareable *client* view-state (active tab/panel, filters, search query, pagination, selected entity id, view mode, a deep-linked drawer/modal) lives in the URL via [`nuqs`](https://nuqs.dev) — not in a store synced with effects, and never read via `useSearchParams().get(...)` / `new URLSearchParams(window.location.search)`. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand (canvas pan/zoom, cursor, drag, resize widths, live collaborative selection).
-
-Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
-
-## List & Menu Ordering
-
-A list orders itself the way the user already reads the same things somewhere else. Resource menus (`+` attach, `@` mention, resource-tab `+`) mirror the **sidebar** top-down; a row or root **context menu** mirrors that surface's **toolbar**, left-to-right becoming top-to-bottom; tab strips mirror their nav. Platform-only entries (desktop Browser, Terminal) trail the shared set.
-
-Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency.
-
-**Grouping**: a `DropdownMenuSeparator` marks a change in WHAT the action acts on — the clicked item (no rule), something else like the page's filters or a new sibling (rule), or destroying it (rule). Most row menus have only the destructive transition and carry one rule before Delete/Leave/Close/Hide; menus that also filter the page or insert siblings carry two. Never band by verb (navigation/status/edit/copy) — the toolbars are flat, so that taxonomy exists nowhere else. No toolbar in the app renders a divider, so multi-band menus teach a taxonomy that exists on no other surface. Build each separator's guard from the EXACT render conditions of the items on both sides — a looser guard is what leaves a dangling rule when its group is conditional. Never add a prop to move a rule. Full rule in `.claude/rules/sim-list-ordering.md`.
-
-## Styling
-
-Use Tailwind only, no inline styles. Use `cn()` from `@sim/emcn` for conditional classes.
-
-```typescript
-<div className={cn('base-classes', isActive && 'active-classes')} />
-```
-
-For equal height and width, use the `size-*` shorthand — never `h-[Npx] w-[Npx]` or `h-N w-N`. Default icon size is `size-[14px]`.
-
-```typescript
-<Icon className='size-[14px] text-[var(--text-icon)]' />
-```
-
-On chip components (see "EMCN Components"), drive chrome through PROPS, not `className`: `error` for the error state, `icon`/`endAdornment` for adornments, `inputClassName` for the inner field. `className` carries ONLY layout/sizing — never re-specify canonical chrome (border, fill, radius, height, text/icon color) or add focus rings. Full consumer rules in `.claude/rules/sim-styling.md`.
-
-## EMCN Components
-
-Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
-
-The chip family is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — always reach for the chip equivalent: `ChipInput` over `Input`, `ChipTextarea` over `Textarea`, `ChipModal`/`ChipModalField` over `Modal`, `ChipSelect`/`ChipCombobox` (searchable) or `ChipDropdown` (simple menu-select) over `Select`/`Combobox`, `ChipSwitch` over `Switch`, `ChipDatePicker` over a raw date field, `Chip`/`ChipLink` for pill buttons/links, `ChipTag` for inline tags/badges. For context/action menus the canonical control is `DropdownMenu` (not a chip, but the standard menu — not a hand-rolled popover). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
-
-Inside a `ChipModalBody`, EVERY labeled field MUST be a `ChipModalField` — never hand-roll a field row (a raw `<div>` + a hand-rolled `<p>`/`<label>` title + a bare `ChipInput`/`ChipTextarea`). `ChipModalBody` applies `px-2` + `gap-4`; `ChipModalField` adds ANOTHER `px-2`, so each field lands at effective `px-4`, exactly matching `ChipModalHeader`/`ChipModalFooter` (`px-4`). Hand-rolled rows skip the field's gutter and sit at `px-2`, visibly misaligned with the header/footer. For controls `ChipModalField` does not cover (`ChipCombobox`, `ChipSelect`, `DatePicker`, `TimePicker`, `ButtonGroup`, arbitrary JSX), use `ChipModalField type='custom'` with a `title` — it still applies the `px-2` gutter and renders the canonical `Label`. Drive intent via props (`title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`); never pass `variant`/`className`/`id` to the inner control, and never add a body-level wrapper `<div>` with a custom `gap-*` that fights `ChipModalBody`'s `gap-4`.
-
-## Design-System Consolidation
-
-Principles when building or migrating shared UI:
-
-- One canonical source of truth for shared chrome — compose it, never re-derive it per consumer.
-- Props-driven API over `className` overrides — reaching for `className` to change chrome is a smell; expose a prop instead.
-- Discriminated-union props for modes (e.g. `ChipDropdown multiple`) over near-duplicate components.
-- Delete legacy variants/components after migration — no parallel paths left behind.
-- Plain `cn()` for a single error/state toggle; CVA only for genuinely multiple variants.
-- Align consumers to the canonical defaults — normal weight, `--text-body` text, `--text-icon` icons.
-- Verify referenced CSS vars exist — an undefined var silently falls back to `currentColor` (black-bug).
+### Application Operation Boundary
+
+- Every protected read, write, canonical resource lookup, or authorization-sensitive reference resolution enters through an authorized application use case.
+- Define one stable semantic operation with its minimum role, workspace-key policy, allowed principal kinds, and delegated services. Internal APIs, v2 APIs, Copilot, and trusted tools call the same use case when the domain behavior is the same.
+- Surface adapters authenticate and construct a `Principal`, apply request-rate policy, parse contracts, map input, and present their own result. They never query protected data, decide resource authorization, implement business transactions, or record semantic audit.
+- Application use cases load canonical context, compare asserted scope, authorize current access, execute managers/repositories, project semantic audit, and trigger shared domain effects. Managers accept canonical IDs and scope, never credentials or principals. Application code stays surface-neutral: it never imports `app/api/**`, `next/server`, route contracts/presenters, or Copilot handlers.
+- Copilot is a surface adapter. Use `createCopilotApplicationAdapter` and the domain's registered operation object; never a Copilot-only authorization or business implementation.
+- Protected compound mutations belong in one top-level semantic application operation, never a sequence of independently committing mutations in a route or tool adapter.
+- Never substitute a billing owner, uploader, creator, or API-key owner for the acting principal. Fail fast when the identity model or operation policy cannot express the caller.
+- Use the `migrate-application-operation` skill whenever creating or migrating a protected endpoint, tool command, or resource method.
+
+The `'use client'` server boundary, the app/worker runtime env split, and feature folder layout are in `.claude/rules/sim-architecture.md`.
+
+## Code Conventions
+
+- **Naming**: components PascalCase (`WorkflowList`); hooks `use*`; files kebab-case (`workflow-list.tsx`); constants SCREAMING_SNAKE_CASE; interfaces PascalCase with a suffix (`WorkflowListProps`); stores `stores/<feature>/store.ts`.
+- **Imports**: absolute (`@/...`) only, never relative. A folder with 3+ exports gets an `index.ts` barrel; never re-export from a non-barrel file. `import type` for type-only imports. Order and lazy-loading through barrels: `.claude/rules/sim-imports.md`.
+- **TypeScript**: no `any` (use precise types or `unknown` with guards); a props interface for every component; `as const` for constant objects/arrays; explicit ref types (`useRef<HTMLDivElement>(null)`).
+- **Components**: `'use client'` only for hooks or browser APIs. Structure order, extraction thresholds, and list-render rules: `.claude/rules/sim-components.md`. Render-performance idioms (lazy-init refs, hoisting, `Map` pre-indexing, `[...arr].sort()` never `toSorted()` on client paths): `.claude/rules/sim-react-performance.md`. For effect/state/memo/callback anti-patterns use the `/you-might-not-need-*` skills and verify against the running UI.
+- **State ownership**: React Query owns server data — never `useState` + `fetch`; shareable client view-state (tabs, filters, search, pagination, selected id) lives in the URL via `nuqs`; Zustand owns global client state; `useState` owns UI-only state. Hooks: `.claude/rules/sim-hooks.md`. Stores (`devtools`, `persist` only with an explicit `partialize` whitelist, workflow value invariants): `.claude/rules/sim-stores.md`. URL state: `.claude/rules/sim-url-state.md`.
+- **Utils**: inline a helper with one consumer; create `utils.ts` when 2+ files share it — in `lib/` (app-wide) or `feature/utils/` (feature-scoped). Check `lib/` before writing a new one.
+- **Lists and menus** mirror the order the user already reads elsewhere (sidebar, toolbar), encoded in one exported order constant; a separator marks only a change in what the action acts on (typically one, before the destructive action): `.claude/rules/sim-list-ordering.md`.
+- **Caching**: `lru-cache` with a `max` ceiling, never a hand-rolled TTL `Map`; a lifecycle map is not a cache; cache the gate, never the credential: `.claude/rules/sim-caching.md`.
+
+## API Contracts and Routes
+
+- Request/response shapes for every route under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**`, built with `defineRouteContract` and exporting named schemas plus named type aliases. Routes never import `zod` or define route-local boundary schemas; clients never write ad-hoc wire types or `z.input`/`z.output`.
+- Every route handler runs inside `withRouteHandler`. Ordinary internal and v2 routes use the shared builders (`defineInternalJsonRoute`, `defineV2JsonRoute`, binary/stream variants), which already apply it — never double-wrap. Raw `withRouteHandler` is only for documented protocol or lifecycle exceptions. Never export a bare `async function GET/POST/...`.
+- Same-origin JSON calls go through `requestJson(contract, ...)` from `@/lib/api/client/request`. A raw `fetch` is only for streaming, binary downloads, multipart uploads, signed URLs, OAuth redirects, or external origins, and carries `// boundary-raw-fetch: <reason>`.
+- The other script-enforced exceptions are `// double-cast-allowed:`, `// boundary-raw-json:`, and `// untyped-response:`. Never add one to silence a fixable finding.
+- `bun run check:api-validation:strict` must pass. Full contract rules, route pattern, annotation placement, the end-to-end order, and the schema review checklist: `.claude/rules/sim-api-contracts.md`. React Query hooks (key factories, named `staleTime` constants, `signal`, invalidation, server prefetch): `.claude/rules/sim-queries.md`.
+
+## Styling and EMCN
+
+- Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable. Never update global styles; keep styling local to the component. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
+- Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons from `@sim/emcn/icons`; CSS modules by file path. Never deep-import other component subpaths.
+- The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch`, `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Components own their chrome: consumers pass props (`error`, `icon`, `endAdornment`, `inputClassName`) and `className` carries only layout/sizing. Every labeled field inside a `ChipModalBody` is a `ChipModalField`.
+- Consumer rules, tokens, text scale, and modal rhythm: `.claude/rules/sim-styling.md`. Authoring components in `packages/emcn`: `.claude/rules/emcn-components.md`. Product UI copy: `.claude/rules/sim-ui-copy.md`. Marketing copy and positioning: `.claude/rules/constitution.md`.
 
 ## Testing
 
-Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.claude/rules/sim-testing.md` for full details.
+Most unit tests in a codebase like this restate the code they test. They pass on the first run, break on every refactor, and catch nothing that type-check, `next build`, `bun run check:audits`, or a real end-to-end run would miss. Test for confidence, not coverage.
 
-### Global Mocks (vitest.setup.ts)
+- **Never write unit tests after you write code.** A test written to describe code that already exists restates the implementation and proves nothing. If the change needs proof, prove it end to end.
+- **Highly prefer E2E tests.** Use them to verify complex features work, against the real boundary: real Postgres/Redis (`*.integration.ts`), the running app over real HTTP (`apps/sim/scripts/test-*-e2e.ts`), or the packaged desktop app (`apps/desktop/e2e`, Playwright). At the end of an E2E test, produce a verifiable and repeatable artifact — a JSON report of each check with status and duration, an HTTP status log, a trace, or a screenshot — written to a caller-supplied `<SUITE>_REPORT_PATH` and uploaded by CI on failure. `apps/sim/scripts/test-scim-e2e.ts` is the reference.
+- **If you must test a system in isolation, first write down all the ways it could fail, then write the code.** Each failure mode (bad input, boundary, concurrency, partial failure, permission denial, resource cap) becomes one test that fails before the code exists.
+- A regression test must fail on the pre-fix code. Revert each guard of the fix and watch its test go red before you trust it.
+- Never write tests that restate declarations (block/tool/provider config, registries, constants, schemas accepting valid input), assert that mocks were called, check rendered text or class names, or test mocks and factories themselves.
+- Never hand-roll a mock or test helper that `apps/sim/vitest.setup.ts` or `@sim/testing` already provides; a module mocked in a third file gets one central mock. `bun run check:test-patterns` enforces this.
 
-`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
+Use the `test-audit` skill whenever you write, change, review, or sweep tests — it holds the authoring gate, the junk patterns, and the retention bar. Test layers, file naming, and Vitest mechanics (global mocks, `@sim/testing`, performance rules) are in `.claude/rules/sim-testing.md`.
 
-### Standard Test Pattern
+## Integrations
 
-```typescript
-/**
- * @vitest-environment node
- */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+Build order: **Tools** → **Block** → **Icon** → optional **Trigger**, starting from the service's API docs. Use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`. Two rules the skills assume:
 
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
+- **Tool IDs are `snake_case`** (`service_action`), registered in `tools/registry.ts`; blocks register in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`, alphabetically).
+- **Type coercions go in `tools.config.params`** (runs at execution, after variable resolution), never in `tools.config.tool` (runs at serialization, where `Number()` destroys dynamic `<Block.output>` references).
 
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-import { GET } from '@/app/api/my-route/route'
-
-describe('my route', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-  it('returns data', async () => { ... })
-})
-```
-
-### Performance Rules
-
-- **NEVER** use `vi.resetModules()` + `vi.doMock()` + `await import()` — use `vi.hoisted()` + `vi.mock()` + static imports
-- **NEVER** use `vi.importActual()` — mock everything explicitly
-- **NEVER** use `mockAuth()`, `mockConsoleLogger()`, `setupCommonApiMocks()` from `@sim/testing` — they use `vi.doMock()` internally
-- **Mock heavy deps** (`@/blocks`, `@/tools/registry`, `@/triggers`) in tests that don't need them
-- **Use `@vitest-environment node`** unless DOM APIs are needed (`window`, `document`, `FormData`)
-- **Avoid real timers** — use 1ms delays or `vi.useFakeTimers()`
-
-Use `@sim/testing` mocks/factories over local test data.
-
-## Caching
-
-Never hand-roll TTL arithmetic — a `Map` plus `Date.now() - fetchedAt < TTL` re-implements expiry,
-the ceiling, and coalescing badly. Use `lru-cache` (a direct dependency), and always set `max`:
-`ttl` alone does not bound memory, so a tenant-keyed cache without a ceiling grows for the life of
-the process. Prefer `fetchMethod` + `cache.fetch(key)` for async read-through — it gives TTL,
-coalescing, and eviction-on-rejection in one primitive — and compose `coalesceLocally` around an
-`LRUCache` only when a hung producer would otherwise wedge callers for the whole TTL.
-
-First check the thing is a cache at all: a lifecycle map whose entry is deleted when the tracked
-thing ends (`activeStreams`, `pendingChildRuns`) is a plain `Map`, and giving it a TTL or a ceiling
-introduces an expiry that races the lifecycle. Cache the gate, never the credential — entitlements
-tolerate bounded staleness in the safe direction, key material must stay fresh so revocation is
-immediate. Full decision tree, sizing, `!== undefined` reads, and the invalidation rule are in
-`.claude/rules/sim-caching.md`.
-
-## Utils Rules
-
-- Never create `utils.ts` for single consumer - inline it
-- Create `utils.ts` when 2+ files need the same helper
-- Check existing sources in `lib/` before duplicating
-
-## Adding Integrations
-
-New integrations are built in order: **Tools** → **Block** → **Icon** → (optional) **Trigger**. Always look up the service's API docs first.
-
-Two hard rules that the skills assume:
-
-- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry-maps.ts` — the `BLOCK_REGISTRY` config map and `BLOCK_META_REGISTRY` catalog-meta map (alphabetically). `blocks/registry.ts` holds only the accessor functions (`getBlock`, `getAllBlocks`, …).
-- **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
-
-For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
+Remaining block/tool/trigger rules: `.claude/rules/sim-integrations.md`. Canvas sentences: `apps/sim/blocks/AGENTS.md`.
 
 ## Tables
 

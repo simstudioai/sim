@@ -1,41 +1,32 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { workspace } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthorizationMock } from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingMappingStoreMock } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: vi.fn(),
-  requireAllowedWorkspacePrincipal: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
-    id,
-    name: 'Parent',
-    organizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertForkingEnabled: vi.fn(),
-  isForkingAvailableForWorkspace: vi.fn(),
-}))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  getForkParent: vi.fn(),
-  resolveForkEdge: vi.fn(),
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/lib/workflows/references/resources', () => ({
   listForkCopyableResourcePage: vi.fn(),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  resourceTypeToForkKind: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 
 import { listWorkspaceForkChildren } from '@/ee/workspace-forking/application/discovery'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'actor-1', sessionId: 'session-1' }
+permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
+  id,
+  name: 'Parent',
+  organizationId: null,
+  allowPersonalApiKeys: true,
+}))
+
+const principal = createSessionPrincipal({ userId: 'actor-1' })
 const pageInput = { workspaceId: 'parent', limit: 1, sortBy: 'createdAt', sortOrder: 'desc' }
 const timestamp = '2026-09-09 12:34:56.123456'
 const child = {
@@ -47,7 +38,6 @@ const child = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 

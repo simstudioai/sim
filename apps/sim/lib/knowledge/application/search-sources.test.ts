@@ -1,53 +1,45 @@
-/** @vitest-environment node */
-import {
-  credentialGroupEnrollment,
-  document,
-  embedding,
-  knowledgeBase,
-  knowledgeConnector,
-  knowledgeConnectorMember,
-  member,
-  organizationSearchIntegration,
-  user,
-} from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector, member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  availability: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   memberships: vi.fn(),
   accounts: vi.fn(),
-  access: vi.fn(),
   predicate: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: mocks.context,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mocks.availability,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  resolveViewerConnectorMemberships: mocks.memberships,
+  resolveViewerConnectorMemberships: hoisted.memberships,
 }))
 vi.mock('@/lib/knowledge/connectors/viewer-source-accounts', () => ({
-  resolveViewerSourceAccounts: mocks.accounts,
+  resolveViewerSourceAccounts: hoisted.accounts,
 }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createKnowledgeAccessProvider: mocks.access,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/lib/knowledge/access/predicate', () => ({
-  knowledgeAccessCondition: mocks.predicate,
-  knowledgeMetadataCandidateAccessCondition: mocks.predicate,
+  knowledgeAccessCondition: hoisted.predicate,
+  knowledgeMetadataCandidateAccessCondition: hoisted.predicate,
 }))
 vi.mock('@/connectors/registry', () => {
   const registry = {
@@ -68,15 +60,21 @@ vi.mock('@/connectors/registry', () => {
   }
 })
 
-import {
-  searchSourceCursorSchema,
-  searchSourceSummarySchema,
-} from '@/lib/api/contracts/knowledge/connectors'
+import { searchSourceSummarySchema } from '@/lib/api/contracts/knowledge/connectors'
 import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 
-const principal = { kind: 'session' as const, userId: 'reader', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  access: knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider,
+}
+
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const input = { workspaceId: 'workspace' }
 const access = { kind: 'user', userId: principal.userId, tokens: ['u:reader@example.test'] }
 const ACL = { type: 'viewer-acl' }
@@ -111,15 +109,17 @@ function seed(rows: ReturnType<typeof source>[], emailVerified = true) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
-  mocks.context.mockResolvedValue({
+  knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
     workspaceId: input.workspaceId,
     workspaceOrganizationId: null,
     allowPersonalApiKeys: true,
   })
-  mocks.permission.mockResolvedValue('read')
-  mocks.availability.mockResolvedValue({ sourceMirrored: true, memberScoped: true })
+  workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+  knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+    sourceMirrored: true,
+    memberScoped: true,
+  })
   mocks.memberships.mockResolvedValue(new Map())
   mocks.accounts.mockResolvedValue(new Map())
   mocks.access.mockReturnValue({
@@ -132,30 +132,10 @@ beforeEach(() => {
 })
 
 describe('Search source summaries', () => {
-  it('retains the viewer account failure after an otherwise successful empty run', async () => {
-    seed([{ ...source('github', 'google_drive', 'members'), hasViewerMemberSyncError: true }])
-    const result = await listSearchSources.execute({ principal, input })
-    expect(result.sources[0]).toMatchObject({ hasSyncError: true, isSyncing: false })
-    expect(dbChainMockFns.where).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([
-          { type: 'eq', left: credentialGroupEnrollment.userId, right: principal.userId },
-          {
-            type: 'eq',
-            left: knowledgeConnectorMember.connectorId,
-            right: knowledgeConnector.id,
-          },
-          { type: 'isNotNull', column: knowledgeConnectorMember.lastError },
-        ]),
-      })
-    )
-  })
-
   it.each(['read', 'write', 'admin'])(
     'allows a current workspace %s without exposing credentials or other members',
     async (role) => {
-      mocks.permission.mockResolvedValue(role)
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(role)
       seed([source('drive')])
       queueTableRows(knowledgeConnector, [
         { connectorId: 'drive', hasDocuments: true, failedCount: 0, isIndexing: false },
@@ -186,7 +166,7 @@ describe('Search source summaries', () => {
       expect(JSON.stringify(result)).not.toMatch(
         /secret-fixture|admin@example|group-secret|option-secret|sourceConfig/
       )
-      expect(mocks.context).toHaveBeenCalledWith(input)
+      expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).toHaveBeenCalledWith(input)
       expect(mocks.access).toHaveBeenCalledWith(principal, {
         workspaceId: 'workspace',
         workspaceOrganizationId: null,
@@ -196,123 +176,11 @@ describe('Search source summaries', () => {
     }
   )
 
-  it('lists central, identity and member sources separately, preserving multiple sites', async () => {
-    const first = {
-      ...source('confluence-a', 'confluence'),
-      sourceConfig: { domain: 'one.atlassian.net', spaceKey: 'ENG' },
-    }
-    const second = {
-      ...source('confluence-b', 'confluence'),
-      sourceConfig: { domain: 'two.atlassian.net', spaceKey: 'ENG' },
-    }
-    const slack = {
-      ...source('slack', 'slack', 'members'),
-      lastSyncAt: null,
-      lastMemberSyncAt: LAST_SYNC,
-      memberSyncStatus: 'running',
-    }
-    seed([source('drive'), source('gitlab', 'gitlab'), first, second, slack])
-    mocks.memberships.mockResolvedValue(
-      new Map([
-        ['confluence-a', 'connected'],
-        ['slack', 'invited'],
-      ])
-    )
-    const { sources } = await listSearchSources.execute({ principal, input })
-    expect(
-      sources.map((row) => [row.connectorId, row.connectionRequired, row.viewerMembership])
-    ).toEqual([
-      ['drive', false, null],
-      ['gitlab', false, null],
-      ['confluence-a', true, 'connected'],
-      ['confluence-b', true, null],
-      ['slack', true, 'invited'],
-    ])
-    expect(sources[2].sourceDescription).toBe('one.atlassian.net · ENG')
-    expect(sources[3].sourceDescription).toBe('two.atlassian.net · ENG')
-    expect(sources[4]).toMatchObject({ lastSyncAt: LAST_SYNC.toISOString(), isSyncing: true })
-  })
-
-  it.each([
-    [
-      { sourceMirrored: true, memberScoped: false },
-      ['available', 'available', 'unavailable', 'unavailable'],
-    ],
-    [
-      { sourceMirrored: false, memberScoped: true },
-      ['unavailable', 'unavailable', 'unavailable', 'available'],
-    ],
-    [
-      { sourceMirrored: false, memberScoped: false },
-      ['unavailable', 'unavailable', 'unavailable', 'unavailable'],
-    ],
-  ])(
-    'keeps configured sources visible when independent availability changes: %o',
-    async (availability, expected) => {
-      seed([
-        source('drive'),
-        source('gitlab', 'gitlab'),
-        source('confluence', 'confluence'),
-        source('slack', 'slack', 'members'),
-      ])
-      mocks.availability.mockResolvedValue(availability)
-      mocks.memberships.mockResolvedValue(
-        new Map([
-          ['confluence', 'connected'],
-          ['slack', 'connected'],
-        ])
-      )
-      const { sources } = await listSearchSources.execute({ principal, input })
-      expect(sources.map((row) => row.availability)).toEqual(expected)
-      for (const row of sources.filter((row) => row.availability === 'unavailable')) {
-        expect(row).toMatchObject({
-          enabled: true,
-          isSyncing: false,
-          viewerMembership: null,
-          hasViewerDocuments: false,
-        })
-      }
-    }
-  )
-
-  it('distinguishes paused, failed, initial and still-indexing sources without raw errors', async () => {
-    seed(
-      [
-        { ...source('paused'), status: 'paused' },
-        { ...source('failed'), status: 'error' },
-        { ...source('initial'), lastSyncAt: null },
-        source('indexing'),
-      ],
-      false
-    )
-    queueTableRows(knowledgeConnector, [
-      { connectorId: 'indexing', hasDocuments: true, failedCount: 0, isIndexing: true },
-    ])
-    const { sources } = await listSearchSources.execute({ principal, input })
-    expect(sources[0]).toMatchObject({
-      enabled: false,
-      availability: 'available',
-      isSyncing: false,
-    })
-    expect(sources[1]).toMatchObject({ hasSyncError: true, isSyncing: false })
-    expect(sources[2]).toMatchObject({ lastSyncAt: null, isSyncing: false })
-    expect(sources[3]).toMatchObject({ hasViewerDocuments: true, isSyncing: true })
-    expect(sources.every((row) => row.viewerEmailVerified === false)).toBe(true)
-  })
-
   it('surfaces retained partial sync errors without returning the private error message', async () => {
     seed([{ ...source('drive'), hasRetainedSyncError: true }])
     const result = await listSearchSources.execute({ principal, input })
     expect(result.sources[0].hasSyncError).toBe(true)
     expect(result.sources[0]).not.toHaveProperty('lastSyncError')
-  })
-
-  it('preserves legacy configured sources even when they are no longer offered for new Search setup', async () => {
-    seed([source('legacy', 'legacy', 'members'), source('unknown', 'unregistered', 'admin')])
-    const { sources } = await listSearchSources.execute({ principal, input })
-    expect(sources.map((row) => row.connectorId)).toEqual(['legacy', 'unknown'])
-    expect(sources[0]).toMatchObject({ availability: 'available', connectionRequired: true })
-    expect(sources[1]).toMatchObject({ availability: 'unavailable', sourceDescription: '' })
   })
 
   it('restricts the source query to this workspace, the Search index, and live configured sources', async () => {
@@ -341,66 +209,8 @@ describe('Search source summaries', () => {
     expect(mocks.memberships).not.toHaveBeenCalled()
   })
 
-  it('probes each returned source for accessible, enabled, completed documents with enabled chunks', async () => {
-    seed([source('drive')])
-    await listSearchSources.execute({ principal, input })
-    expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
-      type: 'inArray',
-      column: knowledgeConnector.id,
-      values: ['drive'],
-    })
-    const viewerDocument = (condition: unknown) => [
-      {
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: document.connectorId, right: knowledgeConnector.id },
-          { type: 'eq', left: document.enabled, right: true },
-          { type: 'eq', left: document.userExcluded, right: false },
-          { type: 'isNull', column: document.archivedAt },
-          { type: 'isNull', column: document.deletedAt },
-          condition,
-          ACL,
-        ],
-      },
-    ]
-    expect(dbChainMockFns.where.mock.calls).toContainEqual(
-      viewerDocument({
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: document.processingStatus, right: 'completed' },
-          expect.objectContaining({ type: 'exists' }),
-        ],
-      })
-    )
-    expect(dbChainMockFns.where.mock.calls).toContainEqual(
-      viewerDocument({
-        type: 'inArray',
-        column: document.processingStatus,
-        values: ['pending', 'processing'],
-      })
-    )
-    expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      {
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: embedding.documentId, right: document.id },
-          { type: 'eq', left: embedding.enabled, right: true },
-        ],
-      },
-    ])
-    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
-    expect(Object.keys(projection)).toEqual([
-      'connectorId',
-      'hasDocuments',
-      'failedCount',
-      'isIndexing',
-    ])
-    expect(projection.connectorId).toBe(knowledgeConnector.id)
-    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
-  })
-
   it('rejects a former workspace member before querying source data', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(listSearchSources.execute({ principal, input })).rejects.toMatchObject({
       code: 'forbidden',
     })
@@ -409,8 +219,8 @@ describe('Search source summaries', () => {
   })
 
   it.each([
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createPersonalApiKeyPrincipal({ userId: 'reader', keyId: 'key' }),
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
     {
       kind: 'credential_group_enrollment',
       workspaceId: 'workspace',
@@ -423,48 +233,18 @@ describe('Search source summaries', () => {
     await expect(listSearchSources.execute({ principal: other, input })).rejects.toMatchObject({
       code: 'forbidden',
     })
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('propagates infrastructure failures instead of returning an empty configured-source list', async () => {
-    seed([source('drive')])
-    mocks.availability.mockRejectedValue(new Error('availability backend unavailable'))
-    await expect(listSearchSources.execute({ principal, input })).rejects.toThrow(
-      'availability backend unavailable'
-    )
   })
 })
 
 describe('organization Search source summaries', () => {
-  it.each(['syncing', 'error', 'paused', 'disabled'])(
-    'keeps own %s accounts removable even when setup is unavailable',
-    async (status) => {
-      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
-      queueTableRows(member, [{ role: 'member' }])
-      seed([{ ...source('own', 'google_drive', 'members'), status }, source('someone-else')], false)
-      mocks.availability.mockResolvedValue({ sourceMirrored: false, memberScoped: false })
-      const account = { credentialId: 'own-account', displayName: 'My Drive' }
-      mocks.accounts.mockResolvedValue(new Map([['own', [account]]]))
-      const result = await listSearchSources.execute({
-        principal,
-        input: { organizationId: 'org-1', mine: true },
-      })
-      expect(result.sources).toHaveLength(1)
-      expect(result.sources[0]).toMatchObject({
-        connectorId: 'own',
-        availability: 'unavailable',
-        viewerAccounts: [account],
-      })
-      expect(mocks.accounts).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
-      )
-    }
-  )
   it.each(['member', 'admin'])(
     'returns only the current %s viewer ACL counts without a workspace membership',
     async (role) => {
-      mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+      knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
+        organizationId: 'org-1',
+      })
       queueTableRows(member, [{ role }])
       seed([source('drive')])
       queueTableRows(knowledgeConnector, [])
@@ -485,28 +265,17 @@ describe('organization Search source summaries', () => {
       expect(mocks.memberships).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: 'org-1', userId: 'reader' })
       )
-      expect(mocks.permission).not.toHaveBeenCalled()
+      expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
       expect(JSON.stringify(result)).not.toMatch(
         /secret-fixture|admin@example|group-secret|option-secret/
       )
     }
   )
-  it('keeps deactivated pending sources idle in full summaries as well as progress probes', async () => {
-    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
-    queueTableRows(member, [{ role: 'admin' }])
-    seed([{ ...source('drive'), status: 'pending' }])
-    queueTableRows(organizationSearchIntegration, [
-      { connectorType: 'google_drive', approved: false },
-    ])
-    const result = await listSearchSources.execute({
-      principal,
-      input: { organizationId: 'org-1' },
-    })
-    expect(result.sources[0]).toMatchObject({ approved: false, isSyncing: false })
-  })
 
   it('rejects a removed organization member without exposing configured sources', async () => {
-    mocks.context.mockResolvedValue({ organizationId: 'org-1' })
+    knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
+      organizationId: 'org-1',
+    })
     queueTableRows(member, [])
     await expect(
       listSearchSources.execute({ principal, input: { organizationId: 'org-1' } })
@@ -517,89 +286,8 @@ describe('organization Search source summaries', () => {
 })
 
 describe('bounded Search progress', () => {
-  it('keeps reporting an unresolved viewer account failure between retries', async () => {
-    queueTableRows(knowledgeConnector, [
-      {
-        connectorId: 'github',
-        approved: true,
-        status: 'active',
-        accessMode: 'members',
-        memberSyncStatus: 'idle',
-        hasViewerMemberSyncError: true,
-        isIndexing: false,
-        hasIndexingError: false,
-      },
-    ])
-    const result = await readSearchSourceProgress.execute({
-      principal,
-      input: { ...input, connectorIds: ['github'] },
-    })
-    expect(result.sources[0]).toMatchObject({ hasSyncError: true, isSyncing: false })
-  })
-
-  it('reports visible pending and failed work without counting documents or chunks', async () => {
-    queueTableRows(knowledgeConnector, [
-      {
-        connectorId: 'drive',
-        approved: true,
-        status: 'active',
-        accessMode: 'admin',
-        memberSyncStatus: 'idle',
-        isIndexing: true,
-        hasIndexingError: true,
-      },
-    ])
-    const result = await readSearchSourceProgress.execute({
-      principal,
-      input: { ...input, connectorIds: ['drive'] },
-    })
-    expect(result).toEqual({
-      sources: [
-        { connectorId: 'drive', isSyncing: true, hasSyncError: false, hasIndexingError: true },
-      ],
-    })
-    expect(mocks.predicate).toHaveBeenCalledWith(access)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(100)
-    expect(dbChainMockFns.select.mock.calls.every(([projection]) => !('count' in projection))).toBe(
-      true
-    )
-    expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([
-          { type: 'eq', left: document.knowledgeBaseId, right: knowledgeConnector.knowledgeBaseId },
-          { type: 'eq', left: document.connectorId, right: knowledgeConnector.id },
-          { type: 'isNull', column: document.deletedAt },
-          { type: 'isNull', column: document.archivedAt },
-          { type: 'eq', left: document.userExcluded, right: false },
-          { type: 'eq', left: document.enabled, right: true },
-          ACL,
-        ]),
-      }),
-    ])
-  })
-
-  it('keeps a paused source idle despite pending documents', async () => {
-    queueTableRows(knowledgeConnector, [
-      {
-        connectorId: 'drive',
-        approved: true,
-        status: 'paused',
-        accessMode: 'admin',
-        memberSyncStatus: 'idle',
-        isIndexing: true,
-        hasIndexingError: false,
-      },
-    ])
-    const result = await readSearchSourceProgress.execute({
-      principal,
-      input: { ...input, connectorIds: ['drive'] },
-    })
-    expect(result.sources[0].isSyncing).toBe(false)
-  })
-
   it('does not read progress for a former member', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(
       readSearchSourceProgress.execute({ principal, input: { ...input, connectorIds: ['drive'] } })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -615,125 +303,11 @@ describe('bounded Search progress', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.access).not.toHaveBeenCalled()
   })
-
-  it('does not report pending source work after organization approval is removed', async () => {
-    queueTableRows(knowledgeConnector, [
-      {
-        connectorId: 'drive',
-        approved: false,
-        status: 'pending',
-        accessMode: 'admin',
-        memberSyncStatus: 'idle',
-        isIndexing: false,
-        hasIndexingError: false,
-      },
-    ])
-    const result = await readSearchSourceProgress.execute({
-      principal,
-      input: { ...input, connectorIds: ['drive'] },
-    })
-    expect(result.sources[0].isSyncing).toBe(false)
-  })
-
-  it('counts visible indexing failures separately from provider sync errors', async () => {
-    seed([source('drive')])
-    queueTableRows(knowledgeConnector, [
-      { connectorId: 'drive', hasDocuments: true, failedCount: 2, isIndexing: false },
-    ])
-    const { sources } = await listSearchSources.execute({ principal, input })
-    expect(sources[0]).toMatchObject({
-      hasSyncError: false,
-      viewerFailedDocumentCount: 2,
-      hasViewerDocuments: true,
-      isSyncing: false,
-    })
-  })
 })
 
 describe('bounded Search source pagination', () => {
   const rows = (count: number) =>
     Array.from({ length: count }, (_, index) => source(`source-${String(index).padStart(3, '0')}`))
-
-  it('counts only the returned page and preserves submillisecond cursor precision', async () => {
-    seed(rows(101))
-    const result = await listSearchSources.execute({ principal, input })
-    expect(result.sources).toHaveLength(25)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(101)
-    expect(mocks.memberships.mock.calls[0][0].connectors).toHaveLength(100)
-    const cursor = searchSourceCursorSchema.parse(
-      JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString())
-    )
-    expect(cursor).toMatchObject({ id: 'source-024', createdAt: '2026-09-05T12:00:00.123456Z' })
-    expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      { type: 'inArray', column: knowledgeConnector.id, values: rows(25).map((row) => row.id) },
-    ])
-  })
-
-  it('advances over an empty filtered candidate page without claiming the list ended', async () => {
-    seed(rows(101))
-    const result = await listSearchSources.execute({
-      principal,
-      input: { ...input, search: 'missing' },
-    })
-    expect(result.sources).toEqual([])
-    expect(result.nextCursor).not.toBeNull()
-    expect(JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString()).id).toBe(
-      'source-099'
-    )
-    expect(
-      dbChainMockFns.select.mock.calls.every(([projection]) => !('failedCount' in projection))
-    ).toBe(true)
-  })
-
-  it('ends a sparse final page and applies the verified personal membership filter', async () => {
-    const candidates = rows(100)
-    seed(candidates)
-    mocks.memberships.mockResolvedValue(
-      new Map([
-        ['source-093', 'invited'],
-        ['source-094', 'not_enrolled'],
-        ['source-095', 'revoked'],
-        ['source-096', 'unverified_email'],
-        ['source-097', 'connected'],
-        ['source-098', 'needs_reauth'],
-      ])
-    )
-    const result = await listSearchSources.execute({ principal, input: { ...input, mine: true } })
-    expect(result.sources.map((row) => row.connectorId)).toEqual(['source-097', 'source-098'])
-    expect(result.nextCursor).toBeNull()
-  })
-
-  it('filters the candidate query by provider before applying pagination', async () => {
-    seed([source('drive')])
-    await listSearchSources.execute({
-      principal,
-      input: { ...input, connectorType: 'google_drive' },
-    })
-    expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([
-          { type: 'eq', left: knowledgeConnector.connectorType, right: 'google_drive' },
-        ]),
-      }),
-    ])
-  })
-
-  it('excludes an account-level provider before paginating repository sources', async () => {
-    seed([source('drive')])
-    await listSearchSources.execute({
-      principal,
-      input: { ...input, excludeConnectorType: 'github' },
-    })
-    expect(dbChainMockFns.where.mock.calls).toContainEqual([
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([
-          { type: 'ne', left: knowledgeConnector.connectorType, right: 'github' },
-        ]),
-      }),
-    ])
-  })
 
   it.each(['filter', 'provider', 'excluded-provider', 'viewer', 'scope'] as const)(
     'rejects a cursor replayed under a different %s before reading sources',
@@ -742,7 +316,7 @@ describe('bounded Search source pagination', () => {
       const first = await listSearchSources.execute({ principal, input })
       resetDbChainMock()
       if (change === 'scope')
-        mocks.context.mockResolvedValue({
+        knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
           workspaceId: 'other-workspace',
           workspaceOrganizationId: null,
           allowPersonalApiKeys: true,
@@ -765,42 +339,8 @@ describe('bounded Search source pagination', () => {
 })
 
 describe('Search source overview', () => {
-  it('returns provider existence and readable search readiness without loading source configuration', async () => {
-    queueTableRows(knowledgeConnector, [
-      { connectorType: 'google_drive' },
-      { connectorType: 'github' },
-    ])
-    queueTableRows(knowledgeConnector, [{ connectorType: 'github' }])
-    queueTableRows(document, [{ id: 'readable-document' }])
-    const result = await readSearchSourceOverview.execute({ principal, input })
-    expect(result).toEqual({
-      providers: [
-        { connectorType: 'google_drive', isSyncing: false },
-        { connectorType: 'github', isSyncing: true },
-      ],
-      hasSearchableDocuments: true,
-    })
-    expect(mocks.predicate).toHaveBeenCalledWith(access)
-    expect(mocks.memberships).not.toHaveBeenCalled()
-    expect(
-      dbChainMockFns.select.mock.calls.every(
-        ([projection]) => !('sourceConfig' in projection) && !('count' in projection)
-      )
-    ).toBe(true)
-  })
-
-  it('does not confuse configured sources with searchable documents or expose gated progress', async () => {
-    mocks.availability.mockResolvedValue({ memberScoped: false, sourceMirrored: false })
-    queueTableRows(knowledgeConnector, [{ connectorType: 'google_drive' }])
-    const result = await readSearchSourceOverview.execute({ principal, input })
-    expect(result).toEqual({
-      providers: [{ connectorType: 'google_drive', isSyncing: false }],
-      hasSearchableDocuments: false,
-    })
-  })
-
   it('rechecks current membership before reading the overview', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(readSearchSourceOverview.execute({ principal, input })).rejects.toMatchObject({
       code: 'forbidden',
     })

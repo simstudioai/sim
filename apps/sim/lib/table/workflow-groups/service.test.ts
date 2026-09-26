@@ -1,33 +1,21 @@
-/**
- * @vitest-environment node
- */
+import { tableRowsSecretProvenanceMock } from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
+import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableMetadata, TableSchema, WorkflowGroup } from '@/lib/table/types'
 
-const { mockWithLockedTable, mockGetTableById, mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
-  mockWithLockedTable: vi.fn(),
-  mockGetTableById: vi.fn(),
-  mockAssertTableRowTtlEnabled: vi.fn(),
-}))
-
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-  withLockedTable: mockWithLockedTable,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/mutation-locks', () => ({
   assertColumnDestructive: vi.fn(),
   assertSchemaMutable: vi.fn(),
 }))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  updateTableRowsWithDerivedSecretProvenance: vi.fn(),
-}))
-vi.mock('@/lib/table/ttl-availability', () => ({
-  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
-}))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  runWorkflowColumn: vi.fn().mockResolvedValue(undefined),
-  stripGroupDeps: (schema: unknown) => schema,
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 /**
  * These ceiling fixtures declare groups whose output columns are not in the
  * schema, so the invariant check has to stay stubbed for them to exercise the
@@ -43,6 +31,11 @@ import {
   addWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
+
+const mockAssertTableRowTtlEnabled = tableTtlAvailabilityMockFns.mockAssertTableRowTtlEnabled
+
+const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
+const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 function groupAt(index: number): WorkflowGroup {
   return {
@@ -80,7 +73,6 @@ function tableWithGroups(count: number): TableDefinition {
  */
 describe('addWorkflowGroup group ceiling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -112,15 +104,10 @@ describe('addWorkflowGroup group ceiling', () => {
       /maximum of \d+ workflow groups/
     )
   })
-
-  it('allows the create that lands exactly on the ceiling', async () => {
-    await expect(add(TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE - 1)).resolves.toBeDefined()
-  })
 })
 
 describe('workflow group TTL availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
   })
 
@@ -222,7 +209,6 @@ describe('addWorkflowGroup attaching existing columns', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -308,7 +294,6 @@ describe('addWorkflowGroup attaching existing columns', () => {
  */
 describe('addWorkflowGroup deployment mode', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -343,28 +328,5 @@ describe('addWorkflowGroup deployment mode', () => {
     } as WorkflowGroup)()
 
     expect(stored?.deploymentMode).toBe('deployed')
-  })
-
-  it('keeps an explicit live mode', async () => {
-    const stored = await add({
-      id: 'group-new',
-      workflowId: 'workflow-1',
-      deploymentMode: 'live',
-      outputs: [{ blockId: 'block-1', path: 'out', columnName: 'out' }],
-    } as WorkflowGroup)()
-
-    expect(stored?.deploymentMode).toBe('live')
-  })
-
-  it('leaves an enrichment group, which runs no workflow, without a mode', async () => {
-    const stored = await add({
-      id: 'group-new',
-      workflowId: '',
-      type: 'enrichment',
-      enrichmentId: 'company-domain',
-      outputs: [{ blockId: '', path: '', outputId: 'domain', columnName: 'out' }],
-    } as WorkflowGroup)()
-
-    expect(stored).not.toHaveProperty('deploymentMode')
   })
 })

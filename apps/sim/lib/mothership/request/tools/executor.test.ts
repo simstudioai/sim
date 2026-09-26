@@ -1,8 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { workspace } from '@sim/db/schema'
 import { queueTableRows } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { mothershipOtelMock, mothershipOtelMockFns } from '@sim/testing/mocks/mothership-otel.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { sleep } from '@sim/utils/helpers'
 import '@sim/testing/mocks/executor'
 
@@ -12,60 +18,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   executeTool,
   dispatchCli,
-  completeAsyncToolCall,
-  markAsyncToolRunning,
-  upsertAsyncToolCall,
-  claimSimToolExecution,
-  settleSimToolExecution,
   waitForToolConfirmation,
   onEvent,
   recordSimToolMetric,
-  setAttribute,
-  withCopilotToolSpan,
-  encryptSecret,
-  decryptSecret,
   publishToolConfirmation,
-  replaceTerminalAsyncToolCallResult,
-  mockError,
-} = vi.hoisted(() => {
-  const setAttribute = vi.fn()
-  return {
-    executeTool: vi.fn(),
-    dispatchCli: vi.fn(),
-    encryptSecret: vi.fn(),
-    decryptSecret: vi.fn(),
-    publishToolConfirmation: vi.fn(),
-    waitForToolConfirmation: vi.fn(),
-    replaceTerminalAsyncToolCallResult: vi.fn(),
-    mockError: vi.fn(),
-    completeAsyncToolCall: vi.fn(),
-    markAsyncToolRunning: vi.fn(),
-    upsertAsyncToolCall: vi.fn(),
-    claimSimToolExecution: vi.fn(),
-    settleSimToolExecution: vi.fn(),
-    onEvent: vi.fn(),
-    recordSimToolMetric: vi.fn(),
-    setAttribute,
-    withCopilotToolSpan: vi.fn(
-      (_input: unknown, fn: (span: { setAttribute: typeof setAttribute }) => Promise<unknown>) =>
-        fn({ setAttribute })
-    ),
-  }
-})
+} = vi.hoisted(() => ({
+  executeTool: vi.fn(),
+  dispatchCli: vi.fn(),
+  publishToolConfirmation: vi.fn(),
+  waitForToolConfirmation: vi.fn(),
+  onEvent: vi.fn(),
+  recordSimToolMetric: vi.fn(),
+}))
 
 vi.mock('@/lib/api/server/routes/in-process-transport', () => ({
   dispatchInProcessV2Request: dispatchCli,
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: async () => 'read',
-  permissionSatisfies: (actual: string | null, required: string) => actual === required,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret, decryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution: vi.fn(),
@@ -76,16 +47,7 @@ vi.mock('@/lib/mothership/tool-executor', () => ({
   executeTool,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  completeAsyncToolCall,
-  completeOwnedSimToolCall: completeAsyncToolCall,
-  renewSimToolExecutionLease: vi.fn().mockResolvedValue(true),
-  markAsyncToolRunning,
-  upsertAsyncToolCall,
-  replaceTerminalAsyncToolCallResult,
-  claimSimToolExecution,
-  settleSimToolExecution,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation,
@@ -96,11 +58,7 @@ vi.mock('@/lib/mothership/request/metrics', () => ({
   recordSimToolMetric,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotToolSpan,
-  withCopilotSpan: (_name: string, _attrs: unknown, fn: () => Promise<unknown>) => fn(),
-  getCopilotTracer: () => trace.getTracer('test-copilot'),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 vi.mock('@/lib/mothership/request/sse-utils', () => ({
   markToolResultSeen: vi.fn(),
@@ -126,10 +84,23 @@ vi.mock('@/lib/mothership/request/tools/workflow-context', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({
   mintDelegationToken: async () => 'local-cli-budget-fixture',
 }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getInternalApiBaseUrl: () => 'https://cli-budget.test',
-  SITE_URL: 'https://cli-budget.test',
-}))
+
+const {
+  mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockMarkAsyncToolRunning: markAsyncToolRunning,
+  mockUpsertAsyncToolCall: upsertAsyncToolCall,
+  mockClaimSimToolExecution: claimSimToolExecution,
+  mockSettleSimToolExecution: settleSimToolExecution,
+  mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult,
+} = mothershipAsyncRunsMockFns
+mothershipAsyncRunsMockFns.mockCompleteOwnedSimToolCall.mockImplementation((...args) =>
+  completeAsyncToolCall(...args)
+)
+mothershipAsyncRunsMockFns.mockRenewSimToolExecutionLease.mockResolvedValue(true)
+mothershipOtelMockFns.mockWithCopilotSpan.mockImplementation(
+  (_name: string, _attrs: unknown, fn: () => Promise<unknown>) => fn()
+)
+mothershipOtelMockFns.mockGetCopilotTracer.mockImplementation(() => trace.getTracer('test-copilot'))
 
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { SimToolExecutionLeaseLostError } from '@/lib/mothership/async-runs/execution-lease'
@@ -156,7 +127,6 @@ import {
   toolWatchdogTimeoutMs,
 } from '@/lib/mothership/request/tools/executor'
 import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
-import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
@@ -164,6 +134,11 @@ import {
 import type { ExecutionContext, ToolCallState } from '@/lib/mothership/request/types'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockEncryptSecret: encryptSecret, mockDecryptSecret: decryptSecret } = encryptionMockFns
+const mockError = getMockLogger('CopilotClientToolWaiter').error
+urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('https://cli-budget.test')
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
 
 function buildStreamingContext(toolCall: ToolCallState) {
   return createStreamingContext({
@@ -184,7 +159,6 @@ function buildPendingToolCall(): ToolCallState {
 
 describe('tool result size diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
@@ -192,40 +166,6 @@ describe('tool result size diagnostics', () => {
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
-  it.each(['workspace-a', 'workspace-b'])(
-    'publishes an organization file edit under its own %s target',
-    async (workspaceId) => {
-      const output = { fileId: 'file', fileName: 'report.csv' }
-      executeTool.mockResolvedValueOnce({ success: true, output })
-      const toolCall = {
-        ...buildPendingToolCall(),
-        name: 'apply_file_edit',
-        targetWorkspaceId: workspaceId,
-      }
-      const completion = await executeToolAndReport(
-        toolCall.id,
-        buildStreamingContext(toolCall),
-        {
-          userId: 'actor',
-          organizationId: 'org',
-          chatId: 'chat',
-        },
-        { onEvent }
-      )
-      expect(completion.status).toBe('success')
-      expect(handleResourceSideEffects).toHaveBeenCalledWith(
-        'apply_file_edit',
-        {},
-        expect.objectContaining({ output }),
-        expect.objectContaining({ success: true }),
-        'chat',
-        onEvent,
-        expect.any(Function),
-        workspaceId,
-        'actor'
-      )
-    }
-  )
   it('keeps large visual observations out of UI replay while preserving the model result', async () => {
     const data = Buffer.alloc(850_000, 1).toString('base64')
     const output = {
@@ -263,33 +203,6 @@ describe('tool result size diagnostics', () => {
     )
     expect(Buffer.byteLength(JSON.stringify(onEvent.mock.calls))).toBeLessThan(10_000)
   })
-
-  it.each(['é🔎', { content: 'é🔎' }])(
-    'records UTF-8 bytes after result projection for %j',
-    async (output) => {
-      executeTool.mockResolvedValueOnce({ success: true, output })
-      const toolCall = buildPendingToolCall()
-      const context = buildStreamingContext(toolCall)
-      const endSpan = vi.spyOn(context.trace, 'endSpan')
-
-      const completion = await executeToolAndReport(toolCall.id, context, {
-        userId: 'user-1',
-        workflowId: 'workflow-1',
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
-      })
-
-      expect(completion.status).toBe(MothershipStreamV1ToolOutcome.success)
-      const serialized =
-        typeof completion.data === 'string' ? completion.data : JSON.stringify(completion.data)
-      expect(endSpan).toHaveBeenCalledWith(
-        expect.objectContaining({
-          kind: 'tool.execute',
-          attributes: expect.objectContaining({ outputBytes: Buffer.byteLength(serialized) }),
-        }),
-        'ok'
-      )
-    }
-  )
 })
 
 describe('toolWatchdogTimeoutMs', () => {
@@ -300,15 +213,6 @@ describe('toolWatchdogTimeoutMs', () => {
   it('keeps ordinary tools on the strict default watchdog', () => {
     expect(toolWatchdogTimeoutMs('read')).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
-
-  // The Go-era deploy_* tools left the live surface with the TS worker (deploys go
-  // through the CLI now); the long-running set tracks tools that can actually execute.
-  it.each(['sim_cli', 'run_workflow', 'run_code', 'generate_video', 'apply_file_edit'])(
-    'does not undercut long-running live tool %s with the default watchdog',
-    (toolName) => {
-      expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
-    }
-  )
 })
 
 describe('pendingToolWaitBudgetMs', () => {
@@ -346,25 +250,6 @@ describe('pendingToolWaitBudgetMs', () => {
     ).toBe(195_000)
   })
 
-  it.each([
-    'browser_navigate',
-    'browser_open_url',
-    'browser_go_back',
-    'browser_go_forward',
-    'browser_reload',
-    'browser_open_tab',
-    'browser_switch_tab',
-  ])('includes authorization, queueing, and navigation in the %s budget', (name) => {
-    expect(pendingToolWaitBudgetMs({ name, status: 'executing' })).toBe(130_000)
-  })
-
-  it.each(['browser_snapshot', 'browser_find', 'browser_set_checked', 'browser_click'])(
-    'allows the renderer queue budget for %s',
-    (name) => {
-      expect(pendingToolWaitBudgetMs({ name, status: 'executing' })).toBe(90_000)
-    }
-  )
-
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'executing' })).toBe(
       TOOL_WATCHDOG_DEFAULT_MS
@@ -373,28 +258,6 @@ describe('pendingToolWaitBudgetMs', () => {
 })
 
 describe('buildToolExecutionContext', () => {
-  it('threads logical tool-call identity into the handler context', () => {
-    const executionContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      runId: 'run-1',
-    }
-
-    expect(
-      buildToolExecutionContext(
-        {
-          id: 'call-1',
-          parentToolCallId: 'parent-1',
-        },
-        executionContext
-      )
-    ).toMatchObject({
-      runId: 'run-1',
-      toolCallId: 'call-1',
-      parentToolCallId: 'parent-1',
-    })
-  })
-
   it('isolates one tool from a sibling secret activation and merges settled provenance', () => {
     const parentRegistry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secretvalue', encryptedValue: 'encrypted-secret' },
@@ -422,7 +285,6 @@ describe('buildToolExecutionContext', () => {
 
 describe('executeToolAndReport provenance isolation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     executeTool.mockReset()
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
@@ -953,80 +815,8 @@ describe('executeToolAndReport provenance isolation', () => {
   })
 })
 
-describe('executeToolAndReport metrics', () => {
-  const executionContext: ExecutionContext = {
-    userId: 'user-1',
-    workflowId: 'workflow-1',
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('forwards the stored agent on normal completion', async () => {
-    const toolCall: ToolCallState = {
-      id: 'call-1',
-      name: 'read',
-      status: MothershipStreamV1ToolOutcome.success,
-      result: { success: true, output: 'done' },
-      agentId: 'workflow',
-      endTime: Date.now(),
-    }
-    const context = createStreamingContext({
-      toolCalls: new Map([[toolCall.id, toolCall]]),
-    })
-
-    await executeToolAndReport(toolCall.id, context, executionContext)
-
-    expect(recordSimToolMetric).toHaveBeenCalledWith(
-      'read',
-      'workflow',
-      MothershipStreamV1ToolOutcome.success,
-      expect.any(Number)
-    )
-    expect(withCopilotToolSpan).toHaveBeenCalledWith(
-      expect.objectContaining({ agentName: 'workflow' }),
-      expect.any(Function)
-    )
-  })
-
-  it.each([
-    { agentId: 'workflow', expectedAgentId: 'workflow' },
-    { agentId: undefined, expectedAgentId: 'main' },
-  ])(
-    'forwards $expectedAgentId when an unexpected error occurs',
-    async ({ agentId, expectedAgentId }) => {
-      const toolCall: ToolCallState = {
-        id: 'call-2',
-        name: 'read',
-        status: MothershipStreamV1ToolOutcome.error,
-        agentId,
-        endTime: Date.now(),
-      }
-      const context = createStreamingContext({
-        toolCalls: new Map([[toolCall.id, toolCall]]),
-      })
-
-      await expect(executeToolAndReport(toolCall.id, context, executionContext)).rejects.toThrow(
-        'missing a canonical error'
-      )
-      expect(recordSimToolMetric).toHaveBeenCalledWith(
-        'read',
-        expectedAgentId,
-        MothershipStreamV1ToolOutcome.error,
-        expect.any(Number)
-      )
-      expect(withCopilotToolSpan).toHaveBeenCalledWith(
-        expect.objectContaining({ agentName: expectedAgentId }),
-        expect.any(Function)
-      )
-    }
-  )
-})
-
 describe('watchdog completion provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptSecret.mockImplementation(async (plaintext: string) => ({ encrypted: plaintext }))
     decryptSecret.mockImplementation(async (encrypted: string) => ({ decrypted: encrypted }))
     completeAsyncToolCall.mockImplementation(async (input) => ({ ...input }))

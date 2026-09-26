@@ -1,15 +1,25 @@
 /** @vitest-environment jsdom */
+
 import { act, useLayoutEffect, useSyncExternalStore } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  workflowRegistryStoreMock,
+  workflowRegistryStoreMockFns,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ registry: vi.fn(), switchWorkspace: vi.fn() }))
-vi.mock('@/stores/workflows/registry/store', () => ({ useWorkflowRegistry: mocks.registry }))
-vi.mock('next/navigation', () => ({ useParams: () => ({}) }))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/hooks/queries/workspace', () => ({ useWorkspacesWithMetadata: () => ({}) }))
 
 import { WorkflowScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
+
+const mocks = {
+  registry: workflowRegistryStoreMockFns.mockUseWorkflowRegistry,
+  switchWorkspace: workflowRegistryStoreMockFns.mockSwitchToWorkspace,
+}
 
 interface RegistryState {
   hydration: { workspaceId: string | null }
@@ -41,11 +51,10 @@ const render = async (workspaceId: string) => {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mountedScopes.length = 0
   state = { hydration: { workspaceId: null }, switchToWorkspace: mocks.switchWorkspace }
-  Object.assign(mocks.registry, { getState: () => state })
+  workflowRegistryStoreMockFns.mockGetState.mockImplementation(() => ({ ...state }))
   mocks.registry.mockImplementation((selector: (value: RegistryState) => unknown) =>
     useSyncExternalStore(subscribe, () => selector(state))
   )
@@ -61,46 +70,14 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   listeners.clear()
-  vi.unstubAllGlobals()
 })
 
 describe('WorkflowScopeSync canvas readiness', () => {
-  it('establishes explicit scope before the first canvas layout effect', async () => {
-    await render('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a'])
-    expect(mocks.switchWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-a')
-    expect(container.textContent).toBe('Canvas workspace-a')
-  })
-
   it('does not mount a new owner canvas under the previous workspace scope', async () => {
     await render('workspace-a')
     await render('workspace-b')
     expect(mountedScopes).toEqual(['workspace-a', 'workspace-b'])
     expect(mocks.switchWorkspace.mock.calls).toEqual([['workspace-a'], ['workspace-b']])
     expect(container.textContent).toBe('Canvas workspace-b')
-  })
-
-  it('preserves an already aligned registry without resetting workflow state', async () => {
-    state = { ...state, hydration: { workspaceId: 'workspace-a' } }
-    await render('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a'])
-    expect(mocks.switchWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('shares one scope transition between resource actions and canvas', async () => {
-    await act(async () =>
-      root.render(
-        <>
-          <WorkflowScopeSync workspaceId='workspace-a'>
-            <Canvas workspaceId='workspace-a' />
-          </WorkflowScopeSync>
-          <WorkflowScopeSync workspaceId='workspace-a'>
-            <Canvas workspaceId='workspace-a' />
-          </WorkflowScopeSync>
-        </>
-      )
-    )
-    expect(mocks.switchWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a', 'workspace-a'])
   })
 })

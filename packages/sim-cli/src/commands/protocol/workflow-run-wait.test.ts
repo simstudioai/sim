@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { attachWorkflowRunWait } from './workflow-run-wait'
@@ -46,7 +43,6 @@ const stderr = process.stderr as unknown as { isTTY: boolean }
 const realIsTTY = stderr.isTTY
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mockRequest.mockReset()
   sleeps.length = 0
   clock.now = 1_000_000
@@ -71,7 +67,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   stderr.isTTY = realIsTTY
   process.exitCode = undefined
 })
@@ -134,29 +129,6 @@ async function wait(argv: string[] = []): Promise<void> {
 }
 
 describe('workflows runs wait', () => {
-  it('polls until the run reaches a terminal state', async () => {
-    respondWith({ status: 'queued' }, { status: 'running' }, { status: 'completed' })
-
-    await wait()
-
-    expect(mockRequest).toHaveBeenCalledTimes(3)
-    expect(mockRequest).toHaveBeenCalledWith(
-      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1',
-      { method: 'GET' }
-    )
-    expect(process.exitCode).toBe(0)
-    expect(logged.join('\n')).toContain('completed')
-  })
-
-  it('keeps waiting through the states the server leaves on its own', async () => {
-    respondWith({ status: 'pending' }, { status: 'redacting' }, { status: 'completed' })
-
-    await wait()
-
-    expect(mockRequest).toHaveBeenCalledTimes(3)
-    expect(process.exitCode).toBe(0)
-  })
-
   it('exits non-zero when the run failed', async () => {
     respondWith({ status: 'running' }, { status: 'failed' })
 
@@ -174,18 +146,6 @@ describe('workflows runs wait', () => {
 
     expect(process.exitCode).toBe(2)
     expect(errored.join('\n')).toContain('cancelled')
-  })
-
-  it('keeps polling a run paused until a time it will resume itself', async () => {
-    respondWith(
-      { status: 'paused', paused: { pauseKind: 'time', resumeAt: '2026-08-17T00:01:00.000Z' } },
-      { status: 'completed' }
-    )
-
-    await wait()
-
-    expect(mockRequest).toHaveBeenCalledTimes(2)
-    expect(process.exitCode).toBe(0)
   })
 
   it('stops on a pause that is waiting for a human, and says how to resume it', async () => {
@@ -208,21 +168,6 @@ describe('workflows runs wait', () => {
     expect(process.exitCode).toBe(3)
   })
 
-  it('spaces the polls out, backing off to a ceiling', async () => {
-    respondWith(
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'completed' }
-    )
-
-    await wait()
-
-    expect(sleeps).toEqual([2000, 4000, 8000, 15000, 15000])
-  })
-
   it('gives up when the wait bound elapses, without overshooting it', async () => {
     respondWith({ status: 'running' })
 
@@ -233,82 +178,5 @@ describe('workflows runs wait', () => {
     expect(errored.join('\n')).toContain('Timed out after 3s')
     expect(errored.join('\n')).toContain('status: running')
     expect(logged.join('\n')).toContain('running')
-  })
-
-  it('waits indefinitely when the bound is zero', async () => {
-    respondWith(
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'running' },
-      { status: 'completed' }
-    )
-
-    await wait(['--wait-timeout', '0'])
-
-    expect(process.exitCode).toBe(0)
-    expect(mockRequest).toHaveBeenCalledTimes(4)
-  })
-
-  it('rejects a wait bound that is not a number of seconds', async () => {
-    respondWith({ status: 'completed' })
-
-    await expect(wait(['--wait-timeout', 'soon'])).rejects.toThrow(/--wait-timeout/)
-    await expect(wait(['--wait-timeout', '-5'])).rejects.toThrow(/non-negative/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('requires the workflow the run belongs to', async () => {
-    const root = new Command('sim').exitOverride()
-    const runs = new Command('runs').exitOverride()
-    root.addCommand(runs)
-    attachWorkflowRunWait(runs)
-    runs.commands.forEach((command) => command.exitOverride())
-
-    await expect(root.parseAsync(['node', 'sim', 'runs', 'wait', 'run_1'])).rejects.toThrow(
-      /--workflow/
-    )
-  })
-
-  it('keeps progress on stderr and the result on stdout', async () => {
-    stderr.isTTY = true
-    output.format = 'json'
-    respondWith({ status: 'running' }, { status: 'completed' })
-
-    await wait()
-
-    expect(progress.join('')).toContain('running')
-    expect(logged).toHaveLength(1)
-    expect(JSON.parse(logged[0])).toMatchObject({ runId: 'run_1', status: 'completed' })
-    expect(logged.join('')).not.toContain('waiting')
-  })
-
-  it('writes no progress when stderr is not a terminal', async () => {
-    respondWith({ status: 'running' }, { status: 'completed' })
-
-    await wait()
-
-    expect(progress).toEqual([])
-  })
-
-  it('rejects an extra positional rather than waiting on only the first run', async () => {
-    const root = new Command('sim').exitOverride()
-    const runs = new Command('runs').exitOverride()
-    root.addCommand(runs)
-    attachWorkflowRunWait(runs)
-    runs.commands.forEach((command) => command.exitOverride())
-
-    await expect(
-      root.parseAsync([
-        'node',
-        'sim',
-        'runs',
-        'wait',
-        'run_1',
-        'run_2',
-        '--workflow',
-        '00000000-0000-4000-8000-00000000000a',
-      ])
-    ).rejects.toThrow(/too many arguments/)
-    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }))
@@ -24,7 +21,6 @@ const ADMITTED = { allowed: true, retryAfterMs: 0, scale: 1, inFlight: 1 }
 describe('provider capacity leases', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     mutate.mockResolvedValue(ADMITTED)
   })
   afterEach(() => vi.useRealTimers())

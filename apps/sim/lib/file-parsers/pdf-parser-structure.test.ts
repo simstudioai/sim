@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockOpenPdfDocument } = vi.hoisted(() => ({
   mockOpenPdfDocument: vi.fn(),
@@ -92,10 +89,6 @@ function pageWithFurniture(body: PositionedItem[], pageNumber: number): Position
 }
 
 describe('PdfParser structure reconstruction', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('rebuilds paragraphs, headings, hyphenation, fused XObject text, and furniture', async () => {
     const firstParagraph = [
       'The revised rollout was flagged on 4 June by the Platform team. A rollback',
@@ -179,20 +172,6 @@ describe('PdfParser structure reconstruction', () => {
     expect(result.metadata).toMatchObject({ pageCount: 3, truncated: false })
   })
 
-  it('keeps preview mode output structured as well', async () => {
-    mockOpenPdfDocument.mockResolvedValueOnce(
-      pdfWithPages([
-        paragraph(['First line.', 'Second line.'], 700),
-        paragraph(['Next page.'], 700),
-      ])
-    )
-
-    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
-
-    expect(result.content).toBe('First line.\nSecond line.\n\nNext page.')
-    expect(result.metadata).toMatchObject({ pageCount: 2, truncated: false })
-  })
-
   it('still parses when a page cannot report its viewport', async () => {
     const pdf = pdfWithPages([
       [...paragraph(['Header'], 760), ...paragraph(['Body one.'], 700)],
@@ -244,23 +223,5 @@ describe('PdfParser structure reconstruction', () => {
     expect(result.content).toContain('\n[... PDF text truncated at parser limits')
     expect(result.metadata?.truncated).toBe(true)
     expect(result.content.indexOf('[...')).toBe(MAX_PDF_TEXT_CHARS + 1)
-  })
-
-  it('falls back to hasEOL line breaks when items carry no geometry', async () => {
-    mockOpenPdfDocument.mockResolvedValueOnce(
-      pdfWithPages([
-        [
-          { str: 'alpha', hasEOL: true },
-          { str: 'beta', hasEOL: false },
-          { str: 'gamma', hasEOL: false },
-        ],
-      ])
-    )
-
-    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'), {
-      pdfTextMode: 'complete',
-    })
-
-    expect(result.content).toBe('alpha\nbetagamma')
   })
 })

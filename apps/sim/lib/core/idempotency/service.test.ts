@@ -1,17 +1,10 @@
-/**
- * @vitest-environment node
- */
-
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisDelMock, redisEvalMock } = vi.hoisted(() => ({
   redisDelMock: vi.fn(),
   redisEvalMock: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => ({ del: redisDelMock, eval: redisEvalMock }),
 }))
 
 vi.mock('@/lib/core/storage', () => ({
@@ -29,12 +22,12 @@ import {
   webhookIdempotency,
 } from '@/lib/core/idempotency/service'
 
+redisConfigMockFns.mockGetRedisClient.mockReturnValue({ del: redisDelMock, eval: redisEvalMock })
+
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.restoreAllMocks()
-  vi.clearAllMocks()
 })
 
 beforeEach(() => {

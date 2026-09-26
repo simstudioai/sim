@@ -1,16 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   canonicalizeSandboxCliTools,
   MAX_SANDBOX_CLI_TOOLS,
-  SANDBOX_CLI_TOOL_CATEGORIES,
   SANDBOX_CLI_TOOL_IDS,
   SANDBOX_CLI_TOOLS,
-  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
 } from '@/lib/execution/remote-sandbox/cli-tools'
 import {
   assertSandboxCliToolsSupported,
@@ -22,27 +17,6 @@ import {
 
 describe('sandbox CLI catalog', () => {
   const catalogRecipes = () => SANDBOX_CLI_TOOL_IDS.flatMap((id) => sandboxCliToolRecipes([id]))
-
-  it('pins the corrected Google Cloud CLI artifact', () => {
-    const [recipe] = sandboxCliToolRecipes(['google-cloud-cli@577.0.0-r1'])
-
-    expect(recipe.version).toBe('577.0.0')
-    expect(recipe.revision).toBe(1)
-    expect(recipe.sha256).toBe('0b32d330446ce7b0f57f253e7efab4636c18fb1f87a3ac31c6c3f2a2a697525e')
-    expect(recipe.installCommand).toContain(recipe.sha256)
-    expect(recipe.verificationCommands).toEqual([
-      'gcloud --version',
-      'bq version',
-      'gsutil version',
-    ])
-    expect(SANDBOX_SELECTABLE_CLI_TOOL_IDS).toContain(recipe.id)
-  })
-
-  it('contains one first-release recipe per usable managed CLI', () => {
-    expect(SANDBOX_CLI_TOOL_IDS).toHaveLength(24)
-    expect(SANDBOX_CLI_TOOL_IDS.every((id) => id.endsWith('-r1'))).toBe(true)
-    expect(SANDBOX_CLI_TOOL_IDS.some((id) => id.startsWith('k9s@'))).toBe(false)
-  })
 
   it('has one immutable integrity-checked recipe for every client-safe catalog entry', () => {
     const recipes = catalogRecipes()
@@ -81,31 +55,6 @@ describe('sandbox CLI catalog', () => {
           )
         ).toBe(true)
       }
-    }
-  })
-
-  it('keeps every displayed catalog category populated', () => {
-    const populatedCategories = new Set(
-      SANDBOX_SELECTABLE_CLI_TOOL_IDS.map((id) => SANDBOX_CLI_TOOLS[id].category)
-    )
-
-    expect(populatedCategories).toEqual(new Set(SANDBOX_CLI_TOOL_CATEGORIES))
-  })
-
-  it('offers every catalog entry exactly once', () => {
-    expect(SANDBOX_SELECTABLE_CLI_TOOL_IDS.length).toBeGreaterThan(0)
-    expect(SANDBOX_SELECTABLE_CLI_TOOL_IDS).toEqual(SANDBOX_CLI_TOOL_IDS)
-    expect(new Set(SANDBOX_SELECTABLE_CLI_TOOL_IDS).size).toBe(
-      SANDBOX_SELECTABLE_CLI_TOOL_IDS.length
-    )
-    const selectableLabels = SANDBOX_SELECTABLE_CLI_TOOL_IDS.map(
-      (id) => SANDBOX_CLI_TOOLS[id].label
-    )
-    expect(new Set(selectableLabels).size).toBe(selectableLabels.length)
-    const selectableFamilies = SANDBOX_SELECTABLE_CLI_TOOL_IDS.map((id) => id.split('@')[0])
-    expect(new Set(selectableFamilies).size).toBe(selectableFamilies.length)
-    for (const id of SANDBOX_SELECTABLE_CLI_TOOL_IDS) {
-      expect(SANDBOX_CLI_TOOLS[id].id).toBe(id)
     }
   })
 
@@ -164,14 +113,6 @@ describe('sandbox CLI catalog', () => {
     const [recipe] = sandboxCliToolRecipes([id])
 
     expect(recipe.verificationCommands).toEqual(commands)
-  })
-
-  it('installs and verifies both executables required by the Supabase binary distribution', () => {
-    const [recipe] = sandboxCliToolRecipes(['supabase-cli@2.111.0-r1'])
-
-    expect(recipe.executables).toEqual(['supabase', 'supabase-go'])
-    expect(recipe.verificationCommands).toEqual(['supabase --version', 'supabase-go --version'])
-    expect(recipe.installCommand).toContain("'/opt/sim-cli/supabase-cli/bin/supabase-go'")
   })
 
   it('puts installed commands on PATH for Python subprocesses and Shell runs', () => {

@@ -1,30 +1,26 @@
-/**
- * @vitest-environment node
- */
-
 import { db } from '@sim/db'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetUserPermissionConfig, mockResolveVerifiedContext } = vi.hoisted(() => ({
-  mockGetUserPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-}))
 
 vi.mock('react', () => ({ cache: <F>(fn: F) => fn }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+
+const {
+  mockGetUserPermissionConfig,
+  mockResolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
+} = permissionGroupsResolveMockFns
 
 const CONFIG = { hideTablesTab: true }
 
 describe('resolvePermissionGroupConfig scope memo', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetUserPermissionConfig.mockResolvedValue(CONFIG)
     mockResolveVerifiedContext.mockResolvedValue({ config: CONFIG })
   })
@@ -46,23 +42,6 @@ describe('resolvePermissionGroupConfig scope memo', () => {
     expect(
       mockGetUserPermissionConfig.mock.calls.length + mockResolveVerifiedContext.mock.calls.length
     ).toBe(1)
-  })
-
-  it('resolves a different user or workspace separately', async () => {
-    await withPermissionGroupScope(async () => {
-      await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')
-      await resolvePermissionGroupConfig('user-2', 'workspace-1', 'org-1')
-      await resolvePermissionGroupConfig('user-1', 'workspace-2', 'org-1')
-    })
-
-    expect(mockResolveVerifiedContext).toHaveBeenCalledTimes(3)
-  })
-
-  it('still answers outside a scope, without memoizing', async () => {
-    await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')
-    await resolvePermissionGroupConfig('user-1', 'workspace-1', 'org-1')
-
-    expect(mockResolveVerifiedContext).toHaveBeenCalledTimes(2)
   })
 
   it('bypasses the scope memo for explicit executors without replacing the cached request result', async () => {

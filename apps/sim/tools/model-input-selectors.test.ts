@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
 import { agentphoneCreateCallTool } from '@/tools/agentphone/create_call'

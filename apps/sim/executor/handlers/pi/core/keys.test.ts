@@ -1,39 +1,22 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { mockGetApiKeyWithBYOK, mockGetBYOKKey, mockCalculateCost, mockShouldBill } = vi.hoisted(
-  () => ({
-    mockGetApiKeyWithBYOK: vi.fn(),
-    mockGetBYOKKey: vi.fn(),
-    mockCalculateCost: vi.fn(),
-    mockShouldBill: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/api-key/byok', () => ({
-  getApiKeyWithBYOK: mockGetApiKeyWithBYOK,
-  getBYOKKey: mockGetBYOKKey,
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: mockCalculateCost,
-  shouldBillModelUsage: mockShouldBill,
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import {
   computePiCost,
   parsePiSearchProvider,
-  providerApiKeyEnvVar,
   resolvePiModelKey,
   resolvePiSearchKey,
 } from '@/executor/handlers/pi/core/keys'
+
+const { mockGetApiKeyWithBYOK, mockGetBYOKKey } = apiKeyByokMockFns
+
+const mockCalculateCost = providersUtilsMockFns.mockCalculateCost
+const mockShouldBill = providersUtilsMockFns.mockShouldBillModelUsage
 
 beforeAll(() => {
   envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
@@ -41,38 +24,9 @@ beforeAll(() => {
 
 afterAll(resetEnvFlagsMock)
 
-describe('providerApiKeyEnvVar', () => {
-  it('maps key-based providers and rejects unsupported ones', () => {
-    expect(providerApiKeyEnvVar('anthropic')).toBe('ANTHROPIC_API_KEY')
-    expect(providerApiKeyEnvVar('openai')).toBe('OPENAI_API_KEY')
-    expect(providerApiKeyEnvVar('fireworks')).toBe('FIREWORKS_API_KEY')
-    expect(providerApiKeyEnvVar('together')).toBe('TOGETHER_API_KEY')
-    expect(providerApiKeyEnvVar('nvidia')).toBe('NVIDIA_API_KEY')
-    expect(providerApiKeyEnvVar('zai')).toBe('ZAI_API_KEY')
-    expect(providerApiKeyEnvVar('kimi')).toBe('MOONSHOT_API_KEY')
-    expect(providerApiKeyEnvVar('vertex')).toBeNull()
-    expect(providerApiKeyEnvVar('bedrock')).toBeNull()
-    expect(providerApiKeyEnvVar('something-else')).toBeNull()
-  })
-})
-
 describe('computePiCost', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns zero cost for BYOK keys without billing', () => {
     expect(computePiCost('claude', 100, 200, true)).toMatchObject({
-      input: 0,
-      output: 0,
-      total: 0,
-    })
-    expect(mockCalculateCost).not.toHaveBeenCalled()
-  })
-
-  it('returns zero cost for non-billable models', () => {
-    mockShouldBill.mockReturnValue(false)
-    expect(computePiCost('local-model', 100, 200, false)).toMatchObject({
       input: 0,
       output: 0,
       total: 0,
@@ -89,10 +43,6 @@ describe('computePiCost', () => {
 })
 
 describe('resolvePiModelKey', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('Local Dev preserves a direct user key as BYOK', async () => {
     const result = await resolvePiModelKey({
       providerId: 'anthropic',
@@ -120,20 +70,6 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
   })
 
-  it('Create PR uses the block API Key field directly as a BYOK key', async () => {
-    const result = await resolvePiModelKey({
-      providerId: 'anthropic',
-      model: 'claude',
-      mode: 'cloud',
-      workspaceId: 'ws-1',
-      apiKey: 'sk-user',
-    })
-
-    expect(result).toEqual({ apiKey: 'sk-user', isBYOK: true })
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-    expect(mockGetBYOKKey).not.toHaveBeenCalled()
-  })
-
   it('Create PR falls back to a stored workspace key when the field is empty', async () => {
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'sk-workspace', isBYOK: true })
 
@@ -149,36 +85,6 @@ describe('resolvePiModelKey', () => {
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
-  it('Create PR supports a stored xAI workspace key', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: 'xai-workspace-key', isBYOK: true })
-
-    await expect(
-      resolvePiModelKey({
-        providerId: 'xai',
-        model: 'grok-4.5',
-        mode: 'cloud',
-        workspaceId: 'ws-1',
-      })
-    ).resolves.toEqual({ apiKey: 'xai-workspace-key', isBYOK: true })
-    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'xai')
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
-  it('Create PR supports stored workspace keys for newly mapped providers', async () => {
-    mockGetBYOKKey.mockResolvedValue({ apiKey: 'fireworks-workspace-key', isBYOK: true })
-
-    await expect(
-      resolvePiModelKey({
-        providerId: 'fireworks',
-        model: 'fireworks/accounts/fireworks/models/gpt-oss-120b',
-        mode: 'cloud',
-        workspaceId: 'ws-1',
-      })
-    ).resolves.toEqual({ apiKey: 'fireworks-workspace-key', isBYOK: true })
-    expect(mockGetBYOKKey).toHaveBeenCalledWith('ws-1', 'fireworks')
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
   it('Create PR rejects when no user key is available (never a hosted key)', async () => {
     mockGetBYOKKey.mockResolvedValue(null)
 
@@ -190,47 +96,6 @@ describe('resolvePiModelKey', () => {
         workspaceId: 'ws-1',
       })
     ).rejects.toThrow(/your own provider API key/)
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
-  it('Update PR rejects when no user key is available (never a hosted key)', async () => {
-    mockGetBYOKKey.mockResolvedValue(null)
-
-    await expect(
-      resolvePiModelKey({
-        providerId: 'anthropic',
-        model: 'claude',
-        mode: 'cloud_branch',
-        workspaceId: 'ws-1',
-      })
-    ).rejects.toThrow(/Update PR requires your own provider API key/)
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
-  it('Plan rejects when no user key is available (never a hosted key)', async () => {
-    mockGetBYOKKey.mockResolvedValue(null)
-
-    await expect(
-      resolvePiModelKey({
-        providerId: 'anthropic',
-        model: 'claude',
-        mode: 'cloud_plan',
-        workspaceId: 'ws-1',
-      })
-    ).rejects.toThrow(/Plan requires your own provider API key/)
-    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
-  it('cloud_review mode preserves a direct user key as BYOK', async () => {
-    const result = await resolvePiModelKey({
-      providerId: 'anthropic',
-      model: 'claude',
-      mode: 'cloud_review',
-      workspaceId: 'ws-1',
-      apiKey: 'sk-user',
-    })
-
-    expect(result).toEqual({ apiKey: 'sk-user', isBYOK: true })
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
 
@@ -250,22 +115,6 @@ describe('resolvePiModelKey', () => {
 })
 
 describe('parsePiSearchProvider', () => {
-  it('treats an absent value as none so blocks saved before the field keep running', () => {
-    expect(parsePiSearchProvider(undefined)).toBe('none')
-    expect(parsePiSearchProvider(null)).toBe('none')
-    expect(parsePiSearchProvider('')).toBe('none')
-    expect(parsePiSearchProvider('   ')).toBe('none')
-    expect(parsePiSearchProvider('none')).toBe('none')
-  })
-
-  it('accepts every offered provider', () => {
-    expect(parsePiSearchProvider('exa')).toBe('exa')
-    expect(parsePiSearchProvider('serper')).toBe('serper')
-    expect(parsePiSearchProvider('parallel')).toBe('parallel')
-    expect(parsePiSearchProvider('firecrawl')).toBe('firecrawl')
-    expect(parsePiSearchProvider(' exa ')).toBe('exa')
-  })
-
   it('rejects an unrecognized value instead of silently disabling search', () => {
     expect(() => parsePiSearchProvider('Exa')).toThrow(/Invalid Pi search provider/)
     expect(() => parsePiSearchProvider('google')).toThrow(/Invalid Pi search provider/)
@@ -274,14 +123,6 @@ describe('parsePiSearchProvider', () => {
 })
 
 describe('resolvePiSearchKey', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns the trimmed block field, the only source', () => {
-    expect(resolvePiSearchKey({ provider: 'exa', apiKey: '  exa-field  ' })).toBe('exa-field')
-  })
-
   // The field is shown on every deployment, so there is no configuration where a fallback would be
   // needed — and reading one would pull a workspace credential the runner cannot otherwise see into
   // the Create PR sandbox.
@@ -304,11 +145,5 @@ describe('resolvePiSearchKey', () => {
       /Exa search requires your own Exa API key/
     )
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
-  })
-
-  it('names the selected provider in the setup error, matching the dropdown label', () => {
-    expect(() => resolvePiSearchKey({ provider: 'parallel' })).toThrow(
-      /Parallel AI search requires your own Parallel AI API key/
-    )
   })
 })

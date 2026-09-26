@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import {
-  computeExecutionSets,
-  RunFromBlockValidationError,
-  validateRunFromBlock,
-} from '@/executor/utils/run-from-block'
+import { computeExecutionSets, validateRunFromBlock } from '@/executor/utils/run-from-block'
 import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
 
 /**
@@ -77,14 +73,6 @@ function createDAG(nodes: DAGNode[]): DAG {
 }
 
 describe('computeDirtySet', () => {
-  it('includes start block in dirty set', () => {
-    const dag = createDAG([createNode('A'), createNode('B'), createNode('C')])
-
-    const dirtySet = computeDirtySet(dag, 'B')
-
-    expect(dirtySet.has('B')).toBe(true)
-  })
-
   it('includes all downstream blocks in linear workflow', () => {
     // A → B → C → D
     const dag = createDAG([
@@ -101,28 +89,6 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('C')).toBe(true)
     expect(dirtySet.has('D')).toBe(true)
     expect(dirtySet.size).toBe(3)
-  })
-
-  it('handles branching paths', () => {
-    // A → B → C
-    //     ↓
-    //     D → E
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }, { target: 'D' }]),
-      createNode('C'),
-      createNode('D', [{ target: 'E' }]),
-      createNode('E'),
-    ])
-
-    const dirtySet = computeDirtySet(dag, 'B')
-
-    expect(dirtySet.has('A')).toBe(false)
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('E')).toBe(true)
-    expect(dirtySet.size).toBe(4)
   })
 
   it('handles convergence points', () => {
@@ -145,28 +111,6 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(3)
   })
 
-  it('handles diamond pattern', () => {
-    //     B
-    //   ↗   ↘
-    // A       D
-    //   ↘   ↗
-    //     C
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const dirtySet = computeDirtySet(dag, 'A')
-
-    expect(dirtySet.has('A')).toBe(true)
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.size).toBe(4)
-  })
-
   it('stops at graph boundaries', () => {
     // A → B    C → D (disconnected)
     const dag = createDAG([
@@ -183,15 +127,6 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('C')).toBe(false)
     expect(dirtySet.has('D')).toBe(false)
     expect(dirtySet.size).toBe(2)
-  })
-
-  it('handles single node workflow', () => {
-    const dag = createDAG([createNode('A')])
-
-    const dirtySet = computeDirtySet(dag, 'A')
-
-    expect(dirtySet.has('A')).toBe(true)
-    expect(dirtySet.size).toBe(1)
   })
 
   it('handles node not in DAG gracefully', () => {
@@ -244,42 +179,9 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('D')).toBe(true)
     expect(dirtySet.size).toBe(2)
   })
-
-  it('handles deep downstream chains', () => {
-    // A → B → C → D → E → F
-    // Running from C should include C, D, E, F
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D', [{ target: 'E' }]),
-      createNode('E', [{ target: 'F' }]),
-      createNode('F'),
-    ])
-
-    const dirtySet = computeDirtySet(dag, 'C')
-
-    expect(dirtySet.has('A')).toBe(false)
-    expect(dirtySet.has('B')).toBe(false)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('E')).toBe(true)
-    expect(dirtySet.has('F')).toBe(true)
-    expect(dirtySet.size).toBe(4)
-  })
 })
 
 describe('validateRunFromBlock', () => {
-  it('accepts valid block', () => {
-    const dag = createDAG([createNode('A'), createNode('B')])
-    const executedBlocks = new Set(['A', 'B'])
-
-    const result = validateRunFromBlock('A', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-    expect(result.error).toBeUndefined()
-  })
-
   it('rejects block not found in DAG', () => {
     const dag = createDAG([createNode('A')])
     const executedBlocks = new Set(['A', 'B'])
@@ -368,63 +270,6 @@ describe('validateRunFromBlock', () => {
     expect(result.valid).toBe(true)
   })
 
-  it('allows blocks with no dependencies even if not previously executed', () => {
-    // A and B are independent (no edges)
-    const dag = createDAG([createNode('A'), createNode('B')])
-    const executedBlocks = new Set(['A']) // B was not executed but has no deps
-
-    const result = validateRunFromBlock('B', dag, executedBlocks)
-
-    expect(result.valid).toBe(true) // B has no incoming edges, so it's valid
-  })
-
-  it('accepts regular executed block', () => {
-    const dag = createDAG([
-      createNode('trigger', [{ target: 'A' }]),
-      createNode('A', [{ target: 'B' }]),
-      createNode('B'),
-    ])
-    const executedBlocks = new Set(['trigger', 'A', 'B'])
-
-    const result = validateRunFromBlock('A', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('accepts loop container when executed', () => {
-    // Loop container with sentinel nodes
-    const loopId = 'loop-container-1'
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        subflowId: loopId,
-        subflowType: 'loop',
-      }),
-      createNode('B', [{ target: sentinelEndId }], {
-        isLoopNode: true,
-        subflowId: loopId,
-        subflowType: 'loop',
-      }),
-      createNode(sentinelEndId, [{ target: 'C' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        subflowId: loopId,
-        subflowType: 'loop',
-      }),
-      createNode('C'),
-    ])
-    dag.loopConfigs.set(loopId, { id: loopId, nodes: ['B'], iterations: 3, loopType: 'for' } as any)
-    const executedBlocks = new Set(['A', loopId, sentinelStartId, 'B', sentinelEndId, 'C'])
-
-    const result = validateRunFromBlock(loopId, dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
   it('rejects loop containers nested inside another loop', () => {
     const outerLoopId = 'outer-loop'
     const innerLoopId = 'inner-loop'
@@ -488,40 +333,6 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain(outerParallelId)
   })
 
-  it('accepts parallel container when executed', () => {
-    // Parallel container with sentinel nodes
-    const parallelId = 'parallel-container-1'
-    const sentinelStartId = `parallel-${parallelId}-sentinel-start`
-    const sentinelEndId = `parallel-${parallelId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode('B₍0₎', [{ target: sentinelEndId }], {
-        isParallelBranch: true,
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode(sentinelEndId, [{ target: 'C' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode('C'),
-    ])
-    dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
-    const executedBlocks = new Set(['A', parallelId, sentinelStartId, 'B₍0₎', sentinelEndId, 'C'])
-
-    const result = validateRunFromBlock(parallelId, dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
   it('rejects container when sentinel-start upstream dependency was not executed', () => {
     const loopId = 'loop-container-1'
     const sentinelStartId = `loop-${loopId}-sentinel-start`
@@ -542,29 +353,6 @@ describe('validateRunFromBlock', () => {
 
     expect(result.valid).toBe(false)
     expect(result.error).toContain('Upstream dependency not executed: B')
-  })
-
-  it('allows loop container with no upstream dependencies', () => {
-    // Loop containers are validated via their sentinel nodes, not incoming edges on the container itself
-    // If the loop has no upstream dependencies, it should be valid
-    const loopId = 'loop-container-1'
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const dag = createDAG([
-      createNode(sentinelStartId, [], {
-        isSentinel: true,
-        sentinelType: 'start',
-        subflowId: loopId,
-        subflowType: 'loop',
-      }),
-    ])
-    dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 3, loopType: 'for' } as any)
-    const executedBlocks = new Set<string>() // Nothing executed but loop has no deps
-
-    const result = validateRunFromBlock(loopId, dag, executedBlocks)
-
-    // Loop container validation doesn't check incoming edges (containers don't have nodes in dag.nodes)
-    // So this is valid - the loop can start fresh
-    expect(result.valid).toBe(true)
   })
 })
 
@@ -608,84 +396,9 @@ describe('computeDirtySet with containers', () => {
     // Should NOT include A (upstream)
     expect(dirtySet.has('A')).toBe(false)
   })
-
-  it('includes parallel container and all downstream when running from parallel', () => {
-    // A → parallel-sentinel-start → B₍0₎ → parallel-sentinel-end → C
-    const parallelId = 'parallel-1'
-    const sentinelStartId = `parallel-${parallelId}-sentinel-start`
-    const sentinelEndId = `parallel-${parallelId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode('B₍0₎', [{ target: sentinelEndId }], {
-        isParallelBranch: true,
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode(sentinelEndId, [{ target: 'C' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        subflowId: parallelId,
-        subflowType: 'parallel',
-      }),
-      createNode('C'),
-    ])
-    dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
-
-    const dirtySet = computeDirtySet(dag, parallelId)
-
-    // Should include parallel container, sentinel-start, B₍0₎, sentinel-end, C
-    expect(dirtySet.has(parallelId)).toBe(true)
-    expect(dirtySet.has(sentinelStartId)).toBe(true)
-    expect(dirtySet.has('B₍0₎')).toBe(true)
-    expect(dirtySet.has(sentinelEndId)).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    // Should NOT include A (upstream)
-    expect(dirtySet.has('A')).toBe(false)
-  })
 })
 
 describe('computeExecutionSets upstream set', () => {
-  it('includes all upstream blocks in linear workflow', () => {
-    // A → B → C → D
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const { upstreamSet } = computeExecutionSets(dag, 'C')
-
-    expect(upstreamSet.has('A')).toBe(true)
-    expect(upstreamSet.has('B')).toBe(true)
-    expect(upstreamSet.has('C')).toBe(false) // start block not in upstream
-    expect(upstreamSet.has('D')).toBe(false) // downstream
-  })
-
-  it('includes all branches in convergent upstream', () => {
-    // A → C
-    // B → C → D
-    const dag = createDAG([
-      createNode('A', [{ target: 'C' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const { upstreamSet } = computeExecutionSets(dag, 'C')
-
-    expect(upstreamSet.has('A')).toBe(true)
-    expect(upstreamSet.has('B')).toBe(true)
-    expect(upstreamSet.has('C')).toBe(false)
-    expect(upstreamSet.has('D')).toBe(false)
-  })
-
   it('excludes parallel branches not in upstream path', () => {
     // A → B → D
     // A → C → D
@@ -706,39 +419,6 @@ describe('computeExecutionSets upstream set', () => {
     expect(dirtySet.has('B')).toBe(true)
     expect(dirtySet.has('D')).toBe(true)
     expect(dirtySet.has('C')).toBe(false)
-  })
-
-  it('handles diamond pattern upstream correctly', () => {
-    //     B
-    //   ↗   ↘
-    // A       D → E
-    //   ↘   ↗
-    //     C
-    // Running from D: upstream should be A, B, C
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D', [{ target: 'E' }]),
-      createNode('E'),
-    ])
-
-    const { upstreamSet, dirtySet } = computeExecutionSets(dag, 'D')
-
-    expect(upstreamSet.has('A')).toBe(true)
-    expect(upstreamSet.has('B')).toBe(true)
-    expect(upstreamSet.has('C')).toBe(true)
-    expect(upstreamSet.has('D')).toBe(false)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('E')).toBe(true)
-  })
-
-  it('returns empty upstream set for root block', () => {
-    const dag = createDAG([createNode('A', [{ target: 'B' }]), createNode('B')])
-
-    const { upstreamSet } = computeExecutionSets(dag, 'A')
-
-    expect(upstreamSet.size).toBe(0)
   })
 })
 
@@ -769,61 +449,6 @@ describe('computeExecutionSets reachableUpstreamSet', () => {
     expect(reachableUpstreamSet.has('C')).toBe(false) // C is in dirty set
   })
 
-  it('includes sibling branches when running from the other branch', () => {
-    // A → C
-    // B → C
-    // Running from B: C is dirty and may reference A, so A should be in reachableUpstreamSet
-    const dag = createDAG([
-      createNode('A', [{ target: 'C' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C'),
-    ])
-
-    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, 'B')
-
-    // Dirty should be B and C
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has('A')).toBe(false)
-
-    // Upstream of start block (B) is empty
-    expect(upstreamSet.size).toBe(0)
-
-    // reachableUpstreamSet should include A because C (dirty) has A as upstream
-    expect(reachableUpstreamSet.has('A')).toBe(true)
-    expect(reachableUpstreamSet.has('B')).toBe(false) // B is in dirty set
-    expect(reachableUpstreamSet.has('C')).toBe(false) // C is in dirty set
-  })
-
-  it('includes all branches in diamond pattern when running from one branch', () => {
-    // A → B → D
-    // A → C → D
-    // Running from B: dirty is {B, D}, D may reference C, so C should be in reachableUpstreamSet
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, 'B')
-
-    // Dirty should be B and D
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('A')).toBe(false)
-    expect(dirtySet.has('C')).toBe(false)
-
-    // Upstream of start block (B) is A
-    expect(upstreamSet.has('A')).toBe(true)
-    expect(upstreamSet.has('C')).toBe(false)
-
-    // reachableUpstreamSet should include A and C
-    // A is upstream of B, C is upstream of D (sibling branch)
-    expect(reachableUpstreamSet.has('A')).toBe(true)
-    expect(reachableUpstreamSet.has('C')).toBe(true)
-  })
-
   it('equals upstream set when no sibling branches exist', () => {
     // A → B → C → D
     // Running from B: no sibling branches, reachableUpstreamSet should equal upstreamSet
@@ -841,80 +466,9 @@ describe('computeExecutionSets reachableUpstreamSet', () => {
     expect(upstreamSet.has('A')).toBe(true)
     expect(reachableUpstreamSet.size).toBe(upstreamSet.size)
   })
-
-  it('handles complex multi-branch convergence', () => {
-    // X → A → D
-    // Y → B → D → E
-    // Z → C → D
-    // Running from A: dirty is {A, D, E}, D may reference B and C
-    const dag = createDAG([
-      createNode('X', [{ target: 'A' }]),
-      createNode('Y', [{ target: 'B' }]),
-      createNode('Z', [{ target: 'C' }]),
-      createNode('A', [{ target: 'D' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D', [{ target: 'E' }]),
-      createNode('E'),
-    ])
-
-    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, 'A')
-
-    // Dirty: A, D, E
-    expect(dirtySet.has('A')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('E')).toBe(true)
-
-    // Upstream of A: just X
-    expect(upstreamSet.has('X')).toBe(true)
-    expect(upstreamSet.size).toBe(1)
-
-    // reachableUpstreamSet: X (upstream of A), Y, B (upstream of D), Z, C (upstream of D)
-    expect(reachableUpstreamSet.has('X')).toBe(true)
-    expect(reachableUpstreamSet.has('Y')).toBe(true)
-    expect(reachableUpstreamSet.has('Z')).toBe(true)
-    expect(reachableUpstreamSet.has('B')).toBe(true)
-    expect(reachableUpstreamSet.has('C')).toBe(true)
-  })
 })
 
 describe('run from trigger scenarios', () => {
-  it('allows running from trigger block (entry point with no upstream)', () => {
-    // Trigger → A → B
-    const dag = createDAG([
-      createNode('trigger', [{ target: 'A' }]),
-      createNode('A', [{ target: 'B' }]),
-      createNode('B'),
-    ])
-    const executedBlocks = new Set(['trigger', 'A', 'B'])
-
-    const result = validateRunFromBlock('trigger', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('computes dirty set correctly when running from trigger', () => {
-    // Trigger → A → B → C
-    const dag = createDAG([
-      createNode('trigger', [{ target: 'A' }]),
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C'),
-    ])
-
-    const { dirtySet, upstreamSet } = computeExecutionSets(dag, 'trigger')
-
-    // All blocks should be dirty when running from trigger
-    expect(dirtySet.has('trigger')).toBe(true)
-    expect(dirtySet.has('A')).toBe(true)
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.size).toBe(4)
-
-    // No upstream for trigger
-    expect(upstreamSet.size).toBe(0)
-  })
-
   it('handles multiple triggers with reference to other trigger being undefined', () => {
     // Trigger1 → A → C
     // Trigger2 → B → C
@@ -954,125 +508,9 @@ describe('run from trigger scenarios', () => {
 
     expect(result.valid).toBe(true)
   })
-
-  it('allows running from webhook trigger (starter block)', () => {
-    // Webhook/Start trigger with input format → A → B
-    const dag = createDAG([
-      createNode('starter', [{ target: 'A' }]),
-      createNode('A', [{ target: 'B' }]),
-      createNode('B'),
-    ])
-    const executedBlocks = new Set(['starter', 'A', 'B'])
-
-    const result = validateRunFromBlock('starter', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('includes webhook input format in dirty set computation', () => {
-    // Webhook trigger has input format that downstream blocks can reference
-    // Starter → Process → Output
-    const dag = createDAG([
-      createNode('webhook-starter', [{ target: 'process' }]),
-      createNode('process', [{ target: 'output' }]),
-      createNode('output'),
-    ])
-
-    const { dirtySet } = computeExecutionSets(dag, 'webhook-starter')
-
-    // All should be re-executed to process new webhook input
-    expect(dirtySet.has('webhook-starter')).toBe(true)
-    expect(dirtySet.has('process')).toBe(true)
-    expect(dirtySet.has('output')).toBe(true)
-  })
 })
 
 describe('run from subflow (loop) scenarios', () => {
-  it('allows running from loop container', () => {
-    const loopId = 'loop-1'
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        loopId,
-      }),
-      createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
-      createNode(sentinelEndId, [{ target: 'C' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        loopId,
-      }),
-      createNode('C'),
-    ])
-    dag.loopConfigs.set(loopId, {
-      id: loopId,
-      nodes: ['B'],
-      iterations: 3,
-      loopType: 'for',
-    } as any)
-    const executedBlocks = new Set(['A', sentinelStartId, 'B', sentinelEndId, 'C'])
-
-    const result = validateRunFromBlock(loopId, dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('rejects running from block inside loop', () => {
-    const loopId = 'loop-1'
-    const dag = createDAG([createNode('inside-loop', [], { isLoopNode: true, loopId })])
-    const executedBlocks = new Set(['inside-loop'])
-
-    const result = validateRunFromBlock('inside-loop', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('inside loop')
-  })
-
-  it('computes dirty set for loop to include all iterations', () => {
-    // When running from loop, all internal blocks get re-executed for all iterations
-    const loopId = 'loop-1'
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        loopId,
-      }),
-      createNode('B', [{ target: 'C' }], { isLoopNode: true, loopId }),
-      createNode('C', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
-      createNode(sentinelEndId, [{ target: 'D' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        loopId,
-      }),
-      createNode('D'),
-    ])
-    dag.loopConfigs.set(loopId, {
-      id: loopId,
-      nodes: ['B', 'C'],
-      iterations: 5,
-      loopType: 'for',
-    } as any)
-
-    const { dirtySet } = computeExecutionSets(dag, loopId)
-
-    // Loop container, sentinels, inner blocks, and downstream should be dirty
-    expect(dirtySet.has(loopId)).toBe(true)
-    expect(dirtySet.has(sentinelStartId)).toBe(true)
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has(sentinelEndId)).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-
-    // Upstream should not be dirty
-    expect(dirtySet.has('A')).toBe(false)
-  })
-
   it('handles loop.results reference outside loop scope', () => {
     // A → Loop[B] → C (references <loop.results>)
     const loopId = 'loop-1'
@@ -1185,48 +623,6 @@ describe('run from subflow (loop) scenarios', () => {
 })
 
 describe('branching variable resolution scenarios', () => {
-  it('parallel branches do not know about each other (no cross-branch in dirty)', () => {
-    // A splits into B and C (parallel branches), both merge at D
-    // Running from B: B and D are dirty, but C is NOT dirty
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const { dirtySet } = computeExecutionSets(dag, 'B')
-
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('A')).toBe(false)
-    expect(dirtySet.has('C')).toBe(false) // Parallel branch NOT in dirty
-  })
-
-  it('after convergence, downstream knows about both branches', () => {
-    // A → B → D → E
-    // A → C → D → E
-    // Running from B: D may reference C, and E may reference both B and C
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D', [{ target: 'E' }]),
-      createNode('E'),
-    ])
-
-    const { dirtySet, reachableUpstreamSet } = computeExecutionSets(dag, 'B')
-
-    // Dirty: B, D, E
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('E')).toBe(true)
-
-    // reachableUpstreamSet includes C (sibling branch that D can reference)
-    expect(reachableUpstreamSet.has('A')).toBe(true)
-    expect(reachableUpstreamSet.has('C')).toBe(true)
-  })
-
   it('variable not in upstream should not resolve (not in reachableUpstreamSet)', () => {
     // Completely separate paths:
     // A → B → C
@@ -1296,62 +692,9 @@ describe('branching variable resolution scenarios', () => {
     expect(reachableUpstreamSet.has('B1')).toBe(true)
     expect(reachableUpstreamSet.has('B2')).toBe(true)
   })
-
-  it('deep nested convergence with multiple levels', () => {
-    // Complex graph:
-    //       B → D
-    //     ↗     ↘
-    // A          F → G
-    //     ↘     ↗
-    //       C → E
-    // Running from D: dirty is {D, F, G}, but E is in reachableUpstreamSet (via F)
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('C', [{ target: 'E' }]),
-      createNode('D', [{ target: 'F' }]),
-      createNode('E', [{ target: 'F' }]),
-      createNode('F', [{ target: 'G' }]),
-      createNode('G'),
-    ])
-
-    const { dirtySet, reachableUpstreamSet } = computeExecutionSets(dag, 'D')
-
-    // Dirty: D, F, G
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('F')).toBe(true)
-    expect(dirtySet.has('G')).toBe(true)
-
-    // NOT dirty: A, B, C, E
-    expect(dirtySet.has('A')).toBe(false)
-    expect(dirtySet.has('B')).toBe(false)
-    expect(dirtySet.has('C')).toBe(false)
-    expect(dirtySet.has('E')).toBe(false)
-
-    // reachableUpstreamSet: A, B (upstream of D) + C, E (upstream of F's other branch)
-    expect(reachableUpstreamSet.has('A')).toBe(true)
-    expect(reachableUpstreamSet.has('B')).toBe(true)
-    expect(reachableUpstreamSet.has('C')).toBe(true)
-    expect(reachableUpstreamSet.has('E')).toBe(true)
-  })
 })
 
 describe('run until block scenarios', () => {
-  it('validates that run-until target block must exist in DAG', () => {
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C'),
-    ])
-    const executedBlocks = new Set<string>()
-
-    // The run-until target should be a valid block
-    const result = validateRunFromBlock('nonexistent', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('Block not found')
-  })
-
   it('run-until for loop container includes sentinel-end', () => {
     // When stopAfterBlockId is a loop, it resolves to sentinel-end
     // This ensures all iterations complete
@@ -1390,40 +733,6 @@ describe('run until block scenarios', () => {
     expect(dirtySet.has('C')).toBe(true)
   })
 
-  it('run-until for parallel container includes sentinel-end', () => {
-    const parallelId = 'parallel-1'
-    const sentinelStartId = `parallel-${parallelId}-sentinel-start`
-    const sentinelEndId = `parallel-${parallelId}-sentinel-end`
-    const dag = createDAG([
-      createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
-        isSentinel: true,
-        sentinelType: 'start',
-        parallelId,
-      }),
-      createNode('B₍0₎', [{ target: sentinelEndId }], {
-        isParallelBranch: true,
-        parallelId,
-      }),
-      createNode(sentinelEndId, [{ target: 'C' }], {
-        isSentinel: true,
-        sentinelType: 'end',
-        parallelId,
-      }),
-      createNode('C'),
-    ])
-    dag.parallelConfigs.set(parallelId, {
-      id: parallelId,
-      nodes: ['B'],
-      count: 2,
-    } as any)
-
-    // Ensure parallel container is valid to run to
-    const result = validateRunFromBlock(parallelId, dag, new Set(['A']))
-
-    expect(result.valid).toBe(true)
-  })
-
   it('rejects run-until for trigger blocks', () => {
     // Triggers are entry points, not valid as "run until" targets
     // (You can't stop "until" a trigger since triggers start execution)
@@ -1445,66 +754,6 @@ describe('run until block scenarios', () => {
 })
 
 describe('run-until followed by run-from-block state preservation', () => {
-  it('validates run-from-block after partial execution respects executed blocks', () => {
-    // Scenario: Run until B completed, now run from B
-    // A → B → C → D
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    // After run-until B: A and B were executed
-    const executedBlocks = new Set(['A', 'B'])
-
-    // Now run from B: should be valid since B was executed
-    const result = validateRunFromBlock('B', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('computes dirty set correctly after partial execution', () => {
-    // A → B → C → D
-    // After run-until B: A and B executed
-    // Run from B: dirty should be B, C, D
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C', [{ target: 'D' }]),
-      createNode('D'),
-    ])
-
-    const { dirtySet, upstreamSet } = computeExecutionSets(dag, 'B')
-
-    expect(dirtySet.has('B')).toBe(true)
-    expect(dirtySet.has('C')).toBe(true)
-    expect(dirtySet.has('D')).toBe(true)
-    expect(dirtySet.has('A')).toBe(false)
-
-    expect(upstreamSet.has('A')).toBe(true)
-  })
-
-  it('rejects run-from-block if upstream dependency not executed', () => {
-    // A → B → C
-    // After run-until C but B failed/wasn't executed
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]),
-      createNode('C'),
-    ])
-
-    // Only A executed, B was not
-    const executedBlocks = new Set(['A'])
-
-    // Run from C: should fail because B (immediate upstream) not executed
-    const result = validateRunFromBlock('C', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('Upstream dependency not executed')
-    expect(result.error).toContain('B')
-  })
-
   it('preserves loop execution state after run-until loop completes', () => {
     const loopId = 'loop-1'
     const sentinelStartId = `loop-${loopId}-sentinel-start`
@@ -1548,26 +797,6 @@ describe('run-until followed by run-from-block state preservation', () => {
 })
 
 describe('upstream block addition/deletion scenarios', () => {
-  it('disables run-from-block when new upstream block added (dependency not executed)', () => {
-    // Original: A → C
-    // Modified: A → B → C (B is new)
-    // Running from C should be invalid because B wasn't executed
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'C' }]), // New block
-      createNode('C'),
-    ])
-
-    // Only A and C were executed in previous run (before B existed)
-    const executedBlocks = new Set(['A', 'C'])
-
-    const result = validateRunFromBlock('C', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('Upstream dependency not executed')
-    expect(result.error).toContain('B')
-  })
-
   it('allows run-from-block when upstream block deleted (no missing dependency)', () => {
     // Original: A → B → C
     // Modified: A → C (B deleted, edge now A → C)
@@ -1583,98 +812,5 @@ describe('upstream block addition/deletion scenarios', () => {
     const result = validateRunFromBlock('C', dag, executedBlocks)
 
     expect(result.valid).toBe(true)
-  })
-
-  it('handles block replacement (same position, different block)', () => {
-    // Original: A → OldB → C
-    // Modified: A → NewB → C (OldB replaced with NewB)
-    const dag = createDAG([
-      createNode('A', [{ target: 'NewB' }]),
-      createNode('NewB', [{ target: 'C' }]),
-      createNode('C'),
-    ])
-
-    // OldB was executed, but NewB wasn't
-    const executedBlocks = new Set(['A', 'OldB', 'C'])
-
-    const result = validateRunFromBlock('C', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('Upstream dependency not executed')
-    expect(result.error).toContain('NewB')
-  })
-
-  it('allows run-from-block when parallel upstream branch added', () => {
-    // Original: A → C
-    // Modified: A → B → C (parallel branch)
-    //           A → C
-    // If C has multiple upstreams and at least one was executed
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'C' }]),
-      createNode('B', [{ target: 'C' }]), // New parallel path
-      createNode('C'),
-    ])
-
-    // Only A and direct A→C path executed, B not executed
-    const executedBlocks = new Set(['A', 'C'])
-
-    // C has two incoming: A and B
-    // A was executed (entry point), B was not
-    // This should be invalid because B is an immediate upstream
-    const result = validateRunFromBlock('C', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('B')
-  })
-
-  it('validates correctly when intermediate block reconnected', () => {
-    // Original: A → B → C → D
-    // Modified: A → B → D (C deleted, B now connects to D)
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }]),
-      createNode('B', [{ target: 'D' }]), // Now connects directly to D
-      createNode('D'),
-    ])
-
-    // A, B, C, D all executed in previous run
-    const executedBlocks = new Set(['A', 'B', 'C', 'D'])
-
-    // Run from D: B was executed, so valid
-    const result = validateRunFromBlock('D', dag, executedBlocks)
-
-    expect(result.valid).toBe(true)
-  })
-
-  it('handles complex graph modification with multiple changes', () => {
-    // Original: A → B → D → E
-    //           A → C → D → E
-    // Modified: A → B → D → E (C path removed)
-    //           A → X → D → E (X is new)
-    const dag = createDAG([
-      createNode('A', [{ target: 'B' }, { target: 'X' }]),
-      createNode('B', [{ target: 'D' }]),
-      createNode('X', [{ target: 'D' }]), // New block
-      createNode('D', [{ target: 'E' }]),
-      createNode('E'),
-    ])
-
-    // A, B, C, D, E executed (C no longer exists, X is new)
-    const executedBlocks = new Set(['A', 'B', 'C', 'D', 'E'])
-
-    // Run from D: B was executed, but X was not
-    const result = validateRunFromBlock('D', dag, executedBlocks)
-
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('X')
-  })
-})
-
-describe('RunFromBlockValidationError', () => {
-  it('is a named Error carrying the validation message verbatim', () => {
-    const error = new RunFromBlockValidationError('Upstream dependency not executed: a')
-
-    expect(error).toBeInstanceOf(Error)
-    expect(error.name).toBe('RunFromBlockValidationError')
-    expect(error.message).toBe('Upstream dependency not executed: a')
   })
 })

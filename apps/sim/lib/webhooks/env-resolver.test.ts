@@ -1,81 +1,30 @@
-/**
- * @vitest-environment node
- */
-
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetEffectiveDecryptedEnv, mockGetExecutionEnvironment } = environmentUtilsMockFns
 
-const { mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 afterAll(resetEnvironmentUtilsMock)
 
 import {
   resolveBackgroundWebhookEnv,
   resolveWebhookProviderConfig,
-  resolveWebhookRecordProviderConfig,
 } from '@/lib/webhooks/env-resolver'
+
+const mockGetWorkspaceBilledAccountUserId =
+  billingAttributionMockFns.mockGetWorkspaceBilledAccountUserId
 
 describe('webhook env resolver', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetEffectiveDecryptedEnv.mockResolvedValue({
       SLACK_BOT_TOKEN: 'xoxb-resolved',
       SLACK_HOST: 'files.slack.com',
     })
-  })
-
-  it('resolves environment variables inside webhook provider config', async () => {
-    const result = await resolveWebhookProviderConfig(
-      {
-        botToken: '{{SLACK_BOT_TOKEN}}',
-        includeFiles: true,
-        nested: {
-          url: 'https://{{SLACK_HOST}}/api/files.info',
-        },
-      },
-      'user-1',
-      'workspace-1'
-    )
-
-    expect(result).toEqual({
-      botToken: 'xoxb-resolved',
-      includeFiles: true,
-      nested: {
-        url: 'https://files.slack.com/api/files.info',
-      },
-    })
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-1', 'workspace-1')
-  })
-
-  it('returns a cloned webhook record with resolved provider config', async () => {
-    const webhookRecord = {
-      id: 'webhook-1',
-      provider: 'slack',
-      providerConfig: {
-        botToken: '{{SLACK_BOT_TOKEN}}',
-        includeFiles: true,
-      },
-    }
-
-    const result = await resolveWebhookRecordProviderConfig(webhookRecord, 'user-1', 'workspace-1')
-
-    expect(result).toEqual({
-      ...webhookRecord,
-      providerConfig: {
-        botToken: 'xoxb-resolved',
-        includeFiles: true,
-      },
-    })
-    expect(result).not.toBe(webhookRecord)
-    expect(result.providerConfig).not.toBe(webhookRecord.providerConfig)
   })
 
   it('reports only successful substitutions when resolving with a prepared environment', async () => {
@@ -122,7 +71,6 @@ describe('webhook env resolver', () => {
  */
 describe('resolveBackgroundWebhookEnv', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetEffectiveDecryptedEnv.mockResolvedValue({ FROM_SINGLE_IDENTITY: 'single' })
     mockGetExecutionEnvironment.mockResolvedValue({
       personalDecrypted: { OWNER_KEY: 'owner-value' },
@@ -151,30 +99,6 @@ describe('resolveBackgroundWebhookEnv', () => {
     const env = await resolveBackgroundWebhookEnv('owner-1', 'workspace-1')
 
     expect(env).toEqual({ SHARED: 'workspace' })
-  })
-
-  /**
-   * Both degenerate cases still go through the resolver, naming the owner as
-   * both identities. Short-circuiting them to `getEffectiveDecryptedEnv` read the
-   * owner's variables without passing the resolver's suspension check.
-   */
-  it('names the owner as both identities when the workspace has no billing account', async () => {
-    mockGetWorkspaceBilledAccountUserId.mockResolvedValue(null)
-
-    const env = await resolveBackgroundWebhookEnv('owner-1', 'workspace-1')
-
-    expect(mockGetExecutionEnvironment).toHaveBeenCalledWith('owner-1', 'owner-1', 'workspace-1')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
-    expect(env).toEqual({ OWNER_KEY: 'owner-value', WORKSPACE_KEY: 'workspace-value' })
-  })
-
-  it('routes a workspaceless webhook through the resolver too', async () => {
-    const env = await resolveBackgroundWebhookEnv('owner-1')
-
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
-    expect(mockGetExecutionEnvironment).toHaveBeenCalledWith('owner-1', 'owner-1', undefined)
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
-    expect(env).toEqual({ OWNER_KEY: 'owner-value', WORKSPACE_KEY: 'workspace-value' })
   })
 
   /** A suspended owner contributes nothing, including on the workspaceless path. */

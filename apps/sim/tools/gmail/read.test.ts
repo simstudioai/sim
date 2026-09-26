@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import { gmailReadTool, gmailReadV2Tool } from '@/tools/gmail/read'
@@ -34,11 +31,7 @@ const message = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
-})
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('Gmail attachment downloads', () => {

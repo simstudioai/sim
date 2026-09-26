@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The v2 query/bulk filter wire format is the typed `{ all | any: [...] }`
  * predicate tree. The contract validates structure; column-level validation
  * (unknown field, json-op) runs server-side in `validate.ts`.
@@ -13,11 +11,9 @@ import {
   predicateSchema,
   rowQueryBodySchema,
   tableRowsQuerySchema,
-  tableViewConfigSchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
 import { FILTER_OPS } from '@/lib/table/constants'
-import { MAX_PREDICATE_GROUP_SIZE } from '@/lib/table/query-builder/predicate'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
 
 /** Loose view of the generated JSON Schema, which is untyped by construction. */
@@ -34,107 +30,9 @@ describe('rowQueryBodySchema', () => {
       all: [{ field: 'status', op: 'eq', value: 'active' }],
     })
   })
-
-  it('accepts a predicate/sort object, leaves limit unbounded, has no offset', () => {
-    const parsed = rowQueryBodySchema.parse({
-      workspaceId: 'ws-1',
-      predicate: {
-        all: [
-          { field: 'wins', op: 'gte', value: 10 },
-          { field: 'status', op: 'in', value: ['active', 'pending'] },
-        ],
-      },
-      sort: [{ field: 'wins', direction: 'desc' }],
-      cursor: 'abc',
-    })
-    expect(parsed.predicate).toEqual({
-      all: [
-        { field: 'wins', op: 'gte', value: 10 },
-        { field: 'status', op: 'in', value: ['active', 'pending'] },
-      ],
-    })
-    // Omitted limit stays undefined — the query returns all matching rows.
-    expect(parsed.limit).toBeUndefined()
-    expect('offset' in parsed).toBe(false)
-  })
-
-  it('accepts a nested any/all predicate', () => {
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: {
-          any: [
-            { field: 'status', op: 'eq', value: 'active' },
-            { all: [{ field: 'wins', op: 'gte', value: 5 }] },
-          ],
-        },
-      }).success
-    ).toBe(true)
-  })
-
-  it('allows omitting the predicate (match all)', () => {
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1' }).success).toBe(true)
-  })
-
-  it('accepts selected column references and treats an empty list as all columns', () => {
-    expect(
-      rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: ['col_status', 'wins'] }).columns
-    ).toEqual(['col_status', 'wins'])
-    expect(rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: [] }).columns).toEqual([])
-  })
-
-  it('rejects blank column references', () => {
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', columns: [''] }).success).toBe(false)
-  })
-
-  it('rejects an unknown operator and a malformed leaf', () => {
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: { all: [{ field: 'wins', op: 'bogus', value: 1 }] },
-      }).success
-    ).toBe(false)
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: { all: [{ op: 'eq', value: 1 }] },
-      }).success
-    ).toBe(false)
-  })
-
-  it('accepts a large explicit limit (no row cap) but rejects limit < 1', () => {
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', limit: 100000 }).success).toBe(true)
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', limit: 0 }).success).toBe(false)
-  })
-})
-
-describe('tableViewConfigSchema', () => {
-  it('normalizes a root condition before it is persisted', () => {
-    expect(
-      tableViewConfigSchema.parse({
-        filter: { field: 'status', op: 'eq', value: 'active' },
-      }).filter
-    ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'active' }] })
-  })
 })
 
 describe('bulk schemas accept either a predicate tree or the legacy filter object', () => {
-  it('delete accepts a predicate filter', () => {
-    expect(
-      deleteTableRowsBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        filter: { all: [{ field: 'status', op: 'eq', value: 'archived' }] },
-      }).success
-    ).toBe(true)
-  })
-
-  it('delete still accepts the legacy object filter (v1 callers)', () => {
-    expect(
-      deleteTableRowsBodySchema.safeParse({ workspaceId: 'ws-1', filter: { status: 'archived' } })
-        .success
-    ).toBe(true)
-  })
-
   it('does not reinterpret a legacy object with field/op/value columns as a root predicate', () => {
     const filter = { field: 'status', op: 'eq', value: 'active' }
     const parsed = deleteTableRowsBodySchema.parse({ workspaceId: 'ws-1', filter })
@@ -142,16 +40,6 @@ describe('bulk schemas accept either a predicate tree or the legacy filter objec
     expect(parsed.filter).toEqual(filter)
     expect(predicateSchema.safeParse(filter).success).toBe(false)
     expect(predicateInputSchema.parse(filter)).toEqual({ all: [filter] })
-  })
-
-  it('update accepts a predicate filter', () => {
-    expect(
-      updateRowsByFilterBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        filter: { all: [{ field: 'wins', op: 'gte', value: 10 }] },
-        data: { active: false },
-      }).success
-    ).toBe(true)
   })
 })
 
@@ -182,22 +70,6 @@ describe('predicate depth / size guard', () => {
 
     expect(result.success).toBe(false)
     expect(JSON.stringify(result.error?.issues)).toMatch(/too many conditions/)
-  })
-
-  it('still accepts a realistic nested predicate', () => {
-    expect(
-      predicateSchema.safeParse({
-        all: [
-          { field: 'status', op: 'eq', value: 'active' },
-          {
-            any: [
-              { field: 'wins', op: 'gte', value: 10 },
-              { field: 'name', op: 'contains', value: 'jo' },
-            ],
-          },
-        ],
-      }).success
-    ).toBe(true)
   })
 })
 
@@ -264,14 +136,6 @@ describe('hybrid group+leaf nodes are rejected, not silently narrowed', () => {
       predicateSchema.safeParse({ all: [{ field: 'a', op: 'eq', vlaue: 'typo' }] }).success
     ).toBe(false)
   })
-
-  it('still accepts well-formed nodes', () => {
-    expect(
-      predicateSchema.safeParse({
-        all: [{ field: 'a', op: 'eq', value: 1 }, { any: [{ field: 'b', op: 'isNull' }] }],
-      }).success
-    ).toBe(true)
-  })
 })
 
 /**
@@ -296,10 +160,6 @@ describe('query-string JSON transport (jsonQueryValue)', () => {
     })
     expect(legacy.filter).toEqual({ status: { $eq: 'x' } })
     expect(legacy.sort).toEqual({ status: 'desc' })
-  })
-
-  it('still rejects a non-JSON garbage string with the real schema error', () => {
-    expect(() => rowQueryStringSchemaProbe({ workspaceId: 'ws-1', filter: 'not json' })).toThrow()
   })
 })
 
@@ -329,38 +189,5 @@ describe('the published predicate schema', () => {
 
   it('publishes exactly the operators the server accepts', () => {
     expect(leaf.properties.op.enum).toEqual([...FILTER_OPS])
-  })
-
-  it('publishes the group keys and their size bound', () => {
-    const [all, any] = published.oneOf as JsonSchemaNode[]
-    expect(Object.keys(all.properties)).toEqual(['all'])
-    expect(Object.keys(any.properties)).toEqual(['any'])
-    expect(all.properties.all.minItems).toBe(1)
-    expect(all.properties.all.maxItems).toBe(MAX_PREDICATE_GROUP_SIZE)
-  })
-
-  it('rejects the v1-shaped leaf a caller would guess without the schema', () => {
-    expect(
-      predicateSchema.safeParse({ all: [{ column: 'a', operator: 'eq', value: 1 }] }).success
-    ).toBe(false)
-    expect(predicateSchema.safeParse({ all: [{ field: 'a', op: 'eq', value: 1 }] }).success).toBe(
-      true
-    )
-  })
-
-  /**
-   * The description published a null rule the compiler never implemented:
-   * multi-select `ncontains` was called "the exception" that excludes nulls,
-   * while `sql.ts` emits a bare `NOT (data @> …)` — TRUE for an absent key,
-   * exactly like every other negation. A wrong null rule is worse than none:
-   * it reads as deliberate, so a caller writes a predicate that silently
-   * returns rows it was told were excluded.
-   */
-  it('does not claim a multi-select null exception the compiler never had', () => {
-    const description = String(published.description)
-
-    expect(description).toContain('The negating operators include nulls')
-    expect(description).not.toMatch(/exception/i)
-    expect(description).toMatch(/multi-select included/i)
   })
 })

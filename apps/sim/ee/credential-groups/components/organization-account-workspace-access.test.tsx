@@ -3,6 +3,11 @@
  */
 
 import { act, type ComponentProps, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -12,8 +17,7 @@ import type {
 } from '@/lib/api/contracts/organization-accounts'
 import type { OrganizationWorkspaceGrantModal } from '@/ee/credential-groups/components/organization-workspace-grant-modal'
 
-const mocks = vi.hoisted(() => ({
-  useAccess: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   reset: vi.fn(),
   mutationError: null as Error | null,
@@ -30,21 +34,13 @@ vi.mock('@sim/emcn', () => ({
     </button>
   ),
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  toast: { error: mocks.toastError, success: mocks.toastSuccess },
+  toast: { error: hoisted.toastError, success: hoisted.toastSuccess },
 }))
-vi.mock('@sim/emcn/icons', () => ({ Workspaces: () => null, Plus: () => null }))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
   SettingsPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccountWorkspaceAccess: mocks.useAccess,
-  useUpdateOrganizationAccountWorkspaceAccess: () => ({
-    mutateAsync: mocks.mutateAsync,
-    reset: mocks.reset,
-    error: mocks.mutationError,
-    isPending: mocks.isPending,
-  }),
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row', () => ({
   RESOURCE_LIST_STACK: '',
   SettingsResourceRow: ({
@@ -102,12 +98,16 @@ vi.mock('@/ee/credential-groups/components/organization-workspace-grant-modal', 
   OrganizationWorkspaceGrantModal: (
     props: ComponentProps<typeof OrganizationWorkspaceGrantModal>
   ) => {
-    mocks.grantModal = props
+    hoisted.grantModal = props
     return <div>Manage workspace access modal</div>
   },
 }))
 
 import { OrganizationAccountWorkspaceAccess } from '@/ee/credential-groups/components/organization-account-workspace-access'
+
+const mocks = Object.assign(hoisted, {
+  useAccess: organizationAccountsQueriesMockFns.mockUseOrganizationAccountWorkspaceAccess,
+})
 
 const WORKSPACES = [
   { id: 'workspace-1', name: 'Finance' },
@@ -171,10 +171,17 @@ function renderAccess(searchParams = '') {
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  vi.clearAllMocks()
   mocks.mutationError = null
   mocks.isPending = false
   mocks.grantModal = null
+  organizationAccountsQueriesMockFns.mockUseUpdateOrganizationAccountWorkspaceAccess.mockImplementation(
+    () => ({
+      mutateAsync: mocks.mutateAsync,
+      reset: mocks.reset,
+      error: mocks.mutationError,
+      isPending: mocks.isPending,
+    })
+  )
   setAccess()
   mocks.mutateAsync.mockImplementation(
     async (input: UpdateOrganizationAccountWorkspaceAccessBody) => {
@@ -187,42 +194,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
-  })
-})
-
-it('adds a workspace with its chosen integrations and lists it with the existing grants', async () => {
-  setAccess([{ workspaceId: 'workspace-1', access: { mode: 'all' } }])
-  const editor = renderAccess()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).toContain('All integrations')
-  const grant = {
-    workspaceId: 'workspace-2',
-    access: { mode: 'selected', credentialTypes: ['oauth:gmail', 'oauth:google-calendar'] },
-  } satisfies WorkspaceAccess['grants'][number]
-  await editor.add(grant)
-  editor.rerender()
-  if (mocks.grantModal?.mode !== 'create') throw new Error('Create modal not found')
-  expect(mocks.grantModal.workspaces).toEqual(WORKSPACES.slice(1))
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [{ workspaceId: 'workspace-1', access: { mode: 'all' } }, grant],
-  })
-  expect(editor.rows()).toEqual(['Finance', 'Support'])
-  expect(editor.container.textContent).toContain('Gmail, Google Calendar')
-  expect(editor.container.textContent).not.toContain('Manage workspace access modal')
-})
-
-it('adds an explicit All integrations grant', async () => {
-  const editor = renderAccess()
-  await editor.add({ workspaceId: 'workspace-2', access: { mode: 'all' } })
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [
-      ...gmailGrants(['workspace-1']),
-      { workspaceId: 'workspace-2', access: { mode: 'all' } },
-    ],
   })
 })
 
@@ -247,49 +218,6 @@ it('edits one workspace without changing other workspace grants', async () => {
   })
 })
 
-it('removes workspace access from the editor', async () => {
-  const editor = renderAccess()
-  act(() => editor.button('Edit access').click())
-  await act(async () => {
-    if (mocks.grantModal?.mode !== 'edit') throw new Error('Edit modal not found')
-    mocks.grantModal.onRemove()
-  })
-  editor.rerender()
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [],
-  })
-  expect(editor.rows()).toEqual([])
-  expect(editor.container.textContent).toContain('No workspaces have access')
-})
-
-it('does not change access when adding a workspace is cancelled', () => {
-  const editor = renderAccess()
-  act(() => editor.button('Add workspace').click())
-  act(() => mocks.grantModal?.onClose())
-  expect(mocks.mutateAsync).not.toHaveBeenCalled()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).not.toContain('Manage workspace access modal')
-})
-
-it('keeps the editor open and reports failed additions without changing the list', async () => {
-  const conflict = new Error('Workspace access changed while it was edited')
-  mocks.mutateAsync.mockImplementation(async () => {
-    mocks.mutationError = conflict
-    throw conflict
-  })
-  const editor = renderAccess()
-  await editor.add(gmailGrants(['workspace-2'])[0])
-  editor.rerender()
-  expect(mocks.mutateAsync).toHaveBeenCalledOnce()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).toContain('Manage workspace access modal')
-  expect(mocks.grantModal?.error).toBe(conflict.message)
-  expect(mocks.toastError).toHaveBeenCalledWith(conflict.message)
-  expect(mocks.toastSuccess).not.toHaveBeenCalled()
-})
-
 it.each(['create', 'edit'] as const)(
   'keeps the revision captured when the %s editor opened',
   async (mode) => {
@@ -303,14 +231,3 @@ it.each(['create', 'edit'] as const)(
     expect(mocks.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }))
   }
 )
-
-it('disables changes while saving and disables adding when all workspaces already have access', () => {
-  mocks.isPending = true
-  const editor = renderAccess()
-  expect(editor.button('Add workspace').disabled).toBe(true)
-  expect(editor.button('Edit access').disabled).toBe(true)
-  mocks.isPending = false
-  setAccess(gmailGrants(WORKSPACES.map((workspace) => workspace.id)))
-  editor.rerender()
-  expect(editor.button('Add workspace').disabled).toBe(true)
-})

@@ -9,9 +9,12 @@ permissions:
 
 jobs:
   oauth-postgres:
+    # Runs the real-infrastructure test layer: every `*.integration.ts` in packages/db and
+    # apps/sim, discovered by glob (`vitest run --mode integration`), against the database each
+    # provisioning path produces. A new integration suite needs no workflow change.
     name: PostgreSQL integration (${{ matrix.provision }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -31,11 +34,11 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sim_auth_scim
+          POSTGRES_DB: sim_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d sim_auth_scim"
+          --health-cmd "pg_isready -U postgres -d sim_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -44,17 +47,18 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: sim_billing_test
+          POSTGRES_DB: sim_test
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d sim_billing_test"
+          --health-cmd "pg_isready -U postgres -d sim_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-      OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
       NEXT_PUBLIC_APP_URL: https://test.sim.ai
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
@@ -66,7 +70,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -83,12 +87,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Verify direct schema push compatibility
-        working-directory: packages/db
-        env:
-          DB_PUSH_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-        run: bunx vitest run scripts/push.postgres.test.ts
-
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
         run: |
@@ -100,84 +98,36 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
-      - name: Verify schema contract migrations in PostgreSQL
+      - name: Run packages/db integration tests
         working-directory: packages/db
-        env:
-          MIGRATION_CONTRACT_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: >-
-          bunx vitest run
-          scripts/retired-columns.postgres.test.ts
-          scripts/connector-sync-schedule-precision.postgres.test.ts
-          scripts/database-failure-classification.postgres.test.ts
+        run: bun run test --mode integration
 
-      - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
+      - name: Run apps/sim integration tests
         working-directory: apps/sim
-        # These suites share a schema and install triggers; parallel files can deadlock DDL against cleanup.
-        run: >-
-          bunx vitest run --no-file-parallelism
-          lib/auth/oauth-token-family.postgres.test.ts
-          lib/auth/oauth-provider-lifecycle.postgres.test.ts
-          app/api/auth/oauth2/token/route.postgres.test.ts
-          lib/auth/sim-auth-adapter.test.ts
-          lib/auth/sim-auth-adapter.postgres.test.ts
-          ee/scim/lib/managed-membership.postgres.test.ts
-          lib/auth/sso/application/admit-sso-user.postgres.test.ts
-          lib/auth/sso/primary-provider.postgres.test.ts
-
-      - name: Verify billing and organization activity in PostgreSQL
-        working-directory: apps/sim
+        # A non-UTC process zone keeps timestamp-without-time-zone handling honest.
         env:
-          BILLING_USAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-          BILLING_USAGE_TEST_REDIS_URL: redis://127.0.0.1:6379
-        run: >-
-          bunx vitest run
-          lib/billing/core/usage-log.postgres.test.ts
-          lib/billing/core/organization-activity.postgres.test.ts
-          lib/billing/core/usage-analytics-queries.postgres.test.ts
-          lib/billing/core/organization-usage-pagination.postgres.test.ts
-          lib/billing/organizations/member-limits.postgres.test.ts
-          lib/workspaces/organization-workspaces.postgres.test.ts
-          lib/billing/calculations/usage-reservation.test.ts
-
-      - name: Verify access request flows, pagination, and impact in PostgreSQL
-        working-directory: apps/sim
-        env:
-          ACCESS_REQUESTS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_access_requests_test
-        run: |
-          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql.unsafe("CREATE DATABASE sim_access_requests_test"); await sql.end()'
-          bunx vitest run ee/access-requests/lib/repository.postgres.test.ts ee/access-requests/lib/impact.postgres.test.ts ee/access-requests/lib/application/flow.postgres.test.ts
-
-      - name: Verify fork previews ignore execution file history in PostgreSQL
-        working-directory: apps/sim
-        env:
-          FORK_REVISION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run ee/workspace-forking/application/revision.postgres.test.ts
+          TZ: America/Los_Angeles
+        run: bun run test --mode integration
 
       - name: Verify cumulative billing timeout recovery on PostgreSQL 16
         if: matrix.provision == 'push'
         working-directory: apps/sim
         env:
-          BILLING_USAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_billing_test
-        run: bunx vitest run lib/billing/core/usage-log.postgres.test.ts
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_test
+        run: >-
+          bun run test --mode integration lib/billing/core/usage-log.integration.ts
+          --outputFile.json=test-results/integration-pg16.json
 
-      - name: Verify file search dispatch deadlines on PostgreSQL 17
-        working-directory: apps/sim
-        env:
-          TZ: America/Los_Angeles
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run --mode integration lib/workspace-files/search/dispatcher.integration.ts
-
-      - name: Verify workspace file version history on PostgreSQL 17
-        working-directory: apps/sim
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run --mode integration lib/uploads/contexts/workspace/__integration__/file-versions.integration.ts
-
-      - name: Verify file search trigram estimate against pg_trgm
-        working-directory: apps/sim
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run --mode integration lib/workspace-files/search/index-plan.integration.ts
+      - name: Upload integration test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: integration-reports-${{ matrix.provision }}
+          path: |
+            packages/db/test-results/*.json
+            apps/sim/test-results/*.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Verify SCIM and administration over real HTTP
         working-directory: apps/sim
@@ -239,95 +189,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Verify durable provenance, concurrent memory writes, and browser download admission
-        working-directory: apps/sim
-        env:
-          BROWSER_FILE_TRANSFER_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-          TABLE_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-          MEMORY_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-          AGENT_MEMORY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: >-
-          bunx vitest run
-          lib/mothership/async-runs/browser-download-claim.postgres.test.ts
-          lib/table/rows/secret-provenance.postgres.test.ts
-          lib/memory/message-provenance.postgres.test.ts
-          lib/memory/conversation-store.postgres.test.ts
-          lib/memory/summary-store.postgres.test.ts
-          executor/handlers/agent/memory-harness.postgres.test.ts
-
-      - name: Verify Search vector projection upgrade in PostgreSQL
-        working-directory: packages/db
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: >-
-          bunx vitest run
-          script-migrations/0016_backfill_search_vectors.postgres.test.ts
-          script-migrations/0018_repair_workspace_file_content_revision.postgres.test.ts
-          script-migrations/0019_tin_keyword_projection.postgres.test.ts
-          member-sync-status-migration.postgres.test.ts
-
-      - name: Verify Search progress, pagination, and outbox scheduling in PostgreSQL
-        working-directory: apps/sim
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: >-
-          bunx vitest run --mode integration
-          lib/knowledge/__integration__/search-source-progress.integration.ts
-          lib/knowledge/__integration__/organization-search-overview.integration.ts
-          lib/knowledge/__integration__/search-source-pagination.integration.ts
-          lib/knowledge/__integration__/search-reference-batching.integration.ts
-          lib/knowledge/__integration__/embedding-insert-batches.integration.ts
-          lib/knowledge/__integration__/processing-lock-scope.integration.ts
-          lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
-          lib/knowledge/__integration__/connector-deferral.integration.ts
-          lib/knowledge/__integration__/stored-document-recovery.integration.ts
-          lib/knowledge/__integration__/connector-partition-work.integration.ts
-          lib/knowledge/__integration__/user-document-visibility.integration.ts
-          lib/knowledge/__integration__/listing-continuation.integration.ts
-          lib/knowledge/__integration__/member-scope-renewal.integration.ts
-          lib/knowledge/__integration__/member-document-lifecycle.integration.ts
-          lib/knowledge/__integration__/connector-lease-pages.integration.ts
-          lib/knowledge/__integration__/slack-empty-threads.integration.ts
-          lib/knowledge/__integration__/kb-block-search.integration.ts
-          lib/knowledge/__integration__/gitlab-workspace.integration.ts
-          lib/knowledge/__integration__/unfilled-projection-source.integration.ts
-          lib/knowledge/__integration__/knowledge-projection.integration.ts
-          lib/knowledge/__integration__/async-projection-processing.integration.ts
-          lib/knowledge/__integration__/purged-detach-reservation.integration.ts
-          lib/core/outbox/service.integration.ts
-          lib/knowledge/__integration__/connector-upload.integration.ts
-          lib/uploads/contexts/organization-logo/application.integration.ts
-
-      - name: Verify Confluence identity and directory sync in PostgreSQL
-        working-directory: apps/sim
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: >-
-          bunx vitest run --mode integration
-          lib/knowledge/__integration__/confluence-identity.integration.ts
-          lib/knowledge/__integration__/directory-sync.integration.ts
-
-      - name: Verify Confluence audience migrations and permission queries in PostgreSQL
-        working-directory: apps/sim
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
-        run: |
-          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
-          bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
-          bunx vitest run \
-            lib/knowledge/access/predicate.postgres.test.ts \
-            lib/knowledge/connectors/external-directory.postgres.test.ts \
-            lib/knowledge/connectors/sync-persistence.postgres.test.ts \
-            lib/knowledge/connectors/sync-content-pass.postgres.test.ts
-
-      - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
-        working-directory: packages/db
-        env:
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
-        run: |
-          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); const [row] = await sql`SELECT 1 FROM pg_database WHERE datname = ${"sim_acl_test"}`; if (!row) await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
-          bunx vitest run script-migrations/0021_embedding_search_connector.postgres.test.ts
-
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -350,7 +211,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -499,12 +360,7 @@ jobs:
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
       # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
-      # without `--coverage`. See the Codecov note below.
-      #
-      # apps/sim runs only its first shard here; `test-shard` below runs the
-      # others. That suite is bound by the single Vite server thread that feeds
-      # every worker — wall time is flat from 4 to 13 workers — so a bigger
-      # runner buys nothing and each extra runner takes a proportional slice.
+      # without `--coverage`.
       - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
@@ -512,7 +368,6 @@ jobs:
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          SIM_TEST_SHARD: 1/3
         run: bun run test
 
       - name: Check schema and migrations are in sync
@@ -527,72 +382,6 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
-
-  # The remaining shards of apps/sim's Vitest suite. Everything else — lint,
-  # the audits, type-check, the other workspaces' suites — lives in
-  # `test-build` with shard 1; these jobs exist only because that suite cannot
-  # go faster on one machine (see the "Run tests" note there). Three shards
-  # put each runner at roughly the fixed cost of checkout + install. The Turbo
-  # cache disk gets its own key so the shards' entries do not evict each other.
-  test-shard:
-    name: Test (shard ${{ matrix.shard }})
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [2, 3]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.1
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-
-      - name: Mount Bun cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ~/.bun/install/cache
-
-      - name: Mount node_modules
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
-          path: ./node_modules
-
-      - name: Mount Turbo cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-turbo-cache-shard-${{ matrix.shard }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./.turbo
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Install ripgrep
-        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
-
-      - name: Run tests (apps/sim shard ${{ matrix.shard }}/3)
-        env:
-          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
-          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
-          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
-          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
-          TURBO_CACHE_DIR: .turbo
-          SIM_TEST_SHARD: ${{ matrix.shard }}/3
-        run: bunx turbo run test --filter=@sim/app
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
@@ -623,7 +412,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.2
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6

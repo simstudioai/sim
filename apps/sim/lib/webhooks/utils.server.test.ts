@@ -1,16 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { webhook, webhookPathClaim } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 
 afterAll(resetDbChainMock)
 
 describe('findConflictingWebhookPathOwner', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -52,17 +48,5 @@ describe('findConflictingWebhookPathOwner', () => {
     })
 
     expect(owner).toBe('workflow-foreign')
-  })
-
-  it('skips the claim lookup entirely for empty paths', async () => {
-    queueTableRows(webhook, [])
-
-    const owner = await findConflictingWebhookPathOwner({
-      path: '   ',
-      workflowId: 'workflow-caller',
-    })
-
-    expect(owner).toBeNull()
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
   })
 })

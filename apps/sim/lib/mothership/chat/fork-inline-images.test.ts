@@ -1,10 +1,7 @@
-/** @vitest-environment node */
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: vi.fn(),
-  uploadFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { planForkInlineImages } from '@/lib/mothership/chat/fork-inline-images'
 import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-storage'

@@ -1,18 +1,17 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ BoxCompanyIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { boxConnector } from '@/connectors/box/box'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 interface FolderReply {
   status?: number
@@ -37,10 +36,6 @@ function mockFolders(folders: Record<string, FolderReply>) {
 
 const FILE = { type: 'file', id: 'f1', name: 'notes.txt', extension: 'txt', size: 10 }
 const SUBFOLDER = { type: 'folder', id: 'sub', name: 'Private' }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('box listDocuments with a subfolder the caller cannot reach', () => {
   it('caps the listing under a shared credential so nothing is reconciled as deleted', async () => {

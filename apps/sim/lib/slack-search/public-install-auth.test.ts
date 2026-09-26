@@ -1,13 +1,8 @@
-/** @vitest-environment node */
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 
-const m = vi.hoisted(() => ({ app: vi.fn(), exchange: vi.fn(), hosted: true }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return m.hosted
-  },
-}))
+const m = vi.hoisted(() => ({ app: vi.fn(), exchange: vi.fn() }))
 vi.mock('@/lib/slack-search/shared-app-env', () => ({
   getSharedSlackSearchAppConfiguration: m.app,
 }))
@@ -28,8 +23,7 @@ const grant = {
   team: { id: 'T1', name: 'Test' },
 }
 beforeEach(() => {
-  vi.clearAllMocks()
-  m.hosted = true
+  setEnvFlags({ isHosted: true })
   m.app.mockReturnValue({ id: 'A1', clientId: 'client', clientSecret: 'secret', revision: 'r1' })
   m.exchange.mockResolvedValue(grant)
 })
@@ -61,7 +55,7 @@ describe('Slack-initiated installation authentication', () => {
   it.each(['self-hosted', 'unconfigured'])(
     'rejects %s deployments before exchange',
     async (deployment) => {
-      if (deployment === 'self-hosted') m.hosted = false
+      if (deployment === 'self-hosted') setEnvFlags({ isHosted: false })
       else m.app.mockReturnValue(null)
       await expect(authenticateSlackPublicInstallation('code')).rejects.toThrow('unavailable')
       expect(m.exchange).not.toHaveBeenCalled()

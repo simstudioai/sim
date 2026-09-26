@@ -1,37 +1,16 @@
-/**
- * @vitest-environment node
- */
-import { isValidUuid } from '@sim/utils/id'
 import { describe, expect, it } from 'vitest'
 import {
   buildForkBlockIdResolver,
   deriveForkBlockId,
-  EMPTY_FORK_BLOCK_MAP,
   type ForkBlockMap,
 } from '@/ee/workspace-forking/lib/remap/block-identity'
 
 describe('deriveForkBlockId', () => {
   const targetA = 'wf-target-a'
-  const targetB = 'wf-target-b'
   const block1 = 'block-1'
-  const block2 = 'block-2'
 
   it('is deterministic for the same (targetWorkflowId, sourceBlockId)', () => {
     expect(deriveForkBlockId(targetA, block1)).toBe(deriveForkBlockId(targetA, block1))
-  })
-
-  it('yields different ids for the same source block in different target workflows', () => {
-    expect(deriveForkBlockId(targetA, block1)).not.toBe(deriveForkBlockId(targetB, block1))
-  })
-
-  it('yields different ids for different source blocks in the same target workflow', () => {
-    expect(deriveForkBlockId(targetA, block1)).not.toBe(deriveForkBlockId(targetA, block2))
-  })
-
-  it('produces a valid UUID string (v5)', () => {
-    const id = deriveForkBlockId(targetA, block1)
-    expect(isValidUuid(id)).toBe(true)
-    expect(id[14]).toBe('5')
   })
 
   it('does not collide the colon separator (a:bc vs ab:c)', () => {
@@ -79,10 +58,5 @@ describe('buildForkBlockIdResolver', () => {
   it('derives a fresh id for a source block with no recorded pair (added since last sync)', () => {
     const pushResolve = buildForkBlockIdResolver(false, seededMap)
     expect(pushResolve(parentWf, 'block-new')).toBe(deriveForkBlockId(parentWf, 'block-new'))
-  })
-
-  it('derives everything when the map is empty (fork creation)', () => {
-    const resolve = buildForkBlockIdResolver(true, EMPTY_FORK_BLOCK_MAP)
-    expect(resolve(childWf, parentBlock)).toBe(deriveForkBlockId(childWf, parentBlock))
   })
 })

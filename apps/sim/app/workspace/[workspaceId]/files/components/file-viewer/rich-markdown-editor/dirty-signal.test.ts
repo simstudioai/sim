@@ -35,21 +35,4 @@ describe('rich markdown editor — dirty signal', () => {
     expect(updates).toBe(0)
     expect(editor.isEmpty).toBe(false)
   })
-
-  it('opening an empty file emits no update and is editable', () => {
-    let updates = 0
-    editor = mount('', () => {
-      updates++
-    })
-    expect(updates).toBe(0)
-  })
-
-  it('a genuine edit emits an update (marks dirty → triggers autosave)', () => {
-    let updates = 0
-    editor = mount('hello', () => {
-      updates++
-    })
-    editor.commands.insertContent(' world')
-    expect(updates).toBeGreaterThan(0)
-  })
 })

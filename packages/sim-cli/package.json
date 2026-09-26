@@ -62,7 +62,7 @@
     "@types/node": "24.2.1",
     "@types/proper-lockfile": "4.1.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   },
   "exports": {
     "./embed": {

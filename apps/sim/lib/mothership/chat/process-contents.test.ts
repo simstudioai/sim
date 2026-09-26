@@ -1,52 +1,83 @@
-/**
- * @vitest-environment node
- */
-
-import { createLogger } from '@sim/logger'
-import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipChatWorkspaceContextMock,
+  mothershipChatWorkspaceContextMockFns,
+} from '@sim/testing/mocks/mothership-chat-workspace-context.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/mothership/chat/selection-context'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import {
+  getBlock as registryGetBlock,
+  getBlockRegistry as registryGetBlockRegistry,
+} from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
+const getBlock: Mock = vi.mocked(registryGetBlock)
+const getBlockRegistry: Mock = vi.mocked(registryGetBlockRegistry)
+getBlock.mockReturnValue(undefined)
+getBlockRegistry.mockReturnValue(undefined)
+const getUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const getWorkspaceFile = workspaceFileManagerMockFns.mockGetWorkspaceFile
+const discoverServerTools = mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase
+const queryTableRows = tableApplicationRowsMockFns.mockQueryTableRows
+const readKnowledgeBase = knowledgeBaseUseCasesMockFns.mockReadKnowledgeBaseExecute
+const readTableUseCase = tableApplicationTablesMockFns.mockReadTableUseCase
+const isIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+const readWorkspaceContext = mothershipChatWorkspaceContextMockFns.mockReadWorkspaceContextExecute
+
 const {
-  discoverServerTools,
-  getBlock,
-  getBlockRegistry,
   getSkillUseCase,
-  getUserPermissionConfig,
-  getWorkspaceFile,
   readWorkspaceFileMetadata,
-  queryTableRows,
   readTableView,
-  readKnowledgeBase,
-  readTableUseCase,
   readWorkflowMetadata,
   listWorkflowFolders,
   listTableFolders,
   listKnowledgeFolders,
   resolveFileFolderPath,
   getBlockVisibilityForCopilot,
-  isIntegrationDeploymentAvailable,
   searchDocsExecute,
-  resolveInvocationWorkspace,
 } = vi.hoisted(() => ({
-  discoverServerTools: vi.fn(),
-  getBlock: vi.fn(),
-  getBlockRegistry: vi.fn(),
   getSkillUseCase: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
-  getWorkspaceFile: vi.fn(),
   readWorkspaceFileMetadata: vi.fn(),
-  queryTableRows: vi.fn(),
   readTableView: vi.fn(),
-  readKnowledgeBase: vi.fn(),
-  readTableUseCase: vi.fn(),
   readWorkflowMetadata: vi.fn(),
   listWorkflowFolders: vi.fn(
     async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
@@ -65,44 +96,33 @@ const {
   ),
   resolveFileFolderPath: vi.fn(async (): Promise<{ path: string | null }> => ({ path: null })),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
-  isIntegrationDeploymentAvailable: vi.fn(() => true),
   searchDocsExecute: vi.fn(),
-  resolveInvocationWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock(
+  '@/lib/mothership/chat/application/workspace-context',
+  () => mothershipChatWorkspaceContextMock
+)
 
-vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({ getUserPermissionConfig }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
-}))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 vi.mock('@/lib/skills/application/use-cases', () => ({
   getSkillUseCase: { execute: getSkillUseCase },
 }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  discoverMcpServerToolsUseCase: { execute: discoverServerTools },
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
-vi.mock('@/lib/table/application/rows', () => ({
-  queryTableRows: { execute: queryTableRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 vi.mock('@/lib/table/application/views', () => ({
   readTableViewUseCase: { execute: readTableView },
 }))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  readKnowledgeBase: { execute: readKnowledgeBase },
-}))
-vi.mock('@/lib/table/application/tables', () => ({
-  readTableUseCase: { execute: readTableUseCase },
-}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 vi.mock('@/lib/workflows/application/read-workflow', () => ({
   readWorkflowMetadata: { execute: readWorkflowMetadata },
 }))
@@ -134,7 +154,6 @@ import {
 
 describe('processContextsServer - workflow references', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkflowMetadata.mockResolvedValue({
       workflow: { id: 'workflow-1', workspaceId: 'workspace-1', name: 'Lead intake' },
       folderPath: '/',
@@ -214,7 +233,6 @@ describe('processContextsServer - workflow references', () => {
 
 describe('processContextsServer - knowledge contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readKnowledgeBase.mockResolvedValue({
       knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
       folderPath: '/',
@@ -281,13 +299,10 @@ describe('processContextsServer - knowledge contexts', () => {
   })
 })
 
-const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
-].value
+const mockProcessContentsLogger = getMockLogger('ProcessContents')
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     const blocks = {
       start_trigger: { type: 'start_trigger', hideFromToolbar: false },
       slack: { type: 'slack', hideFromToolbar: false },
@@ -321,10 +336,6 @@ describe('processContextsServer - block contexts', () => {
 })
 
 describe('processContextsServer - skill contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('resolves a tagged workspace skill to its full body through current authorization', async () => {
     getSkillUseCase.mockResolvedValue({
       skill: {
@@ -441,10 +452,6 @@ describe('processContextsServer - skill contexts', () => {
 })
 
 describe('processContextsServer - docs contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('routes @Docs to an unscoped search_docs query', async () => {
     const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
     const results = [
@@ -556,10 +563,6 @@ describe('processContextsServer - docs contexts', () => {
 })
 
 describe('processContextsServer - MCP contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('references the selected service while the request catalog owns tool discovery', async () => {
     discoverServerTools.mockResolvedValue({
       tools: [
@@ -727,10 +730,6 @@ describe('processContextsServer - browser and terminal selections', () => {
 })
 
 describe('processContextsServer - logs contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('resolves a tagged run to a compact summary with a block overview, never raw input/output', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -910,8 +909,6 @@ describe('processContextsServer - logs contexts', () => {
 })
 
 describe('file folder context', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('uses the CLI folder path while preserving literal slashes inside folder names', async () => {
     resolveFileFolderPath.mockResolvedValueOnce({ path: 'Reports/Client \\/ notes' })
     const context = await resolveActiveResourceContext('filefolder', 'folder-1', 'ws-1', 'reader')
@@ -939,7 +936,6 @@ describe('file folder context', () => {
 
 describe('processContextsServer - file_selection contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkspaceFileMetadata.mockImplementation(
       async ({ input }: { input: { fileId: string } }) => {
         const file = await getWorkspaceFile('ws-1', input.fileId)
@@ -1029,10 +1025,6 @@ describe('processContextsServer - file_selection contexts', () => {
 })
 
 describe('processContextsServer - table_selection contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('distinguishes which row was selected when visible cell values are identical', async () => {
     readTableUseCase.mockResolvedValue({
       table: {
@@ -1456,7 +1448,6 @@ describe('processContextsServer - table_selection contexts', () => {
 
 describe('workflow resource context consistency', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkflowMetadata.mockResolvedValue({
       workflow: { name: 'Flow 100%' },
       folderPath: '/Planning%2FReview/Nested',
@@ -1525,7 +1516,6 @@ describe('folder and foldered-resource chat pointers', () => {
   ]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveFileFolderPath.mockResolvedValue({ path: null })
     for (const list of [listWorkflowFolders, listTableFolders, listKnowledgeFolders]) {
       list.mockResolvedValue({ folders: [] })
@@ -1751,7 +1741,6 @@ describe('folder and foldered-resource chat pointers', () => {
 
 describe('table view context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readTableUseCase.mockResolvedValue({
       table: { id: 'table-1', name: 'Leads' },
       folderPath: '/Sales',
@@ -1882,7 +1871,6 @@ describe('table view context', () => {
 
 describe('organization skill mention targets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
       if (!workspaceId) throw new Error('explicit workspace required')
       return { workspaceId }
@@ -1982,4 +1970,157 @@ it('does not treat a forged built-in identifier as a global template', async () 
   )
   expect(result).toEqual([])
   expect(getSkillUseCase).not.toHaveBeenCalled()
+})
+
+describe('organization resource mention targets', () => {
+  /**
+   * Resolves only for a principal and input both scoped to the authorized owner
+   * workspace, as the real use cases enforce, so a read addressed anywhere else
+   * yields no context.
+   */
+  const ownedBy =
+    (workspaceId: string, value: unknown) =>
+    async ({
+      principal,
+      input,
+    }: {
+      principal: { workspaceId?: string }
+      input: { workspaceId?: string; assertedWorkspaceId?: string }
+    }) => {
+      if (
+        principal.workspaceId !== workspaceId ||
+        (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
+      ) {
+        throw new DelegatedWorkspaceAuthorizationError()
+      }
+      return value
+    }
+
+  beforeEach(() => {
+    resolveInvocationWorkspace.mockReset()
+    resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
+      if (workspaceId !== 'workspace-a') throw new Error('denied')
+      return { workspaceId }
+    })
+    readWorkflowMetadata.mockReset()
+    readWorkflowMetadata.mockImplementation(
+      ownedBy('workspace-a', {
+        workflow: { id: 'workflow-1', workspaceId: 'workspace-a', name: 'Lead intake' },
+        folderPath: '/',
+      })
+    )
+    listWorkflowFolders.mockImplementation(
+      ownedBy('workspace-a', { folders: [{ id: 'folder-1', name: 'Leads', parentId: null }] })
+    )
+    readTableUseCase.mockImplementation(
+      ownedBy('workspace-a', {
+        table: { id: 'table-1', name: 'Accounts', workspaceId: 'workspace-a', schema: {} },
+        folderPath: '/',
+      })
+    )
+    readWorkspaceFileMetadata.mockImplementation(
+      ownedBy('workspace-a', { file: { name: 'Notes.md', folderPath: null } })
+    )
+    readKnowledgeBase.mockImplementation(
+      ownedBy('workspace-a', { knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' })
+    )
+  })
+
+  it.each<[string, ChatContext]>([
+    [
+      'workflow',
+      { kind: 'workflow', workflowId: 'workflow-1', label: 'Intake', workspaceId: 'workspace-a' },
+    ],
+    [
+      'folder',
+      { kind: 'folder', folderId: 'folder-1', label: 'Leads', workspaceId: 'workspace-a' },
+    ],
+    ['table', { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'workspace-a' }],
+    ['file', { kind: 'file', fileId: 'file-1', label: 'Notes', workspaceId: 'workspace-a' }],
+    [
+      'knowledge base',
+      { kind: 'knowledge', knowledgeId: 'kb-1', label: 'Docs', workspaceId: 'workspace-a' },
+    ],
+  ])('reads a tagged %s in its authorized owner workspace', async (_kind, context) => {
+    const result = await processContextsServer(
+      [context],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]?.content.startsWith('Workspace workspace-a:\n')).toBe(true)
+  })
+
+  it('reads nothing for a resource whose owner workspace is not authorized for the chat', async () => {
+    readWorkflowMetadata.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'foreign', name: 'Elsewhere' },
+      folderPath: '/',
+    })
+    const result = await processContextsServer(
+      [{ kind: 'workflow', workflowId: 'workflow-1', label: 'Foreign', workspaceId: 'foreign' }],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toEqual([])
+  })
+})
+
+describe('workspace mentions', () => {
+  const workspaceMention: ChatContext = {
+    kind: 'workspace',
+    workspaceId: 'workspace-a',
+    label: 'Sales',
+  }
+
+  beforeEach(() => {
+    readWorkspaceContext.mockReset()
+  })
+
+  it('describes the workspace through the authorized organization discovery', async () => {
+    readWorkspaceContext.mockImplementation(
+      async ({ input }: { input: { workspaceId: string } }) => ({
+        success: true,
+        workspaces:
+          input.workspaceId === 'workspace-a'
+            ? [{ id: 'workspace-a', name: 'Sales', role: 'write' }]
+            : [],
+        nextCursor: null,
+      })
+    )
+    const [context] = await processContextsServer(
+      [workspaceMention],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(context?.type).toBe('workspace')
+    expect(context?.tag).toBe('@Sales')
+    expect(context?.content).toContain('{"id":"workspace-a","name":"Sales","role":"write"}')
+  })
+
+  it('drops a workspace that organization discovery does not return', async () => {
+    readWorkspaceContext.mockResolvedValue({ success: true, workspaces: [], nextCursor: null })
+    expect(
+      await processContextsServer(
+        [workspaceMention],
+        'user',
+        '',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).toEqual([])
+  })
 })

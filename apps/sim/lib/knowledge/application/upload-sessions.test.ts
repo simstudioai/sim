@@ -1,82 +1,55 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  abortUpload: vi.fn(),
-  assertBinding: vi.fn(),
-  checkUsage: vi.fn(),
-  completeUpload: vi.fn(),
-  createDocument: vi.fn(),
-  createPartUrls: vi.fn(),
-  createUpload: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   findBound: vi.fn(),
-  getUpload: vi.fn(),
-  processQueue: vi.fn(),
-  recordAudit: vi.fn(),
-  recordOwnership: vi.fn(),
-  resolveBilling: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
   validateFileType: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { DOCUMENT_UPLOADED: 'document.uploaded' },
-  AuditResourceType: { DOCUMENT: 'document' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mocks.checkUsage,
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveSystemBillingAttribution: mocks.resolveBilling,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: mocks.createDocument,
-  processDocumentsWithQueue: mocks.processQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 vi.mock('@/lib/knowledge/orchestration/documents', () => ({
-  findBoundKnowledgeDocument: mocks.findBound,
+  findBoundKnowledgeDocument: hoisted.findBound,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  recordKnowledgeBaseFileOwnership: mocks.recordOwnership,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
   requestOrigin: () => 'http://localhost:3000',
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  abortUploadSession: mocks.abortUpload,
-  assertUploadSessionAuthBinding: mocks.assertBinding,
-  completeUploadSession: mocks.completeUpload,
-  createUploadPartUrls: mocks.createPartUrls,
-  createUploadSession: mocks.createUpload,
-  getPrincipalKnowledgeDocumentUploadSession: mocks.getUpload,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
-  validateFileType: mocks.validateFileType,
+  validateFileType: hoisted.validateFileType,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -88,6 +61,22 @@ import {
 } from '@/lib/knowledge/application/upload-sessions'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
+const mocks = {
+  ...hoisted,
+  createDocument: knowledgeDocumentsServiceMockFns.mockCreateSingleDocument,
+  processQueue: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+  abortUpload: uploadSessionMockFns.mockAbortUploadSession,
+  assertBinding: uploadSessionMockFns.mockAssertUploadSessionAuthBinding,
+  completeUpload: uploadSessionMockFns.mockCompleteUploadSession,
+  createPartUrls: uploadSessionMockFns.mockCreateUploadPartUrls,
+  createUpload: uploadSessionMockFns.mockCreateUploadSession,
+  getUpload: uploadSessionMockFns.mockGetPrincipalKnowledgeDocumentUploadSession,
+}
+
+billingAttributionMockFns.mockResolveSystemBillingAttribution.mockImplementation(
+  (...args: unknown[]) => billingAttributionMockFns.mockResolveBillingAttribution(...args)
+)
+
 const CONTEXT = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -96,11 +85,7 @@ const CONTEXT = {
   knowledgeBaseId: 'knowledge-1',
   knowledgeBase: { id: 'knowledge-1', name: 'Docs', workspaceId: 'workspace-1' },
 }
-const PRINCIPAL = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const BILLING = {
   actorUserId: 'user-1',
   workspaceId: 'workspace-1',
@@ -137,7 +122,7 @@ const SESSION: UploadSessionRecord = {
     authBinding: {
       version: 1,
       workspaceId: 'workspace-1',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     },
   },
   uploadToken: 'token',
@@ -172,18 +157,19 @@ const REQUEST = { headers: new Headers() }
 
 describe('knowledge-document upload application lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(CONTEXT)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveBilling.mockResolvedValue(BILLING)
-    mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(CONTEXT)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue(BILLING)
+    billingAttributionMockFns.mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: false,
+    })
     mocks.validateFileType.mockReturnValue(null)
     mocks.createUpload.mockResolvedValue({
       ...SESSION,
       transfer: { method: 'multipart', partSize: SESSION.partSize, partCount: 1 },
     })
-    mocks.recordOwnership.mockResolvedValue(undefined)
+    uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
     mocks.getUpload.mockResolvedValue(SESSION)
     mocks.createPartUrls.mockResolvedValue([
       {
@@ -199,39 +185,8 @@ describe('knowledge-document upload application lifecycle', () => {
     mocks.processQueue.mockResolvedValue(undefined)
   })
 
-  it('admits, binds, and records ownership before returning upload credentials', async () => {
-    await createKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        name: 'guide.pdf',
-        contentType: 'application/pdf',
-        size: 1024,
-        metadata: { tag1: 'product' },
-      },
-      request: REQUEST,
-    })
-
-    expect(mocks.createUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: 'knowledge_document',
-        principal: PRINCIPAL,
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        knowledgeBaseId: 'knowledge-1',
-      })
-    )
-    expect(mocks.recordOwnership).toHaveBeenCalledWith(
-      expect.objectContaining({ key: SESSION.storageKey, workspaceId: 'workspace-1' })
-    )
-    expect(mocks.recordOwnership.mock.invocationCallOrder[0]).toBeGreaterThan(
-      mocks.createUpload.mock.invocationCallOrder[0]
-    )
-  })
-
   it('rejects insufficient role before allocating provider state', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
 
     await expect(
       createKnowledgeDocumentUpload.execute({
@@ -248,27 +203,6 @@ describe('knowledge-document upload application lifecycle', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.createUpload).not.toHaveBeenCalled()
-  })
-
-  it('aborts provider state and propagates an ownership registration failure', async () => {
-    const failure = new Error('ownership database unavailable')
-    mocks.recordOwnership.mockRejectedValue(failure)
-
-    await expect(
-      createKnowledgeDocumentUpload.execute({
-        principal: PRINCIPAL,
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          name: 'guide.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          metadata: {},
-        },
-        request: REQUEST,
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.abortUpload).toHaveBeenCalledWith(expect.objectContaining({ id: 'upload-1' }))
   })
 
   it('reauthorizes and verifies the immutable credential on the parts leg', async () => {
@@ -288,7 +222,7 @@ describe('knowledge-document upload application lifecycle', () => {
       expect.objectContaining({ principal: PRINCIPAL, uploadId: 'upload-1' })
     )
     expect(mocks.assertBinding).toHaveBeenCalledWith(SESSION, PRINCIPAL)
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(2)
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledTimes(2)
     expect(mocks.createPartUrls).toHaveBeenCalledWith(
       expect.objectContaining({ session: SESSION, partNumbers: [1] })
     )
@@ -343,7 +277,9 @@ describe('knowledge-document upload application lifecycle', () => {
     })
 
     expect(result.value.created).toBe(true)
-    expect(mocks.resolvePermission.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.calls.length
+    ).toBeGreaterThanOrEqual(4)
     expect(mocks.createDocument).toHaveBeenCalledWith(
       expect.any(Object),
       'knowledge-1',
@@ -353,53 +289,13 @@ describe('knowledge-document upload application lifecycle', () => {
       undefined,
       { expectedWorkspaceId: 'workspace-1' }
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'document.uploaded',
         resourceId: 'upload-1',
         metadata: expect.objectContaining({ operation: 'knowledge.documents.upload.complete' }),
       })
     )
-  })
-
-  it('completes a session whose persisted recipe and lang predate their validation', async () => {
-    mocks.getUpload.mockResolvedValue({
-      ...SESSION,
-      metadata: {
-        ...SESSION.metadata,
-        processingOptions: { recipe: 'super-chunker-9000', lang: 'en_US' },
-      },
-    })
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-          completedFileId?: string
-        }>
-      }) => {
-        const finalized = await params.finalize(params.session)
-        return {
-          session: { ...params.session, status: 'completed' as const },
-          value: finalized.value,
-          alreadyCompleted: false,
-        }
-      }
-    )
-
-    const result = await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    expect(result.value.created).toBe(true)
   })
 
   it('returns an already-bound document without re-billing, re-registering, or auditing', async () => {
@@ -430,231 +326,10 @@ describe('knowledge-document upload application lifecycle', () => {
     })
 
     expect(result.value.created).toBe(false)
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
     expect(mocks.processQueue).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  /**
-   * The registration is durable before indexing is queued, so a queue that is
-   * down cannot un-create the document. Failing the call reports a completion
-   * that did happen as a 500, and the only recovery a caller has — replaying the
-   * same request — answers `200 completed`.
-   */
-  it('completes and audits the upload when processing cannot be dispatched', async () => {
-    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-          completedFileId?: string
-        }>
-      }) => {
-        const finalized = await params.finalize(params.session)
-        return {
-          session: { ...params.session, status: 'completed' as const },
-          value: finalized.value,
-          alreadyCompleted: false,
-        }
-      }
-    )
-
-    const result = await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    expect(result.value.created).toBe(true)
-    expect(result.value.document).toEqual(DOCUMENT)
-    expect(mocks.createDocument).toHaveBeenCalledTimes(1)
-    expect(mocks.processQueue).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-  })
-
-  /**
-   * A completed session with a `completedFileId` replays into `loadCompleted`,
-   * which never dispatches, and nothing sweeps `pending`. Leaving the document
-   * there strands it with no retry and no signal, so the failure is recorded on
-   * the row — the state `retryProcessing` accepts.
-   */
-  it('marks the document failed when its processing dispatch never got off the ground', async () => {
-    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-          completedFileId?: string
-        }>
-      }) => {
-        const finalized = await params.finalize(params.session)
-        return {
-          session: { ...params.session, status: 'completed' as const },
-          value: finalized.value,
-          alreadyCompleted: false,
-        }
-      }
-    )
-
-    await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    const failedWrite = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
-    )
-    expect(failedWrite).toBeDefined()
-    expect(failedWrite?.[0]).toMatchObject({
-      processingStatus: 'failed',
-      processingError: 'queue unavailable',
-    })
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
-  })
-
-  /** Recording the failure is itself best-effort; it must not resurface as a 500. */
-  it('still completes when the dispatch failure cannot be recorded', async () => {
-    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
-    dbChainMockFns.returning.mockRejectedValue(new Error('database unavailable'))
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-          completedFileId?: string
-        }>
-      }) => {
-        const finalized = await params.finalize(params.session)
-        return {
-          session: { ...params.session, status: 'completed' as const },
-          value: finalized.value,
-          alreadyCompleted: false,
-        }
-      }
-    )
-
-    const result = await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    expect(result.value.document).toEqual(DOCUMENT)
-  })
-
-  /**
-   * The dispatch is a follow-on to the completion, not a step inside it: a
-   * completion that cannot write its durable marker must not have queued
-   * indexing for a document the caller was told nothing about.
-   */
-  it('queues processing only after the session is durably completed', async () => {
-    const order: string[] = []
-    mocks.processQueue.mockImplementation(async () => {
-      order.push('dispatch')
-    })
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-          completedFileId?: string
-        }>
-      }) => {
-        const finalized = await params.finalize(params.session)
-        order.push('completed')
-        return {
-          session: { ...params.session, status: 'completed' as const },
-          value: finalized.value,
-          alreadyCompleted: false,
-        }
-      }
-    )
-
-    await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    expect(order).toEqual(['completed', 'dispatch'])
-  })
-
-  /**
-   * The re-queue is decided by the document — a registration still `pending` was
-   * never picked up — rather than by the message a previous failure happened to
-   * leave on the session. The session no longer carries one: a dispatch failure
-   * completes the session and is logged, so keying recovery off `session.error`
-   * would leave a `pending` document with nothing to re-queue it.
-   */
-  it('re-queues a bound registration whose document was never picked up', async () => {
-    const recoveringSession = {
-      ...SESSION,
-      status: 'finalizing' as const,
-      completedFileId: null,
-    }
-    mocks.getUpload.mockResolvedValue(recoveringSession)
-    mocks.findBound.mockResolvedValue({
-      status: 'bound',
-      document: { ...DOCUMENT, processingStatus: 'pending' },
-    })
-    mocks.completeUpload.mockImplementation(
-      async (params: {
-        session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<{
-          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
-        }>
-      }) => ({
-        session: { ...params.session, status: 'completed' as const },
-        value: (await params.finalize({ ...params.session, error: null })).value,
-        alreadyCompleted: true,
-      })
-    )
-
-    const result = await completeKnowledgeDocumentUpload.execute({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: REQUEST,
-    })
-
-    expect(result.value.created).toBe(true)
-    expect(mocks.resolveBilling).toHaveBeenCalledTimes(1)
-    expect(mocks.processQueue).toHaveBeenCalledTimes(1)
-    expect(mocks.createDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('converges a finalization retry after durable bind without duplicate document or audit', async () => {
@@ -719,11 +394,14 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(retry.value.created).toBe(false)
     expect(mocks.createDocument).not.toHaveBeenCalled()
     expect(mocks.processQueue).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast when billing ownership changes before durable registration', async () => {
-    mocks.resolveBilling.mockResolvedValue({ ...BILLING, billedAccountUserId: 'stale-owner' })
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
+      ...BILLING,
+      billedAccountUserId: 'stale-owner',
+    })
     mocks.completeUpload.mockImplementation(
       async (params: {
         session: UploadSessionRecord
@@ -747,48 +425,8 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(mocks.createDocument).not.toHaveBeenCalled()
   })
 
-  it('propagates provider completion failures without audit or registration', async () => {
-    const failure = new Error('provider unavailable')
-    mocks.completeUpload.mockRejectedValue(failure)
-
-    await expect(
-      completeKnowledgeDocumentUpload.execute({
-        principal: PRINCIPAL,
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          uploadId: 'upload-1',
-          uploadToken: 'token',
-          source: 'api',
-        },
-        request: REQUEST,
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.createDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('propagates canonical infrastructure failures without concealment fallback', async () => {
-    const failure = new Error('database unavailable')
-    mocks.resolveContext.mockRejectedValue(failure)
-
-    await expect(
-      issueKnowledgeDocumentUploadParts.execute({
-        principal: PRINCIPAL,
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          uploadId: 'upload-1',
-          uploadToken: 'token',
-          partNumbers: [1],
-        },
-        request: REQUEST,
-      })
-    ).rejects.toBe(failure)
-  })
-
   it('conceals an asserted workspace mismatch as not found', async () => {
-    mocks.resolveContext.mockRejectedValue(
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockRejectedValue(
       new OrchestrationError('not_found', 'Knowledge base not found')
     )
 

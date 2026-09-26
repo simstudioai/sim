@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,7 +36,6 @@ const claim = {
 
 describe('Enterprise owner claim routes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: {
         id: 'owner-1',

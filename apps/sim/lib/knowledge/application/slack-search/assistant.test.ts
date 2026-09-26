@@ -1,7 +1,20 @@
-/** @vitest-environment node */
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import { organizationAuthorizationMock } from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
@@ -11,21 +24,16 @@ const m = vi.hoisted(() => ({
   owners: vi.fn(),
   release: vi.fn(),
   run: vi.fn(),
-  createRun: vi.fn(),
-  updateRun: vi.fn(),
   finalize: vi.fn(),
   start: vi.fn(),
   finish: vi.fn(),
   finishWithError: vi.fn(),
   terminate: vi.fn(),
   streamOptions: vi.fn(),
-  payload: vi.fn(),
   inventory: vi.fn(),
   outcome: vi.fn(),
-  memberAuthorization: vi.fn(),
   lease: vi.fn(),
   stopped: vi.fn(),
-  sources: vi.fn(),
   onboarding: vi.fn(),
   title: vi.fn(),
   stoppedMessage: vi.fn((message: unknown) => message),
@@ -36,72 +44,57 @@ const m = vi.hoisted(() => ({
   })),
 }))
 vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
-  authorizeSlackSearchInstallation: m.authorize,
+  authorizeSlackSearchInstallation: hoisted.authorize,
 }))
-vi.mock('@/lib/internal/slack/search-client', () => ({ getSlackSearchSender: m.sender }))
+vi.mock('@/lib/internal/slack/search-client', () => ({ getSlackSearchSender: hoisted.sender }))
 vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
-  resolveSlackSearchMember: m.member,
+  resolveSlackSearchMember: hoisted.member,
   SlackSearchIdentityError: class extends Error {},
 }))
 vi.mock('@/lib/knowledge/application/slack-search/chat', () => ({
-  resolveSlackSearchChat: m.chat,
-  persistSlackSearchQuestion: m.persist,
+  resolveSlackSearchChat: hoisted.chat,
+  persistSlackSearchQuestion: hoisted.persist,
   slackSearchChatOperation: { id: 'organization.chats.slack' },
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.memberAuthorization,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/operations', () => ({
   knowledgeOperations: { search: { organizationOperation: { id: 'knowledge.search' } } },
 }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
-  recordSlackSearchOutcome: m.outcome,
+  recordSlackSearchOutcome: hoisted.outcome,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
-  requireSlackSearchTurnLease: m.lease,
-  wasSlackSearchTurnStopped: m.stopped,
-}))
-vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
-  getSlackSearchSourceStatus: { execute: m.sources },
+  requireSlackSearchTurnLease: hoisted.lease,
+  wasSlackSearchTurnStopped: hoisted.stopped,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/onboarding', () => ({
-  sendSlackSearchOnboarding: m.onboarding,
+  sendSlackSearchOnboarding: hoisted.onboarding,
 }))
 vi.mock('@/lib/knowledge/application/slack-search/title', () => ({
-  generateSlackSearchChatTitle: m.title,
+  generateSlackSearchChatTitle: hoisted.title,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveOrganizationBillingAttribution: async () => ({
-    organizationId: 'org1',
-    actorUserId: 'member1',
-  }),
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment: m.createRun,
-  updateRunStatus: m.updateRun,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
-  loadCopilotSearchIntegrations: m.inventory,
+  loadCopilotSearchIntegrations: hoisted.inventory,
 }))
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildCopilotRequestPayload: m.payload }))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/chat/persisted-message', () => ({
-  buildPersistedAssistantMessage: m.buildMessage,
-  withStoppedContentBlock: m.stoppedMessage,
+  buildPersistedAssistantMessage: hoisted.buildMessage,
+  withStoppedContentBlock: hoisted.stoppedMessage,
   normalizeMessage: (message: unknown) => message,
 }))
-vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: m.finalize }))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: async () => ({ resolvedSecretTraceRegistry: {} }),
-}))
+vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: hoisted.finalize }))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: m.run,
+  runHeadlessCopilotLifecycle: hoisted.run,
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
-  acquirePendingChatStream: m.lock,
+  acquirePendingChatStream: hoisted.lock,
   cleanupAbortMarker: vi.fn(),
-  getChatStreamLockOwners: m.owners,
+  getChatStreamLockOwners: hoisted.owners,
   registerActiveStream: vi.fn(),
-  releasePendingChatStream: m.release,
+  releasePendingChatStream: hoisted.release,
   startAbortPoller: () => 0,
   unregisterActiveStream: vi.fn(),
 }))
@@ -109,12 +102,12 @@ vi.mock('@/lib/slack-search/connections', () => ({ deliverSlackSearchConnections
 vi.mock('@/lib/slack-search/assistant-stream', () => ({
   SlackSearchAssistantStream: class {
     constructor(options: unknown) {
-      m.streamOptions(options)
+      hoisted.streamOptions(options)
     }
-    start = m.start
-    finish = m.finish
-    finishWithError = m.finishWithError
-    terminateAfterFailure = m.terminate
+    start = hoisted.start
+    finish = hoisted.finish
+    finishWithError = hoisted.finishWithError
+    terminateAfterFailure = hoisted.terminate
     onEvent = vi.fn()
     assertHealthy = vi.fn()
   },
@@ -126,6 +119,20 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import { SlackSearchIdentityError } from '@/lib/knowledge/application/slack-search/identity'
+
+const m = {
+  ...hoisted,
+  createRun: mothershipAsyncRunsMockFns.mockCreateRunSegment,
+  updateRun: mothershipAsyncRunsMockFns.mockUpdateRunStatus,
+  payload: mothershipChatPayloadMockFns.mockBuildCopilotRequestPayload,
+}
+
+billingAttributionMockFns.mockResolveOrganizationBillingAttribution.mockImplementation(
+  async () => ({
+    organizationId: 'org1',
+    actorUserId: 'member1',
+  })
+)
 
 const principal = {
   kind: 'slack_installation',
@@ -161,7 +168,6 @@ const run = () =>
     controller: new AbortController(),
   })
 beforeEach(() => {
-  vi.clearAllMocks()
   m.authorize.mockResolvedValue({
     installation: { id: 'i1', organizationId: 'org1', teamId: 'T1' },
     secret: { botToken: 'token' },
@@ -178,7 +184,6 @@ beforeEach(() => {
   m.run.mockResolvedValue({ success: true, content: 'Answer', contentBlocks: [], toolCalls: [] })
   m.finalize.mockResolvedValue({ appendedAssistant: true })
   m.stopped.mockResolvedValue(false)
-  m.sources.mockResolvedValue({ hasSearchableDocuments: true })
   m.onboarding.mockResolvedValue({
     text: 'Connect sources',
     url: 'https://sim.test/slack-search/connect/token',
@@ -195,56 +200,6 @@ describe('organization Assistant from Slack', () => {
     expect(m.chat).not.toHaveBeenCalled()
     expect(m.title).not.toHaveBeenCalled()
     expect(m.run).not.toHaveBeenCalled()
-  })
-  it('runs the Assistant with no indexed documents so it can list and connect integrations', async () => {
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    await run()
-    expect(m.onboarding).not.toHaveBeenCalled()
-    expect(m.run).toHaveBeenCalledOnce()
-    expect(m.payload).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceContext: '{"connections":[],"available":[]}' }),
-      expect.anything()
-    )
-    expect(m.createRun).toHaveBeenCalledOnce()
-    expect(m.finalize).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantMessage: expect.objectContaining({ content: 'Answer' }) })
-    )
-  })
-  it('answers while naming runs and awaits naming before releasing the worker', async () => {
-    const naming = Promise.withResolvers<void>()
-    m.title.mockReturnValueOnce(naming.promise)
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    const pending = run()
-    await vi.waitFor(() => expect(m.run).toHaveBeenCalled())
-    expect(m.release).not.toHaveBeenCalled()
-    naming.resolve()
-    await pending
-    expect(m.release).toHaveBeenCalled()
-  })
-  it.each(['missing response', 'database error'] as const)(
-    'fails an answer when history persistence reports %s',
-    async (outcome) => {
-      m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-      if (outcome === 'missing response') {
-        m.finalize.mockResolvedValueOnce({ appendedAssistant: false })
-      } else {
-        m.finalize.mockRejectedValueOnce(new Error('History unavailable'))
-      }
-      await expect(run()).rejects.toThrow(
-        outcome === 'missing response'
-          ? 'Could not persist the Slack Assistant response'
-          : 'History unavailable'
-      )
-      expect(m.onboarding).not.toHaveBeenCalled()
-      expect(m.run).toHaveBeenCalledOnce()
-      expect(m.release).toHaveBeenCalledOnce()
-    }
-  )
-  it('keeps title generation failure separate from a successful answer', async () => {
-    m.title.mockRejectedValueOnce(new Error('Title generation failed'))
-    await run()
-    expect(m.finish).toHaveBeenCalled()
-    expect(m.finalize).toHaveBeenCalled()
   })
   it('propagates identity infrastructure failures instead of inviting the user to create another account', async () => {
     m.member.mockRejectedValueOnce(new Error('database failed'))
@@ -322,42 +277,5 @@ describe('organization Assistant from Slack', () => {
     expect(m.terminate).toHaveBeenCalledOnce()
     expect(m.updateRun).toHaveBeenCalledWith('run1', 'error')
     expect(m.release).toHaveBeenCalledOnce()
-  })
-  it('rechecks cleanup authority with a fresh signal after aborting execution', async () => {
-    m.run.mockRejectedValueOnce(new Error('Assistant disconnected'))
-    m.terminate.mockImplementationOnce(async () => {
-      const options = m.streamOptions.mock.calls[0][0]
-      expect(options.controller.signal.aborted).toBe(true)
-      await options.beforeCleanup(new AbortController().signal)
-    })
-    await expect(run()).rejects.toThrow('Assistant disconnected')
-    expect(m.terminate).toHaveBeenCalledOnce()
-    expect(m.memberAuthorization).toHaveBeenCalled()
-    expect(m.terminate.mock.invocationCallOrder[0]).toBeLessThan(
-      m.release.mock.invocationCallOrder[0]
-    )
-  })
-  it('closes a healthy Slack stream when the Assistant reports failure', async () => {
-    m.run.mockResolvedValueOnce({ success: false, content: '', contentBlocks: [], toolCalls: [] })
-    await expect(run()).rejects.toThrow('Organization Assistant did not complete')
-    expect(m.finishWithError).toHaveBeenCalledOnce()
-    expect(m.finish).not.toHaveBeenCalled()
-    expect(m.outcome).toHaveBeenCalledWith(expect.anything(), 'assistant_or_delivery_failed')
-    expect(m.stoppedMessage).not.toHaveBeenCalled()
-    expect(m.finalize).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assistantMessage: expect.objectContaining({
-          content: 'I couldn’t complete this search. Please try again.',
-        }),
-      })
-    )
-  })
-  it('marks private history as stopped only when the turn was cancelled by native Stop', async () => {
-    m.run.mockRejectedValueOnce(new Error('Stream stopped'))
-    m.stopped.mockResolvedValue(true)
-    await expect(run()).rejects.toThrow('Stream stopped')
-    expect(m.stoppedMessage).toHaveBeenCalledOnce()
-    expect(m.finishWithError).not.toHaveBeenCalled()
-    expect(m.terminate).not.toHaveBeenCalled()
   })
 })

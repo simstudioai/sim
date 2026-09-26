@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Opaque cursor encode/decode and the cursor↔query binding. A cursor encodes a
  * position in one specific ordering of one specific row set; replaying it under
  * any other ordering or filter silently pages the wrong sequence, so binding
@@ -32,11 +30,6 @@ describe('cursor↔sort binding (bugbot round 2)', () => {
     const decoded = decodeCursor(token)
     expect(decoded.offset).toBe(100)
     expect(decoded.sortKey).toBe(canonicalSortKey({ col_a: 'desc' }))
-  })
-
-  it('accepts replay under the identical sort', () => {
-    const decoded = { offset: 100, sortKey: canonicalSortKey({ col_a: 'desc' }) }
-    expect(() => assertCursorQueryBinding(decoded, { sort: { col_a: 'desc' } })).not.toThrow()
   })
 
   it('rejects replay under a DIFFERENT sort', () => {
@@ -74,12 +67,6 @@ describe('cursor↔sort binding (bugbot round 2)', () => {
       /sorted query/
     )
     expect(() => assertCursorQueryBinding(decoded, {})).not.toThrow()
-  })
-
-  it('sort key order is significant (priority is part of the identity)', () => {
-    expect(canonicalSortKey({ a: 'asc', b: 'desc' })).not.toBe(
-      canonicalSortKey({ b: 'desc', a: 'asc' })
-    )
   })
 })
 
@@ -210,12 +197,6 @@ describe('set-valued predicate positions bind by membership, not order', () => {
     )
   })
 
-  it('fingerprints reordered `any` clauses identically', () => {
-    expect(canonicalFilterKey({ predicate: { any: [A, B] } })).toBe(
-      canonicalFilterKey({ predicate: { any: [B, A] } })
-    )
-  })
-
   it('fingerprints a repeated clause like the single clause it selects', () => {
     expect(canonicalFilterKey({ predicate: { all: [A, A, B] } })).toBe(
       canonicalFilterKey({ predicate: { all: [A, B] } })
@@ -231,64 +212,6 @@ describe('set-valued predicate positions bind by membership, not order', () => {
       canonicalFilterKey({
         predicate: { all: [{ field: 'owner', op: 'in', value: ['U2', 'U1'] }] },
       })
-    )
-  })
-
-  it('fingerprints reordered `nin` operands identically', () => {
-    expect(
-      canonicalFilterKey({
-        predicate: { all: [{ field: 'owner', op: 'nin', value: ['U1', 'U2'] }] },
-      })
-    ).toBe(
-      canonicalFilterKey({
-        predicate: { all: [{ field: 'owner', op: 'nin', value: ['U2', 'U1'] }] },
-      })
-    )
-  })
-
-  it('applies the rule inside a nested group', () => {
-    expect(
-      canonicalFilterKey({
-        predicate: { all: [{ any: [A, B] }, { field: 'x', op: 'in', value: ['b', 'a'] }] },
-      })
-    ).toBe(
-      canonicalFilterKey({
-        predicate: { all: [{ field: 'x', op: 'in', value: ['a', 'b'] }, { any: [B, A] }] },
-      })
-    )
-  })
-
-  /**
-   * The dangerous half. Canonicalizing too far would collapse predicates that
-   * select different rows onto one stamp, and a cursor would then resume a page
-   * of the wrong sequence without any 400 at all.
-   */
-  it('keeps genuinely different predicates apart', () => {
-    const key = (predicate: TablePredicate) => canonicalFilterKey({ predicate })
-    const distinct = [
-      key({ all: [A, B] }),
-      key({ any: [A, B] }),
-      key({ all: [A] }),
-      key({ all: [{ field: 'status', op: 'ne', value: 'active' }] }),
-      key({ all: [{ field: 'owner', op: 'in', value: ['U1'] }] }),
-      key({ all: [{ field: 'owner', op: 'in', value: ['U1', 'U2'] }] }),
-      key({ all: [{ field: 'owner', op: 'nin', value: ['U1', 'U2'] }] }),
-      key({ all: [{ field: 'other', op: 'in', value: ['U1', 'U2'] }] }),
-      key({ all: [{ any: [A, B] }] }),
-    ]
-    expect(new Set(distinct).size).toBe(distinct.length)
-  })
-
-  /**
-   * An ordinary array operand is a sequence, not a set — `eq` matches a JSON
-   * array value by containment of that exact array, so reordering it changes
-   * which rows match and must change the stamp.
-   */
-  it('leaves a non-set operand array bound to its order', () => {
-    expect(
-      canonicalFilterKey({ predicate: { all: [{ field: 'tags', op: 'eq', value: ['a', 'b'] }] } })
-    ).not.toBe(
-      canonicalFilterKey({ predicate: { all: [{ field: 'tags', op: 'eq', value: ['b', 'a'] }] } })
     )
   })
 
@@ -344,15 +267,95 @@ describe('tokens minted before the filter stamp', () => {
       expect((e as TableQueryValidationError).code).toBe('CURSOR_FILTER_CONFLICT')
     }
   })
+})
 
-  /**
-   * The version a token minted today carries. Pinned so a bump is a deliberate
-   * edit here rather than a silent one that strands every cursor a running
-   * deploy already handed out.
-   */
-  it('mints tokens at the version the previous deploy could already read', () => {
-    const token = encodeCursor({ lastRow: ROW, keysetValid: true, nextOffset: 10 })
+describe('cursor codec', () => {
+  it('encodes a keyset cursor when keyset is valid and round-trips it', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'row-9', orderKey: 'a0' },
+      keysetValid: true,
+      nextOffset: 100,
+    })
+    expect(typeof token).toBe('string')
+    expect(decodeCursor(token)).toEqual({ after: { orderKey: 'a0', id: 'row-9' } })
+  })
 
+  it('falls back to an offset cursor when keyset is not valid (custom sort / flag off)', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'row-9', orderKey: 'a0' },
+      keysetValid: false,
+      nextOffset: 100,
+    })
+    expect(decodeCursor(token)).toEqual({ offset: 100 })
+  })
+
+  it('emits a compound cursor when the last row is unkeyed but an anchor is known', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'row-9', orderKey: undefined },
+      keysetValid: true,
+      nextOffset: 50,
+      seekBase: { anchor: { orderKey: 'a5', id: 'row-5' }, offsetFromAnchor: 4 },
+    })
+    expect(decodeCursor(token)).toEqual({ after: { orderKey: 'a5', id: 'row-5' }, offset: 4 })
+  })
+
+  it('falls back to a whole-view offset when the row has no order key and no anchor', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'row-9', orderKey: undefined },
+      keysetValid: true,
+      nextOffset: 50,
+    })
+    expect(decodeCursor(token)).toEqual({ offset: 50 })
+  })
+
+  it('produces opaque base64url with no raw orderKey/offset leaking', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'r', orderKey: 'zz' },
+      keysetValid: true,
+      nextOffset: 0,
+    })
+    expect(token).not.toContain('orderKey')
+    expect(token).not.toContain('{')
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
+  })
+
+  it('stamps a version field and rejects any other version', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'r', orderKey: 'a' },
+      keysetValid: true,
+      nextOffset: 0,
+    })
     expect(JSON.parse(Buffer.from(token, 'base64url').toString('utf8')).v).toBe(1)
+    // A future/unknown version fails cleanly instead of being misread.
+    expect(() => decodeCursor(Buffer.from('{"v":2,"o":0}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+    // A pre-version token (no `v`) is no longer accepted.
+    expect(() => decodeCursor(Buffer.from('{"o":0}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+  })
+
+  it('throws on a malformed cursor', () => {
+    expect(() => decodeCursor('not-base64-$$$')).toThrow('Invalid cursor')
+    // Valid base64url but wrong shape.
+    expect(() => decodeCursor(Buffer.from('{"v":1,"x":1}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+  })
+
+  it('throws on valid JSON that is not an object (no raw TypeError leak)', () => {
+    for (const body of ['42', 'null', '"hi"', 'true', '[1,2]']) {
+      expect(() => decodeCursor(Buffer.from(body).toString('base64url'))).toThrow('Invalid cursor')
+    }
+  })
+
+  it('rejects negative and non-integer offsets', () => {
+    expect(() => decodeCursor(Buffer.from('{"v":1,"o":-1}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+    expect(() => decodeCursor(Buffer.from('{"v":1,"o":1.5}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
   })
 })

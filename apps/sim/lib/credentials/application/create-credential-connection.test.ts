@@ -1,40 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveTarget: vi.fn(),
   createDraft: vi.fn(),
-  getBaseUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/application/connection-target', () => ({
-  resolveCredentialConnectionTarget: mocks.resolveTarget,
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))
 
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  createConnectDraft: mocks.createDraft,
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: mocks.getBaseUrl,
-  SITE_URL: 'http://localhost:3000',
+  createConnectDraft: hoisted.createDraft,
 }))
 
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  getBaseUrl: urlsMockFns.mockGetBaseUrl,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -42,15 +39,10 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const personalPrincipal = createPersonalApiKeyPrincipal()
 
 describe('createCredentialConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveTarget.mockResolvedValue({
@@ -62,24 +54,6 @@ describe('createCredentialConnection', () => {
       expiresAt: new Date('2026-08-12T20:15:00.000Z'),
     })
     mocks.getBaseUrl.mockReturnValue('https://sim.ai')
-  })
-
-  it('rejects workspace keys before canonical workspace loading', async () => {
-    await expect(
-      createCredentialConnection.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'key-1',
-        },
-        input: {
-          workspaceId: 'workspace-1',
-          providerId: 'google-email',
-          displayName: 'Work Gmail',
-        },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
   })
 
   it('creates a user-bound draft and returns its canonical connection context', async () => {

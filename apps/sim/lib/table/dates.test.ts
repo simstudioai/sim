@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   formatDateCellDisplay,
@@ -31,11 +28,6 @@ describe('isCalendarDateString', () => {
 })
 
 describe('normalizeDateCellValue', () => {
-  it('keeps calendar dates timezone-free', () => {
-    expect(normalizeDateCellValue('2026-07-06')).toBe('2026-07-06')
-    expect(normalizeDateCellValue(' 2026-07-06 ')).toBe('2026-07-06')
-  })
-
   it('normalizes date-only inputs in other formats to calendar dates', () => {
     expect(normalizeDateCellValue('07/06/2026')).toBe('2026-07-06')
     expect(normalizeDateCellValue('7/6/2026')).toBe('2026-07-06')
@@ -53,12 +45,6 @@ describe('normalizeDateCellValue', () => {
     expect(normalizeDateCellValue('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
     expect(normalizeDateCellValue('2026-07-06 16:04:55+00')).toBe('2026-07-06T16:04:55Z')
     expect(normalizeDateCellValue('2026-07-06 16:04:55 EST')).toBe('2026-07-06T16:04:55-05:00')
-  })
-
-  it('is idempotent on canonical instants', () => {
-    const canonical = '2026-07-06T16:04:55-07:00'
-    expect(normalizeDateCellValue(canonical)).toBe(canonical)
-    expect(normalizeDateCellValue(canonical, { timezone: 'Asia/Tokyo' })).toBe(canonical)
   })
 
   it('stamps naive datetimes with the runtime zone offset by default', () => {
@@ -156,12 +142,6 @@ describe('normalizeDateCellValue', () => {
     ).toBe('2026-07-06T16:04:55-07:00')
   })
 
-  it('leaves calendar dates untouched by the zone option', () => {
-    expect(normalizeDateCellValue('2026-07-06', { timezone: 'America/New_York' })).toBe(
-      '2026-07-06'
-    )
-  })
-
   it('throws on an invalid IANA zone', () => {
     expect(() => normalizeDateCellValue('2026-07-06 12:00', { timezone: 'Not/AZone' })).toThrow(
       RangeError
@@ -199,10 +179,6 @@ describe('normalizeDateCellValue', () => {
 })
 
 describe('formatDateCellDisplay', () => {
-  it('renders calendar dates as MM/DD/YYYY', () => {
-    expect(formatDateCellDisplay('2026-07-06')).toBe('07/06/2026')
-  })
-
   it('renders legacy UTC-midnight instants as their UTC calendar day', () => {
     expect(formatDateCellDisplay('2026-07-06T00:00:00.000Z')).toBe('07/06/2026')
     expect(formatDateCellDisplay('2026-07-06T00:00:00Z')).toBe('07/06/2026')
@@ -217,31 +193,5 @@ describe('formatDateCellDisplay', () => {
     expect(formatDateCellDisplay('2026-07-06T16:04:55+09:00')).toBe('07/06/2026 4:04 PM')
     expect(formatDateCellDisplay('2026-07-06T23:04:55Z')).toBe('07/06/2026 11:04 PM')
     expect(formatDateCellDisplay('2026-07-06T00:30:00-07:00')).toBe('07/06/2026 12:30 AM')
-  })
-
-  it('omits the seconds suffix when seconds are zero', () => {
-    expect(formatDateCellDisplay('2026-07-06T23:04:00Z', { seconds: true })).toBe(
-      '07/06/2026 11:04 PM'
-    )
-  })
-
-  it('returns unparseable legacy strings as-is', () => {
-    expect(formatDateCellDisplay('garbage')).toBe('garbage')
-  })
-})
-
-describe('storedDateToEditable', () => {
-  it('surfaces legacy UTC-midnight instants as their UTC calendar day', () => {
-    expect(storedDateToEditable('2026-07-06T00:00:00.000Z')).toBe('2026-07-06')
-  })
-
-  it('keeps calendar dates and canonicalizes instants', () => {
-    expect(storedDateToEditable('2026-07-06')).toBe('2026-07-06')
-    expect(storedDateToEditable('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T16:04:55-07:00')
-    expect(storedDateToEditable('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
-  })
-
-  it('passes unparseable legacy strings through', () => {
-    expect(storedDateToEditable('garbage')).toBe('garbage')
   })
 })

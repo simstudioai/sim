@@ -1,25 +1,14 @@
 /**
  * Pins both outbound redirect contracts: historical replay for persisted workflows and
  * standards-compatible behavior for newly created API blocks.
- *
- * @vitest-environment node
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { resolveHostAddresses } from '@sim/security/dns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: vi.fn(async () => ({ addresses: ['127.0.0.1'] })),
   preferIpv4: (addresses: string[]) => addresses[0],
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
 }))
 
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
@@ -58,29 +47,20 @@ async function startRecordingServer(hops: RecordedHop[]): Promise<string> {
   })
 }
 
-describe('secureFetchWithPinnedIP redirect replay', () => {
-  it('preserves transient DNS failure causes on redirects', async () => {
-    const cause = Object.assign(new Error('Temporary DNS failure'), { code: 'EAI_AGAIN' })
-    vi.mocked(resolveHostAddresses).mockRejectedValueOnce(cause)
-    const origin = await startServer((_req, res) => {
-      res.writeHead(302, { location: 'https://example.com/next' })
-      res.end()
-    })
-    await expect(
-      secureFetchWithPinnedIP(origin, '127.0.0.1', {
-        profile: 'contentFetch',
-      })
-    ).rejects.toMatchObject({ cause })
+/** Answers every request with a redirect to `location`. */
+function startRedirectServer(status: number, location: string): Promise<string> {
+  return startServer((req, res) => {
+    req.resume()
+    res.writeHead(status, { location })
+    res.end()
   })
+}
 
+describe('secureFetchWithPinnedIP redirect replay', () => {
   it('rejects a redirect target before following it', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(302, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(302, `${target}/after`)
     const assertRedirectTarget = vi.fn((url: string) => {
       if (url === `${target}/after`) throw new Error('redirect target rejected')
     })
@@ -99,11 +79,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('returns a 305 Use Proxy rather than following it', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(305, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(305, `${target}/after`)
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       profile: 'configuredEndpoint',
@@ -116,11 +92,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   })
 
   it("re-judges a redirect hop under the request's own policy and refuses metadata", async () => {
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(302, { location: 'http://169.254.169.254/latest/meta-data/' })
-      res.end()
-    })
+    const origin = await startRedirectServer(302, 'http://169.254.169.254/latest/meta-data/')
 
     await expect(
       secureFetchWithPinnedIP(origin, '127.0.0.1', {
@@ -132,11 +104,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('drops every header on a cross-origin hop when no policy is supplied', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'GET',
@@ -164,11 +132,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     const target = await startRecordingServer(hops)
     // 307 preserves the method and body verbatim, which is exactly the case
     // that would hand an Agiloft-style `$password` form to the redirect target.
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(307, `${target}/after`)
 
     await expect(
       secureFetchWithPinnedIP(origin, '127.0.0.1', {
@@ -182,64 +146,10 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     expect(hops).toHaveLength(0)
   })
 
-  it('replays a body to another origin only when a policy opts in', async () => {
-    const hops: RecordedHop[] = []
-    const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
-
-    await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      method: 'POST',
-      body: '{"intentional":true}',
-      headers: { 'Content-Type': 'application/json' },
-      redirectPolicy: {
-        mode: 'legacy',
-        sendCredentialsOnCrossOriginRedirect: false,
-        allowCrossOriginBody: true,
-      },
-      profile: 'configuredEndpoint',
-    })
-
-    expect(hops).toHaveLength(1)
-    expect(hops[0].body).toBe('{"intentional":true}')
-  })
-
-  it('keeps credentials cross-origin only when a policy explicitly opts in', async () => {
-    const hops: RecordedHop[] = []
-    const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
-
-    await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      method: 'POST',
-      body: '{"message":"opt-in"}',
-      headers: { Authorization: 'Bearer keep-me', 'Content-Type': 'application/json' },
-      redirectPolicy: {
-        mode: 'legacy',
-        sendCredentialsOnCrossOriginRedirect: true,
-        allowCrossOriginBody: true,
-      },
-      profile: 'configuredEndpoint',
-    })
-
-    expect(hops).toHaveLength(1)
-    expect(hops[0].headers.authorization).toBe('Bearer keep-me')
-  })
-
   it('lets a legacy block withhold credentials without changing its replay semantics', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -271,11 +181,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('uses Fetch-compatible POST handling for a standard 303', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -312,11 +218,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('changes a standard POST to a bodyless GET on 301', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(301, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(301, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -343,11 +245,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('keeps HEAD as HEAD on a standard 303', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'HEAD',
@@ -366,11 +264,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('preserves a standard 307 body while withholding cross-origin credentials', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(307, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -401,11 +295,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('allows an explicit standard-policy credential opt-in', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(307, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',

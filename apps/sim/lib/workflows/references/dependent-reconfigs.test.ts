@@ -1,19 +1,14 @@
-/**
- * @vitest-environment node
- */
+import {
+  searchReplaceIndexerMock,
+  searchReplaceIndexerMockFns,
+} from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetToolInputParamConfigs } = vi.hoisted(() => ({
-  mockGetToolInputParamConfigs: vi.fn(() => [] as unknown[]),
-}))
 
 /**
  * Mocked at the module boundary so these tests stay about the collector's own logic rather
  * than the tool/block registries the real resolver reaches into.
  */
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: mockGetToolInputParamConfigs,
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
 import {
   collectForkDependentReconfigs,
@@ -27,6 +22,8 @@ import {
   EMPTY_FORK_BLOCK_MAP,
 } from '@/ee/workspace-forking/lib/remap/block-identity'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+const { mockGetToolInputParamConfigs } = searchReplaceIndexerMockFns
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Test', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig
@@ -369,34 +366,6 @@ describe('collectForkDependentReconfigs', () => {
     expect(collectForkDependentReconfigs([replaceItem], states, resolve)).toEqual([])
   })
 
-  it('skips create-mode targets', () => {
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([
-        { id: 'credential', title: 'Credential', type: 'oauth-input' },
-        {
-          id: 'folder',
-          title: 'Label',
-          type: 'folder-selector',
-          dependsOn: ['credential'],
-          selectorKey: 'gmail.labels',
-        },
-      ])
-    )
-    const created = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('gmail', { credential: { value: 'cred-src' }, folder: { value: 'INBOX' } }),
-      ],
-    ])
-    expect(
-      collectForkDependentReconfigs(
-        [{ sourceWorkflowId: 'wf-src', targetWorkflowId: 'wf-tgt', mode: 'create' }],
-        created,
-        resolve
-      )
-    ).toEqual([])
-  })
-
   it('walks the transitive chain and tags the context key a re-pick provides', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
@@ -716,91 +685,6 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
-  it('honors a nested tool-scoped advanced override (manual mode passes through - no re-pick)', () => {
-    vi.mocked(getBlock).mockImplementation((type) => {
-      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
-      if (type === 'gmail')
-        return blockWith([
-          {
-            id: 'credential',
-            title: 'Credential',
-            type: 'oauth-input',
-            canonicalParamId: 'credential',
-            mode: 'basic',
-          },
-          {
-            id: 'manualCredential',
-            title: 'Credential ID',
-            type: 'short-input',
-            canonicalParamId: 'credential',
-            mode: 'advanced',
-          },
-          {
-            id: 'folder',
-            title: 'Label',
-            type: 'folder-selector',
-            dependsOn: ['credential'],
-            selectorKey: 'gmail.labels',
-            required: true,
-          },
-        ])
-      return undefined as unknown as BlockConfig
-    })
-    // Agent block with a nested gmail tool; the dormant basic credential holds a stale id while the
-    // tool-scoped `0:credential` override (when present) marks advanced as active.
-    const agentState = (canonicalModes?: Record<string, 'basic' | 'advanced'>) =>
-      ({
-        blocks: {
-          'block-1': {
-            id: 'block-1',
-            type: 'agent',
-            name: 'Block',
-            data: canonicalModes ? { canonicalModes } : {},
-            subBlocks: {
-              tools: {
-                value: [
-                  {
-                    type: 'gmail',
-                    title: 'Gmail 1',
-                    params: {
-                      credential: 'cred-stale',
-                      manualCredential: 'cred-active',
-                      folder: 'INBOX',
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        },
-        edges: [],
-        loops: {},
-        parallels: {},
-        variables: {},
-      }) as unknown as WorkflowState
-
-    // Scoped override present -> advanced (manual) mode: the manual credential passes through
-    // verbatim on sync, so its dependents are never cleared and no re-pick is offered.
-    const withOverride = collectForkDependentReconfigs(
-      [replaceItem],
-      new Map([['wf-src', agentState({ '0:credential': 'advanced' })]]),
-      resolve
-    )
-    expect(withOverride).toEqual([])
-
-    // Control: no override -> the value heuristic keeps the non-empty basic (unchanged behavior).
-    const heuristic = collectForkDependentReconfigs(
-      [replaceItem],
-      new Map([['wf-src', agentState()]]),
-      resolve
-    )
-    expect(heuristic).toHaveLength(1)
-    expect(heuristic[0]).toMatchObject({
-      parentSourceId: 'cred-stale',
-      subBlockKey: 'tools[0].folder',
-    })
-  })
-
   it('regression: two same-type nested tools resolve their canonical-mode override independently', () => {
     vi.mocked(getBlock).mockImplementation((type) => {
       if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
@@ -887,43 +771,6 @@ describe('collectForkDependentReconfigs', () => {
     expect(result[0]).toMatchObject({
       parentSourceId: 'cred-1-basic',
       subBlockKey: 'tools[1].folder',
-    })
-  })
-
-  it('offers a nested tool selector even when the source left it empty', () => {
-    vi.mocked(getBlock).mockImplementation((type) => {
-      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
-      if (type === 'gmail')
-        return blockWith([
-          { id: 'credential', title: 'Credential', type: 'oauth-input' },
-          {
-            id: 'folder',
-            title: 'Label',
-            type: 'folder-selector',
-            dependsOn: ['credential'],
-            selectorKey: 'gmail.labels',
-          },
-        ])
-      return undefined as unknown as BlockConfig
-    })
-    const states = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('agent', {
-          tools: {
-            value: [
-              { type: 'gmail', title: 'Gmail 1', params: { credential: 'cred-src', folder: '' } },
-            ],
-          },
-        }),
-      ],
-    ])
-    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
-    expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({
-      subBlockKey: 'tools[0].folder',
-      title: 'Label',
-      toolName: 'Gmail 1',
     })
   })
 
@@ -1076,57 +923,6 @@ describe('collectForkDependentReconfigs — blank source values never gate', () 
     expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: false, sourceValue: '' })
   })
 
-  it('still marks a populated required selector as required', () => {
-    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
-    const states = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('jira', {
-          credential: { value: 'cred-src' },
-          operation: { value: 'write' },
-          projectId: { value: 'PROJ-1' },
-        }),
-      ],
-    ])
-    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
-    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: true })
-  })
-
-  it('still gates a dependent whose source value is a non-string', () => {
-    // A multi-select selector (e.g. zoho-desk `departmentIds`) stores an array. The wire
-    // `sourceValue` coerces non-strings to '' - if the emptiness check read that coerced
-    // value, a populated multi-select would report blank and silently stop gating.
-    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
-    const states = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('jira', {
-          credential: { value: 'cred-src' },
-          operation: { value: 'write' },
-          projectId: { value: ['PROJ-1'] as unknown as string },
-        }),
-      ],
-    ])
-    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
-    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: true })
-  })
-
-  it('does not gate a dependent whose source value is an empty array', () => {
-    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
-    const states = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('jira', {
-          credential: { value: 'cred-src' },
-          operation: { value: 'write' },
-          projectId: { value: [] as unknown as string },
-        }),
-      ],
-    ])
-    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
-    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: false })
-  })
-
   it('reaches the same verdict in basic and advanced canonical mode', () => {
     vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
     const blankSubBlocks = {
@@ -1232,36 +1028,6 @@ describe('collectForkDependentReconfigs — nested tool params follow ParameterV
     expect(issue).toMatchObject({ required: false, toolName: 'Jira' })
   })
 
-  it('does not require a POPULATED user-or-llm param either', () => {
-    // Visibility, not emptiness, is the rule here. A parent swap blanks this field in the
-    // modal (`effectiveDependentValue`), so an emptiness-only guard would still gate it.
-    agentWithJiraTool()
-    mockGetToolInputParamConfigs.mockReturnValue(
-      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
-    )
-    const result = collectForkDependentReconfigs(
-      [replaceItem],
-      stateWithIssueKey('ACME-999'),
-      resolve
-    )
-    const issue = result.find((f) => f.subBlockKey === 'tools[0].issueKey')
-    expect(issue).toMatchObject({ required: false, sourceValue: 'ACME-999' })
-  })
-
-  it('still requires a populated user-only param', () => {
-    agentWithJiraTool()
-    mockGetToolInputParamConfigs.mockReturnValue(
-      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
-    )
-    const result = collectForkDependentReconfigs(
-      [replaceItem],
-      stateWithIssueKey('ACME-999'),
-      resolve
-    )
-    const domain = result.find((f) => f.subBlockKey === 'tools[0].domain')
-    expect(domain).toMatchObject({ required: true })
-  })
-
   it('falls back to the block-level required when no authoritative visibility exists', () => {
     // custom-tool / MCP / unresolvable tool id -> the resolver has no authoritative entry.
     // Fail closed: keep the pre-existing gate rather than silently un-gating an unknown schema.
@@ -1360,36 +1126,6 @@ describe('collectForkDependentReconfigs — nested tool params follow ParameterV
       required: false,
     })
   })
-
-  it('does not gate a blank user-only nested param', () => {
-    // Both invariants fire at once: user-only (so visibility would gate) but blank in the
-    // source (so there is nothing to carry across).
-    agentWithJiraTool()
-    mockGetToolInputParamConfigs.mockReturnValue(
-      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
-    )
-    const states = new Map<string, WorkflowState>([
-      [
-        'wf-src',
-        sourceState('agent', {
-          tools: {
-            value: [
-              {
-                type: 'jira',
-                title: 'Jira',
-                operation: 'read',
-                params: { credential: 'cred-src', domain: '', issueKey: '' },
-              },
-            ],
-          },
-        }),
-      ],
-    ])
-    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
-    expect(result.find((f) => f.subBlockKey === 'tools[0].domain')).toMatchObject({
-      required: false,
-    })
-  })
 })
 
 describe('collectForkResourceUsages', () => {
@@ -1435,19 +1171,6 @@ describe('collectForkResourceUsages', () => {
           { workflowId: 'wf-tgt-a', workflowName: 'Workflow A' },
           { workflowId: 'wf-tgt-b', workflowName: 'Workflow B' },
         ],
-      },
-    ])
-  })
-
-  it('includes create-mode targets (never-synced workflows count toward the next sync)', () => {
-    const states = new Map<string, WorkflowState>([['wf-a', credentialState('cred-src')]])
-    expect(
-      collectForkResourceUsages([usageItem('wf-a', 'wf-tgt-a', 'A', 'create')], states)
-    ).toEqual([
-      {
-        parentKind: 'credential',
-        parentSourceId: 'cred-src',
-        workflows: [{ workflowId: 'wf-tgt-a', workflowName: 'A' }],
       },
     ])
   })

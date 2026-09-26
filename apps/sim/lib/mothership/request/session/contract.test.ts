@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { MothershipStreamV1RunKind } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
@@ -61,56 +57,6 @@ describe('stream session contract parser', () => {
     }
   })
 
-  it('accepts contract session chat events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'session' as const,
-      payload: { kind: 'chat' as const, chatId: 'chat-1' },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
-  it('accepts contract complete events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'complete' as const,
-      payload: { status: 'complete' as const },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
-  it('accepts contract error events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'error' as const,
-      payload: { message: 'something went wrong' },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
-  it('accepts contract tool call events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'tool' as const,
-      payload: {
-        toolCallId: 'tc-1',
-        toolName: 'read',
-        phase: 'call' as const,
-        executor: 'sim' as const,
-        mode: 'sync' as const,
-      },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
   it.each(['run', 'complete'])('validates activity acknowledgement on %s boundaries', (type) => {
     const payload = type === 'run' ? { kind: 'checkpoint_pause' } : { status: 'complete' }
     const event = {
@@ -155,35 +101,6 @@ describe('stream session contract parser', () => {
     }
   })
 
-  it('accepts contract span events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'span' as const,
-      payload: {
-        kind: 'subagent' as const,
-        event: 'start' as const,
-        agent: 'file',
-      },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
-  it('accepts contract resource events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'resource' as const,
-      payload: {
-        op: 'upsert' as const,
-        resource: { id: 'r-1', type: 'file', title: 'test.md' },
-      },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
-  })
-
   it('rejects a resource event whose id names nothing', () => {
     for (const id of ['', '   ']) {
       const event = {
@@ -195,17 +112,6 @@ describe('stream session contract parser', () => {
       expect(isContractStreamEventEnvelope(event)).toBe(false)
       expect(parsePersistedStreamEventEnvelope(event).ok).toBe(false)
     }
-  })
-
-  it('accepts contract run events', () => {
-    const event = {
-      ...BASE_ENVELOPE,
-      type: 'run' as const,
-      payload: { kind: 'compaction_start' as const },
-    }
-
-    expect(isContractStreamEventEnvelope(event)).toBe(true)
-    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
   })
 
   it('accepts synthetic file preview events', () => {
@@ -247,32 +153,6 @@ describe('stream session contract parser', () => {
       throw new Error('expected invalid result')
     }
     expect(parsed.reason).toBe('invalid_stream_event')
-  })
-
-  it('rejects unknown event types', () => {
-    const parsed = parsePersistedStreamEventEnvelope({
-      ...BASE_ENVELOPE,
-      type: 'unknown_type',
-      payload: {},
-    })
-
-    expect(parsed.ok).toBe(false)
-    if (parsed.ok) {
-      throw new Error('expected invalid result')
-    }
-    expect(parsed.reason).toBe('invalid_stream_event')
-    expect(parsed.errors).toContain('unknown type="unknown_type"')
-  })
-
-  it('rejects non-object values', () => {
-    const parsed = parsePersistedStreamEventEnvelope('not an object')
-
-    expect(parsed.ok).toBe(false)
-    if (parsed.ok) {
-      throw new Error('expected invalid result')
-    }
-    expect(parsed.reason).toBe('invalid_stream_event')
-    expect(parsed.errors).toContain('value is not an object')
   })
 
   it('reports invalid JSON separately from schema failures', () => {

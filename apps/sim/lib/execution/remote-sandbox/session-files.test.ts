@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { execFile } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { lstat, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -9,6 +6,10 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,14 +22,7 @@ const { find, read, write, writeStream, create, run, remove } = vi.hoisted(() =>
   run: vi.fn(),
   remove: vi.fn(),
 }))
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    findSessionSandbox: find,
-    create,
-    resolveLifetimeMs: (ms: number) => ms,
-  }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   withSandboxSessionLock: async <T>(
     _key: string,
@@ -50,6 +44,12 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 describe('workbench file cancellation', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+      id: 'e2b',
+      findSessionSandbox: find,
+      create,
+      resolveLifetimeMs: (ms: number) => ms,
+    })
     find.mockResolvedValue({
       readFileWithLimit: read,
       writeFile: write,

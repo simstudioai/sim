@@ -1,29 +1,24 @@
-/** @vitest-environment node */
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
-const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint, target } = vi.hoisted(
-  () => ({
-    readScope: vi.fn(),
-    recordEffects: vi.fn(async () => {}),
-    fetcher: vi.fn(),
-    routeMatcher: vi.fn(),
-    recordInput: vi.fn(),
-    mint: vi.fn(),
-    target: vi.fn(),
-  })
-)
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: target,
+const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
+  readScope: vi.fn(),
+  recordEffects: vi.fn(async () => {}),
+  fetcher: vi.fn(),
+  routeMatcher: vi.fn(),
+  recordInput: vi.fn(),
+  mint: vi.fn(),
 }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/api/server/routes/in-process-transport', () => ({ matchV2Route: routeMatcher }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  SITE_URL: 'https://sim.test',
-  getInternalApiBaseUrl: () => 'http://internal-sim',
-}))
 vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   readSandboxResourceScope: readScope,
   recordSandboxResourceEffects: recordEffects,
@@ -31,6 +26,10 @@ vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
 
 import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
+
+const target = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+
+urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal-sim')
 
 const token = 'c46a460d-cd4b-4cda-93b6-1910774b6cab'
 const prefix = `https://public-sim/api/mothership/sandbox/${token}`
@@ -52,7 +51,6 @@ function request(path: string, init?: RequestInit) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   readScope.mockResolvedValue(scope)
   mint.mockResolvedValue('server-only-identity')
   target.mockResolvedValue({ workspaceId: scope.workspaceId })

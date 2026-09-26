@@ -5387,30 +5387,6 @@ export function getModelCapabilities(modelId: string): ModelCapabilities | null 
   return null
 }
 
-export function getModelsWithTemperatureSupport(): string[] {
-  const models: string[] = []
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      if (model.capabilities.temperature) {
-        models.push(model.id)
-      }
-    }
-  }
-  return models
-}
-
-export function getModelsWithTemperatureRange(max: number): string[] {
-  const models: string[] = []
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      if (model.capabilities.temperature?.max === max) {
-        models.push(model.id)
-      }
-    }
-  }
-  return models
-}
-
 export function getProvidersWithToolUsageControl(): string[] {
   const providers: string[] = []
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
@@ -5751,14 +5727,6 @@ export function getModelsWithPromptCaching(): string[] {
     }
   }
   return models
-}
-
-/**
- * Minimum prefix length the model will cache, or `null` when the model does
- * not support caller-placed breakpoints.
- */
-export function getPromptCachingMinimumTokens(modelId: string): number | null {
-  return getModelCapabilities(modelId)?.promptCaching?.minimumCacheableTokens ?? null
 }
 
 /**

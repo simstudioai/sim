@@ -1,25 +1,19 @@
-/**
- * @vitest-environment node
- */
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/mothership/request/tools/resolved-secret-result'
 
-const mocks = vi.hoisted(() => ({
-  loggerError: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   routeExecution: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mocks.loggerError }),
-}))
-
-vi.mock('@/lib/mothership/tools/server/router', () => ({ routeExecution: mocks.routeExecution }))
+vi.mock('@/lib/mothership/tools/server/router', () => ({ routeExecution: hoisted.routeExecution }))
 
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 
+const mocks = { ...hoisted, loggerError: getMockLogger('ServerToolAdapter').error }
+
 describe('server tool adapter authority boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.routeExecution.mockResolvedValue({ success: true })
   })
 

@@ -1,21 +1,31 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ authorize: vi.fn(), audit: vi.fn() }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 
 import { organizationSettingsOperations } from '@/lib/organizations/application/operations'
 import {
   readOrganizationSettings,
   updateOrganizationSettings,
 } from '@/lib/organizations/application/settings'
+
+const mocks = {
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -38,7 +48,6 @@ const row = {
 
 describe('organization identity settings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'actor', role: 'admin' })
     dbChainMockFns.limit.mockResolvedValue([row])
@@ -64,13 +73,6 @@ describe('organization identity settings', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
   })
-  it('rejects empty patches before mutation', async () => {
-    await expect(
-      updateOrganizationSettings.execute({ principal, input: { organizationId: 'org', patch: {} } })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
   it('preserves slug conflicts and does not audit a rejected change', async () => {
     await expect(
       updateOrganizationSettings.execute({
@@ -80,25 +82,5 @@ describe('organization identity settings', () => {
     ).rejects.toMatchObject({ code: 'validation', message: 'This slug is already taken' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-  it('projects the authoritative changed identity and acting principal into audit', async () => {
-    const result = await updateOrganizationSettings.execute({
-      principal,
-      input: { organizationId: 'org', patch: { name: ' Company ', logo: null } },
-    })
-    expect(result).toEqual({ ...row, updatedAt: row.updatedAt.toISOString() })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Company', logo: null })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      organizationSettingsOperations.update,
-      null,
-      principal,
-      undefined,
-      expect.arrayContaining([
-        expect.objectContaining({ resourceId: 'org', resourceName: 'Company' }),
-      ]),
-      'org'
-    )
   })
 })

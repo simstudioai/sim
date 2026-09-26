@@ -1,9 +1,12 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
@@ -14,9 +17,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   size: vi.fn(),
 }))
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({ id: 'e2b', findSessionSandbox: mocks.find }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   withSandboxSessionLock: async (
     _key: string,
@@ -27,11 +28,15 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
 
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(() => ({
+  id: 'e2b',
+  findSessionSandbox: mocks.find,
+}))
+
 const execute = promisify(execFile)
 let directory = ''
 let staged = ''
 beforeEach(async () => {
-  vi.clearAllMocks()
   directory = await realpath(await mkdtemp(join(tmpdir(), 'scratch-snapshot-')))
   staged = join(directory, 'snapshot')
   mocks.find.mockResolvedValue({

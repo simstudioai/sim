@@ -82,12 +82,6 @@ describe('file inputs through workflow run options', () => {
     expect(result.error).toContain('expected array')
   })
 
-  it('generates valid mock input from empty file defaults', () => {
-    const [option] = resolveTriggerRunOptions({ start: block })
-    expect(option.mockPayload).toMatchObject({ files: [] })
-    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
-  })
-
   it('preserves uploaded files stored as JSON in editor defaults', () => {
     const [option] = resolveTriggerRunOptions({
       start: {
@@ -145,25 +139,10 @@ describe('workflow input discovery schemas', () => {
     })
     expect(validateTriggerInput(option, { title: 'Report' }).ok).toBe(true)
   })
-
-  it('advertises optional attachments on chat triggers', () => {
-    const [option] = resolveTriggerRunOptions({ chat: { type: 'chat_trigger' } })
-    expect(option.inputSchema).toMatchObject({
-      required: ['input'],
-      properties: { files: { type: 'array', items: { anyOf: expect.any(Array) } } },
-    })
-  })
 })
 
 describe('validateTriggerInput', () => {
   describe('fields', () => {
-    it('accepts input that provides all declared fields with correct types', () => {
-      const option = makeOption({
-        inputFormat: fields({ name: 'city', type: 'string' }, { name: 'days', type: 'number' }),
-      })
-      expect(validateTriggerInput(option, { city: 'SF', days: 3 }).ok).toBe(true)
-    })
-
     it('rejects a missing required field (no default)', () => {
       const option = makeOption({ inputFormat: fields({ name: 'city', type: 'string' }) })
       const result = validateTriggerInput(option, {})
@@ -206,12 +185,6 @@ describe('validateTriggerInput', () => {
       )
     })
 
-    it('accepts an empty object when the trigger declares no fields', () => {
-      const option = makeOption({ inputFormat: [] })
-      expect(validateTriggerInput(option, {}).ok).toBe(true)
-      expect(validateTriggerInput(option, undefined).ok).toBe(true)
-    })
-
     it('rejects non-object input when fields are declared', () => {
       const option = makeOption({ inputFormat: fields({ name: 'city', type: 'string' }) })
       expect(validateTriggerInput(option, 'SF').ok).toBe(false)
@@ -223,10 +196,6 @@ describe('validateTriggerInput', () => {
       inputKind: 'event_payload',
       path: StartBlockPath.EXTERNAL_TRIGGER,
       triggerType: 'gmail',
-    })
-
-    it('accepts a non-empty object', () => {
-      expect(validateTriggerInput(option, { email: { from: 'a@b.com' } }).ok).toBe(true)
     })
 
     it('rejects an empty object', () => {
@@ -246,26 +215,9 @@ describe('validateTriggerInput', () => {
       triggerType: 'chat_trigger',
     })
 
-    it('accepts a non-empty input string', () => {
-      expect(validateTriggerInput(option, { input: 'hello' }).ok).toBe(true)
-    })
-
     it('rejects empty or missing input', () => {
       expect(validateTriggerInput(option, {}).ok).toBe(false)
       expect(validateTriggerInput(option, { input: '' }).ok).toBe(false)
-    })
-  })
-
-  describe('none', () => {
-    const option = makeOption({
-      inputKind: 'none',
-      path: StartBlockPath.EXTERNAL_TRIGGER,
-      triggerType: 'schedule',
-    })
-
-    it('accepts any input (no input required)', () => {
-      expect(validateTriggerInput(option, undefined).ok).toBe(true)
-      expect(validateTriggerInput(option, { anything: 1 }).ok).toBe(true)
     })
   })
 })

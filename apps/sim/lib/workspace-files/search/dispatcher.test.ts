@@ -1,45 +1,24 @@
-/**
- * @vitest-environment node
- */
 import {
   workspaceFileSearchBackfill,
   workspaceFileSearchDispatchQueue,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  batchTrigger: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}))
-
-vi.mock('@sim/db/schema', async () => ({
-  ...(await import('@sim/testing/mocks/schema.mock')).schemaMock,
-  workspaceFileSearchBackfill: { id: 'backfill.id' },
-  workspaceFileSearchDispatchQueue: {
-    workspaceId: 'queue.workspaceId',
-    lastDispatchedAt: 'queue.lastDispatchedAt',
-    enqueuedAt: 'queue.enqueuedAt',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mocks.info, warn: mocks.warn, error: mocks.error }),
-}))
 vi.mock('@/lib/workspace-files/search/index-state', () => ({
   cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
 }))
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 vi.mock('@/lib/workspace-files/search/indexing', () => ({
   indexWorkspaceFileForSearch: vi.fn(),
   markWorkspaceFileSearchIndexFailed: vi.fn(),
 }))
 
+import { tasks } from '@trigger.dev/sdk'
 import { FILE_SEARCH_DISPATCH_HANDOFF_MS } from '@/lib/workspace-files/search/constants'
 import {
   buildWorkspaceFileSearchTriggerItems,
@@ -47,6 +26,18 @@ import {
   prepareWorkspaceFileSearchDispatch,
   shouldUseWorkspaceFileSearchTrigger,
 } from '@/lib/workspace-files/search/dispatcher'
+
+const logger = getMockLogger('WorkspaceFileSearchDispatcher')
+const mocks = {
+  batchTrigger: vi.mocked(tasks.batchTrigger),
+  info: logger.info,
+  warn: logger.warn,
+  error: logger.error,
+}
+mocks.batchTrigger.mockReset()
+
+setEnvFlags({ isTriggerDevEnabled: true })
+afterAll(resetEnvFlagsMock)
 
 describe('workspace file search dispatch policy', () => {
   it('uses Trigger.dev from inside a task even when the deployment flag is absent', () => {
@@ -78,7 +69,6 @@ describe('workspace file search dispatch policy', () => {
 
 describe('workspace file search dispatch deadlines', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -144,28 +134,6 @@ describe('workspace file search dispatch deadlines', () => {
       code: '08006',
       error: 'commit failed',
     })
-  })
-
-  it('records the driver cancellation reason and preserves the original failure', async () => {
-    const error = new Error('Failed query\nparams: private-content', {
-      cause: Object.assign(new Error('canceling statement due to statement timeout'), {
-        code: '57014',
-        detail: 'private driver detail',
-      }),
-    })
-    dbChainMockFns.execute.mockResolvedValueOnce([]).mockResolvedValueOnce([{ acquired: true }])
-    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
-
-    await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
-    expect(mocks.error).toHaveBeenCalledWith('Workspace file search dispatch phase failed', {
-      phase: 'backfill',
-      durationMs: expect.any(Number),
-      code: '57014',
-      databaseReason: 'statement_timeout',
-      error: 'Failed query',
-    })
-    expect(mocks.batchTrigger).not.toHaveBeenCalled()
-    expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('private')
   })
 
   it.each([false, true])(

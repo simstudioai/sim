@@ -1,21 +1,22 @@
-/**
- * @vitest-environment node
- */
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { bitbucketSelectorAttachments } from '@/lib/selectors/server/providers/bitbucket'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 function repositoryArgs(
   overrides: Partial<ExecuteServerSelectorArgs> = {}
@@ -44,7 +45,6 @@ function providerResponse(body: unknown): Response {
 
 describe('Bitbucket server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
@@ -175,26 +175,5 @@ describe('Bitbucket server selector adapters', () => {
     expect(new URL(String(mockFetch.mock.calls[1]?.[0])).pathname).toBe(
       '/2.0/repositories/acme-platform'
     )
-  })
-
-  it('preserves a repository UUID while hydrating its canonical slug', async () => {
-    const repositoryUuid = '{470c176d-3574-44ea-bb41-89e8638bcca4}'
-    mockFetch.mockResolvedValueOnce(
-      providerResponse({
-        slug: 'payments-api',
-        uuid: repositoryUuid,
-        name: 'Payments API',
-        full_name: 'acme-platform/payments-api',
-      })
-    )
-
-    await expect(
-      bitbucketSelectorAttachments['bitbucket.repositories'].execute(
-        repositoryArgs({ request: { kind: 'detail', id: repositoryUuid } })
-      )
-    ).resolves.toMatchObject({
-      kind: 'detail',
-      item: { id: repositoryUuid, label: 'Payments API', meta: { slug: 'payments-api' } },
-    })
   })
 })

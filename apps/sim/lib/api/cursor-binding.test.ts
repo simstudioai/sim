@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { globSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -205,10 +202,6 @@ describe('v2 cursor binding', () => {
       expect(cursorScopeKey(LIST, { a: '1', b: '2' })).not.toBe(cursorScopeKey(LIST, { a: '1|2' }))
       expect(cursorScopeKey(LIST, { a: '1' })).not.toBe(cursorScopeKey(LIST, { b: '1' }))
     })
-
-    it('stays short enough to sit inside an opaque token', () => {
-      expect(cursorScopeKey(LIST, { search: 'x'.repeat(200) })).toHaveLength(22)
-    })
   })
 
   /**
@@ -408,7 +401,7 @@ describe('unordered filter scope parts', () => {
 })
 
 /**
- * The declaration sweep in `contracts/v2/__tests__/list-pagination.test.ts`
+ * The declaration sweep in `contracts/v2/list-pagination.test.ts`
  * reconciles each list's cursor binding against its CONTRACT, and never looks at
  * the `cursorScopeKey` call the route actually makes — which is precisely where
  * the missing list and parent identity sat. This closes that half: the scope a

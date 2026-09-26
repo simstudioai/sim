@@ -1,59 +1,38 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig } from '@/providers/types'
 
-const { mockCreate, mockExecuteTool } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
-}))
-
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: (messages: unknown) => messages,
-}))
+vi.mock('openai', () => openaiMock)
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 vi.mock('@/providers/mistral/utils', () => ({
   createReadableStreamFromMistralStream: vi.fn(),
 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn(() => []),
-  getProviderDefaultModel: vi.fn(() => 'mistral-large-latest'),
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: vi.fn((tools) => ({
-    tools,
-    toolChoice: 'auto',
-    forcedTools: [],
-  })),
-  sumToolCosts: vi.fn(() => 0),
-  trackForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-}))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { mistralProvider } from '@/providers/mistral'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation(
+  (tools) =>
+    ({
+      tools,
+      toolChoice: 'auto',
+      forcedTools: [],
+    }) as ReturnType<typeof providersUtilsMockFns.mockPrepareToolsWithUsageControl>
+)
 
 function makeTool(id: string): ProviderToolConfig {
   return {
@@ -76,7 +55,6 @@ async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
 
 describe('mistralProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
 

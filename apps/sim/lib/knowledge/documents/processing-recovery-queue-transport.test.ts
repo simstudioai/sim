@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,7 +46,6 @@ afterEach(() => {
   env.TRIGGER_SECRET_KEY = originalSecret
   resetEnvFlagsMock()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('document liveness SDK transport', () => {

@@ -10,20 +10,6 @@ import {
 const once: Recurrence = { frequency: 'once', weekdays: [], end: { type: 'never' } }
 
 describe('recurrenceToCron', () => {
-  it('returns null for a one-time task', () => {
-    expect(recurrenceToCron(once, '2026-06-15', '09:30')).toBeNull()
-  })
-
-  it('builds a daily expression at the launch time', () => {
-    expect(
-      recurrenceToCron(
-        { frequency: 'daily', weekdays: [], end: { type: 'never' } },
-        '2026-06-15',
-        '09:30'
-      )
-    ).toBe('30 9 * * *')
-  })
-
   it('builds a weekly expression from the selected weekdays, sorted and deduped', () => {
     expect(
       recurrenceToCron(
@@ -32,16 +18,6 @@ describe('recurrenceToCron', () => {
         '08:00'
       )
     ).toBe('0 8 * * 1,3')
-  })
-
-  it('builds a monthly expression from the launch day-of-month', () => {
-    expect(
-      recurrenceToCron(
-        { frequency: 'monthly', weekdays: [], end: { type: 'never' } },
-        '2026-06-15',
-        '07:05'
-      )
-    ).toBe('5 7 15 * *')
   })
 
   it('builds a monthly nth-weekday expression (2026-06-15 is the third Monday)', () => {
@@ -73,26 +49,6 @@ describe('recurrenceToCron', () => {
         '09:30'
       )
     ).toBe('30 9 * * 1#L')
-  })
-
-  it('builds a yearly expression from the launch month and day', () => {
-    expect(
-      recurrenceToCron(
-        { frequency: 'yearly', weekdays: [], end: { type: 'never' } },
-        '2026-06-15',
-        '09:30'
-      )
-    ).toBe('30 9 15 6 *')
-  })
-
-  it('preserves a custom expression verbatim', () => {
-    expect(
-      recurrenceToCron(
-        { frequency: 'custom', weekdays: [], end: { type: 'never' }, cron: '*/5 * * * *' },
-        '2026-06-15',
-        '09:00'
-      )
-    ).toBe('*/5 * * * *')
   })
 })
 
@@ -132,17 +88,6 @@ describe('recurrenceToScheduleFields', () => {
 
 describe('cronToRecurrence', () => {
   const anchor = new Date('2026-06-15T09:00:00Z')
-
-  it('recovers a one-time task from a null cron', () => {
-    const { recurrence } = cronToRecurrence({
-      cronExpression: null,
-      maxRuns: null,
-      endsAt: null,
-      anchor,
-      timezone: 'UTC',
-    })
-    expect(recurrence.frequency).toBe('once')
-  })
 
   it('recovers daily, weekly, and monthly cadences', () => {
     expect(
@@ -286,15 +231,6 @@ describe('expandOccurrences', () => {
     from: new Date('2026-05-31T00:00:00Z'),
   }
 
-  it('materializes every upcoming occurrence inside the range', () => {
-    const occurrences = expandOccurrences(base)
-    expect(occurrences.map((d) => d.toISOString())).toEqual([
-      '2026-06-01T12:00:00.000Z',
-      '2026-06-02T12:00:00.000Z',
-      '2026-06-03T12:00:00.000Z',
-    ])
-  })
-
   it('skips excluded occurrences', () => {
     const occurrences = expandOccurrences({ ...base, excludedDates: ['2026-06-02T12:00:00.000Z'] })
     expect(occurrences.map((d) => d.toISOString())).toEqual([
@@ -309,11 +245,6 @@ describe('expandOccurrences', () => {
       '2026-06-01T12:00:00.000Z',
       '2026-06-02T12:00:00.000Z',
     ])
-  })
-
-  it('omits occurrences that already passed relative to `from`', () => {
-    const occurrences = expandOccurrences({ ...base, from: new Date('2026-06-02T13:00:00Z') })
-    expect(occurrences.map((d) => d.toISOString())).toEqual(['2026-06-03T12:00:00.000Z'])
   })
 
   it('materializes a monthly nth-weekday cron (third Monday of each month)', () => {

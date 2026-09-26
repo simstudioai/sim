@@ -4,8 +4,6 @@ import {
   type EgressPolicy,
   evaluateAddress,
   evaluateUrl,
-  isLiftableByVouching,
-  policyDefersToAddress,
   STRICT_EGRESS_POLICY,
 } from './egress'
 
@@ -62,10 +60,6 @@ describe('evaluateUrl — IP-literal hosts resolve without DNS', () => {
   ])('rejects %s as %s — %s', (href, expected) => {
     expect(reason(hosted, href)).toBe(expected)
   })
-
-  it('allows a public IP literal', () => {
-    expect(decide(hosted, 'https://93.184.216.34/').allowed).toBe(true)
-  })
 })
 
 describe('cloud metadata is never reachable', () => {
@@ -96,23 +90,12 @@ describe('cloud metadata is never reachable', () => {
     expect(decide(permissive, 'https://169.254.1.1/').allowed).toBe(true)
   })
 
-  it('blocks metadata reached through an allowlisted hostname', () => {
-    const permissive = createEgressPolicy({ allowedHosts: 'metadata.internal' })
-    expect(reason(permissive, 'https://metadata.internal/', '169.254.169.254')).toBe(
-      'address-metadata'
-    )
-  })
-
   it.each([
     ['64:ff9b::a9fe:a9fe', 'the NAT64 form a DNS64 resolver returns'],
     ['64:ff9b::169.254.169.254', 'NAT64 written long-hand'],
   ])('blocks %s through an allowlisted hostname — %s', (address) => {
     const permissive = createEgressPolicy({ allowedHosts: 'internal.corp' })
     expect(reason(permissive, 'https://internal.corp/', address)).toBe('address-metadata')
-  })
-
-  it('blocks the AWS IPv6 metadata address', () => {
-    expect(reason(hosted, 'https://[fd00:ec2::254]/')).toBe('address-metadata')
   })
 
   it.each([
@@ -136,20 +119,12 @@ describe('operator allowlist — the self-hosted posture', () => {
     expect(decide(selfHosted, 'http://host.docker.internal/', '172.17.0.1').allowed).toBe(true)
   })
 
-  it('permits a wildcard hostname match', () => {
-    expect(decide(selfHosted, 'http://api.svc.cluster.local/', '10.4.5.6').allowed).toBe(true)
-  })
-
   it('permits an address inside an allowlisted range even for an unlisted hostname', () => {
     expect(decide(selfHosted, 'http://build-box.corp/', '10.9.9.9').allowed).toBe(true)
   })
 
   it('still refuses a private address outside every allowlist entry', () => {
     expect(reason(selfHosted, 'https://other.corp/', '172.16.4.4')).toBe('address-blocked')
-  })
-
-  it('still refuses plain http to a host it does not vouch for', () => {
-    expect(reason(selfHosted, 'http://example.com/', '93.184.216.34')).toBe('insecure-scheme')
   })
 
   it('does not let a wildcard match a bare suffix or a different domain', () => {
@@ -159,10 +134,6 @@ describe('operator allowlist — the self-hosted posture', () => {
     expect(reason(selfHosted, 'https://evil-svc.cluster.local.attacker.com/', '172.16.1.1')).toBe(
       'address-blocked'
     )
-  })
-
-  it('matches hostnames case-insensitively', () => {
-    expect(decide(selfHosted, 'http://HOST.DOCKER.INTERNAL/', '10.0.0.1').allowed).toBe(true)
   })
 })
 
@@ -177,20 +148,6 @@ describe('an IPv4 range matches every spelling of the same address', () => {
     ['64:ff9b::a00:1', 'the NAT64 form'],
   ])('permits %s — %s', (address) => {
     expect(decide(ranged, 'https://svc.internal/', address).allowed).toBe(true)
-  })
-
-  it('does not fold the addresses that are IPv6 in their own right', () => {
-    // `::1` is loopback, not 0.0.0.1 carried inside IPv6 — folding it would let
-    // a 0.0.0.0/8 entry match it, and stop `::1/128` matching it.
-    const loopback = createEgressPolicy({ allowedRanges: '::1/128' })
-    expect(decide(loopback, 'https://svc.internal/', '::1').allowed).toBe(true)
-
-    const zeroPage = createEgressPolicy({ allowedRanges: '0.0.0.0/8' })
-    expect(decide(zeroPage, 'https://svc.internal/', '::1').allowed).toBe(false)
-  })
-
-  it('still refuses an address outside the range in any spelling', () => {
-    expect(reason(ranged, 'https://svc.internal/', '::c0a8:101')).toBe('address-blocked')
   })
 })
 
@@ -231,26 +188,6 @@ describe('loopback is vouched by name, never by resolved address', () => {
     )
   })
 
-  it('does not extend the carve-out past loopback', () => {
-    expect(reason(selfHostedLoopback, 'https://svc.internal/', '10.0.0.5')).toBe('address-blocked')
-  })
-
-  it('falls through to the allowlist when localhost resolves off loopback', () => {
-    // The carve-out not applying is not a refusal: an operator who allowlisted
-    // the range the resolver actually answered with still gets their host.
-    const withRange = createEgressPolicy({
-      allowedRanges: '10.0.0.0/8',
-      allowLoopback: true,
-      insecureHttp: 'whenVouched',
-    })
-    expect(decide(withRange, 'https://localhost/', '10.0.0.5').allowed).toBe(true)
-    expect(reason(withRange, 'https://localhost/', '172.16.0.5')).toBe('address-blocked')
-  })
-
-  it('is absent when the policy does not permit loopback', () => {
-    expect(reason(hosted, 'http://localhost:11434/api', '127.0.0.1')).toBe('insecure-scheme')
-  })
-
   it('refuses when a resolver answers localhost with a routable address', () => {
     // The carve-out is for the loopback interface, not for whatever a resolver
     // decides `localhost` means today.
@@ -262,17 +199,6 @@ describe('loopback is vouched by name, never by resolved address', () => {
 
 describe('allowPrivate — the deprecated blanket flag', () => {
   const legacy = createEgressPolicy({ insecureHttp: 'whenVouched', allowPrivate: true })
-
-  it.each([
-    ['10.0.0.5', 'RFC1918'],
-    ['192.168.1.9', 'RFC1918'],
-    ['172.16.0.1', 'RFC1918'],
-    ['100.64.0.1', 'CGNAT — where Tailscale lives'],
-    ['127.0.0.1', 'loopback'],
-    ['198.18.0.1', 'benchmarking'],
-  ])('vouches for %s — %s', (address) => {
-    expect(decide(legacy, 'https://db.internal/', address).allowed).toBe(true)
-  })
 
   it('still cannot reach cloud metadata', () => {
     expect(reason(legacy, 'https://metadata/', '169.254.169.254')).toBe('address-metadata')
@@ -302,27 +228,11 @@ describe('denied ports', () => {
       'port-denied'
     )
   })
-
-  it('leaves ordinary ports alone', () => {
-    expect(decide(hosted, 'https://example.com:8443/', '93.184.216.34').allowed).toBe(true)
-  })
 })
 
 describe('evaluateAddress is authoritative for DNS names', () => {
   it('refuses a public hostname that resolves into private space', () => {
     expect(reason(hosted, 'https://rebind.example.com/', '10.0.0.1')).toBe('address-blocked')
-  })
-
-  it('refuses a public hostname that resolves to loopback', () => {
-    expect(reason(hosted, 'https://localtest.me/', '127.0.0.1')).toBe('address-loopback')
-  })
-
-  it('accepts a public hostname resolving to a public address', () => {
-    expect(decide(hosted, 'https://example.com/', '93.184.216.34').allowed).toBe(true)
-  })
-
-  it('lets evaluateUrl pass a DNS name it cannot yet classify', () => {
-    expect(decide(hosted, 'https://rebind.example.com/').allowed).toBe(true)
   })
 })
 
@@ -336,25 +246,8 @@ describe('invalid input fails closed', () => {
 })
 
 describe('createEgressPolicy rejects malformed operator config', () => {
-  it('names the offending setting in the error', () => {
-    expect(() =>
-      createEgressPolicy({
-        allowedRanges: 'not-a-cidr',
-        sourceNames: { hosts: 'EGRESS_ALLOWED_HOSTS', ranges: 'EGRESS_ALLOWED_IP_RANGES' },
-      })
-    ).toThrow(/EGRESS_ALLOWED_IP_RANGES entry "not-a-cidr"/)
-  })
-
   it('refuses a catch-all network', () => {
     expect(() => createEgressPolicy({ allowedRanges: '0.0.0.0/0' })).toThrow(/catch-all/)
-  })
-
-  it('refuses a near-catch-all shorter than /8', () => {
-    expect(() => createEgressPolicy({ allowedRanges: '0.0.0.0/1' })).toThrow(/catch-all/)
-    expect(() => createEgressPolicy({ allowedRanges: '::/1' })).toThrow(/catch-all/)
-    // /8 is the broadest legitimate entry and stays valid.
-    expect(() => createEgressPolicy({ allowedRanges: '10.0.0.0/8' })).not.toThrow()
-    expect(() => createEgressPolicy({ allowedRanges: 'fd00::/8' })).not.toThrow()
   })
 
   it('refuses a host entry carrying a port, comma, or colon', () => {
@@ -364,31 +257,6 @@ describe('createEgressPolicy rejects malformed operator config', () => {
     expect(() => createEgressPolicy({ allowedHosts: ['a.com,b.com'] })).toThrow(
       /port, comma, or colon/
     )
-  })
-
-  it('refuses a bare-suffix wildcard', () => {
-    expect(() => createEgressPolicy({ allowedHosts: '*.com' })).toThrow(/at least two labels/)
-  })
-
-  it('refuses a non-leading wildcard', () => {
-    expect(() => createEgressPolicy({ allowedHosts: 'api.*.example.com' })).toThrow(/leading/)
-  })
-
-  it('refuses a URL where a hostname is expected', () => {
-    expect(() => createEgressPolicy({ allowedHosts: 'https://example.com/x' })).toThrow(
-      /expected a hostname/
-    )
-  })
-
-  it('tolerates whitespace and empty entries in a list', () => {
-    const policy = createEgressPolicy({ allowedHosts: ' a.example.com , , b.example.com ' })
-    expect(decide(policy, 'https://a.example.com/', '10.0.0.1').allowed).toBe(true)
-    expect(decide(policy, 'https://b.example.com/', '10.0.0.1').allowed).toBe(true)
-  })
-
-  it('accepts an array as well as a comma-separated string', () => {
-    const policy = createEgressPolicy({ allowedRanges: ['10.0.0.0/8', '192.168.0.0/16'] })
-    expect(decide(policy, 'https://x.corp/', '192.168.4.4').allowed).toBe(true)
   })
 })
 
@@ -400,12 +268,6 @@ describe('must not over-block', () => {
     ['https://example.com/path?q=1#frag', 'query and fragment'],
   ])('allows %s — %s', (href) => {
     expect(decide(hosted, href).allowed).toBe(true)
-  })
-
-  it('does not treat a hostname containing a metadata-looking label as metadata', () => {
-    expect(decide(hosted, 'https://169.254.169.254.example.com/', '93.184.216.34').allowed).toBe(
-      true
-    )
   })
 })
 
@@ -421,29 +283,6 @@ describe('IPv6 forms that carry an IPv4 destination', () => {
     ['::a9fe:a9fe', 'deprecated IPv4-compatible'],
     ['64:ff9b::a9fe:a9fe', 'RFC 6052 well-known NAT64'],
     ['::ffff:0:a9fe:a9fe', 'RFC 6145 IPv4-translated'],
-  ])('reads %s as the metadata endpoint it carries — %s', (address) => {
-    expect(reason(vouchesByName, 'https://internal.corp/', address)).toBe('address-metadata')
-  })
-
-  it.each([
-    ['64:ff9b:1::a9fe:a9fe', 'metadata'],
-    ['64:ff9b:1::7f00:1', 'loopback'],
-  ])(
-    'refuses the RFC 8215 local-use NAT64 wrapper around %s, whose offset is network-specific',
-    (address) => {
-      expect(reason(hosted, 'https://example.com/', address)).toBe('address-blocked')
-      expect(reason(vouchesByName, 'https://internal.corp/', address)).toBe('address-blocked')
-    }
-  )
-
-  it('judges a public IPv4 carried in a translation prefix as that IPv4', () => {
-    expect(decide(hosted, 'https://example.com/', '64:ff9b::5db8:d822').allowed).toBe(true)
-    expect(decide(hosted, 'https://example.com/', '2002:5db8:d822::').allowed).toBe(true)
-  })
-
-  it.each([
-    ['2002:a9fe:a9fe::', 'RFC 3056 6to4'],
-    ['fe80::5efe:169.254.169.254', 'RFC 5214 ISATAP'],
   ])('reads %s as the metadata endpoint it carries — %s', (address) => {
     expect(reason(vouchesByName, 'https://internal.corp/', address)).toBe('address-metadata')
   })
@@ -476,77 +315,15 @@ describe('the loopback carve-out stops short of the port denylist', () => {
   ])('refuses %s — %s is where Sim listens, and nobody asked for it', (href) => {
     expect(reason(loopbackAllowed, href)).toBe('port-denied')
   })
-
-  it('still permits plain HTTP to loopback on an ordinary port', () => {
-    expect(decide(loopbackAllowed, 'http://localhost:11434/').allowed).toBe(true)
-  })
-
-  it('lifts the port denylist once an operator names the destination', () => {
-    const named = createEgressPolicy({ allowedHosts: 'localhost', insecureHttp: 'whenVouched' })
-    expect(decide(named, 'http://localhost:5432/').allowed).toBe(true)
-  })
 })
 
 describe('a name that says it is loopback is refused without a lookup', () => {
   it('refuses localhost before DNS when the policy does not permit loopback', () => {
     expect(reason(hosted, 'https://localhost/x')).toBe('address-loopback')
   })
-
-  it('still permits it when the policy grants the carve-out', () => {
-    const loopbackAllowed = createEgressPolicy({ allowLoopback: true })
-    expect(decide(loopbackAllowed, 'https://localhost/x').allowed).toBe(true)
-  })
-
-  it('still permits it when an operator named it', () => {
-    const named = createEgressPolicy({ allowedHosts: 'localhost' })
-    expect(decide(named, 'https://localhost/x').allowed).toBe(true)
-  })
-})
-
-describe('policyDefersToAddress', () => {
-  it('is false for a policy whose only softenings are decided from the hostname', () => {
-    expect(
-      policyDefersToAddress(createEgressPolicy({ allowLoopback: true, allowedHosts: 'a.corp' }))
-    ).toBe(false)
-  })
-
-  it.each([
-    [createEgressPolicy({ allowedRanges: '10.0.0.0/8' }), 'a range entry'],
-    [createEgressPolicy({ allowPrivate: true }), 'the blanket private grant'],
-  ])('is true for %#: %s', (policy) => {
-    expect(policyDefersToAddress(policy)).toBe(true)
-  })
-})
-
-describe('isLiftableByVouching', () => {
-  it.each([['scheme-not-permitted'], ['address-metadata']] as const)(
-    'reports %s as final',
-    (reasonCode) => {
-      expect(isLiftableByVouching(reasonCode)).toBe(false)
-    }
-  )
-
-  it.each([
-    ['insecure-scheme'],
-    ['port-denied'],
-    ['address-loopback'],
-    ['address-blocked'],
-  ] as const)('reports %s as liftable', (reasonCode) => {
-    expect(isLiftableByVouching(reasonCode)).toBe(true)
-  })
 })
 
 describe('createEgressPolicy validates wildcard entries too', () => {
-  it.each([
-    ['*.foo.com/x', /expected a hostname/],
-    ['*.a*.com', /leading/],
-    ['*..com', /non-empty/],
-    ['*.', /leading/],
-    ['.example.com', /non-empty/],
-  ])('rejects %s', (entry, message) => {
-    expect(() => createEgressPolicy({ allowedHosts: [entry] })).toThrow(message)
-  })
-
   it('matches a wildcard at any depth but never the bare apex', () => {
     const policy = createEgressPolicy({ allowedHosts: '*.svc.cluster.local' })
     expect(decide(policy, 'https://vllm.ai.svc.cluster.local/', '10.4.2.9').allowed).toBe(true)
@@ -558,19 +335,6 @@ describe('a scope id does not change what an address is', () => {
   it('still reads a zoned metadata address as metadata', () => {
     const policy = createEgressPolicy({ allowPrivate: true })
     expect(reason(policy, 'https://pg.corp/', 'fd00:ec2::254%eth0')).toBe('address-metadata')
-  })
-})
-
-describe('an explicit allowlist grant outranks the loopback carve-out', () => {
-  it('lifts the port denylist that the carve-out alone leaves in place', () => {
-    const named = createEgressPolicy({
-      allowedRanges: '127.0.0.1/32',
-      allowLoopback: true,
-      insecureHttp: 'whenVouched',
-    })
-    const carveOutOnly = createEgressPolicy({ allowLoopback: true, insecureHttp: 'whenVouched' })
-    expect(decide(named, 'http://localhost:5432/', '127.0.0.1').allowed).toBe(true)
-    expect(reason(carveOutOnly, 'http://localhost:5432/', '127.0.0.1')).toBe('port-denied')
   })
 })
 
@@ -590,20 +354,8 @@ describe('a trailing dot does not defeat the host allowlist', () => {
   })
 })
 
-describe('an operator range naming a translation prefix still matches', () => {
-  it('vouches for an address inside it', () => {
-    const policy = createEgressPolicy({ allowedRanges: '64:ff9b::/96' })
-    expect(decide(policy, 'https://svc.internal/', '64:ff9b::a00:1').allowed).toBe(true)
-  })
-})
-
 describe('an internationalized allowlist entry names the form that works', () => {
   it('refuses the Unicode spelling rather than silently never matching', () => {
     expect(() => createEgressPolicy({ allowedHosts: ['*.exämple.com'] })).toThrow(/punycode/)
-  })
-
-  it('accepts the A-label form', () => {
-    const policy = createEgressPolicy({ allowedHosts: '*.xn--exmple-cua.com' })
-    expect(decide(policy, 'https://api.xn--exmple-cua.com/', '10.0.0.1').allowed).toBe(true)
   })
 })

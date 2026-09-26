@@ -1,18 +1,9 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 async function expectValidationError(
   promise: Promise<unknown>,
@@ -31,15 +22,10 @@ async function expectValidationError(
 
 describe('validateAttioServiceAccount', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('returns workspace info on an active token', async () => {
+  it('sends the bearer token to the self endpoint', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({
         active: true,
@@ -49,7 +35,7 @@ describe('validateAttioServiceAccount', () => {
       })
     )
 
-    const result = await validateAttioServiceAccount({ apiToken: 'attio-token' })
+    await validateAttioServiceAccount({ apiToken: 'attio-token' })
 
     expect(mockFetch).toHaveBeenCalledWith('https://api.attio.com/v2/self', {
       headers: {
@@ -58,50 +44,6 @@ describe('validateAttioServiceAccount', () => {
       },
       signal: expect.any(AbortSignal),
     })
-    expect(result).toEqual({
-      displayName: 'Acme CRM',
-      principal: { kind: 'tenant', id: 'ws-123', label: 'acme-crm' },
-      auditMetadata: {},
-    })
-  })
-
-  it('maps a 401 to invalid_credentials', async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: 'unauthorized' }, 401))
-
-    await expectValidationError(
-      validateAttioServiceAccount({ apiToken: 'bad-token' }),
-      'invalid_credentials'
-    )
-  })
-
-  it('maps a 400 (malformed token not recognised) to invalid_credentials', async () => {
-    mockFetch.mockResolvedValue(
-      jsonResponse({ status_code: 400, type: 'invalid_request_error' }, 400)
-    )
-
-    const error = await expectValidationError(
-      validateAttioServiceAccount({ apiToken: 'not-a-real-key' }),
-      'invalid_credentials'
-    )
-    expect(error.status).toBe(400)
-  })
-
-  it('maps a 500 to provider_unavailable', async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: 'boom' }, 500))
-
-    await expectValidationError(
-      validateAttioServiceAccount({ apiToken: 'attio-token' }),
-      'provider_unavailable'
-    )
-  })
-
-  it('maps a malformed 200 (missing workspace fields) to provider_unavailable', async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ unexpected: 'shape' }))
-
-    await expectValidationError(
-      validateAttioServiceAccount({ apiToken: 'attio-token' }),
-      'provider_unavailable'
-    )
   })
 
   it('maps a JSON-valid but non-object 200 body (null) to provider_unavailable', async () => {

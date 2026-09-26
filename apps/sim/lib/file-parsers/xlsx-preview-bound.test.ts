@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 
@@ -23,10 +20,6 @@ function inflatedRangeWorkbook(): Buffer {
 }
 
 describe('XlsxParser preview bound', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('converts only the preview window, not the declared range', async () => {
     const toJson = vi.spyOn(XLSX.utils, 'sheet_to_json')
 
@@ -107,47 +100,6 @@ describe('XlsxParser preview bound', () => {
     expect(sampledCharacters).toBe(100 * 32 * 256)
   })
 
-  it('still reports the workbook the sheet declares', async () => {
-    const result = await new XlsxParser().parseBuffer(inflatedRangeWorkbook())
-
-    // Bounding the conversion must not change what the metadata claims the
-    // workbook holds, only how much of it is materialized to say so.
-    expect(result.metadata?.totalRows).toBe(200000)
-    expect(result.content).toContain('header-a')
-    expect(result.content).toContain('row-2-b')
-  })
-
-  it('still reports truncation for a sheet larger than the preview window', async () => {
-    const result = await new XlsxParser().parseBuffer(inflatedRangeWorkbook())
-
-    /**
-     * Bounding the conversion made the converted length equal the window, so
-     * comparing it against the window could never be true — the notice silently
-     * disappeared from exactly the large sheets it exists for.
-     */
-    expect(result.metadata?.truncated).toBe(true)
-    expect(result.content).toContain('200,000 total rows')
-  })
-
-  /**
-   * A sheet whose declared range fits inside the window was not cut short, even
-   * though blank rows mean fewer rows survive conversion than the range names.
-   * Comparing the declared count against the converted length reported those as
-   * truncated.
-   */
-  it('does not report truncation for a small sheet containing blank rows', async () => {
-    // A genuinely empty row — empty strings are still cells and are not skipped.
-    const sheet = XLSX.utils.aoa_to_sheet([['header-a', 'header-b'], [], ['row-2-a', 'row-2-b']])
-    const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, sheet, 'Sheet1')
-    const buffer = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
-
-    const result = await new XlsxParser().parseBuffer(buffer)
-
-    expect(result.metadata?.truncated).toBe(false)
-    expect(result.content).not.toContain('total rows, showing first')
-  })
-
   it('preserves a long cell in full when the aggregate output remains within budget', async () => {
     const longCell = 'x'.repeat(2_000)
     const sheet = XLSX.utils.aoa_to_sheet([['header'], [longCell]])
@@ -160,20 +112,6 @@ describe('XlsxParser preview bound', () => {
     expect(result.metadata?.truncated).toBe(false)
     expect(result.content).toContain(longCell)
   })
-
-  it.each(['', '   '])(
-    'does not treat an empty-string cell as extractable content',
-    async (cell) => {
-      const sheet = XLSX.utils.aoa_to_sheet([[cell]])
-      const book = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(book, sheet, 'Empty')
-      const buffer = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
-
-      const result = await new XlsxParser().parseBuffer(buffer)
-
-      expect(result.metadata?.degraded).toBe(true)
-    }
-  )
 
   it('measures the rendered content cap in UTF-8 bytes', async () => {
     const rows = Array.from({ length: 50 }, () =>

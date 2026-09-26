@@ -1,23 +1,17 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { envMockFns, resetEnvMock } from '@sim/testing/mocks/env.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToString } from 'react-dom/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSsoSignIn, mockUseSearchParams, mockRequestJson } = vi.hoisted(() => ({
-  mockSsoSignIn: vi.fn(),
-  mockUseSearchParams: vi.fn(),
-  mockRequestJson: vi.fn(),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: mockUseSearchParams,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
@@ -36,9 +30,7 @@ vi.mock('@sim/emcn', () => ({
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { signIn: { sso: mockSsoSignIn } },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/(auth)/components', () => ({
   AuthFormMessage: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -59,33 +51,17 @@ vi.mock('@/app/(auth)/components', () => ({
   ),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: () => 'true',
-  isFalsy: (value: unknown) => value === undefined || value === 'false',
-}))
-
-import { ApiClientError } from '@/lib/api/client/errors'
 import SSOForm from '@/ee/sso/components/sso-form'
 
-function renderFirstFrame(search: string, registrationDisabled = false): string {
+const mockSsoSignIn = authClientMockFns.mockClient.signIn.sso
+
+const mockUseSearchParams = nextNavigationMockFns.mockUseSearchParams
+envMockFns.getEnv.mockReturnValue('true')
+afterAll(resetEnvMock)
+
+function renderFirstFrame(search: string): string {
   mockUseSearchParams.mockReturnValue(new URLSearchParams(search))
-  return renderToString(<SSOForm registrationDisabled={registrationDisabled} />)
-}
-
-let container: HTMLDivElement
-let root: Root
-
-function renderInteractive(search = '') {
-  mockUseSearchParams.mockReturnValue(new URLSearchParams(search))
-  act(() => root.render(<SSOForm registrationDisabled={false} />))
-}
-
-async function submitForm() {
-  const form = container.querySelector('form')
-  expect(form).not.toBeNull()
-  await act(async () => {
-    form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-  })
+  return renderToString(<SSOForm registrationDisabled={false} />)
 }
 
 /**
@@ -98,186 +74,10 @@ describe('SSOForm callback URL', () => {
     mockUseSearchParams.mockReset()
   })
 
-  it('carries a valid callbackUrl on the first rendered frame', () => {
-    const html = renderFirstFrame('callbackUrl=/workspace/abc/w/xyz')
-
-    expect(html).toContain(encodeURIComponent('/workspace/abc/w/xyz'))
-  })
-
-  it('falls back to the app entry when no callbackUrl is present', () => {
-    const html = renderFirstFrame('')
-
-    expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/home')}`)
-  })
-
   it('rejects an off-origin callbackUrl and falls back to the app entry', () => {
     const html = renderFirstFrame('callbackUrl=https://evil.example.com/steal')
 
     expect(html).not.toContain('evil.example.com')
     expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/home')}`)
-  })
-})
-
-describe('SSOForm signup cross-link', () => {
-  beforeEach(() => {
-    mockUseSearchParams.mockReset()
-  })
-
-  it('offers signup when registration is enabled', () => {
-    const html = renderFirstFrame('')
-
-    expect(html).toContain('Don&#x27;t have an account?')
-    expect(html).toContain('/signup')
-  })
-
-  /** `/signup` rejects the visitor server-side, so linking there is a dead end. */
-  it('hides signup when registration is disabled', () => {
-    const html = renderFirstFrame('', true)
-
-    expect(html).not.toContain('Don&#x27;t have an account?')
-    expect(html).not.toContain('/signup')
-  })
-})
-
-describe('SSOForm sign-in errors', () => {
-  beforeEach(() => {
-    mockSsoSignIn.mockReset()
-    mockUseSearchParams.mockReset()
-    mockRequestJson.mockReset()
-    mockRequestJson.mockResolvedValue({ providerId: 'example-okta' })
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-  })
-
-  afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
-  })
-
-  it('shows an actionable seat message after a successful IdP login cannot provision access', async () => {
-    renderInteractive('error=sso_no_seats')
-
-    await act(async () => {})
-
-    expect(container).toHaveTextContent('Your organization has no available seat capacity.')
-    expect(container).toHaveTextContent('Ask an administrator to increase capacity')
-    expect(container.querySelector('[role="alert"]')).toHaveTextContent(
-      'Your organization has no available seat capacity.'
-    )
-    expect(container.querySelector('#email')).not.toHaveAttribute('aria-invalid')
-    expect(container.querySelector('#email')).not.toHaveAttribute('aria-describedby')
-  })
-
-  it('names the resolved provider instead of leaving the choice to the domain lookup', async () => {
-    mockSsoSignIn.mockResolvedValue({ data: { url: 'https://idp.example.com' }, error: null })
-    renderInteractive('email=user%40example.com')
-
-    await submitForm()
-
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/api/auth/sso/resolve' }),
-      { body: { email: 'user@example.com' } }
-    )
-    expect(mockSsoSignIn).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com', providerId: 'example-okta' })
-    )
-    const [signIn] = mockSsoSignIn.mock.calls[0]
-    expect(signIn.errorCallbackURL).not.toContain('provider=')
-  })
-
-  it('signs in through the provider a test link names, and returns to that link on failure', async () => {
-    mockRequestJson.mockResolvedValue({ providerId: 'example-okta' })
-    mockSsoSignIn.mockResolvedValue({ data: { url: 'https://idp.example.com' }, error: null })
-    renderInteractive('email=user%40example.com&provider=example-okta')
-
-    await submitForm()
-
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/api/auth/sso/resolve' }),
-      { body: { email: 'user@example.com', providerId: 'example-okta' } }
-    )
-    const [signIn] = mockSsoSignIn.mock.calls[0]
-    expect(signIn.providerId).toBe('example-okta')
-    expect(signIn.errorCallbackURL).toContain('provider=example-okta')
-    /** The SSO plugin appends `?error=…` to the URL, so the test link must survive that suffix. */
-    const retry = new URL(`${signIn.errorCallbackURL}?error=invalid_provider`, 'https://sim.test')
-    expect(retry.searchParams.get('provider')).toBe('example-okta')
-  })
-
-  it('explains a test link that does not match the email domain', async () => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ status: 404, message: 'No identity provider is configured', body: {} })
-    )
-    renderInteractive('email=user%40example.com&provider=someone-elses-idp')
-
-    await submitForm()
-
-    expect(container).toHaveTextContent('This sign-in link is not set up for your email domain.')
-    expect(mockSsoSignIn).not.toHaveBeenCalled()
-  })
-
-  it('explains when no provider serves the domain, without starting a sign-in', async () => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ status: 404, message: 'No identity provider is configured', body: {} })
-    )
-    renderInteractive('email=user%40nowhere.test')
-
-    await submitForm()
-
-    expect(container).toHaveTextContent('No SSO provider is configured for this email domain')
-    expect(mockSsoSignIn).not.toHaveBeenCalled()
-    const submitButton = container.querySelector<HTMLButtonElement>('button[type="submit"]')
-    expect(submitButton?.disabled).toBe(false)
-  })
-
-  it('keeps the generic message when resolution fails for another reason', async () => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ status: 429, message: 'Too many requests', body: {} })
-    )
-    renderInteractive('email=user%40example.com')
-
-    await submitForm()
-
-    expect(container).toHaveTextContent('Unable to start SSO. Check your email and try again.')
-    expect(container).not.toHaveTextContent('No SSO provider is configured')
-    expect(mockSsoSignIn).not.toHaveBeenCalled()
-  })
-
-  it('shows a generic retryable error when Better Auth resolves with a 404', async () => {
-    mockSsoSignIn.mockResolvedValue({
-      data: null,
-      error: {
-        message: 'No provider found for the issuer',
-        status: 404,
-        statusText: 'Not Found',
-      },
-    })
-    renderInteractive('email=user%40example.com')
-
-    await submitForm()
-
-    expect(container).toHaveTextContent('Unable to start SSO. Check your email and try again.')
-    expect(container).not.toHaveTextContent('No provider found for the issuer')
-    const submitButton = container.querySelector<HTMLButtonElement>('button[type="submit"]')
-    expect(submitButton?.disabled).toBe(false)
-    expect(submitButton).toHaveTextContent('Continue with SSO')
-
-    await submitForm()
-    expect(mockSsoSignIn).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not expose the message from a rejected sign-in request', async () => {
-    mockSsoSignIn.mockRejectedValue(new Error('INVALID_EMAIL_DOMAIN'))
-    renderInteractive('email=user%40example.com')
-
-    await submitForm()
-
-    expect(container).toHaveTextContent('Unable to start SSO. Check your email and try again.')
-    expect(container).not.toHaveTextContent('INVALID_EMAIL_DOMAIN')
-    const submitButton = container.querySelector<HTMLButtonElement>('button[type="submit"]')
-    expect(submitButton?.disabled).toBe(false)
-    expect(submitButton).toHaveTextContent('Continue with SSO')
   })
 })

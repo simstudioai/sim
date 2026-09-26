@@ -1,19 +1,31 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import { executeWorkflowMock } from '@sim/testing/mocks/execute-workflow.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspaceApplicationContext: vi.fn(),
-  resolveOutboundRoute: vi.fn(async (_organizationId: string | null | undefined) => ({
-    kind: 'direct',
-  })),
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
-  getRowSummaryById: vi.fn(),
-  createProvenanceReader: vi.fn(),
-  updateRow: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   pickNextEligibleGroupForRow: vi.fn(),
   stashCellContextForResume: vi.fn(),
   writeWorkflowGroupState: vi.fn(async () => 'wrote'),
@@ -24,62 +36,37 @@ const mocks = vi.hoisted(() => ({
   getEnrichment: vi.fn(),
   runEnrichment: vi.fn(),
   skippedEnrichmentDetail: vi.fn(() => ({})),
-  checkAttributedUsageLimits: vi.fn(async () => ({ isExceeded: false })),
-  exportProvenance: vi.fn(() => ({ scope: null, entries: [] })),
 }))
 
-vi.mock('@/lib/core/network/config.server', () => ({
-  isOutboundRoutingEnabled: () => true,
-  resolveOutboundRoute: mocks.resolveOutboundRoute,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadWorkspaceApplicationContext: mocks.loadWorkspaceApplicationContext,
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({
-  getRowById: mocks.getRowById,
-  getRowSummaryById: mocks.getRowSummaryById,
-  updateRow: mocks.updateRow,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 vi.mock('@/lib/table/cell-write', () => ({
-  writeWorkflowGroupState: mocks.writeWorkflowGroupState,
-  markWorkflowGroupPickedUp: mocks.markWorkflowGroupPickedUp,
-  createWorkflowCellProgressWriter: mocks.createWorkflowCellProgressWriter,
-  buildCancelledExecution: mocks.buildCancelledExecution,
+  writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
+  markWorkflowGroupPickedUp: hoisted.markWorkflowGroupPickedUp,
+  createWorkflowCellProgressWriter: hoisted.createWorkflowCellProgressWriter,
+  buildCancelledExecution: hoisted.buildCancelledExecution,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
-  classifyWorkflowCellTerminalResult: mocks.classifyWorkflowCellTerminalResult,
+  classifyWorkflowCellTerminalResult: hoisted.classifyWorkflowCellTerminalResult,
 }))
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
-vi.mock('@/enrichments/registry', () => ({ getEnrichment: mocks.getEnrichment }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
+vi.mock('@/enrichments/registry', () => ({ getEnrichment: hoisted.getEnrichment }))
 vi.mock('@/enrichments/run', () => ({
-  runEnrichment: mocks.runEnrichment,
-  skippedEnrichmentDetail: mocks.skippedEnrichmentDetail,
+  runEnrichment: hoisted.runEnrichment,
+  skippedEnrichmentDetail: hoisted.skippedEnrichmentDetail,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  toBillingContext: vi.fn(() => ({})),
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mocks.checkAttributedUsageLimits,
-}))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: vi.fn(() => undefined),
-  createTableRowSecretProvenanceFromRegistry: vi.fn(() => undefined),
-  TableRowProvenanceReader: class {
-    constructor(scope: unknown, selectedColumnIds: unknown) {
-      mocks.createProvenanceReader(scope, selectedColumnIds)
-    }
-    exportProvenance = mocks.exportProvenance
-  },
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
     async importCrossingProvenance() {}
   },
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 /**
  * Unmocked, the pacing loop constructs a real RateLimiter against the global
@@ -94,6 +81,31 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
+
+const mocks = {
+  ...hoisted,
+  resolveOutboundRoute: networkConfigMockFns.mockResolveOutboundRoute,
+  getRowById: tableRowsServiceMockFns.mockGetRowById,
+  getRowSummaryById: tableRowsServiceMockFns.mockGetRowSummaryById,
+  updateRow: tableRowsServiceMockFns.mockUpdateRow,
+  createProvenanceReader: tableRowsSecretProvenanceMockFns.mockTableRowProvenanceReader,
+  checkAttributedUsageLimits: billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits,
+  exportProvenance: tableRowsSecretProvenanceMockFns.mockTableRowProvenanceReaderExportProvenance,
+}
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockLoadWorkspaceApplicationContext =
+  workspaceContextMockFns.mockLoadWorkspaceApplicationContext as Mock
+billingAttributionMockFns.mockToBillingContext.mockReturnValue({} as never)
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+mocks.checkAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+mocks.exportProvenance.mockReturnValue({ scope: null, entries: [] } as never)
+tableRowsSecretProvenanceMockFns.mockCreateExactEmptyTableRowSecretProvenance.mockReturnValue(
+  undefined as never
+)
+tableRowsSecretProvenanceMockFns.mockCreateTableRowSecretProvenanceFromRegistry.mockReturnValue(
+  undefined as never
+)
 
 const GROUP = {
   id: 'group-1',
@@ -165,13 +177,12 @@ describe('enrichment cell capability subject', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
       mocks.getRowById(tableId, rowId, workspaceId)
     )
-    mocks.loadWorkspaceApplicationContext.mockResolvedValue({ workspaceOrganizationId: null })
-    mocks.getTableById.mockResolvedValue(TABLE)
+    mockLoadWorkspaceApplicationContext.mockResolvedValue({ workspaceOrganizationId: null })
+    mockGetTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({
       id: 'row-1',
       data: { 'col-in': 'example.com' },
@@ -191,7 +202,7 @@ describe('enrichment cell capability subject', () => {
   })
 
   it('builds enrichment inputs from the captured row after pickup and excludes own outputs', async () => {
-    mocks.getTableById.mockResolvedValue({
+    mockGetTableById.mockResolvedValue({
       ...TABLE,
       schema: {
         ...TABLE.schema,
@@ -236,7 +247,7 @@ describe('enrichment cell capability subject', () => {
   it.each(['org_reserved', 'org_other', null])(
     'restores the current workspace owner %s before running a queued enrichment',
     async (organizationId) => {
-      mocks.loadWorkspaceApplicationContext.mockResolvedValue({
+      mockLoadWorkspaceApplicationContext.mockResolvedValue({
         workspaceOrganizationId: organizationId,
       })
       mocks.runEnrichment.mockImplementationOnce(async () => {
@@ -247,7 +258,7 @@ describe('enrichment cell capability subject', () => {
       await runRowCascadeLoop(payload(null, 'billing-owner') as never)
 
       expect(mocks.resolveOutboundRoute).toHaveBeenCalledExactlyOnceWith(organizationId)
-      expect(mocks.loadWorkspaceApplicationContext).toHaveBeenCalledWith('workspace-1', {})
+      expect(mockLoadWorkspaceApplicationContext).toHaveBeenCalledWith('workspace-1', {})
     }
   )
 

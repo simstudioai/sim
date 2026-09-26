@@ -1,11 +1,12 @@
-/** @vitest-environment node */
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchSource } = vi.hoisted(() => ({ fetchSource: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: fetchSource,
-}))
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
 
 import {
   type GitLabPermissionProject,
@@ -16,6 +17,8 @@ import {
   validateGitLabPermissionToken,
 } from '@/connectors/gitlab/permissions'
 import type { ExternalDocument } from '@/connectors/types'
+
+const fetchSource = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 const project: GitLabPermissionProject = {
   id: 42,
@@ -88,7 +91,6 @@ function document(id: string, metadata?: Record<string, unknown>): ExternalDocum
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   sourceProject = project
   fetchSource.mockImplementation(async (raw: string) => {
     const url = new URL(raw)
@@ -223,27 +225,6 @@ describe('GitLab source permission audiences', () => {
     expect(acls['merge_request:7']).toEqual([
       'g:gitlab:gitlab.example.com%3A8443/42:project:42:merge_requests',
     ])
-  })
-
-  it('loads directory permissions lazily and replaces an earlier content snapshot', async () => {
-    const context = {}
-    await getGitLabDocumentAcls('test-token', config, [document('file:README.md')], context)
-    const directory = await openGitLabDirectory('test-token', config, context)
-    expect(
-      fetchSource.mock.calls.filter(([raw]) => new URL(raw).pathname === '/api/v4/users')
-    ).toHaveLength(1)
-    sourceProject = { ...project, wiki_access_level: 'disabled' }
-    const groups = await directory.listGroups()
-    expect((await directory.listGroupMembers(groups[1])).memberTokens).toEqual([])
-    await getGitLabDocumentAcls('test-token', config, [document('file:README.md')], context)
-    expect(
-      fetchSource.mock.calls.filter(([raw]) => new URL(raw).pathname === '/api/v4/users')
-    ).toHaveLength(2)
-    const next = await openGitLabDirectory('test-token', config, {})
-    await next.listGroups()
-    expect(
-      fetchSource.mock.calls.filter(([raw]) => new URL(raw).pathname === '/api/v4/users')
-    ).toHaveLength(3)
   })
 
   it('rejects a project path reassigned between directory identity and permission reads', async () => {

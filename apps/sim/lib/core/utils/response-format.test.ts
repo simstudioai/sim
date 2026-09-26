@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { extractFieldValues, traverseObjectPath } from '@/lib/core/utils/response-format'
 import {

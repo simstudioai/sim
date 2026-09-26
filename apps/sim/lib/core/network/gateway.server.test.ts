@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer as httpsServer } from 'node:https'
@@ -8,22 +7,11 @@ import { join } from 'node:path'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
-const { state } = vi.hoisted(() => ({
-  state: { gateways: new Map<string, OutboundGateway>() },
-}))
-vi.mock('@/lib/core/network/config.server', () => ({
-  isOutboundRoutingEnabled: () => true,
-  async resolveOutboundRoute(
-    organizationId: string | null | undefined
-  ): Promise<ResolvedOutboundRoute> {
-    const gateway = organizationId ? state.gateways.get(organizationId) : undefined
-    if (!gateway || !organizationId) throw new Error('No configured route')
-    return { kind: 'gateway', gateway }
-  },
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
@@ -31,6 +19,17 @@ import {
   createPinnedFetchWithDispatcher,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
+
+const state = { gateways: new Map<string, OutboundGateway>() }
+
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(
+  async (organizationId: string | null | undefined): Promise<ResolvedOutboundRoute> => {
+    const gateway = organizationId ? state.gateways.get(organizationId) : undefined
+    if (!gateway || !organizationId) throw new Error('No configured route')
+    return { kind: 'gateway', gateway }
+  }
+)
 
 const certificateDirectory = mkdtempSync(join(tmpdir(), 'gateway-tls-'))
 const certificatePath = join(certificateDirectory, 'cert.pem')

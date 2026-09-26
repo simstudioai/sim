@@ -1,7 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -24,26 +27,15 @@ const { mockRedis, persistedEntries } = vi.hoisted(() => {
   return { mockRedis, persistedEntries }
 })
 
-const { mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
-
+const { mockRegisterLargeValueOwner } = largeValueMetadataMockFns
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const { mockUploadFile } = storageServiceMockFns
 
 afterAll(() => {
   resetEnvMock()
@@ -106,7 +98,6 @@ function countOccurrences(haystack: string, needle: string): number {
 
 describe('execution event buffer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0

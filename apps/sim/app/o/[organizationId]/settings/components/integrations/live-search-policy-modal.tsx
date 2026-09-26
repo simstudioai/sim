@@ -179,7 +179,7 @@ export function LiveSearchPolicyModal({
         onCancel={close}
         primaryAction={{
           label: update.isPending
-            ? 'Saving…'
+            ? 'Saving'
             : needsServiceSetup
               ? provider === 'github'
                 ? 'Add repository'
@@ -242,7 +242,7 @@ function ServiceAccountSource({
             options={options}
             value={sourceId}
             onChange={onChange}
-            placeholder={sources.isPending ? 'Loading connections…' : 'Select a connection'}
+            placeholder={sources.isPending ? 'Loading connections' : 'Select a connection'}
             displayLabel={
               sourceId && !options.some((option) => option.value === sourceId)
                 ? 'Configured connection'

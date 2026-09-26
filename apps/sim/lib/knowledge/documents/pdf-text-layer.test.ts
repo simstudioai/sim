@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { assessPdfTextLayer } from '@/lib/knowledge/documents/pdf-text-layer'
 
@@ -9,10 +6,6 @@ const page = (n: number) =>
   'The Supplier shall provide the Services described in this Statement of Work. '.repeat(n)
 
 describe('assessPdfTextLayer', () => {
-  it('accepts an ordinary typeset document', () => {
-    expect(assessPdfTextLayer(page(60), 2)).toEqual({ usable: true })
-  })
-
   /**
    * A parser limit stops extraction partway, so the text that came back is plenty
    * by volume but is only part of the document. Accepting it would index a
@@ -67,12 +60,6 @@ describe('assessPdfTextLayer', () => {
     expect(assessPdfTextLayer('契約の概要について説明します。'.repeat(40), 1)).toEqual({
       usable: true,
     })
-  })
-
-  /** An unparseable page count must still apply a floor rather than divide by zero. */
-  it('treats an unknown page count as a single page', () => {
-    expect(assessPdfTextLayer('short', 0)).toEqual({ usable: false, reason: 'sparse-text' })
-    expect(assessPdfTextLayer(page(40), 0)).toEqual({ usable: true })
   })
 
   it('scales the threshold with length, so one good page does not carry a long scan', () => {

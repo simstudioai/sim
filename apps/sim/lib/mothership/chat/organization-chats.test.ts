@@ -1,5 +1,21 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -11,22 +27,16 @@ import {
   createOrganizationChat,
 } from '@/lib/mothership/chat/organization-chats'
 
-const { authorize, requireSearch, publish, permissionConfig } = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  permissionConfig: vi.fn(),
-  requireSearch: vi.fn(),
-  publish: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: permissionConfig,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: requireSearch,
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: publish }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: authorize,
-}))
+const authorize = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+const permissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+const requireSearch = knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+
+const publish = mothershipChatStatusMockFns.mockPublishChatStatusChanged
+
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 const principal = () =>
   createTrustedOrganizationCopilotPrincipal(
@@ -41,7 +51,6 @@ const principal = () =>
 
 describe('private organization chat delegation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
   })
@@ -106,9 +115,8 @@ describe('private organization chat delegation', () => {
 })
 
 describe('organization chat events application boundary', () => {
-  const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+  const principal = createSessionPrincipal({ userId: 'member-1' })
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
     requireSearch.mockResolvedValue(undefined)
@@ -182,9 +190,8 @@ describe('organization chat events application boundary', () => {
 
 afterAll(resetEnvFlagsMock)
 describe('organization Build admission', () => {
-  const session = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+  const session = createSessionPrincipal({ userId: 'member-1' })
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     permissionConfig.mockResolvedValue(null)
     setEnvFlags({ isBillingEnabled: true })

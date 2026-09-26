@@ -1,21 +1,27 @@
-/** @vitest-environment node */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ resolve: vi.fn(), authorize: vi.fn(), store: vi.fn() }))
+const hoisted = vi.hoisted(() => ({ resolve: vi.fn(), store: vi.fn() }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
-  resolveOwnedChatContext: mocks.resolve,
+  resolveOwnedChatContext: hoisted.resolve,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/mothership/resources/store', () => ({ changeStoredChatResources: mocks.store }))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/mothership/resources/store', () => ({ changeStoredChatResources: hoisted.store }))
 
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.resolve.mockResolvedValue({ organizationId: 'org', chatId: 'chat', userId: 'reader' })
   mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'reader', role: 'member' })
   mocks.store.mockResolvedValue([])

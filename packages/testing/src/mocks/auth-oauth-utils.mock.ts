@@ -1,14 +1,15 @@
 import { vi } from 'vitest'
 
 /**
- * Mock of the `ServiceAccountTokenError` class from
- * `@/app/api/auth/oauth/utils`. Declared as a real class so consumer code
+ * Mock of the `ServiceAccountTokenError` class from `@/lib/oauth/credential-service`
+ * (same constructor, `name` and fields). Declared as a real class so consumer code
  * using `instanceof ServiceAccountTokenError` keeps working under mock.
  */
 export class ServiceAccountTokenErrorMock extends Error {
   constructor(
     public readonly statusCode: number,
-    public readonly errorDescription: string
+    public readonly errorDescription: string,
+    public readonly errorCode?: string
   ) {
     super(errorDescription)
     this.name = 'ServiceAccountTokenError'
@@ -16,7 +17,7 @@ export class ServiceAccountTokenErrorMock extends Error {
 }
 
 /**
- * Controllable mock functions for `@/app/api/auth/oauth/utils`.
+ * Controllable mock functions for `@/lib/oauth/credential-service`.
  * All defaults are bare `vi.fn()` — configure per-test as needed.
  *
  * @example
@@ -30,6 +31,10 @@ export class ServiceAccountTokenErrorMock extends Error {
 export const authOAuthUtilsMockFns = {
   mockResolveOAuthAccountId: vi.fn(),
   mockGetServiceAccountToken: vi.fn(),
+  mockGetSlackBotCredential: vi.fn(),
+  mockGetAtlassianServiceAccountSecret: vi.fn(),
+  mockResolveServiceAccountToken: vi.fn(),
+  mockResolveCredentialTokenBundle: vi.fn(),
   mockSafeAccountInsert: vi.fn(),
   mockGetCredential: vi.fn(),
   mockGetOAuthToken: vi.fn(),
@@ -41,17 +46,21 @@ export const authOAuthUtilsMockFns = {
 }
 
 /**
- * Static mock module for `@/app/api/auth/oauth/utils`.
+ * Static mock module for `@/lib/oauth/credential-service`.
  *
  * @example
  * ```ts
- * vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+ * vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
  * ```
  */
 export const authOAuthUtilsMock = {
   ServiceAccountTokenError: ServiceAccountTokenErrorMock,
   resolveOAuthAccountId: authOAuthUtilsMockFns.mockResolveOAuthAccountId,
   getServiceAccountToken: authOAuthUtilsMockFns.mockGetServiceAccountToken,
+  getSlackBotCredential: authOAuthUtilsMockFns.mockGetSlackBotCredential,
+  getAtlassianServiceAccountSecret: authOAuthUtilsMockFns.mockGetAtlassianServiceAccountSecret,
+  resolveServiceAccountToken: authOAuthUtilsMockFns.mockResolveServiceAccountToken,
+  resolveCredentialTokenBundle: authOAuthUtilsMockFns.mockResolveCredentialTokenBundle,
   safeAccountInsert: authOAuthUtilsMockFns.mockSafeAccountInsert,
   getCredential: authOAuthUtilsMockFns.mockGetCredential,
   getOAuthToken: authOAuthUtilsMockFns.mockGetOAuthToken,

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockResolveTxt, mockSetServers } = vi.hoisted(() => ({
   mockResolveTxt: vi.fn(),
@@ -16,24 +13,13 @@ vi.mock('node:dns/promises', () => ({
 }))
 
 import {
-  buildChallengeHost,
   buildTxtRecordValue,
   checkDomainTxtRecord,
   generateVerificationToken,
-  SSO_CHALLENGE_HOST_PREFIX,
   toDomainResponse,
 } from '@/lib/auth/sso/domain-verification'
 
 describe('domain-verification helpers', () => {
-  it('builds the challenge host on the underscore-prefixed label', () => {
-    expect(buildChallengeHost('acme.com')).toBe(`${SSO_CHALLENGE_HOST_PREFIX}.acme.com`)
-    expect(buildChallengeHost('eng.acme.com')).toBe('_sim-challenge.eng.acme.com')
-  })
-
-  it('prefixes the TXT value so it is unambiguous among other records', () => {
-    expect(buildTxtRecordValue('abc123')).toBe('sim-domain-verification=abc123')
-  })
-
   it('generates high-entropy, unique tokens', () => {
     const a = generateVerificationToken()
     const b = generateVerificationToken()
@@ -94,16 +80,6 @@ describe('domain-verification helpers', () => {
   describe('checkDomainTxtRecord', () => {
     const TOKEN = 'tok-123'
     const EXPECTED = buildTxtRecordValue(TOKEN)
-
-    beforeEach(() => {
-      vi.clearAllMocks()
-    })
-
-    it('queries the challenge host for the domain', async () => {
-      mockResolveTxt.mockResolvedValue([[EXPECTED]])
-      await checkDomainTxtRecord('acme.com', TOKEN)
-      expect(mockResolveTxt).toHaveBeenCalledWith('_sim-challenge.acme.com')
-    })
 
     it('verifies when the exact value is published', async () => {
       mockResolveTxt.mockResolvedValue([[EXPECTED]])

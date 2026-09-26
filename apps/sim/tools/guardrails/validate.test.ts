@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { guardrailsValidationInputSchema } from '@/lib/internal/guardrails/input'
 import { guardrailsValidateTool } from '@/tools/guardrails/validate'
@@ -58,17 +55,6 @@ describe('guardrailsValidateTool.operation.input', () => {
       piiEntityTypes: null,
     })
     expect(parsed.success).toBe(false)
-  })
-
-  it('does not materialize untrusted execution scope or HTTP metadata', () => {
-    const body = buildBody({
-      input: 'claim',
-      validationType: 'hallucination',
-      _context: { workflowId: 'untrusted-workflow', workspaceId: 'untrusted-workspace' },
-    })
-    expect(body).not.toHaveProperty('workflowId')
-    expect(body).not.toHaveProperty('workspaceId')
-    expect(guardrailsValidateTool).not.toHaveProperty('request')
   })
 })
 

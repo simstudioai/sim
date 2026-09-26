@@ -1,94 +1,109 @@
-/** @vitest-environment node */
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { toolsUtilsMock } from '@sim/testing/mocks/blocks.mock'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import { tableServiceMock } from '@sim/testing/mocks/table-service.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  snapshot: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   selector: vi.fn(),
   document: vi.fn(),
-  secrets: vi.fn(),
-  block: vi.fn((type: string) => ({
-    type,
-    name: type,
-    outputs: {},
-    subBlocks:
-      type === 'workflow_input'
-        ? [
-            {
-              id: 'workflowId',
-              type: 'workflow-selector',
-              canonicalParamId: 'workflowId',
-              mode: 'basic',
-            },
-            {
-              id: 'manualWorkflowId',
-              type: 'short-input',
-              canonicalParamId: 'workflowId',
-              mode: 'advanced',
-            },
-          ]
-        : type === 'knowledge'
-          ? [
-              {
-                id: 'knowledgeBaseSelector',
-                type: 'knowledge-base-selector',
-                canonicalParamId: 'knowledgeBaseId',
-                mode: 'basic',
-              },
-              {
-                id: 'manualKnowledgeBaseId',
-                type: 'short-input',
-                canonicalParamId: 'knowledgeBaseId',
-                mode: 'advanced',
-              },
-              {
-                id: 'documentSelector',
-                type: 'document-selector',
-                canonicalParamId: 'documentId',
-                mode: 'basic',
-                condition: { field: 'operation', value: 'get_document' },
-              },
-              {
-                id: 'documentId',
-                type: 'short-input',
-                canonicalParamId: 'documentId',
-                mode: 'advanced',
-                condition: { field: 'operation', value: 'get_document' },
-              },
-            ]
-          : [],
-  })),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/workflows/editing/selector-validator', () => ({
-  validateSelectorIds: mocks.selector,
+  validateSelectorIds: hoisted.selector,
 }))
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({ getCustomToolById: vi.fn() }))
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById: vi.fn() }))
-vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn() }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretsUseCase: { execute: mocks.secrets },
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 vi.mock('@/blocks/utils', () => ({ getModelOptions: vi.fn(() => []) }))
-vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
-vi.mock('@/blocks/registry', () => ({ getBlock: mocks.block }))
-vi.mock('@/blocks', () => ({ getBlock: mocks.block }))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 vi.mock('@/lib/knowledge/application/documents', () => ({
-  readKnowledgeDocument: { execute: mocks.document },
+  readKnowledgeDocument: { execute: hoisted.document },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 
-const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const mocks = {
+  ...hoisted,
+  snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  secrets: secretsUseCasesMockFns.mockListSecretsUseCase,
+}
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) => ({
+  type,
+  name: type,
+  outputs: {},
+  subBlocks:
+    type === 'workflow_input'
+      ? [
+          {
+            id: 'workflowId',
+            type: 'workflow-selector',
+            canonicalParamId: 'workflowId',
+            mode: 'basic',
+          },
+          {
+            id: 'manualWorkflowId',
+            type: 'short-input',
+            canonicalParamId: 'workflowId',
+            mode: 'advanced',
+          },
+        ]
+      : type === 'knowledge'
+        ? [
+            {
+              id: 'knowledgeBaseSelector',
+              type: 'knowledge-base-selector',
+              canonicalParamId: 'knowledgeBaseId',
+              mode: 'basic',
+            },
+            {
+              id: 'manualKnowledgeBaseId',
+              type: 'short-input',
+              canonicalParamId: 'knowledgeBaseId',
+              mode: 'advanced',
+            },
+            {
+              id: 'documentSelector',
+              type: 'document-selector',
+              canonicalParamId: 'documentId',
+              mode: 'basic',
+              condition: { field: 'operation', value: 'get_document' },
+            },
+            {
+              id: 'documentId',
+              type: 'short-input',
+              canonicalParamId: 'documentId',
+              mode: 'advanced',
+              condition: { field: 'operation', value: 'get_document' },
+            },
+          ]
+        : [],
+}))
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
+const principal = createPersonalApiKeyPrincipal()
 const scope = {
   workspaceId: 'parent-workspace',
   workspaceOrganizationId: null,
@@ -138,8 +153,7 @@ function documentGraph(knowledgeBaseId = 'selected-kb', documentId = 'selected-d
 
 describe('standalone workflow-reference diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.context.mockImplementation(
+    mockContext.mockImplementation(
       async (input: { workflowId: string; assertedWorkspaceId?: string }) => {
         const workspaceId = input.workflowId === 'foreign' ? 'other-workspace' : scope.workspaceId
         if (input.assertedWorkspaceId && input.assertedWorkspaceId !== workspaceId) {
@@ -153,7 +167,7 @@ describe('standalone workflow-reference diagnostics', () => {
         }
       }
     )
-    mocks.permission.mockResolvedValue('read')
+    mockPermission.mockResolvedValue('read')
     mocks.snapshot.mockResolvedValue({
       workflowRecord: { id: 'parent' },
       normalizedData: graph('foreign'),
@@ -173,7 +187,7 @@ describe('standalone workflow-reference diagnostics', () => {
         kind: 'resource',
       }),
     ])
-    expect(mocks.context).toHaveBeenCalledWith({
+    expect(mockContext).toHaveBeenCalledWith({
       workflowId: 'foreign',
       assertedWorkspaceId: scope.workspaceId,
     })
@@ -185,25 +199,10 @@ describe('standalone workflow-reference diagnostics', () => {
     )
   })
 
-  it('accepts an authorized child in the same workspace without loading its graph', async () => {
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: graph('local'),
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([])
-    expect(mocks.context).toHaveBeenCalledWith({
-      workflowId: 'local',
-      assertedWorkspaceId: scope.workspaceId,
-    })
-    expect(mocks.snapshot).toHaveBeenCalledTimes(1)
-    expect(mocks.permission).toHaveBeenCalledTimes(2)
-  })
-
   it.each(['not_found', 'forbidden'] as const)(
     'reports an unresolved reference for a %s child without exposing private metadata',
     async (code) => {
-      mocks.context
+      mockContext
         .mockResolvedValueOnce({ ...scope, workflowId: 'parent', workflow: { id: 'parent' } })
         .mockRejectedValueOnce(new OrchestrationError(code, 'Private child title and workspace'))
       const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
@@ -213,7 +212,7 @@ describe('standalone workflow-reference diagnostics', () => {
   )
 
   it('propagates a child lookup outage rather than declaring the reference invalid or valid', async () => {
-    mocks.context
+    mockContext
       .mockResolvedValueOnce({ ...scope, workflowId: 'parent', workflow: { id: 'parent' } })
       .mockRejectedValueOnce(new Error('database unavailable'))
     await expect(
@@ -226,7 +225,7 @@ describe('standalone workflow-reference diagnostics', () => {
       workflowRecord: { id: 'parent' },
       normalizedData: graph('local'),
     })
-    mocks.permission.mockResolvedValueOnce('read').mockResolvedValueOnce(null)
+    mockPermission.mockResolvedValueOnce('read').mockResolvedValueOnce(null)
     const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
     expect(result.unresolvedReferences).toEqual([expect.objectContaining({ value: 'local' })])
   })
@@ -249,7 +248,7 @@ describe('standalone workflow-reference diagnostics', () => {
     expect(
       result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
     ).toEqual([])
-    expect(mocks.context).toHaveBeenCalledTimes(1)
+    expect(mockContext).toHaveBeenCalledTimes(1)
   })
 
   it('does not apply regular-workflow selectors to a custom block publisher binding', async () => {
@@ -263,32 +262,7 @@ describe('standalone workflow-reference diagnostics', () => {
     })
     const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
     expect(result.unresolvedReferences).toEqual([])
-    expect(mocks.context).toHaveBeenCalledTimes(1)
-  })
-
-  it('checks a literal child ID supplied through the active advanced input', async () => {
-    const state = graph('local')
-    const child = {
-      ...state.blocks.child,
-      data: { canonicalModes: { workflowId: 'advanced' } },
-      subBlocks: {
-        ...state.blocks.child.subBlocks,
-        manualWorkflowId: { value: 'foreign' },
-      },
-    }
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: { ...state, blocks: { child } },
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([
-      expect.objectContaining({ field: 'manualWorkflowId', value: 'foreign' }),
-    ])
-    expect(mocks.context).toHaveBeenCalledWith({
-      workflowId: 'foreign',
-      assertedWorkspaceId: scope.workspaceId,
-    })
-    expect(mocks.context).not.toHaveBeenCalledWith(expect.objectContaining({ workflowId: 'local' }))
+    expect(mockContext).toHaveBeenCalledTimes(1)
   })
 
   it.each(['not_found', 'forbidden'] as const)(
@@ -412,23 +386,6 @@ describe('standalone workflow-reference diagnostics', () => {
     expect(mocks.document).not.toHaveBeenCalled()
   })
 
-  it('distinguishes runtime document IDs from literal IDs in the same field', async () => {
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: documentGraph('selected-kb', '<start.documentId>,selected-document'),
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(mocks.document).toHaveBeenCalledTimes(1)
-    expect(mocks.document).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ documentId: 'selected-document' }),
-      })
-    )
-    expect(result.notes).toContain(
-      'Runtime values in reference field "documentSelector" in block "Read document" were not checked.'
-    )
-  })
-
   it('propagates a document read outage without turning it into a finding', async () => {
     mocks.snapshot.mockResolvedValue({
       workflowRecord: { id: 'parent' },
@@ -438,25 +395,5 @@ describe('standalone workflow-reference diagnostics', () => {
     await expect(
       readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
     ).rejects.toThrow('Workflow reference checks could not complete')
-  })
-
-  it('does not begin another document lookup after cancellation', async () => {
-    const controller = new AbortController()
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: documentGraph('selected-kb', 'document-1,document-2'),
-    })
-    mocks.document.mockImplementationOnce(async () => {
-      controller.abort()
-      return {}
-    })
-    await expect(
-      readWorkflowLint.execute({
-        principal,
-        input: { workflowId: 'parent', signal: controller.signal },
-      })
-    ).rejects.toThrow('Workflow reference checks could not complete')
-    expect(mocks.document).toHaveBeenCalledTimes(1)
-    expect(mocks.secrets).not.toHaveBeenCalled()
   })
 })

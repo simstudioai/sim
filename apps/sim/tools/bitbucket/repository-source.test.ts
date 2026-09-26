@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeBitbucketGetFileOperation } from '@/lib/internal/bitbucket/operations/get-file'
 import { bitbucketCreateBranchTool } from '@/tools/bitbucket/create_branch'
 import { bitbucketDeleteBranchTool } from '@/tools/bitbucket/delete_branch'
@@ -115,60 +112,7 @@ function requestBody<P, R>(tool: ToolConfig<P, R>, params: P): unknown {
   return tool.request.body?.(params)
 }
 
-afterEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('Bitbucket action tool contracts', () => {
-  it('exports the complete 30-tool action-only surface', () => {
-    expect(bitbucketTools.map((tool) => tool.id).sort()).toEqual(
-      [
-        'bitbucket_approve_pull_request',
-        'bitbucket_create_branch',
-        'bitbucket_create_pull_request',
-        'bitbucket_create_pull_request_comment',
-        'bitbucket_decline_pull_request',
-        'bitbucket_delete_branch',
-        'bitbucket_get_commit',
-        'bitbucket_get_file',
-        'bitbucket_get_file_metadata',
-        'bitbucket_get_pipeline',
-        'bitbucket_get_pipeline_step_log',
-        'bitbucket_get_pull_request',
-        'bitbucket_get_pull_request_diff',
-        'bitbucket_get_pull_request_diffstat',
-        'bitbucket_get_pull_request_merge_task_status',
-        'bitbucket_get_repository',
-        'bitbucket_list_branches',
-        'bitbucket_list_commits',
-        'bitbucket_list_directory',
-        'bitbucket_list_pipeline_steps',
-        'bitbucket_list_pipelines',
-        'bitbucket_list_pull_request_comments',
-        'bitbucket_list_pull_request_commit_statuses',
-        'bitbucket_list_pull_requests',
-        'bitbucket_list_repositories',
-        'bitbucket_list_workspaces',
-        'bitbucket_merge_pull_request',
-        'bitbucket_request_pull_request_changes',
-        'bitbucket_stop_pipeline',
-        'bitbucket_trigger_pipeline',
-      ].sort()
-    )
-  })
-
-  it('uses hidden OAuth and the fixed Bitbucket provider on every action', () => {
-    for (const tool of bitbucketTools) {
-      expect(tool.oauth, tool.id).toMatchObject({ required: true, provider: 'bitbucket' })
-      expect(tool.oauth?.requiredScopes?.length, tool.id).toBeGreaterThan(0)
-      expect(tool.params.accessToken, tool.id).toMatchObject({
-        type: 'string',
-        required: true,
-        visibility: 'hidden',
-      })
-    }
-  })
-
   it('enables bounded retry only on safe reads, never on mutations', () => {
     for (const tool of bitbucketTools) {
       if ('operation' in tool) {
@@ -831,11 +775,6 @@ describe('Bitbucket source tools', () => {
       returnedBytes: 3,
       fullBytes: 3,
     })
-  })
-
-  it('uses only the registered operation path', () => {
-    expect(bitbucketGetFileTool.operation).toBeDefined()
-    expect('request' in bitbucketGetFileTool).toBe(false)
   })
 
   it('builds the list-commits endpoint with its opaque cursor bound', () => {

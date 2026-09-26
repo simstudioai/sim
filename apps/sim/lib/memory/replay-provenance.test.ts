@@ -1,29 +1,31 @@
-/** @vitest-environment node */
 import { createExecutionContext } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { piiRedactionMock } from '@sim/testing/mocks/pii-redaction.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   save: vi.fn(),
-  execute: vi.fn(),
   storeArtifact: vi.fn(),
   readArtifact: vi.fn(),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: async () => true }))
-vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'cd'.repeat(32) } }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/memory/application/agent-turns', () => ({
   openAgentMemoryTurnUseCase: { execute: mocks.open },
   saveAgentMemoryTurnUseCase: { execute: mocks.save },
   storeAgentMemoryArtifactUseCase: { execute: mocks.storeArtifact },
   readAgentMemoryArtifactUseCase: { execute: mocks.readArtifact },
 }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: async () => ({}),
-}))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({
-  redactObjectStrings: async (value: unknown) => value,
-}))
-vi.mock('@/tools', () => ({ executeTool: mocks.execute }))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { durableSecretProvenanceFromRegistry } from '@/lib/execution/durable-secret-provenance'
@@ -38,6 +40,10 @@ import { getConfiguredConversationToolBinding } from '@/providers/conversation-h
 import { executeProviderTool, runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import { registerProviderToolModelInputRegistry } from '@/providers/tool-input-provenance'
 import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
+
+setEnv({ ENCRYPTION_KEY: 'cd'.repeat(32) })
+featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({})
 
 const artifacts = createJournalArtifactFixture()
 
@@ -57,7 +63,7 @@ function input(registry = new ResolvedSecretTraceRegistry([], scope)) {
     executorDelegationOrigin: {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
-      principal: { kind: 'session', userId: scope.userId, sessionId: 'session-1' },
+      principal: createSessionPrincipal({ userId: scope.userId }),
     },
     resolvedSecretTraceRegistry: registry,
   }
@@ -126,7 +132,6 @@ async function restore(encryptedState: string) {
 
 describe('durable Agent replay provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     artifacts.values.clear()
     mocks.storeArtifact.mockImplementation(artifacts.store)
     mocks.readArtifact.mockImplementation(artifacts.read)
@@ -139,7 +144,7 @@ describe('durable Agent replay provenance', () => {
     mocks.save.mockImplementation(async ({ input: request }) => ({
       revision: request.expectedRevision + 1,
     }))
-    mocks.execute.mockResolvedValue({ success: true, output: { reflected: secret } })
+    toolsMockFns.mockExecuteTool.mockResolvedValue({ success: true, output: { reflected: secret } })
   })
 
   it('restores secret-derived pending arguments without exposing secrets in durable model history', async () => {
@@ -167,8 +172,8 @@ describe('durable Agent replay provenance', () => {
           session
         )
     )
-    expect(mocks.execute).toHaveBeenCalledOnce()
-    expect(mocks.execute.mock.calls[0][1].token).toBe(secret)
+    expect(toolsMockFns.mockExecuteTool).toHaveBeenCalledOnce()
+    expect(toolsMockFns.mockExecuteTool.mock.calls[0][1].token).toBe(secret)
     expect(session.getPendingCalls()).toEqual([])
     const publicHistory = JSON.stringify(session.getMessages('openai', 'model-a', 'binding-a'))
     expect(publicHistory).not.toContain(secret)
@@ -184,7 +189,7 @@ describe('durable Agent replay provenance', () => {
           _context: { invocationId: completed.state.steps[0].calls[0].invocationId },
         })
     )
-    expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(toolsMockFns.mockExecuteTool).toHaveBeenCalledOnce()
     expect(replay.rawResponse.output.token).toBe(secret)
     expect(JSON.stringify(replay.modelResponse)).not.toContain(secret)
   })
@@ -216,7 +221,7 @@ describe('durable Agent replay provenance', () => {
         }
       )
     ).rejects.toMatchObject({ retryable: false })
-    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(toolsMockFns.mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it.each([true, false])(
@@ -234,7 +239,7 @@ describe('durable Agent replay provenance', () => {
         await expect(session.restoreProvenance(registry)).rejects.toMatchObject({
           retryable: false,
         })
-        expect(mocks.execute).not.toHaveBeenCalled()
+        expect(toolsMockFns.mockExecuteTool).not.toHaveBeenCalled()
         return
       }
       await session.restoreProvenance(registry)
@@ -340,6 +345,6 @@ describe('durable Agent replay provenance', () => {
     await expect(restore(await encryptMemoryCheckpoint(envelope))).rejects.toMatchObject({
       retryable: false,
     })
-    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(toolsMockFns.mockExecuteTool).not.toHaveBeenCalled()
   })
 })

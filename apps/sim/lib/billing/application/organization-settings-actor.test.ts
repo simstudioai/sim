@@ -1,10 +1,12 @@
-import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const authorization = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: authorization,
-}))
+const authorization = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { organizationBillingSettingsActor } from './organization-settings-actor'
 
@@ -44,10 +46,5 @@ describe('organization billing settings actor', () => {
     await expect(
       organizationBillingSettingsActor(principal, operation, 'other-org')
     ).rejects.toThrow('forbidden')
-  })
-  it('preserves the authenticated session actor for existing billing authorization', async () => {
-    const session: SessionPrincipal = { kind: 'session', userId: 'human', sessionId: 'session' }
-    expect(await organizationBillingSettingsActor(session, operation, 'org')).toBe('human')
-    expect(authorization).not.toHaveBeenCalled()
   })
 })

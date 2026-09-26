@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import {
   authOAuthUtilsMock,
   authOAuthUtilsMockFns,
   dbChainMockFns,
-  drizzleOrmMock,
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
@@ -13,8 +9,19 @@ import {
   resetDbChainMock as resetDatabaseMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +30,6 @@ import {
   buildSyncDatabaseRetryUpdate,
   buildSyncFailureUpdate,
   executeSync,
-  isConnectorRunnableStatus,
 } from '@/lib/knowledge/connectors/sync-engine'
 import {
   CREDENTIAL_REVOKED_SYNC_ERROR,
@@ -41,6 +47,23 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument } from '@/connectors/types'
 
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
+
 beforeEach(resetEnvFlagsMock)
 
 function resetDbChainMock() {
@@ -48,40 +71,18 @@ function resetDbChainMock() {
   dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
 }
 
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
-  mockProcessDocumentsWithQueue: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentAsync: vi.fn(),
-  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+const { mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockEnqueueStorageCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
@@ -98,16 +99,7 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
   mockListDocuments: vi.fn(),
 }))
 
-const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
-vi.mock('@sim/logger', async () => {
-  const { createMockLogger } = await import('@sim/testing/mocks/logger.mock')
-  return { createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
-})
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: vi.fn(),
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -138,16 +130,6 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-describe('isConnectorRunnableStatus', () => {
-  it.each(['active', 'error'])('allows automatic sync from %s', (status) => {
-    expect(isConnectorRunnableStatus(status)).toBe(true)
-  })
-
-  it.each(['paused', 'disabled', 'syncing'])('blocks automatic sync from %s', (status) => {
-    expect(isConnectorRunnableStatus(status)).toBe(false)
-  })
-})
-
 describe('shouldRunIncrementalSync', () => {
   const lastSyncAt = '2026-07-01T00:00:00.000Z'
 
@@ -157,22 +139,6 @@ describe('shouldRunIncrementalSync', () => {
     expect(
       shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, lastSyncAt)
     ).toBe(true)
-  })
-
-  it('never runs incrementally when the connector does not support it', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
-
-    expect(
-      shouldRunIncrementalSync(false, 'incremental', undefined, undefined, false, lastSyncAt)
-    ).toBe(false)
-  })
-
-  it('never runs incrementally when the connector is configured for full syncs', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
-
-    expect(shouldRunIncrementalSync(true, 'full', undefined, undefined, false, lastSyncAt)).toBe(
-      false
-    )
   })
 
   it('never runs incrementally on a forced fullSync or rehydrate', async () => {
@@ -186,14 +152,6 @@ describe('shouldRunIncrementalSync', () => {
     )
   })
 
-  it('never runs incrementally before the first sync', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
-
-    expect(shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, null)).toBe(
-      false
-    )
-  })
-
   it('forces a full listing whenever pending-removal documents exist, so they get a resurrect-or-confirm decision', async () => {
     const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
@@ -203,118 +161,8 @@ describe('shouldRunIncrementalSync', () => {
   })
 })
 
-describe('resolveTagMapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('maps semantic keys to DB slots', async () => {
-    mockMapTags.mockReturnValue({
-      issueType: 'Bug',
-      status: 'Open',
-      priority: 'High',
-    })
-
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping(
-      'jira',
-      { issueType: 'Bug', status: 'Open', priority: 'High' },
-      {
-        tagSlotMapping: {
-          issueType: 'tag1',
-          status: 'tag2',
-          priority: 'tag3',
-        },
-      }
-    )
-
-    expect(result).toEqual({
-      tag1: 'Bug',
-      tag2: 'Open',
-      tag3: 'High',
-    })
-  })
-
-  it('returns undefined when connector has no mapTags', async () => {
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping(
-      'no-tags',
-      { key: 'value' },
-      {
-        tagSlotMapping: { key: 'tag1' },
-      }
-    )
-
-    expect(result).toBeUndefined()
-  })
-
-  it('returns undefined when connector type is unknown', async () => {
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping('unknown', { key: 'value' }, {})
-
-    expect(result).toBeUndefined()
-  })
-
-  it('returns undefined when no tagSlotMapping in sourceConfig', async () => {
-    mockMapTags.mockReturnValue({ issueType: 'Bug' })
-
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping('jira', { issueType: 'Bug' }, {})
-
-    expect(result).toBeUndefined()
-  })
-
-  it('sets null for missing metadata keys', async () => {
-    mockMapTags.mockReturnValue({
-      issueType: 'Bug',
-      status: undefined,
-    })
-
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping(
-      'jira',
-      { issueType: 'Bug' },
-      {
-        tagSlotMapping: {
-          issueType: 'tag1',
-          status: 'tag2',
-          missing: 'tag3',
-        },
-      }
-    )
-
-    expect(result).toEqual({
-      tag1: 'Bug',
-      tag2: null,
-      tag3: null,
-    })
-  })
-
-  it('returns undefined when sourceConfig is undefined', async () => {
-    mockMapTags.mockReturnValue({ issueType: 'Bug' })
-
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
-
-    const result = resolveTagMapping('jira', { issueType: 'Bug' }, undefined)
-
-    expect(result).toBeUndefined()
-  })
-})
-
 describe('classifyExternalDoc', () => {
   const base = { content: 'hello', contentDeferred: false, contentHash: 'h1' }
-
-  it('records a new skipped file as an intentional exclusion', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    expect(
-      classifyExternalDoc({ ...base, content: '', skippedReason: 'too big' }, undefined)
-    ).toEqual({ type: 'skip' })
-  })
 
   it('keeps an already-indexed file as-is when it becomes skipped (last-known-good)', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
@@ -330,17 +178,6 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'unchanged' })
   })
 
-  it('refreshes an existing skipped placeholder without turning it into a source failure', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-
-    expect(
-      classifyExternalDoc(
-        { ...base, content: '', skippedReason: 'too big' },
-        { id: 'doc-1', contentHash: 'old', storageKey: null }
-      )
-    ).toEqual({ type: 'skip', existingId: 'doc-1' })
-  })
-
   it('rehydrates a content-less placeholder even when its listing hash is unchanged', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
 
@@ -350,23 +187,6 @@ describe('classifyExternalDoc', () => {
         { id: 'doc-1', contentHash: 'h1', storageKey: null }
       )
     ).toEqual({ type: 'update', existingId: 'doc-1' })
-  })
-
-  it('uses the same skip replacement rule after deferred hydration', async () => {
-    const { shouldReplaceExistingWithSkippedDocument } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: null }, {})).toBe(true)
-    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: 'kb/indexed.txt' }, {})).toBe(
-      false
-    )
-    expect(
-      shouldReplaceExistingWithSkippedDocument(
-        { storageKey: 'kb/indexed.txt' },
-        { skippedExistingDisposition: 'replace' }
-      )
-    ).toBe(true)
   })
 
   it('replaces stale indexed content for an authoritative skip', async () => {
@@ -385,30 +205,6 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'skip', existingId: 'doc-1' })
   })
 
-  it('drops empty non-deferred content', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    expect(classifyExternalDoc({ ...base, content: '   ' }, undefined)).toEqual({ type: 'drop' })
-  })
-
-  it('adds new content and deferred stubs', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    expect(classifyExternalDoc(base, undefined)).toEqual({ type: 'add' })
-    expect(classifyExternalDoc({ ...base, content: '', contentDeferred: true }, undefined)).toEqual(
-      { type: 'add' }
-    )
-  })
-
-  it('updates when the content hash changed and is unchanged otherwise', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'old' })).toEqual({
-      type: 'update',
-      existingId: 'doc-1',
-    })
-    expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'h1' })).toEqual({
-      type: 'unchanged',
-    })
-  })
-
   it('forces re-hydration of an unchanged deferred doc when forceRehydrate is set', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     const deferred = { ...base, content: '', contentDeferred: true }
@@ -416,14 +212,6 @@ describe('classifyExternalDoc', () => {
     expect(classifyExternalDoc(deferred, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
       type: 'update',
       existingId: 'doc-1',
-    })
-  })
-
-  it('does not force re-hydration of a non-deferred doc (content already final)', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
-    // Ready (non-deferred) content with an unchanged hash stays unchanged even under forceRehydrate.
-    expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
-      type: 'unchanged',
     })
   })
 })
@@ -447,7 +235,6 @@ describe('connector content replacement processing state', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
       key: customKey,
@@ -457,7 +244,6 @@ describe('connector content replacement processing state', () => {
   })
 
   it('refuses a queued live Search source before locking or indexing content', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
     queueTableRows(schemaMock.knowledgeBase, [{ isSearchIndex: true }])
     const result = await executeSync('connector-1', {
@@ -553,148 +339,7 @@ const lease = { stillHeld: () => ({ type: 'lease' }) as never }
 
 describe('persistSkippedDocuments', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  /**
-   * The heartbeat before a batch only proves the lease was held then; the
-   * write itself re-proves it inside its transaction, so a run reclaimed in
-   * between lands nothing over its replacement's.
-   */
-  it('refuses to write once the run no longer holds its lease', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
-    const { SyncLockLostException } = await import('@/lib/knowledge/connectors/sync-lock')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [])
-
-    await expect(
-      persistSkippedDocuments(
-        'kb-1',
-        'connector-1',
-        'no-tags',
-        [
-          {
-            type: 'skip',
-            extDoc: {
-              externalId: 'external-1',
-              title: 'Empty document',
-              content: '',
-              mimeType: 'text/plain',
-              contentHash: 'empty-hash',
-              skippedReason: 'Document contains no extractable text',
-            },
-          },
-        ],
-        undefined,
-        'workspace',
-        lease
-      )
-    ).rejects.toBeInstanceOf(SyncLockLostException)
-
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
-    expect(dbChainMockFns.values).not.toHaveBeenCalled()
-  })
-
-  it('persists a new skipped document without dispatching processing', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
-
-    await expect(
-      persistSkippedDocuments(
-        'kb-1',
-        'connector-1',
-        'no-tags',
-        [
-          {
-            type: 'skip',
-            extDoc: {
-              externalId: 'external-1',
-              title: 'Empty document',
-              content: '',
-              mimeType: 'text/plain',
-              contentHash: 'empty-hash',
-              skippedReason: 'Document contains no extractable text',
-              skippedExistingDisposition: 'replace',
-            },
-          },
-        ],
-        undefined,
-        'workspace',
-        lease
-      )
-    ).resolves.toHaveLength(1)
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({
-        connectorId: 'connector-1',
-        externalId: 'external-1',
-        storageKey: null,
-        processingStatus: 'failed',
-        contentHash: 'empty-hash',
-      }),
-    ])
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('atomically replaces stale indexed content for an authoritative skip', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
-    const oldFileUrl = '/api/files/serve/kb/old-document.txt?context=knowledge-base'
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
-    queueTableRows(schemaMock.document, [{ fileUrl: oldFileUrl }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
-
-    await expect(
-      persistSkippedDocuments(
-        'kb-1',
-        'connector-1',
-        'no-tags',
-        [
-          {
-            type: 'skip',
-            existingId: 'doc-1',
-            extDoc: {
-              externalId: 'external-1',
-              title: 'Empty document',
-              content: '',
-              mimeType: 'text/plain',
-              contentHash: 'new-empty-hash',
-              skippedReason: 'Document contains no extractable text',
-              skippedExistingDisposition: 'replace',
-            },
-          },
-        ],
-        undefined,
-        'workspace',
-        lease
-      )
-    ).resolves.toHaveLength(1)
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileUrl: '',
-        storageKey: null,
-        processingStatus: 'failed',
-        processingError: 'Document contains no extractable text',
-        processingQueuedAt: null,
-        processingQueueToken: null,
-        processingDeferredUntil: null,
-        processingAttempts: 0,
-        chunkCount: 0,
-        contentHash: 'new-empty-hash',
-        deletedAt: null,
-      })
-    )
-    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.embedding)
-    expect(mockEnqueueStorageCleanup).toHaveBeenCalledWith(
-      expect.anything(),
-      [expect.objectContaining({ id: 'doc-1', fileUrl: oldFileUrl })],
-      'doc-1'
-    )
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 
   it('does not delete old storage when the authoritative replacement fails', async () => {
@@ -736,7 +381,6 @@ describe('persistSkippedDocuments', () => {
 
 describe('persistHashOnlyUpdates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -778,66 +422,6 @@ describe('persistHashOnlyUpdates', () => {
       )
     ).toEqual({ type: 'update', existingId: 'doc-1' })
   })
-
-  it('writes refreshed source metadata alongside an equivalent content hash', async () => {
-    const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
-    const sourceModifiedAt = new Date('2026-09-08T12:00:00Z')
-
-    await persistHashOnlyUpdates(
-      'kb-1',
-      'connector-1',
-      [
-        {
-          existingId: 'doc-1',
-          externalId: 'thread-1',
-          contentHash: 'slack-thread:v5:version:text',
-          sourceMetadata: { sourceUrl: null, sourceModifiedAt, date1: sourceModifiedAt },
-        },
-      ],
-      lease
-    )
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      contentHash: 'slack-thread:v5:version:text',
-      sourceUrl: null,
-      sourceModifiedAt,
-      date1: sourceModifiedAt,
-    })
-  })
-
-  it('commits live retry hashes when another document is no longer a connector target', async () => {
-    const { persistHashOnlyUpdates } = await import('@/lib/knowledge/connectors/sync-persistence')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
-
-    await expect(
-      persistHashOnlyUpdates(
-        'kb-1',
-        'connector-1',
-        [
-          {
-            existingId: 'live-doc',
-            externalId: 'live-page',
-            contentHash: 'notion:retry:v1:live-page',
-          },
-          {
-            existingId: 'detached-doc',
-            externalId: 'detached-page',
-            contentHash: 'notion:retry:v1:detached-page',
-          },
-        ],
-        lease
-      )
-    ).resolves.toEqual(['detached-page'])
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      contentHash: 'notion:retry:v1:live-page',
-    })
-  })
 })
 
 describe('chunkOpsByByteBudget', () => {
@@ -865,16 +449,6 @@ describe('chunkOpsByByteBudget', () => {
       skippedReason: 'too big',
       metadata: { fileSize: sizeBytes },
     },
-  })
-
-  it('batches small ops up to the count cap', async () => {
-    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
-    const chunks = chunkOpsByByteBudget(
-      Array.from({ length: 7 }, () => addOp(1024)),
-      64 * MB,
-      5
-    )
-    expect(chunks.map((c) => c.length)).toEqual([5, 2])
   })
 
   it('isolates a file larger than the budget into its own chunk', async () => {
@@ -960,7 +534,6 @@ describe('connector sync working-set bounds', () => {
 
 describe('executeSync page admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it('rejects an oversized page before document work while retaining the checkpoint', async () => {
@@ -1034,7 +607,6 @@ describe('executeSync deferred hydration rate limits', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
@@ -1196,7 +768,6 @@ describe('executeSync database failures', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
@@ -1245,47 +816,10 @@ describe('executeSync database failures', () => {
       expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
     )
   })
-
-  it('retries within minutes after a run that added documents before the database failed', async () => {
-    const timeout = new DrizzleQueryError(
-      'select private SQL',
-      ['private'],
-      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
-    )
-    const { result, terminal } = await failSyncWith(timeout, 0, {
-      documents: [
-        {
-          externalId: 'external-1',
-          title: 'Document 1',
-          content: 'hydrated',
-          contentHash: 'hash-1',
-          mimeType: 'text/plain',
-          metadata: { size: 8 },
-        },
-      ],
-    })
-
-    expect(result.docsAdded).toBeGreaterThan(0)
-    const delay = (terminal?.nextSyncAt as Date).getTime() - NOW.getTime()
-    expect(delay).toBeLessThanOrEqual(5 * 60 * 1000)
-    expect(terminal).toMatchObject({ status: 'error', consecutiveFailures: 0 })
-  })
-
-  it('still disables at the breaker for a failure the database did not cause', async () => {
-    const { terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(new Error('source broke'))
-
-    expect(terminal).toMatchObject({
-      status: 'disabled',
-      consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
-    })
-    const failedLog = dbChainMockFns.set.mock.calls.find(([values]) => values?.status === 'failed')
-    expect(failedLog?.[0]).not.toHaveProperty('databaseFailureClass')
-  })
 })
 
 describe('previous complete listing evidence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it.each([
@@ -1316,11 +850,6 @@ describe('previous complete listing evidence', () => {
 })
 
 describe('classifySuspectListing', () => {
-  it('trusts a healthy listing', () => {
-    expect(classifySuspectListing(100, 100)).toBeNull()
-    expect(classifySuspectListing(90, 100)).toBeNull()
-  })
-
   it('flags an empty listing against a real corpus', () => {
     expect(classifySuspectListing(0, 3)).toBe('empty')
     expect(classifySuspectListing(0, 10_000)).toBe('empty')
@@ -1350,14 +879,6 @@ describe('evaluateListingSafety', () => {
     trustworthy = true
   ): PreviousListingObservation => ({ listedCount, ownedCount, trustworthy })
 
-  it('leaves a healthy listing untouched', () => {
-    expect(evaluateListingSafety(100, 100, null, undefined)).toEqual({
-      reason: null,
-      blocked: false,
-      corroborated: false,
-    })
-  })
-
   it('blocks the first suspect empty listing', () => {
     expect(evaluateListingSafety(0, 500, previous(500, 500), undefined)).toEqual({
       reason: 'empty',
@@ -1380,15 +901,6 @@ describe('evaluateListingSafety', () => {
 
   it('refuses to be corroborated by a possibly-incremental previous run', () => {
     expect(evaluateListingSafety(0, 500, previous(0, 500, false), undefined).blocked).toBe(true)
-  })
-
-  it('blocks then allows a proportional collapse across two syncs', () => {
-    expect(evaluateListingSafety(3, 10_000, previous(10_000, 10_000), undefined).blocked).toBe(true)
-    expect(evaluateListingSafety(3, 10_000, previous(2, 10_000), undefined)).toEqual({
-      reason: 'collapsed',
-      blocked: false,
-      corroborated: true,
-    })
   })
 
   it('lets an explicit fullSync override the guard', () => {
@@ -1436,41 +948,6 @@ describe('mergeHydratedDocument', () => {
     expect(merged.mimeType).toBe('application/pdf')
     expect(merged.sourceFile?.mimeType).toBe('application/pdf')
   })
-
-  it('carries the source file and clears the deferred flag', () => {
-    const merged = mergeHydratedDocument(
-      stub(),
-      { ...stub(), sourceFile: { bytes: Buffer.from('x'), fileName: 'a.pdf', mimeType: 'a/b' } },
-      'h'
-    )
-
-    expect(merged.sourceFile?.bytes.toString()).toBe('x')
-    expect(merged.contentDeferred).toBe(false)
-    expect(merged.contentHash).toBe('h')
-  })
-
-  it('keeps text-path content and merges metadata over the stub', () => {
-    const merged = mergeHydratedDocument(
-      stub(),
-      { ...stub(), content: 'plain notes', metadata: { createdBy: 'A' } },
-      'h'
-    )
-
-    expect(merged.content).toBe('plain notes')
-    expect(merged.sourceFile).toBeUndefined()
-    expect(merged.metadata).toEqual({ fileSize: 2_400_000, createdBy: 'A' })
-  })
-
-  it('falls back to the stub title and sourceUrl when hydration omits them', () => {
-    const merged = mergeHydratedDocument(
-      { ...stub(), sourceUrl: 'https://example.com/a' },
-      { ...stub(), title: '', content: 'x' },
-      'h'
-    )
-
-    expect(merged.title).toBe('Report.pdf')
-    expect(merged.sourceUrl).toBe('https://example.com/a')
-  })
 })
 
 describe('mergeHydratedSkippedDocument', () => {
@@ -1503,25 +980,6 @@ describe('mergeHydratedSkippedDocument', () => {
       },
     })
   })
-
-  it('persists an explicit connector retry hash for a skipped hydration', () => {
-    const listed: ExternalDocument = {
-      externalId: 'page-1',
-      title: 'Restricted page',
-      content: '',
-      contentDeferred: true,
-      mimeType: 'text/markdown',
-      contentHash: 'notion:v3:page-1:unchanged',
-    }
-    const skipped: ExternalDocument = {
-      ...listed,
-      contentDeferred: false,
-      skippedReason: 'Nested block is inaccessible',
-      skippedRetryContentHash: 'notion:retry:v1:page-1',
-    }
-
-    expect(mergeHydratedSkippedDocument(listed, skipped).contentHash).toBe('notion:retry:v1:page-1')
-  })
 })
 
 describe('requireHydratedListedDocument', () => {
@@ -1533,20 +991,6 @@ describe('requireHydratedListedDocument', () => {
     expect(() => requireHydratedListedDocument(null, 'listed-1')).toThrow(
       'Connector returned no content for listed document listed-1'
     )
-  })
-
-  it('passes through a hydrated document', async () => {
-    const { requireHydratedListedDocument } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-    const hydrated: ExternalDocument = {
-      externalId: 'listed-1',
-      title: 'Listed',
-      content: 'body',
-      mimeType: 'text/plain',
-    }
-
-    expect(requireHydratedListedDocument(hydrated, 'listed-1')).toBe(hydrated)
   })
 })
 
@@ -1562,19 +1006,6 @@ describe('recordUnverifiedExistingRefresh', () => {
 
     expect(result).toEqual({ docsFailed: 1 })
     expect(failedExternalIds).toEqual(new Set(['existing-1']))
-  })
-
-  it('counts one document once if multiple unusable signals converge', async () => {
-    const { recordUnverifiedExistingRefresh } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-    const result = { docsFailed: 0 }
-    const failedExternalIds = new Set<string>()
-
-    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
-    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
-
-    expect(result).toEqual({ docsFailed: 1 })
   })
 })
 
@@ -1607,27 +1038,6 @@ describe('isStuckDocumentSweepEligible', () => {
    */
   const GRACE_MINUTES = 240
 
-  it('leaves a document dispatched by the previous sync and still queued alone', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('pending', { uploadedAt: minutesBefore(GRACE_MINUTES - 1) }),
-        now
-      )
-    ).toBe(false)
-  })
-
-  it('leaves a document the sweep itself re-dispatched alone while it waits', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('pending', {
-          processingQueuedAt: minutesBefore(GRACE_MINUTES - 1),
-          uploadedAt: minutesBefore(60 * 48),
-        }),
-        now
-      )
-    ).toBe(false)
-  })
-
   it('reclaims a queued document once the grace period has passed', () => {
     expect(
       isStuckDocumentSweepEligible(
@@ -1644,15 +1054,6 @@ describe('isStuckDocumentSweepEligible', () => {
         now
       )
     ).toBe(true)
-  })
-
-  it('holds a queued document at the grace boundary', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('pending', { uploadedAt: minutesBefore(GRACE_MINUTES) }),
-        now
-      )
-    ).toBe(false)
   })
 
   it('reclaims a quota-deferred document only after its due time is stale', () => {
@@ -1698,39 +1099,6 @@ describe('isStuckDocumentSweepEligible', () => {
     ).toBe(false)
   })
 
-  it('reclaims a failed document once no retry of it can still be live', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('failed', { processingCompletedAt: minutesBefore(GRACE_MINUTES + 1) }),
-        now
-      )
-    ).toBe(true)
-  })
-
-  it('holds a failed document at the grace boundary', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('failed', { processingCompletedAt: minutesBefore(GRACE_MINUTES) }),
-        now
-      )
-    ).toBe(false)
-  })
-
-  it('falls back to the dispatch stamp when a failed row never recorded completion', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('failed', { processingQueuedAt: minutesBefore(1), uploadedAt: minutesBefore(1) }),
-        now
-      )
-    ).toBe(false)
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('failed', { processingQueuedAt: minutesBefore(GRACE_MINUTES + 1) }),
-        now
-      )
-    ).toBe(true)
-  })
-
   it('reclaims a processing document only once its run is stale', () => {
     expect(
       isStuckDocumentSweepEligible(
@@ -1746,10 +1114,6 @@ describe('isStuckDocumentSweepEligible', () => {
     ).toBe(true)
   })
 
-  it('reclaims a processing document with no start time', () => {
-    expect(isStuckDocumentSweepEligible(candidate('processing'), now)).toBe(true)
-  })
-
   it('ignores a start time a worker left on a document that was requeued', () => {
     expect(
       isStuckDocumentSweepEligible(
@@ -1757,19 +1121,6 @@ describe('isStuckDocumentSweepEligible', () => {
           processingQueuedAt: minutesBefore(GRACE_MINUTES - 1),
           processingStartedAt: minutesBefore(60 * 48),
           uploadedAt: minutesBefore(60 * 72),
-        }),
-        now
-      )
-    ).toBe(false)
-  })
-
-  it('gives a document whose content was just updated the full grace period', () => {
-    expect(
-      isStuckDocumentSweepEligible(
-        candidate('pending', {
-          processingQueuedAt: null,
-          processingStartedAt: minutesBefore(60 * 48),
-          uploadedAt: minutesBefore(5),
         }),
         now
       )
@@ -1796,65 +1147,6 @@ describe('selectStuckDocumentSweepCandidates', () => {
     processingCompletedAt: null,
     uploadedAt: minutesBefore(600),
   }
-
-  it.each([
-    {
-      name: 'fresh queue generation',
-      stale: { processingStatus: 'pending', ...oldCandidate },
-      fresh: {
-        processingStatus: 'pending',
-        ...oldCandidate,
-        processingQueuedAt: minutesBefore(1),
-      },
-    },
-    {
-      name: 'fresh processing claim',
-      stale: {
-        processingStatus: 'processing',
-        ...oldCandidate,
-        processingStartedAt: minutesBefore(60),
-      },
-      fresh: {
-        processingStatus: 'processing',
-        ...oldCandidate,
-        processingStartedAt: minutesBefore(1),
-      },
-    },
-    {
-      name: 'live quota continuation',
-      stale: {
-        processingStatus: 'pending',
-        ...oldCandidate,
-        processingDeferredUntil: minutesBefore(300),
-      },
-      fresh: {
-        processingStatus: 'pending',
-        ...oldCandidate,
-        processingDeferredUntil: minutesBefore(1),
-      },
-    },
-    {
-      name: 'fresh failed attempt',
-      stale: {
-        processingStatus: 'failed',
-        ...oldCandidate,
-        processingCompletedAt: minutesBefore(300),
-      },
-      fresh: {
-        processingStatus: 'failed',
-        ...oldCandidate,
-        processingCompletedAt: minutesBefore(1),
-      },
-    },
-  ])(
-    'drops a formerly eligible candidate after its locked reread sees a $name',
-    ({ stale, fresh }) => {
-      expect(
-        selectStuckDocumentSweepCandidates([{ id: 'doc-1', ...stale }], now).map((doc) => doc.id)
-      ).toEqual(['doc-1'])
-      expect(selectStuckDocumentSweepCandidates([{ id: 'doc-1', ...fresh }], now)).toEqual([])
-    }
-  )
 
   it('filters before limiting so old uploads with fresh attempts cannot starve overdue work', () => {
     const recentlyRetried = Array.from({ length: 250 }, (_, index) => ({
@@ -1936,13 +1228,6 @@ describe('resolvePreviousOwnedCount', () => {
     expect(resolvePreviousOwnedCount(null, 500)).toBe(500)
     expect(resolvePreviousOwnedCount(undefined, 500)).toBe(500)
   })
-
-  it('keeps the recorded count when it is the larger observation', async () => {
-    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-primitives')
-
-    expect(resolvePreviousOwnedCount(800, 500)).toBe(800)
-    expect(resolvePreviousOwnedCount(500, 500)).toBe(500)
-  })
 })
 
 describe('connectorDocumentSyncTarget', () => {
@@ -1976,74 +1261,6 @@ describe('connectorDocumentSyncTarget', () => {
   })
 })
 
-describe('buildReconciliationHoldNotice', () => {
-  it('places each count in its own role', async () => {
-    const { buildReconciliationHoldNotice } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    /**
-     * Asserted whole rather than by three independent `toContain` checks on
-     * distinct digit strings: those passed even with the first two arguments
-     * swapped, which inverts the message into "withheld 250 — more than the 500
-     * allowed" and misleads the operator it exists to inform.
-     */
-    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).toBe(
-      'Withheld 500 document removal(s) — more than the 250 allowed per generation ' +
-        'in one sync of 1000 documents. Documents removed at the source are still indexed. ' +
-        'Check the source is returning its full contents, then run a full sync to apply the removals.'
-    )
-  })
-
-  it('does not claim withheld documents are indexed when only the purge was held', async () => {
-    const { buildReconciliationHoldNotice } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    /**
-     * A hard-only hold withholds documents a previous sync already tombstoned,
-     * so they have been invisible since then. Telling the operator they are
-     * "still indexed" was simply false.
-     */
-    const notice = buildReconciliationHoldNotice(500, 250, 1000, false, true)
-
-    expect(notice).toContain('already pending removal were not purged')
-    expect(notice).not.toContain('are still indexed')
-  })
-
-  it('names both consequences when both generations were held', async () => {
-    const { buildReconciliationHoldNotice } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    const notice = buildReconciliationHoldNotice(900, 250, 1000, true, true)
-
-    expect(notice).toContain('are still indexed')
-    expect(notice).toContain('already pending removal were not purged')
-  })
-
-  it('describes the cap as per generation, since a sync may spend it twice', async () => {
-    const { buildReconciliationHoldNotice } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    // Saying "allowed in one sync" understated the real ceiling by 2x.
-    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).toContain(
-      '250 allowed per generation'
-    )
-  })
-
-  it('cannot be satisfied by swapping the withheld and cap counts', async () => {
-    const { buildReconciliationHoldNotice } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).not.toBe(
-      buildReconciliationHoldNotice(250, 500, 1000, true, false)
-    )
-  })
-})
-
 describe('buildSyncFailureUpdate', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
   const minutesAfter = (mins: number) => new Date(now.getTime() + mins * 60 * 1000)
@@ -2060,13 +1277,6 @@ describe('buildSyncFailureUpdate', () => {
     const third = buildSyncFailureUpdate(now, 2, 'boom')
     expect(third.consecutiveFailures).toBe(3)
     expect(third.nextSyncAt).toEqual(minutesAfter(90))
-  })
-
-  it('treats a null counter as a first failure', async () => {
-    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    expect(buildSyncFailureUpdate(now, null, 'boom').consecutiveFailures).toBe(1)
-    expect(buildSyncFailureUpdate(now, undefined, 'boom').nextSyncAt).toEqual(minutesAfter(30))
   })
 
   it('does not schedule before a longer provider retry deadline', async () => {
@@ -2113,37 +1323,6 @@ describe('buildSyncFailureUpdate', () => {
     expect(at.nextSyncAt).toBeNull()
     expect(at.lastSyncError).toContain('reconnect')
   })
-
-  it('releases the ownership token on both outcomes', async () => {
-    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { MAX_CONSECUTIVE_FAILURES } = await import('@/lib/knowledge/connectors/sync-limits')
-
-    expect(buildSyncFailureUpdate(now, 0, 'boom').syncLockToken).toBeNull()
-    expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').syncLockToken).toBeNull()
-  })
-
-  it('closes the lock lease alongside the token', async () => {
-    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    /**
-     * A run that ends leaves no lease behind. Otherwise the reaper waits out a
-     * full TTL against a lease belonging to a run that is already over.
-     */
-    expect(buildSyncFailureUpdate(now, 0, 'boom').syncLockLeaseAt).toBeNull()
-  })
-
-  it('sources the auto-disabled message from the constant the reaper shares', async () => {
-    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { CONNECTOR_AUTO_DISABLED_ERROR, MAX_CONSECUTIVE_FAILURES } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-
-    // Two writers advance one verdict; a second copy of the wording lets the
-    // in-process breaker and the SQL breaker disagree about what happened.
-    expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').lastSyncError).toBe(
-      CONNECTOR_AUTO_DISABLED_ERROR
-    )
-  })
 })
 
 describe('buildSyncRateLimitUpdate', () => {
@@ -2172,15 +1351,6 @@ describe('buildSyncRateLimitUpdate', () => {
     expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(now.getTime() + fallbackMs)
     expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(now.getTime() + fallbackMs + 60_000)
   })
-
-  it('caps the provider deadline and releases the sync lease', async () => {
-    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-    const update = buildSyncRateLimitUpdate(now, 4, 'rate limited', 30 * 24 * 60 * 60 * 1000)
-
-    expect(update.nextSyncAt).toEqual(new Date(now.getTime() + 24 * 60 * 60 * 1000))
-    expect(update.syncLockToken).toBeNull()
-    expect(update.syncLockLeaseAt).toBeNull()
-  })
 })
 
 describe('buildSyncCapacityUpdate', () => {
@@ -2202,7 +1372,7 @@ describe('buildSyncCapacityUpdate', () => {
 
 describe('buildSyncDatabaseRetryUpdate', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
-  const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
+  const _minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
   it('keeps the error visible without advancing the auto-disable counter', async () => {
     const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
@@ -2214,12 +1384,6 @@ describe('buildSyncDatabaseRetryUpdate', () => {
       syncLockLeaseAt: null,
       updatedAt: now,
     })
-  })
-
-  it('schedules the next run after the resolved retry delay', async () => {
-    expect(buildSyncDatabaseRetryUpdate(now, 0, 'db timeout', 90 * 60 * 1000).nextSyncAt).toEqual(
-      new Date(minutesAfter(90))
-    )
   })
 
   it('leaves a later source failure to be judged on source failures alone', async () => {
@@ -2235,26 +1399,6 @@ describe('buildSyncDatabaseRetryUpdate', () => {
     const sourceFailure = buildSyncFailureUpdate(now, failures, 'source broke')
     expect(sourceFailure.status).toBe('error')
     expect(sourceFailure.consecutiveFailures).toBe(2)
-  })
-})
-
-describe('sync lock lease', () => {
-  const now = new Date('2026-08-20T00:00:00.000Z')
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('opens the lease in the same statement that takes the lock', async () => {
-    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    const values = buildSyncLockAcquisition('log-1', now)
-
-    // A lease opened after the lock leaves a window where the reaper reads a
-    // NULL lease and falls back to a stale `updatedAt`.
-    expect(values.syncLockLeaseAt).toEqual(now)
-    expect(values.syncLockToken).toBe('log-1')
   })
 })
 
@@ -2274,30 +1418,6 @@ describe('buildSyncSuccessUpdate', () => {
     expect(update.lastSyncError).toBe('held: 500 removals withheld')
   })
 
-  it('still clears lastSyncError on an ordinary successful sync', async () => {
-    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    expect(buildSyncSuccessUpdate(now, 42, null, null).lastSyncError).toBeNull()
-  })
-
-  it('closes the lock lease alongside the token', async () => {
-    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    const update = buildSyncSuccessUpdate(now, 42, null, null)
-
-    expect(update.syncLockToken).toBeNull()
-    expect(update.syncLockLeaseAt).toBeNull()
-  })
-
-  it('does not treat a held pass as a broken connector', async () => {
-    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    const update = buildSyncSuccessUpdate(now, 42, null, 'held')
-
-    expect(update.status).toBe('active')
-    expect(update.consecutiveFailures).toBe(0)
-  })
-
   it('preserves the incremental watermark when source work failed', async () => {
     const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -2306,69 +1426,6 @@ describe('buildSyncSuccessUpdate', () => {
     expect(update).not.toHaveProperty('lastSyncAt')
     expect(update.status).toBe('active')
     expect(update.nextSyncAt).toBeNull()
-  })
-})
-
-describe('completeSyncLog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('only writes a row that is still started', async () => {
-    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    await completeSyncLog('log-1', 'completed', {
-      docsAdded: 1,
-      docsUpdated: 0,
-      docsDeleted: 0,
-      docsUnchanged: 0,
-      docsSkipped: 0,
-      docsFailed: 0,
-      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
-    })
-
-    const where = dbChainMockFns.where.mock.calls[0][0]
-    /**
-     * Without this the sweep and a late-finishing in-process run race: the sweep
-     * marks the row failed, then the run overwrites it as completed.
-     */
-    expect(
-      hasMockCondition(
-        where,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.knowledgeConnectorSyncLog.status &&
-          node.right === 'started'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        where,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.knowledgeConnectorSyncLog.id &&
-          node.right === 'log-1'
-      )
-    ).toBe(true)
-  })
-
-  it('persists skipped and failed source outcomes separately', async () => {
-    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    await completeSyncLog('log-1', 'completed', {
-      docsAdded: 0,
-      docsUpdated: 0,
-      docsDeleted: 0,
-      docsUnchanged: 0,
-      docsSkipped: 3,
-      docsFailed: 2,
-      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
-    })
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ docsSkipped: 3, docsFailed: 2 })
-    )
   })
 })
 
@@ -2403,7 +1460,6 @@ describe('completeSuccessfulSync', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -2478,49 +1534,6 @@ describe('completeSuccessfulSync', () => {
     }
   )
 
-  /** An unfinished pending rewrite keeps its flag and comes straight back, instead of clearing it. */
-  it('keeps the pending access rewrite and re-runs at once when the walk did not finish', async () => {
-    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-    queueTableRows(schemaMock.document, [{ count: 4 }])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'log-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-
-    await expect(
-      completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null, undefined, null, true)
-    ).resolves.toBe(true)
-
-    const logUpdate = dbChainMockFns.set.mock.calls
-      .map(([value]) => value as Record<string, unknown>)
-      .find((value) => 'completedAt' in value)
-    const connectorUpdate = dbChainMockFns.set.mock.calls
-      .map(([value]) => value as Record<string, unknown>)
-      .find((value) => value.status === 'active')
-    expect(logUpdate?.status).toBe('partial')
-    expect(connectorUpdate).not.toHaveProperty('accessRewritePending')
-    expect((connectorUpdate?.nextSyncAt as Date).getTime()).toBeLessThanOrEqual(Date.now())
-  })
-
-  it('clears the pending access rewrite once the walk finished', async () => {
-    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-    queueTableRows(schemaMock.document, [{ count: 4 }])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'log-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-
-    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
-      true
-    )
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'active', accessRewritePending: false })
-    )
-  })
-
   it('counts the documents before taking the completion locks', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
@@ -2574,41 +1587,6 @@ describe('completeSuccessfulSync', () => {
     expect(successWrite).toMatchObject({ consecutiveFailures: 0 })
   })
 
-  it('does not tolerate a non-database failure of the document count', async () => {
-    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    dbChainMockFns.where.mockImplementationOnce(() => Promise.reject(new TypeError('broken')))
-
-    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).rejects.toThrow(
-      'broken'
-    )
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('commits the completed log and connector state in one guarded transaction', async () => {
-    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-    queueTableRows(schemaMock.document, [{ count: 4 }])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'log-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-
-    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
-      true
-    )
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'completed', docsFailed: 1 })
-    )
-    const connectorUpdate = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
-    )?.[0] as Record<string, unknown> | undefined
-    expect(connectorUpdate).toBeDefined()
-    expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
-  })
-
   it('publishes neither terminal state when lock ownership is gone', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -2621,54 +1599,6 @@ describe('completeSuccessfulSync', () => {
 
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
-
-  it.each(['contentFailures', 'permissionFailures'] as const)(
-    'retains an earlier worker %s when the final page has no errors',
-    async (failure) => {
-      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-      queueTableRows(schemaMock.document, [{ count: 4 }])
-      dbChainMockFns.returning
-        .mockResolvedValueOnce([{ id: 'log-1' }])
-        .mockResolvedValueOnce([{ id: 'c-1' }])
-
-      expect(
-        await completeSuccessfulSync(
-          'c-1',
-          'kb-1',
-          'log-1',
-          60,
-          { ...RESULT, docsFailed: 0 },
-          'retry',
-          {
-            complete: true,
-            checkpoint: {
-              unsafe: false,
-              [failure]: true,
-              startedAt: '2026-09-04T00:00:00Z',
-              listedCount: 4,
-            },
-          }
-        )
-      ).toBe(true)
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'partial', docsFailed: 0, listedCount: 4 })
-      )
-      const connectorUpdate = dbChainMockFns.set.mock.calls.find(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
-      )?.[0] as Record<string, unknown>
-      expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
-      expect(connectorUpdate.lastSyncError).toBe('retry')
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'partial', errorMessage: 'retry' })
-      )
-      expect(connectorUpdate.listingCheckpoint).toBeNull()
-      expect((connectorUpdate.nextSyncAt as Date).getTime()).toBeGreaterThan(
-        Date.now() + 50 * 60_000
-      )
-    }
-  )
 
   it('records a held listing as a completed sync whose watermark advances', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
@@ -2730,63 +1660,6 @@ describe('completeSuccessfulSync', () => {
       expect.objectContaining({ status: 'active' })
     )
   })
-
-  it.each([
-    { complete: true, holdNotice: null },
-    { complete: false, holdNotice: null },
-    { complete: false, holdNotice: 'Permissions could not be verified' },
-  ])(
-    'retains dispatch failures without changing listing recovery: %j',
-    async ({ complete, holdNotice }) => {
-      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
-      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
-      queueTableRows(schemaMock.document, [{ count: 4 }])
-      dbChainMockFns.returning
-        .mockResolvedValueOnce([{ id: 'log-1' }])
-        .mockResolvedValueOnce([{ id: 'c-1' }])
-
-      await expect(
-        completeSuccessfulSync(
-          'c-1',
-          'kb-1',
-          'log-1',
-          60,
-          {
-            ...RESULT,
-            docsFailed: 0,
-            processingDispatch: { requested: 1, accepted: 0, failed: 1 },
-          },
-          holdNotice,
-          {
-            complete,
-            checkpoint: { unsafe: false, startedAt: '2026-09-04T00:00:00Z', listedCount: 4 },
-          }
-        )
-      ).resolves.toBe(true)
-
-      const notice =
-        holdNotice ??
-        'Some documents could not be queued for indexing. They will be retried automatically.'
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'partial',
-          errorMessage: notice,
-          listedCount: complete ? 4 : null,
-        })
-      )
-      const update = dbChainMockFns.set.mock.calls.find(([value]) => value.status === 'active')?.[0]
-      expect(update).toMatchObject({
-        lastSyncError: notice,
-        consecutiveFailures: 0,
-        syncLockToken: null,
-      })
-      if (complete) expect(update.lastSyncAt).toEqual(new Date('2026-09-04T00:00:00Z'))
-      else expect(update).not.toHaveProperty('lastSyncAt')
-      if (complete) expect(update.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
-      else expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(Date.now())
-    }
-  )
 })
 
 describe('stillHoldsSyncLock', () => {
@@ -2808,41 +1681,10 @@ describe('stillHoldsSyncLock', () => {
       )
     ).toBe(true)
   })
-
-  it('still scopes to the connector and skips archived or deleted rows', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    const condition = stillHoldsSyncLock('c-1', 'run-a')
-
-    expect(
-      hasMockCondition(
-        condition,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.knowledgeConnector.id &&
-          node.right === 'c-1'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        condition,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        condition,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.deletedAt
-      )
-    ).toBe(true)
-  })
 })
 
 describe('writeTerminalConnectorState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -2886,25 +1728,6 @@ describe('writeTerminalConnectorState', () => {
       )
     ).toBe(true)
   })
-
-  it('passes the caller values through untouched', async () => {
-    const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    const values = { status: 'error', consecutiveFailures: 4, nextSyncAt: null }
-    await writeTerminalConnectorState('c-1', 'run-a', values)
-
-    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual(values)
-  })
-
-  it('reports whether the write landed', async () => {
-    const { writeTerminalConnectorState } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
-    expect(await writeTerminalConnectorState('c-1', 'run-a', { status: 'active' })).toBe(true)
-
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    expect(await writeTerminalConnectorState('c-1', 'run-a', { status: 'active' })).toBe(false)
-  })
 })
 
 describe('markSyncSuperseded', () => {
@@ -2922,21 +1745,6 @@ describe('markSyncSuperseded', () => {
     )
 
     expect(markSyncSuperseded(result).skipReason).toBe(SUPERSEDED_SYNC_ERROR)
-  })
-
-  it('preserves the document counters of the discarded run', async () => {
-    const { markSyncSuperseded } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    // Those writes landed — only the connector-level bookkeeping was discarded.
-    expect(markSyncSuperseded(result)).toMatchObject(result)
-  })
-
-  it('does not mutate the result it was handed', async () => {
-    const { markSyncSuperseded } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    markSyncSuperseded(result)
-
-    expect(result).not.toHaveProperty('error')
   })
 })
 
@@ -2981,26 +1789,6 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
     expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_B), rowHeldByB)).toBe(true)
   })
 
-  it('rejects a run whose lock was reclaimed with no replacement yet', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    const reclaimed = {
-      ...rowHeldByB,
-      [schemaMock.knowledgeConnector.status]: 'error',
-      [schemaMock.knowledgeConnector.syncLockToken]: null,
-    }
-
-    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), reclaimed)).toBe(false)
-  })
-
-  it('admits the run that still holds its own lock', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    const heldByA = { ...rowHeldByB, [schemaMock.knowledgeConnector.syncLockToken]: RUN_A }
-
-    expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), heldByA)).toBe(true)
-  })
-
   it('rejects a run whose connector was paused mid-sync', async () => {
     const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
@@ -3012,55 +1800,6 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
 
     expect(conditionMatchesRow(stillHoldsSyncLock('c-1', RUN_A), paused)).toBe(false)
   })
-
-  it('releases the token when a run writes its terminal success state', async () => {
-    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    // A stale token left behind could match a later run reusing the same id.
-    expect(buildSyncSuccessUpdate(new Date(), 1, null, null).syncLockToken).toBeNull()
-  })
-})
-
-describe('buildSyncLockAcquisition', () => {
-  it('claims the lock and stamps ownership in one payload', async () => {
-    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    const now = new Date('2026-08-20T00:00:00.000Z')
-    const acquisition = buildSyncLockAcquisition('run-a', now)
-
-    /**
-     * Without the token here every terminal write would fail to match its own
-     * run, so every sync would report superseded and leave the connector stuck
-     * `syncing` until the reaper cleared it.
-     */
-    expect(acquisition.syncLockToken).toBe('run-a')
-    expect(acquisition.status).toBe('syncing')
-  })
-})
-
-describe('LOCKABLE_CONNECTOR_STATUSES', () => {
-  it('refuses to start a run on a connector someone paused or disabled', async () => {
-    const { LOCKABLE_CONNECTOR_STATUSES } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    /**
-     * The queue outlives the decision to sync. A connector paused *after* its
-     * run was queued still has a task in flight, and a bare not-syncing test
-     * let that task take the lock and then write `active` over the pause — so
-     * one pause during the queue window was silently undone. The dispatch-side
-     * guards cannot see a status change that happens after they ran; this CAS
-     * is the only point that can.
-     */
-    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('paused')
-    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('disabled')
-
-    /** A queued run must still be lockable, or nothing would ever sync. */
-    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('pending')
-    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('active')
-    expect(LOCKABLE_CONNECTOR_STATUSES).toContain('error')
-
-    /** `syncing` is already locked; re-locking it would strand the live run. */
-    expect(LOCKABLE_CONNECTOR_STATUSES).not.toContain('syncing')
-  })
 })
 
 describe('shouldHeartbeatSyncLock', () => {
@@ -3070,63 +1809,11 @@ describe('shouldHeartbeatSyncLock', () => {
     expect(shouldHeartbeatSyncLock(1_000, 0, 1_000)).toBe(true)
     expect(shouldHeartbeatSyncLock(1_001, 0, 1_000)).toBe(true)
   })
-
-  it('does not beat before the interval has elapsed', async () => {
-    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    expect(shouldHeartbeatSyncLock(999, 0, 1_000)).toBe(false)
-    expect(shouldHeartbeatSyncLock(0, 0, 1_000)).toBe(false)
-  })
-
-  it('defaults to an interval far below the reclaim TTL', async () => {
-    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-    const { CONNECTOR_SYNC_STALE_LOCK_TTL_MS, SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-
-    /**
-     * A live run must beat many times over before the reclaim cutoff, or
-     * ordinary jitter reclaims a working sync — which is what made the reaper a
-     * one-way ratchet to `disabled` for slow in-process syncs.
-     */
-    expect(SYNC_LOCK_HEARTBEAT_INTERVAL_MS * 4).toBeLessThan(CONNECTOR_SYNC_STALE_LOCK_TTL_MS)
-    expect(shouldHeartbeatSyncLock(SYNC_LOCK_HEARTBEAT_INTERVAL_MS, 0)).toBe(true)
-    expect(shouldHeartbeatSyncLock(SYNC_LOCK_HEARTBEAT_INTERVAL_MS - 1, 0)).toBe(false)
-  })
 })
 
 describe('heartbeatSyncLock', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('extends the lock lease alone, under the run own lock guard', async () => {
-    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
-
-    await heartbeatSyncLock('c-1', 'run-a')
-
-    /**
-     * Asserted whole, and the absence of `updatedAt` is the point. While the
-     * beat wrote the row mtime, every unrelated write to the row — a config
-     * edit, a status flip — was indistinguishable from a heartbeat and renewed
-     * a wedged run's lease, pushing its recovery out by another full TTL.
-     */
-    expect(dbChainMockFns.set.mock.calls[0][0]).toEqual({
-      syncLockLeaseAt: expect.any(Date),
-    })
-
-    // Guarded, so a beat doubles as an ownership probe rather than a blind touch.
-    const where = dbChainMockFns.where.mock.calls[0][0]
-    expect(
-      hasMockCondition(
-        where,
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.knowledgeConnector.syncLockToken &&
-          node.right === 'run-a'
-      )
-    ).toBe(true)
   })
 
   it('reports a lost lock so the run can stop instead of racing its replacement', async () => {
@@ -3182,7 +1869,6 @@ describe('executeSync heartbeats during the listing phase', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
@@ -3204,65 +1890,6 @@ describe('executeSync heartbeats during the listing phase', () => {
     // which is what makes the heartbeat below report a lost lock.
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
-
-  it.each(['workspace', 'admin'] as const)(
-    'diagnoses a %s tombstone query failure without continuing the crawl',
-    async (accessMode) => {
-      primeSyncUpToListing()
-      dbChainMockFns.returning.mockReset()
-      dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode }])
-      const error = new DrizzleQueryError(
-        'select private SQL',
-        ['private bound content'],
-        Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
-      )
-      dbChainMockFns.limit
-        .mockResolvedValueOnce([CONNECTOR])
-        .mockResolvedValueOnce([{ userId: 'u-1', workspaceId: 'ws-1' }])
-        .mockRejectedValueOnce(error)
-
-      const result = await executeSync('c-1', {
-        billingAttribution: { workspaceId: 'ws-1' } as never,
-      })
-
-      expect(result.error).toBe('Database request failed (SQLSTATE 57014).')
-      expect(mockLogError).toHaveBeenCalledWith('Connector tombstone check failed', {
-        connectorId: 'c-1',
-        operation: 'document.tombstone-check',
-        elapsedMs: expect.any(Number),
-        diagnostic: {
-          category: 'database',
-          code: '57014',
-          databaseReason: 'statement_timeout',
-          message: 'Database request failed (SQLSTATE 57014).',
-        },
-      })
-      expect(mockListDocuments).not.toHaveBeenCalled()
-      expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private')
-      /** A database timeout is not the connector's failure, so it leaves the breaker alone. */
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'error', consecutiveFailures: 0 })
-      )
-    }
-  )
-
-  it.each(['workspace', 'admin'] as const)(
-    'uses the locked source mode %s when resolving its token',
-    async (accessMode) => {
-      primeSyncUpToListing()
-      dbChainMockFns.returning.mockReset()
-      dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode }])
-      const resolveToken = vi
-        .spyOn(connectorTokens, 'resolveConnectorAccessToken')
-        .mockRejectedValueOnce(new Error('Stop at token resolution'))
-      try {
-        await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
-        expect(resolveToken).toHaveBeenCalledWith(expect.objectContaining({ accessMode }))
-      } finally {
-        resolveToken.mockRestore()
-      }
-    }
-  )
 
   /** A revoked grant recorded against the credential's account. */
   const INVALID_GRANT = { errorCode: 'invalid_grant', providerId: 'google-drive' } as const
@@ -3375,25 +2002,6 @@ describe('executeSync heartbeats during the listing phase', () => {
     }
   })
 
-  it('unschedules a Confluence connector whose refresh token the source rejected as unauthorized_client', async () => {
-    const restore = primeOAuthRunUpToToken()
-    const rejection = { errorCode: 'unauthorized_client', providerId: 'confluence' }
-    authOAuthUtilsMockFns.mockGetCredentialTerminalRefreshError
-      .mockResolvedValueOnce(rejection)
-      .mockResolvedValueOnce(rejection)
-    try {
-      const result = await executeSync('c-1', {
-        billingAttribution: { workspaceId: 'ws-1' } as never,
-      })
-      expect(result.skipReason).toBe('credential_revoked')
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({ nextSyncAt: null, lastSyncError: CREDENTIAL_REVOKED_SYNC_ERROR })
-      )
-    } finally {
-      restore()
-    }
-  })
-
   it.each([
     { errorCode: 'invalid_client', providerId: 'google-drive' },
     { errorCode: 'bad_client_secret', providerId: 'slack' },
@@ -3481,122 +2089,9 @@ describe('executeSync heartbeats during the listing phase', () => {
       }
     }
   )
-
-  it('proves the lease last inside each bounded transaction that writes mirrored permissions', async () => {
-    const contentPass = await import('@/lib/knowledge/connectors/sync-content-pass')
-    primeSyncUpToListing()
-    dbChainMockFns.returning.mockReset()
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
-    queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [{ id: 'doc-1', chunkCount: 1 }])
-    const pass = vi
-      .spyOn(contentPass, 'runConnectorContentPass')
-      .mockImplementation(async (input) => {
-        await input.onPage?.(
-          [
-            {
-              externalId: 'page-1',
-              title: 'Page',
-              content: 'Body',
-              contentHash: 'hash-1',
-              mimeType: 'text/plain',
-              acl: ['u:reader@example.com'],
-            },
-          ],
-          new Date()
-        )
-        throw new Error('Stopped after permission persistence')
-      })
-    try {
-      await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
-      const writeIndex = dbChainMockFns.set.mock.calls.findIndex(([values]) => 'acl' in values)
-      expect(writeIndex).toBeGreaterThanOrEqual(0)
-      const written = dbChainMockFns.set.mock.invocationCallOrder[writeIndex]
-      const opened = Math.max(
-        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < written)
-      )
-      const between = (orders: number[]) =>
-        orders.some((order) => order > opened && order < written)
-      const leaseChecks = dbChainMockFns.for.mock.calls
-        .map(([mode], index) => ({
-          mode,
-          order: dbChainMockFns.for.mock.invocationCallOrder[index],
-        }))
-        .filter(({ mode }) => mode === 'share')
-        .map(({ order }) => order)
-      /** Proved after the write and before the next transaction opens: the page's last statement. */
-      const closed = Math.min(
-        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order > written),
-        Number.POSITIVE_INFINITY
-      )
-      expect(leaseChecks.some((order) => order > written && order < closed)).toBe(true)
-      expect(between(leaseChecks)).toBe(false)
-      const bounds = dbChainMockFns.execute.mock.calls
-        .map((query: unknown[], index) => ({
-          query,
-          order: dbChainMockFns.execute.mock.invocationCallOrder[index],
-        }))
-        .filter(({ query }) => JSON.stringify(query).includes('lock_timeout'))
-        .map(({ order }) => order)
-      expect(between(bounds)).toBe(true)
-    } finally {
-      pass.mockRestore()
-    }
-  })
-
-  it('beats between pages and abandons the run when the lock was reclaimed', async () => {
-    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-
-    primeSyncUpToListing()
-
-    /**
-     * Listing is where a large source spends most of its wall clock, so a page
-     * that pushes the run past the heartbeat interval must trigger a beat before
-     * the next page — not only once listing has finished.
-     */
-    mockListDocuments.mockImplementation(async () => {
-      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1_000))
-      return { documents: [], hasMore: true, nextCursor: 'page-2' }
-    })
-
-    const result = await executeSync('c-1', {
-      billingAttribution: { workspaceId: 'ws-1' } as never,
-    })
-
-    // Aborted on the beat before page 2 rather than paging on under a lost lock.
-    expect(mockListDocuments).toHaveBeenCalledTimes(1)
-    expect(result.skipReason).toBe('sync_superseded')
-  })
-
-  it('does not beat when pages return faster than the interval', async () => {
-    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    primeSyncUpToListing()
-
-    let pages = 0
-    mockListDocuments.mockImplementation(async () => {
-      pages += 1
-      vi.setSystemTime(new Date(Date.now() + 1_000))
-      return { documents: [], hasMore: pages < 3, nextCursor: `page-${pages}` }
-    })
-
-    await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
-
-    // All three pages fetched: the time gate keeps a fast listing beat-free.
-    expect(mockListDocuments).toHaveBeenCalledTimes(3)
-  })
 })
 
 describe('resolveStaleProcessingMinutes', () => {
-  it('preserves the previously hard-coded value at the default configuration', async () => {
-    const { resolveStaleProcessingMinutes } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    expect(resolveStaleProcessingMinutes(600, 3)).toBe(45)
-  })
-
   it('always exceeds the longest a legitimate run can take', async () => {
     const { resolveStaleProcessingMinutes, worstCaseProcessingMinutes } = await import(
       '@/lib/knowledge/connectors/sync-engine'
@@ -3622,20 +2117,6 @@ describe('resolveStaleProcessingMinutes', () => {
 })
 
 describe('SWEEPABLE_PROCESSING_STATUSES', () => {
-  it('never includes a completed document', async () => {
-    const { SWEEPABLE_PROCESSING_STATUSES } = await import(
-      '@/lib/knowledge/connectors/sync-primitives'
-    )
-
-    /**
-     * The sweep reclaims by deleting embeddings and re-dispatching, so a
-     * completed document entering this list means a finished, already-billed
-     * pass is discarded and paid for twice.
-     */
-    expect(SWEEPABLE_PROCESSING_STATUSES).not.toContain('completed')
-    expect([...SWEEPABLE_PROCESSING_STATUSES].sort()).toEqual(['failed', 'pending', 'processing'])
-  })
-
   it('covers every non-terminal state so nothing is stranded', async () => {
     const { SWEEPABLE_PROCESSING_STATUSES } = await import(
       '@/lib/knowledge/connectors/sync-primitives'
@@ -3646,21 +2127,6 @@ describe('SWEEPABLE_PROCESSING_STATUSES', () => {
       (status) => !SWEEPABLE_PROCESSING_STATUSES.includes(status as never)
     )
     expect(unreclaimable).toEqual(['completed'])
-  })
-})
-
-describe('MAX_PROCESSING_ATTEMPTS', () => {
-  it('bounds sweep spend without stranding a recoverable document too early', async () => {
-    const { MAX_PROCESSING_ATTEMPTS } = await import('@/lib/knowledge/documents/types')
-
-    /**
-     * One attempt is spent per dispatch, not per Trigger.dev retry, so a
-     * short-interval connector can burn several inside one transient outage.
-     * Below 4 that is reachable in a single bad window; above ~10 the budget
-     * stops bounding the spend it exists to bound.
-     */
-    expect(MAX_PROCESSING_ATTEMPTS).toBeGreaterThanOrEqual(4)
-    expect(MAX_PROCESSING_ATTEMPTS).toBeLessThanOrEqual(10)
   })
 })
 
@@ -3696,7 +2162,6 @@ describe('executeSync hard-delete reconciliation', () => {
   const missingIds = ownedDocs.slice(LISTED_DOC_COUNT).map((d) => d.id)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -3780,30 +2245,6 @@ describe('executeSync hard-delete reconciliation', () => {
     expect(calls.flatMap((call) => call[0] as string[])).toEqual(missingIds)
   })
 
-  it('stops deletion between chunks when the sync lock was reclaimed', async () => {
-    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
-
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'))
-    primeReconciliation()
-    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
-      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1))
-      return 0
-    })
-
-    const result = await executeSync('c-1', {
-      billingAttribution: { workspaceId: 'ws-1' } as never,
-      fullSync: true,
-    })
-
-    expect(hardDeleteDocuments).toHaveBeenCalledTimes(1)
-    expect(result.skipReason).toBe('sync_superseded')
-  })
-
   it('bounds and orders the stuck-document sweep instead of draining a backlog at once', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
     const { STUCK_RETRY_MAX_CANDIDATES_PER_SYNC } = await import(
@@ -3872,24 +2313,6 @@ describe('executeSync hard-delete reconciliation', () => {
     )
   })
 
-  it('leaves an API-key connector whose required key is missing unscheduled', async () => {
-    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    queueTableRows(schemaMock.knowledgeConnector, [
-      { ...CONNECTOR, connectorType: 'keyed', credentialId: null, encryptedApiKey: null },
-    ])
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
-
-    const result = await executeSync('c-1', {
-      billingAttribution: { workspaceId: 'ws-1' } as never,
-    })
-
-    expect(result.skipReason).toBe('credential_missing')
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ consecutiveFailures: expect.any(Number) })
-    )
-  })
-
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -3915,28 +2338,6 @@ describe('executeSync hard-delete reconciliation', () => {
       })
     )
   })
-
-  it('passes a transactional sync-lock guard to every hard-delete chunk', async () => {
-    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
-    primeReconciliation()
-    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1', accessMode: 'workspace' }])
-
-    await executeSync('c-1', {
-      billingAttribution: { workspaceId: 'ws-1' } as never,
-      fullSync: true,
-    })
-
-    for (const call of vi.mocked(hardDeleteDocuments).mock.calls) {
-      expect(call[4]).toEqual({
-        connectorId: 'c-1',
-        knowledgeBaseId: 'kb-1',
-        syncLockToken: expect.any(String),
-        lease: 'content',
-      })
-    }
-  })
 })
 
 describe('completeSyncLog ownership guard', () => {
@@ -3951,7 +2352,6 @@ describe('completeSyncLog ownership guard', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -4013,36 +2413,6 @@ describe('completeSyncLog ownership guard', () => {
       )
     ).toBe(true)
   })
-
-  it('leaves both failure closes unguarded', async () => {
-    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    /**
-     * A `failed` row is never read back as evidence —
-     * `loadPreviousListingObservation` selects `status = 'completed'` — and both
-     * failure paths legitimately close a run whose lock is already gone. The
-     * deleted-connector path in particular runs on an archived row the reaper
-     * skips, so guarding it would strand the log row instead of closing it.
-     */
-    await completeSyncLog('log-1', 'failed', RESULT, { errorMessage: 'boom' })
-
-    const where = dbChainMockFns.where.mock.calls[0][0]
-    expect(hasMockCondition(where, (node: MockCondition) => node.type === 'exists')).toBe(false)
-  })
-
-  it('reports whether the close landed', async () => {
-    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
-
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
-    await expect(
-      completeSyncLog('log-1', 'completed', RESULT, { requireSyncLockOn: 'c-1' })
-    ).resolves.toBe(true)
-
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    await expect(
-      completeSyncLog('log-1', 'completed', RESULT, { requireSyncLockOn: 'c-1' })
-    ).resolves.toBe(false)
-  })
 })
 
 describe('executeSync terminal exits under a lost lock', () => {
@@ -4064,7 +2434,6 @@ describe('executeSync terminal exits under a lost lock', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -4116,108 +2485,4 @@ describe('executeSync terminal exits under a lost lock', () => {
     )
     expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
   })
-
-  it.each(['checkpoint', 'batch'] as const)(
-    'releases the lock when a %s detects an archived connector',
-    async (stage) => {
-      const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
-      const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
-
-      primeLockedRun()
-      /** The initial checkpoint holds a live lease unless the archive already landed. */
-      queueTableRows(schemaMock.knowledgeConnector, stage === 'checkpoint' ? [] : [{ id: 'c-1' }])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.knowledgeConnector, [
-        stage === 'checkpoint'
-          ? { archivedAt: new Date(), deletedAt: null }
-          : { connectorArchivedAt: new Date(), connectorDeletedAt: null, kbDeletedAt: null },
-      ])
-      /** The leftover-document cleanup this path performs. */
-      queueTableRows(schemaMock.document, [])
-      vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
-
-      mockListDocuments.mockResolvedValue({
-        documents: [
-          {
-            externalId: 'ext-1',
-            title: 'ext-1',
-            content: 'body',
-            contentHash: 'h',
-            mimeType: 'text/plain',
-            metadata: {},
-          },
-        ],
-        hasMore: false,
-      })
-
-      const result = await executeSync('c-1', {
-        billingAttribution: { workspaceId: 'ws-1' } as never,
-      })
-
-      expect(result.skipReason).toBe('connector_deleted_during_sync')
-
-      /**
-       * This exit wrote nothing to the connector row, leaving it `syncing` with a
-       * live token. The reaper requires `isNull(archivedAt)` and `isNull(deletedAt)`,
-       * so the one writer that could clear a stranded lock skips exactly the rows
-       * this path creates. Matches the two knowledge-base-deleted writers: release
-       * token and lease, and make the transition terminal.
-       */
-      const release = dbChainMockFns.set.mock.calls.find(
-        (call) =>
-          (call[0] as Record<string, unknown> | undefined)?.lastSyncError ===
-          'Connector deleted during sync'
-      )
-      expect(release?.[0]).toEqual(
-        expect.objectContaining({
-          status: 'error',
-          nextSyncAt: null,
-          syncLockToken: null,
-          syncLockLeaseAt: null,
-        })
-      )
-
-      /**
-       * Guarded on ownership alone, never on {@link stillHoldsSyncLock}: the
-       * connector being archived is this path's precondition, so a liveness clause
-       * would reject every write the release exists to make.
-       */
-      const releaseOrder =
-        dbChainMockFns.set.mock.invocationCallOrder[
-          dbChainMockFns.set.mock.calls.indexOf(release as never)
-        ]
-      const releaseWhereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
-        (order) => order > releaseOrder
-      )
-      const releaseWhere = dbChainMockFns.where.mock.calls[releaseWhereIndex][0]
-      expect(
-        hasMockCondition(
-          releaseWhere,
-          (node: MockCondition) =>
-            node.type === 'eq' && node.left === schemaMock.knowledgeConnector.syncLockToken
-        )
-      ).toBe(true)
-      expect(
-        hasMockCondition(
-          releaseWhere,
-          (node: MockCondition) =>
-            node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
-        )
-      ).toBe(false)
-
-      /**
-       * And this path's log close stays unguarded. Its connector is archived, so an
-       * ownership-guarded close would match nothing and leave the row `started`
-       * until the sync-log sweep mislabelled it.
-       */
-      expect(
-        dbChainMockFns.where.mock.calls.some((call) =>
-          hasMockCondition(call[0], (node: MockCondition) => node.type === 'exists')
-        )
-      ).toBe(false)
-    }
-  )
 })

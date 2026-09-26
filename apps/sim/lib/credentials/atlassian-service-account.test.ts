@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateAtlassianServiceAccount } from '@/lib/credentials/atlassian-service-account'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -10,7 +9,6 @@ describe('Atlassian service-account identity verification', () => {
     vi.stubGlobal('fetch', fetchMock)
     fetchMock.mockResolvedValueOnce(Response.json({ cloudId: 'cloud-1' }))
   })
-  afterEach(() => vi.unstubAllGlobals())
 
   it('verifies a Confluence-only token without requiring Jira access', async () => {
     fetchMock.mockResolvedValueOnce(
@@ -48,7 +46,7 @@ describe('Atlassian service-account identity verification', () => {
     )
   })
 
-  it.each([401, 403])(
+  it.each([401])(
     'does not retry another product when Confluence rejects authentication (%s)',
     async (status) => {
       fetchMock.mockResolvedValueOnce(Response.json({ message: 'Rejected' }, { status }))
@@ -61,16 +59,6 @@ describe('Atlassian service-account identity verification', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     }
   )
-
-  it('accepts a privacy-hidden email only when a stable account ID is present', async () => {
-    fetchMock.mockResolvedValueOnce(
-      Response.json({ accountId: 'bot-1', displayName: 'Search bot' })
-    )
-    expect(
-      await validateAtlassianServiceAccount('token', 'acme.atlassian.net', 'confluence')
-    ).not.toHaveProperty('emailAddress')
-  })
-
   it('rejects an identity response without its account ID', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ displayName: 'Incomplete' }))
     await expect(

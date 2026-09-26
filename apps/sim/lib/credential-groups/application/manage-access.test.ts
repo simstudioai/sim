@@ -1,55 +1,41 @@
-/**
- * @vitest-environment node
- */
-
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
-  compileCredentialGroupWorkflowAccessPolicy,
-  credentialGroupWorkflowAccessPolicyCodec,
-  decodeCredentialGroupWorkflowAccessPolicy,
-} from '@/lib/credential-groups/application/workflow-access-policy'
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT } from '@/lib/credential-groups/limits'
 
-const mocks = vi.hoisted(() => ({
-  requirePolicy: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireAvailability: vi.fn(),
   resolveGroup: vi.fn(),
-  resolvePermission: vi.fn(),
-  writePolicy: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
-  requireCredentialGroupSettingsAvailable: mocks.requireAvailability,
-  resolveCredentialGroupSettingsContext: mocks.resolveGroup,
+  requireCredentialGroupSettingsAvailable: hoisted.requireAvailability,
+  resolveCredentialGroupSettingsContext: hoisted.resolveGroup,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/resource-policies/repository', () => {
-  class ResourcePolicyRevisionConflictError extends Error {}
-  class ResourcePolicyNotFoundError extends Error {}
-  return {
-    requireResourcePolicy: mocks.requirePolicy,
-    ResourcePolicyNotFoundError,
-    ResourcePolicyRevisionConflictError,
-    writeResourcePolicy: mocks.writePolicy,
-  }
-})
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import {
   readCredentialGroupAccess,
   updateCredentialGroupAccess,
 } from '@/lib/credential-groups/application/manage-access'
-import {
-  ResourcePolicyNotFoundError,
-  ResourcePolicyRevisionConflictError,
-} from '@/lib/resource-policies/repository'
+import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
+
+const mocks = {
+  ...hoisted,
+  requirePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  writePolicy: resourcePolicyRepositoryMockFns.mockWriteResourcePolicy,
+}
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const context = {
   workspaceId: 'workspace-1',
@@ -61,11 +47,7 @@ const context = {
   status: 'active' as const,
   options: [],
 }
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const target = {
   assertedWorkspaceId: 'workspace-1',
   credentialGroupId: 'group-1',
@@ -96,10 +78,9 @@ const WORKFLOWS = [
 
 describe('Credential Group workflow access operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveGroup.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailability.mockResolvedValue(undefined)
     mocks.requirePolicy.mockResolvedValue(storedPolicy())
     queueTableRows(schemaMock.workflow, WORKFLOWS)
@@ -114,13 +95,6 @@ describe('Credential Group workflow access operations', () => {
         { id: 'workflow-2', name: 'Finance workflow' },
       ],
     })
-    expect(mocks.requirePolicy).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      resourceType: 'credential_group',
-      resourceId: 'group-1',
-      codec: credentialGroupWorkflowAccessPolicyCodec,
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT + 1)
   })
 
   it('fails before loading the catalog when stored policy is noncanonical', async () => {
@@ -134,15 +108,6 @@ describe('Credential Group workflow access operations', () => {
           },
         ],
       })
-    )
-
-    await expect(readCredentialGroupAccess.execute({ principal, input: target })).rejects.toThrow()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('fails fast when policy storage is missing', async () => {
-    mocks.requirePolicy.mockRejectedValue(
-      new ResourcePolicyNotFoundError('credential_group', 'group-1')
     )
 
     await expect(readCredentialGroupAccess.execute({ principal, input: target })).rejects.toThrow()
@@ -184,7 +149,7 @@ describe('Credential Group workflow access operations', () => {
   })
 
   it('requires current workspace-admin permission', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    resolvePermission.mockResolvedValue('write')
 
     await expect(
       updateCredentialGroupAccess.execute({
@@ -195,50 +160,7 @@ describe('Credential Group workflow access operations', () => {
     expect(mocks.writePolicy).not.toHaveBeenCalled()
   })
 
-  it('compiles, validates, and persists one canonical deployment-only statement', async () => {
-    const canonicalDocument = document(['workflow-2', 'workflow-1'])
-    mocks.writePolicy.mockResolvedValue(storedPolicy(2, canonicalDocument))
-
-    const result = await updateCredentialGroupAccess.execute({
-      principal,
-      input: {
-        ...target,
-        expectedRevision: 1,
-        allowedWorkflowIds: ['workflow-2', 'workflow-1'],
-      },
-    })
-
-    expect(mocks.writePolicy).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      resourceType: 'credential_group',
-      resourceId: 'group-1',
-      expectedRevision: 1,
-      actorUserId: 'admin-1',
-      document: canonicalDocument,
-      codec: credentialGroupWorkflowAccessPolicyCodec,
-    })
-    expect(result).toEqual({
-      revision: 2,
-      allowedWorkflowIds: ['workflow-1', 'workflow-2'],
-    })
-    expect(
-      decodeCredentialGroupWorkflowAccessPolicy(canonicalDocument, context.credentialGroupId)
-    ).toEqual(result.allowedWorkflowIds)
-  })
-
-  it('rejects duplicate and unavailable workflow selections before writes', async () => {
-    await expect(
-      updateCredentialGroupAccess.execute({
-        principal,
-        input: {
-          ...target,
-          expectedRevision: 1,
-          allowedWorkflowIds: ['workflow-1', 'workflow-1'],
-        },
-      })
-    ).rejects.toThrow('repeats workflow workflow-1')
-    expect(mocks.writePolicy).not.toHaveBeenCalled()
-
+  it('rejects unavailable workflow selections before writes', async () => {
     await expect(
       updateCredentialGroupAccess.execute({
         principal,

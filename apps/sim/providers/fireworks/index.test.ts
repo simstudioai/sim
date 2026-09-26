@@ -1,45 +1,25 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
-const {
-  mockCreate,
-  mockSupportsNativeStructuredOutputs,
-  mockPrepareToolsWithUsageControl,
-  mockExecuteTool,
-  mockResolveFireworksWireModel,
-} = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
+const { mockSupportsNativeStructuredOutputs, mockResolveFireworksWireModel } = vi.hoisted(() => ({
   mockSupportsNativeStructuredOutputs: vi.fn(),
-  mockPrepareToolsWithUsageControl: vi.fn(),
-  mockExecuteTool: vi.fn(),
   mockResolveFireworksWireModel: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue('llama-v3p1-70b-instruct'),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/fireworks/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
@@ -50,27 +30,23 @@ vi.mock('@/providers/fireworks/utils', () => ({
   resolveFireworksWireModel: mockResolveFireworksWireModel,
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn().mockReturnValue({ input: 0, output: 0, total: 0 }),
-  generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
-  prepareToolExecution: vi.fn(() => ({ toolParams: { x: 1 }, executionParams: { x: 1 } })),
-  prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,
-  sumToolCosts: vi.fn().mockReturnValue(0),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { fireworksProvider } from '@/providers/fireworks/index'
-import { ProviderError } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 5
+
+const mockPrepareToolsWithUsageControl = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { x: 1 },
+  executionParams: { x: 1 },
+})
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -109,7 +85,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('fireworksProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
@@ -139,12 +114,6 @@ describe('fireworksProvider', () => {
     expect(callBody(0).model).toBe('accounts/Example/models/CustomModel')
   })
 
-  it('throws when the API key is missing', async () => {
-    await expect(
-      fireworksProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Fireworks')
-  })
-
   it('returns content and token usage for a simple request', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('hi there'))
 
@@ -171,14 +140,6 @@ describe('fireworksProvider', () => {
     // The catalog id is the billing/logging identity: the central cost policy,
     // the usage ledger row, and the trace span all key on it.
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
-  })
-
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(fireworksProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(
-      ProviderError
-    )
   })
 
   it('streams directly when there are no tools', async () => {

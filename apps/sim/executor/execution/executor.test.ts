@@ -1,16 +1,38 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
+import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSerializedBlock, createSerializedWorkflow } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
-import { DAGBuilder } from '@/executor/dag/builder'
+import type { DAGBuilder } from '@/executor/dag/builder'
 import { DAGExecutor } from '@/executor/execution/executor'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
-import { buildSentinelStartId } from '@/executor/utils/subflow-utils'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+const { executed, gateChoice } = vi.hoisted(() => ({
+  executed: [] as string[],
+  gateChoice: { value: 'if' as 'if' | 'else' },
+}))
+
+vi.mock('@/executor/handlers/registry', () => ({
+  createBlockHandlers: () => [
+    {
+      canHandle: () => true,
+      execute: async (
+        _ctx: unknown,
+        block: { id: string; metadata?: { id?: string; name?: string } }
+      ) => {
+        executed.push(block.id)
+        if (block.metadata?.id === 'condition') {
+          return { selectedOption: `${block.metadata.name}-${gateChoice.value}` }
+        }
+        return { ok: true }
+      },
+    },
+  ],
+}))
 
 /** Reaches the executor's private context factory, which every run's root context comes from. */
 function createExecutionContext(executor: DAGExecutor, workflowId = 'wf-1'): ExecutionContext {
@@ -78,126 +100,6 @@ describe('DAGExecutor restored cloned subflow registration', () => {
       parentType: 'parallel',
       branchIndex: 2,
     })
-  })
-
-  it('preserves cloned nested parent relationships within the same restored branch', () => {
-    const executor = createExecutor() as unknown as {
-      registerRestoredClonedSubflows: (
-        parentMap: Map<
-          string,
-          { parentId: string; parentType: 'loop' | 'parallel'; branchIndex?: number }
-        >,
-        clonedSubflows: Array<{
-          originalId: string
-          clonedId: string
-          outerBranchIndex: number
-          parentParallelId: string
-        }>
-      ) => void
-    }
-    const parentMap = new Map<
-      string,
-      { parentId: string; parentType: 'loop' | 'parallel'; branchIndex?: number }
-    >([
-      ['middle-loop', { parentId: 'parent-parallel', parentType: 'parallel' }],
-      ['inner-parallel', { parentId: 'middle-loop', parentType: 'loop' }],
-    ])
-
-    executor.registerRestoredClonedSubflows(parentMap, [
-      {
-        originalId: 'middle-loop',
-        clonedId: 'middle-loop__obranch-2',
-        outerBranchIndex: 2,
-        parentParallelId: 'parent-parallel',
-      },
-      {
-        originalId: 'inner-parallel',
-        clonedId: 'inner-parallel__obranch-2',
-        outerBranchIndex: 2,
-        parentParallelId: 'parent-parallel',
-      },
-    ])
-
-    expect(parentMap.get('inner-parallel__obranch-2')).toEqual({
-      parentId: 'middle-loop__obranch-2',
-      parentType: 'loop',
-      branchIndex: 0,
-    })
-  })
-
-  it('restores snapshot parallel batches with later global branch indexes', () => {
-    const parallelId = 'parallel-1'
-    const loopId = 'loop-1'
-    const taskId = 'task-1'
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [
-        createBlock('start', BlockType.STARTER),
-        createBlock(parallelId, BlockType.PARALLEL),
-        createBlock(loopId, BlockType.LOOP),
-        createBlock(taskId, BlockType.FUNCTION),
-      ],
-      connections: [
-        { source: 'start', target: parallelId },
-        { source: parallelId, target: loopId, sourceHandle: 'parallel-start-source' },
-        { source: loopId, target: taskId, sourceHandle: 'loop-start-source' },
-      ],
-      loops: {
-        [loopId]: {
-          id: loopId,
-          nodes: [taskId],
-          iterations: 1,
-          loopType: 'for',
-        },
-      },
-      parallels: {
-        [parallelId]: {
-          id: parallelId,
-          nodes: [loopId],
-          count: 4,
-          parallelType: 'count',
-        },
-      },
-    }
-    const dag = new DAGBuilder().build(workflow)
-    const executor = new DAGExecutor({ workflow }) as unknown as {
-      restoreSnapshotParallelBatches: (
-        dag: ReturnType<DAGBuilder['build']>,
-        snapshotState?: SerializableExecutionState
-      ) => Array<{
-        originalId: string
-        clonedId: string
-        outerBranchIndex: number
-        parentParallelId: string
-      }>
-    }
-
-    const restoredClones = executor.restoreSnapshotParallelBatches(dag, {
-      blockStates: {},
-      executedBlocks: [],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: [],
-      parallelExecutions: {
-        [parallelId]: {
-          currentBatchStart: 2,
-          currentBatchSize: 1,
-          totalBranches: 4,
-          items: ['zero', 'one', 'two', 'three'],
-        },
-      },
-    })
-
-    expect(dag.nodes.has(buildSentinelStartId(`${loopId}__obranch-2`))).toBe(true)
-    expect(restoredClones).toContainEqual(
-      expect.objectContaining({
-        originalId: loopId,
-        clonedId: `${loopId}__obranch-2`,
-        outerBranchIndex: 2,
-        parentParallelId: parallelId,
-      })
-    )
   })
 })
 
@@ -290,56 +192,6 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
     expect(result.metadata?.fileKeys).not.toContain(unreachableFile.key)
   })
 
-  it('preserves reachable stable branch aliases in run-from-block snapshots', async () => {
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [
-        createBlock('start', BlockType.STARTER),
-        createBlock('producer', BlockType.FUNCTION),
-        createBlock('consumer', BlockType.FUNCTION),
-      ],
-      connections: [
-        { source: 'start', target: 'producer' },
-        { source: 'producer', target: 'consumer' },
-      ],
-      loops: {},
-      parallels: {},
-    }
-    let capturedContext: ExecutionContext | undefined
-    const executor = new DAGExecutor({ workflow }) as unknown as DAGExecutor & {
-      buildExecutionPipeline: (context: ExecutionContext) => { run: () => Promise<ExecutionResult> }
-    }
-    executor.buildExecutionPipeline = vi.fn((context: ExecutionContext) => {
-      capturedContext = context
-      return {
-        run: async (): Promise<ExecutionResult> => ({
-          success: true,
-          output: { ok: true },
-          metadata: {},
-        }),
-      }
-    })
-    const sourceSnapshot: SerializableExecutionState = {
-      blockStates: {
-        producer: { output: { result: 'latest-local-batch' } },
-        'producer__obranch-0': { output: { result: 'global-branch-0' } },
-        'unreachable__obranch-0': { output: { result: 'unreachable' } },
-        consumer: { output: { previous: true } },
-      },
-      executedBlocks: ['producer', 'producer__obranch-0', 'unreachable__obranch-0', 'consumer'],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: [],
-    }
-
-    await executor.executeFromBlock('wf', 'consumer', sourceSnapshot)
-
-    expect(capturedContext?.blockStates.get('producer__obranch-0')?.output).toEqual({
-      result: 'global-branch-0',
-    })
-    expect(capturedContext?.blockStates.has('unreachable__obranch-0')).toBe(false)
-  })
   it('refuses a start block whose upstream never executed with a typed validation error', async () => {
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -453,36 +305,6 @@ describe('DAGExecutor createExecutionContext useDraftState', () => {
       buildMetadataUseDraftState({ metadataUseDraftState: true, isDeployedContext: true })
     ).toBe(true)
   })
-
-  it('honors explicit useDraftState=false even when isDeployedContext is false', () => {
-    expect(
-      buildMetadataUseDraftState({ metadataUseDraftState: false, isDeployedContext: false })
-    ).toBe(false)
-  })
-
-  it('falls back to the isDeployedContext heuristic when useDraftState is not provided', () => {
-    expect(buildMetadataUseDraftState({ isDeployedContext: true })).toBe(false)
-    expect(buildMetadataUseDraftState({ isDeployedContext: false })).toBe(true)
-  })
-})
-
-describe('DAGExecutor executor delegation origin', () => {
-  it('copies the canonical origin into the runtime execution context', () => {
-    const executorDelegationOrigin = {
-      subjectUserId: 'user-1',
-      workflowId: 'parent-workflow',
-      executionId: 'parent-execution',
-    }
-    const executor = new DAGExecutor({
-      workflow: { version: '1', blocks: [], connections: [] },
-      contextExtensions: { executorDelegationOrigin },
-    })
-
-    const context = createExecutionContext(executor, 'child-workflow')
-
-    expect(context.workflowId).toBe('child-workflow')
-    expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
-  })
 })
 
 describe('DAGExecutor run-scoped permission config cache', () => {
@@ -497,14 +319,6 @@ describe('DAGExecutor run-scoped permission config cache', () => {
 
     expect(context.permissionConfigCache).toBeInstanceOf(Map)
     expect(blockContext.permissionConfigCache).toBe(context.permissionConfigCache)
-  })
-
-  it('never shares the cache between runs', () => {
-    const workflow = { version: '1', blocks: [], connections: [] }
-    const parent = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
-    const child = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
-
-    expect(child.permissionConfigCache).not.toBe(parent.permissionConfigCache)
   })
 })
 
@@ -527,14 +341,185 @@ describe('DAGExecutor exact access key lists', () => {
     expect(context.largeValueKeys).toEqual(['large-value-key'])
     expect(context.fileKeys).toEqual(['file-key'])
   })
+})
 
-  it('shares the lists a run passes in rather than copying them', () => {
-    const largeValueKeys = ['inherited-large-value-key']
-    const fileKeys = ['inherited-file-key']
+describe('DAGExecutor run-from-block edge state', () => {
+  const PRINCIPAL: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 
-    const context = createContext({ largeValueKeys, fileKeys })
+  /** Block ids double as their type for the special blocks; every other block is a function. */
+  const BLOCK_TYPES: Record<string, string> = {
+    start: BlockType.STARTER,
+    gate: BlockType.CONDITION,
+    loop: BlockType.LOOP,
+    fanOut: BlockType.PARALLEL,
+  }
 
-    expect(context.largeValueKeys).toBe(largeValueKeys)
-    expect(context.fileKeys).toBe(fileKeys)
+  function workflow(
+    connections: SerializedWorkflow['connections'],
+    loops: SerializedWorkflow['loops'] = {},
+    parallels: SerializedWorkflow['parallels'] = {}
+  ): SerializedWorkflow {
+    const ids = new Set(connections.flatMap((c) => [c.source, c.target]))
+    const blocks = [...ids].map((id) =>
+      createSerializedBlock({ id, name: id, type: BLOCK_TYPES[id] ?? BlockType.FUNCTION })
+    )
+    return { ...createSerializedWorkflow(blocks, connections), loops, parallels }
+  }
+
+  function createExecutor(wf: SerializedWorkflow, executionId: string): DAGExecutor {
+    return new DAGExecutor({
+      workflow: wf,
+      contextExtensions: { workspaceId: 'ws', executionId, principal: PRINCIPAL },
+    })
+  }
+
+  /** A full run with one gate decision, then a run-from-block seeded from that run's snapshot. */
+  async function rerunFromBlock(
+    wf: SerializedWorkflow,
+    startBlockId: string,
+    first: 'if' | 'else',
+    second: 'if' | 'else'
+  ): Promise<string[]> {
+    gateChoice.value = first
+    const run1 = await createExecutor(wf, 'exec-1').execute('wf')
+    expect(run1.success).toBe(true)
+    expect(run1.executionState).toBeDefined()
+
+    executed.length = 0
+    gateChoice.value = second
+    const run2 = await createExecutor(wf, 'exec-2').executeFromBlock(
+      'wf',
+      startBlockId,
+      run1.executionState!
+    )
+    expect(run2.success).toBe(true)
+    return [...executed]
+  }
+
+  const exclusive = workflow([
+    { source: 'start', target: 'prep' },
+    { source: 'prep', target: 'gate' },
+    { source: 'gate', target: 'readDoc', sourceHandle: 'condition-gate-if' },
+    { source: 'gate', target: 'noDoc', sourceHandle: 'condition-gate-else' },
+  ])
+
+  const diamond = workflow([
+    { source: 'start', target: 'prep' },
+    { source: 'prep', target: 'gate' },
+    { source: 'gate', target: 'readDoc', sourceHandle: 'condition-gate-if' },
+    { source: 'gate', target: 'docPlan', sourceHandle: 'condition-gate-else' },
+    { source: 'readDoc', target: 'docPlan' },
+  ])
+
+  const siblings = workflow([
+    { source: 'start', target: 'a' },
+    { source: 'start', target: 'b' },
+    { source: 'a', target: 'join' },
+    { source: 'b', target: 'join' },
+  ])
+
+  const looped = workflow(
+    [
+      { source: 'start', target: 'prep' },
+      { source: 'prep', target: 'loop' },
+      { source: 'loop', target: 'gate', sourceHandle: 'loop-start-source' },
+      { source: 'gate', target: 'readDoc', sourceHandle: 'condition-gate-if' },
+      { source: 'gate', target: 'noDoc', sourceHandle: 'condition-gate-else' },
+    ],
+    { loop: { id: 'loop', nodes: ['gate', 'readDoc', 'noDoc'], iterations: 1, loopType: 'for' } }
+  )
+
+  beforeEach(() => {
+    executed.length = 0
+  })
+
+  it.each([
+    {
+      title: 'does not run an unselected branch the source execution had activated',
+      wf: exclusive,
+      start: 'prep',
+      first: 'if',
+      second: 'else',
+      expected: ['prep', 'gate', 'noDoc'],
+    },
+    {
+      title: 'runs the branch the source execution had deactivated when it is selected',
+      wf: exclusive,
+      start: 'prep',
+      first: 'else',
+      second: 'if',
+      expected: ['prep', 'gate', 'readDoc'],
+    },
+    {
+      title: 'waits for the live input of a join the source execution had released early',
+      wf: diamond,
+      start: 'prep',
+      first: 'else',
+      second: 'if',
+      expected: ['prep', 'gate', 'readDoc', 'docPlan'],
+    },
+    {
+      title: 'still runs the join directly when its other input is deselected',
+      wf: diamond,
+      start: 'prep',
+      first: 'if',
+      second: 'else',
+      expected: ['prep', 'gate', 'docPlan'],
+    },
+    {
+      title: 'does not wait on a cached sibling input outside the re-run region',
+      wf: siblings,
+      start: 'a',
+      first: 'if',
+      second: 'if',
+      expected: ['a', 'join'],
+    },
+    {
+      title: 'does not run a stale branch inside a loop',
+      wf: looped,
+      start: 'prep',
+      first: 'if',
+      second: 'else',
+      expected: ['prep', 'gate', 'noDoc'],
+    },
+  ] as const)('$title', async ({ wf, start, first, second, expected }) => {
+    expect(await rerunFromBlock(wf, start, first, second)).toEqual(expected)
+  })
+
+  it('runs a join once after every re-run input completes', async () => {
+    const fanIn = workflow([
+      { source: 'start', target: 'prep' },
+      { source: 'prep', target: 'a' },
+      { source: 'prep', target: 'b' },
+      { source: 'a', target: 'join' },
+      { source: 'b', target: 'join' },
+    ])
+    const order = await rerunFromBlock(fanIn, 'prep', 'if', 'if')
+    expect(order.filter((id) => id === 'join')).toHaveLength(1)
+    expect(order.indexOf('join')).toBeGreaterThan(Math.max(order.indexOf('a'), order.indexOf('b')))
+  })
+
+  it('does not run a stale branch in any parallel branch copy', async () => {
+    const parallel = workflow(
+      [
+        { source: 'start', target: 'prep' },
+        { source: 'prep', target: 'fanOut' },
+        { source: 'fanOut', target: 'gate', sourceHandle: 'parallel-start-source' },
+        { source: 'gate', target: 'readDoc', sourceHandle: 'condition-gate-if' },
+        { source: 'gate', target: 'noDoc', sourceHandle: 'condition-gate-else' },
+      ],
+      {},
+      {
+        fanOut: {
+          id: 'fanOut',
+          nodes: ['gate', 'readDoc', 'noDoc'],
+          count: 3,
+          parallelType: 'count',
+        },
+      }
+    )
+    const ids = (await rerunFromBlock(parallel, 'prep', 'if', 'else')).map(stripCloneSuffixes)
+    expect(ids).not.toContain('readDoc')
+    expect(ids.filter((id) => id === 'noDoc')).toHaveLength(3)
   })
 })

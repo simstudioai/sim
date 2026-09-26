@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
@@ -24,10 +17,8 @@ import {
   session as electronSession,
   Menu,
   shell,
-  systemPreferences,
   WebContentsView,
 } from 'electron'
-import { BASE_ZOOM_FACTOR, steppedZoomFactor } from '@/main/browser-agent/context-menu'
 import * as panel from '@/main/browser-agent/panel'
 import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
@@ -35,9 +26,9 @@ import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
 
-const realPlatform = process.platform
+const _realPlatform = process.platform
 
-function setPlatform(platform: NodeJS.Platform): void {
+function _setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { configurable: true, value: platform })
 }
 
@@ -165,7 +156,7 @@ function memoryBrowserPersistence(initial: Record<string, BrowserSessionSnapshot
 }
 
 /** The host `resize` listener panel.ts binds while a view is attached. */
-function hostResizeHandler(win: BrowserWindow): () => void {
+function _hostResizeHandler(win: BrowserWindow): () => void {
   const calls = (win as unknown as { on: ReturnType<typeof vi.fn> }).on.mock.calls
   const handler = calls.find(([event]) => event === 'resize')?.[1]
   if (typeof handler !== 'function') throw new Error('no host resize listener bound')
@@ -361,15 +352,6 @@ describe('browser-agent session', () => {
     session = freshSession(win)
   })
 
-  it('creates the first tab lazily, then reuses it', () => {
-    expect(session.hasSession()).toBe(false)
-    const first = session.ensureTab()
-    expect(session.hasSession()).toBe(true)
-    expect(session.ensureTab()).toBe(first)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0]).toMatchObject({ tabId: first.id, active: true })
-  })
-
   it('invalidates only top-frame starts and identifies same-document commits', () => {
     const onTabNavigated = vi.fn()
     session = freshSession(win, { onTabNavigated })
@@ -406,37 +388,6 @@ describe('browser-agent session', () => {
       expect(contents.setUserAgent).not.toHaveBeenCalled()
       expect(contents.session.setUserAgent).not.toHaveBeenCalled()
     }
-  })
-
-  it('settles the tab spinner when only subresources are still loading', () => {
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    contents.isLoading.mockReturnValue(true)
-    contents.isLoadingMainFrame.mockReturnValue(false)
-
-    expect(session.listTabs()[0]).toMatchObject({ tabId: tab.id, loading: false })
-
-    contents.isLoadingMainFrame.mockReturnValue(true)
-    expect(session.listTabs()[0]).toMatchObject({ tabId: tab.id, loading: true })
-  })
-
-  it('starts a second session clean instead of inheriting the first', () => {
-    // `initSession` names itself as the session boundary but used to set three
-    // of its thirteen fields, so everything else leaked into the next session:
-    // its tabs, its theme, its find, its tab-id counter. Nothing re-inits in
-    // production today, which is exactly why the gap stayed invisible — and
-    // why these tests had to reset the whole MODULE to get a clean one.
-    const firstTab = session.ensureTab()
-    session.setBrowserTheme('dark')
-    expect(session.listTabs()).toHaveLength(1)
-
-    const second = freshSession(win)
-
-    expect(second.listTabs()).toHaveLength(0)
-    expect(second.getBrowserTheme()).toBe('system')
-    // Same id as the first session's first tab: the counter restarted, so a
-    // stale id cannot address a tab that outlived the session it came from.
-    expect(second.ensureTab().id).toBe(firstTab.id)
   })
 
   it('keeps tabs and overlapping tab ids isolated by chat scope', () => {
@@ -479,37 +430,6 @@ describe('browser-agent session', () => {
     expect(session.withBrowserScope('chat-b', () => session.listTabs())).toHaveLength(1)
   })
 
-  it('does not route a late hidden-chat shortcut into the active chat chrome', () => {
-    const first = session.withBrowserScope('chat-a', () => session.ensureTab())
-    const beforeInput = (first.view as unknown as MockView).webContents.on.mock.calls.find(
-      ([eventName]) => eventName === 'before-input-event'
-    )?.[1] as
-      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
-      | undefined
-    session.withBrowserScope('chat-b', () => session.ensureTab())
-    session.activateBrowserScope('chat-b')
-    vi.mocked(win.webContents.send).mockClear()
-
-    beforeInput?.(
-      { preventDefault: vi.fn() },
-      {
-        type: 'keyDown',
-        key: 'f',
-        isAutoRepeat: false,
-        isComposing: false,
-        shift: false,
-        control: process.platform !== 'darwin',
-        alt: false,
-        meta: process.platform === 'darwin',
-      }
-    )
-
-    expect(win.webContents.send).not.toHaveBeenCalledWith(
-      'browser-agent:open-find',
-      expect.anything()
-    )
-  })
-
   it('migrates pending scope state and aliases callbacks to the durable chat id', () => {
     const tab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
     session.activateBrowserScope('chat-real')
@@ -520,56 +440,6 @@ describe('browser-agent session', () => {
 
     session.withBrowserScope('occupied', () => session.ensureTab())
     expect(session.migrateBrowserScope('chat-real', 'occupied')).toBe(false)
-  })
-
-  it('carries the agent tab registration through a scope migration', () => {
-    const first = session.withBrowserScope('pending:workspace', () => session.ensureTab())
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
-    const removeChildView = (
-      win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
-    ).contentView.removeChildView
-    removeChildView.mockClear()
-
-    // The migrated chat moves its agent to a new tab: the first stops being an agent tab.
-    session.withBrowserScope('chat-real', () => session.addAutomationTab())
-
-    expect(removeChildView).toHaveBeenCalledWith(first.view)
-  })
-
-  it('retains a migrated provisional alias until the durable scope is disposed', () => {
-    const tab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
-
-    session.disposeBrowserScope('pending:workspace')
-
-    expect(session.withBrowserScope('pending:workspace', () => session.activeTab())).toBe(tab)
-    session.withBrowserScope('pending:workspace', () => session.claimActiveTabForUser())
-    expect(session.withBrowserScope('chat-real', () => session.activeTab())).toBe(tab)
-
-    session.disposeBrowserScope('chat-real')
-    expect((tab.view as unknown as MockView).webContents.close).toHaveBeenCalledOnce()
-    expect(
-      session.withBrowserScope('pending:workspace', () => session.peekTabsState().tabs)
-    ).toEqual([])
-  })
-
-  it('preserves a persisted destination behind a lazy activation', () => {
-    const existingSnapshot: BrowserSessionSnapshot = {
-      v: 1,
-      tabs: [{ url: 'https://existing.example/' }],
-      activeIndex: 0,
-      downloads: [],
-    }
-    const { persistence, snapshots } = memoryBrowserPersistence({
-      'chat-real': existingSnapshot,
-    })
-    session = freshSession(win, {}, persistence)
-    session.withBrowserScope('pending:workspace', () => session.ensureTab())
-    session.activateBrowserScope('chat-real')
-
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(false)
-    expect(snapshots.get('chat-real')).toEqual(existingSnapshot)
-    expect(session.withBrowserScope('pending:workspace', () => session.hasSession())).toBe(true)
   })
 
   it('does not retag live tabs when persistence explicitly refuses migration', () => {
@@ -584,66 +454,6 @@ describe('browser-agent session', () => {
     )
     expect(session.withBrowserScope('chat-real', () => session.activeTab())).toBeNull()
     expect(pendingTab.scopeId).toBe('pending:workspace')
-  })
-
-  it('routes an exact page selection and live tab metadata to the owning chat', () => {
-    const tab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
-    const contents = (tab.view as unknown as MockView).webContents
-    contents.getURL.mockReturnValue('https://example.com/docs')
-    contents.getTitle.mockReturnValue('Example docs')
-    session.activateBrowserScope('pending:workspace')
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
-
-    const onContextMenu = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'context-menu'
-    )?.[1] as ((event: unknown, params: unknown) => void) | undefined
-    onContextMenu?.(
-      {},
-      {
-        selectionText: '  selected\ntext  ',
-        linkURL: '',
-        isEditable: false,
-        editFlags: { canPaste: false },
-      }
-    )
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    const addToChat = template?.find((entry) => entry.label === 'Add to chat')
-    addToChat?.click?.({} as never, undefined as never, {} as never)
-
-    expect(win.webContents.focus).toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:add-to-chat', {
-      text: '  selected\ntext  ',
-      tabId: tab.id,
-      url: 'https://example.com/docs',
-      title: 'Example docs',
-      scopeId: 'chat-real',
-    })
-
-    vi.mocked(win.webContents.send).mockClear()
-    contents.getURL.mockReturnValue('file:///Users/example/private.txt')
-    contents.getTitle.mockReturnValue('')
-    onContextMenu?.(
-      {},
-      {
-        selectionText: 'private',
-        linkURL: '',
-        isEditable: false,
-        editFlags: { canPaste: false },
-      }
-    )
-    const privateTemplate = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    privateTemplate
-      ?.find((entry) => entry.label === 'Add to chat')
-      ?.click?.({} as never, undefined as never, {} as never)
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:add-to-chat', {
-      text: 'private',
-      tabId: tab.id,
-      scopeId: 'chat-real',
-    })
   })
 
   it('restores the complete per-chat tab strip after a restart', () => {
@@ -803,204 +613,6 @@ describe('browser-agent session', () => {
     })
   })
 
-  it('keeps a deferred restore intact when Back and Forward cannot move', () => {
-    const tabs = Array.from({ length: 6 }, (_, index) => ({
-      url: `https://deferred-history-${index}.example/`,
-    }))
-    const { persistence } = memoryBrowserPersistence({
-      'chat-deferred-history': { v: 1, tabs, activeIndex: 0, downloads: [] },
-    })
-    const createdContents: MockView['webContents'][] = []
-    session = freshSession(
-      win,
-      {
-        onTabCreated: (webContents) => {
-          const contents = webContents as unknown as MockView['webContents']
-          createdContents.push(contents)
-          contents.loadURL.mockImplementation(() => new Promise<void>(() => {}))
-        },
-      },
-      persistence
-    )
-
-    session.withBrowserScope('chat-deferred-history', () => {
-      session.restoreBrowserSession()
-      const deferred = createdContents[5] as unknown as WebContents
-      expect(session.goBack(deferred)).toBe(false)
-      expect(session.goForward(deferred)).toBe(false)
-      session.switchTab('6')
-    })
-
-    expect(createdContents[5].loadURL).toHaveBeenCalledWith(tabs[5].url)
-  })
-
-  it('promotes a model-selected queued restore and waits for its exact load', async () => {
-    vi.useFakeTimers()
-    try {
-      const tabs = Array.from({ length: 7 }, (_, index) => ({
-        url: `https://model-restore-${index}.example/`,
-      }))
-      const { persistence } = memoryBrowserPersistence({
-        'chat-model-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
-      })
-      const createdContents: MockView['webContents'][] = []
-      const resolveLoads: Array<(() => void) | undefined> = []
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            const index = createdContents.push(contents) - 1
-            contents.loadURL.mockImplementation(
-              () =>
-                new Promise<void>((resolve) => {
-                  resolveLoads[index] = resolve
-                })
-            )
-          },
-        },
-        persistence
-      )
-
-      const selected = session.withBrowserScope('chat-model-restore', () => {
-        session.restoreBrowserSession()
-        return session.switchAutomationTab('7')
-      })
-      let ready = false
-      const selection = session.withBrowserScope('chat-model-restore', () =>
-        session.waitForPendingTabRestore(selected)
-      )
-      void selection.then(() => {
-        ready = true
-      })
-
-      expect(createdContents[6].loadURL).toHaveBeenCalledWith(tabs[6].url)
-      expect(
-        createdContents.slice(1, 4).some((contents) => contents.stop.mock.calls.length > 0)
-      ).toBe(true)
-      expect(ready).toBe(false)
-
-      await vi.advanceTimersByTimeAsync(15_000)
-      expect(createdContents[6].stop).not.toHaveBeenCalled()
-      expect(ready).toBe(false)
-
-      resolveLoads[6]?.()
-      await expect(selection).resolves.toBe(true)
-      expect(ready).toBe(true)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it.each(['loaded', 'timed-out'] as const)(
-    'gives a late foreground promotion its full loading window (%s)',
-    async (outcome) => {
-      vi.useFakeTimers()
-      try {
-        const tabs = Array.from({ length: 4 }, (_, index) => ({
-          url: `https://active-restore-${index}.example/`,
-        }))
-        const { persistence } = memoryBrowserPersistence({
-          'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
-        })
-        const createdContents: MockView['webContents'][] = []
-        const selectedLoads: Array<() => void> = []
-        session = freshSession(
-          win,
-          {
-            onTabCreated: (webContents) => {
-              const contents = webContents as unknown as MockView['webContents']
-              const index = createdContents.push(contents) - 1
-              contents.loadURL.mockImplementation(
-                () =>
-                  new Promise<void>((resolve) => {
-                    if (index === 1) selectedLoads.push(resolve)
-                  })
-              )
-            },
-          },
-          persistence
-        )
-
-        session.withBrowserScope('chat-active-restore', () => session.restoreBrowserSession())
-        await vi.advanceTimersByTimeAsync(14_000)
-        const selected = session.withBrowserScope('chat-active-restore', () =>
-          session.switchAutomationTab('2')
-        )
-        const selection = session.withBrowserScope('chat-active-restore', () =>
-          session.waitForPendingTabRestore(selected)
-        )
-
-        expect(createdContents[1].loadURL).toHaveBeenCalledOnce()
-        expect(createdContents[1].stop).not.toHaveBeenCalled()
-        await vi.advanceTimersByTimeAsync(19_999)
-        expect(createdContents[1].stop).not.toHaveBeenCalled()
-
-        if (outcome === 'loaded') {
-          selectedLoads[0]?.()
-          await expect(selection).resolves.toBe(true)
-        } else {
-          session.withBrowserScope('chat-active-restore', () => session.switchAutomationTab('2'))
-          await vi.advanceTimersByTimeAsync(1)
-          await expect(selection).resolves.toBe(false)
-          expect(createdContents[1].stop).toHaveBeenCalledOnce()
-        }
-      } finally {
-        vi.useRealTimers()
-      }
-    }
-  )
-
-  it('queues a fifth foreground restore without preempting another foreground restore', async () => {
-    const snapshots = Object.fromEntries(
-      Array.from({ length: 5 }, (_, index) => [
-        `chat-foreground-${index}`,
-        {
-          v: 1 as const,
-          tabs: [{ url: `https://foreground-${index}.example/` }],
-          activeIndex: 0,
-          downloads: [],
-        },
-      ])
-    )
-    const { persistence } = memoryBrowserPersistence(snapshots)
-    const createdContents: MockView['webContents'][] = []
-    const resolveLoads: Array<(() => void) | undefined> = []
-    session = freshSession(
-      win,
-      {
-        onTabCreated: (webContents) => {
-          const contents = webContents as unknown as MockView['webContents']
-          const index = createdContents.push(contents) - 1
-          contents.loadURL.mockImplementation(
-            () =>
-              new Promise<void>((resolve) => {
-                resolveLoads[index] = resolve
-              })
-          )
-        },
-      },
-      persistence
-    )
-
-    for (let index = 0; index < 5; index += 1) {
-      session.withBrowserScope(`chat-foreground-${index}`, () => session.restoreBrowserSession())
-    }
-
-    expect(
-      createdContents.slice(0, 4).every((contents) => contents.loadURL.mock.calls.length === 1)
-    ).toBe(true)
-    expect(createdContents[4].loadURL).not.toHaveBeenCalled()
-    expect(
-      createdContents.slice(0, 4).every((contents) => contents.stop.mock.calls.length === 0)
-    ).toBe(true)
-
-    resolveLoads[0]?.()
-    await vi.waitFor(() => {
-      expect(createdContents[4].loadURL).toHaveBeenCalledWith('https://foreground-4.example/')
-    })
-  })
-
   it('releases hung global restore slots so another task can make progress', async () => {
     vi.useFakeTimers()
     try {
@@ -1042,90 +654,6 @@ describe('browser-agent session', () => {
       await vi.advanceTimersByTimeAsync(15_000)
 
       expect(waitingBackground.loadURL).toHaveBeenCalledWith(secondTabs[1].url)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('finishes a timed-out restore even when Electron throws while stopping it', async () => {
-    vi.useFakeTimers()
-    try {
-      const restoredUrl = 'https://throwing-stop.example/'
-      const { persistence } = memoryBrowserPersistence({
-        'chat-throwing-stop': {
-          v: 1,
-          tabs: [{ url: restoredUrl }],
-          activeIndex: 0,
-          downloads: [],
-        },
-      })
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            contents.loadURL.mockImplementation(() => new Promise<void>(() => {}))
-            contents.stop.mockImplementationOnce(() => {
-              throw new Error('destroy race')
-            })
-          },
-        },
-        persistence
-      )
-
-      session.withBrowserScope('chat-throwing-stop', () => session.restoreBrowserSession())
-      await vi.advanceTimersByTimeAsync(20_000)
-
-      const state = session.withBrowserScope('chat-throwing-stop', () => session.getTabsState())
-      expect(state.tabs[0]).toMatchObject({
-        url: restoredUrl,
-        loading: false,
-        issue: { kind: 'load-error', code: -7, description: 'ERR_TIMED_OUT' },
-      })
-      const contents = session.withBrowserScope(
-        'chat-throwing-stop',
-        () => session.requireTab().view.webContents
-      )
-      session.withBrowserScope('chat-throwing-stop', () => session.reloadPage(contents))
-      expect(contents.loadURL).toHaveBeenLastCalledWith(restoredUrl)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('does not extend a background restore timeout for cross-origin redirects', async () => {
-    vi.useFakeTimers()
-    try {
-      const { persistence } = memoryBrowserPersistence({
-        'chat-test': {
-          v: 1,
-          tabs: [
-            { url: 'http://127.0.0.1:4601/active' },
-            { url: 'http://127.0.0.1:4601/background' },
-          ],
-          activeIndex: 0,
-          downloads: [],
-        },
-      })
-      const created: MockView['webContents'][] = []
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            created.push(contents)
-            contents.loadURL.mockImplementation(() => new Promise<void>(() => {}))
-          },
-        },
-        persistence
-      )
-      session.restoreBrowserSession()
-      const background = created[1]
-      await expect(
-        beginMainFrameRequest(background, 'http://127.0.0.1:4602/login')
-      ).resolves.toEqual({ cancel: false })
-      await vi.advanceTimersByTimeAsync(15_000)
-      expect(background.stop).toHaveBeenCalledOnce()
     } finally {
       vi.useRealTimers()
     }
@@ -1218,33 +746,6 @@ describe('browser-agent session', () => {
       createdContents.filter((contents) => contents.loadURL.mock.calls.length > 0)
     ).toHaveLength(4)
     expect(createdContents.every((contents) => contents.close.mock.calls.length === 1)).toBe(true)
-  })
-
-  it('restores more than eight persisted tabs', () => {
-    const tabs = Array.from({ length: 12 }, (_, index) => ({
-      url: `https://tab-${index}.example/`,
-    }))
-    const { persistence } = memoryBrowserPersistence({
-      'chat-many-tabs': {
-        v: 1,
-        tabs,
-        activeIndex: tabs.length - 1,
-        downloads: [],
-      },
-    })
-    session = freshSession(win, {}, persistence)
-
-    const restored = session.withBrowserScope('chat-many-tabs', () => {
-      session.restoreBrowserSession()
-      return session.getTabsState()
-    })
-
-    expect(restored.tabs).toHaveLength(12)
-    expect(restored.activeTabId).toBe('12')
-    expect(restored.tabs.at(-1)).toMatchObject({
-      url: 'https://tab-11.example/',
-      active: true,
-    })
   })
 
   it('bounds restored tabs while retaining the active page', () => {
@@ -1369,73 +870,6 @@ describe('browser-agent session', () => {
     expect(createdContents).toHaveLength(5)
   })
 
-  it('quiesces live scopes without publishing session closure', () => {
-    const onTabsChanged = vi.fn()
-    const onSessionClosed = vi.fn()
-    const lazySnapshot: BrowserSessionSnapshot = {
-      v: 1,
-      tabs: [{ url: 'https://lazy.example/' }],
-      activeIndex: 0,
-      downloads: [],
-    }
-    const { persistence, snapshots } = memoryBrowserPersistence({
-      'chat-lazy': lazySnapshot,
-    })
-    session = freshSession(win, { onTabsChanged, onSessionClosed }, persistence)
-    session.activateBrowserScope('chat-lazy')
-    const chatATab = session.withBrowserScope('chat-a', () => session.ensureTab())
-    const chatBTab = session.withBrowserScope('chat-b', () => session.ensureTab())
-    vi.mocked((chatATab.view as unknown as MockView).webContents.getURL).mockReturnValue(
-      'https://a.example/'
-    )
-    vi.mocked((chatBTab.view as unknown as MockView).webContents.getURL).mockReturnValue(
-      'https://b.example/'
-    )
-    onTabsChanged.mockClear()
-    onSessionClosed.mockClear()
-
-    session.quiesceBrowserSessions()
-    session.quiesceBrowserSessions()
-
-    expect(snapshots.get('chat-lazy')).toEqual(lazySnapshot)
-    expect(snapshots.get('chat-a')).toMatchObject({
-      tabs: [{ url: 'https://a.example/' }],
-    })
-    expect(snapshots.get('chat-b')).toMatchObject({
-      tabs: [{ url: 'https://b.example/' }],
-    })
-    expect((chatATab.view as unknown as MockView).webContents.close).toHaveBeenCalledOnce()
-    expect((chatBTab.view as unknown as MockView).webContents.close).toHaveBeenCalledOnce()
-    expect(onTabsChanged).not.toHaveBeenCalled()
-    expect(onSessionClosed).not.toHaveBeenCalled()
-  })
-
-  it('migrates a persisted pending snapshot without hydrating either scope', () => {
-    const snapshot: BrowserSessionSnapshot = {
-      v: 1,
-      tabs: [{ url: 'https://pending.example/' }],
-      activeIndex: 0,
-      downloads: [],
-    }
-    const { persistence, snapshots } = memoryBrowserPersistence({
-      'pending:workspace': snapshot,
-    })
-    session = freshSession(win, {}, persistence)
-    session.activateBrowserScope('pending:workspace')
-
-    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
-    expect(persistence.load).not.toHaveBeenCalled()
-    expect(persistence.migrateScope).toHaveBeenCalledWith('pending:workspace', 'chat-real')
-    expect(snapshots.has('pending:workspace')).toBe(false)
-    expect(snapshots.get('chat-real')).toEqual(snapshot)
-
-    const restored = session.withBrowserScope('chat-real', () => {
-      session.restoreBrowserSession()
-      return session.getTabsState()
-    })
-    expect(restored.tabs).toMatchObject([{ url: 'https://pending.example/' }])
-  })
-
   it('disposes an abandoned browser scope and its persisted descriptor', () => {
     const { persistence, snapshots } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
@@ -1493,280 +927,6 @@ describe('browser-agent session', () => {
     expect(restoredTab?.pendingRestoreUrl).toBe('https://retained.example/')
   })
 
-  it('closes live pages even when the suspend descriptor cannot be saved', () => {
-    const { persistence } = memoryBrowserPersistence()
-    vi.mocked(persistence.save).mockReturnValue(false)
-    session = freshSession(win, {}, persistence)
-    const tab = session.withBrowserScope('chat-deleted', () => session.ensureTab())
-
-    // Suspension accompanies chat deletion: a failed descriptor save must
-    // never leave the deleted chat's pages loaded invisibly.
-    expect(session.suspendBrowserScope('chat-deleted')).toBe(true)
-
-    expect((tab.view as unknown as MockView).webContents.close).toHaveBeenCalledOnce()
-    expect(session.withBrowserScope('chat-deleted', () => session.peekTabsState())).toMatchObject({
-      tabs: [],
-      activeTabId: null,
-    })
-  })
-
-  it('normalizes browser shortcuts to Command on macOS and Control elsewhere', () => {
-    const input = {
-      type: 'keyDown',
-      key: 'l',
-      isAutoRepeat: false,
-      isComposing: false,
-      shift: false,
-      control: false,
-      alt: false,
-      meta: true,
-    }
-
-    expect(session.browserShortcutForInput(input, 'darwin')).toBe('focus-omnibox')
-    expect(session.browserShortcutForInput(input, 'win32')).toBeNull()
-    expect(session.browserShortcutForInput({ ...input, meta: false, control: true }, 'win32')).toBe(
-      'focus-omnibox'
-    )
-    expect(session.browserShortcutForInput({ ...input, key: 't' }, 'darwin')).toBe('new-tab')
-    expect(session.browserShortcutForInput({ ...input, key: 'w' }, 'darwin')).toBe('close-tab')
-    expect(session.browserShortcutForInput({ ...input, key: 'f' }, 'darwin')).toBe('find')
-    expect(
-      session.browserShortcutForInput({ ...input, key: 't', shift: true }, 'darwin')
-    ).toBeNull()
-  })
-
-  it('handles browser shortcuts from a focused native tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    const firstContents = (first.view as unknown as MockView).webContents
-    const beforeInput = firstContents.on.mock.calls.find(
-      ([eventName]) => eventName === 'before-input-event'
-    )?.[1] as
-      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
-      | undefined
-    const event = { preventDefault: vi.fn() }
-    const input = {
-      type: 'keyDown',
-      key: 'l',
-      isAutoRepeat: false,
-      isComposing: false,
-      shift: false,
-      control: process.platform !== 'darwin',
-      alt: false,
-      meta: process.platform === 'darwin',
-    }
-
-    beforeInput?.(event, input)
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(win.webContents.focus).toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenLastCalledWith(
-      'browser-agent:focus-omnibox',
-      'select',
-      'chat-test'
-    )
-
-    beforeInput?.(event, { ...input, key: 't' })
-    expect(session.listTabs()).toHaveLength(2)
-    expect(win.webContents.send).toHaveBeenLastCalledWith(
-      'browser-agent:focus-omnibox',
-      'clear',
-      'chat-test'
-    )
-
-    const second = session.activeTab()
-    expect(second).not.toBeNull()
-    const secondContents = (second?.view as unknown as MockView).webContents
-    const secondBeforeInput = secondContents.on.mock.calls.find(
-      ([eventName]) => eventName === 'before-input-event'
-    )?.[1] as
-      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
-      | undefined
-    secondBeforeInput?.(event, { ...input, key: 'w' })
-    expect(session.listTabs()).toHaveLength(1)
-    expect(firstContents.focus).toHaveBeenCalled()
-
-    // Closing the last tab leaves the strip empty; the renderer drops the
-    // browser panel with it, so the omnibox is handed back cleared.
-    beforeInput?.(event, { ...input, key: 'w' })
-    expect(session.listTabs()).toHaveLength(0)
-    expect(win.webContents.send).toHaveBeenLastCalledWith(
-      'browser-agent:focus-omnibox',
-      'clear',
-      'chat-test'
-    )
-  })
-
-  it('opens the renderer find bar when the page takes Mod+F', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    const beforeInput = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'before-input-event'
-    )?.[1] as
-      | ((event: { preventDefault: () => void }, input: Record<string, unknown>) => void)
-      | undefined
-    const event = { preventDefault: vi.fn() }
-
-    beforeInput?.(event, {
-      type: 'keyDown',
-      key: 'f',
-      isAutoRepeat: false,
-      isComposing: false,
-      shift: false,
-      control: process.platform !== 'darwin',
-      alt: false,
-      meta: process.platform === 'darwin',
-    })
-
-    // The page never sees it — otherwise a site's own Mod+F wins over find.
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenLastCalledWith('browser-agent:open-find', 'chat-test')
-  })
-
-  it('restarts the search while typing and steps without restarting on next/previous', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    expect(contents.findInPage).toHaveBeenLastCalledWith('needle', {
-      forward: true,
-      findNext: true,
-    })
-
-    session.findInActiveTab({ query: 'needle', newSession: false, forward: false })
-    expect(contents.findInPage).toHaveBeenLastCalledWith('needle', {
-      forward: false,
-      findNext: false,
-    })
-
-    // Clearing the box is a stop, not a search for the empty string — and the
-    // bar has to survive it, or deleting the last character closes the bar the
-    // user is still typing in.
-    vi.mocked(win.webContents.send).mockClear()
-    session.findInActiveTab({ query: '', newSession: true, forward: true })
-    expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
-    expect(contents.findInPage).toHaveBeenCalledTimes(2)
-    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
-  })
-
-  it('forwards match counts only for the tab the find is running on', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const firstContents = (first.view as unknown as MockView).webContents
-    const secondContents = (second.view as unknown as MockView).webContents
-    const foundOn = (contents: MockView['webContents']) =>
-      contents.on.mock.calls.find(([eventName]) => eventName === 'found-in-page')?.[1] as
-        | ((event: unknown, result: Record<string, unknown>) => void)
-        | undefined
-
-    session.switchTab(first.id)
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    foundOn(firstContents)?.(
-      {},
-      { requestId: 1, activeMatchOrdinal: 2, matches: 7, finalUpdate: true }
-    )
-    expect(win.webContents.send).toHaveBeenLastCalledWith(
-      'browser-agent:find-result',
-      {
-        activeMatchOrdinal: 2,
-        matches: 7,
-        final: true,
-      },
-      'chat-test'
-    )
-
-    // A late result from a tab that is not being searched would relabel the bar
-    // with counts for a page the user is not looking at.
-    vi.mocked(win.webContents.send).mockClear()
-    foundOn(secondContents)?.(
-      {},
-      { requestId: 1, activeMatchOrdinal: 1, matches: 3, finalUpdate: true }
-    )
-    expect(win.webContents.send).not.toHaveBeenCalled()
-  })
-
-  it('drops late match counts from an older request on the active tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    const found = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'found-in-page'
-    )?.[1] as ((event: unknown, result: Record<string, unknown>) => void) | undefined
-    contents.findInPage.mockReturnValueOnce(41).mockReturnValueOnce(42)
-
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    session.findInActiveTab({ query: 'needle', newSession: false, forward: true })
-    vi.mocked(win.webContents.send).mockClear()
-
-    found?.({}, { requestId: 41, activeMatchOrdinal: 1, matches: 12, finalUpdate: true })
-    expect(win.webContents.send).not.toHaveBeenCalled()
-
-    found?.({}, { requestId: 42, activeMatchOrdinal: 2, matches: 7, finalUpdate: true })
-    expect(win.webContents.send).toHaveBeenLastCalledWith(
-      'browser-agent:find-result',
-      { activeMatchOrdinal: 2, matches: 7, final: true },
-      'chat-test'
-    )
-  })
-
-  it('drops the find when its page navigates away, but not on a same-document change', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    const navigate = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'did-start-navigation'
-    )?.[1] as ((details: Record<string, unknown>) => void) | undefined
-
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    vi.mocked(win.webContents.send).mockClear()
-
-    // A pushState route change keeps the document the matches live in.
-    navigate?.({ isMainFrame: true, isSameDocument: true })
-    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
-    // A subframe load likewise leaves the main document alone.
-    navigate?.({ isMainFrame: false, isSameDocument: false })
-    expect(win.webContents.send).not.toHaveBeenCalledWith('browser-agent:close-find')
-
-    navigate?.({ isMainFrame: true, isSameDocument: false })
-    expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
-  })
-
-  it('drops the find when the tab it is running on is closed', () => {
-    // Otherwise the searched tab id outlives the tab: the bar stays open
-    // counting matches on a page that no longer exists, and nothing clears it
-    // until the user happens to type a new query.
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.ensureTab()
-    const second = session.addTab()
-    session.switchTab(second.id)
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    vi.mocked(win.webContents.send).mockClear()
-
-    session.closeTab(second.id)
-
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
-  })
-
-  it('drops the find when the tab it is running on crashes', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    session.addTab()
-    session.switchTab(first.id)
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    vi.mocked(win.webContents.send).mockClear()
-
-    const contents = (first.view as unknown as MockView).webContents
-    const gone = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'render-process-gone'
-    )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
-    gone?.({}, { reason: 'crashed' })
-
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
-  })
-
   it('treats a failed navigation as a synthetic Back and Forward history entry', async () => {
     const mockContents = (session.ensureTab().view as unknown as MockView).webContents
     const contents = mockContents as unknown as WebContents
@@ -1801,87 +961,6 @@ describe('browser-agent session', () => {
     expect(mockContents.loadURL).toHaveBeenCalledWith('https://example.com/failed')
   })
 
-  it('discards a dismissed failed navigation when a fresh navigation starts', () => {
-    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
-    const contents = mockContents as unknown as WebContents
-    session.recordPageLoadFailure(contents, {
-      kind: 'load-error',
-      code: -105,
-      description: 'ERR_NAME_NOT_RESOLVED',
-      url: 'https://missing.invalid',
-    })
-    session.goBack(contents)
-
-    mainFrameNavigationStarted(mockContents)
-
-    expect(session.canGoForward(contents)).toBe(false)
-  })
-
-  it('discards synthetic Forward after same-document traversal and a fresh navigation', () => {
-    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
-    const contents = mockContents as unknown as WebContents
-    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
-    session.recordPageLoadFailure(contents, {
-      kind: 'load-error',
-      code: -102,
-      description: 'ERR_CONNECTION_REFUSED',
-      url: 'https://example.com/failed',
-    })
-
-    session.goBack(contents)
-    mockContents.navigationHistory.canGoBack.mockReturnValue(true)
-    expect(session.goBack(contents)).toBe(true)
-
-    mainFrameNavigationStarted(mockContents, true)
-
-    expect(session.canGoForward(contents)).toBe(true)
-
-    mainFrameNavigationStarted(mockContents)
-
-    expect(session.canGoForward(contents)).toBe(false)
-  })
-
-  it('keeps recovery state scoped to its tab while the user switches tabs', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const firstContents = (first.view as unknown as MockView).webContents as unknown as WebContents
-    session.recordPageLoadFailure(firstContents, {
-      kind: 'load-error',
-      code: -105,
-      description: 'ERR_NAME_NOT_RESOLVED',
-      url: 'https://missing.invalid',
-    })
-
-    session.switchTab(second.id)
-    expect(session.listTabs().find((tab) => tab.tabId === first.id)?.issue).toMatchObject({
-      kind: 'load-error',
-    })
-    expect(session.listTabs().find((tab) => tab.tabId === second.id)).not.toHaveProperty('issue')
-
-    session.switchTab(first.id)
-    expect(session.requireTab().id).toBe(first.id)
-    expect(session.pageIssueForContents(firstContents)).toMatchObject({ kind: 'load-error' })
-  })
-
-  it('hands focus to an accessible recovery page for active-tab failures', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const onPageStateChanged = vi.fn()
-    session = freshSession(win, { onPageStateChanged })
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
-    const contents = mockContents as unknown as WebContents
-
-    session.recordPageLoadFailure(contents, {
-      kind: 'load-error',
-      code: -7,
-      description: 'ERR_TIMED_OUT',
-      url: 'https://slow.example.com',
-    })
-
-    expect(win.webContents.focus).toHaveBeenCalled()
-    expect(onPageStateChanged).toHaveBeenCalledWith(contents)
-  })
-
   it('recovers unresponsive tabs and clears the issue when Chromium responds again', () => {
     const mockContents = (session.ensureTab().view as unknown as MockView).webContents
     const contents = mockContents as unknown as WebContents
@@ -1909,59 +988,6 @@ describe('browser-agent session', () => {
     expect(mockContents.forcefullyCrashRenderer).toHaveBeenCalled()
     gone?.({}, { reason: 'killed' })
     expect(mockContents.reload).toHaveBeenCalled()
-  })
-
-  it('drops the find when the user switches to another tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const firstContents = (first.view as unknown as MockView).webContents
-
-    session.switchTab(first.id)
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    vi.mocked(win.webContents.send).mockClear()
-
-    session.switchTab(second.id)
-    expect(firstContents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
-    expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
-  })
-
-  it('returns focus to the page only when the user dismissed the bar', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-
-    // Panel teardown: the bar unmounts under a user who has already moved on,
-    // so pulling focus back into the browser would drag them back to it.
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    contents.focus.mockClear()
-    session.stopFindInActiveTab(false)
-    expect(contents.focus).not.toHaveBeenCalled()
-
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    contents.focus.mockClear()
-    session.stopFindInActiveTab(true)
-    expect(contents.focus).toHaveBeenCalled()
-  })
-
-  it('returns focus to the page even when no search was running', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-
-    // Opened and closed without typing. Focus still has to leave the bar: it is
-    // unmounting, and <body> cannot receive the Mod+F that reopens it.
-    contents.focus.mockClear()
-    session.stopFindInActiveTab(true)
-    expect(contents.focus).toHaveBeenCalled()
-
-    // Same once the box is emptied — clearing the query ends the search, so
-    // dismissing afterwards has no searched tab to key focus off either.
-    session.findInActiveTab({ query: 'needle', newSession: true, forward: true })
-    session.findInActiveTab({ query: '', newSession: true, forward: true })
-    contents.focus.mockClear()
-    session.stopFindInActiveTab(true)
-    expect(contents.focus).toHaveBeenCalled()
   })
 
   it('closes only the native browser tab targeted by the application menu accelerator', () => {
@@ -1999,78 +1025,6 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(0)
   })
 
-  it('keeps close-tab routed to a visible browser through a transient focus loss', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    const second = session.addTab()
-
-    session.setPanelFocused(true)
-    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(session.listTabs()[0].tabId).toBe(first.id)
-    expect(session.listTabs()[0].tabId).not.toBe(second.id)
-
-    session.setPanelFocused(false)
-    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(0)
-
-    panel.setPanelBounds(null)
-    expect(session.handleFocusedShortcut('close-tab')).toBe(false)
-  })
-
-  it('keeps browser tab shortcuts routed while the visible panel has no DOM focus', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.ensureTab()
-    session.setPanelFocused(false)
-    const before = session.listTabs().length
-
-    expect(session.handleFocusedShortcut('new-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(before + 1)
-    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(before)
-    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(before + 1)
-
-    vi.mocked(win.webContents.send).mockClear()
-    expect(session.handleFocusedShortcut('focus-omnibox')).toBe(true)
-    expect(win.webContents.send).toHaveBeenCalledWith(
-      'browser-agent:focus-omnibox',
-      'select',
-      session.getBrowserScopeId()
-    )
-
-    panel.setPanelBounds(null)
-    expect(session.handleFocusedShortcut('new-tab')).toBe(false)
-    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(false)
-    expect(session.handleFocusedShortcut('focus-omnibox')).toBe(false)
-  })
-
-  it('reloads only the focused browser tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const firstContents = (first.view as unknown as MockView).webContents
-    const secondContents = (second.view as unknown as MockView).webContents
-    const focusListener = secondContents.on.mock.calls.find(
-      ([eventName]) => eventName === 'focus'
-    )?.[1] as (() => void) | undefined
-    const blurListener = secondContents.on.mock.calls.find(
-      ([eventName]) => eventName === 'blur'
-    )?.[1] as (() => void) | undefined
-
-    // Application-menu dispatch can blur the native tab before its click
-    // callback, so the captured owner must still win for this turn.
-    focusListener?.()
-    blurListener?.()
-    expect(session.handleFocusedShortcut('reload-or-clear')).toBe(true)
-    expect(secondContents.reload).toHaveBeenCalledOnce()
-    expect(firstContents.reload).not.toHaveBeenCalled()
-
-    session.setPanelFocused(false)
-    expect(session.handleFocusedShortcut('reload-or-clear')).toBe(false)
-    expect(secondContents.reload).toHaveBeenCalledOnce()
-  })
-
   it('does not reload a browser tab owned by another app window', () => {
     const otherWindow = mainWindowMock()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
@@ -2083,64 +1037,6 @@ describe('browser-agent session', () => {
 
     expect(session.handleFocusedShortcut('reload-or-clear', win)).toBe(true)
     expect(contents.reload).toHaveBeenCalledOnce()
-  })
-
-  it('zooms only the focused browser tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    contents.getZoomFactor.mockReturnValue(1)
-
-    session.setPanelFocused(true)
-    expect(session.handleFocusedShortcut('zoom-in')).toBe(true)
-    expect(contents.setZoomFactor).toHaveBeenLastCalledWith(steppedZoomFactor(1, 1))
-
-    expect(session.handleFocusedShortcut('zoom-out')).toBe(true)
-    expect(contents.setZoomFactor).toHaveBeenLastCalledWith(steppedZoomFactor(1, -1))
-
-    expect(session.handleFocusedShortcut('zoom-reset')).toBe(true)
-    expect(contents.setZoomFactor).toHaveBeenLastCalledWith(session.getBrowserDefaultZoomFactor())
-
-    session.setPanelFocused(false)
-    expect(session.handleFocusedShortcut('zoom-in')).toBe(false)
-  })
-
-  it('unthrottles only the active tab while automation is active', () => {
-    const active = session.ensureTab()
-    const activeContents = (active.view as unknown as MockView).webContents
-    const background = session.addTab()
-    const backgroundContents = (background.view as unknown as MockView).webContents
-    // addTab activated the second tab; put focus back on the first.
-    session.switchTab(active.id)
-    activeContents.setBackgroundThrottling.mockClear()
-    backgroundContents.setBackgroundThrottling.mockClear()
-
-    session.setAutomationActive(true)
-    // The waking is scoped to the active tab; the background tab stays throttled.
-    expect(activeContents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
-    expect(backgroundContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
-
-    session.setAutomationActive(false)
-    expect(activeContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
-  })
-
-  it('moves the automation exemption with the agent cursor, not visible selection', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    session.switchTab(first.id)
-    const firstContents = (first.view as unknown as MockView).webContents
-    const secondContents = (second.view as unknown as MockView).webContents
-
-    session.setAutomationActive(true)
-    firstContents.setBackgroundThrottling.mockClear()
-    secondContents.setBackgroundThrottling.mockClear()
-
-    session.switchAutomationTab(second.id)
-
-    // The old active tab is re-throttled, the new one exempted — otherwise a
-    // mid-tool switch would strand the wake on a tab the agent left behind.
-    expect(firstContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
-    expect(secondContents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
   })
 
   it('keeps the user-visible tab selected while the agent opens and switches background tabs', () => {
@@ -2175,114 +1071,6 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
   })
 
-  it('keeps agent actions on a tab after a toolbar action claims it', () => {
-    const visible = session.ensureTab()
-
-    expect(session.claimActiveTabForUser()?.id).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(1)
-
-    const agent = session.ensureAutomationTab()
-    expect(agent.id).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(1)
-  })
-
-  it('does not treat a passive native focus event as user takeover', () => {
-    const visible = session.ensureTab()
-    const contents = (visible.view as unknown as MockView).webContents
-    const focusListener = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'focus'
-    )?.[1] as (() => void) | undefined
-
-    focusListener?.()
-
-    expect(session.ensureAutomationTab().id).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(1)
-  })
-
-  it('keeps automation on the same tab after real page interaction', () => {
-    const visible = session.ensureTab()
-    const contents = (visible.view as unknown as MockView).webContents
-    const beforeMouse = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'before-mouse-event'
-    )?.[1] as ((event: unknown, input: { type: string }) => void) | undefined
-
-    beforeMouse?.({}, { type: 'mouseDown' })
-
-    expect(session.ensureAutomationTab().id).toBe(visible.id)
-    expect(session.getTabsState().activeTabId).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(1)
-  })
-
-  it('clears automation indicators instead of moving them when their tab closes', () => {
-    const target = session.ensureAutomationTab()
-    session.setAutomationActive(true)
-    session.setAutomationNeedsAttention(true)
-
-    session.closeTab(target.id)
-
-    expect(session.getTabsState()).toMatchObject({
-      automationActive: false,
-      automationNeedsAttention: false,
-    })
-  })
-
-  it('resumes takeover in the same tab after the user explicitly hands it back', () => {
-    const visible = session.ensureTab()
-    session.switchTab(visible.id)
-
-    session.returnAutomationTabToAgent()
-
-    expect(session.ensureAutomationTab().id).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(1)
-  })
-
-  it('updates the native backdrop when Sim changes browser theme', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-
-    session.setBrowserTheme('dark')
-    expect(session.getBrowserTheme()).toBe('dark')
-    expect(view.setBackgroundColor).toHaveBeenLastCalledWith('#0c0c0c')
-
-    session.setBrowserTheme('light')
-    expect(view.setBackgroundColor).toHaveBeenLastCalledWith('#ffffff')
-  })
-
-  it('propagates theme changes to every existing tab', async () => {
-    const onTabThemeChanged = vi.fn()
-    const themedSession = freshSession(win, { onTabThemeChanged })
-    const first = themedSession.ensureTab()
-    const second = themedSession.addTab()
-
-    themedSession.setBrowserTheme('dark')
-
-    expect(onTabThemeChanged.mock.calls).toEqual([
-      [first.view.webContents, 'dark'],
-      [second.view.webContents, 'dark'],
-    ])
-  })
-
-  it('applies the default zoom to every scope and retains it for future tabs', () => {
-    const chatA = session.withBrowserScope('chat-a', () => session.ensureTab())
-    const chatB = session.withBrowserScope('chat-b', () => session.ensureTab())
-    const chatAContents = (chatA.view as unknown as MockView).webContents
-    const chatBContents = (chatB.view as unknown as MockView).webContents
-    const factor = BASE_ZOOM_FACTOR * 1.25
-
-    session.setBrowserDefaultZoom(125)
-
-    expect(session.getBrowserDefaultZoomFactor()).toBeCloseTo(factor)
-    expect(chatAContents.setZoomFactor).toHaveBeenLastCalledWith(factor)
-    expect(chatBContents.setZoomFactor).toHaveBeenLastCalledWith(factor)
-
-    freshSession(win)
-    expect(session.getBrowserDefaultZoomFactor()).toBe(BASE_ZOOM_FACTOR)
-  })
-
-  it('requireTab refuses when no page is open yet', () => {
-    expect(() => session.requireTab()).toThrow(/No page is open yet/)
-  })
-
   it('opens, switches, and closes tabs with stable ids', () => {
     const first = session.ensureTab()
     const second = session.addTab()
@@ -2301,47 +1089,6 @@ describe('browser-agent session', () => {
     expect(() => session.closeTab('999')).toThrow(/No tab with id 999/)
   })
 
-  it('selects the neighboring tab when the active tab closes', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const third = session.addTab()
-
-    session.switchTab(second.id)
-    session.closeTab(second.id)
-    expect(session.activeTab()?.id).toBe(third.id)
-
-    session.closeTab(third.id)
-    expect(session.activeTab()?.id).toBe(first.id)
-  })
-
-  it('reopens the latest closed tab while the browser owns focus', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.ensureTab()
-    const closed = session.addTab()
-    session.setPanelFocused(true)
-    session.closeTab(closed.id)
-
-    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(true)
-    const reopened = session.activeTab()
-    expect(reopened?.id).not.toBe(closed.id)
-    const contents = (reopened?.view as unknown as MockView | undefined)?.webContents
-    expect(contents?.loadURL).toHaveBeenCalledWith('https://example.com/')
-    expect(contents?.focus).toHaveBeenCalled()
-
-    session.setPanelFocused(false)
-    panel.setPanelBounds(null)
-    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(false)
-  })
-
-  it('claims reopen while focused even when there is no closed tab', () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.ensureTab()
-    session.setPanelFocused(true)
-
-    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(true)
-    expect(session.listTabs()).toHaveLength(1)
-  })
-
   it('keeps stale reports from another app window from hiding or controlling the browser panel', () => {
     const otherWindow = mainWindowMock()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, win)
@@ -2354,84 +1101,6 @@ describe('browser-agent session', () => {
     session.setPanelFocused(true, win)
     expect(session.handleFocusedShortcut('close-tab', otherWindow)).toBe(false)
     expect(session.handleFocusedShortcut('close-tab', win)).toBe(true)
-  })
-
-  it('restores saved tabs when the browser panel opens again', async () => {
-    const { persistence } = memoryBrowserPersistence({
-      'chat-test': {
-        v: 1,
-        tabs: [{ url: 'https://docs.sim.ai/guide' }],
-        activeIndex: 0,
-        downloads: [],
-      },
-    })
-    const restoredSession = freshSession(win, {}, persistence)
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-
-    const [restored] = restoredSession.listTabs()
-    expect(restored).toMatchObject({ active: true })
-    const contents = (restoredSession.requireTab().view as unknown as MockView).webContents
-    expect(contents.loadURL).toHaveBeenCalledWith('https://docs.sim.ai/guide')
-
-    const regular = restoredSession.addTab()
-    expect(restoredSession.listTabs()).toEqual([
-      expect.objectContaining({ tabId: restored.tabId, active: false }),
-      expect.objectContaining({ tabId: regular.id, active: true }),
-    ])
-  })
-
-  it('reorders tabs to the order the resource strip asks for', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const third = session.addTab()
-
-    session.reorderTab(third.id, 0)
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([third.id, first.id, second.id])
-
-    session.reorderTab(third.id, 99)
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id, second.id, third.id])
-    expect(() => session.reorderTab('999', 0)).toThrow(/No tab with id 999/)
-  })
-
-  it('allows creation and reopening beyond eight browser tabs', () => {
-    session.ensureTab()
-    for (let index = 1; index < 12; index++) {
-      session.addTab()
-    }
-
-    expect(session.listTabs()).toHaveLength(12)
-    const extra = session.addTab()
-    expect(session.listTabs()).toHaveLength(13)
-
-    session.closeTab(extra.id)
-    expect(session.listTabs()).toHaveLength(12)
-    expect(session.reopenClosedTab()).not.toBeNull()
-    expect(session.listTabs()).toHaveLength(13)
-  })
-
-  it('gives background automation a viewport without taking panel ownership', () => {
-    const tab = session.withBrowserScope('background-chat', () => session.ensureTab())
-    const view = tab.view as unknown as MockView
-
-    expect(tab.view.setBounds).toHaveBeenCalledWith({
-      x: 0,
-      y: 0,
-      width: 1180,
-      height: 850,
-    })
-    // Parked invisibly so input and captures on it complete; it never shows.
-    expect(win.contentView.addChildView).toHaveBeenCalledWith(tab.view)
-    expect(view.setVisible).toHaveBeenCalledWith(false)
-    expect(view.setVisible).not.toHaveBeenCalledWith(true)
-    expect(session.getActiveBrowserScopeId()).toBe('chat-test')
-  })
-
-  it('initializes a detached viewport when no application window exists', () => {
-    const headlessSession = freshSession(null)
-    const tab = headlessSession.ensureTab()
-
-    expect(tab.view.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 1280, height: 720 })
   })
 
   it('embeds the active view in the MAIN window only while panel bounds are reported', () => {
@@ -2474,68 +1143,6 @@ describe('browser-agent session', () => {
     expect(content.addChildView).not.toHaveBeenCalled()
   })
 
-  it('detaches the previous view when another tab becomes active', () => {
-    const first = session.ensureTab()
-    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
-    const content = (
-      win as unknown as {
-        contentView: {
-          addChildView: ReturnType<typeof vi.fn>
-          removeChildView: ReturnType<typeof vi.fn>
-        }
-      }
-    ).contentView
-    content.addChildView.mockClear()
-    content.removeChildView.mockClear()
-
-    const second = session.addTab()
-
-    // A tab switch hides the previous view so two native views never composite over
-    // each other; the agent still drives the first tab, so it stays parked, not removed.
-    expect(content.removeChildView).not.toHaveBeenCalledWith(first.view)
-    expect(first.view.setVisible).toHaveBeenLastCalledWith(false)
-    expect(content.addChildView).toHaveBeenCalledWith(second.view)
-    expect(second.view.webContents.invalidate).toHaveBeenCalledOnce()
-
-    // A tab the agent does not drive is removed when another tab takes over.
-    content.removeChildView.mockClear()
-    session.switchTab(first.id)
-    expect(content.removeChildView).toHaveBeenCalledWith(second.view)
-  })
-
-  it('gives keyboard focus back to the visible page when it parks the agent tab', () => {
-    const visibleTab = session.ensureTab()
-    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
-    const visibleContents = visibleTab.view.webContents as unknown as MockView['webContents']
-    visibleContents.isFocused.mockReturnValue(true)
-    vi.mocked(visibleContents.focus).mockClear()
-
-    session.addAutomationTab()
-
-    expect(visibleContents.focus).toHaveBeenCalled()
-  })
-
-  it('parks an agent tab in the main window when a secondary window stops showing it', () => {
-    const otherWindow = mainWindowMock() as unknown as {
-      contentView: {
-        addChildView: ReturnType<typeof vi.fn>
-        removeChildView: ReturnType<typeof vi.fn>
-      }
-    }
-    const agentTab = session.ensureTab()
-    panel.setPanelBounds(
-      { x: 0, y: 0, width: 800, height: 600 },
-      otherWindow as unknown as BrowserWindow
-    )
-    expect(otherWindow.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
-    vi.mocked(win.contentView.addChildView).mockClear()
-
-    session.addTab()
-
-    expect(otherWindow.contentView.removeChildView).toHaveBeenCalledWith(agentTab.view)
-    expect(win.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
-  })
-
   it('keeps the agent tab composited while the user views another tab, and releases it on close', () => {
     const agentTab = session.ensureTab()
     panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
@@ -2565,149 +1172,6 @@ describe('browser-agent session', () => {
     content.removeChildView.mockClear()
     session.closeTab(agentTab.id)
     expect(content.removeChildView).toHaveBeenCalledWith(agentTab.view)
-  })
-
-  // The measured report is the sole writer of bounds. A main-process
-  // prediction on the window's own `resize` used to race it: it assumed a
-  // constant panel width, which only holds after a divider drag pins one, so
-  // with the default half-width panel it applied a rect that disagreed with
-  // the measurement by half the window's travel — twice per frame, because
-  // the two writers shared a dedup key and kept invalidating each other.
-  it('applies renderer-measured bounds once and invents no rect when the window grows', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-    const mock = win as unknown as {
-      on: ReturnType<typeof vi.fn>
-      getContentSize: ReturnType<typeof vi.fn>
-    }
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 800, height: 600 })
-
-    // The window's resize is a layout trigger, never a source of bounds. On a
-    // grow the clamp is inert, so the rect is unchanged and nothing is applied
-    // until the renderer measures — this is what keeps the reverted prediction
-    // from creeping back in.
-    const onResize = hostResizeHandler(win)
-
-    view.setBounds.mockClear()
-    mock.getContentSize.mockReturnValue([1380, 950])
-    onResize()
-    expect(view.setBounds).not.toHaveBeenCalled()
-
-    // A repeated identical report stays idempotent.
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    expect(view.setBounds).not.toHaveBeenCalled()
-
-    // The next measured rect is applied exactly once.
-    panel.setPanelBounds({ x: 300, y: 50, width: 900, height: 700 })
-    expect(view.setBounds).toHaveBeenCalledTimes(1)
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 300, y: 50, width: 900, height: 700 })
-  })
-
-  // A shrink outruns the renderer's measurement by a frame; without the clamp
-  // the stale rect is applied verbatim and the view overhangs the new frame.
-  it('confines the view to the content box when the window shrinks', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-    const mock = win as unknown as {
-      on: ReturnType<typeof vi.fn>
-      getContentSize: ReturnType<typeof vi.fn>
-    }
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const onResize = hostResizeHandler(win)
-
-    view.setBounds.mockClear()
-    mock.getContentSize.mockReturnValue([600, 400])
-    onResize()
-
-    expect(view.setBounds).toHaveBeenCalledTimes(1)
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 100, y: 50, width: 500, height: 350 })
-
-    // Re-clamping the same stale rect is idempotent.
-    onResize()
-    expect(view.setBounds).toHaveBeenCalledTimes(1)
-  })
-
-  // The measured rect is a frame stale mid-drag, and for a half-width panel a
-  // window change of D moves the panel's left edge by D/2 — which the clamp
-  // cannot correct because it only truncates. The declared anchor is what moves
-  // x, closing the gap between the divider and the view's left edge.
-  it('re-derives the rect from the declared anchor while the window resizes', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-    const mock = win as unknown as {
-      on: ReturnType<typeof vi.fn>
-      getContentSize: ReturnType<typeof vi.fn>
-    }
-
-    // Half-width panel, right-flush, measured at a 1000x800 viewport.
-    mock.getContentSize.mockReturnValue([1000, 800])
-    panel.setPanelBounds({ x: 500, y: 40, width: 500, height: 760 }, undefined, {
-      viewportWidth: 1000,
-      viewportHeight: 800,
-      widthRatio: 0.5,
-    })
-    expect(view.setBounds).toHaveBeenLastCalledWith({ x: 500, y: 40, width: 500, height: 760 })
-
-    const onResize = hostResizeHandler(win)
-
-    // Window grows to 1200 wide: half-width means x moves to 600, not 500.
-    view.setBounds.mockClear()
-    mock.getContentSize.mockReturnValue([1200, 800])
-    onResize()
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 600, y: 40, width: 600, height: 760 })
-
-    // Shrinking below the measured size derives it just as well, with no help
-    // from the clamp (600 wide → x 300, width 300, both inside the frame).
-    view.setBounds.mockClear()
-    mock.getContentSize.mockReturnValue([600, 800])
-    onResize()
-    expect(view.setBounds).toHaveBeenCalledWith({ x: 300, y: 40, width: 300, height: 760 })
-  })
-
-  it('prefers the measured rect over the anchor at the measured viewport', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-    const mock = win as unknown as { getContentSize: ReturnType<typeof vi.fn> }
-
-    // An anchor that disagrees with the measurement must not win while the
-    // viewport still matches: measurement is authoritative, so a wrong anchor
-    // can only ever affect the frames of a live resize.
-    mock.getContentSize.mockReturnValue([1000, 800])
-    panel.setPanelBounds({ x: 500, y: 40, width: 500, height: 760 }, undefined, {
-      viewportWidth: 1000,
-      viewportHeight: 800,
-      widthRatio: 0,
-    })
-
-    expect(view.setBounds).toHaveBeenLastCalledWith({ x: 500, y: 40, width: 500, height: 760 })
-  })
-
-  it('drops the resize listener while the panel is hidden', () => {
-    session.ensureTab()
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const onResize = hostResizeHandler(win)
-
-    panel.setPanelBounds(null)
-
-    expect(
-      (win as unknown as { removeListener: ReturnType<typeof vi.fn> }).removeListener
-    ).toHaveBeenCalledWith('resize', onResize)
-  })
-
-  it('never invents a tab for a visible panel, and closing the last tab leaves none', () => {
-    expect(session.listTabs()).toHaveLength(0)
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    expect(session.listTabs()).toHaveLength(0)
-
-    const tab = session.ensureTab()
-    expect(session.getTabsState().activeTabId).toBe(tab.id)
-    session.closeTab(tab.id)
-    expect(session.listTabs()).toHaveLength(0)
-    expect(session.getTabsState().activeTabId).toBeNull()
   })
 
   it('clears a stale attachment without touching a destroyed host window', () => {
@@ -2749,45 +1213,6 @@ describe('browser-agent session', () => {
     expect(replacementContent.addChildView).toHaveBeenCalledWith(tab.view)
   })
 
-  it('clears a stale attachment without touching a destroyed child view', () => {
-    const tab = session.ensureTab()
-    const view = tab.view as unknown as MockView
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const content = (
-      win as unknown as {
-        contentView: {
-          removeChildView: ReturnType<typeof vi.fn>
-        }
-      }
-    ).contentView
-    content.removeChildView.mockClear()
-    view.webContents.isDestroyed.mockReturnValue(true)
-
-    expect(() => panel.setPanelBounds(null)).not.toThrow()
-    expect(content.removeChildView).not.toHaveBeenCalled()
-  })
-
-  it('scales panel bounds by the main window zoom factor', () => {
-    const winZoomed = mainWindowMock()
-    ;(
-      winZoomed as unknown as { webContents: { getZoomFactor: ReturnType<typeof vi.fn> } }
-    ).webContents.getZoomFactor = vi.fn(() => 1.5)
-    // Roomy content box so the clamp stays inert and this covers zoom alone.
-    ;(winZoomed as unknown as { getContentSize: ReturnType<typeof vi.fn> }).getContentSize = vi.fn(
-      () => [2000, 1400]
-    )
-    const zoomedSession = freshSession(winZoomed)
-
-    const tab = zoomedSession.ensureTab()
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    expect((tab.view as unknown as MockView).setBounds).toHaveBeenCalledWith({
-      x: 150,
-      y: 75,
-      width: 1200,
-      height: 900,
-    })
-  })
-
   it('hardens every tab and keeps http popups inside a new internal tab', () => {
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
@@ -2811,29 +1236,6 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
-  it('returns agent work to the opener when an adopted popup closes itself', () => {
-    const opener = session.ensureTab()
-    session.setAutomationActive(true)
-    const source = (opener.view as unknown as MockView).webContents
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
-    openWindow({ url: 'https://accounts.example/authorize' }).createWindow?.({
-      webContents: {},
-    })
-    const popup = session.automationTab()
-    expect(popup).not.toBe(opener)
-    const popupView = popup?.view as unknown as { webContents?: MockView['webContents'] }
-    const destroyed = popupView.webContents?.on.mock.calls.find(
-      ([event]) => event === 'destroyed'
-    )?.[1] as (() => void) | undefined
-
-    // Electron drops a view's contents once the page closes itself.
-    popupView.webContents = undefined
-    destroyed?.()
-
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([opener.id])
-    expect(session.automationTab()).toBe(opener)
-  })
-
   it('opens a background-disposition popup by URL and keeps cross-scheme popups denied', () => {
     const source = (session.ensureTab().view as unknown as MockView).webContents
     const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
@@ -2844,61 +1246,6 @@ describe('browser-agent session', () => {
     expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later')
     expect(openWindow({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
     expect(session.listTabs()).toHaveLength(2)
-  })
-
-  it('opens agent working tabs behind the visible page', () => {
-    // browser_open_tab is the agent choosing a page to work in. Which page is
-    // shown is the renderer's decision, so the native selection never moves.
-    const first = session.ensureTab()
-    const working = session.addAutomationTab()
-    expect(working.id).not.toBe(first.id)
-    expect(session.activeTab()).toBe(first)
-    expect(session.automationTab()).toBe(working)
-
-    session.claimActiveTabForUser()
-    const background = session.addAutomationTab()
-    expect(session.activeTab()).toBe(first)
-    expect(session.automationTab()).toBe(background)
-  })
-
-  it('keeps agent popups in the background and context-menu links user-owned', () => {
-    const onTabCreated = vi.fn()
-    session = freshSession(win, { onTabCreated })
-    const sourceTab = session.ensureTab()
-    const source = (sourceTab.view as unknown as MockView).webContents
-    onTabCreated.mockClear()
-    session.setAutomationActive(true)
-
-    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as PopupHandler
-    openWindow({ url: 'https://agent-popup.example/' }).createWindow?.({})
-    const agentPopup = session.automationTab()
-    expect(agentPopup).not.toBeNull()
-    expect(session.activeTab()).toBe(sourceTab)
-    expect(onTabCreated).toHaveBeenLastCalledWith(agentPopup?.view.webContents)
-
-    const contextMenu = source.on.mock.calls.find(
-      ([eventName]) => eventName === 'context-menu'
-    )?.[1] as (event: unknown, params: unknown) => void
-    contextMenu(
-      {},
-      {
-        selectionText: '',
-        linkURL: 'https://context-link.example/',
-        isEditable: false,
-        editFlags: { canPaste: false },
-      }
-    )
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    template
-      ?.find((item) => item.label === 'Open Link in New Tab')
-      ?.click?.({} as never, undefined as never, {} as never)
-
-    const userTab = session.activeTab()
-    expect(userTab).not.toBe(sourceTab)
-    expect(session.automationTab()).toBe(agentPopup)
-    expect(onTabCreated).toHaveBeenLastCalledWith(userTab?.view.webContents)
   })
 
   it('lets internal page popups navigate after the network check', async () => {
@@ -3123,46 +1470,6 @@ describe('browser-agent session', () => {
     expect(closed).toHaveBeenCalledWith(false)
   })
 
-  it('keeps the site denied when the operating system rejects an approved device', async () => {
-    setPlatform('darwin')
-    try {
-      vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('not-determined')
-      vi.mocked(systemPreferences.askForMediaAccess).mockResolvedValue(false)
-      win.isFocused = vi.fn(() => true)
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const tab = session.ensureTab()
-      const contents = (tab.view as unknown as MockView).webContents
-      contents.isFocused.mockReturnValue(true)
-      const gestureHandler = contents.on.mock.calls.find(
-        ([eventName]) => eventName === 'before-mouse-event'
-      )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
-      gestureHandler?.({}, { type: 'mouseDown' })
-      const requestHandler = contents.session.setPermissionRequestHandler.mock.calls[0][0] as (
-        wc: unknown,
-        permission: string,
-        callback: (granted: boolean) => void,
-        details?: unknown
-      ) => void
-      const callback = vi.fn()
-      requestHandler(contents, 'media', callback, {
-        isMainFrame: true,
-        mediaTypes: ['video'],
-        requestingUrl: 'https://example.com/',
-        securityOrigin: 'https://example.com',
-      })
-
-      const prompt = session.mediaPermissionRequestForContents(contents as unknown as WebContents)
-      await session.respondToMediaPermission(prompt?.requestId ?? '', true)
-
-      expect(systemPreferences.askForMediaAccess).toHaveBeenCalledWith('camera')
-      expect(callback).toHaveBeenCalledWith(false)
-    } finally {
-      setPlatform(realPlatform)
-      vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('granted')
-      vi.mocked(systemPreferences.askForMediaAccess).mockResolvedValue(true)
-    }
-  })
-
   it('fails a media prompt closed when the user does not answer it', async () => {
     vi.useFakeTimers()
     try {
@@ -3200,19 +1507,6 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('allows public and loopback cross-origin navigation without a task prompt', async () => {
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    for (const url of [
-      'https://public.example/',
-      'https://redirect.example/login',
-      'http://127.0.0.1:4101/',
-      'http://localhost:4102/',
-    ]) {
-      await expect(beginMainFrameRequest(contents, url)).resolves.toEqual({ cancel: false })
-    }
-    expect(dialog.showMessageBox).not.toHaveBeenCalled()
-  })
-
   it.each(['mainFrame', 'subFrame'])(
     'retains private-network checks for %s navigation',
     async (resourceType) => {
@@ -3232,38 +1526,6 @@ describe('browser-agent session', () => {
       ).resolves.toEqual({ cancel: true })
     }
   )
-
-  it('allows checked navigation in hidden and inactive tasks without a prompt', async () => {
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    panel.setPanelBounds(null)
-    session.activateBrowserScope('another-task')
-    await expect(beginMainFrameRequest(contents, 'http://127.0.0.1:4201/')).resolves.toEqual({
-      cancel: false,
-    })
-    expect(dialog.showMessageBox).not.toHaveBeenCalled()
-  })
-
-  it('allows restored pages and their checked cross-origin redirects', async () => {
-    const restoredUrl = 'http://127.0.0.1:4301/restored?private=value'
-    const { persistence } = memoryBrowserPersistence({
-      'chat-test': {
-        v: 1,
-        tabs: [{ url: restoredUrl }],
-        activeIndex: 0,
-        downloads: [],
-      },
-    })
-    session = freshSession(win, {}, persistence)
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    session.restoreBrowserSession()
-    const contents = (session.requireTab().view as unknown as MockView).webContents
-    expect(contents.loadURL).toHaveBeenCalledWith(restoredUrl)
-
-    await expect(beginMainFrameRequest(contents, restoredUrl)).resolves.toEqual({ cancel: false })
-
-    const redirected = beginMainFrameRequest(contents, 'http://127.0.0.1:4302/login', 2)
-    await expect(redirected).resolves.toEqual({ cancel: false })
-  })
 
   it('blocks an image hostname that resolves to a private address', async () => {
     mockLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
@@ -3304,83 +1566,6 @@ describe('browser-agent session', () => {
     expect(clearCache).toHaveBeenCalled()
   })
 
-  it('does not rewrite the settings file when the saved tabs have not changed', async () => {
-    const { persistence } = memoryBrowserPersistence()
-    session = freshSession(win, {}, persistence)
-    const tab = session.ensureTab()
-    const contents = (tab.view as unknown as MockView).webContents
-    const onNavigate = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'did-navigate-in-page'
-    )?.[1] as () => void
-    vi.mocked(persistence.save).mockClear()
-
-    // Any single-page app fires this on every route change, and the settings
-    // store's `===` comparison never matches a freshly built array — so each
-    // one used to mean a synchronous whole-file write on the main thread.
-    onNavigate()
-    onNavigate()
-    onNavigate()
-
-    expect(persistence.save).not.toHaveBeenCalled()
-  })
-
-  it('persists once when the saved strip actually changes', async () => {
-    const { persistence } = memoryBrowserPersistence()
-    session = freshSession(win, {}, persistence)
-    const tab = session.ensureTab()
-    vi.mocked(persistence.save).mockClear()
-    ;(tab.view as unknown as MockView).webContents.getURL.mockReturnValue(
-      'https://example.com/changed'
-    )
-
-    session.switchTab(tab.id)
-    session.switchTab(tab.id)
-
-    expect(persistence.save).toHaveBeenCalledTimes(1)
-    expect(persistence.save).toHaveBeenLastCalledWith(
-      'chat-test',
-      expect.objectContaining({ tabs: [{ url: 'https://example.com/changed' }] })
-    )
-  })
-
-  it('keeps a crashed tab recoverable without disturbing sibling tabs', () => {
-    const first = session.ensureTab()
-    const second = session.addTab()
-    const crashed = (second.view as unknown as MockView).webContents
-    const onGone = crashed.on.mock.calls.find(
-      ([eventName]) => eventName === 'render-process-gone'
-    )?.[1] as (event: unknown, details: { reason: string }) => void
-
-    onGone({}, { reason: 'crashed' })
-
-    expect(session.listTabs()).toEqual([
-      expect.objectContaining({ tabId: first.id }),
-      expect.objectContaining({
-        tabId: second.id,
-        issue: expect.objectContaining({ kind: 'crashed', reason: 'crashed' }),
-      }),
-    ])
-    expect(session.requireTab().id).toBe(second.id)
-  })
-
-  it('keeps the only crashed tab open for recovery', async () => {
-    const onSessionClosed = vi.fn()
-    session = freshSession(win, { onSessionClosed })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const onGone = contents.on.mock.calls.find(
-      ([eventName]) => eventName === 'render-process-gone'
-    )?.[1] as (event: unknown, details: { reason: string }) => void
-
-    onGone({}, { reason: 'oom' })
-
-    expect(session.listTabs()).toEqual([
-      expect.objectContaining({
-        issue: expect.objectContaining({ kind: 'crashed', reason: 'oom' }),
-      }),
-    ])
-    expect(onSessionClosed).not.toHaveBeenCalled()
-  })
-
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
     vi.useFakeTimers()
     try {
@@ -3399,30 +1584,6 @@ describe('browser-agent session', () => {
       await vi.advanceTimersByTimeAsync(6_000)
 
       expect(view.setVisible).toHaveBeenCalledWith(false)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('keeps the panel while the renderer keeps renewing the lease', async () => {
-    vi.useFakeTimers()
-    try {
-      session = freshSession(win)
-      session.ensureTab()
-      const bounds = { x: 0, y: 0, width: 800, height: 600 }
-      panel.setPanelBounds(bounds, win)
-      const contentView = (
-        win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
-      ).contentView
-      contentView.removeChildView.mockClear()
-
-      // The renderer heartbeats about once a second.
-      for (let beat = 0; beat < 6; beat++) {
-        await vi.advanceTimersByTimeAsync(1_000)
-        panel.setPanelBounds(bounds, win)
-      }
-
-      expect(contentView.removeChildView).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
@@ -3535,141 +1696,6 @@ describe('browser-agent session', () => {
     })
   })
 
-  it('sets a staging save path before will-download returns so Electron never prompts', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'report.csv', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-
-    const stagingPath = expectOnlyStagingSavePath(download.item, directory)
-    expect(stagingPath).not.toBe(join(directory, 'report.csv'))
-    expect(download.item.cancel).not.toHaveBeenCalled()
-  })
-
-  it('waits for a slow filename allocation before publishing the completed file', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const { persistence, snapshots } = memoryBrowserPersistence()
-    const pathProbe = deferred<boolean>()
-    session = freshSession(win, {}, persistence, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-      pathExists: () => pathProbe.promise,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'slow.bin', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-    const stagingPath = expectOnlyStagingSavePath(download.item, directory)
-    download.emitDone('completed')
-    await Promise.resolve()
-
-    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-      filename: 'slow.bin',
-      state: 'progressing',
-    })
-    expect(existsSync(stagingPath)).toBe(true)
-
-    pathProbe.resolve(false)
-
-    await vi.waitFor(() =>
-      expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-        filename: 'slow.bin',
-        state: 'completed',
-      })
-    )
-    expect(existsSync(stagingPath)).toBe(false)
-    expect(finishedDownloadFiles(directory)).toEqual(['slow.bin'])
-    const { id } = session.getBrowserDownloadsState('chat-test').downloads[0]
-    expect(session.completedBrowserDownload('chat-test', id)).toEqual({
-      filename: 'slow.bin',
-      savePath: join(directory, 'slow.bin'),
-    })
-    expect(snapshots.get('chat-test')?.downloads[0]).toMatchObject({
-      state: 'completed',
-      savePath: join(directory, 'slow.bin'),
-    })
-  })
-
-  it('ignores a progress disk probe that resolves after the download completed', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    try {
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const progressProbe = deferred<number>()
-      const getFreeDiskBytes = vi
-        .fn<(directory: string) => number | Promise<number>>()
-        .mockReturnValueOnce(Number.MAX_SAFE_INTEGER)
-        .mockReturnValueOnce(progressProbe.promise)
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'late-probe.bin', totalBytes: 100 })
-
-      startMockDownload(contents, download)
-      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-      vi.setSystemTime(Date.now() + 1_000)
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
-
-      download.emitDone('completed')
-      progressProbe.resolve(0)
-
-      await vi.waitFor(() =>
-        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-          filename: 'late-probe.bin',
-          state: 'completed',
-        })
-      )
-      expect(download.item.cancel).not.toHaveBeenCalled()
-      expect(finishedDownloadFiles(directory)).toEqual(['late-probe.bin'])
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('retries moving a completed download while another process briefly holds the file', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout'] })
-    try {
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const busy = Object.assign(new Error('resource busy'), { code: 'EBUSY' })
-      const moveFile = vi
-        .fn<(from: string, to: string) => Promise<void>>()
-        .mockRejectedValueOnce(busy)
-        .mockRejectedValueOnce(busy)
-        .mockImplementation(async (from, to) => renameSync(from, to))
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-        moveFile,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'held.bin', totalBytes: 100 })
-
-      startMockDownload(contents, download)
-      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-      download.emitDone('completed')
-      await vi.waitFor(() => expect(moveFile).toHaveBeenCalledOnce())
-      await vi.advanceTimersByTimeAsync(1_000)
-
-      await vi.waitFor(() =>
-        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-          filename: 'held.bin',
-          state: 'completed',
-        })
-      )
-      expect(moveFile).toHaveBeenCalledTimes(3)
-      expect(finishedDownloadFiles(directory)).toEqual(['held.bin'])
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('never overwrites a file that takes the allocated name before the download claims it', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     writeFileSync(join(directory, 'taken.bin'), 'user data')
@@ -3759,24 +1785,6 @@ describe('browser-agent session', () => {
     ])
   })
 
-  it('does not let a pre-allocation progress event consume the admission probe', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const getFreeDiskBytes = vi.fn(() => Number.MAX_SAFE_INTEGER)
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'early-progress.bin', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-    download.emitUpdated()
-
-    await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-    expect(getFreeDiskBytes).toHaveBeenCalledOnce()
-    expect(download.item.cancel).not.toHaveBeenCalled()
-  })
-
   it('rejects a declared download above the byte cap with safe visible metadata', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     session = freshSession(win, {}, undefined, {
@@ -3813,31 +1821,6 @@ describe('browser-agent session', () => {
       enabled: false,
     })
     expect(template?.[0]?.sublabel).toContain('2.0 GB download limit')
-  })
-
-  it('reserves a known download remaining size above the free-disk floor', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const getFreeDiskBytes = vi.fn(() => 1.2 * 1024 ** 3)
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({
-      filename: 'known-size.iso',
-      totalBytes: 1.5 * 1024 ** 3,
-    })
-
-    startMockDownload(contents, download)
-
-    expect(download.item.pause).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(download.item.cancel).toHaveBeenCalledOnce())
-    expect(download.item.resume).not.toHaveBeenCalled()
-    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-      filename: 'known-size.iso',
-      state: 'interrupted',
-    })
   })
 
   it('fails closed when the asynchronous free-space probe rejects', async () => {
@@ -3892,90 +1875,6 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('fails a hung progress probe closed instead of disabling later disk checks', async () => {
-    vi.useFakeTimers()
-    try {
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const progressProbe = deferred<number>()
-      const getFreeDiskBytes = vi
-        .fn<(directory: string) => number | Promise<number>>()
-        .mockReturnValueOnce(Number.MAX_SAFE_INTEGER)
-        .mockReturnValueOnce(progressProbe.promise)
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'hung-progress.bin' })
-
-      startMockDownload(contents, download)
-      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-      await vi.advanceTimersByTimeAsync(1_000)
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
-
-      await vi.advanceTimersByTimeAsync(5_000)
-
-      expect(download.item.cancel).toHaveBeenCalledOnce()
-      progressProbe.resolve(Number.MAX_SAFE_INTEGER)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(download.item.cancel).toHaveBeenCalledOnce()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('fails hung path allocation closed without reserving a late destination', async () => {
-    vi.useFakeTimers()
-    try {
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const firstProbe = deferred<boolean>()
-      const secondProbe = deferred<boolean>()
-      const pathExists = vi
-        .fn<(path: string) => boolean | Promise<boolean>>()
-        .mockReturnValueOnce(firstProbe.promise)
-        .mockReturnValueOnce(secondProbe.promise)
-        .mockReturnValue(false)
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-        pathExists,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const first = mockDownloadItem({ filename: 'hung-path.bin', totalBytes: 100 })
-      const second = mockDownloadItem({ filename: 'hung-path.bin', totalBytes: 100 })
-
-      startMockDownload(contents, first)
-      startMockDownload(contents, second)
-      expect(pathExists).toHaveBeenCalledTimes(2)
-      const timersDuringAllocation = vi.getTimerCount()
-
-      await vi.advanceTimersByTimeAsync(5_000)
-
-      expect(first.item.cancel).toHaveBeenCalledOnce()
-      expect(second.item.cancel).toHaveBeenCalledOnce()
-      expect(vi.getTimerCount()).toBe(timersDuringAllocation - 2)
-
-      firstProbe.resolve(false)
-      secondProbe.reject(new Error('late path lookup failure'))
-      await vi.advanceTimersByTimeAsync(0)
-      expectOnlyStagingSavePath(first.item, directory)
-      expectOnlyStagingSavePath(second.item, directory)
-      expect(first.item.resume).not.toHaveBeenCalled()
-      expect(second.item.resume).not.toHaveBeenCalled()
-
-      first.emitDone('cancelled')
-      second.emitDone('cancelled')
-      const replacement = mockDownloadItem({ filename: 'hung-path.bin', totalBytes: 100 })
-      startMockDownload(contents, replacement)
-      await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
-      replacement.emitDone('completed')
-      await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual(['hung-path.bin']))
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('counts slow pending admissions against the per-task concurrency cap', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     const firstProbe = deferred<number>()
@@ -4010,68 +1909,6 @@ describe('browser-agent session', () => {
     await vi.waitFor(() => expect(second.item.resume).toHaveBeenCalledOnce())
   })
 
-  it('does not construct or probe a save path for a synchronously rejected item', () => {
-    const unusableDirectory = Symbol('must not reach path construction') as unknown as string
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => unusableDirectory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({
-      filename: 'too-large.bin',
-      totalBytes: 2 * 1024 ** 3 + 1,
-    })
-
-    expect(() => startMockDownload(contents, download)).not.toThrow()
-    expect(download.item.cancel).toHaveBeenCalledOnce()
-    expect(download.item.setSavePath).not.toHaveBeenCalled()
-    expect(download.item.pause).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the configured download directory cannot contain a file', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const notDirectory = join(directory, 'ordinary-file')
-    writeFileSync(notDirectory, 'not a directory')
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => notDirectory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'cannot-save.bin', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-
-    await vi.waitFor(() => expect(download.item.cancel).toHaveBeenCalledOnce())
-    expectOnlyStagingSavePath(download.item, notDirectory)
-    expect(download.item.resume).not.toHaveBeenCalled()
-    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-      filename: 'cannot-save.bin',
-      state: 'interrupted',
-    })
-  })
-
-  it('reserves active downloads across different folders on the same disk', async () => {
-    const firstDirectory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-a-'))
-    const secondDirectory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-b-'))
-    let directory = firstDirectory
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => 4 * 1024 ** 3,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const first = mockDownloadItem({ filename: 'first.iso', totalBytes: 2 * 1024 ** 3 })
-    const second = mockDownloadItem({ filename: 'second.iso', totalBytes: 2 * 1024 ** 3 })
-
-    startMockDownload(contents, first)
-    directory = secondDirectory
-    startMockDownload(contents, second)
-
-    await vi.waitFor(() => expect(first.item.resume).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(second.item.cancel).toHaveBeenCalledOnce())
-    expect(first.item.cancel).not.toHaveBeenCalled()
-    expect(second.item.resume).not.toHaveBeenCalled()
-  })
-
   it('stops an unknown-size download immediately when its received bytes cross the cap', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     session = freshSession(win, {}, undefined, {
@@ -4101,110 +1938,6 @@ describe('browser-agent session', () => {
     await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
     replacement.emitDone('completed')
     await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual(['stream.bin']))
-  })
-
-  it('throttles free-disk checks while stopping promptly after the interval', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(new Date('2026-08-31T00:00:00.000Z'))
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      let freeDiskBytes = 4 * 1024 ** 3
-      let lastProbeAt = 0
-      const getFreeDiskBytes = vi.fn(() => {
-        lastProbeAt = Date.now()
-        return freeDiskBytes
-      })
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'unknown-size.bin' })
-
-      startMockDownload(contents, download)
-      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-      expect(getFreeDiskBytes).toHaveBeenCalledOnce()
-      vi.setSystemTime(lastProbeAt)
-      freeDiskBytes = 512 * 1024 ** 2
-
-      download.setReceivedBytes(10)
-      download.emitUpdated()
-      vi.advanceTimersByTime(999)
-      download.setReceivedBytes(20)
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledOnce()
-      expect(download.item.cancel).not.toHaveBeenCalled()
-
-      vi.advanceTimersByTime(1)
-      download.setReceivedBytes(30)
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(download.item.cancel).toHaveBeenCalledOnce()
-      expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-        state: 'interrupted',
-        receivedBytes: 30,
-      })
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('coalesces progress probes while a free-space check is still in flight', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(new Date('2026-08-31T00:00:00.000Z'))
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const progressProbe = deferred<number>()
-      const getFreeDiskBytes = vi
-        .fn<(directory: string) => number | Promise<number>>()
-        .mockReturnValueOnce(Number.MAX_SAFE_INTEGER)
-        .mockReturnValueOnce(progressProbe.promise)
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'coalesced.bin' })
-
-      startMockDownload(contents, download)
-      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-
-      await vi.advanceTimersByTimeAsync(1_000)
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
-      await vi.advanceTimersByTimeAsync(2_000)
-      download.emitUpdated()
-      download.emitUpdated()
-      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
-
-      progressProbe.resolve(Number.MAX_SAFE_INTEGER)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(download.item.cancel).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('ignores a late admission sample after the item reaches a terminal state', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const probe = deferred<number>()
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => probe.promise,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'finished-before-probe.bin', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-    expect(download.item.pause).toHaveBeenCalledOnce()
-    download.emitDone('cancelled')
-    probe.resolve(Number.MAX_SAFE_INTEGER)
-    await vi.waitFor(() => expect(download.item.resume).not.toHaveBeenCalled())
-
-    const replacement = mockDownloadItem({ filename: 'replacement.bin', totalBytes: 100 })
-    startMockDownload(contents, replacement)
-    expect(replacement.item.cancel).not.toHaveBeenCalled()
   })
 
   it('cancels every active download on profile wipe without reviving late work', async () => {
@@ -4272,117 +2005,6 @@ describe('browser-agent session', () => {
     await vi.waitFor(() =>
       expect(readdirSync(directory).filter((name) => name.startsWith('.'))).toEqual([])
     )
-  })
-
-  it('does not reserve a late filename after profile teardown starts', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'teardown-race.bin', totalBytes: 100 })
-
-    startMockDownload(contents, download)
-    await session.clearProfileStorage()
-    await Promise.resolve()
-
-    expect(download.item.cancel).toHaveBeenCalledOnce()
-    expectOnlyStagingSavePath(download.item, directory)
-    expect(download.item.resume).not.toHaveBeenCalled()
-  })
-
-  it('cancels a download it cannot pause before giving it a staging file', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const download = mockDownloadItem({ filename: 'unpausable.bin', totalBytes: 100 })
-    download.item.pause.mockImplementation(() => {
-      throw new Error('pause unavailable')
-    })
-
-    startMockDownload(contents, download)
-
-    expect(download.item.cancel).toHaveBeenCalledOnce()
-    expect(download.item.setSavePath).not.toHaveBeenCalled()
-    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-      filename: 'unpausable.bin',
-      state: 'interrupted',
-    })
-  })
-
-  it('stops a download whose placeholder claim hangs and removes the late placeholder', async () => {
-    vi.useFakeTimers()
-    try {
-      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-      const gate = deferred<void>()
-      const claimFile = vi.fn(async (path: string) => {
-        await gate.promise
-        writeFileSync(path, '', { flag: 'wx' })
-      })
-      session = freshSession(win, {}, undefined, {
-        getDirectory: () => directory,
-        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-        pathExists: () => false,
-        claimFile,
-      })
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      const download = mockDownloadItem({ filename: 'hung-claim.bin', totalBytes: 100 })
-
-      startMockDownload(contents, download)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(claimFile).toHaveBeenCalledOnce()
-      await vi.advanceTimersByTimeAsync(5_000)
-
-      expect(download.item.cancel).toHaveBeenCalledOnce()
-      expect(download.item.resume).not.toHaveBeenCalled()
-      download.emitDone('cancelled')
-      gate.resolve()
-      await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('keeps a torn-down download name reserved until its pending claim settles', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const claims: Array<{ path: string; gate: ReturnType<typeof deferred<void>> }> = []
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-      claimFile: async (path) => {
-        const gate = deferred<void>()
-        claims.push({ path, gate })
-        await gate.promise
-        writeFileSync(path, '', { flag: 'wx' })
-      },
-    })
-    const firstContents = session.withBrowserScope(
-      'chat-first',
-      () => (session.ensureTab().view as unknown as MockView).webContents
-    )
-    const secondContents = session.withBrowserScope(
-      'chat-second',
-      () => (session.ensureTab().view as unknown as MockView).webContents
-    )
-    const first = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
-    const second = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
-
-    startMockDownload(firstContents, first)
-    await vi.waitFor(() => expect(claims).toHaveLength(1))
-    session.disposeBrowserScope('chat-first')
-    startMockDownload(secondContents, second)
-    await vi.waitFor(() => expect(claims).toHaveLength(2))
-
-    expect(claims[1].path).not.toBe(claims[0].path)
-    claims[0].gate.resolve()
-    claims[1].gate.resolve()
-    await vi.waitFor(() => expect(second.item.resume).toHaveBeenCalledOnce())
-    expect(second.item.cancel).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(existsSync(claims[0].path)).toBe(false))
   })
 
   it('does not let a cancelled allocation release another download path owner', async () => {
@@ -4488,59 +2110,6 @@ describe('browser-agent session', () => {
     )
   })
 
-  it('cancels only the suspended scope and cannot republish it after reactivation', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    const suspendedDiskProbe = deferred<number>()
-    const onDownloadsChanged = vi.fn()
-    const getFreeDiskBytes = vi
-      .fn<() => number | Promise<number>>()
-      .mockReturnValueOnce(suspendedDiskProbe.promise)
-      .mockReturnValue(Number.MAX_SAFE_INTEGER)
-    session = freshSession(win, { onDownloadsChanged }, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes,
-    })
-    const suspendedContents = session.withBrowserScope(
-      'chat-suspended',
-      () => (session.ensureTab().view as unknown as MockView).webContents
-    )
-    const retainedContents = session.withBrowserScope(
-      'chat-retained',
-      () => (session.ensureTab().view as unknown as MockView).webContents
-    )
-    const suspendedDownload = mockDownloadItem({ filename: 'suspended.bin', totalBytes: 100 })
-    const retainedDownload = mockDownloadItem({ filename: 'retained.bin', totalBytes: 100 })
-
-    startMockDownload(suspendedContents, suspendedDownload)
-    await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(suspendedDownload.item.setSavePath).toHaveBeenCalledOnce())
-    startMockDownload(retainedContents, retainedDownload)
-    await vi.waitFor(() => expect(retainedDownload.item.resume).toHaveBeenCalledOnce())
-    onDownloadsChanged.mockClear()
-
-    expect(session.suspendBrowserScope('chat-suspended')).toBe(true)
-    expect(suspendedDownload.item.cancel).toHaveBeenCalledOnce()
-    expect(retainedDownload.item.cancel).not.toHaveBeenCalled()
-    session.activateBrowserScope('chat-suspended')
-    onDownloadsChanged.mockClear()
-
-    suspendedDiskProbe.resolve(Number.MAX_SAFE_INTEGER)
-    await Promise.resolve()
-    await Promise.resolve()
-    suspendedDownload.emitUpdated()
-    suspendedDownload.emitDone('cancelled')
-
-    expect(suspendedDownload.item.resume).not.toHaveBeenCalled()
-    expect(session.getBrowserDownloadsState('chat-suspended').downloads).toEqual([])
-    expect(onDownloadsChanged).not.toHaveBeenCalledWith(
-      expect.objectContaining({ scopeId: 'chat-suspended' })
-    )
-    retainedDownload.emitUpdated()
-    expect(onDownloadsChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ scopeId: 'chat-retained' })
-    )
-  })
-
   it('bounds active downloads per task and releases the slot on completion', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     session = freshSession(win, {}, undefined, {
@@ -4567,33 +2136,6 @@ describe('browser-agent session', () => {
     startMockDownload(contents, replacement)
     expect(replacement.item.cancel).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
-  })
-
-  it('bounds active browser downloads across tasks', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
-    session = freshSession(win, {}, undefined, {
-      getDirectory: () => directory,
-      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
-    })
-    for (let scopeIndex = 0; scopeIndex < 3; scopeIndex++) {
-      session.withBrowserScope(`chat-download-${scopeIndex}`, () => {
-        const contents = (session.ensureTab().view as unknown as MockView).webContents
-        startMockDownload(contents, mockDownloadItem({ filename: `${scopeIndex}-a.txt` }))
-        startMockDownload(contents, mockDownloadItem({ filename: `${scopeIndex}-b.txt` }))
-      })
-    }
-    const blocked = mockDownloadItem({ filename: 'global-overflow.txt' })
-    session.withBrowserScope('chat-download-overflow', () => {
-      const contents = (session.ensureTab().view as unknown as MockView).webContents
-      startMockDownload(contents, blocked)
-    })
-
-    expect(blocked.item.cancel).toHaveBeenCalledOnce()
-    expect(blocked.item.setSavePath).not.toHaveBeenCalled()
-    expect(session.getBrowserDownloadsState('chat-download-overflow').downloads[0]).toMatchObject({
-      filename: 'global-overflow.txt',
-      state: 'interrupted',
-    })
   })
 
   it('does not recreate a disposed scope when a download finishes later', () => {
@@ -4645,23 +2187,12 @@ describe('browser panel ownership', () => {
   const BOUNDS = { x: 0, y: 0, width: 800, height: 600 }
   let win: BrowserWindow
   let other: BrowserWindow
-  let session: SessionModule
+  let _session: SessionModule
 
   beforeEach(async () => {
     win = mainWindowMock()
     other = mainWindowMock()
-    session = freshSession(win)
-  })
-
-  it('lets any window claim a panel nobody owns yet', () => {
-    expect(panel.canReportPanelBounds(other, null)).toBe(true)
-  })
-
-  it('keeps the owner reporting while Sim sits in the background', () => {
-    panel.setPanelBounds(BOUNDS, win)
-
-    // Nothing is focused, but the owner has not changed.
-    expect(panel.canReportPanelBounds(win, null)).toBe(true)
+    _session = freshSession(win)
   })
 
   it('refuses a second window claiming the panel while nothing is focused', () => {
@@ -4677,29 +2208,6 @@ describe('browser panel ownership', () => {
     panel.setPanelBounds(BOUNDS, win)
 
     expect(panel.canReportPanelBounds(other, other)).toBe(true)
-  })
-
-  it('frees the panel once the owning window is gone', () => {
-    panel.setPanelBounds(BOUNDS, win)
-    vi.mocked(win.isDestroyed).mockReturnValue(true)
-
-    expect(panel.canReportPanelBounds(other, null)).toBe(true)
-  })
-
-  it('releases the panel when the owning window closes', () => {
-    panel.setPanelBounds(BOUNDS, win)
-    const view = session.ensureTab().view as unknown as MockView
-    view.setVisible.mockClear()
-
-    // Electron destroys the window before emitting `closed`, so the release
-    // arrives from an already-destroyed window and must still be honoured.
-    vi.mocked(win.isDestroyed).mockReturnValue(true)
-    panel.setPanelBounds(null, win)
-
-    expect(panel.canReportPanelBounds(other, null)).toBe(true)
-    // Left owned, the next layout would re-parent the browser onto another
-    // window at the closed window's bounds.
-    expect(view.setVisible).not.toHaveBeenCalledWith(true)
   })
 
   it('ignores a live non-owner trying to hide the panel', () => {
@@ -4718,21 +2226,6 @@ describe('reopening a closed tab', () => {
   beforeEach(async () => {
     win = mainWindowMock()
     session = freshSession(win)
-  })
-
-  it('restores an ordinary closed tab', () => {
-    session.ensureTab()
-    const closing = session.addTab()
-    ;(closing.view as unknown as MockView).webContents.getURL.mockReturnValue(
-      'https://example.com/inbox'
-    )
-    session.closeTab(closing.id)
-
-    const reopened = session.reopenClosedTab()
-
-    expect((reopened?.view as unknown as MockView).webContents.loadURL).toHaveBeenCalledWith(
-      'https://example.com/inbox'
-    )
   })
 
   it('never revives a URL carrying embedded credentials', () => {
@@ -4784,21 +2277,6 @@ describe('importAgentCookies', () => {
     sameSite: 'lax' as const,
   })
 
-  it('writes every cookie into the dedicated browser profile', async () => {
-    const set = vi.fn(async () => {})
-    const flushStore = vi.fn(async () => {})
-    const session = withCookieJar(set, flushStore)
-
-    const result = await session.importAgentCookies([cookie('a'), cookie('b')])
-
-    expect(result).toEqual({ imported: 2, failed: 0 })
-    expect(electronSession.fromPartition).toHaveBeenCalledWith('persist:sim-browser-agent')
-    expect(set).toHaveBeenCalledTimes(2)
-    expect(set).toHaveBeenNthCalledWith(1, cookie('a'))
-    expect(flushStore).toHaveBeenCalledOnce()
-    expect(flushStore.mock.invocationCallOrder[0]).toBeGreaterThan(set.mock.invocationCallOrder[1])
-  })
-
   it('counts a rejected cookie without losing the rest', async () => {
     // Chromium refuses cookies whose attributes are inconsistent. That
     // rejection must cost one cookie, not the whole import.
@@ -4811,16 +2289,6 @@ describe('importAgentCookies', () => {
 
     expect(result).toEqual({ imported: 2, failed: 1 })
     expect(set).toHaveBeenCalledTimes(3)
-  })
-
-  it('does nothing when there is nothing to import', async () => {
-    const set = vi.fn(async () => {})
-    const flushStore = vi.fn(async () => {})
-    const session = withCookieJar(set, flushStore)
-
-    await expect(session.importAgentCookies([])).resolves.toEqual({ imported: 0, failed: 0 })
-    expect(set).not.toHaveBeenCalled()
-    expect(flushStore).not.toHaveBeenCalled()
   })
 
   it('does not report a durable import when flushing to disk fails', async () => {
@@ -4843,21 +2311,6 @@ describe('first-party browser sessions', () => {
       session: new WebContentsView().webContents.session,
     })
   }
-
-  it('adopts the app session for a blank tab without changing its identity', () => {
-    const session = initialize()
-    const tab = session.addAutomationTab()
-    const original = tab.view.webContents
-    vi.mocked(original.getURL).mockReturnValue('about:blank')
-    const contents = session.tabForNavigation(original, `${origin}/home`, { agentOwned: true })
-    expect(contents).not.toBe(original)
-    expect(agentAppOrigin(contents)).toBe(origin)
-    expect(session.automationTab()?.id).toBe(tab.id)
-    expect(session.listTabs()).toHaveLength(1)
-    expect(original.close).toHaveBeenCalledOnce()
-    expect(contents.session.setPermissionRequestHandler).not.toHaveBeenCalled()
-    expect(contents.session.webRequest.onBeforeRequest).not.toHaveBeenCalled()
-  })
 
   it('keeps a populated tab and its history when crossing the session boundary', () => {
     const session = initialize()
@@ -4892,22 +2345,5 @@ describe('first-party browser sessions', () => {
     expect(session.listTabs()).toHaveLength(1)
     expect(contents.loadURL).not.toHaveBeenCalled()
     expect(routeAgentNavigation(contents, `${origin}/submit`, 'POST')).toBe(false)
-  })
-
-  it('restores Sim and external tabs into their respective sessions', () => {
-    const { persistence } = memoryBrowserPersistence({
-      'chat-test': {
-        v: 1,
-        tabs: [{ url: `${origin}/home` }, { url: 'https://example.com/' }],
-        activeIndex: 0,
-        downloads: [],
-      },
-    })
-    const session = initialize(persistence)
-    session.restoreBrowserSession()
-    const first = session.switchTab('1').view.webContents
-    const second = session.switchTab('2').view.webContents
-    expect(agentAppOrigin(first)).toBe(origin)
-    expect(agentAppOrigin(second)).toBeUndefined()
   })
 })

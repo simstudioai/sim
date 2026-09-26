@@ -44,7 +44,7 @@ function portableWorkspaceResourceMarkdown(
   const resource = resolveWorkspaceResourceRef({ ...data, title: data.title ?? '' }, workspaceFiles)
   return {
     markdown: resource
-      ? serializePortableChipLink(data.type, resource.id, resource.title || label)
+      ? serializePortableChipLink(data.type, resource.id, resource.title || label, data.workspaceId)
       : label,
     hasUnresolvedFile: data.type === 'file' && !resource,
   }

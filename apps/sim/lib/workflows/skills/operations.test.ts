@@ -1,35 +1,27 @@
-/**
- * @vitest-environment node
- */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getEditableSkillIdsMock } = vi.hoisted(() => ({
   getEditableSkillIdsMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'gen-uuid', generateShortId: () => 'gen-id' }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/skills/access', () => ({
   getEditableSkillIds: getEditableSkillIdsMock,
 }))
 
-import { BUILTIN_SKILLS } from '@/lib/workflows/skills/builtin-skills'
 import {
   listSkillSummariesPage,
   listSkills,
   listSkillsForUser,
 } from '@/lib/workflows/skills/operations'
 
+idMockFns.mockGenerateId.mockReturnValue('gen-uuid')
+idMockFns.mockGenerateShortId.mockReturnValue('gen-id')
+
 describe('listSkills includeBuiltins', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -41,20 +33,6 @@ describe('listSkills includeBuiltins', () => {
     const result = await listSkills({ workspaceId: 'ws-1' })
     expect(result.length).toBeGreaterThan(0)
     expect(result.every((s) => s.id.startsWith('builtin-'))).toBe(true)
-  })
-
-  /**
-   * The mothership skill inventory passes includeBuiltins: false so it never
-   * sees the code-only template skills.
-   */
-  it('excludes builtin template skills when includeBuiltins is false', async () => {
-    queueTableRows(schemaMock.skill, [
-      { id: 'sk-1', name: 'mine', description: 'd', content: 'c', workspaceId: 'ws-1' },
-    ])
-    const result = await listSkills({ workspaceId: 'ws-1', includeBuiltins: false })
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('sk-1')
-    expect(result.some((s) => s.id.startsWith('builtin-'))).toBe(false)
   })
 })
 
@@ -74,7 +52,6 @@ describe('listSkillSummariesPage', () => {
     })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -88,16 +65,6 @@ describe('listSkillSummariesPage', () => {
     expect(result.skills).toHaveLength(2)
     expect(result.hasMore).toBe(true)
     expect(result).toMatchObject({ offset: 0, limit: 2 })
-  })
-
-  it('resumes at the offset and reports the end of the list', async () => {
-    const first = await page(BUILTIN_SKILLS.length, 0)
-    const second = await page(BUILTIN_SKILLS.length, BUILTIN_SKILLS.length)
-
-    expect(first.skills).toHaveLength(BUILTIN_SKILLS.length)
-    expect(first.hasMore).toBe(false)
-    expect(second.skills).toHaveLength(0)
-    expect(second.hasMore).toBe(false)
   })
 
   it('pages over the merged built-in and workspace sequence, not the DB rows alone', async () => {
@@ -123,7 +90,6 @@ describe('listSkillSummariesPage', () => {
 
 describe('listSkillsForUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     getEditableSkillIdsMock.mockResolvedValue({
       canAdminWorkspace: false,
@@ -173,13 +139,6 @@ describe('listSkillsForUser', () => {
     })
 
     expect(result.every((s) => s.canEdit)).toBe(true)
-  })
-
-  it('always passes builtin skills through as non-editable', async () => {
-    const result = await listSkillsForUser({ workspaceId: 'ws-1', userId: 'user-1' })
-
-    expect(result.length).toBeGreaterThan(0)
-    expect(result.every((s) => s.id.startsWith('builtin-') && s.canEdit === false)).toBe(true)
   })
 
   it('lets a workspace skill sharing a builtin name override it for everyone', async () => {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { serializePrincipal } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
 import { resetEnvMock } from '@sim/testing'

@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/blocks/registry-maps', () => ({
@@ -42,29 +40,22 @@ vi.mock('@/blocks/registry-maps', () => ({
   },
 }))
 
-vi.mock('@/tools/registry', () => ({
-  tools: {
-    slack_message_v1: { name: 'Send Message' },
-    slack_canvas_v1: { name: 'Create Canvas' },
-    gmail_send_v1: { name: 'Send Email' },
-    sqs_send_v1: { name: 'Send' },
-    sqs_receive_v1: { name: 'Receive' },
-  },
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: () => null,
-}))
-
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: () => true,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 import { resetExposedIntegrationToolsCache } from '@/lib/integrations/tool-catalog'
 import {
   projectIntegrationToolsForViewer,
   resolveDeniedBlockOperations,
 } from '@/lib/integrations/tool-projection'
+import { tools } from '@/tools/registry'
+
+Object.assign(tools, {
+  slack_message_v1: { name: 'Send Message' },
+  slack_canvas_v1: { name: 'Create Canvas' },
+  gmail_send_v1: { name: 'Send Email' },
+  sqs_send_v1: { name: 'Send' },
+  sqs_receive_v1: { name: 'Receive' },
+})
 
 function toolIds(config: Parameters<typeof projectIntegrationToolsForViewer>[1]): string[] {
   return projectIntegrationToolsForViewer(null, config)

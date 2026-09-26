@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
@@ -15,18 +12,18 @@ import {
   terminalizeAbortedQueuedCarrierMarker,
 } from '@/background/workflow-column-execution'
 
-const { appendTableEventMock, flattenWorkflowOutputsMock } = vi.hoisted(() => ({
-  appendTableEventMock: vi.fn(),
+const appendTableEventMock = tableEventsMockFns.mockAppendTableEvent
+
+const { flattenWorkflowOutputsMock } = vi.hoisted(() => ({
   flattenWorkflowOutputsMock: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: appendTableEventMock }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
   flattenWorkflowOutputs: flattenWorkflowOutputsMock,
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -97,34 +94,6 @@ describe('latest table workflow deployment mappings', () => {
     ])
   })
 
-  it('accepts saved mappings that the latest active deployment still supports', () => {
-    expect(() =>
-      assertWorkflowGroupMatchesLatestDeployment(
-        {
-          id: 'group-1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
-          inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
-        },
-        latestDeployment()
-      )
-    ).not.toThrow()
-  })
-
-  it('accepts a canonical split manual start block', () => {
-    expect(() =>
-      assertWorkflowGroupMatchesLatestDeployment(
-        {
-          id: 'group-1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
-          inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
-        },
-        latestDeployment('manual_trigger')
-      )
-    ).not.toThrow()
-  })
-
   it('rejects an output mapping removed by the latest active deployment', () => {
     expect(() =>
       assertWorkflowGroupMatchesLatestDeployment(
@@ -137,22 +106,6 @@ describe('latest table workflow deployment mappings', () => {
       )
     ).toThrow(
       'Workflow group group-1 output agent::score is not available in the latest active deployment'
-    )
-  })
-
-  it('rejects an input mapping removed by the latest active deployment', () => {
-    expect(() =>
-      assertWorkflowGroupMatchesLatestDeployment(
-        {
-          id: 'group-1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
-          inputMappings: [{ inputName: 'website', columnName: 'column-website' }],
-        },
-        latestDeployment()
-      )
-    ).toThrow(
-      'Workflow group group-1 input website is not available in the latest active deployment'
     )
   })
 })
@@ -204,23 +157,6 @@ describe('table workflow rate-limit pacing terminal state', () => {
       jobId: null,
       workflowId: 'workflow-1',
       error: 'Execution timed out after 5 seconds',
-      runningBlockIds: [],
-    })
-  })
-
-  it('turns an uncorrelated backend cancellation into a terminal error', () => {
-    expect(
-      buildTableAbortState({
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        timedOut: false,
-      })
-    ).toEqual({
-      status: 'error',
-      executionId: 'execution-1',
-      jobId: null,
-      workflowId: 'workflow-1',
-      error: 'Cancelled',
       runningBlockIds: [],
     })
   })

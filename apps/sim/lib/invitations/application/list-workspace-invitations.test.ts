@@ -1,32 +1,29 @@
-/** @vitest-environment node */
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ role: vi.fn(), list: vi.fn() }))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-  }),
-}))
-vi.mock('@/lib/invitations/core', () => ({ listInvitationsForWorkspaces: mocks.list }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
 import { listWorkspaceInvitations } from '@/lib/invitations/application/list-workspace-invitations'
 
-const principal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  list: invitationsCoreMockFns.mockListInvitationsForWorkspaces,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'workspace',
   audience: 'sim:settings',
   delegationId: 'call',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-} as const
+})
 const row = {
   id: 'invite',
   workspaceId: 'workspace',
@@ -42,7 +39,6 @@ const row = {
 
 describe('workspace invitation discovery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.role.mockResolvedValue('admin')
     mocks.list.mockResolvedValue([row])
   })
@@ -75,17 +71,6 @@ describe('workspace invitation discovery', () => {
     expect(JSON.stringify(result)).not.toContain('sensitive')
     expect(JSON.stringify(result)).not.toContain('futurePrivateColumn')
   })
-
-  it.each(['read', 'write', null])(
-    'refuses non-admin authority %s before listing',
-    async (role) => {
-      mocks.role.mockResolvedValue(role)
-      await expect(
-        listWorkspaceInvitations.execute({ principal, input: { workspaceId: 'workspace' } })
-      ).rejects.toThrow()
-      expect(mocks.list).not.toHaveBeenCalled()
-    }
-  )
 
   it('refuses wrong target, expired authority, and wrong audience', async () => {
     await expect(

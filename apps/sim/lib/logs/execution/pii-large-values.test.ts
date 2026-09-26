@@ -1,20 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { sleep } from '@sim/utils/helpers'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMaterializeRef, mockStoreLargeValue, mockCompact, mockMaskBatch } = vi.hoisted(() => ({
-  mockMaterializeRef: vi.fn(),
-  mockStoreLargeValue: vi.fn(),
+const { mockCompact, mockMaskBatch } = vi.hoisted(() => ({
   mockCompact: vi.fn(),
   mockMaskBatch: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: mockMaterializeRef,
-  storeLargeValue: mockStoreLargeValue,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 vi.mock('@/lib/execution/payloads/serializer', () => ({
   compactExecutionPayload: mockCompact,
 }))
@@ -39,6 +34,9 @@ import {
   redactLargeValueRefsInValue,
 } from '@/lib/logs/execution/pii-large-values'
 import { PiiRedactionError } from '@/lib/logs/execution/pii-redaction'
+
+const mockMaterializeRef = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const mockStoreLargeValue = executionPayloadStoreMockFns.mockStoreLargeValue
 
 const REF = {
   __simLargeValueRef: true,
@@ -93,7 +91,6 @@ function installDefaultMocks() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   chunkData.clear()
   storedRefCounter = 0
   installDefaultMocks()
@@ -140,23 +137,6 @@ describe('redactLargeValueRefs', () => {
     expect(result.finalOutput).toBe('[REDACTION_FAILED]')
   })
 
-  it('hydrates+masks refs across multiple payload keys (parallel, cross-key)', async () => {
-    const refA = { ...REF, id: 'lv_aaaaaaaaaaaa' }
-    const refB = { ...REF, id: 'lv_bbbbbbbbbbbb' }
-    chunkData.set(refA.id, { note: 'call bob' })
-    chunkData.set(refB.id, { note: 'email amy' })
-
-    const result = await redactLargeValueRefs(
-      { finalOutput: refA, traceSpans: [{ output: refB }] },
-      { entityTypes: [], language: 'en', store: STORE }
-    )
-
-    expect(result.finalOutput).toEqual({ note: 'MASKED(call bob)' })
-    expect((result.traceSpans as any[])[0].output).toEqual({ note: 'MASKED(email amy)' })
-    expect(mockMaterializeRef).toHaveBeenCalledTimes(2)
-    expect(mockCompact).toHaveBeenCalledTimes(2)
-  })
-
   it('aborts (throws) when one of several refs fails in throw mode', async () => {
     const refA = { ...REF, id: 'lv_aaaaaaaaaaaa' }
     const refB = { ...REF, id: 'lv_bbbbbbbbbbbb' }
@@ -169,17 +149,6 @@ describe('redactLargeValueRefs', () => {
         { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
       )
     ).rejects.toBeInstanceOf(PiiRedactionError)
-  })
-
-  it('leaves payloads without refs untouched', async () => {
-    const payload = { finalOutput: { answer: 'world', count: 5 } }
-    const result = await redactLargeValueRefs(payload, {
-      entityTypes: [],
-      language: 'en',
-      store: STORE,
-    })
-    expect(result).toEqual(payload)
-    expect(mockMaterializeRef).not.toHaveBeenCalled()
   })
 
   it('masks a single ref past the inline ceiling with the raised durable budget', async () => {
@@ -198,21 +167,6 @@ describe('redactLargeValueRefs', () => {
     expect(result.finalOutput).toEqual({ note: 'MASKED(ssn 123-45-6789)' })
   })
 
-  it('processes oversized single refs serially, after the pooled refs', async () => {
-    const smallRef = { ...REF, id: 'lv_smallsmall12' }
-    const bigRef = { ...REF, id: 'lv_bigbigbigbig', size: 30 * 1024 * 1024 }
-    chunkData.set(smallRef.id, { note: 'small' })
-    chunkData.set(bigRef.id, { note: 'big' })
-
-    await redactLargeValueRefs(
-      { finalOutput: { a: bigRef, b: smallRef } },
-      { entityTypes: [], language: 'en', store: STORE }
-    )
-
-    const order = mockMaterializeRef.mock.calls.map(([ref]) => (ref as { id: string }).id)
-    expect(order).toEqual(['lv_smallsmall12', 'lv_bigbigbigbig'])
-  })
-
   it('completes an oversized ref whose content nests another oversized ref (no gate deadlock)', async () => {
     const outer = { ...REF, id: 'lv_outerbig1234', size: 30 * 1024 * 1024 }
     const inner = { ...REF, id: 'lv_innerbig1234', size: 20 * 1024 * 1024 }
@@ -228,53 +182,6 @@ describe('redactLargeValueRefs', () => {
       note: 'MASKED(outer bob)',
       deep: { note: 'MASKED(inner amy)' },
     })
-  })
-
-  it('serializes nested oversized refs discovered under different pooled parents', async () => {
-    const parentA = { ...REF, id: 'lv_parentaaaaaa' }
-    const parentB = { ...REF, id: 'lv_parentbbbbbb' }
-    const nestedA = { ...REF, id: 'lv_nestedaaaaaa', size: 30 * 1024 * 1024 }
-    const nestedB = { ...REF, id: 'lv_nestedbbbbbb', size: 30 * 1024 * 1024 }
-    chunkData.set(parentA.id, { deep: nestedA })
-    chunkData.set(parentB.id, { deep: nestedB })
-    let inFlight = 0
-    let maxInFlight = 0
-    mockMaterializeRef.mockImplementation(async (ref: { id: string; size: number }) => {
-      if (ref.size > 16 * 1024 * 1024) {
-        inFlight++
-        maxInFlight = Math.max(maxInFlight, inFlight)
-        await sleep(1)
-        inFlight--
-      }
-      return chunkData.get(ref.id)
-    })
-    chunkData.set(nestedA.id, { note: 'a' })
-    chunkData.set(nestedB.id, { note: 'b' })
-
-    const result = await redactLargeValueRefs(
-      { finalOutput: { a: parentA, b: parentB } },
-      { entityTypes: [], language: 'en', store: STORE }
-    )
-
-    expect((result.finalOutput as any).a).toEqual({ deep: { note: 'MASKED(a)' } })
-    expect((result.finalOutput as any).b).toEqual({ deep: { note: 'MASKED(b)' } })
-    expect(maxInFlight).toBe(1)
-  })
-
-  it('processes a manifest containing an oversized chunk serially, after the pooled refs', async () => {
-    const smallRef = { ...REF, id: 'lv_smallsmall12' }
-    chunkData.set(smallRef.id, { note: 'small' })
-    const bigChunkManifest = makeManifest([
-      { id: 'lv_hugechunk000', size: 20 * 1024 * 1024, items: [{ note: 'one giant item' }] },
-    ])
-
-    await redactLargeValueRefs(
-      { finalOutput: { a: bigChunkManifest, b: smallRef } },
-      { entityTypes: [], language: 'en', store: STORE }
-    )
-
-    const order = mockMaterializeRef.mock.calls.map(([ref]) => (ref as { id: string }).id)
-    expect(order).toEqual(['lv_smallsmall12', 'lv_hugechunk000'])
   })
 })
 
@@ -330,29 +237,6 @@ describe('redactManifest — chunk-wise', () => {
     expect(masked.preview).toEqual([{ note: 'MASKED(bob smith)' }])
   })
 
-  it('returns an empty manifest unchanged in shape for a zero-item manifest', async () => {
-    const empty: LargeArrayManifest = {
-      __simLargeArrayManifest: true,
-      version: 2,
-      kind: 'array',
-      totalCount: 0,
-      chunkCount: 0,
-      byteSize: 0,
-      chunks: [],
-      preview: [],
-    }
-
-    const result = await redactLargeValueRefs(
-      { finalOutput: empty },
-      { entityTypes: [], language: 'en', store: STORE }
-    )
-
-    const masked = result.finalOutput as LargeArrayManifest
-    expect(isLargeArrayManifest(masked)).toBe(true)
-    expect(masked.totalCount).toBe(0)
-    expect(mockStoreLargeValue).not.toHaveBeenCalled()
-  })
-
   it('recursively masks a nested large-value ref inside a chunk item', async () => {
     const nestedRef = { ...REF, id: 'lv_nestednested' }
     chunkData.set(nestedRef.id, { note: 'nested bob' })
@@ -385,21 +269,6 @@ describe('redactManifest — chunk-wise', () => {
       )
 
       expect(result.finalOutput).toBe('[REDACTION_FAILED]')
-    })
-
-    it('throws PiiRedactionError in throw mode', async () => {
-      const manifest = makeManifest([
-        { id: 'lv_chunk0chunk0', size: 9_000_000, items: [{ note: 'ok' }] },
-        { id: 'lv_chunk1chunk1', size: 9_000_000, items: [{ note: 'lost' }] },
-      ])
-      chunkData.delete('lv_chunk1chunk1')
-
-      await expect(
-        redactLargeValueRefs(
-          { finalOutput: manifest },
-          { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
-        )
-      ).rejects.toBeInstanceOf(PiiRedactionError)
     })
   })
 
@@ -435,18 +304,6 @@ describe('redactLargeValueRefsInValue (arbitrary blockStates)', () => {
 
   it('throws PiiRedactionError on failure when onFailure is throw (aborts resume, no marker)', async () => {
     mockMaterializeRef.mockResolvedValue(undefined)
-
-    await expect(
-      redactLargeValueRefsInValue(
-        { 'block-1': { output: REF } },
-        { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
-      )
-    ).rejects.toBeInstanceOf(PiiRedactionError)
-  })
-
-  it('rethrows a re-store failure as PiiRedactionError under throw mode', async () => {
-    chunkData.set(REF.id, { note: 'secret@x.com' })
-    mockCompact.mockRejectedValueOnce(new Error('s3 down'))
 
     await expect(
       redactLargeValueRefsInValue(

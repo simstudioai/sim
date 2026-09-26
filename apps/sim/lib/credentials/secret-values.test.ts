@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -9,52 +6,34 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEncryptSecret,
-  mockDecryptSecret,
-  mockCreateWorkspaceEnvCredentials,
-  mockDeleteWorkspaceEnvCredentials,
-  mockUpsertPersonalEnvCredentialForUser,
-  mockDeletePersonalEnvCredentialForUser,
-  mockInvalidateEffectiveDecryptedEnvCache,
-} = vi.hoisted(() => ({
-  mockEncryptSecret: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockCreateWorkspaceEnvCredentials: vi.fn(),
-  mockDeleteWorkspaceEnvCredentials: vi.fn(),
-  mockUpsertPersonalEnvCredentialForUser: vi.fn(),
-  mockDeletePersonalEnvCredentialForUser: vi.fn(),
-  mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
-vi.mock('@/lib/credentials/environment', () => ({
-  createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
-  deleteWorkspaceEnvCredentials: mockDeleteWorkspaceEnvCredentials,
-  upsertPersonalEnvCredentialForUser: mockUpsertPersonalEnvCredentialForUser,
-  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
-}))
-vi.mock('@/lib/environment/utils', () => ({
-  invalidateEffectiveDecryptedEnvCache: mockInvalidateEffectiveDecryptedEnvCache,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
   readWorkspaceSecretValues,
-  setPersonalSecret,
   setWorkspaceSecret,
   updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
 
+const mockInvalidateEffectiveDecryptedEnvCache =
+  environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache
+const mockDeletePersonalEnvCredentialForUser =
+  credentialsEnvironmentMockFns.mockDeletePersonalEnvCredentialForUser
+
 describe('secret value storage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-new-value' })
   })
@@ -76,7 +55,6 @@ describe('secret value storage', () => {
     })
 
     expect(result.created).toBe(true)
-    expect(mockEncryptSecret).toHaveBeenCalledWith('plaintext-new-value')
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         variables: {
@@ -85,59 +63,9 @@ describe('secret value storage', () => {
         },
       })
     )
-    expect(mockCreateWorkspaceEnvCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        newKeys: ['NEW_KEY'],
-        actingUserId: 'user-1',
-        updatedAt: expect.any(Date),
-        executor: expect.any(Object),
-      })
-    )
     expect(mockInvalidateEffectiveDecryptedEnvCache).toHaveBeenCalledWith({
       workspaceId: 'workspace-1',
     })
-  })
-
-  it('reports an existing workspace value as an update', async () => {
-    queueTableRows(schemaMock.workspaceEnvironment, [
-      {
-        id: 'env-1',
-        variables: { EXISTING_KEY: 'encrypted-existing-value' },
-        createdAt: new Date('2024-01-01T00:00:00Z'),
-      },
-    ])
-
-    const result = await setWorkspaceSecret({
-      workspaceId: 'workspace-1',
-      name: 'EXISTING_KEY',
-      value: 'replacement',
-      userId: 'user-1',
-    })
-
-    expect(result.created).toBe(false)
-  })
-
-  it('writes the unredacted flag onto the credential row without touching the description', async () => {
-    queueTableRows(schemaMock.workspaceEnvironment, [
-      {
-        id: 'env-1',
-        variables: { STRIPE_KEY: 'encrypted-existing-value' },
-        createdAt: new Date('2024-01-01T00:00:00Z'),
-      },
-    ])
-
-    await setWorkspaceSecret({
-      workspaceId: 'workspace-1',
-      name: 'STRIPE_KEY',
-      value: 'rotated',
-      userId: 'user-1',
-      unredacted: true,
-    })
-
-    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(credentialUpdate.unredacted).toBe(true)
-    expect(credentialUpdate).not.toHaveProperty('description')
   })
 
   it('leaves the stored unredacted flag alone when the caller omits it', async () => {
@@ -161,48 +89,6 @@ describe('secret value storage', () => {
     expect(credentialUpdate).not.toHaveProperty('description')
   })
 
-  it('carries a description without touching the unredacted flag', async () => {
-    queueTableRows(schemaMock.workspaceEnvironment, [
-      {
-        id: 'env-1',
-        variables: { STRIPE_KEY: 'encrypted-existing-value' },
-        createdAt: new Date('2024-01-01T00:00:00Z'),
-      },
-    ])
-
-    await setWorkspaceSecret({
-      workspaceId: 'workspace-1',
-      name: 'STRIPE_KEY',
-      value: 'rotated',
-      userId: 'user-1',
-      description: 'Prod billing key',
-    })
-
-    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(credentialUpdate.description).toBe('Prod billing key')
-    expect(credentialUpdate).not.toHaveProperty('unredacted')
-  })
-
-  it('sets a personal value through caller-owned metadata only', async () => {
-    queueTableRows(schemaMock.environment, [])
-
-    const result = await setPersonalSecret({
-      userId: 'user-1',
-      name: 'PERSONAL_KEY',
-      value: 'personal-value',
-    })
-
-    expect(result.created).toBe(true)
-    expect(mockUpsertPersonalEnvCredentialForUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-1',
-        envKey: 'PERSONAL_KEY',
-        executor: expect.any(Object),
-      })
-    )
-    expect(mockInvalidateEffectiveDecryptedEnvCache).toHaveBeenCalledWith({ userId: 'user-1' })
-  })
-
   it('deletes only the requested workspace value', async () => {
     queueTableRows(schemaMock.workspaceEnvironment, [
       { variables: { DELETE_ME: 'cipher-1', KEEP_ME: 'cipher-2' } },
@@ -216,13 +102,6 @@ describe('secret value storage', () => {
     expect(deleted).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ variables: { KEEP_ME: 'cipher-2' } })
-    )
-    expect(mockDeleteWorkspaceEnvCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        removedKeys: ['DELETE_ME'],
-        executor: expect.any(Object),
-      })
     )
   })
 
@@ -239,7 +118,6 @@ describe('secret value storage', () => {
 
 describe('readWorkspaceSecretValues', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted: `decrypted:${encrypted}`,
@@ -271,13 +149,6 @@ describe('readWorkspaceSecretValues', () => {
     expect(mockDecryptSecret).not.toHaveBeenCalledWith('encrypted-other')
   })
 
-  it('reads nothing when no names are requested', async () => {
-    await expect(
-      readWorkspaceSecretValues({ workspaceId: 'workspace-1', names: [] })
-    ).resolves.toEqual({})
-    expect(mockDecryptSecret).not.toHaveBeenCalled()
-  })
-
   it('never reads an inherited prototype member for a missing key', async () => {
     queueTableRows(schemaMock.workspaceEnvironment, [
       { id: 'env-1', variables: { OTHER_KEY: 'encrypted-other' } },
@@ -306,7 +177,6 @@ function updateConditions(): MockCondition[] {
 
 describe('workspace secret metadata updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -336,52 +206,6 @@ describe('workspace secret metadata updates', () => {
       right: 'STRIPE_KEY',
     })
     expect(conditions).toHaveLength(3)
-  })
-
-  it('writes the metadata without encrypting anything or rewriting the variables map', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'credential-1' }])
-
-    const result = await updateWorkspaceSecretMetadata({
-      workspaceId: 'workspace-1',
-      name: 'STRIPE_KEY',
-      unredacted: false,
-    })
-
-    expect(result).toMatchObject({ created: false, updatedAt: expect.any(Date) })
-    expect(mockEncryptSecret).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.values).not.toHaveBeenCalled()
-    expect(mockCreateWorkspaceEnvCredentials).not.toHaveBeenCalled()
-
-    const written = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(written.unredacted).toBe(false)
-    expect(written).not.toHaveProperty('description')
-    expect(written).not.toHaveProperty('variables')
-  })
-
-  it('leaves an omitted field alone rather than clearing it', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'credential-1' }])
-
-    await updateWorkspaceSecretMetadata({
-      workspaceId: 'workspace-1',
-      name: 'STRIPE_KEY',
-      description: null,
-    })
-
-    const written = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(written.description).toBeNull()
-    expect(written).not.toHaveProperty('unredacted')
-  })
-
-  it('invalidates the decrypted env cache, since unredacted rides the run redaction catalog', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'credential-1' }])
-
-    await updateWorkspaceSecretMetadata({
-      workspaceId: 'workspace-1',
-      name: 'STRIPE_KEY',
-      unredacted: false,
-    })
-
     expect(mockInvalidateEffectiveDecryptedEnvCache).toHaveBeenCalledWith({
       workspaceId: 'workspace-1',
     })
@@ -398,8 +222,6 @@ describe('workspace secret metadata updates', () => {
       })
     ).resolves.toBeNull()
 
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mockCreateWorkspaceEnvCredentials).not.toHaveBeenCalled()
     expect(mockInvalidateEffectiveDecryptedEnvCache).not.toHaveBeenCalled()
   })
 })

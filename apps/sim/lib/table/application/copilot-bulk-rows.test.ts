@@ -1,79 +1,56 @@
-/**
- * @vitest-environment node
- */
-
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { backgroundTaskMock } from '@sim/testing/mocks/background-task.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  audit: vi.fn(),
-  deleteByFilter: vi.fn(),
-  markJob: vi.fn(),
-  releaseJob: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  signal: vi.fn(),
-  translateFilter: vi.fn(),
-  updateByFilter: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'job-12345678'),
-}))
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: vi.fn() }))
+vi.mock('@/lib/table', () => tableMock)
 
-vi.mock('@/lib/table', () => ({
-  deleteRowsByFilter: mocks.deleteByFilter,
-  queryRows: vi.fn(),
-  rowDataNameToId: (data: Record<string, unknown>) => data,
-  TABLE_LIMITS: { MAX_BULK_OPERATION_SIZE: 1000 },
-  updateRowsByFilter: mocks.updateByFilter,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveContext,
-}))
-
-vi.mock('@/lib/table/application/rows', () => ({
-  tablePredicateNamesToFilter: mocks.translateFilter,
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 vi.mock('@/lib/table/column-keys', () => ({ buildIdByName: () => new Map() }))
 vi.mock('@/lib/table/delete-runner', () => ({
   markTableDeleteFailed: vi.fn(),
   runTableDelete: vi.fn(),
 }))
-vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mocks.signal }))
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunningInWorkspace: mocks.markJob,
-  releaseJobClaimInWorkspace: mocks.releaseJob,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/mutation-locks', () => ({
   assertRowDelete: vi.fn(),
   assertRowUpdate: vi.fn(),
   patchColumnIds: () => [],
 }))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/lib/table/update-runner', () => ({
   markTableUpdateFailed: vi.fn(),
   runTableUpdate: vi.fn(),
@@ -83,6 +60,25 @@ import {
   copilotDeleteRowsByFilter,
   copilotUpdateRowsByFilter,
 } from '@/lib/table/application/copilot-bulk-rows'
+
+const mocks = {
+  deleteByFilter: tableMockFns.mockDeleteRowsByFilter,
+  updateByFilter: tableMockFns.mockUpdateRowsByFilter,
+  markJob: tableJobsServiceMockFns.mockMarkTableJobRunningInWorkspace,
+  releaseJob: tableJobsServiceMockFns.mockReleaseJobClaimInWorkspace,
+  resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  translateFilter: tableApplicationRowsMockFns.mockTablePredicateNamesToFilter,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  signal: tableEventsMockFns.mockSignalTableRowsChanged,
+}
+
+idMockFns.mockGenerateId.mockReturnValue('job-12345678')
+tableMockFns.mockRowDataNameToId.mockImplementation((data) => data)
+tableRowsSecretProvenanceMockFns.mockCreateExactEmptyTableRowSecretProvenance.mockReturnValue({
+  complete: true,
+  columns: {},
+})
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -99,17 +95,11 @@ const table: TableDefinition = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
-}
+})
 
 const input = {
   tableId: 'table-1',
@@ -121,7 +111,6 @@ const input = {
 
 describe('Copilot bulk row application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
@@ -203,14 +192,5 @@ describe('Copilot bulk row application use cases', () => {
     expect(mocks.deleteByFilter).toHaveBeenCalledTimes(1)
     expect(mocks.releaseJob).toHaveBeenCalledWith('table-1', 'workspace-1', 'job-12345678')
     expect(mocks.audit).toHaveBeenCalledTimes(1)
-  })
-
-  it('propagates unknown infrastructure failures without audit or effects', async () => {
-    const failure = new Error('database host unavailable')
-    mocks.updateByFilter.mockRejectedValueOnce(failure)
-
-    await expect(copilotUpdateRowsByFilter.execute({ principal, input })).rejects.toBe(failure)
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
   })
 })

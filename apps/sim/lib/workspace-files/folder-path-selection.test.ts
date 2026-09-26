@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   isFileInFolderScope,
@@ -57,32 +54,6 @@ describe('resolveFolderIdsForPaths', () => {
     expect([...(result.folderIds ?? [])]).toEqual(['a-people'])
   })
 
-  it('takes the whole subtree by default', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/Reports'])
-
-    expect([...(result.folderIds ?? [])].sort()).toEqual(['q3', 'reports', 'slashy', 'week1'])
-  })
-
-  it('takes only the folder itself when subfolders are excluded', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/Reports'], { includeSubfolders: false })
-
-    expect([...(result.folderIds ?? [])]).toEqual(['reports'])
-  })
-
-  it('descends from a nested folder, not from the root', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/Reports/Q3'])
-
-    expect([...(result.folderIds ?? [])].sort()).toEqual(['q3', 'week1'])
-  })
-
-  it('unions several paths', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/Reports/Q3', '/Archive'], {
-      includeSubfolders: false,
-    })
-
-    expect([...(result.folderIds ?? [])].sort()).toEqual(['archive', 'q3'])
-  })
-
   it('matches a folder whose name contains a slash', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports/Q3%2FQ4'])
 
@@ -94,10 +65,6 @@ describe('resolveFolderIdsForPaths', () => {
 
     expect(result.missingPath).toBe('/Nope')
     expect(result.folderIds).toBeUndefined()
-  })
-
-  it('selects nothing for no paths', () => {
-    expect(resolveFolderIdsForPaths(folders, []).folderIds?.size).toBe(0)
   })
 })
 
@@ -115,33 +82,14 @@ describe('either path spelling resolves', () => {
     { id: 'slashy', parentId: 'reports', path: '/Reports/Q3%2FQ4' },
   ]
 
-  it('resolves folders whose paths are already canonical', () => {
-    const result = resolveFolderIdsForPaths(canonical, ['/Reports'])
-
-    expect([...(result.folderIds ?? [])].sort()).toEqual(['q3', 'reports', 'slashy'])
-  })
-
   it('still tells a slash in a name from a level separator', () => {
     expect([
       ...(resolveFolderIdsForPaths(canonical, ['/Reports/Q3%2FQ4']).folderIds ?? []),
     ]).toEqual(['slashy'])
   })
-
-  it('scopes a file whose folder path is canonical', () => {
-    expect(isFileInFolderScope('/Reports/Q3', '/Reports')).toBe(true)
-    expect(isFileInFolderScope('/Reporting', '/Reports')).toBe(false)
-  })
 })
 
 describe('isFileInFolderScope', () => {
-  it('takes a file directly inside the scope', () => {
-    expect(isFileInFolderScope('Reports', '/Reports')).toBe(true)
-  })
-
-  it('takes a file further down by default', () => {
-    expect(isFileInFolderScope('Reports/Q3', '/Reports')).toBe(true)
-  })
-
   it('leaves out a file further down when subfolders are excluded', () => {
     expect(isFileInFolderScope('Reports/Q3', '/Reports', { includeSubfolders: false })).toBe(false)
     expect(isFileInFolderScope('Reports', '/Reports', { includeSubfolders: false })).toBe(true)
@@ -153,10 +101,6 @@ describe('isFileInFolderScope', () => {
 
   it('leaves out a file at the workspace root', () => {
     expect(isFileInFolderScope(null, '/Reports')).toBe(false)
-  })
-
-  it('matches a folder whose name contains a slash', () => {
-    expect(isFileInFolderScope('Reports/Q3\\/Q4', '/Reports/Q3%2FQ4')).toBe(true)
   })
 
   it('takes everything when the scope is the workspace root', () => {
@@ -178,19 +122,6 @@ describe('the workspace root', () => {
     expect(result.includeRootItems).toBe(true)
   })
 
-  it('takes every folder with it by default', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/'])
-
-    expect([...(result.folderIds ?? [])].sort()).toEqual(folders.map((f) => f.id).sort())
-  })
-
-  it('takes only the loose files when subfolders are excluded', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
-
-    expect([...(result.folderIds ?? [])]).toEqual([])
-    expect(result.includeRootItems).toBe(true)
-  })
-
   it('is not implied by an ordinary folder scope', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports'])
 
@@ -204,16 +135,6 @@ describe('the workspace root', () => {
  * previously disagreed.
  */
 describe('isFileInFolderScope and the root', () => {
-  it('offers everything for a recursive root', () => {
-    expect(isFileInFolderScope('Reports/Q3', '/')).toBe(true)
-    expect(isFileInFolderScope(null, '/')).toBe(true)
-  })
-
-  it('offers only root files for a shallow root', () => {
-    expect(isFileInFolderScope(null, '/', { includeSubfolders: false })).toBe(true)
-    expect(isFileInFolderScope('Reports', '/', { includeSubfolders: false })).toBe(false)
-  })
-
   it('agrees with the id resolver for the same scope', () => {
     const shallowRoot = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
 

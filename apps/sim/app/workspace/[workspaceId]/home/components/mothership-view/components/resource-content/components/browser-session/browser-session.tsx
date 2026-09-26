@@ -291,7 +291,7 @@ export function browserPanelSnapshotStyle(
     width: bounds.width,
     height: bounds.height,
     maxWidth: 'none',
-    zIndex: layer === 'modal' ? 'calc(var(--z-modal) - 1)' : 'calc(var(--z-popover) - 1)',
+    zIndex: layer === 'modal' ? 'calc(var(--z-modal) - 1)' : 'calc(var(--z-dropdown) - 1)',
   }
 }
 
@@ -492,6 +492,7 @@ export function BrowserSession({
     requestOverlay,
     closeOverlay,
     onSnapshotError,
+    shouldKeepNativeHidden,
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
   const respondToPermission = useCallback(
@@ -766,14 +767,18 @@ export function BrowserSession({
     let disposed = false
     let occlusionRequest = 0
     const atomicPanelOcclusion = supportsAtomicBrowserPanelOcclusion()
-    let occlusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+    const hasRequestedOcclusion = () =>
+      atomicPanelOcclusion && (hasNativeSurfaceOcclusion() || shouldKeepNativeHidden())
+    let occlusionPresent = hasRequestedOcclusion()
     // A full-screen marker can exist before this Browser reports its first
     // rect. In that path this bounds effect acquires a serialized hidden lease
     // before attaching geometry, including rollback if the marker disappears
     // while Electron is still processing the hide.
-    const geometryOcclusionLease = createBrowserPanelGeometryOcclusionLease((occluded) =>
-      setBrowserPanelOccluded(occluded, scopeId, occluded).catch(() => false)
-    )
+    const geometryOcclusionLease = createBrowserPanelGeometryOcclusionLease((occluded) => {
+      /** The snapshot controller retains ownership if a tooltip or menu outlives the modal. */
+      if (!occluded && shouldKeepNativeHidden()) return Promise.resolve(true)
+      return setBrowserPanelOccluded(occluded, scopeId, occluded).catch(() => false)
+    })
 
     const commitGeometry = (
       bounds: BrowserPanelBounds,
@@ -814,7 +819,7 @@ export function BrowserSession({
       }
 
       const anchor = describeAnchor(panel)
-      const nativeSurfaceOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+      const nativeSurfaceOcclusionPresent = hasRequestedOcclusion()
       const request = ++occlusionRequest
 
       if (
@@ -833,14 +838,13 @@ export function BrowserSession({
         // resets panelOccluded — while this side still remembers `applied:
         // true`. Without dropping that belief, setDesired(true) is a no-op,
         // the next bounds commit lays out an unoccluded native view, and the
-        // browser punches above the still-open modal with nothing left to
-        // ever re-hide it. Forgetting `applied` costs one idempotent hide IPC
-        // per heartbeat while a modal is up, and makes any main-side lease
-        // loss self-heal within a second.
+        // browser punches above the still-open overlay. Forgetting `applied`
+        // reasserts the lease for modals and painted transient overlays on each
+        // heartbeat, recovering main-side lease loss within a second.
         if (nativeSurfaceOcclusionPresent) geometryOcclusionLease.assumeRevealed()
         void geometryOcclusionLease.setDesired(nativeSurfaceOcclusionPresent).then((settled) => {
           if (disposed) return
-          const latestOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+          const latestOcclusionPresent = hasRequestedOcclusion()
           if (
             request !== occlusionRequest ||
             latestOcclusionPresent !== nativeSurfaceOcclusionPresent
@@ -876,7 +880,7 @@ export function BrowserSession({
     const resizeObserver = new ResizeObserver(() => reportGeometry(false))
     const occlusionObserver = new MutationObserver((records) => {
       if (!mutationsTouchNativeSurfaceOcclusion(records)) return
-      const next = hasNativeSurfaceOcclusion()
+      const next = hasRequestedOcclusion()
       if (next === occlusionPresent) return
       occlusionPresent = next
       scheduleGeometryReport(true)
@@ -917,7 +921,7 @@ export function BrowserSession({
       void geometryOcclusionLease.setDesired(false)
       reportBrowserPanelBounds(null, null, scopeId)
     }
-  }, [hasRendererPage, visible, suspended, scopeId])
+  }, [hasRendererPage, visible, suspended, scopeId, shouldKeepNativeHidden])
 
   /**
    * Programmatic focus on a new tab keeps the omnibox ready for typing without
@@ -1321,7 +1325,7 @@ export function BrowserSession({
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Globe className='size-[18px] text-[var(--text-tertiary)]' />
             <p className='text-[var(--text-muted)] text-small'>
-              Waiting for the browser session to start…
+              Waiting for the browser session to start
             </p>
           </div>
         )}

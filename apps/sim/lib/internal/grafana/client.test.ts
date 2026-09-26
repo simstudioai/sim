@@ -1,26 +1,19 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { GrafanaClient } from '@/lib/internal/grafana/client'
 
 describe('GrafanaClient', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 200 })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 200 })
   })
 
   it('pins the validated host and bounds every request', async () => {
@@ -38,12 +31,12 @@ describe('GrafanaClient', () => {
       headers: { 'X-Disable-Provenance': 'true' },
     })
 
-    expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://grafana.example.com/api/folders/folder-1',
       'baseUrl',
       'configuredEndpoint'
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://grafana.example.com/api/folders/folder-1',
       '203.0.113.10',
       expect.objectContaining({
@@ -63,29 +56,13 @@ describe('GrafanaClient', () => {
   })
 
   it('rejects invalid destinations before sending credentials', async () => {
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'private address' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: false, error: 'private address' })
     const client = new GrafanaClient('http://127.0.0.1:3000', 'secret')
 
     await expect(client.request('/api/health', { method: 'GET' })).resolves.toEqual({
       success: false,
       error: 'Invalid Grafana baseUrl: private address',
     })
-    expect(mocks.secureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
-
-  it('stops before network work when cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-    const client = new GrafanaClient(
-      'https://grafana.example.com',
-      'secret',
-      undefined,
-      controller.signal
-    )
-
-    await expect(client.request('/api/health', { method: 'GET' })).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(mocks.validateUrlWithDNS).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

@@ -25,6 +25,7 @@ vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger }
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
 
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_DISPATCH_HANDOFF_MS,
@@ -37,16 +38,7 @@ import {
 
 describe('workspace file search dispatch PostgreSQL deadlines', () => {
   const schemaName = `dispatch_test_${generateId().replaceAll('-', '')}`
-  const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
-  if (!databaseUrl) throw new Error('Dispatcher tests require a disposable local database')
-  const target = new URL(databaseUrl)
-  if (
-    !['postgres:', 'postgresql:'].includes(target.protocol) ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
-  ) {
-    throw new Error('File search tests require a disposable local integration database')
-  }
+  const databaseUrl = readTestDatabaseUrl()
   /** Every statement the dispatcher issues, so a test can EXPLAIN the exact SQL it ran. */
   const statements: { query: string; params: readonly unknown[] }[] = []
   const connection = postgres(

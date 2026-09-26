@@ -3529,10 +3529,6 @@ export function getSlackV2ActionSubBlocks(): SubBlockConfig[] {
   ]
 }
 
-export function getSlackV2ToolAccess(): string[] {
-  return [...SlackV2Block.tools.access]
-}
-
 export function getSlackV2OperationSentences() {
   const operationSentences = SlackBlock.canvasPresentation?.sentences?.byOperation
   if (!operationSentences) {

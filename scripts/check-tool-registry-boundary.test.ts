@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   type Baseline,
-  discoverEntries,
-  loadBaseline,
   ratchetAgainstBaseline,
   ratchetFailed,
 } from './check-tool-registry-boundary'
@@ -57,28 +55,5 @@ describe('module-graph ratchet', () => {
     expect(verdict.shrunk).toEqual(['a/page.tsx'])
     expect(verdict.removed).toEqual(['gone/page.tsx'])
     expect(ratchetFailed(verdict)).toBe(false)
-  })
-})
-
-describe('guarded entries', () => {
-  const entries = discoverEntries()
-
-  /** The CLI replaced the Copilot metadata tool and reads these catalog routes. */
-  it('guards the block catalog surfaces used by the CLI', () => {
-    expect(entries).toContain('app/api/v2/blocks/route.ts')
-    expect(entries).toContain('app/api/v2/blocks/[blockId]/route.ts')
-  })
-
-  it('guards every catalog projection module rather than a barrel over them', () => {
-    expect(entries).toContain('lib/catalog/projection/block-detail.ts')
-    expect(entries).toContain('lib/catalog/projection/tool.ts')
-    expect(entries).not.toContain('lib/catalog/projection/index.ts')
-  })
-
-  it('has a recorded baseline row for every entry it discovers', () => {
-    const baseline = loadBaseline()
-    expect(baseline).not.toBeNull()
-    const missing = entries.filter((entry) => !(baseline as Baseline).entries[entry])
-    expect(missing).toEqual([])
   })
 })

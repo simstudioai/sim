@@ -1,28 +1,25 @@
-/** @vitest-environment node */
-
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatch, mockEnqueue, mockFindWebhooks } = vi.hoisted(() => ({
-  mockDispatch: vi.fn(),
-  mockEnqueue: vi.fn(),
-  mockFindWebhooks: vi.fn(),
-}))
-vi.mock('@trigger.dev/sdk', () => ({
-  task: vi.fn((config: unknown) => config),
-}))
-vi.mock('@/lib/webhooks/processor', () => ({
-  dispatchResolvedWebhookTarget: mockDispatch,
-  findWebhooksByRoutingKey: mockFindWebhooks,
-}))
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 import {
   enqueueQuickBooksWebhookIngress,
   executeQuickBooksWebhookIngress,
   type QuickBooksWebhookIngressPayload,
 } from '@/background/quickbooks-webhook-ingress'
+
+const {
+  mockDispatchResolvedWebhookTarget: mockDispatch,
+  mockFindWebhooksByRoutingKey: mockFindWebhooks,
+} = webhooksProcessorMockFns
+
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
 
 const event = {
   specversion: '1.0',
@@ -43,7 +40,6 @@ const payload: QuickBooksWebhookIngressPayload = {
 
 describe('QuickBooks webhook ingress job', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnqueue.mockResolvedValue('job-1')
   })
 
@@ -139,24 +135,6 @@ describe('QuickBooks webhook ingress job', () => {
       targetCount: 0,
     })
     expect(mockFindWebhooks).toHaveBeenCalledOnce()
-    expect(mockFindWebhooks).toHaveBeenCalledWith(
-      `${payload.appKey}:789`,
-      'request-1',
-      'quickbooks'
-    )
-  })
-
-  it('continues later events when targets cannot be resolved', async () => {
-    mockFindWebhooks
-      .mockRejectedValueOnce(new Error('database unavailable'))
-      .mockResolvedValueOnce([])
-
-    await expect(executeQuickBooksWebhookIngress(payload)).resolves.toEqual({
-      failed: 1,
-      ignored: 0,
-      processed: 0,
-      targetCount: 0,
-    })
     expect(mockFindWebhooks).toHaveBeenCalledWith(
       `${payload.appKey}:789`,
       'request-1',

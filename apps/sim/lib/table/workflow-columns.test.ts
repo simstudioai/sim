@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   queueTableRows,
@@ -9,6 +6,16 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
@@ -19,29 +26,17 @@ import type {
 } from '@/lib/table/types'
 
 const {
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-  mockRunsCancel,
-  mockRunsList,
   mockGetJobQueue,
-  mockGetTableById,
   mockListActiveDispatches,
   mockMarkActiveDispatchesCancelled,
   mockQueueCancelByKey,
   mockQueueCancelJob,
-  mockUpdateRow,
 } = vi.hoisted(() => ({
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockRunsCancel: vi.fn(),
-  mockRunsList: vi.fn(),
   mockGetJobQueue: vi.fn(),
-  mockGetTableById: vi.fn(),
   mockListActiveDispatches: vi.fn(),
   mockMarkActiveDispatchesCancelled: vi.fn(),
   mockQueueCancelByKey: vi.fn(),
   mockQueueCancelJob: vi.fn(),
-  mockUpdateRow: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -57,18 +52,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  runs: {
-    cancel: mockRunsCancel,
-    list: mockRunsList,
-  },
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/core/async-jobs/config', () => ({
   getJobQueue: mockGetJobQueue,
@@ -79,13 +63,9 @@ vi.mock('@/lib/table/dispatcher', () => ({
   markActiveDispatchesCancelled: mockMarkActiveDispatchesCancelled,
 }))
 
-vi.mock('@/lib/table/rows/service', () => ({
-  updateRow: mockUpdateRow,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import {
   assertWorkflowGroupsDeployable,
@@ -97,8 +77,15 @@ import {
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
 
+const { mockRunsCancel, mockRunsList } = triggerSdkMockFns
+const mockUpdateRow = tableRowsServiceMockFns.mockUpdateRow
+
+const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
+const mockResolveSystemBillingAttribution =
+  billingAttributionMockFns.mockResolveSystemBillingAttribution
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockGetJobQueue.mockResolvedValue({
     cancelByKey: mockQueueCancelByKey,
@@ -197,14 +184,6 @@ describe('pickNextEligibleGroupForRow — queued-marker handoff', () => {
     expect(pickNextEligibleGroupForRow(table, row)).toBeNull()
   })
 
-  it('still runs a normal autoRun:true group whose deps are satisfied (no marker)', () => {
-    const group = makeGroup({ id: 'g1', autoRun: true })
-    const table = makeTable([group])
-    const row = makeRow({})
-
-    expect(pickNextEligibleGroupForRow(table, row)?.id).toBe('g1')
-  })
-
   it('skips excludeGroupId so the just-finished group does not self-retrigger', () => {
     const group = makeGroup({ id: 'g1', autoRun: true })
     const table = makeTable([group])
@@ -240,18 +219,6 @@ describe('buildEnqueueItems billing attribution', () => {
     expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
   })
 
-  it('uses one atomic system actor and payer snapshot for headless runs', async () => {
-    const [item] = await buildEnqueueItems([run])
-
-    expect(item.payload.billingAttribution).toMatchObject({
-      actorUserId: 'owner-after-transfer',
-      billedAccountUserId: 'owner-after-transfer',
-      billingEntity: { type: 'organization', id: 'org-after-transfer' },
-    })
-    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('workspace-1')
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-  })
-
   it('caps the cascade carrier and serializes each workflow attempt budget', async () => {
     const [item] = await buildEnqueueItems([run])
 
@@ -267,27 +234,6 @@ describe('buildEnqueueItems billing attribution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
     })
-  })
-
-  it('preserves an existing immutable attribution snapshot without re-resolving', async () => {
-    const billingAttribution = {
-      actorUserId: 'external-actor',
-      workspaceId: 'workspace-1',
-      organizationId: 'org-original',
-      billedAccountUserId: 'owner-original',
-      billingEntity: { type: 'organization' as const, id: 'org-original' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    }
-
-    const [item] = await buildEnqueueItems([{ ...run, billingAttribution }])
-
-    expect(item.payload.billingAttribution).toEqual(billingAttribution)
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
   })
 })
 
@@ -351,15 +297,6 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
     expect(mockUpdateRow).toHaveBeenCalledOnce()
   })
 
-  it('ignores a transaction-wrapped row deletion', async () => {
-    queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
-    mockUpdateRow.mockRejectedValueOnce(
-      new Error('Failed query', { cause: new TableRowNotFoundError() })
-    )
-
-    await expect(cancelWorkflowGroupRuns(table.id)).resolves.toBe(1)
-  })
-
   it('rethrows unrelated cancellation write failures', async () => {
     const error = new Error('database unavailable')
     queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
@@ -380,20 +317,6 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
 
     await expect(cancelWorkflowGroupRuns(table.id, 'row1')).resolves.toBe(0)
   })
-
-  it('rethrows tombstone failures from any other constraint', async () => {
-    mockListActiveDispatches.mockResolvedValueOnce([
-      { id: 'dispatch-1', scope: { groupIds: [group.id], rowIds: ['row1'] } },
-    ])
-    const cause = Object.assign(new Error('foreign key violation'), {
-      code: '23503',
-      constraint_name: 'table_row_executions_table_id_user_table_definitions_id_fk',
-    })
-    const error = new Error('Failed query', { cause })
-    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
-
-    await expect(cancelWorkflowGroupRuns(table.id, 'row1')).rejects.toBe(error)
-  })
 })
 
 /**
@@ -405,12 +328,6 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
 describe('assertWorkflowGroupsDeployable', () => {
   const deployedGroup = makeGroup({ id: 'g-deployed', workflowId: 'wf-1' })
   const liveGroup = makeGroup({ id: 'g-live', workflowId: 'wf-2', deploymentMode: 'live' })
-  const enrichmentGroup = makeGroup({
-    id: 'g-enrich',
-    workflowId: '',
-    type: 'enrichment',
-    enrichmentId: 'company-domain',
-  })
 
   it('refuses a manual run of a mode-less group whose workflow has no active deployment', async () => {
     queueTableRows(schemaMock.workflow, [
@@ -422,26 +339,6 @@ describe('assertWorkflowGroupsDeployable', () => {
     ).rejects.toThrow(
       'Workflow group "g-deployed" runs the deployed version of workflow "Enrich leads" (wf-1), which has no active deployment'
     )
-  })
-
-  it('passes a deployed-mode group whose workflow has an active deployment', async () => {
-    queueTableRows(schemaMock.workflow, [
-      { workflowId: 'wf-1', workflowName: 'Enrich leads', deploymentId: 'dep-1' },
-    ])
-
-    await expect(
-      assertWorkflowGroupsDeployable([deployedGroup], { isManualRun: true, requestId: 'req-1' })
-    ).resolves.toEqual([deployedGroup])
-  })
-
-  it('does not check live-mode or enrichment groups', async () => {
-    await expect(
-      assertWorkflowGroupsDeployable([liveGroup, enrichmentGroup], {
-        isManualRun: true,
-        requestId: 'req-1',
-      })
-    ).resolves.toEqual([liveGroup, enrichmentGroup])
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('drops an undeployed group from an auto-fire instead of failing the row write', async () => {

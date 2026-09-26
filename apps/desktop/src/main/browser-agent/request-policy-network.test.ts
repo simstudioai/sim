@@ -12,7 +12,6 @@ type ResourceType = Parameters<typeof allowBrowserRequest>[0]['resourceType']
 
 describe('browser requests with the network guards', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearHostVerdictCache()
     mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
   })

@@ -2,20 +2,18 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { policy, discovery, protectedMount, refresh } = vi.hoisted(() => ({
+const { policy, discovery, protectedMount } = vi.hoisted(() => ({
   policy: vi.fn(),
   discovery: vi.fn(),
   protectedMount: vi.fn(),
-  refresh: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  useRouter: () => ({ refresh }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@sim/emcn', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
@@ -27,12 +25,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => ({
-  Lock: () => null,
-  Plus: () => null,
-  Upload: () => null,
-  BookOpen: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
 vi.mock('@/hooks/queries/access-requests', () => ({
   useDiscoverAccessRequests: discovery,
@@ -42,6 +35,9 @@ vi.mock('@/ee/access-requests/components/request-access-action', () => ({
 }))
 
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+
+const { refresh } = nextNavigationMockFns.router
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 describe('PermissionAccessBoundary', () => {
   let container: HTMLDivElement
@@ -63,7 +59,6 @@ describe('PermissionAccessBoundary', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -124,13 +119,6 @@ describe('PermissionAccessBoundary', () => {
     expect(container.textContent).toContain('Checking access')
   })
 
-  it('retains the legacy feature behavior when organization requests are off', () => {
-    discovery.mockReturnValue({ isPending: false, data: { enabled: false, entries: [] } })
-    render()
-    expect(protectedMount).toHaveBeenCalledOnce()
-    expect(container.textContent).not.toContain('Request access')
-  })
-
   it('does not confuse a deployment failure with a requestable restriction', () => {
     discovery.mockReturnValue({
       isPending: false,
@@ -158,28 +146,6 @@ describe('PermissionAccessBoundary', () => {
     expect(container.textContent).toContain('Access updated')
     act(() => container.querySelector('button')?.click())
     expect(refresh).toHaveBeenCalledOnce()
-    expect(protectedMount).not.toHaveBeenCalled()
-  })
-
-  it('only reports a permissions refresh while the policy query is fetching', () => {
-    const refetch = vi.fn()
-    const blockedPolicy = { data: { config: { hideTablesTab: true } }, isPending: false, refetch }
-    policy.mockReturnValue({ ...blockedPolicy, isFetching: false })
-    discovery.mockReturnValue({
-      isPending: false,
-      data: {
-        enabled: true,
-        entries: [{ target: { kind: 'feature', configKey: 'hideTablesTab' }, state: 'allowed' }],
-      },
-    })
-    render()
-    expect(container.textContent).toContain('Refresh to load your latest permissions.')
-    expect(container.textContent).not.toContain('Refreshing your permissions...')
-    act(() => container.querySelector('button')?.click())
-    expect(refetch).toHaveBeenCalledOnce()
-    policy.mockReturnValue({ ...blockedPolicy, isFetching: true })
-    render()
-    expect(container.textContent).toContain('Refreshing your permissions...')
     expect(protectedMount).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { databaseMock } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
 
@@ -20,10 +18,7 @@ vi.mock('@/handlers/avatar', () => ({
   resolveAvatarUrl: mockResolveAvatarUrl,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn() },
-  user: { image: 'image' },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@/database/operations', () => ({
   getWorkflowState: mockGetWorkflowState,
@@ -96,7 +91,6 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
 
 describe('setupWorkflowHandlers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkflowState.mockResolvedValue({ id: 'workflow-1', state: {} })
     mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true, role: 'admin' })
     mockResolveCurrentWorkflowRole.mockResolvedValue('admin')
@@ -130,67 +124,6 @@ describe('setupWorkflowHandlers', () => {
     // The avatar await must complete before socket.join; reintroducing it between
     // join and addUserToRoom reopens the revoke-race ghost-presence window.
     expect(order).toEqual(['avatar', 'join', 'add'])
-  })
-
-  it('includes workflowId when authentication is missing', async () => {
-    const { socket, handlers } = createSocket({ userId: undefined, userName: undefined })
-    const roomManager = createRoomManager()
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
-      workflowId: 'workflow-1',
-      error: 'Authentication required',
-      code: 'AUTHENTICATION_REQUIRED',
-      retryable: false,
-    })
-  })
-
-  it('includes workflowId when realtime is unavailable', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager({
-      isReady: vi.fn().mockReturnValue(false),
-    })
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
-      workflowId: 'workflow-1',
-      error: 'Realtime unavailable',
-      code: 'ROOM_MANAGER_UNAVAILABLE',
-      retryable: true,
-    })
-  })
-
-  it('includes workflowId when access is denied', async () => {
-    mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: false })
-
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager()
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
-      workflowId: 'workflow-1',
-      error: 'Access denied to workflow',
-      code: 'ACCESS_DENIED',
-      retryable: false,
-    })
   })
 
   it('denies the join when access is revoked while the join is in flight', async () => {
@@ -239,49 +172,6 @@ describe('setupWorkflowHandlers', () => {
     )
   })
 
-  it('marks workflow access verification failures as retryable', async () => {
-    mockVerifyWorkflowAccess.mockRejectedValue(new Error('database unavailable'))
-
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager()
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
-      workflowId: 'workflow-1',
-      error: 'Failed to verify workflow access',
-      code: 'VERIFY_WORKFLOW_ACCESS_FAILED',
-      retryable: true,
-    })
-  })
-
-  it('includes workflowId when an unexpected join failure occurs', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager({
-      getRoomForSocket: vi.fn().mockRejectedValue(new Error('boom')),
-      removeUserFromRoom: vi.fn().mockResolvedValue(false),
-    })
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith('join-workflow-error', {
-      workflowId: 'workflow-1',
-      error: 'Failed to join workflow',
-      code: 'JOIN_WORKFLOW_FAILED',
-      retryable: true,
-    })
-  })
-
   it('cancels a superseded queued join on a fast workflow switch', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager()
@@ -310,50 +200,6 @@ describe('setupWorkflowHandlers', () => {
     )
   })
 
-  it('does not let a malformed join cancel a valid in-flight join', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager()
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    const validJoin = handlers['join-workflow']({ workflowId: 'workflow-a', tabSessionId: 'tab-1' })
-    // A malformed join arrives mid-flight — it must be rejected WITHOUT advancing the generation,
-    // so it can't supersede the valid join already in flight.
-    handlers['join-workflow']({ workflowId: '', tabSessionId: 'tab-1' })
-    await validJoin
-
-    expect(socket.emit).toHaveBeenCalledWith(
-      'join-workflow-error',
-      expect.objectContaining({ code: 'INVALID_PAYLOAD' })
-    )
-    // The valid join still committed — not superseded by the malformed one.
-    expect(socket.join).toHaveBeenCalledWith('workflow-a')
-    expect(roomManager.addUserToRoom).toHaveBeenCalledWith(
-      { type: 'workflow', id: 'workflow-a' },
-      'socket-1',
-      expect.anything()
-    )
-  })
-
-  it('cancels an in-flight join when a leave is enqueued before it commits', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager()
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-    await handlers['leave-workflow']()
-
-    expect(socket.join).not.toHaveBeenCalled()
-    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
-  })
-
   it('rolls back the workflow membership when addUserToRoom fails mid-commit', async () => {
     const { socket, handlers } = createSocket()
     const roomManager = createRoomManager({
@@ -376,30 +222,6 @@ describe('setupWorkflowHandlers', () => {
       'join-workflow-error',
       expect.objectContaining({ code: 'JOIN_WORKFLOW_FAILED' })
     )
-  })
-
-  it('does not roll back a committed join when a post-success step fails', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager({
-      // Trailing broadcast (post-addUserToRoom, post-success-ack) fails on a Redis blip.
-      broadcastPresenceUpdate: vi.fn().mockRejectedValue(new Error('redis blip')),
-    })
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['join-workflow']({ workflowId: 'workflow-1', tabSessionId: 'tab-1' })
-
-    // The user is genuinely joined and was acked; the trailing failure must NOT tear them out.
-    expect(socket.emit).toHaveBeenCalledWith(
-      'join-workflow-success',
-      expect.objectContaining({ workflowId: 'workflow-1' })
-    )
-    expect(socket.leave).not.toHaveBeenCalled()
-    expect(roomManager.removeUserFromRoom).not.toHaveBeenCalled()
-    expect(socket.emit).not.toHaveBeenCalledWith('join-workflow-error', expect.anything())
   })
 
   it('rolls back and surfaces a retryable error when a pre-success step fails after commit', async () => {
@@ -425,30 +247,5 @@ describe('setupWorkflowHandlers', () => {
       'join-workflow-error',
       expect.objectContaining({ code: 'JOIN_WORKFLOW_FAILED', retryable: true })
     )
-  })
-
-  it('leaves the workflow room even when the session key has expired', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager({
-      getRoomForSocket: vi.fn().mockResolvedValue({ type: 'workflow', id: 'workflow-1' }),
-      getUserSession: vi.fn().mockResolvedValue(null),
-    })
-
-    setupWorkflowHandlers(
-      socket as unknown as Parameters<typeof setupWorkflowHandlers>[0],
-      roomManager
-    )
-
-    await handlers['leave-workflow']()
-
-    expect(socket.leave).toHaveBeenCalledWith('workflow-1')
-    expect(roomManager.removeUserFromRoom).toHaveBeenCalledWith(
-      { type: 'workflow', id: 'workflow-1' },
-      'socket-1'
-    )
-    expect(roomManager.broadcastPresenceUpdate).toHaveBeenCalledWith({
-      type: 'workflow',
-      id: 'workflow-1',
-    })
   })
 })

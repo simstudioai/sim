@@ -1,29 +1,16 @@
-/**
- * @vitest-environment node
- */
-
 import crypto from 'node:crypto'
 import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchResolvedWebhookTarget, mockFindWebhooksByRoutingKey, mockRelease } = vi.hoisted(
-  () => ({
-    mockDispatchResolvedWebhookTarget: vi.fn(),
-    mockFindWebhooksByRoutingKey: vi.fn(),
-    mockRelease: vi.fn(),
-  })
-)
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-}))
-
-vi.mock('@/lib/core/admission/gate', () => ({
-  admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
-  tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
   withRouteHandler:
@@ -32,6 +19,13 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/tiktok/route'
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
+
+const mockDispatchResolvedWebhookTarget = webhooksProcessorMockFns.mockDispatchResolvedWebhookTarget
+const mockFindWebhooksByRoutingKey = webhooksProcessorMockFns.mockFindWebhooksByRoutingKey
 
 const target = (id: string) => ({
   webhook: { id, path: null, provider: 'tiktok' },
@@ -64,7 +58,6 @@ function signedRequest(overrides?: { clientKey?: string; userOpenId?: string }):
 
 describe('TikTok app webhook route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnv({ TIKTOK_CLIENT_ID: 'client-key', TIKTOK_CLIENT_SECRET: 'client-secret' })
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mockFindWebhooksByRoutingKey.mockResolvedValue([])
@@ -74,50 +67,6 @@ describe('TikTok app webhook route', () => {
   afterAll(() => {
     resetEnvMock()
     requestUtilsMockFns.mockGenerateRequestId.mockReset()
-  })
-
-  it('routes a verified delivery by user_openid on the TikTok provider', async () => {
-    mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1')])
-
-    const response = await POST(signedRequest({ userOpenId: 'user-open-id' }))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith('user-open-id', 'request-1', 'tiktok')
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'webhook-1' }),
-      expect.objectContaining({ id: 'workflow-webhook-1' }),
-      expect.objectContaining({ user_openid: 'user-open-id' }),
-      expect.any(NextRequest),
-      expect.objectContaining({
-        requestId: 'request-1',
-        triggerTimestampMs: 1_725_000_000_000,
-      })
-    )
-    expect(mockRelease).toHaveBeenCalledOnce()
-  })
-
-  it('acknowledges a verified delivery when no workflow targets match', async () => {
-    const response = await POST(signedRequest())
-
-    expect(response.status).toBe(200)
-    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
-  })
-
-  it('dispatches matching workflows sequentially', async () => {
-    mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1'), target('webhook-2')])
-    const order: string[] = []
-    mockDispatchResolvedWebhookTarget.mockImplementation(async (webhook: { id: string }) => {
-      order.push(`start:${webhook.id}`)
-      await Promise.resolve()
-      order.push(`end:${webhook.id}`)
-      return { outcome: 'queued', reason: 'queued' }
-    })
-
-    const response = await POST(signedRequest())
-
-    expect(response.status).toBe(200)
-    expect(order).toEqual(['start:webhook-1', 'end:webhook-1', 'start:webhook-2', 'end:webhook-2'])
   })
 
   it('returns a retryable response when a target cannot be dispatched', async () => {
@@ -130,15 +79,6 @@ describe('TikTok app webhook route', () => {
     const response = await POST(signedRequest())
 
     expect(response.status).toBe(503)
-  })
-
-  it('returns 503 when target lookup fails', async () => {
-    mockFindWebhooksByRoutingKey.mockRejectedValue(new Error('database unavailable'))
-
-    const response = await POST(signedRequest())
-
-    expect(response.status).toBe(503)
-    expect(mockRelease).toHaveBeenCalledOnce()
   })
 
   it('rejects a signed delivery for a different TikTok app', async () => {

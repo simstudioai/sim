@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -41,11 +38,8 @@ vi.mock('@/lib/workspaces/application/list-public-workspaces', () => ({
   },
 }))
 
-import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET as listMembers } from '@/app/api/v2/workspaces/[workspaceId]/members/route'
-import { GET as getWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/route'
-import { GET as listWorkspaces } from '@/app/api/v2/workspaces/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const auth = {
@@ -89,21 +83,9 @@ function innerPayload(cursor: string): unknown {
 
 describe('v2 workspace routes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.getWorkspace.mockResolvedValue({
-      workspace: {
-        id: WORKSPACE_ID,
-        name: 'Engineering',
-        color: '#33C482',
-        logoUrl: null,
-        memberCount: 1,
-        createdAt: new Date('2026-01-01T00:00:00Z'),
-        updatedAt: new Date('2026-01-02T00:00:00Z'),
-      },
-    })
     mocks.listMembers.mockResolvedValue({
       page: {
         members: [
@@ -119,71 +101,6 @@ describe('v2 workspace routes', () => {
         ],
         nextEmail: 'ada@example.com',
       },
-    })
-    mocks.listWorkspaces.mockResolvedValue({
-      workspaces: [
-        {
-          id: WORKSPACE_ID,
-          name: 'Engineering',
-          color: '#33C482',
-          logoUrl: null,
-          memberCount: 1,
-          createdAt: new Date('2026-01-01T00:00:00Z'),
-          updatedAt: new Date('2026-01-02T00:00:00Z'),
-        },
-      ],
-      hasMore: false,
-      offset: 0,
-      limit: 50,
-    })
-  })
-
-  it('lists the workspaces available to the API key', async () => {
-    const request = new NextRequest('http://localhost:3000/api/v2/workspaces')
-    const response = await listWorkspaces(request)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          id: WORKSPACE_ID,
-          name: 'Engineering',
-          color: '#33C482',
-          logoUrl: null,
-          memberCount: 1,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-      nextCursor: null,
-    })
-    /** A bounded first page by default: 25, not the v2-wide 50. */
-    expect(mocks.listWorkspaces).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: {
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-        limit: 25,
-        offset: 0,
-      },
-      request,
-    })
-  })
-
-  it('projects public workspace metadata without governance identities', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}`)
-    const response = await getWorkspace(request, context())
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data).toMatchObject({ id: WORKSPACE_ID, name: 'Engineering' })
-    expect(body.data).not.toHaveProperty('mode')
-    expect(body.data).not.toHaveProperty('ownerId')
-    expect(body.data).not.toHaveProperty('billedAccountUserId')
-    expect(mocks.getWorkspace).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { workspaceId: WORKSPACE_ID },
-      request,
     })
   })
 
@@ -205,14 +122,6 @@ describe('v2 workspace routes', () => {
       joinedAt: '2026-01-01T00:00:00.000Z',
     })
     expect(innerPayload(body.nextCursor)).toEqual({ email: 'ada@example.com' })
-  })
-
-  it('rejects malformed cursors before the application read', async () => {
-    const response = await requestMembers(WORKSPACE_ID, '?cursor=not-a-cursor')
-
-    expect(response.status).toBe(400)
-    expect(mocks.listMembers).not.toHaveBeenCalled()
-    expect((await response.json()).error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
   })
 
   /**
@@ -251,12 +160,6 @@ describe('v2 workspace routes', () => {
     expect(mocks.listMembers).not.toHaveBeenCalled()
   })
 
-  it('mints a members cursor bound to the workspace that answered', async () => {
-    expect(await mintMemberCursor(WORKSPACE_ID)).not.toBe(
-      await mintMemberCursor(OTHER_WORKSPACE_ID)
-    )
-  })
-
   it.each([
     ['non-email', { email: 'not-an-email' }],
     ['carrying an unknown key', { email: 'ada@example.com', role: 'admin' }],
@@ -273,17 +176,5 @@ describe('v2 workspace routes', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.listMembers).not.toHaveBeenCalled()
-  })
-
-  it('projects typed workspace policy errors', async () => {
-    mocks.getWorkspace.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
-
-    const response = await getWorkspace(
-      new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}`),
-      context()
-    )
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 })

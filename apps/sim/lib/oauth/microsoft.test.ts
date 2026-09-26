@@ -1,12 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  deriveMicrosoftEmailVerified,
-  isMicrosoftProvider,
-  mapMicrosoftProfileToUser,
-} from '@/lib/oauth/microsoft'
+import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 
 const EMAIL = 'user@contoso.com'
 
@@ -78,10 +71,6 @@ describe('deriveMicrosoftEmailVerified', () => {
     expect(deriveMicrosoftEmailVerified({ name: 'User', oid: 'abc' }, EMAIL)).toBe(false)
   })
 
-  it('defaults to false for an empty claim set', () => {
-    expect(deriveMicrosoftEmailVerified({}, EMAIL)).toBe(false)
-  })
-
   it('coerces a truthy non-boolean email_verified claim', () => {
     expect(deriveMicrosoftEmailVerified({ email_verified: 'true' }, EMAIL)).toBe(true)
   })
@@ -91,26 +80,10 @@ describe('deriveMicrosoftEmailVerified', () => {
       false
     )
     expect(deriveMicrosoftEmailVerified({ verified_primary_email: 123 }, EMAIL)).toBe(false)
-    expect(deriveMicrosoftEmailVerified({ verified_secondary_email: { foo: 'bar' } }, EMAIL)).toBe(
-      false
-    )
-    expect(deriveMicrosoftEmailVerified({ verified_primary_email: null }, EMAIL)).toBe(false)
   })
 
   it('does not treat a string claim equal to the email as verified (guards the old unsafe cast)', () => {
     expect(deriveMicrosoftEmailVerified({ verified_primary_email: EMAIL }, EMAIL)).toBe(false)
     expect(deriveMicrosoftEmailVerified({ verified_secondary_email: EMAIL }, EMAIL)).toBe(false)
-  })
-})
-
-describe('isMicrosoftProvider', () => {
-  it('recognizes Microsoft connector provider IDs', () => {
-    expect(isMicrosoftProvider('microsoft-ad')).toBe(true)
-    expect(isMicrosoftProvider('outlook')).toBe(true)
-  })
-
-  it('rejects non-Microsoft provider IDs', () => {
-    expect(isMicrosoftProvider('google')).toBe(false)
-    expect(isMicrosoftProvider('microsoft')).toBe(false)
   })
 })

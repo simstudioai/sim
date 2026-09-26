@@ -17,8 +17,10 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
   type AvailableItemsByType,
   type AvailableResources,
@@ -45,7 +47,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 export interface AddResourceDropdownProps {
   workspaceId?: string
@@ -204,7 +206,6 @@ export function useResourceTreeSections({
 }
 
 interface ResourceMenuSectionsProps {
-  flat?: boolean
   /** Foldered families, from {@link useResourceTreeSections}. */
   sections: ResourceTreeSection[]
   /** Every available family. Foldered ones are taken from `sections` instead. */
@@ -226,7 +227,6 @@ interface ResourceMenuSectionsProps {
  * canonical order.
  */
 export function ResourceMenuSections({
-  flat = false,
   sections,
   groups,
   onSelect,
@@ -235,7 +235,7 @@ export function ResourceMenuSections({
   const sectionByType = new Map(sections.map((section) => [section.type, section]))
   const entries = groups
     .filter(({ type, items }) =>
-      !flat && FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
+      FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
     )
     .sort(byResourceMenuOrder)
 
@@ -348,7 +348,7 @@ function ResourceMenuSearch({
   return (
     <>
       <DropdownMenuSearchInput
-        placeholder='Search resources...'
+        placeholder='Search resources'
         value={search}
         onChange={(e) => {
           setSearch(e.target.value)
@@ -382,7 +382,7 @@ function ResourceMenuSearch({
             })
           ) : (
             <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
-              {isHydrating ? 'Loading resources…' : 'No results'}
+              {isHydrating ? 'Loading resources' : 'No results'}
             </div>
           )
         ) : (
@@ -398,6 +398,8 @@ interface WorkspaceResourceMenuContentProps {
   enabled: boolean
   excludeTypes?: readonly MothershipResourceType[]
   searchable?: boolean
+  /** Offers every folder as an attachable entry, as chat does. */
+  selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
 }
 
@@ -406,20 +408,27 @@ function WorkspaceResourceMenuContent({
   enabled,
   excludeTypes,
   searchable = true,
+  selectFolders,
   onSelect,
 }: WorkspaceResourceMenuContentProps) {
   const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
     enabled,
     excludeTypes,
   })
-  const sections = useResourceTreeSections({ groups, structureFolders })
+  const sections = useResourceTreeSections({ groups, structureFolders, selectFolders })
   const select = (resource: MothershipResource) =>
     onSelect(
       resource.type === 'browser' || resource.type === 'terminal'
         ? resource
         : { ...resource, workspaceId }
     )
-  const menu = <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
+  /** Lists fill in as they load, so a trailing row keeps a loading workspace from reading as empty. */
+  const menu = (
+    <>
+      <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
+      {isHydrating && <DropdownMenuItem disabled>Loading resources</DropdownMenuItem>}
+    </>
+  )
   return searchable ? (
     <ResourceMenuSearch groups={groups} isHydrating={isHydrating} onSelect={select}>
       {menu}
@@ -429,27 +438,53 @@ function WorkspaceResourceMenuContent({
   )
 }
 
-function WorkspaceResourceSubmenu({
+interface WorkspaceResourceSubmenuProps {
+  workspace: Pick<Workspace, 'id' | 'name' | 'logoUrl'>
+  /** Must be referentially stable (a module constant) — it keys the group memo. */
+  excludeTypes?: readonly MothershipResourceType[]
+  selectFolders?: boolean
+  onSelect: (resource: MothershipResource) => void
+  /**
+   * Offers the workspace itself as the first entry, the way a folder submenu
+   * offers its folder, for pickers that can attach a whole workspace.
+   */
+  onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
+}
+
+/**
+ * One workspace of an organization-wide picker: its own foldered resource menu,
+ * fetched when the submenu first opens. Selections carry the workspace as owner.
+ */
+export function WorkspaceResourceSubmenu({
   workspace,
   excludeTypes,
+  selectFolders,
   onSelect,
-}: {
-  workspace: { id: string; name: string }
-  excludeTypes?: readonly MothershipResourceType[]
-  onSelect: (resource: MothershipResource) => void
-}) {
+  onSelectWorkspace,
+}: WorkspaceResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
+  const icon = (
+    <IdentityTile initial={getWorkspaceInitial(workspace.name)} logoUrl={workspace.logoUrl} />
+  )
   return (
     <DropdownMenuSub open={open} onOpenChange={setOpen}>
       <DropdownMenuSubTrigger>
+        {icon}
         <DropdownMenuItemLabel label={workspace.name} />
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className='flex w-[320px] flex-col overflow-hidden'>
+        {onSelectWorkspace && (
+          <DropdownMenuItem onClick={() => onSelectWorkspace(workspace)}>
+            {icon}
+            <DropdownMenuItemLabel label={workspace.name} />
+          </DropdownMenuItem>
+        )}
         <WorkspaceResourceMenuContent
           workspaceId={workspace.id}
           enabled={open}
           excludeTypes={excludeTypes}
           searchable={false}
+          selectFolders={selectFolders}
           onSelect={onSelect}
         />
       </DropdownMenuSubContent>
@@ -468,7 +503,7 @@ export function AddResourceDropdown({
   onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
-  const { data: allWorkspaces = [] } = useWorkspacesQuery(open && Boolean(organizationId))
+  const { data: allWorkspaces = [] } = useOrderedWorkspacesQuery(open && Boolean(organizationId))
   const workspaces = allWorkspaces.filter(
     (workspace) => workspace.organizationId === organizationId
   )

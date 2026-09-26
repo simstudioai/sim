@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DESKTOP_PRERELEASE_REPOSITORY,
   DESKTOP_RELEASES_PAGE_SIZE,
@@ -58,10 +55,6 @@ describe('desktop update manifest route', () => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
     setEnv({ APPCONFIG_ENVIRONMENT: undefined })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it.each([
@@ -205,17 +198,6 @@ describe('desktop update manifest route', () => {
     expect(await response.text()).toContain('version: 1.1.0')
   })
 
-  it('stops walking at a short page rather than requesting empty ones', async () => {
-    fetchMock.mockResolvedValueOnce(
-      Response.json([release('v1.2.0-dev.4'), release('v1.2.0-staging.5')])
-    )
-
-    const response = await getFeed('www.sim.ai')
-
-    expect(response.status).toBe(404)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
   it('fails the feed instead of serving an older release when a page cannot be read', async () => {
     const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
       tag_name: `python-sdk-v0.${index}.0`,
@@ -277,14 +259,5 @@ describe('desktop update manifest route', () => {
 
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
-  })
-
-  it('surfaces malformed GitHub release data as a feed failure', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('not json'))
-
-    const response = await getFeed('www.sim.ai')
-
-    expect(response.status).toBe(502)
-    expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
   })
 })

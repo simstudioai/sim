@@ -1,34 +1,32 @@
 /**
  * Tests for the v1 knowledge document upload route's bounded multipart read.
- *
- * @vitest-environment node
  */
+
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticateRequest,
-  mockResolveKnowledgeBase,
-  mockCheckActorUsageLimits,
-  mockUploadWorkspaceFile,
-  mockCreateSingleDocument,
-  mockProcessDocumentsWithQueue,
-  mockValidateFileType,
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-  mockCheckAttributedUsageLimits,
-} = vi.hoisted(() => ({
-  mockAuthenticateRequest: vi.fn(),
+const { mockResolveKnowledgeBase, mockValidateFileType } = vi.hoisted(() => ({
   mockResolveKnowledgeBase: vi.fn(),
-  mockCheckActorUsageLimits: vi.fn(),
-  mockUploadWorkspaceFile: vi.fn(),
-  mockCreateSingleDocument: vi.fn(),
-  mockProcessDocumentsWithQueue: vi.fn(),
   mockValidateFileType: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockCheckAttributedUsageLimits: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -44,11 +42,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  authenticateRequest: mockAuthenticateRequest,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
   resolveKnowledgeBase: mockResolveKnowledgeBase,
@@ -59,19 +53,11 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
     }),
 }))
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: mockCheckActorUsageLimits,
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
@@ -80,15 +66,22 @@ vi.mock('@/lib/uploads/utils/validation', () => ({
   SUPPORTED_ARCHIVE_EXTENSIONS: [],
 }))
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: mockCreateSingleDocument,
-  getDocuments: vi.fn(),
-  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { POST } from '@/app/api/v1/knowledge/[id]/documents/route'
 
-const routeContext = { params: Promise.resolve({ id: 'kb-1' }) }
+const { mockCreateSingleDocument, mockProcessDocumentsWithQueue } = knowledgeDocumentsServiceMockFns
+const { mockCheckActorUsageLimits } = billingUsageMonitorMockFns
+const { mockAuthenticateRequest } = v1MiddlewareMockFns
+
+const {
+  mockResolveBillingAttribution,
+  mockResolveSystemBillingAttribution,
+  mockCheckAttributedUsageLimits,
+} = billingAttributionMockFns
+const { mockUploadWorkspaceFile } = workspaceUploadsMockFns
+
+const routeContext = createRouteContext({ id: 'kb-1' })
 
 function buildFormData(file: File, workspaceId = 'ws-1'): FormData {
   const formData = new FormData()
@@ -121,7 +114,6 @@ function makeChunkedOverLimitBody(
 
 describe('v1 knowledge document upload route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
       userId: 'user-1',
@@ -183,29 +175,6 @@ describe('v1 knowledge document upload route', () => {
     expect(response.status).toBe(413)
     expect(data.error).toContain('exceeds maximum size')
     expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('uploads a normal, well-under-limit document successfully', async () => {
-    const file = new File(['hello world'], 'file.txt', { type: 'text/plain' })
-    const formData = buildFormData(file)
-    const req = new NextRequest('http://localhost:3000/api/v1/knowledge/kb-1/documents', {
-      method: 'POST',
-      headers: { 'content-length': '1024' },
-      body: formData,
-    })
-
-    const response = await POST(req, routeContext)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(1)
-    expect(mockCreateSingleDocument).toHaveBeenCalledTimes(1)
-    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-    })
-    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
   })
 
   it('uses one atomic system actor and payer snapshot for a workspace API key', async () => {

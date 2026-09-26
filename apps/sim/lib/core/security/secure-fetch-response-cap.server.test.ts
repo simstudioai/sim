@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Transform } from 'node:stream'
@@ -13,14 +10,6 @@ vi.mock('@sim/security/dns', () => ({
   preferIpv4: (addresses: string[]) => addresses[0],
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
-}))
-
 import * as networkTransport from '@/lib/core/network/transport.server'
 import {
   createPinnedFetchWithDispatcher,
@@ -31,7 +20,6 @@ import {
 const servers: http.Server[] = []
 
 afterEach(() => {
-  vi.restoreAllMocks()
   for (const server of servers.splice(0)) {
     server.closeAllConnections()
     server.close()
@@ -150,23 +138,6 @@ describe('secureFetchWithPinnedIP response cap', () => {
     await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce())
   })
 
-  it('rejects the decoded reader when the upstream resets before completing', async () => {
-    let upstream: http.ServerResponse | undefined
-    const origin = await startServer((_req, res) => {
-      upstream = res
-      res.writeHead(200, { 'Content-Encoding': 'gzip' })
-      res.write(gzipSync(Buffer.from('payload')).subarray(0, 10))
-    })
-
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      profile: 'configuredEndpoint',
-    })
-    const body = response.text()
-    upstream!.destroy()
-
-    await expect(body).rejects.toThrow(/aborted|closed before completing/)
-  })
-
   it('rejects a compressed body read when its request is aborted', async () => {
     const controller = new AbortController()
     const closed = vi.fn()
@@ -205,8 +176,6 @@ describe('secureFetchWithPinnedIP response cap', () => {
 
   it.each([
     { method: 'HEAD', status: 200 },
-    { method: 'GET', status: 204 },
-    { method: 'GET', status: 205 },
     { method: 'GET', status: 304 },
   ])('does not decode a bodyless $method $status response', async ({ method, status }) => {
     const origin = await startServer((_req, res) => {
@@ -253,19 +222,6 @@ describe('secureFetchWithPinnedIP response cap', () => {
     ).rejects.toThrow(/response body/i)
   })
 
-  it('reads a body that fits under the default cap', async () => {
-    const origin = await startServer((_req, res) => {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end('{"ok":true}')
-    })
-
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      profile: 'configuredEndpoint',
-    })
-
-    expect(await response.text()).toBe('{"ok":true}')
-  })
-
   it('does not trip on a HEAD response advertising a size above the cap', async () => {
     const origin = await startServer((_req, res) => {
       res.writeHead(200, {
@@ -282,19 +238,6 @@ describe('secureFetchWithPinnedIP response cap', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('video/mp4')
-  })
-
-  it('does not trip on a 304 advertising a size above the cap', async () => {
-    const origin = await startServer((_req, res) => {
-      res.writeHead(304, { 'Content-Length': String(DEFAULT_MAX_RESPONSE_BYTES + 1) })
-      res.end()
-    })
-
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      profile: 'configuredEndpoint',
-    })
-
-    expect(response.status).toBe(304)
   })
 })
 

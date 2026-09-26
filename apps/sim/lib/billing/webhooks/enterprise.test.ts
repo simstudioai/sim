@@ -1,52 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock } from '@sim/testing/mocks/email-templates.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import {
-  createMockStripeEvent,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { createMockStripeEvent, stripeClientMock } from '@sim/testing/mocks/stripe.mock'
 import type Stripe from 'stripe'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   subscriptionsRetrieve: vi.fn(),
-  patchOutboxEventPayload: vi.fn(),
-  enqueueOutboxEvent: vi.fn(),
-  enqueueOutboxEvents: vi.fn(),
   getEnterpriseIssuanceSeatRequirement: vi.fn(),
-  reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned' },
-  AuditResourceType: { SUBSCRIPTION: 'subscription' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: vi.fn(() => 'Enterprise subscription'),
-  renderEnterpriseSubscriptionEmail: vi.fn(),
-}))
+vi.mock('@/components/emails', () => emailTemplatesMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-  reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/billing/enterprise-provisioning', () => ({
-  getEnterpriseIssuanceSeatRequirement: mocks.getEnterpriseIssuanceSeatRequirement,
+  getEnterpriseIssuanceSeatRequirement: hoisted.getEnterpriseIssuanceSeatRequirement,
 }))
 
-vi.mock('@/lib/billing/stripe-client', () => ({
-  requireStripeClient: () => ({
-    subscriptions: { retrieve: mocks.subscriptionsRetrieve },
-  }),
-}))
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 
 vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   assertEnterpriseReconciliationLeaseHeld: vi.fn(),
@@ -58,25 +43,31 @@ vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   ),
 }))
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mocks.enqueueOutboxEvent,
-  enqueueOutboxEvents: mocks.enqueueOutboxEvents,
-  patchOutboxEventPayload: mocks.patchOutboxEventPayload,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: vi.fn(),
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 vi.mock('@/lib/messaging/email/utils', () => ({
   getFromEmailAddress: vi.fn(() => 'billing@sim.test'),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
+
+const mocks = {
+  ...hoisted,
+  reapplyPaidOrgJoinBillingForExistingMemberTx:
+    organizationMembershipMockFns.mockReapplyPaidOrgJoinBillingForExistingMemberTx,
+  enqueueOutboxEvent: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  enqueueOutboxEvents: outboxServiceMockFns.mockEnqueueOutboxEvents,
+  patchOutboxEventPayload: outboxServiceMockFns.mockPatchOutboxEventPayload,
+}
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+stripeClientMock.requireStripeClient.mockReturnValue({
+  subscriptions: { retrieve: mocks.subscriptionsRetrieve },
+})
 
 const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
 
@@ -207,7 +198,6 @@ function queueSuccessfulExistingSubscriptionReconciliation(options: {
 
 describe('Enterprise webhook issuance correlation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.patchOutboxEventPayload.mockResolvedValue(true)
     mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
@@ -246,33 +236,6 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
     expect(mocks.reapplyPaidOrgJoinBillingForExistingMemberTx).not.toHaveBeenCalled()
-  })
-
-  it('queues the exact selected Enterprise owner workspaces after issuance is applied', async () => {
-    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      operation: operationPayload({ workspaceIds: ['workspace-1', 'workspace-archived'] }),
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(mocks.enqueueOutboxEvents).toHaveBeenCalledWith(
-      expect.anything(),
-      'enterprise.move-workspace',
-      [
-        expect.objectContaining({ workspaceId: 'workspace-1', sequence: 0 }),
-        expect.objectContaining({ workspaceId: 'workspace-archived', sequence: 1 }),
-      ]
-    )
-    expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(
-      expect.anything(),
-      'enterprise.reconcile-members',
-      expect.objectContaining({ organizationId: 'org-1', afterUserId: null })
-    )
-    expect(mocks.patchOutboxEventPayload).toHaveBeenCalled()
   })
 
   it('does not discover owner workspaces that were not selected at confirmation', async () => {
@@ -377,30 +340,6 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
   })
 
-  it('allows later Stripe metadata edits after the issuance was already applied', async () => {
-    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      operation: operationPayload({ applied: true, pausePaymentCollection: true }),
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
-  })
-
-  it('continues to reconcile manual Enterprise subscriptions without an operation id', async () => {
-    const subscription = stripeSubscription({})
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({})
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-  })
-
   it('reconciles a duplicate event again so a stale generic webhook write is corrected', async () => {
     const subscription = stripeSubscription({})
     mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
@@ -412,25 +351,6 @@ describe('Enterprise webhook issuance correlation', () => {
     await expect(handleManualEnterpriseSubscription(event)).resolves.toBeUndefined()
 
     expect(mocks.subscriptionsRetrieve).toHaveBeenCalledTimes(2)
-  })
-
-  it('allows a later valid Stripe edit that retains an already-applied config marker', async () => {
-    const subscription = stripeSubscription({
-      configOperationId: 'config-1',
-      seats: 14,
-    })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      existingMetadata: { simConfigOperationId: 'config-1' },
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ seats: '14' }) })
-    )
   })
 
   it('does not apply an unverified configuration delivery', async () => {

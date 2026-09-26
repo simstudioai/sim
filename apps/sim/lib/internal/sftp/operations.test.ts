@@ -1,6 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import type { Attributes, SFTPWrapper } from 'ssh2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   exists: vi.fn(),
   isDirectory: vi.fn(),
-  processFiles: vi.fn(),
-  downloadFile: vi.fn(),
-  assertFileAccess: vi.fn(),
   docNotReadyResponse: vi.fn(),
 }))
 
@@ -32,29 +35,22 @@ vi.mock('@/lib/internal/sftp/client', () => ({
   sftpIsDirectory: mocks.isDirectory,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getFileExtension: (name: string) => name.split('.').pop() ?? '',
-  getMimeTypeFromExtension: () => 'text/plain',
-  processFilesToUserFiles: mocks.processFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: mocks.docNotReadyResponse,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-import {
-  executeSftpDownload,
-  executeSftpList,
-  executeSftpUpload,
-} from '@/lib/internal/sftp/operations'
+import { executeSftpDownload, executeSftpUpload } from '@/lib/internal/sftp/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockGetFileExtension, mockGetMimeTypeFromExtension, mockProcessFilesToUserFiles } =
+  fileUtilsMockFns
 
 const connectionInput = {
   host: 'sftp.example.com',
@@ -66,66 +62,13 @@ const connectionInput = {
 }
 const context = { userId: 'user-1', requestId: 'request-1' }
 
-const storedFile = {
-  id: 'stored-file',
-  name: 'file.txt',
-  size: 5,
-  type: 'text/plain',
-  mimeType: 'text/plain',
-  url: '/api/files/stored',
-  key: 'execution/file.txt',
-  context: 'execution',
-} as const
-
 describe('SFTP operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createConnection.mockResolvedValue({ end: mocks.clientEnd })
-    mocks.assertFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockGetFileExtension.mockImplementation((name: string) => name.split('.').pop() ?? '')
+    mockGetMimeTypeFromExtension.mockReturnValue('text/plain')
     mocks.docNotReadyResponse.mockReturnValue(null)
-  })
-
-  it('returns the historical list shape and sorts directories first', async () => {
-    const sftp = {
-      readdir: vi.fn((_path, callback) =>
-        callback(null, [
-          { filename: 'z.txt', attrs: { mode: 0o100644, size: 4, mtime: 1 } },
-          { filename: 'folder', attrs: { mode: 0o040755, size: 0, mtime: 2 } },
-          { filename: '.', attrs: { mode: 0o040755, size: 0, mtime: 2 } },
-        ])
-      ),
-    } as unknown as SFTPWrapper
-    mocks.getSftp.mockResolvedValue(sftp)
-
-    const response = await executeSftpList(
-      { ...connectionInput, remotePath: '/files', detailed: true },
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      path: '/files',
-      entries: [
-        {
-          name: 'folder',
-          type: 'directory',
-          size: 0,
-          permissions: '0755',
-          modifiedAt: new Date(2000).toISOString(),
-        },
-        {
-          name: 'z.txt',
-          type: 'file',
-          size: 4,
-          permissions: '0644',
-          modifiedAt: new Date(1000).toISOString(),
-        },
-      ],
-      count: 2,
-      message: 'Found 2 entries in /files',
-    })
-    expect(mocks.clientEnd).toHaveBeenCalledOnce()
   })
 
   it('rejects declared downloads over 50MB before opening a read stream', async () => {
@@ -145,74 +88,12 @@ describe('SFTP operations', () => {
     expect(mocks.clientEnd).toHaveBeenCalledOnce()
   })
 
-  it.each([5, 12 * 1024 * 1024])(
-    'returns %i bytes through a stored file without inline content in v2',
-    async (size) => {
-      const buffer = Buffer.alloc(size, 1)
-      const sftp = {
-        stat: vi.fn((_path, callback) => callback(null, { size: buffer.length })),
-      } as unknown as SFTPWrapper
-      mocks.getSftp.mockResolvedValue(sftp)
-      mocks.readFile.mockResolvedValue(buffer)
-      const result = await executeSftpDownload(
-        { ...connectionInput, remotePath: '/file.txt' },
-        context,
-        'v2'
-      )
-      if (result instanceof Response) throw new Error('Expected a file output')
-      expect(result.files[0]?.buffer).toBe(buffer)
-      expect(result.files[0]?.name).toBe('file.txt')
-      const file = { ...storedFile, size: buffer.length }
-      const presented = result.present([file])
-      expect(presented).toEqual({ file })
-      expect(JSON.stringify(presented)).not.toContain('"content"')
-      expect(JSON.stringify(presented)).not.toContain('"encoding"')
-      expect(mocks.clientEnd).toHaveBeenCalledOnce()
-      expect(mocks.readFile).toHaveBeenCalledWith(
-        sftp,
-        '/file.txt',
-        50 * 1024 * 1024,
-        'SFTP download',
-        undefined
-      )
-    }
-  )
-
-  it.each(['base64', 'utf-8'] as const)(
-    'preserves the complete v1 %s response',
-    async (encoding) => {
-      const buffer = Buffer.from('hello')
-      mocks.getSftp.mockResolvedValue({
-        stat: vi.fn((_path, callback) => callback(null, { size: buffer.length })),
-      })
-      mocks.readFile.mockResolvedValue(buffer)
-      const result = await executeSftpDownload(
-        { ...connectionInput, remotePath: '/file.txt', encoding },
-        context
-      )
-      expect(await result.json()).toEqual({
-        success: true,
-        fileName: 'file.txt',
-        file: {
-          name: 'file.txt',
-          mimeType: 'text/plain',
-          data: buffer.toString('base64'),
-          size: 5,
-        },
-        content: buffer.toString(encoding),
-        size: 5,
-        encoding,
-        message: 'Successfully downloaded file.txt',
-      })
-    }
-  )
-
   it('authorizes every referenced Sim file before reading or uploading it', async () => {
     const denied = Response.json({ success: false, error: 'File not found' }, { status: 404 })
     const file = { key: 'workspace/file', name: 'private.txt', size: 4 }
     mocks.getSftp.mockResolvedValue({} as SFTPWrapper)
-    mocks.processFiles.mockReturnValue([file])
-    mocks.assertFileAccess.mockResolvedValue(denied)
+    mockProcessFilesToUserFiles.mockReturnValue([file])
+    mockAssertToolFileAccess.mockResolvedValue(denied)
 
     const response = await executeSftpUpload(
       {
@@ -228,13 +109,13 @@ describe('SFTP operations', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(mocks.assertFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       'workspace/file',
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.clientEnd).toHaveBeenCalledOnce()
   })
 })

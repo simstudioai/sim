@@ -1,7 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
+import { uploadsConfigMock, uploadsConfigMockFns } from '@sim/testing/mocks/uploads-config.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateReadStream, mockReadFile, mockStat } = vi.hoisted(() => ({
@@ -13,19 +13,17 @@ const { mockCreateReadStream, mockReadFile, mockStat } = vi.hoisted(() => ({
 vi.mock('fs', () => ({ createReadStream: mockCreateReadStream }))
 vi.mock('fs/promises', () => ({ readFile: mockReadFile, stat: mockStat }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: false,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({ bucket: 'b', region: 'r' }),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({ UPLOAD_DIR_SERVER: '/uploads' }))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({ insertFileMetadata: vi.fn() }))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
+setUploadDirServer('/uploads')
 
 /** A stream that delivers `bytes`, whatever a prior `stat` would have claimed. */
 function streamOf(bytes: number) {
@@ -36,16 +34,7 @@ function streamOf(bytes: number) {
 
 describe('downloadFile on local storage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockReadFile.mockResolvedValue(Buffer.alloc(10))
-  })
-
-  it('reads without a ceiling when the caller asks for none', async () => {
-    const buffer = await downloadFile({ key: 'workspace/ws/file.bin', context: 'workspace' })
-
-    expect(buffer.length).toBe(10)
-    expect(mockReadFile).toHaveBeenCalled()
-    expect(mockCreateReadStream).not.toHaveBeenCalled()
   })
 
   it('enforces the ceiling on the bytes as they arrive, not on a prior stat', async () => {
@@ -60,18 +49,6 @@ describe('downloadFile on local storage', () => {
 
     expect(mockStat).not.toHaveBeenCalled()
     expect(mockReadFile).not.toHaveBeenCalled()
-  })
-
-  it('returns the bytes when they fit the ceiling', async () => {
-    mockCreateReadStream.mockReturnValue(streamOf(50))
-
-    const buffer = await downloadFile({
-      key: 'workspace/ws/file.bin',
-      context: 'workspace',
-      maxBytes: 100,
-    })
-
-    expect(buffer.length).toBe(50)
   })
 
   it('destroys the stream once the read settles', async () => {

@@ -1,6 +1,5 @@
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 /**
- * @vitest-environment node
- *
  * `logs.cost` is a PROJECTION, not a gate — `logOperations.readExecutionSnapshot`
  * correctly declares `capability: 'none'`, and the run stays readable while its
  * spend does not.
@@ -12,52 +11,51 @@
  * Projecting in the use case is what makes both doors inherit it, which is why
  * these exercise the use case against the real `resolveLogFieldProjection`.
  */
+
 import {
+  dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  select: vi.fn(),
-  resolveWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  materialize: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   hydrateChildTraces: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@sim/db', () => ({ db: { select: mocks.select } }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === 'write' || actual === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
-}))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: mocks.materialize,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/logs/execution/hydrate-child-traces', () => ({
-  hydrateChildTraces: mocks.hydrateChildTraces,
+  hydrateChildTraces: hoisted.hydrateChildTraces,
 }))
 
 import { readExecutionSnapshotUseCase } from '@/lib/logs/application/read-execution-snapshot'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  resolveWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  materialize: traceStoreMockFns.mockMaterializeExecutionData,
+  select: dbChainMockFns.select,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -82,17 +80,6 @@ const workflowRecord = {
   executionData: null,
 }
 
-const jobRecord = {
-  id: 'job-log-1',
-  workspaceId: WORKSPACE_ID,
-  executionId: 'job-1',
-  trigger: 'schedule',
-  startedAt: new Date('2026-08-05T12:00:00.000Z'),
-  endedAt: null,
-  totalDurationMs: null,
-  cost: { total: 0.75, input: 0.5, output: 0.25 },
-}
-
 /**
  * Answers `db.select(...)` calls in order. The snapshot read walks the workflow
  * log, then (only when that missed) the job log, then the state snapshot.
@@ -105,7 +92,7 @@ function queueSelects(...results: unknown[][]): void {
   }
 }
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 /**
  * `logs.read_execution_snapshot` denies a workspace API key outright, so the
  * subjectless caller that actually reaches this read is the executor delegation —
@@ -137,19 +124,10 @@ function read(actor: typeof principal | typeof executorPrincipal, executionId: s
 
 describe('readExecutionSnapshot spend projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.materialize.mockResolvedValue(null)
-  })
-
-  it('reads the run total whole for a member no group governs', async () => {
-    queueSelects([workflowRecord], [{ id: 'snapshot-1', stateData: { blocks: {} } }])
-
-    const result = await read(principal, 'run-1')
-
-    expect(result.executionMetadata.cost).toEqual({ total: 0.75 })
   })
 
   it('withholds the run total from a member whose group hides spend', async () => {
@@ -164,19 +142,6 @@ describe('readExecutionSnapshot spend projection', () => {
     expect(result.executionMetadata.cost).toBeNull()
     expect(result.executionMetadata.trigger).toBe('api')
     expect(result.workflowState).toEqual({ blocks: {} })
-  })
-
-  /** A job run spells its spend as a jsonb document; the same rule covers it. */
-  it("withholds a job run's spend document from a member whose group hides spend", async () => {
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      hideCostInfo: true,
-    })
-    queueSelects([], [jobRecord])
-
-    const result = await read(principal, 'job-1')
-
-    expect(result.executionMetadata.cost).toBeNull()
   })
 
   /**

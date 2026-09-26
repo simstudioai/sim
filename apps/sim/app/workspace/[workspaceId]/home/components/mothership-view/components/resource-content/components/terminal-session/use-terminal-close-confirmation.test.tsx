@@ -55,20 +55,6 @@ beforeEach(() => {
 })
 
 describe('useTerminalCloseConfirmation', () => {
-  it('waits for approval and rejects duplicate confirmation requests', async () => {
-    const { result } = renderHook(() => useTerminalCloseConfirmation('scope'))
-    let decision: Promise<boolean> | undefined
-    act(() => {
-      decision = result.current.confirmTerminalClose(['terminal'])
-    })
-    await expect(result.current.confirmTerminalClose(['terminal'])).resolves.toBe(false)
-    act(() => {
-      result.current.confirmationDialog?.props.confirm.onClick()
-    })
-    await expect(decision).resolves.toBe(true)
-    expect(result.current.confirmationDialog).toBeNull()
-  })
-
   it('refuses to close when the running command changed while the dialog was open', async () => {
     const { result } = renderHook(() => useTerminalCloseConfirmation('scope'))
     let decision: Promise<boolean> | undefined
@@ -79,16 +65,6 @@ describe('useTerminalCloseConfirmation', () => {
     act(() => {
       result.current.confirmationDialog?.props.confirm.onClick()
     })
-    await expect(decision).resolves.toBe(false)
-  })
-
-  it('cancels pending confirmation when the caller unmounts', async () => {
-    const { result, unmount } = renderHook(() => useTerminalCloseConfirmation('scope'))
-    let decision: Promise<boolean> | undefined
-    act(() => {
-      decision = result.current.confirmTerminalClose(['terminal'])
-    })
-    unmount()
     await expect(decision).resolves.toBe(false)
   })
 

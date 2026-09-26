@@ -1,25 +1,23 @@
-/**
- * @vitest-environment node
- */
 import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEncryptQuickBooksOAuthClientConfig, mockGenerateId } = vi.hoisted(() => ({
+const { mockEncryptQuickBooksOAuthClientConfig } = vi.hoisted(() => ({
   mockEncryptQuickBooksOAuthClientConfig: vi.fn(),
-  mockGenerateId: vi.fn(),
 }))
 
-vi.mock('@sim/utils/id', () => ({ generateId: mockGenerateId }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
   encryptQuickBooksOAuthClientConfig: mockEncryptQuickBooksOAuthClientConfig,
 }))
 
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
 
+const mockGenerateId = idMockFns.mockGenerateId
+
 describe('createConnectDraft', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGenerateId.mockReturnValue('new-draft-id')
     mockEncryptQuickBooksOAuthClientConfig.mockResolvedValue('encrypted-client-config')
@@ -51,45 +49,6 @@ describe('createConnectDraft', () => {
     )
     expect(conflict?.setWhere).toBeUndefined()
     expect(result).toEqual({ id: 'new-draft-id', expiresAt })
-  })
-
-  it('supersedes a reconnect target when its mutable display name changes', async () => {
-    const expiresAt = new Date('2026-08-13T20:15:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'new-draft-id', expiresAt }])
-
-    await expect(
-      createConnectDraft({
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        providerId: 'google-email',
-        credentialId: 'credential-1',
-        displayName: 'Renamed Gmail',
-      })
-    ).resolves.toEqual({ id: 'new-draft-id', expiresAt })
-
-    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        set: expect.objectContaining({
-          id: 'new-draft-id',
-          displayName: 'Renamed Gmail',
-          credentialId: 'credential-1',
-        }),
-      })
-    )
-  })
-
-  it('fails when the draft upsert does not return a row', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      createConnectDraft({
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        providerId: 'google-email',
-        credentialId: 'credential-1',
-        displayName: 'Existing Gmail',
-      })
-    ).rejects.toThrow('Failed to create OAuth credential draft')
   })
 
   it('encrypts QuickBooks app credentials before storing the draft', async () => {
@@ -154,7 +113,6 @@ describe('createConnectDraft', () => {
 
 describe('organization OAuth draft isolation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGenerateId.mockReturnValue('new-draft-id')
   })

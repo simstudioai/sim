@@ -1,14 +1,12 @@
-/** @vitest-environment node */
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ target: vi.fn(), context: vi.fn(), authorize: vi.fn() }))
+const mocks = vi.hoisted(() => ({ target: vi.fn(), authorize: vi.fn() }))
 vi.mock('@/lib/mothership/chat/application/workspace-target', () => ({
   WORKSPACE_TARGET_AUDIENCE: 'sim:workspaces',
   authorizeChatWorkspaceTarget: { execute: mocks.target },
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/core/application', async (original) => ({
   ...(await original<typeof import('@/lib/core/application')>()),
   authorizeWorkspaceOperation: mocks.authorize,
@@ -17,7 +15,6 @@ vi.mock('@/lib/core/application', async (original) => ({
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.target.mockResolvedValue({ workspaceId: 'target', permission: 'write' })
 })
 describe('explicit invocation workspace', () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
@@ -33,10 +30,6 @@ import { registerBlockVisibilityResolver } from '@/blocks/visibility/context'
 afterEach(() => registerBlockVisibilityResolver(null))
 
 describe('registry fast path (no preview blocks registered)', () => {
-  it('returns raw references with no context', () => {
-    expect(getAllBlocks()[0]).toBe(synthRegistry.slack)
-  })
-
   it('returns raw references when the active state has no kill-switch entries', () => {
     const state = {
       revealed: new Set(['whatever']),

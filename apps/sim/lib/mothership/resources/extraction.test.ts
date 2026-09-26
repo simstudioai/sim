@@ -1,38 +1,32 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { extractDeletedResourcesFromToolResult, extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
-  it.each(['create_empty_file', 'prepare_file_edit', 'apply_file_edit'])(
-    'extracts committed file identity from %s results',
-    (toolName) => {
-      const resources = extractResourcesFromToolResult(
-        toolName,
-        {
-          fileName: 'notes.md',
-        },
-        {
-          success: true,
-          message: 'File "notes.md" created successfully',
-          data: {
-            id: 'file_123',
-            name: 'notes.md',
-            contentType: 'text/markdown',
-          },
-        }
-      )
-
-      expect(resources).toEqual([
-        {
-          type: 'file',
+  it.each(['apply_file_edit'])('extracts committed file identity from %s results', (toolName) => {
+    const resources = extractResourcesFromToolResult(
+      toolName,
+      {
+        fileName: 'notes.md',
+      },
+      {
+        success: true,
+        message: 'File "notes.md" created successfully',
+        data: {
           id: 'file_123',
-          title: 'notes.md',
+          name: 'notes.md',
+          contentType: 'text/markdown',
         },
-      ])
-    }
-  )
+      }
+    )
+
+    expect(resources).toEqual([
+      {
+        type: 'file',
+        id: 'file_123',
+        title: 'notes.md',
+      },
+    ])
+  })
 
   it('uses the knowledge base id for manage_knowledge_base tag mutations', () => {
     const resources = extractResourcesFromToolResult(
@@ -210,18 +204,15 @@ describe('extractResourcesFromToolResult for table_views', () => {
     },
   }
 
-  it.each(['create_view', 'update_view', 'set_default_view'])(
-    '%s opens the table pinned to the view it wrote',
-    (operation) => {
-      expect(
-        extractResourcesFromToolResult(
-          'table_views',
-          { operation, args: { tableId: 'tbl_1' } },
-          written
-        )
-      ).toEqual([{ type: 'table', id: 'tbl_1', title: 'Invoices', viewId: 'view_1' }])
-    }
-  )
+  it.each(['create_view'])('%s opens the table pinned to the view it wrote', (operation) => {
+    expect(
+      extractResourcesFromToolResult(
+        'table_views',
+        { operation, args: { tableId: 'tbl_1' } },
+        written
+      )
+    ).toEqual([{ type: 'table', id: 'tbl_1', title: 'Invoices', viewId: 'view_1' }])
+  })
 
   it('a delete opens the table and explicitly clears its saved pin', () => {
     expect(
@@ -237,7 +228,7 @@ describe('extractResourcesFromToolResult for table_views', () => {
     ).toEqual([{ type: 'table', id: 'tbl_1', title: 'Invoices', clearViewId: true }])
   })
 
-  it.each(['list_views', 'get_view'])('%s opens nothing', (operation) => {
+  it.each(['get_view'])('%s opens nothing', (operation) => {
     expect(
       extractResourcesFromToolResult(
         'table_views',

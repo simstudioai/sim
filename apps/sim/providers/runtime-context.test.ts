@@ -1,16 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(async () => ({ success: true, output: {} })),
-}))
-
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+vi.mock('@/tools', () => toolsMock)
 
 import type { AgentConversationSession } from '@/lib/memory/conversation-types'
 import { AGENT_MEMORY_RETRIEVAL_TOOL_ID } from '@/lib/memory/retrieval-tool-types'
@@ -27,6 +19,9 @@ import {
 } from '@/providers/tool-input-provenance'
 import { prepareToolExecution } from '@/providers/utils'
 
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+mockExecuteTool.mockImplementation(async () => ({ success: true, output: {} }))
+
 async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeProviderToolWithInput>[1],
@@ -37,10 +32,6 @@ async function executeProviderTool(
 }
 
 describe('provider runtime context', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('dispatches the bound memory reader and reauthorizes repeated invocation reads', async () => {
     const execute = vi
       .fn()

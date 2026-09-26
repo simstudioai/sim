@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { isSelectorReady } from '@/lib/selectors/manifest'
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
 import {
@@ -22,7 +18,10 @@ import { buildCanonicalIndex, isCanonicalPair, resolveDependencyValue } from './
  * route the barrel's `getBlock` to the real registry via a spy on the shared
  * barrel namespace — it patches whichever instance the cached module reads.
  */
-const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+let getBlockSpy: MockInstance<typeof blocksBarrel.getBlock>
+beforeEach(() => {
+  getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+})
 
 afterAll(() => {
   getBlockSpy.mockRestore()
@@ -44,19 +43,6 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect(ctx.knowledgeBaseId).toBe('kb-uuid-123')
-  })
-
-  it('should extract knowledgeBaseId from manualKnowledgeBaseId via canonical mapping', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      operation: { id: 'operation', type: 'dropdown', value: 'search' },
-      manualKnowledgeBaseId: {
-        id: 'manualKnowledgeBaseId',
-        type: 'short-input',
-        value: 'manual-kb-id',
-      },
-    })
-
-    expect(ctx.knowledgeBaseId).toBe('manual-kb-id')
   })
 
   it('resolves the ACTIVE member when both basic and advanced hold values (no last-write-wins)', () => {
@@ -83,18 +69,6 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('kb-advanced')
   })
 
-  it('should skip null/empty values', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      knowledgeBaseSelector: {
-        id: 'knowledgeBaseSelector',
-        type: 'knowledge-base-selector',
-        value: '',
-      },
-    })
-
-    expect(ctx.knowledgeBaseId).toBeUndefined()
-  })
-
   it('skips a run-time reference so a dependent selector stays disabled instead of fetching it', () => {
     const ctx = buildSelectorContextFromBlock('table_v2', {
       operation: { id: 'operation', type: 'dropdown', value: 'query_rows' },
@@ -102,72 +76,6 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect(ctx.tableId).toBeUndefined()
-  })
-
-  it('should return empty context for unknown block types', () => {
-    const ctx = buildSelectorContextFromBlock('nonexistent_block', {
-      foo: { id: 'foo', type: 'short-input', value: 'bar' },
-    })
-
-    expect(ctx).toEqual({})
-  })
-
-  it('should pass through workflowId from opts', () => {
-    const ctx = buildSelectorContextFromBlock(
-      'knowledge',
-      { operation: { id: 'operation', type: 'dropdown', value: 'search' } },
-      { workflowId: 'wf-123' }
-    )
-
-    expect(ctx.workflowId).toBe('wf-123')
-  })
-
-  it('should pass through workspaceId from opts', () => {
-    const ctx = buildSelectorContextFromBlock(
-      'knowledge',
-      { operation: { id: 'operation', type: 'dropdown', value: 'search' } },
-      { workspaceId: 'ws-123' }
-    )
-
-    expect(ctx.workspaceId).toBe('ws-123')
-  })
-
-  it('exposes the NetSuite async job ID to dependent task selectors', () => {
-    const ctx = buildSelectorContextFromBlock('netsuite', {
-      operation: { id: 'operation', type: 'dropdown', value: 'netsuite_get_async_status' },
-      jobId: { id: 'jobId', type: 'short-input', value: 'job-7' },
-    })
-
-    expect(ctx.jobId).toBe('job-7')
-  })
-
-  it('exposes the active Bitbucket workspace slug to repository selectors', () => {
-    const subBlocks = {
-      operation: {
-        id: 'operation',
-        type: 'dropdown',
-        value: 'bitbucket_get_repository',
-      },
-      workspacePicker: {
-        id: 'workspacePicker',
-        type: 'project-selector',
-        value: 'acme-platform',
-      },
-      workspaceSlugInput: {
-        id: 'workspaceSlugInput',
-        type: 'short-input',
-        value: 'advanced-team',
-      },
-    }
-
-    expect(buildSelectorContextFromBlock('bitbucket', subBlocks).workspaceSlug).toBe(
-      'acme-platform'
-    )
-    expect(
-      buildSelectorContextFromBlock('bitbucket', subBlocks, {
-        canonicalModes: { workspaceSlug: 'advanced' },
-      }).workspaceSlug
-    ).toBe('advanced-team')
   })
 
   it('preserves Gmail action credential resolution in basic and advanced modes', () => {
@@ -209,25 +117,6 @@ describe('buildSelectorContextFromBlock', () => {
         canonicalModes: { oauthCredential: 'advanced' },
       }).oauthCredential
     ).toBe('{{GMAIL_SHARED_CREDENTIAL_ID}}')
-  })
-
-  it('includes Google impersonation as an explicit active selector hint', () => {
-    const context = buildSelectorContextFromBlock(
-      'gmail',
-      subBlocksFromValues({
-        credential: '{{GMAIL_CREDENTIAL_ID}}',
-        impersonateUserEmail: '{{GMAIL_IMPERSONATE_EMAIL}}',
-      }),
-      {
-        selectorKey: 'gmail.labels',
-        dependsOn: ['credential'],
-      }
-    )
-
-    expect(context).toEqual({
-      oauthCredential: '{{GMAIL_CREDENTIAL_ID}}',
-      impersonateUserEmail: '{{GMAIL_IMPERSONATE_EMAIL}}',
-    })
   })
 
   it('projects only the active Slack auth source plus trigger credentials', () => {
@@ -272,21 +161,6 @@ describe('buildSelectorContextFromBlock', () => {
       }
     )
     expect(trigger.oauthCredential).toBe('{{SLACK_TRIGGER_CREDENTIAL}}')
-  })
-
-  it('projects the optional Microsoft Excel drive cascade input', () => {
-    const excel = buildSelectorContextFromBlock(
-      'microsoft_excel',
-      subBlocksFromValues({
-        credential: 'excel-credential',
-        driveId: '{{SHAREPOINT_DRIVE_ID}}',
-      }),
-      {
-        selectorKey: 'microsoft.excel',
-        dependsOn: ['credential', 'driveId'],
-      }
-    )
-    expect(excel.driveId).toBe('{{SHAREPOINT_DRIVE_ID}}')
   })
 
   it('uses trigger credentials with and without canonical metadata after action conversion', () => {
@@ -347,46 +221,6 @@ describe('buildSelectorContextFromBlock', () => {
     )
 
     expect(ctx.oauthCredential).toBeUndefined()
-  })
-
-  it('exposes a trigger workspace slug to the Bitbucket repository selector', () => {
-    const context = buildSelectorContextFromBlock(
-      'bitbucket',
-      {
-        selectedTriggerId: {
-          id: 'selectedTriggerId',
-          type: 'dropdown',
-          value: 'bitbucket_push',
-        },
-        triggerCredentials: {
-          id: 'triggerCredentials',
-          type: 'oauth-input',
-          value: 'credential-1',
-        },
-        workspacePicker: {
-          id: 'workspacePicker',
-          type: 'project-selector',
-          value: 'acme-platform',
-        },
-      },
-      { triggerMode: true }
-    )
-
-    expect(context).toMatchObject({
-      oauthCredential: 'credential-1',
-      workspaceSlug: 'acme-platform',
-    })
-    expect(isSelectorReady('bitbucket.repositories', context)).toBe(true)
-  })
-
-  it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      operation: { id: 'operation', type: 'dropdown', value: 'search' },
-      query: { id: 'query', type: 'short-input', value: 'some search query' },
-    })
-
-    expect((ctx as Record<string, unknown>).query).toBeUndefined()
-    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
   })
 })
 

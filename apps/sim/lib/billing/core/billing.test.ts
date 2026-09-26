@@ -1,44 +1,25 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, dbChainMockFns, queueTableRows, schemaMock } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMock, dbChainMockFns, queueTableRows } from '@sim/testing/mocks/database.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockComputeWeeklyRefreshConsumed,
-  mockEnsureUserStatsExists,
-  mockGetBillingPeriodUsageCost,
-  mockGetBillingPeriodUsageCostWithSourceSubset,
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetHighestPrioritySubscription,
-  mockResolveBillingInterval,
-} = vi.hoisted(() => ({
+const { mockComputeWeeklyRefreshConsumed } = vi.hoisted(() => ({
   mockComputeWeeklyRefreshConsumed: vi.fn(),
-  mockEnsureUserStatsExists: vi.fn(),
-  mockGetBillingPeriodUsageCost: vi.fn(),
-  mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
-  mockGetHighestPriorityPersonalSubscription: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockResolveBillingInterval: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-  resolveBillingInterval: mockResolveBillingInterval,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  ensureUserStatsExists: mockEnsureUserStatsExists,
-  getOrgUsageLimit: vi.fn(),
-  getUserUsageData: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  COPILOT_USAGE_SOURCES: ['copilot'],
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
-  getBillingPeriodUsageCostWithSourceSubset: mockGetBillingPeriodUsageCostWithSourceSubset,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
   computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
@@ -46,9 +27,17 @@ vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
 
 import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/billing/core/billing'
 
+const { mockEnsureUserStatsExists } = billingUsageMockFns
+const { mockGetBillingPeriodUsageCost, mockGetBillingPeriodUsageCostWithSourceSubset } =
+  billingUsageLogMockFns
+const {
+  mockGetHighestPriorityPersonalSubscription,
+  mockGetHighestPrioritySubscription,
+  mockResolveBillingInterval,
+} = billingSubscriptionMockFns
+
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
@@ -122,7 +111,6 @@ describe('getPersonalBillingSummary', () => {
 
 describe('calculateSubscriptionOverage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
   })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,19 +10,9 @@ vi.mock('@/lib/auth/auth', () => ({
   auth: { api: { getOAuthServerConfig: mocks.getOAuthServerConfig } },
 }))
 
-import { GET as getIssuerDerivedMetadata } from '@/app/.well-known/oauth-authorization-server/api/auth/route'
 import { GET as getRootMetadata } from '@/app/.well-known/oauth-authorization-server/route'
-import { GET as getIssuerPrefixedMetadata } from '@/app/api/auth/.well-known/oauth-authorization-server/route'
 
-const routes = [
-  ['root', getRootMetadata, '/.well-known/oauth-authorization-server'],
-  ['issuer-derived', getIssuerDerivedMetadata, '/.well-known/oauth-authorization-server/api/auth'],
-  [
-    'issuer-prefixed',
-    getIssuerPrefixedMetadata,
-    '/api/auth/.well-known/oauth-authorization-server',
-  ],
-] as const
+const routes = [['root', getRootMetadata, '/.well-known/oauth-authorization-server']] as const
 
 async function callRoute(
   route: (
@@ -41,7 +28,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('OAuth provider metadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAuthDisabled: false })
     mocks.getOAuthServerConfig.mockResolvedValue({
       issuer: 'https://sim.test/api/auth',

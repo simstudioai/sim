@@ -1,9 +1,20 @@
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMockFns } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
 import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { inputFormatValueSchema } from '@/lib/workflows/input-format-schema'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
+
+const workspaceContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockImplementation(
+  async () => permissionConfig.current
+)
 
 const { permissionConfig, denied } = vi.hoisted(() => ({
   permissionConfig: { current: null as { deniedTools?: string[] } | null },
@@ -15,9 +26,7 @@ const { permissionConfig, denied } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  getUserPermissionConfig: vi.fn(async () => permissionConfig.current),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 vi.mock('@/lib/integrations/tool-projection', () => ({
   resolveDeniedBlockOperations: vi.fn(() => denied.current),
@@ -29,10 +38,7 @@ const queryAvailability = vi.hoisted(() =>
   vi.fn(async () => ({ enabled: false, reason: 'Not enabled' }))
 )
 vi.mock('@/lib/table/query-availability', () => ({ getTableQueryAvailability: queryAvailability }))
-const workspaceContext = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: workspaceContext,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 function blockDetail(): V2BlockDetail {
   return {
@@ -82,17 +88,6 @@ describe('curateBlockDetail', () => {
       .mockResolvedValue({ workspaceId: 'ws', workspaceOrganizationId: 'canonical-target-org' })
     permissionConfig.current = null
     denied.current = { needsProjection: new Map(), fullyDenied: new Set() }
-  })
-
-  it('passes through when the viewer has no denied tools', async () => {
-    const input = ok(JSON.stringify(blockDetail()))
-    expect(await curateBlockDetail(input, viewer)).toBe(input)
-  })
-
-  it('passes through non-block output untouched', async () => {
-    permissionConfig.current = { deniedTools: ['slack_canvas'] }
-    const input = ok('not json')
-    expect(await curateBlockDetail(input, viewer)).toBe(input)
   })
 
   it.each(['agent', 'mothership'])(

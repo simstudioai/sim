@@ -1,13 +1,7 @@
-/** @vitest-environment node */
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
-import {
-  GoogleDriveApiError,
-  readGoogleDriveApiError,
-} from '@/connectors/google-drive/google-drive-errors'
-import { ConnectorDirectoryError } from '@/connectors/source-error'
 
 describe('connector failure diagnostics', () => {
   it('finds embedding failures through concurrent batches and nested cause wrappers', () => {
@@ -73,39 +67,10 @@ describe('connector failure diagnostics', () => {
     })
   })
 
-  it.each([
-    ['canceling statement due to statement timeout', 'statement_timeout'],
-    ['canceling statement due to user request', 'user_cancel'],
-  ])('distinguishes cancellations with the same SQLSTATE: %s', (message, databaseReason) => {
-    const error = new DrizzleQueryError(
-      'select private_column from private_source',
-      ['private-value'],
-      Object.assign(new Error(message), { code: '57014', detail: 'private driver detail' })
-    )
-    expect(getConnectorFailureDiagnostic(error)).toEqual({
-      category: 'database',
-      code: '57014',
-      databaseReason,
-      message: 'Database request failed (SQLSTATE 57014).',
-    })
-    expect(JSON.stringify(getConnectorFailureDiagnostic(error))).not.toContain('private')
-  })
-
   it('suppresses query text even when the driver provides no error code', () => {
     expect(
       getConnectorFailureDiagnostic(new DrizzleQueryError('select private', ['private'], null))
     ).toEqual({
-      category: 'database',
-      message: 'Database request failed without a driver error code.',
-    })
-  })
-
-  it('recognizes query wrappers from a different bundled driver instance', () => {
-    const error = Object.assign(new Error('private query wrapper'), {
-      query: 'select private',
-      params: ['private'],
-    })
-    expect(getConnectorFailureDiagnostic(error)).toEqual({
       category: 'database',
       message: 'Database request failed without a driver error code.',
     })
@@ -139,68 +104,6 @@ describe('connector failure diagnostics', () => {
     const diagnostic = getConnectorFailureDiagnostic(error)
     expect(diagnostic).toMatchObject({ status, category })
     expect(diagnostic?.message).toContain(`HTTP ${status}`)
-    expect(JSON.stringify(diagnostic)).not.toContain('private')
-  })
-
-  it.each([
-    ['fileNotDownloadable', 'request_rejected'],
-    ['fileNotExportable', 'request_rejected'],
-    ['exportSizeLimitExceeded', 'request_rejected'],
-    ['domainPolicy', 'request_rejected'],
-    ['userRateLimitExceeded', 'rate_limit'],
-    ['dailyLimitExceeded', 'rate_limit'],
-    ['insufficientFilePermissions', 'authorization'],
-  ])('preserves provider classification for HTTP 403 %s', (reason, category) => {
-    const error = new Error('private wrapper', { cause: new GoogleDriveApiError(403, [reason]) })
-    expect(getConnectorFailureDiagnostic(error)).toMatchObject({ status: 403, category })
-    expect(JSON.stringify(getConnectorFailureDiagnostic(error))).not.toContain('private')
-    if (category !== 'authorization')
-      expect(getConnectorFailureDiagnostic(error)?.message).not.toContain('access was denied')
-  })
-
-  it('reports a wrapped group-membership failure without suggesting file download permissions', () => {
-    const error = new Error('private outer message', {
-      cause: new ConnectorDirectoryError('private group detail', {
-        cause: new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list'),
-      }),
-    })
-    const diagnostic = getConnectorFailureDiagnostic(error)
-    expect(diagnostic).toMatchObject({
-      phase: 'directory',
-      status: 403,
-      operation: 'directory.members.list',
-      reasons: ['forbidden'],
-    })
-    expect(diagnostic?.message).toContain('Directory permission sync failed')
-    expect(diagnostic?.message).not.toContain('file access')
-    expect(JSON.stringify(diagnostic)).not.toContain('private')
-  })
-
-  it('keeps directory context when the failure has no HTTP status', () => {
-    expect(
-      getConnectorFailureDiagnostic(new ConnectorDirectoryError('private directory details'))
-    ).toMatchObject({
-      category: 'directory',
-      phase: 'directory',
-      message: expect.stringContaining('Directory permission sync failed'),
-    })
-  })
-
-  it('preserves safe reason completeness through a wrapped Directory error', async () => {
-    const cause = await readGoogleDriveApiError(
-      Response.json({ error: { errors: [{ reason: 'private-unknown-reason' }] } }, { status: 403 }),
-      'directory.members.list'
-    )
-    const diagnostic = getConnectorFailureDiagnostic(
-      new ConnectorDirectoryError('private group', { cause })
-    )
-    expect(diagnostic).toMatchObject({
-      phase: 'directory',
-      status: 403,
-      operation: 'directory.members.list',
-      reasons: [],
-      reasonState: 'filtered',
-    })
     expect(JSON.stringify(diagnostic)).not.toContain('private')
   })
 

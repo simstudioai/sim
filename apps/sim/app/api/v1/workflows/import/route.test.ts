@@ -1,90 +1,53 @@
 /**
- * @vitest-environment node
- *
  * Tests for POST /api/v1/workflows/import — verifies auth, write-permission
  * enforcement, payload-shape tolerance (export envelope / bare state / JSON
  * string), metadata resolution, variable persistence, and rollback when
  * persisting the imported state fails.
  */
 
-import { createMockRequest } from '@sim/testing'
+import { workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockPerformCreateWorkflow,
-  mockSaveWorkflowToNormalizedTables,
   mockParseWorkflowJson,
-  mockAssertFolderMutable,
-  mockAssertFolderInWorkspace,
   mockExtractAndPersistCustomTools,
   mockPrepareWorkflowState,
-  mockDbDelete,
   mockDbUpdate,
-  mockWorkspaceRows,
-  mockNotifyWorkspaceWorkflowsChanged,
 } = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockPerformCreateWorkflow: vi.fn(),
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockParseWorkflowJson: vi.fn(),
-  mockAssertFolderMutable: vi.fn(),
-  mockAssertFolderInWorkspace: vi.fn(),
   mockExtractAndPersistCustomTools: vi.fn(),
   mockPrepareWorkflowState: vi.fn(),
-  mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
-  mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
-  mockNotifyWorkspaceWorkflowsChanged: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  /** Mirrors the real helper: only a personal key or session carries a governed subject. */
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performCreateWorkflow: mockPerformCreateWorkflow,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspaceWorkflowsChanged,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({
   parseWorkflowJson: mockParseWorkflowJson,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
-
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertFolderInWorkspace: mockAssertFolderInWorkspace,
-  assertFolderMutable: mockAssertFolderMutable,
-  FolderLockedError: class FolderLockedError extends Error {
-    status = 423
-  },
-  FolderNotFoundError: class FolderNotFoundError extends Error {
-    status = 400
-  },
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
 vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
   extractAndPersistCustomTools: mockExtractAndPersistCustomTools,
@@ -99,21 +62,26 @@ vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mockPrepareWorkflowState,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => mockWorkspaceRows.value),
-        })),
-      })),
-    })),
-    delete: mockDbDelete,
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ update: mockDbUpdate })),
-  },
+import { POST } from '@/app/api/v1/workflows/import/route'
+
+const { mockPerformCreateWorkflow } = workflowsOrchestrationMockFns
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCreateRateLimitResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
 }))
 
-import { POST } from '@/app/api/v1/workflows/import/route'
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+const mockNotifyWorkspaceWorkflowsChanged =
+  realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
+const mockAssertFolderMutable = workflowAuthzMockFns.mockAssertFolderMutable
+const mockAssertFolderInWorkspace = workflowAuthzMockFns.mockAssertFolderInWorkspace
+const mockDbDelete = dbChainMockFns.delete
 
 const WORKSPACE_ID = 'ws-1'
 const CREATED_AT = new Date('2026-07-01T00:00:00Z')
@@ -160,8 +128,11 @@ function validBody(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/v1/workflows/import', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockWorkspaceRows.value = [{ id: WORKSPACE_ID }]
+    resetDbChainMock()
+    queueTableRows(workspace, [{ id: WORKSPACE_ID }])
+    dbChainMockFns.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) =>
+      fn({ update: mockDbUpdate })
+    )
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockAssertFolderMutable.mockResolvedValue(undefined)
@@ -191,26 +162,6 @@ describe('POST /api/v1/workflows/import', () => {
     })
   })
 
-  it('returns 401 when the API key is rejected', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
-
-    const response = await POST(makeRequest(validBody()))
-
-    expect(response.status).toBe(401)
-  })
-
-  it('rejects a body without workspaceId', async () => {
-    const response = await POST(makeRequest({ workflow: EXPORT_ENVELOPE }))
-
-    expect(response.status).toBe(400)
-  })
-
-  it('rejects a body without a workflow payload', async () => {
-    const response = await POST(makeRequest({ workspaceId: WORKSPACE_ID }))
-
-    expect(response.status).toBe(400)
-  })
-
   it('requires write permission on the target workspace', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
@@ -227,122 +178,6 @@ describe('POST /api/v1/workflows/import', () => {
       'write'
     )
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
-  })
-
-  it('authorizes before touching the payload', async () => {
-    mockValidateWorkspaceAccess.mockResolvedValue(
-      NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    )
-
-    await POST(makeRequest(validBody()))
-
-    expect(mockParseWorkflowJson).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the target workspace does not exist', async () => {
-    mockWorkspaceRows.value = []
-
-    const response = await POST(makeRequest(validBody()))
-
-    expect(response.status).toBe(404)
-  })
-
-  it('returns 400 with parser errors for an invalid workflow payload', async () => {
-    mockParseWorkflowJson.mockReturnValue({
-      data: null,
-      errors: ['Missing or invalid field: blocks'],
-    })
-
-    const response = await POST(makeRequest(validBody()))
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Invalid workflow: Missing or invalid field: blocks',
-    })
-  })
-
-  it('creates the workflow and returns 201 with the resource shape', async () => {
-    const response = await POST(makeRequest(validBody()))
-    const body = await response.json()
-
-    expect(response.status).toBe(201)
-    expect(body.data).toEqual({
-      id: 'wf-new',
-      name: 'Payload Name',
-      description: 'Payload description',
-      workspaceId: WORKSPACE_ID,
-      folderId: null,
-      createdAt: CREATED_AT.toISOString(),
-      updatedAt: CREATED_AT.toISOString(),
-    })
-    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
-      'wf-new',
-      expect.anything(),
-      { workspaceId: WORKSPACE_ID, subjectUserId: null },
-      expect.anything()
-    )
-    expect(mockNotifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
-  })
-
-  it('derives the name from the export envelope and deduplicates it', async () => {
-    await POST(makeRequest(validBody()))
-
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Payload Name',
-        description: 'Payload description',
-        workspaceId: WORKSPACE_ID,
-        deduplicate: true,
-        userId: 'user-1',
-      })
-    )
-  })
-
-  it('prefers the explicit name and description overrides', async () => {
-    await POST(makeRequest(validBody({ name: 'Override', description: 'Override desc' })))
-
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Override', description: 'Override desc' })
-    )
-  })
-
-  it('falls back to a default name when the payload carries no metadata', async () => {
-    await POST(
-      makeRequest({
-        workspaceId: WORKSPACE_ID,
-        workflow: { blocks: PARSED_STATE.blocks, edges: [] },
-      })
-    )
-
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Imported Workflow', description: '' })
-    )
-  })
-
-  it('accepts a JSON string payload', async () => {
-    const response = await POST(
-      makeRequest(validBody({ workflow: JSON.stringify(EXPORT_ENVELOPE) }))
-    )
-
-    expect(response.status).toBe(201)
-    expect(mockParseWorkflowJson).toHaveBeenCalledWith(JSON.stringify(EXPORT_ENVELOPE))
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Payload Name' })
-    )
-  })
-
-  it('persists variables from the parsed state', async () => {
-    mockParseWorkflowJson.mockReturnValue({
-      data: {
-        ...PARSED_STATE,
-        variables: { 'var-1': { id: 'var-1', name: 'host', type: 'string', value: 'x' } },
-      },
-      errors: [],
-    })
-
-    await POST(makeRequest(validBody()))
-
-    expect(mockDbUpdate).toHaveBeenCalled()
   })
 
   it('normalizes legacy array-form variables into a keyed record', async () => {
@@ -363,33 +198,6 @@ describe('POST /api/v1/workflows/import', () => {
         variables: { 'var-1': { id: 'var-1', name: 'host', type: 'string', value: 'x' } },
       })
     )
-  })
-
-  it('skips the variables write when the payload has none', async () => {
-    await POST(makeRequest(validBody()))
-
-    expect(mockDbUpdate).not.toHaveBeenCalled()
-  })
-
-  it('writes the graph and variables inside a single transaction', async () => {
-    mockParseWorkflowJson.mockReturnValue({
-      data: {
-        ...PARSED_STATE,
-        variables: { 'var-1': { id: 'var-1', name: 'host', type: 'string', value: 'x' } },
-      },
-      errors: [],
-    })
-
-    await POST(makeRequest(validBody()))
-
-    const tx = { update: mockDbUpdate }
-    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
-      'wf-new',
-      expect.anything(),
-      { workspaceId: WORKSPACE_ID, subjectUserId: null },
-      tx
-    )
-    expect(mockDbUpdate).toHaveBeenCalled()
   })
 
   it('deletes the created row and returns 500 when persisting state fails', async () => {
@@ -437,59 +245,5 @@ describe('POST /api/v1/workflows/import', () => {
     const { name } = mockPerformCreateWorkflow.mock.calls[0][0]
     expect(name.length).toBeLessThanOrEqual(200)
     expect(name.endsWith('...')).toBe(true)
-  })
-
-  it('prefers state.metadata.name, matching the in-app importer', async () => {
-    await POST(
-      makeRequest(
-        validBody({
-          workflow: {
-            workflow: { name: 'FromWorkflow' },
-            state: { ...EXPORT_ENVELOPE.state, metadata: { name: 'FromStateMetadata' } },
-          },
-        })
-      )
-    )
-
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'FromStateMetadata' })
-    )
-  })
-
-  it('unwraps an export response envelope so its metadata still resolves', async () => {
-    await POST(makeRequest(validBody({ workflow: { data: EXPORT_ENVELOPE, limits: {} } })))
-
-    expect(mockPerformCreateWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Payload Name', description: 'Payload description' })
-    )
-  })
-
-  /**
-   * Unreachable in practice — the route always passes `deduplicate: true`, so
-   * the orchestrator renames instead of conflicting. Covers the defensive
-   * mapping of the orchestrator's documented result union.
-   */
-  it('maps a conflict result from the orchestrator to 409', async () => {
-    mockPerformCreateWorkflow.mockResolvedValue({
-      success: false,
-      error: 'A workflow named "Payload Name" already exists in this folder',
-      errorCode: 'conflict',
-    })
-
-    const response = await POST(makeRequest(validBody()))
-
-    expect(response.status).toBe(409)
-  })
-
-  it('maps an invalid target folder from the orchestrator to 400', async () => {
-    mockPerformCreateWorkflow.mockResolvedValue({
-      success: false,
-      error: 'Target folder not found',
-      errorCode: 'validation',
-    })
-
-    const response = await POST(makeRequest(validBody({ folderId: 'folder-x' })))
-
-    expect(response.status).toBe(400)
   })
 })

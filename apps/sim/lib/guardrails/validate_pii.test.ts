@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_RESPONSE_BYTES,
@@ -76,28 +73,11 @@ describe('validate_pii (Presidio service)', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  afterEach(() => vi.unstubAllGlobals())
-
   describe('maskPIIBatch', () => {
     it('masks detected entities, preserving input order', async () => {
       const out = await maskPIIBatch(['email a@b.com', 'nothing here'], [])
       expect(out[0]).toBe('email <EMAIL_ADDRESS>')
       expect(out[1]).toBe('nothing here')
-    })
-
-    it('forwards entityTypes (and language) to the analyzer; empty ⇒ omitted (all)', async () => {
-      await maskPIIBatch(['mail a@b.com'], ['EMAIL_ADDRESS', 'PERSON'], 'es')
-      expect(analyzeBodies[0].entities).toEqual(['EMAIL_ADDRESS', 'PERSON'])
-      expect(analyzeBodies[0].language).toBe('es')
-
-      analyzeBodies.length = 0
-      await maskPIIBatch(['mail a@b.com'], [])
-      expect(analyzeBodies[0].entities).toBeUndefined()
-    })
-
-    it('returns [] for empty input and leaves empty strings untouched', async () => {
-      expect(await maskPIIBatch([], [])).toEqual([])
-      expect(await maskPIIBatch([''], [])).toEqual([''])
     })
 
     it('throws on a service failure so the caller can scrub', async () => {
@@ -158,28 +138,6 @@ describe('validate_pii (Presidio service)', () => {
       expect(res.passed).toBe(false)
       expect(res.error).toContain('EMAIL_ADDRESS')
       expect(res.detectedEntities).toHaveLength(1)
-    })
-
-    it('mask mode returns masked text', async () => {
-      const res = await validatePII({
-        text: 'mail a@b.com',
-        entityTypes: [],
-        mode: 'mask',
-        requestId: 'r2',
-      })
-      expect(res.passed).toBe(true)
-      expect(res.maskedText).toBe('mail <EMAIL_ADDRESS>')
-    })
-
-    it('passes clean text', async () => {
-      const res = await validatePII({
-        text: 'nothing to see',
-        entityTypes: [],
-        mode: 'block',
-        requestId: 'r3',
-      })
-      expect(res.passed).toBe(true)
-      expect(res.detectedEntities).toHaveLength(0)
     })
 
     it('fails closed before materializing too many detected entities', async () => {

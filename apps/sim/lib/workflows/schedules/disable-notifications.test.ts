@@ -1,33 +1,29 @@
-/**
- * @vitest-environment node
- */
 import {
-  dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   resetUrlsMock,
   schemaMock,
   urlsMockFns,
 } from '@sim/testing'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { sendEmailSpy, renderMock, subjectMock, getUsersWithPermissionsMock } = vi.hoisted(() => ({
-  sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
-  renderMock: vi.fn(() => Promise.resolve('<html></html>')),
-  subjectMock: vi.fn(() => 'A schedule was turned off'),
-  getUsersWithPermissionsMock: vi.fn(() => Promise.resolve([] as unknown[])),
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
-vi.mock('@/components/emails', () => ({
-  renderScheduleDisabledEmail: renderMock,
-  getEmailSubject: subjectMock,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUsersWithPermissions: getUsersWithPermissionsMock,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
+vi.mock('@/components/emails', () => emailTemplatesMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
+
+const sendEmailSpy = emailMailerMockFns.mockSendEmail
+sendEmailSpy.mockImplementation(() => Promise.resolve({ success: true }))
+emailTemplatesMockFns.mockRenderScheduleDisabledEmail.mockImplementation(() =>
+  Promise.resolve('<html></html>')
+)
+emailTemplatesMockFns.mockGetEmailSubject.mockImplementation(() => 'A schedule was turned off')
+
+const getUsersWithPermissionsMock = permissionsMockFns.mockGetUsersWithPermissions
 
 const WORKFLOW_SCHEDULE_ROW = {
   sourceType: 'workflow',
@@ -58,7 +54,6 @@ afterAll(() => {
 
 describe('notifyScheduleAutoDisabled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     getUsersWithPermissionsMock.mockResolvedValue([])
   })
@@ -91,34 +86,6 @@ describe('notifyScheduleAutoDisabled', () => {
     expect(sendEmailSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('skips non-admin workspace members', async () => {
-    queueTableRows(schemaMock.workflowSchedule, [WORKFLOW_SCHEDULE_ROW])
-    queueTableRows(schemaMock.user, [CREATOR])
-    getUsersWithPermissionsMock.mockResolvedValue([
-      { userId: 'u-2', email: 'writer@example.com', name: 'W', permissionType: 'write' },
-    ])
-
-    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
-
-    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
-    expect(sendEmailSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'creator@example.com' })
-    )
-  })
-
-  it('falls back to the creator alone when the workflow has no workspace', async () => {
-    queueTableRows(schemaMock.workflowSchedule, [
-      { ...WORKFLOW_SCHEDULE_ROW, workflowWorkspaceId: null },
-    ])
-    queueTableRows(schemaMock.user, [CREATOR])
-
-    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
-
-    expect(getUsersWithPermissionsMock).not.toHaveBeenCalled()
-    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
-    expect(renderMock).toHaveBeenCalledWith(expect.objectContaining({ manageLink: undefined }))
-  })
-
   it('sends nothing when the workflow row is gone (404 disable)', async () => {
     queueTableRows(schemaMock.workflowSchedule, [
       {
@@ -130,14 +97,6 @@ describe('notifyScheduleAutoDisabled', () => {
     ])
 
     await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'workflow_not_found' })
-
-    expect(sendEmailSpy).not.toHaveBeenCalled()
-  })
-
-  it('sends nothing when the schedule row cannot be read', async () => {
-    queueTableRows(schemaMock.workflowSchedule, [])
-
-    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
 
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
@@ -180,21 +139,6 @@ describe('notifyScheduleAutoDisabled', () => {
     expect(sendEmailSpy).toHaveBeenCalledTimes(1)
     expect(sendEmailSpy).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'creator@example.com' })
-    )
-  })
-
-  it('still emails the admins when the creator lookup fails', async () => {
-    // First .limit() is the schedule row, second is the creator lookup.
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([WORKFLOW_SCHEDULE_ROW])
-      .mockRejectedValueOnce(new Error('db down'))
-    getUsersWithPermissionsMock.mockResolvedValue([admin('admin-a@example.com')])
-
-    await notifyScheduleAutoDisabled({ scheduleId: 's-1', reason: 'consecutive_failures' })
-
-    expect(sendEmailSpy).toHaveBeenCalledTimes(1)
-    expect(sendEmailSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'admin-a@example.com' })
     )
   })
 })

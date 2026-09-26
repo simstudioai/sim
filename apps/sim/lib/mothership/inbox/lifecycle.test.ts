@@ -1,7 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,9 +18,10 @@ vi.mock('@/lib/mothership/inbox/cleanup-outbox', () => ({
   enqueueInboxCleanup: mocks.enqueue,
   processInboxCleanupNow: mocks.process,
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://example.com' }))
 
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://example.com')
 
 const oldState = {
   enabled: true,
@@ -35,7 +34,6 @@ const createdAt = '2025-01-01T00:00:00Z'
 const newInbox = { inbox_id: 'new@example.com', created_at: createdAt }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.createInbox.mockResolvedValue(newInbox)
   mocks.createWebhook.mockResolvedValue({ webhook_id: 'new-hook', secret: 'test-secret' })

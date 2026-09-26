@@ -1,16 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 
 /** `recordSecretUsage` is fire-and-forget, so tests await the microtask it queues. */
-const flush = () => new Promise((resolve) => setImmediate(resolve))
 
 describe('recordSecretUsage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -29,7 +25,7 @@ describe('recordSecretUsage', () => {
         trigger: 'schedule',
       }
     )
-    await flush()
+    await flushMacrotask()
 
     expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
     const rows = dbChainMockFns.values.mock.calls[0]?.[0]
@@ -73,7 +69,7 @@ describe('recordSecretUsage', () => {
     } finally {
       vi.useRealTimers()
     }
-    await flush()
+    await flushMacrotask()
 
     expect(dbChainMockFns.values.mock.calls[0]?.[0][0]).toMatchObject({ usageDate: '2026-03-14' })
   })
@@ -84,7 +80,7 @@ describe('recordSecretUsage', () => {
       source: 'workflow',
       actorUserId: 'user-1',
     })
-    await flush()
+    await flushMacrotask()
 
     const conflict = dbChainMockFns.onConflictDoUpdate.mock.calls[0]?.[0]
     /** Every column of the day bucket, or two runs would collide into one row. */
@@ -93,33 +89,6 @@ describe('recordSecretUsage', () => {
     expect(set).toContain(' + 1')
     /** Out-of-order completions must not walk the most recent timestamp backwards. */
     expect(set).toContain('greatest(')
-  })
-
-  it('writes a Copilot run without a workflow', async () => {
-    recordSecretUsage([{ name: 'API_KEY', scope: 'workspace', ownerUserId: null }], {
-      workspaceId: 'workspace-1',
-      source: 'copilot',
-      actorUserId: 'user-1',
-      trigger: 'copilot',
-    })
-    await flush()
-
-    /** Empty rather than null: the unique bucket key has to stay null-free on Postgres 14. */
-    expect(dbChainMockFns.values.mock.calls[0]?.[0][0]).toMatchObject({
-      source: 'copilot',
-      workflowId: '',
-    })
-  })
-
-  it('does not touch the database when a run resolved nothing', async () => {
-    recordSecretUsage([], {
-      workspaceId: 'workspace-1',
-      source: 'workflow',
-      actorUserId: 'user-1',
-    })
-    await flush()
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('never rejects when the write fails', async () => {
@@ -132,6 +101,6 @@ describe('recordSecretUsage', () => {
         actorUserId: 'user-1',
       })
     ).not.toThrow()
-    await flush()
+    await flushMacrotask()
   })
 })

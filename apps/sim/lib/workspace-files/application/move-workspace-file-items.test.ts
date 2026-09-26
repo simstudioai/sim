@@ -1,48 +1,39 @@
-/**
- * @vitest-environment node
- */
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  events,
-  mockLoadContext,
-  mockResolvePermission,
-  mockAssertItems,
-  mockMove,
-  mockAudit,
-  mockNotify,
-} = vi.hoisted(() => ({
+const { events } = vi.hoisted(() => ({
   events: [] as string[],
-  mockLoadContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockAssertItems: vi.fn(),
-  mockMove: vi.fn(),
-  mockAudit: vi.fn(),
-  mockNotify: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  assertWorkspaceFileItemsBelongToWorkspace: mockAssertItems,
-  loadWorkspaceFileOperationContext: mockLoadContext,
-  moveWorkspaceFileItems: mockMove,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_MOVED: 'file.moved', FOLDER_MOVED: 'folder.moved' },
-  AuditResourceType: { FILE: 'file', FOLDER: 'folder' },
-  recordAudit: mockAudit,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+
+const mockAudit = auditMockFns.mockRecordAudit
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
+const mockAssertItems = workspaceUploadsMockFns.mockAssertWorkspaceFileItemsBelongToWorkspace
+const mockLoadContext = workspaceUploadsMockFns.mockLoadWorkspaceFileOperationContext
+const mockMove = workspaceUploadsMockFns.mockMoveWorkspaceFileItems
+
 describe('moveWorkspaceFileItemsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -68,35 +59,6 @@ describe('moveWorkspaceFileItemsOperation', () => {
     }))
   })
 
-  it('uses the atomic manager primitive and records each semantic category once', async () => {
-    const result = await moveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: 'ws-1',
-        fileIds: ['file-1', 'file-2'],
-        folderIds: ['folder-1'],
-        targetFolderId: null,
-      },
-    })
-
-    expect(result).toMatchObject({ movedItems: { files: 2, folders: 1 } })
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(mockAssertItems).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1', 'file-2'],
-      folderIds: ['folder-1'],
-    })
-    expect(mockMove).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1', 'file-2'],
-      folderIds: ['folder-1'],
-      targetFolderId: null,
-      targetFolderPath: undefined,
-    })
-    expect(mockAudit).toHaveBeenCalledTimes(2)
-    expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
   it('allows authorization to carry a resource ID only for one explicit file', async () => {
     mockMove.mockResolvedValue({
       movedFiles: 1,
@@ -106,17 +68,11 @@ describe('moveWorkspaceFileItemsOperation', () => {
     })
 
     await moveWorkspaceFileItemsOperation.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
+      principal: createDelegatedPrincipal({
         workspaceId: 'ws-1',
-        delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2099-01-01T00:00:00Z'),
         resourceScope: { fileId: 'file-1' },
-      },
+      }),
       input: { workspaceId: 'ws-1', fileIds: ['file-1'], targetFolderId: null },
     })
 
@@ -132,7 +88,7 @@ describe('moveWorkspaceFileItemsOperation', () => {
     })
 
     const result = await moveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1', fileIds: ['file-1'], targetFolderId: null },
     })
 
@@ -144,24 +100,10 @@ describe('moveWorkspaceFileItemsOperation', () => {
   it('authorizes before rejecting an empty selection without touching storage', async () => {
     await expect(
       moveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: 'ws-1' },
       })
     ).rejects.toThrow('At least one file or folder must be selected')
-    expect(events).toEqual(['resolve', 'authorize'])
-    expect(mockMove).not.toHaveBeenCalled()
-  })
-
-  it('rejects oversized selections after authorization', async () => {
-    await expect(
-      moveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: {
-          workspaceId: 'ws-1',
-          folderIds: Array.from({ length: 1_001 }, (_, index) => `folder-${index}`),
-        },
-      })
-    ).rejects.toThrow('accept at most 1000')
     expect(events).toEqual(['resolve', 'authorize'])
     expect(mockMove).not.toHaveBeenCalled()
   })

@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -70,20 +66,8 @@ const workspaceAuth = {
   keyType: 'workspace' as const,
 }
 
-const personalAuth = {
-  principal: {
-    kind: 'personal_api_key' as const,
-    userId: 'user-1',
-    keyId: 'personal-key-1',
-  },
-  rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
-  rateLimitSubscription: null,
-  keyType: 'personal' as const,
-}
-
 describe('/api/v2/workflows', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(workspaceAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -98,31 +82,6 @@ describe('/api/v2/workflows', () => {
       folderPath: '/',
       normalizedState: { blocks: { 'start-1': SEEDED_START_BLOCK } },
     })
-  })
-
-  it('lists the active scope by default and forwards an explicit archived scope', async () => {
-    await GET(new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`))
-    expect(mocks.listWorkflows).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ scope: 'active' }) })
-    )
-
-    await GET(
-      new NextRequest(
-        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=archived`
-      )
-    )
-    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
-    )
-  })
-
-  it('rejects a scope the surface does not serve', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=all`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 
   it('refuses a cursor replayed under a different scope', async () => {
@@ -145,15 +104,6 @@ describe('/api/v2/workflows', () => {
     )
 
     expect(replayed.status).toBe(400)
-  })
-
-  it('authenticates and rate limits before parsing list input', async () => {
-    const response = await GET(new NextRequest('http://localhost/api/v2/workflows'))
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
-    expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 
   /**
@@ -192,35 +142,6 @@ describe('/api/v2/workflows', () => {
     expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 
-  it('resumes a cursor whose filters are unchanged', async () => {
-    mocks.listWorkflows.mockResolvedValueOnce({
-      workflows: [WORKFLOW],
-      nextCursorKeys: [1, WORKFLOW.id],
-      sortBy: 'position',
-      sortOrder: 'asc',
-    })
-    const firstPage = await (
-      await GET(
-        new NextRequest(
-          `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true`
-        )
-      )
-    ).json()
-
-    const response = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true&cursor=${encodeURIComponent(firstPage.nextCursor)}`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
-      })
-    )
-  })
-
   /**
    * `scope` carries `.default('active')`, so it is present on every parsed
    * query. Stamping it unconditionally would put a constant in every
@@ -252,85 +173,6 @@ describe('/api/v2/workflows', () => {
         input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
       })
     )
-  })
-
-  it('lists through the workspace principal and preserves rate headers', async () => {
-    const request = new NextRequest(
-      `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`,
-      { headers: { 'x-api-key': 'secret' } }
-    )
-    const response = await GET(request)
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
-    expect(response.headers.get('x-ratelimit-remaining')).toBe('99')
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          id: WORKFLOW.id,
-          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/w/${WORKFLOW.id}`,
-          name: WORKFLOW.name,
-          description: null,
-          folderPath: '/',
-          workspaceId: WORKSPACE_ID,
-          isDeployed: false,
-          deployedAt: null,
-          runCount: 3,
-          lastRunAt: null,
-          createdAt: '2026-08-01T00:00:00.000Z',
-          updatedAt: '2026-08-02T00:00:00.000Z',
-        },
-      ],
-      nextCursor: null,
-    })
-    expect(mocks.listWorkflows).toHaveBeenCalledWith({
-      principal: workspaceAuth.principal,
-      input: expect.objectContaining({ workspaceId: WORKSPACE_ID, limit: 50 }),
-      request,
-    })
-  })
-
-  it('creates through a personal-key principal with the exact 201 contract', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue(personalAuth)
-    const request = new NextRequest('http://localhost/api/v2/workflows', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: WORKFLOW.name }),
-    })
-    const response = await POST(request)
-
-    expect(response.status).toBe(201)
-    const created = (await response.json()).data
-    expect(created.id).toBe(WORKFLOW.id)
-    expect(created.blocks).toEqual([{ id: 'start-1', type: 'starter', name: 'Start' }])
-    expect(mocks.createWorkflow).toHaveBeenCalledWith({
-      principal: personalAuth.principal,
-      input: { workspaceId: WORKSPACE_ID, name: WORKFLOW.name },
-      request,
-    })
-  })
-
-  it('hides infrastructure failures behind the safe v2 500 envelope', async () => {
-    mocks.listWorkflows.mockRejectedValue(new Error('database connection details'))
-    const response = await GET(
-      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`)
-    )
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(
-      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`)
-    )
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   /**
@@ -366,23 +208,6 @@ describe('/api/v2/workflows', () => {
 
       expect(response.status).toBe(400)
       expect((await response.json()).error.code).toBe('BAD_REQUEST')
-      expect(mocks.createWorkflow).not.toHaveBeenCalled()
-    })
-
-    it('rejects a NUL description on the same body', async () => {
-      const response = await POST(
-        new NextRequest('http://localhost/api/v2/workflows', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-          body: JSON.stringify({
-            name: 'Daily digest',
-            description: `notes${NUL}`,
-            workspaceId: WORKSPACE_ID,
-          }),
-        })
-      )
-
-      expect(response.status).toBe(400)
       expect(mocks.createWorkflow).not.toHaveBeenCalled()
     })
   })

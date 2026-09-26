@@ -1,10 +1,11 @@
-/** @vitest-environment node */
 import { createMockRequest } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { internalCopilotAuth } from '@/lib/mothership/auth/internal'
 
-const apiKey = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/mothership/request/http', () => ({ checkInternalApiKey: apiKey }))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+
+const apiKey = copilotHttpMockFns.mockCheckInternalApiKey
 
 describe('worker control identity', () => {
   beforeEach(() => apiKey.mockReturnValue({ success: true }))

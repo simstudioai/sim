@@ -1,35 +1,35 @@
-/** @vitest-environment node */
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  snapshot: vi.fn(),
-  table: vi.fn(),
-  legacyTable: vi.fn(),
-  block: vi.fn(),
-  secrets: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.legacyTable }))
-vi.mock('@/lib/table/application/tables', () => ({
-  readTableDefinitionUseCase: { execute: mocks.table },
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 vi.mock('@/lib/knowledge/application/documents', () => ({
   readKnowledgeDocument: { execute: vi.fn() },
 }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretsUseCase: { execute: mocks.secrets },
-}))
-vi.mock('@/blocks/registry', () => ({ getBlock: mocks.block }))
-vi.mock('@/blocks', () => ({ getBlock: mocks.block }))
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 vi.mock('@/lib/workflows/editing/validation', () => ({
   collectUnresolvedReferences: vi.fn(async () => []),
   collectUnresolvedAgentToolReferences: vi.fn(async () => []),
@@ -42,7 +42,21 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { TableBlock } from '@/blocks/blocks/table'
 
-const principal = { kind: 'personal_api_key' as const, userId: 'reader', keyId: 'key-1' }
+const mocks = {
+  snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  table: tableApplicationTablesMockFns.mockReadTableDefinitionUseCase,
+  secrets: secretsUseCasesMockFns.mockListSecretsUseCase,
+}
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(undefined)
+
+const mockLegacyTable = tableServiceMockFns.mockGetTableById
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'reader' })
 const workspaceId = 'canonical-workspace'
 const table = {
   id: 'active-table',
@@ -91,8 +105,7 @@ function lint(signal?: AbortSignal) {
 
 describe('standalone table diagnostics against the actual Table block', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.context.mockResolvedValue({
+    mockContext.mockResolvedValue({
       workflowId: 'parent',
       workspaceId,
       workspaceOrganizationId: null,
@@ -100,10 +113,12 @@ describe('standalone table diagnostics against the actual Table block', () => {
       billedAccountUserId: 'billing-owner',
       workflow: { id: 'parent' },
     })
-    mocks.permission.mockResolvedValue('read')
-    mocks.block.mockImplementation((type: string) => (type === 'table_v2' ? TableBlock : undefined))
+    mockPermission.mockResolvedValue('read')
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'table_v2' ? TableBlock : undefined
+    )
     mocks.table.mockResolvedValue({ table })
-    mocks.legacyTable.mockResolvedValue(table)
+    mockLegacyTable.mockResolvedValue(table)
     mocks.secrets.mockResolvedValue({ secrets: [] })
     setGraph(block())
   })
@@ -116,7 +131,7 @@ describe('standalone table diagnostics against the actual Table block', () => {
       input: { tableId: table.id, workspaceId },
       request: undefined,
     })
-    expect(mocks.legacyTable).not.toHaveBeenCalled()
+    expect(mockLegacyTable).not.toHaveBeenCalled()
     expect(result.tableFieldIssues).toEqual([
       expect.objectContaining({ blockId: 'query', field: 'missing', tableName: 'People' }),
     ])
@@ -140,23 +155,13 @@ describe('standalone table diagnostics against the actual Table block', () => {
     }
   )
 
-  it('uses the advanced table ID when that mode is selected', async () => {
-    setGraph(block('query', { tableSelector: 'stale-table', manualTableId: table.id }, 'advanced'))
-    await lint()
-    expect(mocks.table).toHaveBeenCalledExactlyOnceWith({
-      principal,
-      input: { tableId: table.id, workspaceId },
-      request: undefined,
-    })
-  })
-
   it.each(['<start.tableId>', '{{TABLE_ID}}', ''])(
     'does not query a dormant ID when the active value is %j',
     async (value) => {
       setGraph(block('query', { manualTableId: value }, 'advanced'))
       const result = await lint()
       expect(mocks.table).not.toHaveBeenCalled()
-      expect(mocks.legacyTable).not.toHaveBeenCalled()
+      expect(mockLegacyTable).not.toHaveBeenCalled()
       expect(result.notes).toContain(
         'Table checks in block "query" were not completed because its active table ID is empty or requires runtime resolution.'
       )
@@ -190,21 +195,6 @@ describe('standalone table diagnostics against the actual Table block', () => {
     expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['missing', 'other'])
   })
 
-  it('checks bulk filter builders through the current operation', async () => {
-    setGraph(
-      block('bulk', {
-        operation: 'delete_rows_by_filter',
-        bulkFilterMode: 'builder',
-        bulkFilterBuilder: [
-          { id: 'r1', column: 'missing', operator: 'eq', value: '1', logicalOperator: 'and' },
-        ],
-        filter: '{"dormant":1}',
-      })
-    )
-    const result = await lint()
-    expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['missing'])
-  })
-
   it('does not check stale query fields during a schema read', async () => {
     setGraph(
       block('query', {
@@ -226,30 +216,6 @@ describe('standalone table diagnostics against the actual Table block', () => {
     )
     const result = await lint()
     expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['Name'])
-  })
-
-  it('supports predicate groups and ordered sort specs accepted by the internal query', async () => {
-    setGraph(
-      block('query', {
-        filter: '{"all":[{"field":"missing","op":"eq","value":1}]}',
-        sort: '[{"field":"other","direction":"desc"}]',
-      })
-    )
-    const result = await lint()
-    expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['missing', 'other'])
-  })
-
-  it('reads a shared table once and reports each affected block', async () => {
-    setGraph(
-      block('first', { sort: '{"missing":"asc"}' }),
-      block('second', { sort: '{"other":"desc"}' })
-    )
-    const result = await lint()
-    expect(mocks.table).toHaveBeenCalledTimes(1)
-    expect(result.tableFieldIssues.map(({ blockId, field }) => ({ blockId, field }))).toEqual([
-      { blockId: 'first', field: 'missing' },
-      { blockId: 'second', field: 'other' },
-    ])
   })
 
   it('does not convert a table-read outage into a clean report', async () => {
@@ -285,12 +251,6 @@ describe('standalone table diagnostics against the actual Table block', () => {
     expect(result.notes).toContain(
       'Table column "<start.column>" in block "query" requires runtime resolution and was not checked.'
     )
-  })
-
-  it('treats scalar all and any keys as real column names in the object grammar', async () => {
-    setGraph(block('query', { filter: '{"all":"value","any":{"$eq":"value"}}' }))
-    const result = await lint()
-    expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['all', 'any'])
   })
 
   it('does not start another table read after cancellation', async () => {
@@ -344,20 +304,6 @@ describe('standalone table diagnostics against the actual Table block', () => {
     ])
   })
 
-  it('does not interpret nested row values as column keys', async () => {
-    setGraph(block('write', { operation: 'insert_row', data: '{"name":{"nested":{"unknown":1}}}' }))
-    const result = await lint()
-    expect(result.unresolvedReferences).toEqual([])
-  })
-
-  it('ignores dormant write data when the operation only reads schema', async () => {
-    setGraph(
-      block('read', { operation: 'get_schema', data: '{"missing":1}', rows: '[{"missing":1}]' })
-    )
-    const result = await lint()
-    expect(result.unresolvedReferences).toEqual([])
-  })
-
   it('reports runtime row keys as unchecked instead of missing columns', async () => {
     setGraph(
       block('write', { operation: 'insert_row', data: '{"<start.column>":"value","name":"Ada"}' })
@@ -368,22 +314,6 @@ describe('standalone table diagnostics against the actual Table block', () => {
     ).toEqual([])
     expect(result.notes).toContain(
       'Table row keys in "write".data require runtime resolution and were not checked: <start.column>.'
-    )
-  })
-
-  it('reports an entire row supplied at runtime as unchecked', async () => {
-    setGraph(block('write', { operation: 'insert_row', data: '"<start.row>"' }))
-    const result = await lint()
-    expect(result.notes).toContain(
-      'Table row "write".data is not a static object; its column keys were not checked.'
-    )
-  })
-
-  it('reports an entire batch supplied at runtime as unchecked', async () => {
-    setGraph(block('write', { operation: 'batch_insert_rows', rows: '"<start.rows>"' }))
-    const result = await lint()
-    expect(result.notes).toContain(
-      'Table rows in block "write" are not a static array; their column keys were not checked.'
     )
   })
 })

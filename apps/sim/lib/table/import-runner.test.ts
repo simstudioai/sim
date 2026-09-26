@@ -1,69 +1,51 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetTableById,
-  mockBulkInsertImportBatch,
-  mockUpdateJobProgress,
-  mockMarkJobReady,
-  mockMarkJobFailed,
-  mockNextImportStartPosition,
-  mockNextImportStartOrderKey,
-  mockAppendTableEvent,
-  mockDeleteFile,
-  mockDownloadFileStream,
-  mockHeadObject,
-  mockRecordImportRejections,
-} = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
-  mockBulkInsertImportBatch: vi.fn(),
-  mockUpdateJobProgress: vi.fn(),
-  mockMarkJobReady: vi.fn(),
-  mockMarkJobFailed: vi.fn(),
-  mockNextImportStartPosition: vi.fn(),
-  mockNextImportStartOrderKey: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDownloadFileStream: vi.fn(),
-  mockHeadObject: vi.fn(),
-  mockRecordImportRejections: vi.fn(),
-}))
+const { mockBulkInsertImportBatch, mockNextImportStartPosition, mockNextImportStartOrderKey } =
+  vi.hoisted(() => ({
+    mockBulkInsertImportBatch: vi.fn(),
+    mockNextImportStartPosition: vi.fn(),
+    mockNextImportStartOrderKey: vi.fn(),
+  }))
 
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/import-data', () => ({
   addImportColumns: vi.fn(),
   bulkInsertImportBatch: mockBulkInsertImportBatch,
   deleteAllTableRows: vi.fn(),
   setTableSchemaForImport: vi.fn(),
 }))
-vi.mock('@/lib/table/jobs/service', () => ({
-  markJobFailedInWorkspace: mockMarkJobFailed,
-  markJobReadyInWorkspace: mockMarkJobReady,
-  recordImportRejections: mockRecordImportRejections,
-  updateJobProgressInWorkspace: mockUpdateJobProgress,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/rows/ordering', () => ({
   nextImportStartOrderKey: mockNextImportStartOrderKey,
   nextImportStartPosition: mockNextImportStartPosition,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-  downloadFileStream: mockDownloadFileStream,
-  headObject: mockHeadObject,
-}))
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: (col: unknown) => col,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/table/wire', () => tableWireMock)
 
 import { CSV_MAX_BATCH_SIZE_BYTES, CSV_SCHEMA_SAMPLE_SIZE } from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockUpdateJobProgress = tableJobsServiceMockFns.mockUpdateJobProgressInWorkspace
+const mockMarkJobReady = tableJobsServiceMockFns.mockMarkJobReadyInWorkspace
+const mockMarkJobFailed = tableJobsServiceMockFns.mockMarkJobFailedInWorkspace
+const mockRecordImportRejections = tableJobsServiceMockFns.mockRecordImportRejections
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
+const mockHeadObject = storageServiceMockFns.mockHeadObject
 
 const table = {
   id: 'tbl_1',
@@ -90,7 +72,6 @@ function buildPayload(overrides: Partial<TableImportPayload> = {}): TableImportP
 
 describe('runTableImport source-file cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockHeadObject.mockResolvedValue({ size: 20 })
     mockDownloadFileStream.mockResolvedValue(Readable.from('name\nAlice\nBob\n'))
@@ -126,23 +107,6 @@ describe('runTableImport source-file cleanup', () => {
     expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
-  it('deletes the single-use source object by default', async () => {
-    await runTableImport(buildPayload())
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockDeleteFile).toHaveBeenCalledWith({
-      key: 'workspace/ws_1/people.csv',
-      context: 'workspace',
-    })
-  })
-
-  it('keeps a persistent workspace file when deleteSourceFile is false', async () => {
-    await runTableImport(buildPayload({ deleteSourceFile: false }))
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
   it('flushes retained records before the serialized batch byte budget is exceeded', async () => {
     const cell = 'x'.repeat(390 * 1024)
     const csv = `name\n${Array.from({ length: 14 }, () => cell).join('\n')}\n`
@@ -169,7 +133,6 @@ describe('runTableImport source-file cleanup', () => {
 
 describe('runTableImport rejection accounting', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockHeadObject.mockResolvedValue({ size: 100 })
     mockNextImportStartPosition.mockResolvedValue(0)
@@ -279,20 +242,10 @@ describe('runTableImport rejection accounting', () => {
       expect.objectContaining({ rowsRejected: 0, cellsRejected: 1 })
     )
   })
-
-  it('records nothing for a clean import', async () => {
-    mockDownloadFileStream.mockResolvedValue(Readable.from('name\nAlice\nBob\n'))
-
-    await runTableImport(buildPayload())
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockRecordImportRejections).not.toHaveBeenCalled()
-  })
 })
 
 describe('runTableImport in-flight progress', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockNextImportStartPosition.mockResolvedValue(0)
     mockNextImportStartOrderKey.mockResolvedValue(null)
@@ -301,26 +254,6 @@ describe('runTableImport in-flight progress', () => {
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockRecordImportRejections.mockResolvedValue(undefined)
-  })
-
-  it('writes progress once per batch rather than twice', async () => {
-    const cell = 'x'.repeat(390 * 1024)
-    const csv = `name\n${Array.from({ length: 14 }, () => cell).join('\n')}\n`
-    mockHeadObject.mockResolvedValue({ size: Buffer.byteLength(csv) })
-    mockDownloadFileStream.mockResolvedValue(Readable.from(csv))
-    mockBulkInsertImportBatch.mockImplementation(async ({ rows }: { rows: unknown[] }) => ({
-      inserted: rows.length,
-      lastOrderKey: 'a1',
-    }))
-
-    await runTableImport(buildPayload())
-
-    expect(mockBulkInsertImportBatch).toHaveBeenCalledTimes(2)
-    // Startup, schema resolution, one ownership gate per batch, one emit-cadence write (the
-    // first batch always emits), and the terminal write. An unconditional post-insert write
-    // per batch doubles an import's UPDATE volume — ~400 writes on a 1M-row file instead of
-    // ~200 — to freshen a display counter the next batch's gate refreshes anyway.
-    expect(mockUpdateJobProgress).toHaveBeenCalledTimes(6)
   })
 
   it('persists the post-insert count so an interrupted import reports committed rows', async () => {

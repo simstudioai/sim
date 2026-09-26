@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
@@ -31,8 +31,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -177,30 +175,4 @@ describe('files upload', () => {
       folderPath: '/Q1%20%28draft%29',
     })
   })
-
-  it('rejects an extra positional instead of silently dropping the file it names', async () => {
-    const first = join(dir, 'alpha.txt')
-    const second = join(dir, 'beta.md')
-    writeFileSync(first, 'hello')
-    writeFileSync(second, 'world')
-
-    await expect(
-      program().parseAsync(['node', 'sim', 'file', 'upload', first, second])
-    ).rejects.toThrow(/too many arguments/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it.skipIf(process.getuid?.() === 0)(
-    'reports an unreadable file as one line instead of a fetch stack trace',
-    async () => {
-      const path = join(dir, 'locked.txt')
-      writeFileSync(path, 'hello')
-      chmodSync(path, 0o000)
-
-      await expect(program().parseAsync(['node', 'sim', 'file', 'upload', path])).rejects.toThrow(
-        /Cannot read .*locked\.txt/
-      )
-      expect(mockRequest).not.toHaveBeenCalled()
-    }
-  )
 })

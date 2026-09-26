@@ -1,11 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/config/env', () => ({ env: {} }))
-
 import integrationsJson from '@sim/deployment-config/integrations.json'
+import { describe, expect, it } from 'vitest'
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,

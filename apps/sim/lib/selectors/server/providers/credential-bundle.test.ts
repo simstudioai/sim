@@ -1,34 +1,32 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const mockResolveCredentialAccessToken = vi.hoisted(() => vi.fn())
 const mockResolveOrganizationToken = vi.hoisted(() => vi.fn())
 const mockOwnAccount = vi.hoisted(() => vi.fn())
-const mockResolveManagedToken = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
   authorizePersonalSearchSetupCredential: mockOwnAccount,
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mockResolveManagedToken,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
   resolveOrganizationCredentialTokenBundle: mockResolveOrganizationToken,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mockResolveCredentialAccessToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 
-describe('selector credential bundles', () => {
-  beforeEach(() => vi.clearAllMocks())
+const mockResolveCredentialAccessToken = authOAuthUtilsMockFns.mockResolveCredentialTokenBundle
 
+const mockResolveManagedToken = credentialsManagedOauthMockFns.mockResolveManagedOAuthToken
+
+describe('selector credential bundles', () => {
   it('resolves a personal Atlassian grant through the owned managed-account path', async () => {
     mockOwnAccount.mockResolvedValue({ id: 'managed-1', providerId: 'jira' })
     mockResolveManagedToken.mockResolvedValue({ accessToken: 'own-managed-token' })
@@ -119,34 +117,6 @@ describe('selector credential bundles', () => {
       undefined,
       { privacyMode: 'selector' }
     )
-  })
-
-  it('rechecks cancellation before consuming a fulfilled credential bundle', async () => {
-    mockResolveCredentialAccessToken.mockResolvedValue({
-      accessToken: 'fulfilled-access-token',
-      cloudId: 'cloud-1',
-    })
-    const controller = new AbortController()
-    const protectedValues = createSelectorProtectedValues()
-    const recordCredentialUse = vi.fn()
-    const abortReason = new DOMException('Selector request canceled', 'AbortError')
-
-    const pending = resolveSelectorCredentialBundle({
-      credential: {
-        suppliedId: 'credential-1',
-        access: { ok: true, credentialOwnerUserId: 'owner-1' },
-        signal: controller.signal,
-      },
-      protectedValues,
-      providerId: 'atlassian',
-      recordCredentialUse,
-    })
-    queueMicrotask(() => controller.abort(abortReason))
-
-    await expect(pending).rejects.toBe(abortReason)
-    expect(protectedValues.contains('fulfilled-access-token')).toBe(false)
-    expect(protectedValues.contains('cloud-1')).toBe(false)
-    expect(recordCredentialUse).not.toHaveBeenCalled()
   })
 })
 

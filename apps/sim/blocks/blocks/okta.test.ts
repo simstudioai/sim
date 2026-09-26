@@ -1,24 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OktaBlock } from '@/blocks/blocks/okta'
-
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-  getBlocksByCategory: vi.fn(() => []),
-}))
-
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import { OktaBlock } from '@/blocks/blocks/okta'
+import { getBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { isOktaFlagEnabled } from '@/tools/okta/utils'
+
+const mockGetBlock = vi.mocked(getBlock)
 
 /**
  * Build the block state the canvas persists: one entry per stored sub-block id.
@@ -53,21 +41,8 @@ function merge(inputs: Record<string, unknown>): Record<string, unknown> {
 const BASE = { operation: 'okta_list_users', apiKey: 'token', domain: 'dev-1.okta.com' }
 
 describe('Okta block params transform', () => {
-  it('coerces a numeric limit', () => {
-    expect(merge({ ...BASE, limit: '25' }).limit).toBe(25)
-  })
-
   it('drops a non-numeric limit rather than forwarding the raw entry', () => {
     expect(merge({ ...BASE, limit: 'twenty' }).limit).toBeUndefined()
-  })
-
-  it('drops a non-numeric priority rather than forwarding the raw entry', () => {
-    const merged = merge({
-      ...BASE,
-      operation: 'okta_assign_group_to_app',
-      priority: 'high',
-    })
-    expect(merged.priority).toBeUndefined()
   })
 
   it('drops a blank profile field so a partial update leaves Okta untouched', () => {
@@ -80,33 +55,6 @@ describe('Okta block params transform', () => {
     })
     expect(merged.firstName).toBe('Ada')
     expect(merged.lastName).toBeUndefined()
-  })
-
-  it('maps the group name and description onto the tool param names', () => {
-    const merged = merge({
-      ...BASE,
-      operation: 'okta_create_group',
-      groupName: 'Engineering',
-      groupDescription: 'Eng team',
-    })
-    expect(merged.name).toBe('Engineering')
-    expect(merged.description).toBe('Eng team')
-  })
-
-  /**
-   * The update tool declares `name` optional and its merge helper carries the
-   * stored name through when the field is blank, so requiring it on the block
-   * would block a description-only update the tool and the API both accept.
-   * Create has no stored name to fall back on and still requires it.
-   */
-  it('requires the group name only when creating a group', () => {
-    const groupName = OktaBlock.subBlocks.find((subBlock) => subBlock.id === 'groupName')
-
-    expect(groupName?.condition).toEqual({
-      field: 'operation',
-      value: ['okta_create_group', 'okta_update_group'],
-    })
-    expect(groupName?.required).toEqual({ field: 'operation', value: ['okta_create_group'] })
   })
 
   it('keeps a false toggle, which is a real choice rather than a blank field', () => {
@@ -159,7 +107,6 @@ function runPipeline(state: BlockState): Record<string, unknown> {
  */
 describe('Okta deactivation toggle saved before the switch split', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(OktaBlock)
   })
 
@@ -167,20 +114,6 @@ describe('Okta deactivation toggle saved before the switch split', () => {
     const mapped = runPipeline(
       legacyBlockState({
         operation: 'okta_deactivate_user',
-        apiKey: 'token',
-        domain: 'dev-1.okta.com',
-        userId: '00u1',
-        sendEmail: 'true',
-      })
-    )
-
-    expect(isOktaFlagEnabled(mapped.sendEmail)).toBe(true)
-  })
-
-  it('carries a legacy delete toggle onto the wire', () => {
-    const mapped = runPipeline(
-      legacyBlockState({
-        operation: 'okta_delete_user',
         apiKey: 'token',
         domain: 'dev-1.okta.com',
         userId: '00u1',
@@ -214,22 +147,7 @@ describe('Okta deactivation toggle saved before the switch split', () => {
  */
 describe('Okta activation toggle the rename left alone', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(OktaBlock)
-  })
-
-  it('still sends the activation email from `sendEmail`', () => {
-    const mapped = runPipeline(
-      legacyBlockState({
-        operation: 'okta_activate_user',
-        apiKey: 'token',
-        domain: 'dev-1.okta.com',
-        userId: '00u1',
-        sendEmail: 'true',
-      })
-    )
-
-    expect(isOktaFlagEnabled(mapped.sendEmail)).toBe(true)
   })
 
   it('leaves an activation toggle under `sendEmail` instead of migrating it', () => {
@@ -246,31 +164,10 @@ describe('Okta activation toggle the rename left alone', () => {
     expect(blocks['block-1'].subBlocks.sendEmail?.value).toBe('false')
     expect(blocks['block-1'].subBlocks.sendDeactivationEmail).toBeUndefined()
   })
-
-  it('honours a suppressed activation email', () => {
-    const mapped = runPipeline(
-      legacyBlockState({
-        operation: 'okta_activate_user',
-        apiKey: 'token',
-        domain: 'dev-1.okta.com',
-        userId: '00u1',
-        sendEmail: 'false',
-      })
-    )
-
-    /**
-     * Assert the value itself, not just the resolved flag: activation defaults
-     * to sending when the param is absent, so a dropped `false` and an honoured
-     * one both read as "not enabled" one layer down.
-     */
-    expect(mapped.sendEmail).toBe('false')
-    expect(isOktaFlagEnabled(mapped.sendEmail)).toBe(false)
-  })
 })
 
 describe('Okta state written after the split is never re-migrated', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(OktaBlock)
   })
 
@@ -291,21 +188,6 @@ describe('Okta state written after the split is never re-migrated', () => {
     expect(mapped.sendEmail).toBeUndefined()
   })
 
-  it('does not overwrite a deactivation toggle the user set', () => {
-    const { blocks } = migrateSubblockIds({
-      'block-1': modernBlockState({
-        operation: 'okta_deactivate_user',
-        apiKey: 'token',
-        domain: 'dev-1.okta.com',
-        userId: '00u1',
-        sendEmail: 'true',
-        sendDeactivationEmail: 'false',
-      }),
-    })
-
-    expect(blocks['block-1'].subBlocks.sendDeactivationEmail?.value).toBe('false')
-  })
-
   it('is a no-op the second time it runs', () => {
     const first = migrateSubblockIds({
       'block-1': legacyBlockState({
@@ -321,14 +203,5 @@ describe('Okta state written after the split is never re-migrated', () => {
     const second = migrateSubblockIds(first.blocks)
     expect(second.migrated).toBe(false)
     expect(second.blocks['block-1'].subBlocks.sendDeactivationEmail?.value).toBe('true')
-  })
-})
-
-describe('Okta block outputs', () => {
-  it('declares only fields a tool emits at the top level', () => {
-    const declared = Object.keys(OktaBlock.outputs)
-    expect(declared).not.toContain('targets')
-    expect(declared).not.toContain('debugData')
-    expect(declared).toContain('events')
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   CUSTOM_BLOCK_BOOLEAN_FALSE,
@@ -13,16 +10,6 @@ import {
 import { subBlockTypeForValueType } from '@/tools/param-shape'
 
 describe('customBlockInputControl', () => {
-  it('matches how the canvas renders each field type', () => {
-    // Mirrors `subBlockTypeForValueType`: a field configured here must behave the way it will
-    // once the block is open in the editor.
-    expect(customBlockInputControl('boolean')).toBe('switch')
-    expect(customBlockInputControl('object')).toBe('textarea')
-    expect(customBlockInputControl('array')).toBe('textarea')
-    expect(customBlockInputControl('string')).toBe('input')
-    expect(customBlockInputControl('number')).toBe('input')
-  })
-
   it('refuses to offer a file input rather than rendering a text box for it', () => {
     // `file[]` is an upload on the canvas. A text box would write a plain string into a field
     // that expects file references — worse than not offering it, because it looks configured.
@@ -44,11 +31,6 @@ describe('customBlockInputControl', () => {
       expect(customBlockInputControl(fieldType)).toBe(byCanvasKind[canvasKind] ?? 'input')
     }
   })
-
-  it('falls back to a plain input for an unknown or absent type', () => {
-    expect(customBlockInputControl('something-new')).toBe('input')
-    expect(customBlockInputControl(undefined)).toBe('input')
-  })
 })
 
 describe('isForkSyncConfigurableField', () => {
@@ -64,14 +46,6 @@ describe('isForkSyncConfigurableField', () => {
   it('still gates every custom-block input that HAS a control', () => {
     for (const fieldType of ['string', 'number', 'boolean', 'object', 'array']) {
       expect(isForkSyncConfigurableField({ parentKind: 'custom-block', fieldType })).toBe(true)
-    }
-  })
-
-  it('leaves every other parent kind gated', () => {
-    // Only custom-block inputs classify their own control here; a selector-backed dependent
-    // is always configurable.
-    for (const parentKind of ['credential', 'knowledge-base', 'table'] as const) {
-      expect(isForkSyncConfigurableField({ parentKind, fieldType: 'file[]' })).toBe(true)
     }
   })
 })

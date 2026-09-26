@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,7 +72,6 @@ function execute(
   return settingsServerTool.execute({ scope, section, action: 'execute', operation, input })
 }
 beforeEach(() => {
-  vi.restoreAllMocks()
   sectionAccess.mockReset().mockResolvedValue(true)
   resolve.mockReset()
   target('workspace')

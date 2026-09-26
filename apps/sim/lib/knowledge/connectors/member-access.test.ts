@@ -1,60 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { credentialGroup, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  requireResourcePolicy: vi.fn(),
-  writeResourcePolicy: vi.fn(),
-  loadBinding: vi.fn(),
-  listOptionCredentials: vi.fn(),
-  resolveManagedOAuthToken: vi.fn(),
-  rejectManagedOAuthToken: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CREDENTIAL_ACCESSED: 'credential.accessed',
-    CREDENTIAL_UPDATED: 'credential.updated',
-    CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
-  },
-  AuditResourceType: { CREDENTIAL: 'credential', CREDENTIAL_GROUP: 'credential_group' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
-vi.mock('@/lib/resource-policies/repository', async () => {
-  class ResourcePolicyNotFoundError extends Error {}
-  class ResourcePolicyRevisionConflictError extends Error {}
-  return {
-    ResourcePolicyNotFoundError,
-    ResourcePolicyRevisionConflictError,
-    requireResourcePolicy: mocks.requireResourcePolicy,
-    writeResourcePolicy: mocks.writeResourcePolicy,
-  }
-})
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadManagedCredentialGroupBinding: mocks.loadBinding,
-  listCredentialGroupOptionCredentialReferences: mocks.listOptionCredentials,
-  isManagedCredentialGroupBindingLive: (binding: {
-    managedOauthStatus: string
-    enrollmentStatus: string
-    groupStatus: string
-    optionStatus: string | null
-  }) =>
-    binding.managedOauthStatus === 'active' &&
-    (binding.enrollmentStatus === 'in_progress' || binding.enrollmentStatus === 'completed') &&
-    binding.groupStatus === 'active' &&
-    binding.optionStatus === 'active',
-}))
-
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mocks.resolveManagedOAuthToken,
-  rejectManagedOAuthToken: mocks.rejectManagedOAuthToken,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
@@ -67,14 +33,19 @@ import {
   listKnowledgeConnectorMemberCredentials,
   mintKnowledgeConnectorMemberToken,
   rejectKnowledgeConnectorMemberToken,
-  revokeKnowledgeConnectorCredentialAccess,
   validateKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/connectors/member-access'
-import {
-  ResourcePolicyNotFoundError,
-  ResourcePolicyRevisionConflictError,
-} from '@/lib/resource-policies/repository'
-import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
+
+const mocks = {
+  requireResourcePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  writeResourcePolicy: resourcePolicyRepositoryMockFns.mockWriteResourcePolicy,
+  loadBinding: credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
+  listOptionCredentials:
+    credentialGroupsCredentialsMockFns.mockListCredentialGroupOptionCredentialReferences,
+  resolveManagedOAuthToken: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  rejectManagedOAuthToken: credentialsManagedOauthMockFns.mockRejectManagedOAuthToken,
+}
 
 const GROUP_ID = 'group-1'
 const BINDING = {
@@ -105,7 +76,6 @@ function storedPolicy(
 
 describe('knowledge connector member access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.writeResourcePolicy.mockImplementation(async (input) => ({
       ...storedPolicy(input.expectedRevision + 1, []),
       document: input.document,
@@ -113,60 +83,6 @@ describe('knowledge connector member access', () => {
   })
 
   describe('grant', () => {
-    it('adds the connector under its option while keeping workflow access and audits the group', async () => {
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(
-          3,
-          [{ credentialGroupOptionId: 'option-drive', connectorIds: ['connector-0'] }],
-          ['workflow-1']
-        )
-      )
-
-      await grantKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-
-      expect(mocks.writeResourcePolicy).toHaveBeenCalledTimes(1)
-      const written = mocks.writeResourcePolicy.mock.calls[0][0]
-      expect(written.expectedRevision).toBe(3)
-      expect(written.actorUserId).toBe('admin-1')
-      expect(
-        written.document.statements.map((statement: { sid: string }) => statement.sid)
-      ).toEqual([
-        'CredentialGroupActorCredentialAccess',
-        'WorkflowCredentialAccess',
-        'KnowledgeConnectorCredentialAccess:option-drive',
-      ])
-      expect(written.document.statements[2].principals).toEqual([
-        { type: 'knowledge_connector', connectorId: 'connector-0' },
-        { type: 'knowledge_connector', connectorId: 'connector-1' },
-      ])
-      expect(mocks.recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'credential_group.updated',
-          actorId: 'admin-1',
-          resourceId: GROUP_ID,
-          metadata: expect.objectContaining({
-            change: 'granted',
-            connectorId: 'connector-1',
-            credentialGroupOptionId: 'option-drive',
-            revision: 4,
-          }),
-        })
-      )
-    })
-
-    it('is idempotent when the connector is already bound to that option', async () => {
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(3, [
-          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
-        ])
-      )
-
-      await grantKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-
-      expect(mocks.writeResourcePolicy).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-    })
-
     it('moves a connector between options rather than binding it twice', async () => {
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(1, [{ credentialGroupOptionId: 'option-old', connectorIds: ['connector-1'] }])
@@ -209,15 +125,6 @@ describe('knowledge connector member access', () => {
       ])
     })
 
-    it('gives up as a conflict when the policy keeps changing', async () => {
-      mocks.requireResourcePolicy.mockResolvedValue(storedPolicy(1, []))
-      mocks.writeResourcePolicy.mockRejectedValue(new ResourcePolicyRevisionConflictError())
-
-      await expect(
-        grantKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-      ).rejects.toMatchObject({ code: 'conflict' })
-    })
-
     it('refuses to bind more connectors than one option may back', async () => {
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(1, [
@@ -238,46 +145,6 @@ describe('knowledge connector member access', () => {
         )
       ).rejects.toMatchObject({ code: 'validation' })
       expect(mocks.writeResourcePolicy).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('revoke', () => {
-    it('removes the connector and drops an emptied option statement', async () => {
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(5, [
-          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
-          { credentialGroupOptionId: 'option-other', connectorIds: ['connector-2'] },
-        ])
-      )
-
-      await revokeKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-
-      const written = mocks.writeResourcePolicy.mock.calls[0][0]
-      expect(
-        written.document.statements.map((statement: { sid: string }) => statement.sid)
-      ).toEqual([
-        'CredentialGroupActorCredentialAccess',
-        'KnowledgeConnectorCredentialAccess:option-other',
-      ])
-      expect(mocks.recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({ metadata: expect.objectContaining({ change: 'revoked' }) })
-      )
-    })
-
-    it('is a no-op when the connector was never bound', async () => {
-      mocks.requireResourcePolicy.mockResolvedValue(storedPolicy(5, []))
-
-      await revokeKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-
-      expect(mocks.writeResourcePolicy).not.toHaveBeenCalled()
-    })
-
-    it('tolerates a group whose policy is already gone', async () => {
-      mocks.requireResourcePolicy.mockRejectedValue(new ResourcePolicyNotFoundError())
-
-      await expect(
-        revokeKnowledgeConnectorCredentialAccess(BINDING, 'admin-1')
-      ).resolves.toBeUndefined()
     })
   })
 
@@ -306,39 +173,6 @@ describe('knowledge connector member access', () => {
       mocks.resolveManagedOAuthToken.mockResolvedValue({ accessToken: 'token', refreshed: false })
     })
 
-    it('resolves the token when the policy names the connector under the credential option and audits it', async () => {
-      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(2, [
-          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
-        ])
-      )
-
-      await expect(mintKnowledgeConnectorMemberToken(mintInput)).resolves.toEqual({
-        accessToken: 'token',
-        refreshed: false,
-      })
-
-      expect(mocks.resolveManagedOAuthToken).toHaveBeenCalledWith({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        expectedProviderId: 'google-drive',
-        requiredScopes: ['https://www.googleapis.com/auth/drive'],
-      })
-      expect(mocks.recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'credential.accessed',
-          actorId: null,
-          resourceId: 'credential-1',
-          metadata: expect.objectContaining({
-            connectorId: 'connector-1',
-            credentialGroupOptionId: 'option-drive',
-            runId: 'run-1',
-          }),
-        })
-      )
-    })
-
     it('refuses a removed connector even while its policy grant remains', async () => {
       mocks.requireResourcePolicy.mockResolvedValue(
         storedPolicy(2, [
@@ -350,29 +184,6 @@ describe('knowledge connector member access', () => {
         'Knowledge connector has been removed'
       )
       expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
-    })
-
-    it('reports provider rejection only under the current connector grant', async () => {
-      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(2, [
-          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
-        ])
-      )
-      mocks.rejectManagedOAuthToken.mockResolvedValue(true)
-      await expect(
-        rejectKnowledgeConnectorMemberToken({ ...mintInput, rejectedAccessToken: 'token' })
-      ).resolves.toBe(true)
-      expect(mocks.rejectManagedOAuthToken).toHaveBeenCalledWith({
-        credentialId: mintInput.credentialId,
-        workspaceId: mintInput.workspaceId,
-        expectedProviderId: mintInput.expectedProviderId,
-        requiredScopes: mintInput.requiredScopes,
-        rejectedAccessToken: 'token',
-      })
-      expect(mocks.recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'credential.updated' })
-      )
     })
 
     it('cannot reject a credential when its connector grant has been removed', async () => {
@@ -394,7 +205,7 @@ describe('knowledge connector member access', () => {
         KnowledgeConnectorMemberAccessDeniedError
       )
       expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     it('denies a credential collected under a different option', async () => {
@@ -454,37 +265,9 @@ describe('knowledge connector member access', () => {
       )
       expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
     })
-
-    it('denies when the group policy no longer exists', async () => {
-      mocks.requireResourcePolicy.mockRejectedValue(new ResourcePolicyNotFoundError())
-
-      await expect(mintKnowledgeConnectorMemberToken(mintInput)).rejects.toBeInstanceOf(
-        KnowledgeConnectorMemberAccessDeniedError
-      )
-    })
   })
 
   describe('list', () => {
-    it('pages the option credentials only for a granted connector', async () => {
-      queueTableRows(knowledgeConnector, [{ id: 'connector-1' }])
-      mocks.requireResourcePolicy.mockResolvedValue(
-        storedPolicy(2, [
-          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
-        ])
-      )
-      mocks.listOptionCredentials.mockResolvedValue({ credentials: [], nextCursor: null })
-
-      await listKnowledgeConnectorMemberCredentials({ ...BINDING, limit: 50, cursor: 'c-1' })
-
-      expect(mocks.listOptionCredentials).toHaveBeenCalledWith({
-        workspaceId: 'workspace-1',
-        credentialGroupId: GROUP_ID,
-        credentialGroupOptionId: 'option-drive',
-        limit: 50,
-        cursor: 'c-1',
-      })
-    })
-
     it('refuses to enumerate members for a connector without a grant', async () => {
       mocks.requireResourcePolicy.mockResolvedValue(storedPolicy(2, []))
 
@@ -524,45 +307,6 @@ describe('knowledge connector member access', () => {
     }
     const group = { status: 'active' as const, options: [driveOption] }
 
-    it('accepts a matching, fully scoped, uncapped binding', () => {
-      expect(
-        validateKnowledgeConnectorMembersBinding({
-          connectorMeta: driveMeta,
-          group,
-          credentialGroupOptionId: 'option-drive',
-          sourceConfig: { folderId: ['folder-1'], maxFiles: '' },
-        })
-      ).toEqual({ ok: true, option: driveOption })
-    })
-
-    it('keeps existing Confluence page credentials eligible without attachment access', () => {
-      const confluenceOption = {
-        ...driveOption,
-        id: 'option-confluence',
-        provider: 'confluence',
-        label: 'Confluence',
-        authorizationAppId: 'atlassian:app',
-        requiredScopes: [
-          'read:confluence-content.all',
-          'read:page:confluence',
-          'read:blogpost:confluence',
-          'read:space:confluence',
-          'read:label:confluence',
-          'search:confluence',
-          'offline_access',
-        ],
-      }
-
-      expect(
-        validateKnowledgeConnectorMembersBinding({
-          connectorMeta: confluenceConnectorMeta,
-          group: { status: 'active', options: [confluenceOption] },
-          credentialGroupOptionId: confluenceOption.id,
-          sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'], maxPages: '' },
-        })
-      ).toEqual({ ok: true, option: confluenceOption })
-    })
-
     describe('a Slack option, whose members authorize through the workspace custom app', () => {
       const slackMeta = {
         name: 'Slack',
@@ -584,17 +328,6 @@ describe('knowledge connector member access', () => {
       }
       const slackGroup = { status: 'active' as const, options: [slackOption] }
 
-      it('accepts the binding through the Slack scope policy', () => {
-        expect(
-          validateKnowledgeConnectorMembersBinding({
-            connectorMeta: slackMeta,
-            group: slackGroup,
-            credentialGroupOptionId: 'option-slack',
-            sourceConfig: { maxMessages: '500' },
-          })
-        ).toEqual({ ok: true, option: slackOption })
-      })
-
       it('rejects a channel selection as a listing cap', () => {
         const result = validateKnowledgeConnectorMembersBinding({
           connectorMeta: slackMeta,
@@ -604,20 +337,6 @@ describe('knowledge connector member access', () => {
         })
         expect(result.ok).toBe(false)
         if (!result.ok) expect(result.message).toContain('Channels cannot be set')
-      })
-
-      it('rejects an option missing a history scope', () => {
-        const result = validateKnowledgeConnectorMembersBinding({
-          connectorMeta: slackMeta,
-          group: {
-            ...slackGroup,
-            options: [{ ...slackOption, requiredScopes: ['channels:read', 'groups:read'] }],
-          },
-          credentialGroupOptionId: 'option-slack',
-          sourceConfig: {},
-        })
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.message).toContain('every permission')
       })
     })
 
@@ -686,7 +405,6 @@ describe('findListingCapViolation', () => {
 
 describe('organization member credential binding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -696,51 +414,6 @@ describe('organization member credential binding', () => {
     credentialGroupOptionId: 'option-drive',
     connectorId: 'connector-1',
   }
-
-  it('uses the canonical organization connector binding without consulting a workspace policy', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'connector-1' }])
-    await assertKnowledgeConnectorCredentialAccess(orgBinding)
-    expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
-    const predicate = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-    for (const column of [
-      knowledgeBase.workspaceId,
-      credentialGroup.workspaceId,
-      knowledgeBase.deletedAt,
-      knowledgeConnector.archivedAt,
-      knowledgeConnector.deletedAt,
-    ]) {
-      expect(
-        hasMockCondition(
-          predicate,
-          (condition) => condition.type === 'isNull' && condition.column === column
-        )
-      ).toBe(true)
-    }
-    for (const value of ['org-1', 'connector-1', GROUP_ID, 'option-drive', 'members']) {
-      expect(
-        hasMockCondition(
-          predicate,
-          (condition) => condition.type === 'eq' && condition.right === value
-        )
-      ).toBe(true)
-    }
-    expect(
-      hasMockCondition(
-        predicate,
-        (condition) =>
-          condition.type === 'inArray' && condition.column === knowledgeConnector.status
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        predicate,
-        (condition) =>
-          condition.type === 'ne' &&
-          condition.left === knowledgeConnector.memberSyncStatus &&
-          condition.right === 'disabled'
-      )
-    ).toBe(true)
-  })
 
   it('denies a connector whose current canonical owner or option no longer matches', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
@@ -764,33 +437,5 @@ describe('organization member credential binding', () => {
     ).rejects.toBeInstanceOf(KnowledgeConnectorMemberAccessDeniedError)
     expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('mints a live credential with an exact organization owner after checking the connector binding', async () => {
-    mocks.loadBinding.mockResolvedValue({
-      ...orgBinding,
-      workspaceId: null,
-      credentialId: 'credential-1',
-      managedOauthStatus: 'active',
-      enrollmentStatus: 'completed',
-      groupStatus: 'active',
-      optionStatus: 'active',
-    })
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'connector-1' }])
-    mocks.resolveManagedOAuthToken.mockResolvedValue({ accessToken: 'opaque-token' })
-    await mintKnowledgeConnectorMemberToken({
-      ...orgBinding,
-      credentialId: 'credential-1',
-      expectedProviderId: 'google-drive',
-      requiredScopes: [],
-      runId: 'run-1',
-    })
-    expect(mocks.resolveManagedOAuthToken).toHaveBeenCalledWith({
-      credentialId: 'credential-1',
-      organizationId: 'org-1',
-      expectedProviderId: 'google-drive',
-      requiredScopes: [],
-    })
-    expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
   })
 })

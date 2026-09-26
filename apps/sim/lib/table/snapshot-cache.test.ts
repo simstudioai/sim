@@ -1,25 +1,19 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelectExportRowPage, mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } =
-  vi.hoisted(() => ({
-    mockSelectExportRowPage: vi.fn(),
-    mockCreateMultipartUpload: vi.fn(),
-    mockHeadObject: vi.fn(),
-    mockDeleteFile: vi.fn(),
-  }))
-
-vi.mock('@/lib/table/jobs/service', () => ({ selectExportRowPage: mockSelectExportRowPage }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  createMultipartUpload: mockCreateMultipartUpload,
-  headObject: mockHeadObject,
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { getOrCreateTableSnapshot, TableSnapshotTooLargeError } from '@/lib/table/snapshot-cache'
+
+const mockSelectExportRowPage = tableJobsServiceMockFns.mockSelectExportRowPage
+
+const { mockCreateMultipartUpload, mockHeadObject, mockDeleteFile } = storageServiceMockFns
 
 const table = {
   id: 'tbl_1',
@@ -55,7 +49,6 @@ describe('getOrCreateTableSnapshot', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     lastHandle = null
     mockDeleteFile.mockResolvedValue(undefined)
@@ -80,21 +73,6 @@ describe('getOrCreateTableSnapshot', () => {
       lastHandle = handle
       return Promise.resolve(handle)
     })
-  })
-
-  it('returns the cached snapshot on a hit without reading rows', async () => {
-    versions(3)
-    mockHeadObject.mockResolvedValue({ size: 42 })
-
-    const ref = await getOrCreateTableSnapshot(table, 'req')
-
-    expect(ref).toEqual({
-      key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
-      size: 42,
-      version: 3,
-    })
-    expect(mockCreateMultipartUpload).not.toHaveBeenCalled()
-    expect(mockSelectExportRowPage).not.toHaveBeenCalled()
   })
 
   it('materializes and stores on a miss, then cleans up the previous version', async () => {

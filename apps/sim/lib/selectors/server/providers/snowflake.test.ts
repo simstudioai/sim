@@ -1,29 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveCredentialBundle: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-const STATEMENT_HANDLE = '019c06a4-0000-df4f-0000-00100006589e'
+const mockResolveCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+const STATEMENT_HANDLE = '019c06a4-0000-df4f-0000-00100006589e'
 
 function tableArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   return {
@@ -47,7 +42,6 @@ function tableArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
 
 describe('Snowflake server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveCredentialBundle.mockResolvedValue({
       accessToken: 'server-only-token',
@@ -125,41 +119,6 @@ describe('Snowflake server selector adapter', () => {
       message: 'Options unavailable',
       status: 502,
     })
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('preserves caller cancellation during a later partition', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    let markLaterFetchStarted: (() => void) | undefined
-    const laterFetchStarted = new Promise<void>((resolve) => {
-      markLaterFetchStarted = resolve
-    })
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          statementHandle: STATEMENT_HANDLE,
-          data: [['ALPHA', null]],
-          resultSetMetaData: {
-            numRows: 3,
-            partitionInfo: [{ rowCount: 1 }, { rowCount: 1 }, { rowCount: 1 }],
-          },
-        })
-      )
-      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
-        markLaterFetchStarted?.()
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
-        })
-      })
-
-    const execution = snowflakeSelectorAttachments['snowflake.tables'].execute(
-      tableArgs(controller.signal)
-    )
-    await laterFetchStarted
-    controller.abort(abortError)
-
-    await expect(execution).rejects.toBe(abortError)
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 

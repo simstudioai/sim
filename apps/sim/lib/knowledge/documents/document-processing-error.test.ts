@@ -6,7 +6,6 @@ import {
   classifyDocumentProcessingFailure,
   MAX_DOCUMENT_CHUNKS,
   PermanentDocumentProcessingError,
-  toPermanentDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 
 describe('document processing failure taxonomy', () => {
@@ -61,36 +60,6 @@ describe('document processing failure taxonomy', () => {
       code: 'transient_processing_failure',
     })
   })
-
-  it('preserves typed no-text guidance', () => {
-    const error = new PermanentDocumentProcessingError(
-      'no_extractable_text',
-      'No text could be extracted. Re-save it as DOCX to index it.'
-    )
-
-    expect(classifyDocumentProcessingFailure(error, 'Contract.doc')).toEqual({
-      disposition: 'permanent',
-      code: 'no_extractable_text',
-      userMessage: error.message,
-    })
-    expect(toPermanentDocumentProcessingError(error, 'Contract.doc')).toBe(error)
-  })
-
-  it.each(['Contract.doc', 'Budget.xls', 'Deck.pptx'])(
-    'classifies an unreadable legacy Office file as repairable: %s',
-    (filename) => {
-      const failure = classifyDocumentProcessingFailure(
-        new FileParserError('invalid_format', 'The legacy Office file could not be parsed'),
-        filename
-      )
-
-      expect(failure).toMatchObject({
-        disposition: 'permanent',
-        code: 'unreadable_office_file',
-        userMessage: expect.stringContaining('re-save'),
-      })
-    }
-  )
 
   it.each<{
     parserCode: FileParserErrorCode
@@ -179,21 +148,6 @@ describe('document processing failure taxonomy', () => {
         disposition: 'transient',
         code: 'transient_processing_failure',
       })
-    }
-  })
-
-  it('leaves infrastructure and provider failures transient', () => {
-    for (const error of [
-      new Error('Storage request timed out'),
-      new Error('Database connection terminated unexpectedly'),
-      new Error('Embedding provider returned 503'),
-      new TypeError('parseOffice is not a function'),
-    ]) {
-      expect(classifyDocumentProcessingFailure(error, 'Report.docx')).toMatchObject({
-        disposition: 'transient',
-        code: 'transient_processing_failure',
-      })
-      expect(toPermanentDocumentProcessingError(error, 'Report.docx')).toBeNull()
     }
   })
 

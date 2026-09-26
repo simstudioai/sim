@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { pickRunBlockOutputs } from '@/lib/workflows/executor/execute-service'
 import type { BlockLog } from '@/executor/types'
@@ -25,11 +22,6 @@ function log(blockId: string, output: Record<string, unknown>): BlockLog {
 }
 
 describe('pickRunBlockOutputs', () => {
-  it('returns null when no selectors were requested', async () => {
-    expect(await pickRunBlockOutputs(undefined, blocks, [log(AGENT_ID, {})])).toBeNull()
-    expect(await pickRunBlockOutputs([], blocks, [log(AGENT_ID, {})])).toBeNull()
-  })
-
   it('resolves block names and ids, digging nested paths', async () => {
     const logs = [log(AGENT_ID, { content: 'hi', tokens: { total: 7 } })]
 

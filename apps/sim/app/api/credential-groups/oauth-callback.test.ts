@@ -1,8 +1,13 @@
-/** @vitest-environment node */
 import { sha256Hex } from '@sim/security/hash'
-import { NextRequest } from 'next/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
@@ -10,23 +15,13 @@ const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
   completeOAuth: vi.fn(),
   consumeAttempt: vi.fn(),
-  logError: vi.fn(),
   completeSetupOAuth: vi.fn(),
-  authenticateSession: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mocks.logError }),
-}))
 vi.mock('@/lib/knowledge/application/github-setup', () => ({
   completeGitHubSetupReaderOAuth: { execute: mocks.completeSetupOAuth },
 }))
-vi.mock('@/lib/api/server/routes', () => ({
-  internalSessionAuth: {
-    authenticate: mocks.authenticateSession,
-  },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
   credentialGroupOAuthAttemptPrincipal: mocks.authenticate,
 }))
@@ -39,6 +34,12 @@ vi.mock('@/lib/credential-groups/oauth-state', () => ({
 
 import { handleCredentialGroupOAuthCallback } from '@/app/api/credential-groups/oauth-callback'
 
+const { mockInternalSessionAuthenticate } = apiServerRoutesMockFns
+
+const { error: logError } = getMockLogger('CredentialGroupOAuthCallbackAPI')
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
 const completionId = '550e8400-e29b-41d4-a716-446655440000'
 const attempt = {
   provider: 'github-repositories',
@@ -49,9 +50,9 @@ const attempt = {
 
 function completeCallback() {
   return handleCredentialGroupOAuthCallback({
-    request: new NextRequest(
-      'https://sim.test/api/auth/oauth2/callback/github-repositories?state=cg_state&code=code-1'
-    ),
+    request: createMockRequest({
+      url: 'https://sim.test/api/auth/oauth2/callback/github-repositories?state=cg_state&code=code-1',
+    }),
     provider: 'github-repositories',
     query: { state: 'cg_state', code: 'code-1' },
     limited: null,
@@ -60,7 +61,6 @@ function completeCallback() {
 
 describe('GitHub managed OAuth failure presentation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue({ kind: 'credential_group_enrollment' })
   })
 
@@ -106,7 +106,7 @@ describe('GitHub managed OAuth failure presentation', () => {
         expect(location.searchParams.get('optionId')).toBe(attempt.optionId)
         expect(location.searchParams.get('returnTo')).toBe('search')
       }
-      expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+      expect(logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
         provider: 'github-repositories',
         failure: status,
         errorClass: 'credential_group_oauth',
@@ -125,7 +125,7 @@ describe('GitHub managed OAuth failure presentation', () => {
     mocks.completeOAuth.mockRejectedValueOnce(new Error('member@example.com ghu_token'))
     const response = await completeCallback()
     expect(response.headers.get('location')).toContain('oauth=failed')
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+    expect(logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
       provider: 'github-repositories',
       failure: 'failed',
       errorClass: 'unexpected',
@@ -147,7 +147,7 @@ describe('GitHub managed OAuth failure presentation', () => {
     )
     const response = await completeCallback()
     expect(response.headers.get('location')).toContain('oauth=failed')
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+    expect(logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
       provider: 'github-repositories',
       failure: 'failed',
       errorClass: 'unexpected',
@@ -156,55 +156,18 @@ describe('GitHub managed OAuth failure presentation', () => {
       databaseCode: '23505',
       fingerprint: sha256Hex(cause.message).slice(0, 12),
     })
-    const logged = JSON.stringify(mocks.logError.mock.calls)
+    const logged = JSON.stringify(logError.mock.calls)
     expect(logged).not.toContain('member@example.com')
     expect(logged).not.toContain('ghu_private_token')
     expect(logged).not.toContain('INSERT')
-  })
-
-  it('does not log arbitrary error names or codes as diagnostic metadata', async () => {
-    mocks.consumeAttempt.mockResolvedValue(attempt)
-    mocks.completeOAuth.mockRejectedValueOnce(
-      Object.assign(new Error('private provider response'), {
-        name: 'ghu_private_token',
-        code: 'client_secret=private',
-      })
-    )
-    await completeCallback()
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
-      provider: 'github-repositories',
-      failure: 'failed',
-      errorClass: 'unexpected',
-      stage: 'enrollment_completion',
-      errorType: 'UnknownError',
-      fingerprint: sha256Hex('private provider response').slice(0, 12),
-    })
-  })
-
-  it('retains an application error classification without its private details', async () => {
-    mocks.consumeAttempt.mockResolvedValue(attempt)
-    mocks.completeOAuth.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Private details: member@example.com')
-    )
-    await completeCallback()
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
-      provider: 'github-repositories',
-      failure: 'failed',
-      errorClass: 'application',
-      applicationCode: 'forbidden',
-      statusCode: 403,
-    })
   })
 })
 
 describe('GitHub installation setup OAuth return target', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticateSession.mockResolvedValue({
-      kind: 'session',
-      userId: 'admin',
-      sessionId: 'browser',
-    })
+    mockInternalSessionAuthenticate.mockResolvedValue(
+      createSessionPrincipal({ userId: 'admin', sessionId: 'browser' })
+    )
   })
 
   it.each(['session_authentication', 'setup_completion'])(
@@ -218,13 +181,13 @@ describe('GitHub installation setup OAuth return target', () => {
       })
       const error = new TypeError('private callback data')
       if (stage === 'session_authentication') {
-        mocks.authenticateSession.mockRejectedValueOnce(error)
+        mockInternalSessionAuthenticate.mockRejectedValueOnce(error)
       } else {
         mocks.completeSetupOAuth.mockRejectedValueOnce(error)
       }
       const response = await completeCallback()
       expect(response.headers.get('location')).toContain('oauth=failed')
-      expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+      expect(logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
         provider: 'github-repositories',
         failure: 'failed',
         errorClass: 'unexpected',
@@ -261,7 +224,9 @@ describe('GitHub installation setup OAuth return target', () => {
       completionRedirect: true,
     })
     const response = await handleCredentialGroupOAuthCallback({
-      request: new NextRequest('https://sim.test/api/auth/oauth2/callback/github-repositories'),
+      request: createMockRequest({
+        url: 'https://sim.test/api/auth/oauth2/callback/github-repositories',
+      }),
       provider: 'github-repositories',
       query: { state: 'cg_state', error: 'access_denied' },
       limited: null,

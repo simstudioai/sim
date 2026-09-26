@@ -1,17 +1,13 @@
-/**
- * @vitest-environment node
- */
 import {
-  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
   resetEnvMock,
-  schemaMock,
   setEnv,
   urlsMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -20,14 +16,11 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-const { mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(() => ({
+const { mockCleanupExternalWebhook } = vi.hoisted(() => ({
   mockCleanupExternalWebhook: vi.fn(),
-  mockWorkflowDeleted: vi.fn(),
 }))
 
 const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -35,17 +28,14 @@ vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: (...args: unknown[]) => mockCleanupExternalWebhook(...args),
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: {
-    workflowDeleted: (...args: unknown[]) => mockWorkflowDeleted(...args),
-  },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 
+const mockWorkflowDeleted = getMockPlatformEvent('workflowDeleted')
+
 describe('workflow lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://socket.test')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))

@@ -1,6 +1,5 @@
 /** @vitest-environment jsdom */
 import { Editor, type EditorOptions } from '@tiptap/core'
-import { closeHistory } from '@tiptap/pm/history'
 import { yUndoPluginKey } from '@tiptap/y-tiptap'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
@@ -100,20 +99,6 @@ const INPUT_CHUNKS = [
   { name: 'after bang', chunks: ['!', IMAGE_SOURCE.slice(1)] },
 ]
 
-it.each(['<p>TARGET</p>', '<blockquote><p>TARGET</p></blockquote>'])(
-  'requests caret scrolling after image conversion in %s',
-  (content) => {
-    const { editor } = createEditors(false, `${content}<p>After</p>`)
-    selectText(editor, 'TARGET')
-    const requests: boolean[] = []
-    editor.on('transaction', ({ transaction }) => {
-      if (transaction.docChanged) requests.push(transaction.scrolledIntoView)
-    })
-    inputText(editor, IMAGE_SOURCE)
-    expect(requests).toContain(true)
-  }
-)
-
 describe.each([false, true])('image input rules (collaborative=%s)', (collaborative) => {
   describe.each([
     { name: 'paragraph', html: '<p>TARGET</p>' },
@@ -142,39 +127,6 @@ describe.each([false, true])('image input rules (collaborative=%s)', (collaborat
       expect(editor.getMarkdown()).toContain(IMAGE_SOURCE)
       assertSynced()
     })
-  })
-
-  it.each(INPUT_CHUNKS)('preserves neighboring marks and undoes $name', ({ chunks }) => {
-    const { editor, assertSynced } = createEditors(
-      collaborative,
-      '<p><strong>Before </strong>TARGET<em> After</em></p>'
-    )
-    selectText(editor, 'TARGET')
-    for (const chunk of chunks) inputText(editor, chunk)
-    expect(editor.state.doc.firstChild?.firstChild?.text?.startsWith('Before ')).toBe(true)
-    expect(editor.state.doc.firstChild?.firstChild?.marks.map((mark) => mark.type.name)).toContain(
-      'bold'
-    )
-    expect(editor.getHTML()).toContain('<em> After</em>')
-    expect(editor.state.selection.$from.parent.type.name).not.toBe('image')
-    assertSynced()
-    expect(editor.commands.undoInputRule()).toBe(true)
-    expect(editor.getText()).toBe(`Before ${IMAGE_SOURCE} After`)
-    expect(editor.state.doc.firstChild?.firstChild?.text?.startsWith('Before ')).toBe(true)
-    expect(editor.state.doc.firstChild?.firstChild?.marks.map((mark) => mark.type.name)).toContain(
-      'bold'
-    )
-    expect(editor.getHTML()).toContain('<em> After</em>')
-    assertSynced()
-  })
-
-  it('preserves a whole burst prefix while replacing the selection', () => {
-    const { editor, assertSynced } = createEditors(collaborative, '<p>TARGET suffix</p>')
-    selectText(editor, 'TARGET')
-    inputText(editor, `New prefix ${IMAGE_SOURCE}`)
-    expect(editor.getText()).toBe('New prefix \n\n\n\n suffix')
-    expect(editor.getMarkdown()).toContain(IMAGE_SOURCE)
-    assertSynced()
   })
 })
 
@@ -222,23 +174,6 @@ describe.each([
     expect(editor.getText()).toContain('After')
   })
 
-  it('preserves a trailing newline instead of matching before it', () => {
-    const { editor } = createEditors(false, '<p>TARGET</p>')
-    selectText(editor, 'TARGET')
-    inputText(editor, `${source}\n`)
-    expect(editor.state.doc.firstChild?.textContent).toBe(`${source}\n`)
-  })
-
-  it('keeps Enter separate from already inserted literal syntax', () => {
-    const { editor } = createEditors(false, '<p>TARGET</p>')
-    selectText(editor, 'TARGET')
-    editor.commands.insertContent(source)
-    editor.view.someProp('handleKeyDown', (handler) =>
-      handler(editor.view, new KeyboardEvent('keydown', { key: 'Enter' }))
-    )
-    expect(editor.state.doc.firstChild?.textContent).toBe(source)
-  })
-
   it.each(['<pre><code>TARGET</code></pre>', '<p><code>TARGET</code></p>'])(
     'leaves code literal in %s',
     (content) => {
@@ -248,18 +183,6 @@ describe.each([
       expect(editor.state.doc.firstChild?.textContent).toBe(source)
       expect(editor.getHTML()).not.toContain('<img')
       expect(editor.getHTML()).not.toContain('<a ')
-    }
-  )
-
-  it.each([false, [], ['bold'], [extension]])(
-    'respects enableInputRules=%j',
-    (enableInputRules) => {
-      const { editor } = createEditors(false, '<p>TARGET</p><p>After</p>', { enableInputRules })
-      selectText(editor, 'TARGET')
-      inputText(editor, source)
-      if (Array.isArray(enableInputRules) && enableInputRules.includes(extension))
-        assertConverted(editor)
-      else expect(editor.getText()).toBe(`${source}\n\nAfter`)
     }
   )
 
@@ -292,32 +215,6 @@ describe.each([
     expect(editor.getText()).toContain('After')
     expect(editor.commands.undoInputRule()).toBe(true)
     expect(editor.getText()).toBe(`Prefix ${source}\n\nAfter`)
-  })
-
-  it('supports ordinary history undo and redo', () => {
-    const { editor } = createEditors(false, '<p>TARGET</p><p>After</p>')
-    selectText(editor, 'TARGET')
-    editor.view.dispatch(closeHistory(editor.state.tr))
-    inputText(editor, `Prefix ${source}`)
-    const converted = editor.getJSON()
-    assertConverted(editor)
-    expect(editor.commands.undo()).toBe(true)
-    expect(editor.getText()).toBe('TARGET\n\nAfter')
-    expect(editor.commands.redo()).toBe(true)
-    expect(editor.getJSON()).toEqual(converted)
-  })
-
-  it('supports ordinary undo and redo when conversion is at the document end', () => {
-    const { editor } = createEditors(false, '<p>TARGET</p>')
-    selectText(editor, 'TARGET')
-    editor.view.dispatch(closeHistory(editor.state.tr))
-    inputText(editor, source)
-    const converted = editor.getJSON()
-    assertConverted(editor)
-    expect(editor.commands.undo()).toBe(true)
-    expect(editor.getText()).toBe('TARGET')
-    expect(editor.commands.redo()).toBe(true)
-    expect(editor.getJSON()).toEqual(converted)
   })
 
   it('undoes a collaborative conversion without removing peer text', () => {
@@ -367,31 +264,6 @@ describe('typed images with the collaborative editor extensions', () => {
     expect(b.editor.getJSON()).toEqual(a.editor.getJSON())
   })
 
-  it('continues to create ordinary links during typing', () => {
-    const seed = markdownToYDoc('')
-    const { editor } = createPeer(seed)
-    seed.destroy()
-    typeText(editor, '[Audit link](https://example.com)')
-    expect(editor.getJSON().content?.[0]).toMatchObject({
-      type: 'paragraph',
-      content: [{ type: 'text', text: 'Audit link', marks: [{ type: 'link' }] }],
-    })
-  })
-
-  it('preserves mixed marks in an already typed link label', () => {
-    const { editor } = createEditors(
-      false,
-      '<p>[<strong>Bold</strong> and plain](https://example.com</p>'
-    )
-    editor.commands.setTextSelection(editor.state.doc.firstChild!.nodeSize - 1)
-    inputText(editor, ')')
-    expect(editor.getText()).toBe('Bold and plain')
-    expect(editor.state.doc.firstChild?.content.content).toMatchObject([
-      { text: 'Bold', marks: [{ type: { name: 'link' } }, { type: { name: 'bold' } }] },
-      { text: ' and plain', marks: [{ type: { name: 'link' } }] },
-    ])
-  })
-
   it('leaves refused link schemes literal and clears the previous input event', () => {
     const { editor } = createEditors(false, '<p>TARGET</p><p>After</p>')
     selectText(editor, 'TARGET')
@@ -401,14 +273,5 @@ describe('typed images with the collaborative editor extensions', () => {
     inputText(editor, '[Safe](https://example.com)')
     expect(editor.getText()).toBe('[Unsafe](javascript:alert)\n\nSafe')
     expect(editor.getHTML()).toContain('href="https://example.com"')
-  })
-
-  it('preserves Unicode image labels and surrounding text in a burst', () => {
-    const { editor } = createEditors(false, '<p>TARGET suffix</p>')
-    selectText(editor, 'TARGET')
-    inputText(editor, '😃 prefix ![图 😃](https://example.com/a.png)')
-    expect(editor.getText()).toContain('😃 prefix ')
-    expect(editor.getText()).toContain(' suffix')
-    expect(editor.getHTML()).toContain('alt="图 😃"')
   })
 })

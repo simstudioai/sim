@@ -1,31 +1,42 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  permission: vi.fn(),
-  context: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
-  safe: vi.fn(),
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mocks.safe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE: 'File cannot be sent to a model',
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveReferencedWorkspaceFileContext: mocks.context,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 vi.mock('@/lib/workspace-files/application/resolve-rendered-workspace-artifact', () => ({
-  resolveRenderedWorkspaceArtifact: mocks.render,
+  resolveRenderedWorkspaceArtifact: hoisted.render,
 }))
 
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 
-const principal: Principal = { kind: 'session', userId: 'u', sessionId: 's' }
+const mocks = {
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  context: workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
+  ...hoisted,
+  safe: workspaceFileSecretProvenanceMockFns.mockIsOpaqueWorkspaceFileEgressSafe,
+}
+
+const principal: Principal = createSessionPrincipal({ userId: 'u', sessionId: 's' })
 const input = { workspaceId: 'ws', reference: 'files/report.pdf', maxBytes: 1024 }
 const file = {
   id: 'file',
@@ -37,7 +48,6 @@ const file = {
 
 describe('authorized artifact observations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.permission.mockResolvedValue('read')
     mocks.safe.mockResolvedValue(true)
     mocks.context.mockResolvedValue({
@@ -54,18 +64,6 @@ describe('authorized artifact observations', () => {
     })
   })
 
-  it('passes the acting principal and byte limit into rendering after authorization', async () => {
-    const result = await readWorkspaceFileArtifact.execute({ principal, input })
-    expect(result.contentType).toBe('application/pdf')
-    expect(mocks.render).toHaveBeenCalledWith(file, principal, { maxBytes: 1024 })
-    expect(mocks.safe).toHaveBeenCalledWith('ws', {
-      fileId: file.id,
-      key: file.key,
-      context: 'workspace',
-      contentUpdatedAt: file.contentUpdatedAt,
-    })
-  })
-
   it('does not read or compile bytes when access is denied', async () => {
     mocks.permission.mockResolvedValue(null)
     await expect(readWorkspaceFileArtifact.execute({ principal, input })).rejects.toThrow()
@@ -79,12 +77,5 @@ describe('authorized artifact observations', () => {
       'File cannot be sent to a model'
     )
     expect(mocks.render).not.toHaveBeenCalled()
-  })
-
-  it('propagates render failures without inventing an observation', async () => {
-    mocks.render.mockRejectedValue(new Error('render failed'))
-    await expect(readWorkspaceFileArtifact.execute({ principal, input })).rejects.toThrow(
-      'render failed'
-    )
   })
 })

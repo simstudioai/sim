@@ -23,6 +23,14 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
+
+/** Turns indexed organization search on: its search-index knowledge bases are read through it. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
+
 import { z } from 'zod'
 import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
 import { internalSessionAuth } from '@/lib/api/server/routes'

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'

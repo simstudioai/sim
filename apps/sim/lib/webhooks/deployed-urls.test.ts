@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { webhook } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,7 +15,6 @@ afterAll(resetDbChainMock)
 
 describe('listDeployedWebhookUrls', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

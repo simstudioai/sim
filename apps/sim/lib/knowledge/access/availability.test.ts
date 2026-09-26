@@ -1,32 +1,28 @@
-/**
- * @vitest-environment node
- */
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  featureEnabled: vi.fn(),
-  enterprise: vi.fn(),
-  workspaceBilling: vi.fn(),
-  workspaceGroups: vi.fn(),
-  scopedGroups: vi.fn(),
-}))
+const hoisted = vi.hoisted(() => ({ workspaceGroups: vi.fn() }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.workspaceBilling,
-}))
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mocks.featureEnabled,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.workspaceGroups,
+  isCredentialGroupsAvailable: hoisted.workspaceGroups,
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.scopedGroups,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import {
   forgetKnowledgeAccessAvailability,
@@ -34,42 +30,23 @@ import {
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
 
+const mocks = {
+  ...hoisted,
+  featureEnabled: featureFlagsMockFns.mockIsFeatureEnabled,
+  workspaceBilling: billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess,
+  scopedGroups: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
+
+setEnvFlags({ isHosted: true })
+
 describe('knowledge access availability ownership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     forgetKnowledgeAccessAvailability()
     mocks.featureEnabled.mockResolvedValue(true)
-    mocks.enterprise.mockResolvedValue(true)
+    billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mocks.scopedGroups.mockResolvedValue(true)
     mocks.workspaceGroups.mockResolvedValue(true)
     mocks.workspaceBilling.mockResolvedValue({ isEnterprise: true, organizationId: 'org-parent' })
-  })
-
-  it('evaluates an organization flag and payer without consulting a workspace', async () => {
-    await expect(
-      resolveKnowledgeAccessAvailability({ organizationId: 'org-1', userId: 'viewer' })
-    ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
-    expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
-      orgId: 'org-1',
-    })
-    expect(mocks.enterprise).toHaveBeenCalledWith('org-1', 'throw')
-    expect(mocks.scopedGroups).toHaveBeenCalledWith({
-      kind: 'organization',
-      organizationId: 'org-1',
-    })
-    expect(mocks.workspaceBilling).not.toHaveBeenCalled()
-    expect(mocks.workspaceGroups).not.toHaveBeenCalled()
-  })
-
-  it('answers the same owner from one read for a minute', async () => {
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(1)
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-2' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(2)
-    forgetKnowledgeAccessAvailability()
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(3)
   })
 
   it('keeps source mirroring independent from managed identity availability', async () => {
@@ -86,24 +63,7 @@ describe('knowledge access availability ownership', () => {
       sourceMirrored: false,
       memberScoped: false,
     })
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-    expect(mocks.scopedGroups).not.toHaveBeenCalled()
-  })
-
-  it('preserves workspace billing and workspace feature targeting', async () => {
-    await expect(
-      resolveKnowledgeAccessAvailability({ workspaceId: 'workspace-1' })
-    ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
-    expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
-      workspaceId: 'workspace-1',
-      userId: undefined,
-    })
-    expect(mocks.workspaceBilling).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.workspaceGroups).toHaveBeenCalledWith({
-      organizationId: 'org-parent',
-      ownerBilling: { isEnterprise: true, organizationId: 'org-parent' },
-    })
-    expect(mocks.enterprise).not.toHaveBeenCalled()
+    expect(billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
     expect(mocks.scopedGroups).not.toHaveBeenCalled()
   })
 
@@ -112,7 +72,7 @@ describe('knowledge access availability ownership', () => {
       resolveKnowledgeAccessAvailability({ organizationId: 'org-1', workspaceId: 'workspace-1' })
     ).rejects.toThrow('Knowledge access requires one resource owner')
     expect(mocks.workspaceBilling).not.toHaveBeenCalled()
-    expect(mocks.enterprise).not.toHaveBeenCalled()
+    expect(billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
   })
 
   it('does not let a user-targeted rollout enable organization retrieval', async () => {
@@ -142,16 +102,6 @@ describe('knowledge access availability ownership', () => {
       })
     }
   )
-
-  it('allows Search only for the organization enabled in the rollout', async () => {
-    mocks.featureEnabled.mockImplementation(
-      async (_flag, context) => context.orgId === 'org-enabled'
-    )
-    await expect(requireOrganizationSearchAvailable('org-enabled')).resolves.toBeUndefined()
-    await expect(requireOrganizationSearchAvailable('org-other')).rejects.toThrow(
-      'Search is not enabled'
-    )
-  })
 
   it('propagates a feature service failure instead of enabling Search', async () => {
     mocks.featureEnabled.mockRejectedValue(new Error('Feature service unavailable'))

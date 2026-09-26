@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { slackRenameAgentSessionV2Tool } from '@/tools/slack/rename_agent_session_v2'
 import { slackSetAgentSessionStatusV2Tool } from '@/tools/slack/set_agent_session_status_v2'

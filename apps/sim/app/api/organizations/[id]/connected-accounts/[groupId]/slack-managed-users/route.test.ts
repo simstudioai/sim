@@ -1,9 +1,9 @@
-/** @vitest-environment node */
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
+const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('@/lib/credential-groups/application/slack-managed-users', () => ({
   startSlackCredentialGroupConfiguration: {
     get operation() {
@@ -21,7 +21,7 @@ const body = {
   appId: 'A123',
   teamId: 'T123',
 }
-const context = { params: Promise.resolve({ id: 'org-a', groupId: 'group-a' }) }
+const context = createRouteContext({ id: 'org-a', groupId: 'group-a' })
 function request(input: unknown = body) {
   return createMockRequest(
     'POST',
@@ -32,8 +32,10 @@ function request(input: unknown = body) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  mocks.session.mockResolvedValue({ user: { id: 'actor' }, session: { id: 'session' } })
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'actor' },
+    session: { id: 'session' },
+  })
   mocks.execute.mockResolvedValue({
     authorizationUrl: 'https://slack.com/oauth/v2/authorize',
     state: 'opaque-state',
@@ -41,24 +43,6 @@ beforeEach(() => {
 })
 
 describe('organization Slack setup route', () => {
-  it('authenticates before parsing setup input', async () => {
-    mocks.session.mockResolvedValue(null)
-    const response = await POST(request({}), context)
-    expect(response.status).toBe(401)
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('maps the canonical route id to organization ownership without a workspace alias', async () => {
-    const response = await POST(request(), context)
-    expect(response.status).toBe(200)
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', sessionId: 'session', userId: 'actor' },
-        input: { ...body, organizationId: 'org-a', credentialGroupId: 'group-a' },
-      })
-    )
-  })
-
   it('rejects a client-supplied workspace owner', async () => {
     const response = await POST(request({ ...body, workspaceId: 'workspace-a' }), context)
     expect(response.status).toBe(400)

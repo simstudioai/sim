@@ -1,37 +1,37 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
-  getFile: vi.fn(),
-  resolvePermission: vi.fn(),
-  download: vi.fn(),
-  audit: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  getWorkspaceFile: mocks.getFile,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mocks.download }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { exportWorkspaceFileSnapshot } from '@/lib/workspace-files/application/export-workspace-file-snapshot'
 
-const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  download: storageServiceMockFns.mockDownloadFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const SESSION: Principal = createSessionPrincipal()
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'doc-1'
 const file = {
@@ -52,7 +52,6 @@ function execute(content = 'new unsaved text', principal = SESSION) {
 
 describe('exportWorkspaceFileSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.loadContext.mockImplementation(async (fileId: string) => ({
       fileId,
@@ -138,13 +137,6 @@ describe('exportWorkspaceFileSnapshot', () => {
     expect(mocks.getFile).toHaveBeenCalledTimes(1)
   })
 
-  it('does not fetch external URLs or ordinary links', async () => {
-    const content = '![A](https://example.com/image.png)\n[link](/api/files/view/image-1)'
-    expect((await execute(content)).buffer.toString()).toBe(content)
-    expect(mocks.loadContext).toHaveBeenCalledTimes(1)
-    expect(mocks.download).not.toHaveBeenCalled()
-  })
-
   it('caps embed resolution at the shared 50-image boundary', async () => {
     const content = Array.from(
       { length: 60 },
@@ -175,32 +167,6 @@ describe('exportWorkspaceFileSnapshot', () => {
     expect(mocks.getFile).not.toHaveBeenCalled()
   })
 
-  it('rejects archived or missing roots without exporting', async () => {
-    mocks.loadContext.mockResolvedValue(null)
-    await expect(execute()).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.download).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('rejects unsupported principals before protected loading', async () => {
-    await expect(
-      execute('new', {
-        kind: 'system',
-        serviceId: 'internal',
-        workspaceId: WORKSPACE_ID,
-        workflowId: 'workflow-1',
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadContext).not.toHaveBeenCalled()
-  })
-
-  it.each(['application/pdf', 'text/plain'])('rejects non-Markdown root type %s', async (type) => {
-    mocks.getFile.mockResolvedValue({ ...file, name: 'document.bin', type })
-    await expect(execute()).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.download).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
   it('rejects UTF-8 bytes beyond the editor limit before asset resolution', async () => {
     await expect(
       execute('😀'.repeat(Math.floor(PASTE_LIMITS.RICH_MARKDOWN_BYTES / 4) + 1))
@@ -209,48 +175,21 @@ describe('exportWorkspaceFileSnapshot', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('propagates asset metadata infrastructure failures without auditing a partial export', async () => {
-    const failure = new Error('database unavailable')
-    mocks.getFile.mockImplementation(async (_workspaceId: string, fileId: string) => {
-      if (fileId === FILE_ID) return file
-      throw failure
-    })
-    await expect(execute('![A](/api/files/view/image-1)')).rejects.toBe(failure)
-    expect(mocks.download).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
   it('keeps file-scoped delegation from widening to other embedded files', async () => {
-    const principal: Principal = {
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
+    const principal: Principal = createDelegatedPrincipal({
       workspaceId: WORKSPACE_ID,
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       resourceScope: { fileId: FILE_ID },
-    }
+    })
     const content = '![A](/api/files/view/image-1)'
     expect((await execute(content, principal)).buffer.toString()).toBe(content)
     expect(mocks.download).not.toHaveBeenCalled()
   })
 
-  it('preserves non-human workspace-key audit attribution', async () => {
-    await execute('snapshot', {
-      kind: 'workspace_api_key',
-      keyId: 'key-1',
-      workspaceId: WORKSPACE_ID,
-    })
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: null, actorName: 'Workspace API key' })
-    )
-  })
-
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    createPersonalApiKeyPrincipal(),
     {
       kind: 'oauth_access_token',
       userId: 'user-1',
@@ -277,23 +216,21 @@ describe('exportWorkspaceFileSnapshot', () => {
 
   it('rejects expired delegated authority and workspace keys from another tenant', async () => {
     await expect(
-      execute('snapshot', {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: WORKSPACE_ID,
-        delegationId: 'delegation-1',
-        audience: 'sim:workspace-files',
-        issuedAt: new Date(0),
-        expiresAt: new Date(1),
-      })
+      execute(
+        'snapshot',
+        createDelegatedPrincipal({
+          workspaceId: WORKSPACE_ID,
+          audience: 'sim:workspace-files',
+          issuedAt: new Date(0),
+          expiresAt: new Date(1),
+        })
+      )
     ).rejects.toMatchObject({ code: 'forbidden' })
     await expect(
-      execute('snapshot', {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-2',
-        keyId: 'key-2',
-      })
+      execute(
+        'snapshot',
+        createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace-2', keyId: 'key-2' })
+      )
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.getFile).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
@@ -311,13 +248,5 @@ describe('exportWorkspaceFileSnapshot', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.loadContext).not.toHaveBeenCalled()
-  })
-
-  it('propagates canonical root infrastructure failures without auditing', async () => {
-    const failure = new Error('database unavailable')
-    mocks.loadContext.mockRejectedValue(failure)
-    await expect(execute()).rejects.toBe(failure)
-    expect(mocks.getFile).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

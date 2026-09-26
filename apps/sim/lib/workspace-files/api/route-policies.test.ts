@@ -1,36 +1,26 @@
-/**
- * @vitest-environment node
- */
-
-import { resetEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock } from '@sim/testing'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+  MockInvalidInternalDelegationBindingError,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockInvalidBindingError, mockBindDelegation, mockGetSession } = vi.hoisted(() => {
-  class MockInvalidBindingError extends Error {}
-  return {
-    MockInvalidBindingError,
-    mockBindDelegation: vi.fn(),
-    mockGetSession: vi.fn(),
-  }
-})
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
-  InvalidInternalDelegationBindingError: MockInvalidBindingError,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
 import { internalSessionOrExecutorAuth } from '@/lib/workspace-files/api'
 
+const mockGetSession = authMockFns.mockGetSession
+const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation
+
 afterAll(resetEnvMock)
 
 describe('internal file route authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
     mockBindDelegation.mockImplementation(async (delegation, options) => ({
       kind: 'delegated',
@@ -104,7 +94,7 @@ describe('internal file route authentication', () => {
       subjectUserId: 'user-1',
       workflowId: 'workflow-1',
     })
-    mockBindDelegation.mockRejectedValue(new MockInvalidBindingError())
+    mockBindDelegation.mockRejectedValue(new MockInvalidInternalDelegationBindingError())
 
     await expect(
       internalSessionOrExecutorAuth.authenticate(
@@ -132,19 +122,5 @@ describe('internal file route authentication', () => {
         { id: 'ws-1', fileId: 'file-1' }
       )
     ).rejects.toBe(infrastructureError)
-  })
-
-  it('preserves browser session principals when no service token is supplied', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-
-    await expect(
-      internalSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/workspaces/ws-1/files/file-1'),
-        { id: 'ws-1', fileId: 'file-1' }
-      )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
   })
 })

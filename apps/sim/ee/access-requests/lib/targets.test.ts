@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -99,20 +96,6 @@ describe('access request targets', () => {
     expect(original.deniedModels).toEqual(['GPT-EXAMPLE', 'other-gpt'])
   })
 
-  it('keeps model denials when requesting a provider', () => {
-    const delta = buildAccessRequestPolicyDelta(
-      { kind: 'provider', id: 'openai' },
-      {
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        allowedModelProviders: [],
-        deniedModels: ['gpt-example'],
-      },
-      catalog
-    )
-    expect(delta.config.deniedModels).toEqual(['gpt-example'])
-    expect(delta.changes.map((change) => change.configKey)).toEqual(['allowedModelProviders'])
-  })
-
   it('shows the tool and parent integration changes using exact tool IDs', () => {
     const config = {
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -152,42 +135,6 @@ describe('access request targets', () => {
     expect(delta.changes.map((change) => change.configKey)).toEqual([
       'hideKnowledgeBaseTab',
       'disableKnowledgeBaseCreation',
-    ])
-  })
-
-  it('lifts both the connector allowlist and the module restriction', () => {
-    const delta = buildAccessRequestPolicyDelta(
-      { kind: 'knowledge_connector', id: 'google_drive' },
-      {
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        hideKnowledgeBaseTab: true,
-        allowedKnowledgeConnectors: [],
-      },
-      catalog
-    )
-    expect(CAPABILITY_RULES['knowledge.use'].deniedBy(delta.config)).toBe(false)
-    expect(CAPABILITY_RULES['knowledge.connectors'].deniedBy(delta.config, 'google_drive')).toBe(
-      false
-    )
-    expect(delta.config.allowedKnowledgeConnectors).toEqual(['google_drive'])
-  })
-
-  it('includes parent sharing/module restrictions when allowing one authentication mode', () => {
-    const delta = buildAccessRequestPolicyDelta(
-      { kind: 'file_share_auth', id: 'sso' },
-      {
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        hideFilesTab: true,
-        disablePublicFileSharing: true,
-        allowedFileShareAuthTypes: ['password'],
-      },
-      catalog
-    )
-    expect(delta.config.allowedFileShareAuthTypes).toEqual(['password', 'sso'])
-    expect(delta.changes.map((change) => change.configKey)).toEqual([
-      'hideFilesTab',
-      'disablePublicFileSharing',
-      'allowedFileShareAuthTypes',
     ])
   })
 

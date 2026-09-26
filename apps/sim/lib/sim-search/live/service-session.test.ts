@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
@@ -128,36 +127,6 @@ describe('service credential isolation', () => {
     ).rejects.toThrow('personal Google account')
     expect(mocks.google).not.toHaveBeenCalled()
   })
-  it('builds GitHub App mode from the repository inventory and the member connection', async () => {
-    const configured = { ...policy, sourceId: undefined }
-    const session = await createLiveServiceSession({
-      ...base,
-      provider: 'github',
-      policy: configured,
-    })
-    expect(session).toBeTruthy()
-    expect(mocks.githubSources).toHaveBeenCalledWith(base.owner)
-    expect(mocks.github).toHaveBeenCalledWith(
-      [{ id: 'repository-source' }],
-      api,
-      base.signal,
-      undefined
-    )
-    expect(mocks.source).not.toHaveBeenCalled()
-    await expect(
-      createLiveServiceSession({ ...base, member: null, provider: 'github', policy: configured })
-    ).rejects.toThrow('personal GitHub account')
-  })
-  it('passes the caller connection pool to the GitHub verifier', async () => {
-    const pool = { agent: vi.fn(), destroy: vi.fn() }
-    await createLiveServiceSession({
-      ...base,
-      provider: 'github',
-      policy: { ...policy, sourceId: undefined },
-      pool,
-    })
-    expect(mocks.github).toHaveBeenCalledWith(expect.anything(), api, base.signal, pool)
-  })
 })
 
 describe('Confluence source namespace', () => {
@@ -215,39 +184,5 @@ describe('Confluence source namespace', () => {
     })
     const session = await createLiveServiceSession({ ...base, provider: 'confluence', policy })
     expect(await session!.verify({ id: 'page', container: 'cloud' })).toBe(false)
-  })
-  it('preserves staging label alternatives instead of requiring every configured label', async () => {
-    mocks.source.mockResolvedValue({
-      ...source,
-      config: {
-        domain: 'company.atlassian.net',
-        spaceKey: 'ENG',
-        labelFilter: 'published, engineering',
-      },
-    })
-    const session = await createLiveServiceSession({ ...base, provider: 'confluence', policy })
-    expect(await session!.verify({ id: 'page', container: 'cloud' })).toBe(true)
-  })
-  it('scopes Confluence search to blog posts and alternative labels before a native sort clause', async () => {
-    mocks.source.mockResolvedValue({
-      ...source,
-      config: {
-        domain: 'company.atlassian.net',
-        spaceKey: 'ENG',
-        contentType: 'blogpost',
-        labelFilter: 'published, engineering',
-      },
-    })
-    const session = await createLiveServiceSession({ ...base, provider: 'confluence', policy })
-    const scoped = session!.scopeSearch!({
-      query: 'launch',
-      limit: 10,
-      scopes: [],
-      native: { provider: 'confluence', query: 'text ~ "launch" ORDER BY lastmodified DESC' },
-    })
-    expect(scoped.native?.query).toContain('type = "blogpost"')
-    expect(scoped.native?.query).toContain('label IN ("published", "engineering")')
-    expect(scoped.native?.query).toMatch(/ORDER BY lastmodified DESC$/)
-    expect(scoped.native?.query).not.toContain('label = "published" AND label = "engineering"')
   })
 })

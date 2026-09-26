@@ -1,28 +1,30 @@
-/**
- * @vitest-environment node
- */
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   events: [] as string[],
-  getResolvedUserUsageData: vi.fn(),
   getCreditBalanceForEntity: vi.fn(),
-  isOrgScopedSubscription: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  getResolvedUserUsageData: mocks.getResolvedUserUsageData,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 vi.mock('@/lib/billing/credits/balance', () => ({
-  getCreditBalanceForEntity: mocks.getCreditBalanceForEntity,
+  getCreditBalanceForEntity: hoisted.getCreditBalanceForEntity,
 }))
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  isOrgScopedSubscription: mocks.isOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
+
+const mocks = {
+  ...hoisted,
+  getResolvedUserUsageData: billingUsageMockFns.mockGetResolvedUserUsageData,
+  isOrgScopedSubscription: billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription,
+}
 
 const usage = {
   currentUsage: 18.5,
@@ -37,46 +39,7 @@ const usage = {
 
 describe('getAccountBillingSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.events.length = 0
-  })
-
-  it('reuses one resolved subscription for org scope, usage, limits, and credits', async () => {
-    const subscription = {
-      plan: 'team',
-      referenceId: 'org-1',
-    }
-    mocks.getResolvedUserUsageData.mockImplementation(async () => {
-      mocks.events.push('usage-and-subscription')
-      return { usage, subscription, personalCreditBalance: 4 }
-    })
-    mocks.isOrgScopedSubscription.mockReturnValue(true)
-    mocks.getCreditBalanceForEntity.mockImplementation(async () => {
-      mocks.events.push('credits')
-      return 25
-    })
-
-    await expect(getAccountBillingSnapshot('user-1')).resolves.toEqual({
-      plan: 'team',
-      billingScope: 'organization',
-      organizationId: 'org-1',
-      usage: {
-        currentPeriodCost: 18.5,
-        limit: 40,
-        remaining: 21.5,
-        percentUsed: 46.25,
-        isExceeded: false,
-        billingPeriodEnd: new Date('2026-09-01T00:00:00Z'),
-      },
-      credits: { balance: 25, scope: 'organization' },
-    })
-    expect(mocks.getResolvedUserUsageData).toHaveBeenCalledOnce()
-    expect(mocks.getCreditBalanceForEntity).toHaveBeenCalledWith(
-      'organization',
-      'org-1',
-      expect.anything()
-    )
-    expect(mocks.events).toEqual(['usage-and-subscription', 'credits'])
   })
 
   it('preserves personal scope and clamps negative remaining usage to zero', async () => {

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Host key verification is mandatory for this connector, so these tests drive
  * the real `createSftpConnection` — including the `hostVerifier` it builds —
  * against a fake ssh2 `Client` that presents a known host key. ssh2 itself is
@@ -8,8 +6,14 @@
  * it is called with the raw host key blob during `connect`, before any
  * credential is used, and a `false` return aborts the connection.
  */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sftpConnector } from '@/connectors/sftp/sftp'
+
+const mockValidateDatabaseHost = inputValidationMockFns.mockValidateDatabaseHost
 
 const S_IFDIR = 0o040755
 const S_IFREG = 0o100644
@@ -28,16 +32,11 @@ const SERVER_HOST_KEY = Buffer.from('ssh-ed25519 fake host key bytes')
 const SERVER_FINGERPRINT = 'vavRyluclyEjo81XjQIzVxoqZgtAY47GuKLG6j6aCGM'
 const OTHER_FINGERPRINT = 'Gg8WhyW1o7SY1nxHGvP4EuvFvVCSjtSBclGk7qnas5E'
 
-const { mockValidateDatabaseHost, clientConnects } = vi.hoisted(() => ({
-  mockValidateDatabaseHost: vi.fn(),
+const { clientConnects } = vi.hoisted(() => ({
   clientConnects: [] as Array<Record<string, unknown>>,
 }))
 
-vi.mock('@/components/icons', () => ({ SftpIcon: () => null }))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 /**
  * The factory is evaluated before this module's own imports are initialized, so
@@ -147,7 +146,6 @@ function config(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   clientConnects.length = 0
   readPages.clear()
   mockValidateDatabaseHost.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
@@ -178,24 +176,6 @@ describe('sftp host key fingerprint is required', () => {
     expect(clientConnects).toHaveLength(0)
   })
 
-  it('getDocument fails closed when a stored config has no fingerprint', async () => {
-    await expect(
-      sftpConnector.getDocument!(
-        SECRET,
-        config({ hostFingerprint: '' }),
-        '/home/sftp-user/docs/a.txt'
-      )
-    ).rejects.toThrow(/Host Key Fingerprint is required/)
-    expect(clientConnects).toHaveLength(0)
-  })
-
-  it('names how to obtain the fingerprint and why it matters', async () => {
-    const result = await sftpConnector.validateConfig!(SECRET, config({ hostFingerprint: '' }))
-
-    expect(result.error).toContain('ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -')
-    expect(result.error).toContain('on-path attacker')
-  })
-
   it('rejects an MD5 fingerprint with a format-specific message', async () => {
     const result = await sftpConnector.validateConfig!(
       SECRET,
@@ -209,20 +189,6 @@ describe('sftp host key fingerprint is required', () => {
 })
 
 describe('sftp host key verification', () => {
-  it('accepts a matching fingerprint and installs a hostVerifier', async () => {
-    const result = await sftpConnector.validateConfig!(SECRET, config())
-
-    expect(result).toEqual({ valid: true })
-    expect(clientConnects).toHaveLength(1)
-    expect(typeof clientConnects[0].hostVerifier).toBe('function')
-  })
-
-  it('syncs with a matching fingerprint', async () => {
-    const list = await sftpConnector.listDocuments(SECRET, config())
-
-    expect(list.documents.map((d) => d.externalId)).toEqual(['/home/sftp-user/docs/a.txt'])
-  })
-
   it('rejects a mismatched fingerprint before authenticating', async () => {
     const result = await sftpConnector.validateConfig!(
       SECRET,

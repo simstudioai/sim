@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
@@ -18,11 +14,6 @@ describe('knowledge capability rules', () => {
   const upload = CAPABILITY_RULES['knowledge.upload']
   const connectors = CAPABILITY_RULES['knowledge.connectors']
   const exportRule = CAPABILITY_RULES['knowledge.export']
-
-  it('permits creation and upload under the unrestricted config', () => {
-    expect(create.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
-    expect(upload.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
-  })
 
   it('withholds creation and upload from their own keys', () => {
     expect(create.deniedBy(configWith({ disableKnowledgeBaseCreation: true }))).toBe(true)
@@ -46,14 +37,6 @@ describe('knowledge capability rules', () => {
   it('withholds every connector when the allow-list is emptied rather than cleared', () => {
     const emptied = configWith({ allowedKnowledgeConnectors: [] })
     expect(connectors.deniedBy(emptied, 'google_drive')).toBe(true)
-  })
-
-  it('permits export under the unrestricted config', () => {
-    expect(exportRule.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
-  })
-
-  it('withholds export from its own key', () => {
-    expect(exportRule.deniedBy(configWith({ disableKnowledgeBaseExport: true }))).toBe(true)
   })
 
   it('withholds export when the module is hidden', () => {

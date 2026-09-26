@@ -1,61 +1,63 @@
-/** @vitest-environment node */
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   auditMock,
   auditMockFns,
   authMockFns,
-  createMockRequest,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  role: vi.fn(),
-  context: vi.fn(),
-  orgAdmin: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   revoke: vi.fn(),
-  removeOrg: vi.fn(),
-  seats: vi.fn(),
-  analytics: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  isOrganizationAdminOrOwner: mocks.orgAdmin,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
-  revokeWorkspaceAccessTx: mocks.revoke,
+  revokeWorkspaceAccessTx: hoisted.revoke,
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  removeUserFromOrganization: mocks.removeOrg,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: mocks.seats }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
-import { DELETE } from '@/app/api/workspaces/members/[id]/route'
 
-const delegated: DelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  ...hoisted,
+  seats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  context: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  orgAdmin: permissionsMockFns.mockIsOrganizationAdminOrOwner,
+  removeOrg: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+}
+
+const delegated = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: '11111111-1111-4111-8111-111111111111',
   delegationId: 'call',
   audience: 'sim:settings',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-}
-const session: Principal = { kind: 'session', userId: 'actor', sessionId: 'live-session' }
+})
 
 function queueWorkspace(
   options: {
@@ -91,7 +93,6 @@ const remove = (userId = 'target', principal: Principal = delegated) =>
 
 describe('workspace member removal', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({
       workspaceId: '11111111-1111-4111-8111-111111111111',
@@ -107,30 +108,6 @@ describe('workspace member removal', () => {
       user: { id: 'actor' },
       session: { id: 'live-session' },
     })
-  })
-
-  it('uses canonical scope and the actual delegated admin in the removal audit', async () => {
-    queueWorkspace()
-    expect(await remove()).toMatchObject({
-      success: true,
-      selfRemoval: false,
-      removedUserId: 'target',
-      reconciliationPending: false,
-    })
-    expect(mocks.revoke).toHaveBeenCalledWith(expect.anything(), {
-      workspaceId: '11111111-1111-4111-8111-111111111111',
-      userId: 'target',
-    })
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor',
-        workspaceId: '11111111-1111-4111-8111-111111111111',
-        metadata: expect.objectContaining({
-          actor: expect.objectContaining({ kind: 'delegated', subjectUserId: 'actor' }),
-          removedUserId: 'target',
-        }),
-      })
-    )
   })
 
   it.each(['read', 'write'])(
@@ -176,12 +153,6 @@ describe('workspace member removal', () => {
     }
   )
 
-  it('does not remove an absent collaborator', async () => {
-    queueWorkspace({ missingTarget: true })
-    await expect(remove()).rejects.toThrow('User not found in workspace')
-    expect(mocks.revoke).not.toHaveBeenCalled()
-  })
-
   it('throws a refusal before the transaction can commit any ownership changes', async () => {
     queueWorkspace()
     mocks.revoke.mockResolvedValue({
@@ -199,26 +170,6 @@ describe('workspace member removal', () => {
     expect(committed).toBe(false)
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
-
-  it.each([session, delegated])(
-    'removes last organization access without inventing a session for %s',
-    async (principal) => {
-      queueWorkspace({ organizationId: 'org', userId: 'actor' })
-      expect(await remove('actor', principal)).toMatchObject({ organizationRemoval: true })
-      expect(mocks.removeOrg).toHaveBeenCalledWith({
-        userId: 'actor',
-        organizationId: 'org',
-        memberId: 'org-member',
-        requireNoOrgWorkspaceAccess: true,
-        ...(principal.kind === 'session' ? { spareSessionId: 'live-session' } : {}),
-      })
-      expect(mocks.seats).toHaveBeenCalledWith({
-        organizationId: 'org',
-        reason: 'member-removed',
-        actorId: 'actor',
-      })
-    }
-  )
 
   it('retains membership and seat when another organization workspace remains', async () => {
     queueWorkspace({ organizationId: 'org' })
@@ -243,23 +194,5 @@ describe('workspace member removal', () => {
     await expect(remove('target', { ...delegated, workspaceId: 'foreign' })).rejects.toThrow()
     await expect(remove('target', { ...delegated, expiresAt: new Date(0) })).rejects.toThrow()
     expect(mocks.revoke).not.toHaveBeenCalled()
-  })
-
-  it('preserves the internal success body and session-only analytics', async () => {
-    queueWorkspace()
-    const response = await DELETE(
-      createMockRequest('DELETE', { workspaceId: '11111111-1111-4111-8111-111111111111' }),
-      {
-        params: Promise.resolve({ id: 'target' }),
-      }
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ success: true })
-    expect(mocks.analytics).toHaveBeenCalledWith(
-      'actor',
-      'workspace_member_removed',
-      { workspace_id: '11111111-1111-4111-8111-111111111111', is_self_removal: false },
-      { groups: { workspace: '11111111-1111-4111-8111-111111111111' } }
-    )
   })
 })

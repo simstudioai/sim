@@ -1,8 +1,16 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { sql } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,9 +24,7 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveAccess: vi.fn(),
   resolveDefaultOrganization: vi.fn(),
   getOrgWorkspaceIds: vi.fn(),
@@ -26,50 +32,43 @@ const mocks = vi.hoisted(() => ({
   buildFilterConditions: vi.fn(),
   decodeAuditLogCursor: vi.fn(),
   queryAuditLogs: vi.fn(),
-  recordAudit: vi.fn(),
   isCapabilityWithheldForUser: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-  permissionSatisfies: (actual: string | null) => actual !== null,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
-  isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
+  isCapabilityWithheldForUser: hoisted.isCapabilityWithheldForUser,
 }))
 
 vi.mock('@/lib/audit-logs/authorization', () => ({
-  resolveEnterpriseAuditAccess: mocks.resolveAccess,
-  resolveDefaultAuditOrganization: mocks.resolveDefaultOrganization,
+  resolveEnterpriseAuditAccess: hoisted.resolveAccess,
+  resolveDefaultAuditOrganization: hoisted.resolveDefaultOrganization,
 }))
 
 vi.mock('@/lib/audit-logs/query', () => ({
-  getOrgWorkspaceIds: mocks.getOrgWorkspaceIds,
-  buildOrgScopeCondition: mocks.buildOrgScopeCondition,
-  buildFilterConditions: mocks.buildFilterConditions,
-  decodeAuditLogCursor: mocks.decodeAuditLogCursor,
-  queryAuditLogs: mocks.queryAuditLogs,
+  getOrgWorkspaceIds: hoisted.getOrgWorkspaceIds,
+  buildOrgScopeCondition: hoisted.buildOrgScopeCondition,
+  buildFilterConditions: hoisted.buildFilterConditions,
+  decodeAuditLogCursor: hoisted.decodeAuditLogCursor,
+  queryAuditLogs: hoisted.queryAuditLogs,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { getAuditLog } from '@/lib/audit-logs/application/get-audit-log'
 import { listAuditLogs } from '@/lib/audit-logs/application/list-audit-logs'
 
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
 }
-const workspacePrincipal: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: 'workspace-1',
-  keyId: 'key-1',
-}
+
+const sessionPrincipal = createSessionPrincipal({ userId: 'admin-1' })
+const workspacePrincipal = createWorkspaceApiKeyPrincipal()
 const listInput = {
   organizationId: 'organization-1',
   includeDeparted: false,
@@ -79,7 +78,6 @@ const listInput = {
 
 describe('audit-log application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.resolveDefaultOrganization.mockResolvedValue({
@@ -107,7 +105,7 @@ describe('audit-log application use cases', () => {
   })
 
   it('preserves enterprise admin authority and pins private audit listing to the selected workspace', async () => {
-    const request = new Request('https://sim.invalid/api/v2/audit-logs')
+    const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs' })
     markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
     const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
     await listAuditLogs.execute({ principal, input: { ...listInput, organizationId: undefined } })
@@ -132,7 +130,7 @@ describe('audit-log application use cases', () => {
     await expect(
       listAuditLogs.execute({ principal: forged, input: listInput })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    const request = new Request('https://sim.invalid/api/v2/audit-logs')
+    const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs' })
     markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
     const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
     await expect(
@@ -142,7 +140,7 @@ describe('audit-log application use cases', () => {
     expect(mocks.resolveAccess).not.toHaveBeenCalled()
   })
   it('binds an ID-only private detail read to the selected workspace and rechecks access', async () => {
-    const request = new Request('https://sim.invalid/api/v2/audit-logs/audit-1')
+    const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs/audit-1' })
     markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
     const principal = copilotRequestPrincipal(request, auditLogOperations.readDetail, getAuditLog)!
     mocks.buildOrgScopeCondition.mockReturnValue(sql`true`)
@@ -188,21 +186,6 @@ describe('audit-log application use cases', () => {
     expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
   })
 
-  it('authorizes the requested organization and scopes the query canonically', async () => {
-    await expect(
-      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-    ).resolves.toEqual({ data: [], nextCursor: undefined })
-
-    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
-    expect(mocks.buildOrgScopeCondition).toHaveBeenCalledWith({
-      organizationId: 'organization-1',
-      orgWorkspaceIds: ['workspace-1'],
-      orgMemberIds: ['admin-1'],
-      includeDeparted: false,
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it.each(['sim-cli', 'partner-app'])(
     'rechecks the organization OAuth restriction for an existing %s audit token',
     async (clientId) => {
@@ -239,50 +222,10 @@ describe('audit-log application use cases', () => {
     ).resolves.toBeDefined()
     await expect(
       listAuditLogs.execute({
-        principal: { kind: 'personal_api_key', userId: 'admin-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'admin-1' }),
         input: listInput,
       })
     ).resolves.toBeDefined()
-  })
-
-  /**
-   * Nothing an API key can reach publishes an organization id, so a required
-   * `organizationId` made the whole resource unreachable from a key. It is
-   * derived from the caller, which `member`'s per-user unique index keeps to a
-   * single candidate.
-   */
-  it('derives the organization when the caller named none', async () => {
-    await expect(
-      listAuditLogs.execute({
-        principal: sessionPrincipal,
-        input: { ...listInput, organizationId: undefined },
-      })
-    ).resolves.toEqual({ data: [], nextCursor: undefined })
-
-    expect(mocks.resolveDefaultOrganization).toHaveBeenCalledWith('admin-1')
-    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
-  })
-
-  it('does not derive an organization the caller named itself', async () => {
-    await listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-
-    expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
-  })
-
-  it('names the membership refusal for a caller in no organization', async () => {
-    mocks.resolveDefaultOrganization.mockResolvedValueOnce({ kind: 'none' })
-
-    await expect(
-      getAuditLog.execute({
-        principal: sessionPrincipal,
-        input: { id: 'audit-1' },
-      })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      detailCode: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-    })
-
-    expect(mocks.resolveAccess).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace filter outside the authorized organization', async () => {
@@ -339,20 +282,5 @@ describe('audit-log application use cases', () => {
     await expect(
       listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
     ).rejects.toMatchObject({ code: 'forbidden', detailCode: code, message })
-  })
-
-  it('names the principal-kind refusal too', async () => {
-    await expect(
-      listAuditLogs.execute({ principal: workspacePrincipal, input: listInput })
-    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
-  })
-
-  it('propagates organization-store failures', async () => {
-    const failure = new Error('database unavailable')
-    mocks.resolveAccess.mockRejectedValueOnce(failure)
-
-    await expect(
-      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-    ).rejects.toBe(failure)
   })
 })

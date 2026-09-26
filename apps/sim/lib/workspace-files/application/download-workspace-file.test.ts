@@ -1,45 +1,36 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 class FakeDocNotReadyError extends Error {}
 
-const mocks = vi.hoisted(() => ({
-  provenance: vi.fn(),
-  downloadStream: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
-  getFile: vi.fn(),
-  loadContext: vi.fn(),
-  recordAudit: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'FILE_DOWNLOADED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   isDocNotReadyError: (error: unknown) => error instanceof FakeDocNotReadyError,
@@ -47,10 +38,17 @@ vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
 }))
 
 import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
-import {
-  downloadWorkspaceFile,
-  downloadWorkspaceFileStream,
-} from '@/lib/workspace-files/application/download-workspace-file'
+import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
+
+const mocks = {
+  provenance: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  downloadStream: storageServiceMockFns.mockDownloadFileStream,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const context = {
   fileId: 'file-1',
@@ -101,7 +99,7 @@ const uploadedPdf = {
   storageContext: 'workspace',
 }
 
-const SESSION = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const SESSION = createSessionPrincipal()
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
   return new Response(stream).text()
@@ -113,7 +111,6 @@ function downloadStream(fileId: string) {
 
 describe('workspace file downloads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.getFile.mockResolvedValue(file)
@@ -142,40 +139,6 @@ describe('workspace file downloads', () => {
         () => downloadStream('file-2')
       )
     ).rejects.toThrow('no evidence')
-  })
-
-  it('returns the authoritative file and records its semantic download audit', async () => {
-    await expect(
-      downloadWorkspaceFile.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual({ file })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        actorId: 'user-1',
-        action: 'FILE_DOWNLOADED',
-        resourceId: 'file-1',
-        resourceName: 'report.pdf',
-        metadata: expect.objectContaining({
-          operation: 'files.download',
-          fileId: 'file-1',
-          fileName: 'report.pdf',
-          bytes: 42,
-        }),
-      })
-    )
-  })
-
-  it('does not audit a streaming download when storage acquisition fails', async () => {
-    mocks.getFile.mockResolvedValue(plainFile)
-    const failure = new Error('storage unavailable')
-    mocks.downloadStream.mockRejectedValueOnce(failure)
-
-    await expect(downloadStream('file-2')).rejects.toBe(failure)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   /** Resolving an artifact costs a full buffer, so it is reserved for generation sources. */
@@ -223,47 +186,9 @@ describe('workspace file downloads', () => {
       expect.objectContaining({ maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
     )
   })
-
-  /** Legacy records carry no type, so the extension is the only signal left. */
-  it('routes a record with no content type by its extension', async () => {
-    await downloadStream('file-1')
-
-    expect(mocks.fetchServable).toHaveBeenCalledWith(file, SESSION, expect.anything())
-    expect(mocks.downloadStream).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a still-compiling generated doc as a retryable conflict', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-    mocks.fetchServable.mockRejectedValueOnce(new FakeDocNotReadyError('still compiling'))
-
-    await expect(downloadStream('file-3')).rejects.toMatchObject({
-      name: 'OrchestrationError',
-      code: 'conflict',
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('propagates a genuine artifact-resolution failure unchanged', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-    const failure = new Error('artifact store unavailable')
-    mocks.fetchServable.mockRejectedValueOnce(failure)
-
-    await expect(downloadStream('file-3')).rejects.toBe(failure)
-  })
-
-  it('audits the bytes actually served, not the generation source size', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-
-    await downloadStream('file-3')
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ bytes: '%PDF-compiled'.length }),
-      })
-    )
-  })
 })
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)

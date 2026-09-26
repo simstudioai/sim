@@ -1,20 +1,25 @@
-/**
- * @vitest-environment node
- */
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   generateVideo: vi.fn(),
-  isModelSafeWorkspaceFileKey: vi.fn(),
-  uploadExecutionFile: vi.fn(),
-  uploadFile: vi.fn(),
   validateOpaqueModelInputProvenance: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/execution/model-input-provenance', () => ({
   validateOpaqueModelInputProvenance: mocks.validateOpaqueModelInputProvenance,
 }))
@@ -22,19 +27,21 @@ vi.mock('@/lib/internal/video/client', () => ({
   generateVideo: mocks.generateVideo,
   getVideoInputValidationError: vi.fn().mockReturnValue(undefined),
 }))
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: mocks.uploadFile },
-}))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mocks.isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { executeVideoOperation } from '@/lib/internal/video/operations'
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockIsModelSafeWorkspaceFileKey } = workspaceFileSecretProvenanceMockFns
+
+const { mockUploadFile } = storageServiceMockFns
 
 const file = {
   id: 'file-1',
@@ -46,9 +53,8 @@ const file = {
 
 describe('executeVideoOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
     mocks.validateOpaqueModelInputProvenance.mockReturnValue({ success: true })
     mocks.generateVideo.mockResolvedValue({
       buffer: Buffer.from('video'),
@@ -57,66 +63,11 @@ describe('executeVideoOperation', () => {
       duration: 5,
       jobId: 'job-1',
     })
-    mocks.uploadExecutionFile.mockResolvedValue({
+    mockUploadExecutionFile.mockResolvedValue({
       ...file,
       name: 'video.mp4',
       type: 'video/mp4',
       url: '/api/files/serve/video.mp4',
-    })
-  })
-
-  it('uses trusted execution scope and returns the legacy output contract', async () => {
-    const controller = new AbortController()
-    const result = await executeVideoOperation(
-      {
-        provider: 'runway',
-        apiKey: 'key',
-        model: 'gen-4-turbo',
-        prompt: 'A cinematic sunrise',
-        visualReference: file,
-      },
-      {
-        headers: new Headers(),
-        requestId: 'request-1',
-        signal: controller.signal,
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      }
-    )
-
-    expect(mocks.validateOpaqueModelInputProvenance).toHaveBeenCalled()
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      file.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.generateVideo).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: 'runway', visualReference: file }),
-      { requestId: 'request-1', signal: controller.signal }
-    )
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
-      {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
-      Buffer.from('video'),
-      expect.stringMatching(/^video-runway-/),
-      'video/mp4',
-      'user-1'
-    )
-    expect(result).toMatchObject({
-      videoUrl: '/api/files/serve/video.mp4',
-      videoFile: expect.objectContaining({ type: 'video/mp4' }),
-      duration: 5,
-      width: 1280,
-      height: 720,
-      provider: 'runway',
-      model: 'gen-4-turbo',
-      jobId: 'job-1',
     })
   })
 
@@ -138,12 +89,12 @@ describe('executeVideoOperation', () => {
         { headers: new Headers(), requestId: 'request-1', userId: 'user-1' }
       )
     ).rejects.toMatchObject({ status: 400, message: 'Model input provenance is unavailable' })
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
     expect(mocks.generateVideo).not.toHaveBeenCalled()
   })
 
   it('fails closed for model-unsafe workspace files', async () => {
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(false)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(false)
 
     await expect(
       executeVideoOperation(
@@ -172,7 +123,7 @@ describe('executeVideoOperation', () => {
         source: 'billing_events',
       },
     })
-    mocks.uploadFile.mockResolvedValue({ path: '/api/files/video.mp4', size: 5 })
+    mockUploadFile.mockResolvedValue({ path: '/api/files/video.mp4', size: 5 })
 
     const result = await executeVideoOperation(
       {

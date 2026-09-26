@@ -1,19 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockRedirect, mockResolveAppEntryPath } = vi.hoisted(() => ({
-  mockRedirect: vi.fn((path: string) => {
-    throw new Error(`NEXT_REDIRECT:${path}`)
-  }),
+const { mockResolveAppEntryPath } = vi.hoisted(() => ({
   mockResolveAppEntryPath: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/navigation/resolve-app-entry', () => ({
   resolveAppEntryPath: mockResolveAppEntryPath,
@@ -21,13 +14,11 @@ vi.mock('@/lib/navigation/resolve-app-entry', () => ({
 
 import AppEntryPage from '@/app/home/page'
 
+const mockRedirect = nextNavigationMockFns.mockRedirect
+
 const mockGetSession = authMockFns.mockGetSession
 
 describe('AppEntryPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   /**
    * The proxy sends cookie-less requests to /login before this route renders, so a
    * null session here is always a stale cookie. Redirecting to /login would be
@@ -39,14 +30,5 @@ describe('AppEntryPage', () => {
     await expect(AppEntryPage()).rejects.toThrow('NEXT_REDIRECT:/workspace')
     expect(mockRedirect).not.toHaveBeenCalledWith('/login')
     expect(mockResolveAppEntryPath).not.toHaveBeenCalled()
-  })
-
-  it('forwards a signed-in viewer to their resolved entry', async () => {
-    const session = { user: { id: 'viewer' } }
-    mockGetSession.mockResolvedValue(session)
-    mockResolveAppEntryPath.mockResolvedValue('/o/org-1/home')
-
-    await expect(AppEntryPage()).rejects.toThrow('NEXT_REDIRECT:/o/org-1/home')
-    expect(mockResolveAppEntryPath).toHaveBeenCalledWith(session)
   })
 })

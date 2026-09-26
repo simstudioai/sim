@@ -1,39 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    KNOWLEDGE_PROJECTION_FILL: undefined as boolean | undefined,
-    KNOWLEDGE_ASYNC_PROJECTION: undefined as boolean | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    TABLES_V2_API: undefined as boolean | undefined,
-    TABLE_ROW_TTL: undefined as boolean | undefined,
-    MSHIP_MODEL_SELECTOR: undefined as boolean | undefined,
-    MSHIP_PLAN_MODE: undefined as boolean | undefined,
-    AGENT_MEMORY_HISTORY: undefined as boolean | undefined,
-    CREDENTIAL_GROUPS: undefined as boolean | undefined,
-    KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-    KNOWLEDGE_TIN_KEYWORD: undefined as boolean | undefined,
-    SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
-  },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  isTruthy: (v: unknown) => Boolean(v),
-  get env() {
-    return envRef
-  },
 }))
 
 vi.mock('@/lib/permissions/super-user', () => ({
@@ -59,6 +35,20 @@ import {
   isFeatureEnabled,
 } from '@/lib/core/config/feature-flags?feature-flags-test'
 
+const envRef = mockEnvObject
+setEnv({
+  APPCONFIG_APPLICATION: 'sim-staging',
+  APPCONFIG_ENVIRONMENT: 'staging',
+  TABLES_V2_API: undefined,
+  TABLE_ROW_TTL: undefined,
+  MSHIP_MODEL_SELECTOR: undefined,
+  MSHIP_PLAN_MODE: undefined,
+  AGENT_MEMORY_HISTORY: undefined,
+  CREDENTIAL_GROUPS: undefined,
+  KNOWLEDGE_MEMBER_ACCESS: undefined,
+  SLACK_SEARCH_SHARED_APP: undefined,
+})
+
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {
   setEnvFlags({ isAppConfigEnabled: true })
@@ -77,7 +67,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('getFeatureFlags', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
   })
@@ -147,13 +136,9 @@ describe('getFeatureFlags', () => {
 
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
-    envRef.KNOWLEDGE_TIN_KEYWORD = undefined
-    envRef.KNOWLEDGE_ASYNC_PROJECTION = undefined
-    envRef.KNOWLEDGE_PROJECTION_FILL = undefined
     envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
 
@@ -187,45 +172,6 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
       envRef.SLACK_SEARCH_SHARED_APP = true
       expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
-    })
-  })
-
-  describe('knowledge-tin-keyword flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(false)
-      envRef.KNOWLEDGE_TIN_KEYWORD = true
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-tin-keyword': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-  })
-
-  describe('knowledge-async-projection flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(false)
-      envRef.KNOWLEDGE_ASYNC_PROJECTION = true
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-async-projection': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-  })
-
-  describe('knowledge-projection-fill flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(false)
-      envRef.KNOWLEDGE_PROJECTION_FILL = true
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-projection-fill': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
     })
   })
 
@@ -360,7 +306,6 @@ describe('isFeatureEnabled', () => {
 
 describe('tables-v2-api flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLES_V2_API = undefined
   })
@@ -386,7 +331,6 @@ describe('tables-v2-api flag', () => {
 
 describe('table-row-ttl flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLE_ROW_TTL = undefined
   })
@@ -406,7 +350,6 @@ describe('table-row-ttl flag', () => {
 
 describe('Mothership model and Plan flags', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.MSHIP_MODEL_SELECTOR = undefined
     envRef.MSHIP_PLAN_MODE = undefined

@@ -1,27 +1,38 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), approved: vi.fn(), available: vi.fn() }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireSourceMirroredAccessAvailable: mocks.available,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.context,
-}))
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  searchIntegrationAccessCondition: mocks.approved,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 
 import { loadLiveGitHubSources, loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
 
+const mocks = {
+  approved: knowledgeSearchIntegrationPolicyMockFns.mockSearchIntegrationAccessCondition,
+}
+
 describe('service source canonical namespace', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.context.mockResolvedValue({ workspaceOrganizationId: 'org' })
-    mocks.available.mockResolvedValue(undefined)
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceOrganizationId: 'org',
+    })
+    knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable.mockResolvedValue(
+      undefined
+    )
   })
   it('derives organization scope from the canonical workspace before binding source ID and provider', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
@@ -33,8 +44,12 @@ describe('service source canonical namespace', () => {
       organizationId: 'org',
       config: { label: 'INBOX' },
     })
-    expect(mocks.context).toHaveBeenCalledWith({ workspaceId: 'workspace' })
-    expect(mocks.available).toHaveBeenCalledWith({ organizationId: 'org' })
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).toHaveBeenCalledWith({
+      workspaceId: 'workspace',
+    })
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable
+    ).toHaveBeenCalledWith({ organizationId: 'org' })
     expect(eq).toHaveBeenCalledWith(schemaMock.knowledgeBase.organizationId, 'org')
     expect(eq).toHaveBeenCalledWith(schemaMock.knowledgeBase.isSearchIndex, true)
     expect(eq).toHaveBeenCalledWith(schemaMock.knowledgeConnector.id, 'source')
@@ -46,14 +61,18 @@ describe('service source canonical namespace', () => {
     expect(mocks.approved).toHaveBeenCalledOnce()
   })
   it('rechecks source-mode availability before loading the credential', async () => {
-    mocks.available.mockRejectedValueOnce(new Error('Administrator access is not available'))
+    knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable.mockRejectedValueOnce(
+      new Error('Administrator access is not available')
+    )
     await expect(
       loadLiveServiceSource({ organizationId: 'org' }, 'gmail', 'source')
     ).rejects.toThrow('Administrator access is not available')
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
   it('requires organization membership and refuses unavailable sources', async () => {
-    mocks.context.mockResolvedValue({ workspaceOrganizationId: null })
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceOrganizationId: null,
+    })
     await expect(
       loadLiveServiceSource({ workspaceId: 'personal' }, 'gmail', 'source')
     ).rejects.toThrow('requires an organization source')
@@ -74,9 +93,10 @@ describe('service source canonical namespace', () => {
 
 describe('GitHub App repository inventory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.context.mockResolvedValue({ workspaceOrganizationId: 'org' })
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceOrganizationId: 'org',
+    })
   })
 
   it('loads only organization Search installation sources and includes no member observations', async () => {
@@ -95,11 +115,15 @@ describe('GitHub App repository inventory', () => {
     expect(eq).toHaveBeenCalledWith(schemaMock.knowledgeConnector.accessMode, 'members')
     expect(eq).toHaveBeenCalledWith(schemaMock.credential.providerId, 'github-app-installation')
     expect(mocks.approved).toHaveBeenCalledOnce()
-    expect(mocks.available).not.toHaveBeenCalled()
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable
+    ).not.toHaveBeenCalled()
   })
 
   it('refuses a missing organization or more repositories than policy can represent', async () => {
-    mocks.context.mockResolvedValue({ workspaceOrganizationId: null })
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceOrganizationId: null,
+    })
     await expect(loadLiveGitHubSources({ workspaceId: 'personal' })).rejects.toThrow(
       'requires an organization'
     )

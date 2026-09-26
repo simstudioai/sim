@@ -1,12 +1,15 @@
-/** @vitest-environment node */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { metadata, readWorkspaceFile } = vi.hoisted(() => ({
-  metadata: vi.fn(),
+const { readWorkspaceFile } = vi.hoisted(() => ({
   readWorkspaceFile: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: metadata }))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock(
   '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
   async (importOriginal) => ({
@@ -19,8 +22,9 @@ vi.mock(
 
 import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 
+const metadata = uploadsMetadataMockFns.mockGetFileMetadataByKey
 const context = {
-  principal: { kind: 'session', userId: 'reader', sessionId: 'session' } as const,
+  principal: createSessionPrincipal({ userId: 'reader', sessionId: 'session' }),
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   executionId: 'execution-1',
@@ -41,7 +45,6 @@ const record = {
 
 describe('stored file provenance source', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     metadata.mockResolvedValue(record)
     readWorkspaceFile.mockResolvedValue({ file: {} })
   })

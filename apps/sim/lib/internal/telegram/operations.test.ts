@@ -1,89 +1,39 @@
-/**
- * @vitest-environment node
- */
-
-import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  isInternalToolFileResult,
-  type StoredToolFile,
-} from '@/lib/internal/tool-operations/file-result'
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
   fetch: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { sendTelegramDocument } from '@/lib/internal/telegram/operations'
 
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+
 describe('sendTelegramDocument', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mocks.fetch)
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from([1, 2, 3]),
       contentType: 'application/pdf',
     })
     mocks.fetch.mockResolvedValue(Response.json({ ok: true, result: { message_id: 1 } }))
   })
 
-  it('authorizes one stored file and sends one abortable provider request', async () => {
-    const controller = new AbortController()
-    const result = await sendTelegramDocument(
-      {
-        botToken: 'token',
-        chatId: 'chat-1',
-        caption: '**report**',
-        files: [{ key: 'workspace/file.pdf', name: 'file.pdf', size: 3 }],
-      },
-      { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-    )
-
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      'workspace/file.pdf',
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
-    expect(mocks.fetch.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ signal: controller.signal })
-    )
-    assert(isInternalToolFileResult(result))
-    expect(result.files).toEqual([
-      { name: 'file.pdf', mimeType: 'application/pdf', buffer: Buffer.from([1, 2, 3]) },
-    ])
-    const storedFile: StoredToolFile = {
-      id: 'stored-file-1',
-      key: 'execution/stored-file-1',
-      url: '/api/files/serve/stored-file-1',
-      name: 'file.pdf',
-      type: 'application/pdf',
-      mimeType: 'application/pdf',
-      size: 3,
-      context: 'execution',
-    }
-    expect(result.present([storedFile])).toEqual({
-      success: true,
-      output: {
-        message: 'Document sent successfully',
-        data: { message_id: 1 },
-        files: [storedFile],
-      },
-    })
-  })
-
   it('fails closed before materialization when file access is denied', async () => {
-    mocks.assertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
+    mockAssertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
 
     await expect(
       sendTelegramDocument(

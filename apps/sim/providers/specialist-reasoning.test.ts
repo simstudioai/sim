@@ -1,34 +1,23 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }))
-
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
 vi.mock('@cerebras/cerebras_cloud_sdk', () => ({
   Cerebras: vi.fn().mockImplementation(
     class {
-      chat = { completions: { create: mockCreate } }
+      chat = { completions: { create: openaiMockFns.mockChatCompletionsCreate } }
     }
   ),
 }))
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 3 }))
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 vi.mock('@/providers/runtime-context', () => ({
   getProviderRuntimeContext: () => undefined,
   executeProviderTool: vi.fn().mockResolvedValue({
@@ -39,6 +28,9 @@ vi.mock('@/providers/runtime-context', () => ({
 
 import { cerebrasProvider } from '@/providers/cerebras'
 import { kimiProvider } from '@/providers/kimi'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 3
 
 function request(model: string, overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {

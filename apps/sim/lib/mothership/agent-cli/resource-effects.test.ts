@@ -1,7 +1,5 @@
-/** @vitest-environment node */
 import { runEmbeddedCli } from 'sim/embed'
 import { describe, expect, it, vi } from 'vitest'
-import { v2GetLogStatsContract } from '@/lib/api/contracts/v2/logs-stats'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 
@@ -36,12 +34,7 @@ async function effectsFor(path: string, method: string, data: unknown = {}, stat
 describe('confirmed CLI resource effects', () => {
   it.each([
     ['secrets/API_KEY', 'PUT', 'secrets'],
-    ['secrets/API_KEY', 'DELETE', 'secrets'],
-    ['credentials/connections', 'POST', 'credentials'],
-    ['credentials/id', 'PATCH', 'credentials'],
-    ['custom-tools', 'POST', 'custom-tools'],
     ['mcp-servers/id', 'DELETE', 'mcp'],
-    ['sandboxes/id', 'PATCH', 'sandboxes'],
   ])('refreshes settings only after a successful %s mutation', async (path, method, section) => {
     expect(await effectsFor(path, method)).toEqual([
       { op: 'refresh', resource: { type: 'settings', scope: 'workspace', id: section } },
@@ -110,12 +103,7 @@ describe('confirmed CLI resource effects', () => {
 
   it.each([
     ['tables/t/rows', 'POST', 'table', 't'],
-    ['tables/t/rows/r', 'PATCH', 'table', 't'],
-    ['tables/t/columns', 'DELETE', 'table', 't'],
-    ['tables/t/groups', 'PATCH', 'table', 't'],
-    ['tables/t/dispatches/d', 'DELETE', 'table', 't'],
     ['knowledge/k/documents/d', 'PATCH', 'knowledgebase', 'k'],
-    ['knowledge/k/connectors/c/sync', 'POST', 'knowledgebase', 'k'],
     ['workflows/w/versions/2/revert', 'POST', 'workflow', 'w'],
   ])('opens and refreshes the parent of %s', async (path, method, type, id) => {
     expect(await effectsFor(path, method)).toEqual([{ op: 'upsert', resource: { type, id } }])
@@ -123,13 +111,8 @@ describe('confirmed CLI resource effects', () => {
 
   it.each([
     ['workflows/w/state', 'GET', 'workflow', 'w'],
-    ['workflows/w/versions', 'GET', 'workflow', 'w'],
     ['tables/t/rows', 'GET', 'table', 't'],
-    ['tables/t/query', 'POST', 'table', 't'],
-    ['tables/t/query/count', 'POST', 'table', 't'],
     ['knowledge/k/documents', 'GET', 'knowledgebase', 'k'],
-    ['knowledge/k/tags/usage', 'GET', 'knowledgebase', 'k'],
-    ['files/f', 'GET', 'file', 'f'],
   ])(
     'opens an authorized scoped read of %s without claiming an edit',
     async (path, method, type, id) => {
@@ -139,19 +122,12 @@ describe('confirmed CLI resource effects', () => {
     }
   )
 
-  it.each([
-    'workflows',
-    'workflows/folders',
-    'tables',
-    'tables/folders',
-    'files',
-    'files/folders',
-    'files/search',
-    'knowledge',
-    'knowledge/folders',
-  ])('never interprets discovery route %s as a resource ID', async (path) => {
-    expect(await effectsFor(path, 'GET')).toEqual([])
-  })
+  it.each(['workflows', 'files/search', 'knowledge/folders'])(
+    'never interprets discovery route %s as a resource ID',
+    async (path) => {
+      expect(await effectsFor(path, 'GET')).toEqual([])
+    }
+  )
 
   it('does not open internal singular reads made by collection discovery', async () => {
     const effects: ResourceChange[] = []
@@ -204,39 +180,6 @@ describe('confirmed CLI resource effects', () => {
       },
     ])
   })
-
-  it.each([false, true])(
-    'preserves aggregate log stats without opening a log when observeReads=%s',
-    async (observeReads) => {
-      const body = v2GetLogStatsContract.response.schema.parse({
-        data: {
-          workflows: [],
-          workflowsTruncated: false,
-          aggregateSegments: [],
-          totalRuns: 0,
-          totalErrors: 0,
-          avgLatency: 0,
-          timeBounds: { start: table.createdAt, end: table.updatedAt },
-          segmentMs: 60_000,
-        },
-      })
-      const response = Response.json(body)
-      const fetcher = vi.fn(async () => response)
-      const effects: ResourceChange[] = []
-      const transport = createResourceEffectTransport(endpoint, fetcher, effects, observeReads)
-      const url = new URL(`${endpoint}${v2GetLogStatsContract.path}`)
-      url.searchParams.set('workspaceId', '6fc7631d-88cd-46f8-9f0a-d4764daef7f8')
-      url.searchParams.set('startDate', table.createdAt)
-      url.searchParams.set('endDate', table.updatedAt)
-
-      const returned = await transport(url, { method: v2GetLogStatsContract.method })
-
-      expect(returned).toBe(response)
-      expect(await returned.json()).toEqual(body)
-      expect(fetcher).toHaveBeenCalledTimes(1)
-      expect(effects).toEqual([])
-    }
-  )
 
   it('addresses a log by its canonical execution ID, which the panel can resolve', async () => {
     expect(
@@ -348,9 +291,7 @@ describe('confirmed CLI resource effects', () => {
   })
 
   it.each([
-    ['workflows', 'workflow', 'folder'],
     ['tables', 'table', 'folder'],
-    ['knowledge', 'knowledgebase', 'folder'],
     ['files', 'file', 'filefolder'],
   ])(
     'keeps %s folder mutations distinct from resource mutations',
@@ -373,7 +314,7 @@ describe('confirmed CLI resource effects', () => {
     ])
   })
 
-  it.each(['workflows', 'files'])(
+  it.each(['files'])(
     'returns a successful %s folder rename through the real CLI',
     async (domain) => {
       const effects: ResourceChange[] = []

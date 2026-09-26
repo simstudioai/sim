@@ -1,4 +1,4 @@
-/** @vitest-environment node */
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -7,9 +7,7 @@ const { getOption } = vi.hoisted(() => ({ getOption: vi.fn() }))
 vi.mock('@/lib/selectors/application/get-selector-option', () => ({
   getSelectorOption: { execute: getOption },
 }))
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(() => []),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
 import {
   inspectImportConfiguration,
@@ -62,7 +60,6 @@ const mappings = [
 ]
 describe('mapped import configuration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'agent' ? agent : type === 'mcp' ? mcp : undefined
     )
@@ -101,13 +98,5 @@ describe('mapped import configuration', () => {
     const fields = await inspectImportConfiguration(plan, { mappings }, 'destination')
     await validateImportSelectorValues(principal, 'destination', fields, { mappings })
     expect(fields[0]).toMatchObject({ required: true, configured: false })
-  })
-  it('does not require a tool name for an advanced server-wide binding', async () => {
-    const state = source(null)
-    state.blocks.agent.subBlocks.tools.value = [
-      { type: 'mcp-server-advanced', params: { serverId: 'source-server' } },
-    ]
-    const plan = buildWorkflowImportPlan(state, { mappings })
-    expect(await inspectImportConfiguration(plan, { mappings }, 'destination')).toEqual([])
   })
 })

@@ -1,17 +1,12 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { downloadGoogleVaultExportFile } from '@/lib/internal/google-vault/operations'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -29,9 +24,8 @@ const storedFile = {
 
 describe('downloadGoogleVaultExportFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
         headers: {
           'content-type': 'application/zip',
@@ -53,7 +47,7 @@ describe('downloadGoogleVaultExportFile', () => {
       { signal: controller.signal }
     )
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/storage/v1/b/bucket-1/o/exports%2Fresult.zip?alt=media'),
       '203.0.113.1',
       {

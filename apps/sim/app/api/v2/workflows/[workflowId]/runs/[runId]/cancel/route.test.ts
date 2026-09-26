@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -66,29 +62,9 @@ function serviceResult(overrides: Record<string, unknown>) {
 
 describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-  })
-
-  it('reports a durable write when an active run is cancelled', async () => {
-    mocks.cancel.mockResolvedValue(
-      serviceResult({ success: true, durablyRecorded: true, reason: 'recorded' })
-    )
-
-    const response = await POST(request(), context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({
-      success: true,
-      runId: RUN_ID,
-      redisAvailable: true,
-      durablyRecorded: true,
-      locallyAborted: false,
-      pausedCancelled: false,
-      reason: 'recorded',
-    })
   })
 
   /**

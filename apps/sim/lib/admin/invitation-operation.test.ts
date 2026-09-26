@@ -1,35 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  enqueue: vi.fn(),
-  enqueueMany: vi.fn(),
-  recordAuditOnce: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAuditOnce: mocks.recordAuditOnce,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-}))
-
-vi.mock('@/lib/core/outbox/service', () => ({
-  deferOutboxHandler: (reason: string, minimumBackoffMs?: number, consumeAttempt = true) => ({
-    outcome: 'deferred',
-    reason,
-    ...(minimumBackoffMs === undefined ? {} : { minimumBackoffMs }),
-    ...(consumeAttempt ? {} : { consumeAttempt: false }),
-  }),
-  enqueueOutboxEvent: mocks.enqueue,
-  enqueueOutboxEvents: mocks.enqueueMany,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import {
   ADMIN_INVITATION_OPERATION_EVENT_TYPE,
@@ -37,9 +16,13 @@ import {
   createAdminInvitationOperation,
 } from '@/lib/admin/invitation-operation'
 
+const mocks = {
+  enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  enqueueMany: outboxServiceMockFns.mockEnqueueOutboxEvents,
+}
+
 describe('Admin invitation operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -94,7 +77,7 @@ describe('Admin invitation operation', () => {
       expect.objectContaining({ email: 'a@example.com', source: 'admin', sequence: 0 }),
       expect.objectContaining({ email: 'b@example.com', source: 'admin', sequence: 1 }),
     ])
-    expect(mocks.recordAuditOnce).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAuditOnce).not.toHaveBeenCalled()
   })
 
   it('waits for every recipient before the parent operation completes', async () => {
@@ -127,7 +110,7 @@ describe('Admin invitation operation', () => {
       reason: 'Waiting for invitation recipients',
       consumeAttempt: false,
     })
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAuditOnce).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111:requested',
       expect.objectContaining({ resourceId: 'org-1' })
     )

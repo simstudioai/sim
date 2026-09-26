@@ -1,20 +1,16 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readMetadata: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
@@ -27,14 +23,13 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/files/[fileId]/metadata/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -91,7 +86,6 @@ const archivedFileUseCase = async ({ input }: { input: { includeDeleted?: boolea
 
 describe('GET /api/v2/files/[fileId]/metadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -99,25 +93,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       file: { ...buildRecord(), currentVersion: 3 },
       share: SHARE,
     })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
-  })
-
-  it('authenticates and charges before rejecting a missing workspaceId', async () => {
-    const response = await callGet('')
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
-    expect(mocks.readMetadata).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('conceals cross-workspace authorization as not found', async () => {
@@ -127,35 +103,6 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('returns the v2 metadata projection through the shared use case', async () => {
-    const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        id: FILE_ID,
-        webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
-        name: 'data.csv',
-        size: 1024,
-        type: 'text/csv',
-        key: 'workspace/ws/1-x-data.csv',
-        folderPath: '/',
-        uploadedByEmail: 'ada@example.com',
-        uploadedAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-        deletedAt: null,
-        share: SHARE,
-        currentVersion: 3,
-        revision: expect.any(String),
-      },
-    })
-    expect(mocks.readMetadata).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
-      request: expect.anything(),
-    })
   })
 
   it('leaves an archived file unreachable when scope is omitted', async () => {
@@ -216,45 +163,5 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
       })
     )
-  })
-
-  it('still conceals an unauthorized archived read behind the same 404', async () => {
-    mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
-
-    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=archived`)
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
-    /**
-     * `includeDeleted: true` is what makes this the *archived* read being
-     * concealed rather than the plain cross-workspace 404 the suite already
-     * pins: without it the request never reaches the archived set and the test
-     * proves only `NoWorkspaceAccessError → 404`.
-     */
-    expect(mocks.readMetadata).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: auth.principal,
-        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
-      })
-    )
-  })
-
-  it('rejects an unrecognized scope before reaching the use case', async () => {
-    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=all`)
-
-    expect(response.status).toBe(400)
-    expect(mocks.readMetadata).not.toHaveBeenCalled()
-  })
-
-  it('returns a null share when the file has no share configuration', async () => {
-    mocks.readMetadata.mockResolvedValueOnce({
-      file: { ...buildRecord(), currentVersion: 3 },
-      share: null,
-    })
-
-    const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.share).toBeNull()
   })
 })

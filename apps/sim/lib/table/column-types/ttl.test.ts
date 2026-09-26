@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { isValueCompatible } from '@/lib/table/column-types'
 import { ttlColumnType } from '@/lib/table/column-types/ttl'

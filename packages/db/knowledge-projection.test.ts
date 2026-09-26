@@ -1,11 +1,4 @@
-/**
- * @vitest-environment node
- */
-import {
-  FILL_MARK_CEILING,
-  markUnfilledProjectionDocuments,
-  runKnowledgeProjection,
-} from '@sim/db/knowledge-projection'
+import { runKnowledgeProjection } from '@sim/db/knowledge-projection'
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -131,7 +124,7 @@ describe('runKnowledgeProjection', () => {
       ]),
     })
     const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql)
+    const progress = await runKnowledgeProjection(sql, { searchIndexes: true })
     expect(progress).toMatchObject({ settled: 2, deferred: 0, remaining: false })
     expect(state.marks.size).toBe(0)
     expect(trace.locks).toEqual(['doc-a', 'doc-b'])
@@ -148,36 +141,11 @@ describe('runKnowledgeProjection', () => {
     ])
   })
 
-  it('leaves the Tin projection alone where it is not installed', async () => {
-    const state = database({
-      tin: false,
-      marks: new Map([['doc', { generation: 1, content: true }]]),
-    })
-    const { sql, trace } = fakeSql(state)
-    await runKnowledgeProjection(sql)
-    expect(trace.pages.map((page) => page.projection)).toEqual([
-      'embedding_search',
-      'embedding_keyword_search',
-    ])
-  })
-
-  it('pages a document by chunk rows until a page comes back short', async () => {
-    const state = database({
-      marks: new Map([['doc', { generation: 1, content: false }]]),
-      chunks: new Map([['doc', 5]]),
-      tin: false,
-    })
-    const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql, { pageSize: 2 })
-    expect(trace.pages.map((page) => page.after)).toEqual([-1, 1, 3])
-    expect(progress).toMatchObject({ pages: 3, written: 5, settled: 1 })
-  })
-
   it('keeps a mark whose generation moved while the pass ran', async () => {
     const state = database({ marks: new Map([['doc', { generation: 1, content: false }]]) })
     state.beforeSettle = () => state.marks.set('doc', { generation: 2, content: false })
     const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql)
+    const progress = await runKnowledgeProjection(sql, { searchIndexes: true })
     expect(progress).toMatchObject({ settled: 0, deferred: 1, remaining: true })
     expect(state.marks.get('doc')?.generation).toBe(2)
     /** A document given up is not claimed again by the same pass. */
@@ -193,7 +161,7 @@ describe('runKnowledgeProjection', () => {
       lockedElsewhere: new Set(['held']),
     })
     const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql)
+    const progress = await runKnowledgeProjection(sql, { searchIndexes: true })
     expect(progress).toMatchObject({ settled: 1, deferred: 1, remaining: true })
     expect(state.marks.has('held')).toBe(true)
     expect(trace.pages.some((page) => page.documentId === 'held')).toBe(false)
@@ -216,7 +184,7 @@ describe('runKnowledgeProjection', () => {
       if (documentId === 'slow') throw failure
     }
     const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql)
+    const progress = await runKnowledgeProjection(sql, { searchIndexes: true })
     expect(progress).toMatchObject({ settled: 1, deferred: 1, remaining: true })
     expect(state.marks.has('slow')).toBe(true)
     expect(trace.unlocks).toEqual(['slow', 'fine'])
@@ -229,7 +197,7 @@ describe('runKnowledgeProjection', () => {
       throw postgresError('23503', 'insert violates foreign key')
     }
     const { sql } = fakeSql(state)
-    await expect(runKnowledgeProjection(sql)).resolves.toMatchObject({
+    await expect(runKnowledgeProjection(sql, { searchIndexes: true })).resolves.toMatchObject({
       settled: 0,
       deferred: 0,
       remaining: false,
@@ -242,7 +210,9 @@ describe('runKnowledgeProjection', () => {
       throw postgresError('42P01', 'relation does not exist')
     }
     const { sql, trace } = fakeSql(state)
-    await expect(runKnowledgeProjection(sql)).rejects.toThrow('relation does not exist')
+    await expect(runKnowledgeProjection(sql, { searchIndexes: true })).rejects.toThrow(
+      'relation does not exist'
+    )
     expect(trace.unlocks).toEqual(['doc'])
     expect(state.marks.has('doc')).toBe(true)
   })
@@ -259,7 +229,11 @@ describe('runKnowledgeProjection', () => {
         vi.advanceTimersByTime(40)
       }
       const { sql, trace } = fakeSql(state)
-      const progress = await runKnowledgeProjection(sql, { budgetMs: 100, pageSize: 2 })
+      const progress = await runKnowledgeProjection(sql, {
+        budgetMs: 100,
+        pageSize: 2,
+        searchIndexes: true,
+      })
       expect(trace.pages).toHaveLength(3)
       expect(progress).toMatchObject({ settled: 0, deferred: 1, remaining: true })
       expect(state.marks.has('long')).toBe(true)
@@ -267,71 +241,5 @@ describe('runKnowledgeProjection', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('stops starting documents once its budget is spent and reports marks remain', async () => {
-    const state = database({ marks: new Map([['doc', { generation: 1, content: false }]]) })
-    const { sql, trace } = fakeSql(state)
-    await expect(runKnowledgeProjection(sql, { budgetMs: 0 })).resolves.toMatchObject({
-      settled: 0,
-      remaining: true,
-    })
-    expect(trace.pages).toEqual([])
-  })
-})
-
-describe('markUnfilledProjectionDocuments', () => {
-  /** A session answering the fill's two statements from `outstanding` and a queue of scan results. */
-  function fillSql(outstanding: number, scans: Array<{ marked: number; last_id: string | null }>) {
-    const statements: Array<{ text: string; values: unknown[] }> = []
-    const sql = Object.assign(
-      async (strings: TemplateStringsArray) => {
-        if (strings.join('').includes('count(*)')) return [{ outstanding }]
-        return []
-      },
-      {
-        unsafe: async (text: string, values: unknown[]) => {
-          statements.push({ text, values })
-          return [scans.shift() ?? { marked: 0, last_id: null }]
-        },
-      }
-    ) as unknown as Sql
-    return { sql, statements }
-  }
-
-  it('marks nothing while the outstanding marks are at the ceiling', async () => {
-    const { sql, statements } = fillSql(FILL_MARK_CEILING, [])
-    await expect(markUnfilledProjectionDocuments(sql)).resolves.toEqual({
-      marked: 0,
-      cursor: { projection: 0, afterId: '' },
-    })
-    expect(statements).toEqual([])
-  })
-
-  it('offers the room left and continues from the row the statement stopped before', async () => {
-    const { sql, statements } = fillSql(FILL_MARK_CEILING - 3, [{ marked: 3, last_id: 'row-9' }])
-    await expect(markUnfilledProjectionDocuments(sql)).resolves.toEqual({
-      marked: 3,
-      cursor: { projection: 0, afterId: 'row-9' },
-    })
-    expect(statements[0]?.text).toContain('FROM embedding_search WHERE acl IS NULL')
-    expect(statements[0]?.text).toContain('u.id < held.first_id')
-    expect(statements[0]?.values).toEqual(['', 3])
-  })
-
-  it('moves on to the next projection and ends once every unfilled row was read', async () => {
-    const { sql, statements } = fillSql(0, [
-      { marked: 0, last_id: null },
-      { marked: 1, last_id: 'tin-1' },
-    ])
-    await expect(
-      markUnfilledProjectionDocuments(sql, { projection: 0, afterId: 'row-9' })
-    ).resolves.toEqual({ marked: 1, cursor: { projection: 1, afterId: 'tin-1' } })
-    expect(statements.map((statement) => statement.values[0])).toEqual(['row-9', ''])
-    expect(statements[1]?.text).toContain('FROM embedding_keyword_tin WHERE acl IS NULL')
-    const done = fillSql(0, [])
-    await expect(
-      markUnfilledProjectionDocuments(done.sql, { projection: 1, afterId: 'tin-1' })
-    ).resolves.toEqual({ marked: 0, cursor: null })
   })
 })

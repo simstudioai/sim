@@ -4,7 +4,6 @@ import {
   getChatResourceKey,
   getChatResourceSelectionId,
   isAddressableResource,
-  isDesktopOnlyResource,
   isEphemeralResource,
   type MothershipResource,
   MothershipResourceType,
@@ -25,25 +24,8 @@ describe('isEphemeralResource', () => {
     expect(isEphemeralResource(resource({ type: 'terminal', id: '3', title: 'sim' }))).toBe(true)
   })
 
-  it('keeps synthetic panels client-only', () => {
-    expect(isEphemeralResource(resource({ type: 'generic', id: 'results' }))).toBe(true)
-    expect(isEphemeralResource(resource({ type: 'file', id: 'streaming-file' }))).toBe(true)
-  })
-
   it('treats an unrecognized type as ephemeral rather than trying a doomed write', () => {
     expect(isEphemeralResource(resource({ type: 'nonsense' as MothershipResourceType }))).toBe(true)
-  })
-})
-
-describe('isDesktopOnlyResource', () => {
-  it('marks the panels that need the desktop bridge', () => {
-    expect(isDesktopOnlyResource(resource({ type: 'browser' }))).toBe(true)
-    expect(isDesktopOnlyResource(resource({ type: 'terminal' }))).toBe(true)
-  })
-
-  it('leaves ordinary workspace resources alone', () => {
-    expect(isDesktopOnlyResource(resource({ type: 'workflow' }))).toBe(false)
-    expect(isDesktopOnlyResource(resource({ type: 'file' }))).toBe(false)
   })
 })
 

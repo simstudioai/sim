@@ -1,23 +1,13 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetUserEmailById } = vi.hoisted(() => ({
-  mockGetUserEmailById: vi.fn(),
-}))
-
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailById: mockGetUserEmailById,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
 
-describe('resolveStartBlockRunIdentity', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+const { mockGetUserEmailById } = usersQueriesMockFns
 
+describe('resolveStartBlockRunIdentity', () => {
   it('identifies the owner of a personal API key', async () => {
     mockGetUserEmailById.mockResolvedValue('owner@example.com')
 

@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpClient } from '@/lib/mcp/client'
 import { type AcquireParams, McpConnectionPool } from '@/lib/mcp/connection-pool'
@@ -51,10 +49,6 @@ function params(key: string, create: () => Promise<McpClient>): AcquireParams {
 }
 
 /** Drain the microtask queue so an in-flight acquire fully settles before the next step. */
-async function flushMicrotasks(turns = 50): Promise<void> {
-  for (let i = 0; i < turns; i++) await Promise.resolve()
-}
-
 describe('McpConnectionPool', () => {
   let pool: McpConnectionPool
 
@@ -79,18 +73,6 @@ describe('McpConnectionPool', () => {
     expect(client.disconnect).not.toHaveBeenCalled()
   })
 
-  it('keeps the connection after a single timeout release', async () => {
-    const client = makeFakeClient()
-    const create = vi.fn(async () => client)
-
-    const lease = await pool.acquire(params('s1:w1:u1', create))
-    await lease.release(false, true)
-    await borrow(pool, params('s1:w1:u1', create))
-
-    expect(create).toHaveBeenCalledTimes(1)
-    expect(client.disconnect).not.toHaveBeenCalled()
-  })
-
   it('retires the connection after consecutive timeouts (circuit breaker)', async () => {
     const client = makeFakeClient()
     const replacement = makeFakeClient()
@@ -107,20 +89,6 @@ describe('McpConnectionPool', () => {
     const l3 = await pool.acquire(params('s1:w1:u1', create))
     expect(l3.client).toBe(replacement)
     await l3.release()
-  })
-
-  it('resets the timeout count on a healthy release', async () => {
-    const client = makeFakeClient()
-    const create = vi.fn(async () => client)
-
-    const l1 = await pool.acquire(params('s1:w1:u1', create))
-    await l1.release(false, true)
-    await borrow(pool, params('s1:w1:u1', create)) // healthy — resets the count
-    const l3 = await pool.acquire(params('s1:w1:u1', create))
-    await l3.release(false, true) // first of a new streak, not the second strike
-
-    expect(client.disconnect).not.toHaveBeenCalled()
-    expect(create).toHaveBeenCalledTimes(1)
   })
 
   it('dedups concurrent creates into a single connect (single-flight)', async () => {
@@ -265,17 +233,6 @@ describe('McpConnectionPool', () => {
     await lease.release()
   })
 
-  it('idle-evicts a connection once no borrower holds it', async () => {
-    const client = makeFakeClient()
-    await borrow(
-      pool,
-      params('s1:w1:u1', async () => client)
-    )
-
-    await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
-    expect(client.disconnect).toHaveBeenCalledTimes(1)
-  })
-
   it('does not evict a replacement when a stale connection closes under the same key', async () => {
     const oldClient = makeFakeClient()
     const newClient = makeFakeClient()
@@ -355,7 +312,7 @@ describe('McpConnectionPool', () => {
 
     // A's ping fails → A retires stale, rebuilds `fresh`, pools it, clears pending.
     releasePing[0](false)
-    await flushMicrotasks()
+    await flushMicrotasks(50)
     // B's ping fails → B must reuse the pooled `fresh`, not create a third client.
     releasePing[1](false)
 

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import { createConfluenceClient } from '@/lib/internal/confluence/client'
 import { createJiraClient } from '@/lib/internal/jira/client'
@@ -25,12 +22,9 @@ describe('Atlassian Assistant resource selection', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     clearAtlassianCloudIdCache()
     vi.stubGlobal('fetch', fetchMock)
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it.each(['jira', 'confluence'])(
     'offers %s operations with a site selector and personal credential',

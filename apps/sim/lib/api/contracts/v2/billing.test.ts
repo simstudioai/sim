@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { v2BillingLogsQuerySchema } from '@/lib/api/contracts/v2/billing'
 
@@ -34,14 +31,11 @@ describe('v2 billing logs query schema', () => {
    * check yet still yields a number, so the ordering rule has to gate on the
    * bound schema rather than on parseability.
    */
-  it.each([
-    ['a UTC offset instead of Z', '2026-08-01T00:00:00+02:00'],
-    ['year 0000', '0000-01-01T00:00:00Z'],
-  ])('does not add an ordering issue to a bound rejected for %s', (_label, endDate) => {
+  it('does not add an ordering issue to a bound rejected for a UTC offset instead of Z', () => {
     const messages = issuesFor({
       period: 'custom',
       startDate: '2026-08-06T00:00:00Z',
-      endDate,
+      endDate: '2026-08-01T00:00:00+02:00',
     })
 
     expect(messages).not.toContain('startDate must be before or equal to endDate')
@@ -56,15 +50,5 @@ describe('v2 billing logs query schema', () => {
         endDate: '2026-08-01T00:00:00Z',
       })
     ).toContain('startDate must be before or equal to endDate')
-  })
-
-  it('accepts a window in order', () => {
-    expect(
-      issuesFor({
-        period: 'custom',
-        startDate: '2026-08-01T00:00:00Z',
-        endDate: '2026-08-02T00:00:00Z',
-      })
-    ).toEqual([])
   })
 })

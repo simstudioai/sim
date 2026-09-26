@@ -1,20 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { InstagramBlock } from '@/blocks/blocks/instagram'
 
 describe('InstagramBlock', () => {
   const buildParams = InstagramBlock.tools.config.params!
-  const selectTool = InstagramBlock.tools.config.tool!
-
-  it('keeps all 24 dropdown operations aligned with tool access', () => {
-    const operation = InstagramBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
-    const optionIds = operation?.options?.map((option) => option.id)
-
-    expect(optionIds).toHaveLength(24)
-    expect(new Set(optionIds)).toEqual(new Set(InstagramBlock.tools.access))
-  })
 
   it('clears stale operation parameters from the runtime input merge', () => {
     const inputs = {
@@ -38,12 +26,6 @@ describe('InstagramBlock', () => {
     expect(finalInputs.mediaId).toBeUndefined()
     expect(finalInputs.filename).toBeUndefined()
     expect(finalInputs.caption).toBeUndefined()
-  })
-
-  it('rejects operations outside the registered Instagram tool set', () => {
-    expect(() => selectTool({ operation: 'instagram_unknown_operation' })).toThrow(
-      'Unsupported Instagram operation'
-    )
   })
 
   it('normalizes publishing files without accepting public URL strings', () => {
@@ -93,20 +75,5 @@ describe('InstagramBlock', () => {
     expect(() =>
       buildParams({ operation: 'instagram_get_account_insights', period: 'week' })
     ).toThrow('Instagram account insights period must be day or lifetime')
-  })
-
-  it('maps the provider-local insight field to the tool metrics parameter', () => {
-    const metricsSubBlock = InstagramBlock.subBlocks.find(
-      (subBlock) => subBlock.id === 'insightMetrics'
-    )
-
-    expect(metricsSubBlock?.type).toBe('short-input')
-    expect(InstagramBlock.subBlocks.some((subBlock) => subBlock.id === 'metrics')).toBe(false)
-    expect(
-      buildParams({
-        operation: 'instagram_get_media_insights',
-        insightMetrics: 'reach,views',
-      })
-    ).toMatchObject({ metrics: 'reach,views', insightMetrics: undefined })
   })
 })

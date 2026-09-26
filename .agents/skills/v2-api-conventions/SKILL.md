@@ -87,7 +87,7 @@ Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `
 
 ## Rule 3 — a collection that returns `nextCursor` must accept `limit` + `cursor`, and must apply them
 
-Every list returns `{ data, nextCursor }`. Whether it *pages* is a separate, pinned decision — see `lib/api/contracts/v2/__tests__/list-pagination.test.ts`, which enumerates both sets and fails when a new list is in neither.
+Every list returns `{ data, nextCursor }`. Whether it *pages* is a separate, pinned decision — see `lib/api/contracts/v2/list-pagination.test.ts`, which enumerates both sets and fails when a new list is in neither.
 
 Build the query slice from the shared helper, never by hand:
 
@@ -106,13 +106,13 @@ Both take the same two stamps: `cursorSortKey(sortBy, sortOrder)` for the orderi
 
 The third is **per-domain**: a list whose read predates the shared codecs, or whose page boundary is not expressible as one, mints its own — a bare `encodeCursor({ version })` on `GET /workflows/{id}/versions` and `encodeCursor({ email })` on the workspace member list, the local codecs in `lib/audit-logs/query.ts`, `lib/logs/list-logs.ts`, and `lib/table/rows/cursor.ts`, and a usage-event id passed straight through by `GET /billing/logs`. Those tokens stay opaque and untouched, but a domain-minted cursor on a list a caller can re-filter is wrapped at the surface with `encodeScopedCursor(cursorScopeKey(cursorRoute(contract, pathParams), {...}), token)` and unwrapped with `readScopedCursor`, so it carries the same binding as the shared schemes. **A new list picks one of the two shared schemes.** Do not add a fourth.
 
-Every paged list's binding is declared in `lib/api/contracts/v2/__tests__/list-pagination.test.ts` and checked against what the contract actually accepts, in both directions. A new list, or a new filter on an existing one, fails that test until its binding is declared or the param is explicitly recorded as unable to change the sequence.
+Every paged list's binding is declared in `lib/api/contracts/v2/list-pagination.test.ts` and checked against what the contract actually accepts, in both directions. A new list, or a new filter on an existing one, fails that test until its binding is declared or the param is explicitly recorded as unable to change the sequence.
 
 **A keyset's key list must end in a unique column (`id`).** A non-unique trailing key cannot separate tied rows, so the page boundary either repeats or drops them. `lib/api/list-keyset-paging.test.ts` demonstrates the failure.
 
 Return `nextCursor: null` on the last page and only then. Never construct a cursor client-side.
 
-**Ordering is `sortBy` + `sortOrder`, except where there is nothing to sort by.** Nearly every paged list takes the pair; `CURSOR_BINDINGS` in `contracts/v2/__tests__/list-pagination.test.ts` is the authoritative set. Exactly one — `GET /workflows/{workflowId}/runs` — has a single sortable column (start time), so there is no `sortBy` to pair with and the direction rides on a single `order` param; `sortBy`/`sortOrder` are not accepted there. That is the *only* sanctioned deviation, and it is documented in its contract. A new list picks the pair. Do not "fix" it by accepting `sortOrder` as an alias: an alias is a second spelling of one thing with undefined precedence when both arrive, which is its own inconsistency.
+**Ordering is `sortBy` + `sortOrder`, except where there is nothing to sort by.** Nearly every paged list takes the pair; `CURSOR_BINDINGS` in `contracts/v2/list-pagination.test.ts` is the authoritative set. Exactly one — `GET /workflows/{workflowId}/runs` — has a single sortable column (start time), so there is no `sortBy` to pair with and the direction rides on a single `order` param; `sortBy`/`sortOrder` are not accepted there. That is the *only* sanctioned deviation, and it is documented in its contract. A new list picks the pair. Do not "fix" it by accepting `sortOrder` as an alias: an alias is a second spelling of one thing with undefined precedence when both arrive, which is its own inconsistency.
 
 Before documenting a second `order`-style exception, check every other endpoint on the same collection: if one of them already sorts those rows more than one way, the "exactly one sortable column" premise is false — fix the premise rather than documenting the exception.
 

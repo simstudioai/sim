@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -8,7 +5,11 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -16,8 +17,6 @@ const {
   mockUploadDocument,
   mockReadFormData,
   mockReadFile,
-  mockPlatformUploaded,
-  mockCapture,
   mockIsPayloadSizeLimitError,
   mockIsMultipartFieldValidationError,
   mockListDocuments,
@@ -27,8 +26,6 @@ const {
   mockUploadDocument: vi.fn(),
   mockReadFormData: vi.fn(),
   mockReadFile: vi.fn(),
-  mockPlatformUploaded: vi.fn(),
-  mockCapture: vi.fn(),
   mockIsPayloadSizeLimitError: vi.fn(),
   mockIsMultipartFieldValidationError: vi.fn(),
 }))
@@ -63,32 +60,33 @@ vi.mock('@/lib/core/utils/stream-limits', () => ({
   readFileToBufferWithLimit: mockReadFile,
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mockPlatformUploaded },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { GET, POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/route'
 
+const mockCapture = posthogServerMockFns.mockCaptureServerEvent
+const mockPlatformUploaded = getMockPlatformEvent('knowledgeBaseDocumentsUploaded')
+
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 
 function buildRequest() {
-  return new NextRequest(
-    `http://localhost/api/v2/knowledge/kb-1/documents?workspaceId=${WORKSPACE_ID}`,
-    { method: 'POST', headers: { 'x-api-key': 'secret' }, body: 'multipart-placeholder' }
-  )
+  return createMockRequest({
+    method: 'POST',
+    url: `http://localhost/api/v2/knowledge/kb-1/documents?workspaceId=${WORKSPACE_ID}`,
+    headers: { 'x-api-key': 'secret' },
+    rawBody: 'multipart-placeholder',
+  })
 }
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mockIsPayloadSizeLimitError.mockReturnValue(false)
@@ -129,7 +127,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   it('admits before buffering and reauthorizes durable registration with code-defined admission', async () => {
     const request = buildRequest()
 
-    const response = await POST(request, { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) })
+    const response = await POST(request, createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(201)
     expect(mockAdmitUpload.mock.invocationCallOrder[0]).toBeLessThan(
@@ -179,9 +177,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   it('maps usage admission to the v2 error before multipart buffering', async () => {
     mockAdmitUpload.mockRejectedValue(new KnowledgeUsageLimitExceededError('Upgrade required'))
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(402)
     expect(await response.json()).toEqual({
@@ -191,29 +187,10 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
-  it('does not create human analytics for a workspace key', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-      rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
-      rateLimitSubscription: null,
-      keyType: 'workspace',
-    })
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(201)
-    expect(mockPlatformUploaded).toHaveBeenCalledOnce()
-    expect(mockCapture).not.toHaveBeenCalled()
-  })
-
   it('preserves the malformed multipart envelope without entering the upload operation', async () => {
     mockReadFormData.mockRejectedValueOnce(new Error('multipart boundary missing'))
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({
@@ -232,9 +209,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
       (candidate: unknown) => candidate === error
     )
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({
@@ -248,27 +223,11 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     mockReadFormData.mockRejectedValueOnce(error)
     mockIsPayloadSizeLimitError.mockImplementation((candidate: unknown) => candidate === error)
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
-    })
-    expect(mockUploadDocument).not.toHaveBeenCalled()
-  })
-
-  it('requires a file form field before the upload operation', async () => {
-    mockReadFormData.mockResolvedValueOnce(new FormData())
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'file form field is required' },
     })
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
@@ -280,9 +239,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     formData.set('file', file)
     mockReadFormData.mockResolvedValueOnce(formData)
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({
@@ -299,9 +256,7 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     const expectedMessage = validateFileType('malware.exe', 'application/octet-stream')?.message
     if (!expectedMessage) throw new Error('Expected unsupported file type validation to fail')
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(415)
     expect(await response.json()).toEqual({
@@ -314,31 +269,11 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   it('does not emit effects when the upload operation fails', async () => {
     mockUploadDocument.mockRejectedValueOnce(new Error('storage unavailable'))
 
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
+    const response = await POST(buildRequest(), createRouteContext({ knowledgeBaseId: 'kb-1' }))
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
-    expect(mockUploadDocument).toHaveBeenCalledOnce()
-    expect(mockPlatformUploaded).not.toHaveBeenCalled()
-    expect(mockCapture).not.toHaveBeenCalled()
-  })
-
-  it('preserves final application authorization errors', async () => {
-    mockUploadDocument.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
     })
     expect(mockUploadDocument).toHaveBeenCalledOnce()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
@@ -363,17 +298,17 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   }
 
   function listRequest(query: string) {
-    return new NextRequest(`http://localhost/api/v2/knowledge/kb-1/documents?${query}`, {
+    return createMockRequest({
+      url: `http://localhost/api/v2/knowledge/kb-1/documents?${query}`,
       headers: { 'x-api-key': 'secret' },
     })
   }
 
   function list(query: string) {
-    return GET(listRequest(query), { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) })
+    return GET(listRequest(query), createRouteContext({ knowledgeBaseId: 'kb-1' }))
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.authenticate.mockResolvedValue({

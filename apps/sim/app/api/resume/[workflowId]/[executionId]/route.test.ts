@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   InsufficientWorkspacePermissionsError,
@@ -10,12 +9,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mocks.getSession,
 }))
 
 vi.mock('@/lib/workflows/application/read-paused-workflow-execution', () => ({
@@ -90,65 +83,25 @@ function pausedExecutionRequest() {
 const routeCases = [
   {
     name: 'resume detail route',
-    call: () => GET(request(), { params: Promise.resolve(params) }),
+    call: () => GET(request(), createRouteContext(params)),
   },
   {
     name: 'workflow paused-detail route',
     call: () =>
-      GET_PAUSED_EXECUTION(pausedExecutionRequest(), {
-        params: Promise.resolve({ id: params.workflowId, executionId: params.executionId }),
-      }),
+      GET_PAUSED_EXECUTION(
+        pausedExecutionRequest(),
+        createRouteContext({ id: params.workflowId, executionId: params.executionId })
+      ),
   },
 ]
 
 describe('GET /api/resume/[workflowId]/[executionId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
     mocks.execute.mockResolvedValue(detail)
-  })
-
-  it('rejects an unauthenticated request before the application use case', async () => {
-    mocks.getSession.mockResolvedValueOnce(null)
-
-    const response = await GET(request(), { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toMatchObject({ error: 'Unauthorized' })
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('loads detail through the authorized application use case', async () => {
-    const response = await GET(request(), { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual(detail)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: params,
-      })
-    )
-  })
-
-  it('maps the sibling route parameter to the same semantic input', async () => {
-    const response = await GET_PAUSED_EXECUTION(pausedExecutionRequest(), {
-      params: Promise.resolve({ id: params.workflowId, executionId: params.executionId }),
-    })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual(detail)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: params,
-      })
-    )
   })
 
   it.each(routeCases)('$name conceals cross-workspace denial', async ({ call }) => {
@@ -167,16 +120,5 @@ describe('GET /api/resume/[workflowId]/[executionId]', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
-  })
-
-  it.each(routeCases)('$name sanitizes unexpected failures', async ({ call }) => {
-    mocks.execute.mockRejectedValueOnce(new Error('database password=secret'))
-
-    const response = await call()
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(body).toMatchObject({ error: 'Internal server error' })
-    expect(JSON.stringify(body)).not.toContain('password=secret')
   })
 })

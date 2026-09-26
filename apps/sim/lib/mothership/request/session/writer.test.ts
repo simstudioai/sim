@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
@@ -25,7 +21,6 @@ function decodeChunk(value: Uint8Array): string {
 
 describe('StreamWriter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useRealTimers()
     // The buffer reports a refusal rather than throwing, so every persist resolves.
     appendEvents.mockResolvedValue({ persisted: true })

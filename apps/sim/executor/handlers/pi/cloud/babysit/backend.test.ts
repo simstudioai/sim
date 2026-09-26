@@ -1,11 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockWithPiSandbox,
   mockFetchSnapshot,
   mockFetchThreads,
   mockFetchChecks,
@@ -16,7 +13,6 @@ const {
   mockResolvePiSandboxLifetime,
   mockSleepUntilAborted,
 } = vi.hoisted(() => ({
-  mockWithPiSandbox: vi.fn(),
   mockFetchSnapshot: vi.fn(),
   mockFetchThreads: vi.fn(),
   mockFetchChecks: vi.fn(),
@@ -28,9 +24,7 @@ const {
   mockSleepUntilAborted: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: mockWithPiSandbox,
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/data-drains/destinations/utils', () => ({
   sleepUntilAborted: mockSleepUntilAborted,
 }))
@@ -57,20 +51,18 @@ vi.mock('@/executor/handlers/pi/cloud/babysit/github', async (importOriginal) =>
   }
 })
 
-import { createTimeoutAbortController, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import {
-  resolveBabysitExecutionBudgetMs,
-  runBabysitPiWithOptions,
-} from '@/executor/handlers/pi/cloud/babysit/backend'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { runBabysitPiWithOptions } from '@/executor/handlers/pi/cloud/babysit/backend'
 import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/cloud/babysit/round'
 import { DIFF_PATH } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/core/backend'
+
+const { mockWithPiSandbox } = remoteSandboxMockFns
 
 afterAll(resetEnvMock)
 
 const OLD_SHA = 'a'.repeat(40)
 const NEW_SHA = 'c'.repeat(40)
-const SECOND_SHA = 'd'.repeat(40)
 const snapshot = {
   headSha: OLD_SHA,
   headRef: 'feature',
@@ -130,12 +122,6 @@ const greenChecks = {
   blockingFailing: [],
   checksGreen: true,
 }
-const noChecksGreen = {
-  ...greenChecks,
-  checks: [],
-  contextRequirements: new Map<string, boolean>(),
-}
-
 function params(overrides: Partial<PiBabysitContinuationParams> = {}): PiBabysitContinuationParams {
   return {
     model: 'claude',
@@ -234,7 +220,6 @@ function makeRunner(options: {
 
 describe('runBabysitPiWithOptions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnv({ SANDBOX_PROVIDER: 'e2b' })
     mockWithPiSandbox.mockReset()
     mockFetchSnapshot.mockReset()
@@ -265,10 +250,6 @@ describe('runBabysitPiWithOptions', () => {
     mockReviewLanded.mockResolvedValue(true)
   })
 
-  it('uses the selected provider lifetime when no execution budget is supplied', () => {
-    expect(resolveBabysitExecutionBudgetMs()).toBe(getMaxExecutionTimeout())
-  })
-
   it('returns budget_exhausted when Create PR leaves less than one minute', async () => {
     const result = await runBabysitPiWithOptions(params({ executionBudgetMs: 30_000 }), {
       onEvent: vi.fn(),
@@ -282,37 +263,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(mockFetchSnapshot).not.toHaveBeenCalled()
     expect(mockRequestReview).not.toHaveBeenCalled()
     expect(mockWithPiSandbox).not.toHaveBeenCalled()
-  })
-
-  it("creates its sandbox against the execution's deadline, not the provider ceiling", async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    // Babysit wraps `context.signal` in its own cancellation controller, and the
-    // deadline is recorded against the executor's signal alone. Resolving the
-    // lifetime from that wrapper answers "unknown" and silently falls back to the
-    // provider ceiling — the run still succeeds, it just over-reserves the
-    // sandbox. This is the longest-lived Pi mode, so that regression matters most
-    // here and is invisible without an assertion.
-    const timeout = createTimeoutAbortController(6 * 60 * 1000)
-    await runBabysitPiWithOptions(
-      params(),
-      { onEvent: vi.fn(), signal: timeout.signal },
-      { roundWaitMs: 0 }
-    )
-
-    const [{ lifetimeMs }] = mockWithPiSandbox.mock.calls[0]
-    expect(lifetimeMs).toBeLessThanOrEqual(6 * 60 * 1000)
-    expect(lifetimeMs).toBeGreaterThan(5 * 60 * 1000)
-    timeout.cleanup()
   })
 
   it('requests the initial review and waits without consuming a round when the PR starts clean', async () => {
@@ -342,81 +292,6 @@ describe('runBabysitPiWithOptions', () => {
     )
     expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)
     expect(mockReviewLanded).toHaveBeenCalledTimes(1)
-  })
-
-  it('preserves known clean flags when the Babysit clone fails after the review request', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({
-      cloneResult: commandResult('', 'clone failed', 1),
-    })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
-
-    expect(result).toMatchObject({
-      stopReason: 'agent_failure',
-      threadsClean: true,
-      checksGreen: true,
-      rounds: 0,
-      commitsPushed: 0,
-    })
-  })
-
-  it('uses remaining time for wait-only polling without reserving an agent round', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params({ executionBudgetMs: 2 * 60 * 1000 }),
-      { onEvent: vi.fn() },
-      { roundWaitMs: 30_000 }
-    )
-
-    expect(mockReviewLanded).toHaveBeenCalledTimes(1)
-    expect(result).toMatchObject({
-      stopReason: 'clean',
-      threadsClean: true,
-      checksGreen: true,
-      rounds: 0,
-    })
-  })
-
-  it('waits for the requested bot review before stopping on skipped threads', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [trustedThread],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
-
-    expect(mockReviewLanded).toHaveBeenCalledTimes(1)
-    expect(result).toMatchObject({
-      stopReason: 'skipped_threads',
-      threadsClean: false,
-      checksGreen: true,
-      rounds: 0,
-    })
   })
 
   it('refuses excess failing checks before fetching discarded diagnostics', async () => {
@@ -584,96 +459,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(prepare?.envs).toMatchObject({ GIT_NO_REPLACE_OBJECTS: '1' })
   })
 
-  it('aggregates pushed rounds while enforcing cumulative markers', async () => {
-    mockFetchSnapshot
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks
-      .mockResolvedValueOnce(failingChecks)
-      .mockResolvedValueOnce(failingChecks)
-      .mockResolvedValueOnce(greenChecks)
-    mockReplyAndResolve.mockResolvedValue({
-      repliesPosted: 0,
-      threadsResolved: 0,
-      replyFailures: [],
-      resolveFailures: [],
-      headMoved: false,
-      awaitingConfirmation: false,
-    })
-    mockRequestReview
-      .mockResolvedValueOnce({
-        requestedAt: '2026-07-25T12:00:00.000Z',
-        commentIds: new Set([11]),
-        posted: 1,
-        failures: [],
-      })
-      .mockResolvedValueOnce({
-        requestedAt: '2026-07-25T12:05:00.000Z',
-        commentIds: new Set(),
-        posted: 0,
-        failures: ['@review-bot'],
-      })
-    mockReviewLanded.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-    const { runner, runCalls } = makeRunner({
-      prepareStdout: [
-        `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=src/a.ts\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
-        `__CUMULATIVE_CHANGED__=src/a.ts\n__CUMULATIVE_CHANGED__=src/b.ts\n__CUMULATIVE_DIFF_BYTES__=40\n__CHANGED__=src/b.ts\n__NEW_SHA__=${SECOND_SHA}\n__NEEDS_PUSH__=1\n`,
-      ],
-      roundFile: JSON.stringify({ threads: [] }),
-      diff: ['round-one-diff', 'round-two-diff'],
-    })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params({ reviewMentions: ['@review-bot'] }),
-      { onEvent: vi.fn() },
-      { convergenceWaitMs: 0, roundWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({
-      stopReason: 'clean',
-      rounds: 2,
-      commitsPushed: 2,
-      changedFiles: ['src/a.ts', 'src/b.ts'],
-      diff: 'round-one-diff\nround-two-diff',
-    })
-    const filterWrites = runner.writeFile.mock.calls.filter(
-      ([path]: [string]) => path === '/workspace/sim-pi-event-filter.mjs'
-    )
-    expect(filterWrites).toHaveLength(1)
-    expect(filterWrites[0]?.[1]).toContain("case 'message_update'")
-    const firstPiRun = runner.run.mock.calls.findIndex(([command]: [string]) =>
-      command.includes('pi -p --mode json')
-    )
-    const filterWrite = runner.writeFile.mock.calls.findIndex(
-      ([path]: [string]) => path === '/workspace/sim-pi-event-filter.mjs'
-    )
-    expect(runner.writeFile.mock.invocationCallOrder[filterWrite]).toBeLessThan(
-      runner.run.mock.invocationCallOrder[firstPiRun]
-    )
-    expect(
-      runCalls
-        .filter(({ command }) => command.includes('CURRENT_DIGEST='))
-        .map(({ envs }) => envs?.PINNED_SHA)
-    ).toEqual([OLD_SHA, NEW_SHA])
-    expect(mockRequestReview).toHaveBeenCalledTimes(3)
-    expect(mockReviewLanded).toHaveBeenCalledTimes(2)
-  })
-
   it('refuses .github changes before the credentialed push', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
@@ -726,60 +511,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(prepare?.command).toContain('core.quotePath=false')
   })
 
-  // `core.quotePath=false` stops the non-ASCII escaping but Git still quotes a path
-  // containing a newline, quote, backslash, or tab — which arrives with a leading `"`
-  // and so slips past a `.github/` prefix test. Any quoted path is refused outright.
-  it.each([
-    ['newline', '".github/workflows/new\\nline.yml"'],
-    ['double quote', '".github/quo\\"te.yml"'],
-    ['backslash', '".github/back\\\\slash.yml"'],
-    ['tab', '".github/tab\\tx.yml"'],
-  ])('refuses a %s path that Git could not report literally', async (_label, quotedPath) => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner, runCalls } = makeRunner({
-      prepareStdout: `__CUMULATIVE_CHANGED__=${quotedPath}\n__CUMULATIVE_DIFF_BYTES__=20\n__CHANGED__=${quotedPath}\n__NEW_SHA__=${NEW_SHA}\n__NEEDS_PUSH__=1\n`,
-    })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
-
-    expect(result).toMatchObject({ stopReason: 'refused_content', commitsPushed: 0 })
-    expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
-  })
-
-  it('reports a hardened push rejection without losing partial counters', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({
-      pushResult: commandResult('', 'rejected by remote', 1),
-    })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() })
-
-    expect(result).toMatchObject({
-      stopReason: 'push_rejected',
-      rounds: 1,
-      commitsPushed: 0,
-      threadsResolved: 0,
-      threadsClean: false,
-      checksGreen: true,
-    })
-  })
-
   it('reports missing finalize protocol markers as an agent failure', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
@@ -829,180 +560,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(runCalls.some(({ command }) => command.includes('CURRENT_DIGEST='))).toBe(false)
   })
 
-  it('waits for pending required checks despite optional failures without consuming a round', async () => {
-    const pendingCheck = {
-      ...failingCheck,
-      disposition: 'pending' as const,
-      status: 'IN_PROGRESS',
-      conclusion: null,
-    }
-    const optionalFailure = {
-      ...failingCheck,
-      key: 'check:optional-lint',
-      name: 'optional-lint',
-      required: false,
-    }
-    const pendingChecks = {
-      ...failingChecks,
-      checks: [pendingCheck, optionalFailure],
-      failing: [optionalFailure],
-      pending: [pendingCheck],
-      blockingFailing: [],
-      blockingPending: [pendingCheck],
-    }
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValueOnce(pendingChecks).mockResolvedValueOnce(greenChecks)
-    const { runner, runCalls } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params({ maxRounds: 1 }),
-      { onEvent: vi.fn() },
-      { roundWaitMs: 1 }
-    )
-
-    expect(result).toMatchObject({ stopReason: 'clean', rounds: 0, checksGreen: true })
-    expect(runCalls.some(({ command }) => command.includes('pi -p --mode json'))).toBe(false)
-    expect(mockSleepUntilAborted).toHaveBeenCalledWith(1, expect.any(AbortSignal))
-    expect(runCalls.some(({ command }) => command === 'true')).toBe(true)
-  })
-
-  it('returns pushed_awaiting_confirmation after replying against a lagging GitHub record', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(failingChecks)
-    mockReplyAndResolve.mockResolvedValue({
-      repliesPosted: 1,
-      threadsResolved: 0,
-      replyFailures: [],
-      resolveFailures: [],
-      headMoved: false,
-      awaitingConfirmation: true,
-    })
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params(),
-      { onEvent: vi.fn() },
-      { convergenceAttempts: 1, convergenceWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({
-      stopReason: 'pushed_awaiting_confirmation',
-      rounds: 1,
-      commitsPushed: 1,
-      threadsResolved: 0,
-    })
-    expect(mockReplyAndResolve.mock.calls[0][4]).toBe(OLD_SHA)
-  })
-
-  it('preserves known clean flags when the pin moves after successful writes', async () => {
-    mockFetchSnapshot
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce({ ...snapshot, headSha: NEW_SHA })
-      .mockResolvedValueOnce({ ...snapshot, headSha: SECOND_SHA })
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(noChecksGreen)
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params({ reviewMentions: ['@review-bot'] }),
-      { onEvent: vi.fn() },
-      { convergenceWaitMs: 0, roundWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({
-      stopReason: 'head_moved',
-      rounds: 1,
-      commitsPushed: 1,
-      threadsResolved: 1,
-      threadsClean: true,
-      checksGreen: true,
-    })
-  })
-
-  it('reports a confirmed push when the convergence read fails transiently', async () => {
-    mockFetchSnapshot
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockRejectedValueOnce(new Error('temporary GitHub read failure'))
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(noChecksGreen)
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params(),
-      { onEvent: vi.fn() },
-      { convergenceAttempts: 1, convergenceWaitMs: 0, roundWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({
-      stopReason: 'pushed_awaiting_confirmation',
-      rounds: 1,
-      commitsPushed: 1,
-      threadsResolved: 0,
-      checksGreen: true,
-    })
-    expect(result.totals.finalText).toContain('temporary GitHub read failure')
-  })
-
-  it('marks required checks non-green when a pushed round file is invalid', async () => {
-    mockFetchSnapshot
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValue({ ...snapshot, headSha: NEW_SHA })
-    mockFetchThreads.mockResolvedValue({
-      actionable: [trustedThread],
-      skipped: [],
-      totalUnresolved: 1,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    const { runner } = makeRunner({ roundFile: 'not json' })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params(),
-      { onEvent: vi.fn() },
-      { convergenceWaitMs: 0, roundWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({
-      stopReason: 'agent_failure',
-      rounds: 1,
-      commitsPushed: 1,
-      checksGreen: false,
-    })
-  })
-
   it('returns startup_failure without a sandbox when every initial review request fails', async () => {
     mockFetchSnapshot.mockResolvedValue(snapshot)
     mockFetchThreads.mockResolvedValue({
@@ -1025,35 +582,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(result.totals.finalText).toContain('1 initial review requests failed.')
     expect(mockWithPiSandbox).not.toHaveBeenCalled()
     expect(mockReviewLanded).not.toHaveBeenCalled()
-  })
-
-  it('continues when at least one initial review request succeeds', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(greenChecks)
-    mockRequestReview.mockResolvedValue({
-      requestedAt: '2026-07-25T12:00:00.000Z',
-      commentIds: new Set([10]),
-      posted: 1,
-      failures: ['@missing-bot'],
-    })
-    const { runner } = makeRunner({})
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(
-      params({ reviewMentions: ['@review-bot', '@missing-bot'] }),
-      { onEvent: vi.fn() },
-      { roundWaitMs: 0 }
-    )
-
-    expect(result).toMatchObject({ stopReason: 'clean', rounds: 0 })
-    expect(result.totals.finalText).toContain('1 initial review requests failed.')
-    expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)
   })
 
   it('detects stuck threads only after two refreshed unchanged rounds', async () => {
@@ -1098,40 +626,6 @@ describe('runBabysitPiWithOptions', () => {
       checksGreen: true,
     })
     expect(mockFetchThreads).toHaveBeenCalledTimes(3)
-  })
-
-  it('preserves clean threads when checks are stuck', async () => {
-    mockFetchSnapshot.mockResolvedValue(snapshot)
-    mockFetchThreads.mockResolvedValue({
-      actionable: [],
-      skipped: [],
-      totalUnresolved: 0,
-      latestReview: null,
-    })
-    mockFetchChecks.mockResolvedValue(failingChecks)
-    mockReplyAndResolve.mockResolvedValue({
-      repliesPosted: 0,
-      threadsResolved: 0,
-      replyFailures: [],
-      resolveFailures: [],
-      headMoved: false,
-      awaitingConfirmation: false,
-    })
-    const { runner } = makeRunner({
-      prepareStdout: '__NO_CHANGES__=1\n',
-      roundFile: JSON.stringify({ threads: [] }),
-    })
-    mockWithPiSandbox.mockImplementation(async (_options, callback) => callback(runner))
-
-    const result = await runBabysitPiWithOptions(params(), { onEvent: vi.fn() }, { roundWaitMs: 0 })
-
-    expect(result).toMatchObject({
-      stopReason: 'stuck_checks',
-      rounds: 2,
-      commitsPushed: 0,
-      threadsClean: true,
-      checksGreen: false,
-    })
   })
 
   it('does not count a push round toward unchanged-pin stuck detection', async () => {

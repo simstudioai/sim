@@ -1,53 +1,44 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { copilotChats, member } from '@sim/db/schema'
-import { authMockFns, databaseMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { remoteSandboxMock } from '@sim/testing/mocks/remote-sandbox.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { NextRequest } from 'next/server'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  permission: vi.fn(),
-  upload: vi.fn(),
-  download: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   scratch: vi.fn(),
   artifact: vi.fn(),
-  target: vi.fn(),
-  fileContext: vi.fn(),
 }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: mocks.target,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.fileContext,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (role: string | null) => role !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: vi.fn().mockResolvedValue([]) }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: vi.fn(async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mocks.upload,
-  downloadFile: mocks.download,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/mothership/chat/application/read-sandbox-file', () => ({
-  readChatSandboxFile: { execute: mocks.scratch },
+  readChatSandboxFile: { execute: hoisted.scratch },
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
-  readWorkspaceFileArtifact: { execute: mocks.artifact },
+  readWorkspaceFileArtifact: { execute: hoisted.artifact },
 }))
-vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: vi.fn() }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
@@ -59,7 +50,16 @@ import { inlineChatImageUrl } from '@/lib/mothership/chat/inline-image-reference
 import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-storage'
 import { GET } from '@/app/api/mothership/chats/[chatId]/images/[requestId]/route'
 
-const principal: Principal = { kind: 'session', userId: 'owner', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  target: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  upload: storageServiceMockFns.mockUploadFile,
+  download: storageServiceMockFns.mockDownloadFile,
+  fileContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+}
+
+const principal: Principal = createSessionPrincipal({ userId: 'owner', sessionId: 'session' })
 const input = { chatId: 'chat', requestId: 'request', reference: 'files/chart.png' }
 const owner = {
   userId: 'owner',
@@ -77,7 +77,6 @@ async function raster() {
     .toBuffer()
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.permission.mockResolvedValue('read')
   mocks.upload.mockResolvedValue({})
@@ -235,12 +234,12 @@ describe('private chat image application boundary', () => {
 describe('image HTTP route', () => {
   const request = () =>
     new NextRequest(`http://localhost${inlineChatImageUrl('chat', 'request', input.reference)}`)
-  const params = { params: Promise.resolve({ chatId: 'chat', requestId: 'request' }) }
+  const params = createRouteContext({ chatId: 'chat', requestId: 'request' })
   it('authenticates before parsing', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
     const response = await GET(
       new NextRequest('http://localhost/api/mothership/chats/x/images/y'),
-      { params: Promise.resolve({ chatId: '/', requestId: '/' }) }
+      createRouteContext({ chatId: '/', requestId: '/' })
     )
     expect(response.status).toBe(401)
     expect(mocks.download).not.toHaveBeenCalled()

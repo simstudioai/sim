@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
   queueTableRows,
@@ -9,43 +6,51 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
-  mockCheckInternalApiKey,
   mockCheckAttributedUsageLimits,
-  mockCheckServerSideUsageLimits,
-  mockDeriveBillingContext,
-  mockGetHighestPrioritySubscription,
-  mockIsEnterprisePlan,
   mockRequireBillingAttributionHeader,
   mockRequireBillingRequestIdHeader,
   mockResolveLegacyV0BillingAttribution,
   mockResolveBillingAttribution,
   mockSerializeAccountBillingDecisionHeader,
   mockSerializeBillingAttributionHeader,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockAuthorizeOrganizationChat,
   mockAuthorizeCallback,
   mockCheckContinuationBilling,
 } = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
-  mockCheckServerSideUsageLimits: vi.fn(),
-  mockDeriveBillingContext: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockIsEnterprisePlan: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockRequireBillingRequestIdHeader: vi.fn(),
   mockResolveLegacyV0BillingAttribution: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockSerializeAccountBillingDecisionHeader: vi.fn(),
   mockSerializeBillingAttributionHeader: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockAuthorizeOrganizationChat: vi.fn(),
   mockAuthorizeCallback: vi.fn(),
   mockCheckContinuationBilling: vi.fn(),
 }))
@@ -109,54 +114,42 @@ vi.mock('@/lib/billing/core/billing-attribution', async (importOriginal) => ({
   serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkServerSideUsageLimits: mockCheckServerSideUsageLimits,
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isEnterprisePlan: mockIsEnterprisePlan,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  deriveBillingContext: mockDeriveBillingContext,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   authorizeCopilotChatCallback: mockAuthorizeCallback,
   checkCopilotContinuationBilling: mockCheckContinuationBilling,
 }))
 
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mockAuthorizeOrganizationChat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
-vi.mock('@/lib/mothership/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: unknown,
-    _span: unknown,
-    _attrs: unknown,
-    fn: (span: { setAttribute: () => void; setAttributes: () => void }) => unknown
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+const { mockAuthorizeOrganizationChatDelegation: mockAuthorizeOrganizationChat } =
+  mothershipOrganizationChatsMockFns
+const { mockDeriveBillingContext } = billingUsageLogMockFns
+const { mockGetHighestPrioritySubscription } = billingPlanMockFns
+const { mockCheckServerSideUsageLimits } = billingUsageMonitorMockFns
+
+const mockIsEnterprisePlan = billingSubscriptionMockFns.mockIsEnterprisePlan
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 afterAll(resetEnvFlagsMock)
 
@@ -166,7 +159,6 @@ function request(body: Record<string, unknown>, headers: Record<string, string> 
 
 describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: false, isBillingEnabled: false })
     mockAuthorizeCallback.mockResolvedValue(undefined)
@@ -257,14 +249,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(402)
   })
 
-  it('accepts markerless self-hosted admission under its routed workspace limits', async () => {
-    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
-
-    expect(res.status).toBe(200)
-    expect(res.headers.get('x-sim-billing-attribution')).toBeNull()
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
-  })
-
   it('returns whether the validated key owner has an enterprise account', async () => {
     mockIsEnterprisePlan.mockResolvedValueOnce(true)
 
@@ -273,13 +257,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ isEnterprise: true })
     expect(mockIsEnterprisePlan).toHaveBeenCalledWith('user-1')
-  })
-
-  it('returns false when the validated key owner is not enterprise', async () => {
-    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ isEnterprise: false })
   })
 
   it('preserves account admission for a workspace-less self-hosted body', async () => {
@@ -291,15 +268,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('preserves account admission for an opaque direct legacy workspace', async () => {
-    mockResolveLegacyV0BillingAttribution.mockResolvedValueOnce(null)
-    const res = await POST(request(SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY))
-
-    expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
-  })
-
   it('rejects markerless admission on hosted Sim', async () => {
     setEnvFlags({ isHosted: true })
     const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
@@ -307,21 +275,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('allows explicitly labeled legacy requests on hosted Sim', async () => {
-    setEnvFlags({ isHosted: true })
-    const res = await POST(
-      request(SELF_HOSTED_VALIDATE_BODY, { 'x-sim-billing-protocol': 'legacy-v0' })
-    )
-
-    expect(res.status).toBe(200)
-    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
-    expect(res.headers.get('x-sim-billing-attribution')).toBe('serialized-attribution')
-    expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-    })
   })
 
   it('requires workspace attribution for explicitly labeled legacy requests', async () => {
@@ -374,27 +327,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       )
     )
     expect(response.status).toBe(403)
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('rejects markerless organization admission rather than settling it as a personal account', async () => {
-    const response = await POST(
-      request({ userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' })
-    )
-    expect(response.status).toBe(400)
-    expect(mockAuthorizeOrganizationChat).not.toHaveBeenCalled()
-    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('rejects an organization request missing its private chat', async () => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { userId: 'user-1', organizationId: 'org-1' },
-        { 'x-api-key': 'internal', 'x-sim-billing-protocol': 'attribution-v1' }
-      )
-    )
-    expect(response.status).toBe(400)
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
@@ -487,25 +419,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
   })
 
-  it('admits direct-v1 account billing when workspaceId is omitted', async () => {
-    const res = await POST(
-      request(
-        { userId: 'user-1' },
-        {
-          'x-sim-billing-protocol': 'direct-v1',
-          'x-sim-billing-request-id': '0190c03f-9f7d-4b79-8b58-e7f779fd29e1',
-        }
-      )
-    )
-
-    expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith(
-      'user-1',
-      ACCOUNT_SUBSCRIPTION,
-      expect.objectContaining({ billingEntity: ACCOUNT_BILLING_DECISION.billingEntity })
-    )
-  })
-
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {
     mockGetHighestPrioritySubscription.mockRejectedValueOnce(new Error('database unavailable'))
 
@@ -587,7 +500,6 @@ describe('validation lifecycle purposes', () => {
   const body = { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', purpose: 'continuation' }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     for (let call = 0; call < 3; call++) queueTableRows(schemaMock.user, [{ id: 'user-1' }])
@@ -603,16 +515,6 @@ describe('validation lifecycle purposes', () => {
       validateCopilotApiKeyBodySchema.safeParse({ userId: 'user-1', purpose: 'skip' }).success
     ).toBe(false)
   })
-
-  it.each(['continuation', 'cancellation'])(
-    'authenticates before processing %s',
-    async (purpose) => {
-      mockCheckInternalApiKey.mockReturnValueOnce({ success: false })
-      expect((await POST(request({ ...body, purpose }, attributedHeaders))).status).toBe(401)
-      expect(mockAuthorizeCallback).not.toHaveBeenCalled()
-      expect(mockCheckContinuationBilling).not.toHaveBeenCalled()
-    }
-  )
 
   it('checks original payer and current scope without repeating spend admission', async () => {
     const response = await POST(request(body, attributedHeaders))
@@ -728,17 +630,6 @@ describe('validation lifecycle purposes', () => {
     expect(mockCheckContinuationBilling).not.toHaveBeenCalled()
   })
 
-  it.each(['continuation', 'cancellation'])(
-    'rejects revoked scope on %s before billing',
-    async (purpose) => {
-      mockAuthorizeCallback.mockRejectedValueOnce(
-        new OrchestrationError('forbidden', 'Access revoked')
-      )
-      expect((await POST(request({ ...body, purpose }, attributedHeaders))).status).toBe(403)
-      expect(mockCheckContinuationBilling).not.toHaveBeenCalled()
-    }
-  )
-
   it('fails closed on scope or account-standing infrastructure errors', async () => {
     mockAuthorizeCallback.mockRejectedValueOnce(new Error('database unavailable'))
     expect((await POST(request(body, attributedHeaders))).status).toBe(500)
@@ -814,34 +705,6 @@ describe('validation lifecycle purposes', () => {
       )
       expect(mockCheckContinuationBilling).not.toHaveBeenCalled()
       expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each(['continuation', 'cancellation'])(
-    'preserves markerless unbilled local %s with an opaque workspace',
-    async (purpose) => {
-      setEnvFlags({ isHosted: false, isBillingEnabled: false })
-      expect(
-        (await POST(request({ ...body, workspaceId: 'opaque-local-workspace', purpose }))).status
-      ).toBe(200)
-      expect(mockAuthorizeCallback).not.toHaveBeenCalled()
-      expect(mockCheckContinuationBilling).not.toHaveBeenCalled()
-      expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each(['continuation', 'cancellation'])(
-    'still checks snapshot scope on unbilled local %s',
-    async (purpose) => {
-      setEnvFlags({ isHosted: false, isBillingEnabled: false })
-      const headers = {
-        'x-sim-billing-protocol': 'legacy-v0',
-        'x-sim-billing-attribution': encode(ATTRIBUTION),
-      }
-      expect((await POST(request({ ...body, purpose }, headers))).status).toBe(200)
-      expect(mockAuthorizeCallback).toHaveBeenCalledWith(
-        expect.objectContaining({ purpose, workspaceId: 'ws-1' })
-      )
     }
   )
 

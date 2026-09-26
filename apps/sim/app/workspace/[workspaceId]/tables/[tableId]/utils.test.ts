@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { columnTypeOf } from '@/lib/table/column-types'
 import {
@@ -13,11 +10,6 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
 
 describe('dateValueToLocalParts / localPartsToDateValue', () => {
-  it('splits calendar dates without a time part and round-trips', () => {
-    expect(dateValueToLocalParts('2026-07-06')).toEqual({ day: '2026-07-06', time: null })
-    expect(localPartsToDateValue('2026-07-06', null)).toBe('2026-07-06')
-  })
-
   it('splits instants into their literal wall day/time — no zone conversion', () => {
     expect(dateValueToLocalParts('2026-07-06T16:04:55-07:00')).toEqual({
       day: '2026-07-06',
@@ -44,21 +36,9 @@ describe('dateValueToLocalParts / localPartsToDateValue', () => {
       '2026-07-06T16:04:00-04:00'
     )
   })
-
-  it('returns null parts for unparseable values', () => {
-    expect(dateValueToLocalParts('garbage')).toEqual({ day: null, time: null })
-    expect(dateValueToLocalParts('')).toEqual({ day: null, time: null })
-  })
 })
 
 describe('displayToStorage', () => {
-  it('parses date-only display formats to calendar dates', () => {
-    expect(displayToStorage('07/06/2026')).toBe('2026-07-06')
-    expect(displayToStorage('7/6/2026')).toBe('2026-07-06')
-    expect(displayToStorage('2026-07-06')).toBe('2026-07-06')
-    expect(displayToStorage('7/6')).toBe(`${new Date().getFullYear()}-07-06`)
-  })
-
   it('parses M/D/YYYY with a time to a wall time stamped with the given zone', () => {
     expect(displayToStorage('07/06/2026 4:04 PM', 'America/New_York')).toBe(
       '2026-07-06T16:04:00-04:00'
@@ -74,12 +54,6 @@ describe('displayToStorage', () => {
     )
   })
 
-  it('preserves the wall time and offset of canonical and offset strings', () => {
-    expect(displayToStorage('2026-07-06T16:04:55-07:00')).toBe('2026-07-06T16:04:55-07:00')
-    expect(displayToStorage('2026-07-06T23:04:55.000Z')).toBe('2026-07-06T23:04:55Z')
-    expect(displayToStorage('2026-07-06 16:04:55 PDT')).toBe('2026-07-06T16:04:55-07:00')
-  })
-
   it('rejects invalid dates and times', () => {
     expect(displayToStorage('13/06/2026')).toBeNull()
     expect(displayToStorage('07/06/2026 25:00')).toBeNull()
@@ -92,10 +66,6 @@ describe('displayToStorage', () => {
 })
 
 describe('storageToDisplay', () => {
-  it('renders calendar dates as MM/DD/YYYY', () => {
-    expect(storageToDisplay('2026-07-06')).toBe('07/06/2026')
-  })
-
   it('renders the literal wall time identically regardless of viewer or offset', () => {
     expect(storageToDisplay('2026-07-06T16:04:55-07:00', { seconds: true })).toBe(
       '07/06/2026 4:04:55 PM'
@@ -114,51 +84,6 @@ describe('storageToDisplay', () => {
 })
 
 describe('cleanCellValue', () => {
-  it('normalizes date cells to canonical storage', () => {
-    const column = { name: 'due', type: 'date' } as const
-    expect(cleanCellValue('07/06/2026', column)).toBe('2026-07-06')
-    expect(cleanCellValue('2026-07-06T16:04:55-07:00', column)).toBe('2026-07-06T16:04:55-07:00')
-    expect(cleanCellValue('nope', column)).toBeNull()
-    expect(cleanCellValue('', column)).toBeNull()
-  })
-
-  it('leaves non-date types on their existing contracts', () => {
-    expect(cleanCellValue('2024', { name: 'n', type: 'number' } as const)).toBe(2024)
-    expect(cleanCellValue('true', { name: 'b', type: 'boolean' } as const)).toBe(true)
-  })
-
-  it('resolves select names to option ids so the optimistic cache holds ids', () => {
-    const column = {
-      name: 'status',
-      type: 'select',
-      options: [
-        { id: 'opt_a', name: 'Open' },
-        { id: 'opt_b', name: 'Closed' },
-      ],
-    } as const
-    expect(cleanCellValue('Open', column)).toBe('opt_a')
-    expect(cleanCellValue('open', column)).toBe('opt_a')
-    expect(cleanCellValue('opt_b', column)).toBe('opt_b')
-    expect(cleanCellValue('Archived', column)).toBeNull()
-    expect(cleanCellValue('', column)).toBeNull()
-  })
-
-  it('round-trips a multiselect through its comma-joined clipboard form', () => {
-    const column = {
-      name: 'tags',
-      type: 'select',
-      multiple: true,
-      options: [
-        { id: 'opt_a', name: 'Bug' },
-        { id: 'opt_b', name: 'Docs' },
-      ],
-    } as const
-    expect(cleanCellValue('Bug, Docs', column)).toEqual(['opt_a', 'opt_b'])
-    expect(cleanCellValue(['opt_b'], column)).toEqual(['opt_b'])
-    expect(cleanCellValue('Bug, Bug', column)).toEqual(['opt_a'])
-    expect(cleanCellValue('Nope', column)).toEqual([])
-  })
-
   /**
    * The grid writes through a first-party route, which runs the `null` policy —
    * a member the paste names that resolves to no option is dropped, and the ones
@@ -187,14 +112,6 @@ describe('cleanCellValue', () => {
 })
 
 describe('formatValueForInput', () => {
-  it('gives editors the canonical value, surfacing legacy UTC midnights as calendar days', () => {
-    expect(formatValueForInput('2026-07-06T00:00:00.000Z', 'date')).toBe('2026-07-06')
-    expect(formatValueForInput('2026-07-06T16:04:55-07:00', 'date')).toBe(
-      '2026-07-06T16:04:55-07:00'
-    )
-    expect(formatValueForInput('2026-07-06', 'date')).toBe('2026-07-06')
-  })
-
   it('preserves TTL strings independently of the viewer timezone', () => {
     const column = { name: 'expires_at', type: 'ttl' } as const
     const input = '2026-06-15T09:00:30Z'

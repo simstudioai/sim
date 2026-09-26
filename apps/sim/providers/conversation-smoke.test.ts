@@ -1,10 +1,8 @@
-/** @vitest-environment node */
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { isRecordLike } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/tools', () => ({
-  executeTool: async () => ({ success: true, output: { value: 'memory-smoke-ok' } }),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
@@ -17,6 +15,11 @@ import { providerHistoryAdapters, providerHistoryProtocols } from '@/providers/h
 import { getProviderExecutor } from '@/providers/registry'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest } from '@/providers/types'
+
+toolsMockFns.mockExecuteTool.mockImplementation(async () => ({
+  success: true,
+  output: { value: 'memory-smoke-ok' },
+}))
 
 const enabled = process.env.RUN_AGENT_MEMORY_PROVIDER_SMOKE === 'true'
 

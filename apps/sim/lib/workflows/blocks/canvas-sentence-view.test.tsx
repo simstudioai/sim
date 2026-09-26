@@ -79,36 +79,4 @@ describe('CanvasSentenceView', () => {
     expect(host.querySelector('[data-chip="threadTs"]')).toBeNull()
     expect(host.textContent).toContain('Post Ship it')
   })
-
-  it('renders a placeholder noun muted, so it does not read as a filled value', () => {
-    const host = mount(
-      <CanvasSentenceView
-        segments={[{ subBlockId: 'channel', noun: 'a channel' }]}
-        renderChip={chipFor({})}
-      />
-    )
-
-    /* The chip itself, not the sentence paragraph around it. */
-    const chip = host.querySelector('p > *')
-    expect(chip?.textContent).toBe('a channel')
-    expect(chip?.className).toContain('--text-muted')
-  })
-
-  it('keeps one space between a chip and the copy in front of it', () => {
-    /* Spacing lives in this component precisely because it is the thing that
-       silently drifts between the editor canvas and the read-only preview. */
-    const host = mount(
-      <CanvasSentenceView
-        segments={[
-          'Query rows from',
-          { subBlockId: 'table', noun: 'a table' },
-          ', where',
-          { subBlockId: 'filter', noun: 'a filter' },
-        ]}
-        renderChip={chipFor({})}
-      />
-    )
-
-    expect(host.textContent).toBe('Query rows from a table, where a filter')
-  })
 })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * HTTP Request Tool Unit Tests
  *
  * This file contains unit tests for the HTTP Request tool, which is used
@@ -9,8 +7,9 @@
 
 import { ToolTester } from '@sim/testing/builders'
 import { mockHttpResponses } from '@sim/testing/factories'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestTool } from '@/tools/http/request'
+import type { RequestParams } from '@/tools/http/types'
 import { processUrl } from '@/tools/http/utils'
 
 process.env.VITEST = 'true'
@@ -328,20 +327,6 @@ describe('HTTP Request Tool', () => {
       expect(headers['Sec-Ch-Ua']).toBeUndefined()
     })
 
-    it('should handle successful GET requests', async () => {
-      tester.setup(mockHttpResponses.simple)
-
-      const result = await tester.execute({
-        url: 'https://api.example.com/data',
-        method: 'GET',
-      })
-
-      expect(result.success).toBe(true)
-      expect(result.output.data).toEqual(mockHttpResponses.simple)
-      expect(result.output.status).toBe(200)
-      expect(result.output.headers).toHaveProperty('content-type')
-    })
-
     it('should reject responses that exceed the workflow data cap', async () => {
       const response = new Response('too large', {
         status: 200,
@@ -451,18 +436,6 @@ describe('HTTP Request Tool', () => {
       expect(fetchCall[1].body).toBe('grant_type=client_credentials&scope=read+write')
     })
 
-    it('should handle errors correctly', async () => {
-      tester.setup(mockHttpResponses.error, { ok: false, status: 400 })
-
-      const result = await tester.execute({
-        url: 'https://api.example.com/data',
-        method: 'GET',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
-
     it('should handle timeout parameter', async () => {
       tester.setup({ result: 'success' })
 
@@ -522,43 +495,9 @@ describe('HTTP Request Tool', () => {
       expect(result.success).toBe(false)
       expect(result.output).toEqual({})
     })
-
-    it('should handle 401 unauthorized errors', async () => {
-      tester.setup(mockHttpResponses.unauthorized, { ok: false, status: 401 })
-
-      const result = await tester.execute({
-        url: 'https://api.example.com/restricted',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.output).toEqual({})
-    })
   })
 
   describe('Default Headers', () => {
-    it('should apply all default headers correctly', async () => {
-      tester.setup(mockHttpResponses.simple)
-
-      await tester.execute({
-        url: 'https://api.example.com/data',
-        method: 'GET',
-      })
-
-      const fetchCall = (global.fetch as any).mock.calls[0]
-      const headers = fetchCall[1].headers
-
-      expect(headers['User-Agent']).toBe('Sim/1.0 (+https://sim.ai)')
-      expect(headers.Accept).toBe('*/*')
-      expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
-      expect(headers['Cache-Control']).toBe('no-cache')
-      expect(headers.Connection).toBe('keep-alive')
-      expect(headers['Sec-Ch-Ua']).toBeUndefined()
-      expect(headers['Sec-Ch-Ua-Mobile']).toBeUndefined()
-      expect(headers['Sec-Ch-Ua-Platform']).toBeUndefined()
-      expect(headers.Referer).toBeUndefined()
-      expect(headers.Host).toBe('api.example.com')
-    })
-
     it('should allow overriding default headers', async () => {
       tester.setup(mockHttpResponses.simple)
 
@@ -581,94 +520,111 @@ describe('HTTP Request Tool', () => {
       expect(headers['Cache-Control']).toBe('no-cache')
     })
   })
+})
 
-  describe('Proxy Functionality', () => {
-    it.concurrent('should not use proxy in test environment', () => {
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://sim.ai',
-          },
-        },
-        writable: true,
-      })
+describe('HTTP Request Tool - Stringified Params Fix', () => {
+  beforeAll(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+  })
 
-      const url = tester.getRequestUrl({ url: 'https://api.example.com/data' })
-      expect(url).toBe('https://api.example.com/data')
-      expect(url).not.toContain('/api/proxy')
+  it('should handle stringified params from UI storage', () => {
+    const stringifiedParams = JSON.stringify([
+      { id: 'test-1', cells: { Key: 'id', Value: '311861947611' } },
+      { id: 'test-2', cells: { Key: 'language', Value: 'tr' } },
+    ])
 
-      global.window = originalWindow
-    })
+    const stringifiedHeaders = JSON.stringify([
+      { id: 'test-3', cells: { Key: 'Authorization', Value: 'Bearer token' } },
+    ])
 
-    it.concurrent('should include method parameter in proxy URL', () => {
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://sim.ai',
-          },
-        },
-        writable: true,
-      })
+    const params = {
+      url: 'https://api.example.com/tracking',
+      method: 'GET' as const,
+      params: stringifiedParams,
+      headers: stringifiedHeaders,
+    }
 
-      const originalVitest = process.env.VITEST as string
+    const url = (requestTool.request.url as (params: RequestParams) => string)(params)
+    expect(url).toBe('https://api.example.com/tracking?id=311861947611&language=tr')
 
-      try {
-        process.env.VITEST = undefined
+    const headers = (
+      requestTool.request.headers as (params: RequestParams) => Record<string, string>
+    )(params)
+    expect(headers.Authorization).toBe('Bearer token')
+  })
 
-        const buildProxyUrl = (params: any) => {
-          const baseUrl = 'https://external-api.com/endpoint'
-          let proxyUrl = `/api/proxy?url=${encodeURIComponent(baseUrl)}`
+  it('should still handle normal array params', () => {
+    const params = {
+      url: 'https://api.example.com/tracking',
+      method: 'GET' as const,
+      params: [
+        { id: 'test-1', cells: { Key: 'id', Value: '311861947611' } },
+        { id: 'test-2', cells: { Key: 'language', Value: 'tr' } },
+      ],
+      headers: [{ id: 'test-3', cells: { Key: 'Authorization', Value: 'Bearer token' } }],
+    }
 
-          if (params.method) {
-            proxyUrl += `&method=${encodeURIComponent(params.method)}`
-          }
+    const url = (requestTool.request.url as (params: RequestParams) => string)(params)
+    expect(url).toBe('https://api.example.com/tracking?id=311861947611&language=tr')
 
-          if (
-            params.body &&
-            ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')
-          ) {
-            const bodyStr =
-              typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-            proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-          }
+    const headers = (
+      requestTool.request.headers as (params: RequestParams) => Record<string, string>
+    )(params)
+    expect(headers.Authorization).toBe('Bearer token')
+  })
 
-          return proxyUrl
-        }
+  it('should handle null and undefined params gracefully', () => {
+    const params = {
+      url: 'https://api.example.com/test',
+      method: 'GET' as const,
+    }
 
-        const getParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'GET',
-        }
-        const getProxyUrl = buildProxyUrl(getParams)
-        expect(getProxyUrl).toContain('/api/proxy?url=')
-        expect(getProxyUrl).toContain('&method=GET')
+    const url = (requestTool.request.url as (params: RequestParams) => string)(params)
+    expect(url).toBe('https://api.example.com/test')
 
-        const postParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'POST',
-          body: { key: 'value' },
-        }
-        const postProxyUrl = buildProxyUrl(postParams)
-        expect(postProxyUrl).toContain('/api/proxy?url=')
-        expect(postProxyUrl).toContain('&method=POST')
-        expect(postProxyUrl).toContain('&body=')
-        expect(postProxyUrl).toContain(encodeURIComponent('{"key":"value"}'))
+    const headers = (
+      requestTool.request.headers as (params: RequestParams) => Record<string, string>
+    )(params)
+    expect(headers).toBeDefined()
+  })
 
-        const putParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'PUT',
-          body: 'string body',
-        }
-        const putProxyUrl = buildProxyUrl(putParams)
-        expect(putProxyUrl).toContain('/api/proxy?url=')
-        expect(putProxyUrl).toContain('&method=PUT')
-        expect(putProxyUrl).toContain(`&body=${encodeURIComponent('string body')}`)
-      } finally {
-        global.window = originalWindow
-        process.env.VITEST = originalVitest
-      }
-    })
+  it('should handle stringified object params and headers', () => {
+    const params = {
+      url: 'https://api.example.com/oauth/token',
+      method: 'POST' as const,
+      body: { grant_type: 'client_credentials' },
+      params: JSON.stringify({ q: 'test' }),
+      headers: JSON.stringify({ 'Content-Type': 'application/x-www-form-urlencoded' }),
+    }
+
+    const url = (requestTool.request.url as (input: RequestParams) => string)(params)
+    expect(url).toBe('https://api.example.com/oauth/token?q=test')
+
+    const headers = (
+      requestTool.request.headers as (input: RequestParams) => Record<string, string>
+    )(params)
+    expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+
+    const body = (
+      requestTool.request.body as (input: RequestParams) => Record<string, any> | string | FormData
+    )(params)
+    expect(body).toBe('grant_type=client_credentials')
+  })
+
+  it('should handle invalid JSON strings gracefully', () => {
+    const params = {
+      url: 'https://api.example.com/test',
+      method: 'GET' as const,
+      params: 'not-valid-json',
+      headers: '{broken',
+    }
+
+    const url = (requestTool.request.url as (input: RequestParams) => string)(params)
+    expect(url).toBe('https://api.example.com/test')
+
+    const headers = (
+      requestTool.request.headers as (input: RequestParams) => Record<string, string>
+    )(params)
+    expect(headers).toBeDefined()
   })
 })

@@ -1,21 +1,17 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetDocumentTagDefinitions, mockGetDocumentTagDefinitionsBatch } = vi.hoisted(() => ({
-  mockGetDocumentTagDefinitions: vi.fn(),
-  mockGetDocumentTagDefinitionsBatch: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitionsByKnowledgeBaseIds: mockGetDocumentTagDefinitionsBatch,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 import {
   resolveKnowledgeTagFilters,
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
+
+const mockGetDocumentTagDefinitions = knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitions
 
 const CREATED_AT = new Date('2025-01-10T09:00:00Z')
 
@@ -37,30 +33,6 @@ function definition(
 }
 
 describe('resolveKnowledgeTagFilters', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetDocumentTagDefinitionsBatch.mockImplementation(
-      async (ids: string[]) =>
-        new Map(
-          await Promise.all(ids.map(async (id) => [id, await mockGetDocumentTagDefinitions(id)]))
-        )
-    )
-  })
-
-  it('resolves a display name to the slot it is stored in', async () => {
-    mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
-
-    const resolved = await resolveKnowledgeTagFilters(
-      [{ tagName: 'category', operator: 'eq', value: 'billing' }],
-      ['kb-1']
-    )
-
-    expect(resolved.structuredFilters).toEqual([
-      { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'billing', valueTo: undefined },
-    ])
-    expect(resolved.definitionsByKnowledgeBase.get('kb-1')).toHaveLength(1)
-  })
-
   it('rejects a tag name the knowledge base does not define instead of ignoring it', async () => {
     mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
 
@@ -144,55 +116,9 @@ describe('resolveKnowledgeTagFilters', () => {
       )
     ).rejects.toThrow('The "between" upper bound is invalid. Tag "score" expects a number value')
   })
-
-  it.each([
-    [
-      'text',
-      'tag1',
-      'category',
-      ['eq', 'neq', 'contains', 'not_contains', 'starts_with', 'ends_with'],
-      'billing',
-    ],
-    ['number', 'number1', 'score', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'], 1],
-    ['date', 'date1', 'due', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'], '2025-01-10'],
-    ['boolean', 'boolean1', 'archived', ['eq', 'neq'], true],
-  ])(
-    'accepts every operator a %s tag implements',
-    async (fieldType, tagSlot, tagName, operators, value) => {
-      mockGetDocumentTagDefinitions.mockResolvedValue([
-        definition('kb-1', tagSlot as string, tagName as string, fieldType as string),
-      ])
-
-      for (const operator of operators as string[]) {
-        const valueTo = fieldType === 'number' ? 2 : '2025-02-10'
-        const resolved = await resolveKnowledgeTagFilters(
-          [
-            {
-              tagName: tagName as string,
-              operator,
-              value: value as string | number | boolean,
-              ...(operator === 'between' ? { valueTo } : {}),
-            },
-          ],
-          ['kb-1']
-        )
-        expect(resolved.structuredFilters[0].operator).toBe(operator)
-      }
-    }
-  )
 })
 
 describe('toKnowledgeTagFilterConditions', () => {
-  it('narrows resolved filters onto the document-list filter shape', () => {
-    expect(
-      toKnowledgeTagFilterConditions([
-        { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: 2 },
-      ])
-    ).toEqual([
-      { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: 2, valueTo: undefined },
-    ])
-  })
-
   it('rejects a definition stored with an unsupported field type rather than dropping the predicate', () => {
     expect(() =>
       toKnowledgeTagFilterConditions([

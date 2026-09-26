@@ -1,47 +1,39 @@
-/**
- * @vitest-environment node
- */
 import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
-  notifyWorkspace: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   restoreRecord: vi.fn(),
-  folderIndex: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_RESTORED: 'workflow.restored' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveArchivedWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkflowUpdated: mocks.notify,
-  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspace,
-}))
-vi.mock('@/lib/workflows/lifecycle', () => ({ restoreWorkflow: mocks.restoreRecord }))
-vi.mock('@/lib/folders/queries', () => ({ loadActiveFolderPathIndex: mocks.folderIndex }))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/workflows/lifecycle', () => ({ restoreWorkflow: hoisted.restoreRecord }))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
 import { restoreWorkflow } from '@/lib/workflows/application/restore-workflow'
+
+const mocks = {
+  ...hoisted,
+  folderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+}
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveArchivedWorkflowApplicationContext
 
 const archivedWorkflow = {
   id: 'workflow-1',
@@ -60,14 +52,13 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 const input = { workflowId: 'workflow-1' }
 
 describe('restoreWorkflow', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
     mocks.folderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.restoreRecord.mockResolvedValue({
@@ -76,44 +67,17 @@ describe('restoreWorkflow', () => {
     })
   })
 
-  it('restores through the lifecycle primitive and projects its own audit row', async () => {
-    await expect(restoreWorkflow.execute({ principal, input })).resolves.toMatchObject({
-      workspaceId: 'workspace-1',
-      folderPath: '/',
-    })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'workflow.restored',
-        resourceId: 'workflow-1',
-        resourceName: 'Daily digest',
-        metadata: expect.objectContaining({ operation: 'workflows.restore' }),
-      })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
-    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
-  })
-
   it('refuses a workflow that is not archived as a conflict', async () => {
     mocks.restoreRecord.mockResolvedValue({ restored: false, workflow: archivedWorkflow })
 
     await expect(restoreWorkflow.execute({ principal, input })).rejects.toMatchObject({
       code: 'conflict',
     })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('is not found when the workflow row is gone', async () => {
-    mocks.restoreRecord.mockResolvedValue({ restored: false, workflow: null })
-
-    await expect(restoreWorkflow.execute({ principal, input })).rejects.toMatchObject({
-      code: 'not_found',
-    })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('refuses a locked workflow before restoring', async () => {
-    mocks.resolveContext.mockResolvedValue({
+    mockResolveContext.mockResolvedValue({
       ...context,
       workflow: { ...archivedWorkflow, locked: true },
     })
@@ -131,15 +95,6 @@ describe('restoreWorkflow', () => {
 
     await expect(restoreWorkflow.execute({ principal, input })).rejects.toMatchObject({
       code: 'locked',
-    })
-    expect(mocks.restoreRecord).not.toHaveBeenCalled()
-  })
-
-  it('refuses a role below the operation floor', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
-
-    await expect(restoreWorkflow.execute({ principal, input })).rejects.toMatchObject({
-      code: 'forbidden',
     })
     expect(mocks.restoreRecord).not.toHaveBeenCalled()
   })

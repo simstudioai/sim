@@ -1,21 +1,22 @@
-/**
- * @vitest-environment node
- */
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { resolveWorkspaceFileReference } = vi.hoisted(() => ({
-  resolveWorkspaceFileReference: vi.fn(),
-}))
-
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
 import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/mothership/application/execute-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+
+const resolveWorkspaceFileReference =
+  workspaceFileReferenceMockFns.mockResolveWorkspaceFileReference
 
 const trustedContext = {
   userId: 'user-1',

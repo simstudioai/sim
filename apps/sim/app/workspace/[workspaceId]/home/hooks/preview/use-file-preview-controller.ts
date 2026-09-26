@@ -251,13 +251,13 @@ export function useFilePreviewController({
           if (existing) {
             return current.map((resource) =>
               resource.id === 'streaming-file'
-                ? { ...resource, title: session.fileName || 'Writing file...' }
+                ? { ...resource, title: session.fileName || 'Writing file' }
                 : resource
             )
           }
           return [
             ...current,
-            { type: 'file', id: 'streaming-file', title: session.fileName || 'Writing file...' },
+            { type: 'file', id: 'streaming-file', title: session.fileName || 'Writing file' },
           ]
         })
         requestResourceAttention('streaming-file')

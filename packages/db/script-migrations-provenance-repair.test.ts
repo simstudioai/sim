@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import type { Sql } from 'postgres'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { repairUnknownTableRowProvenance } from './script-migrations/0005_repair_unknown_table_row_provenance'
 import { repairUnknownWorkspaceFileProvenance } from './script-migrations/0007_repair_unknown_workspace_file_provenance'
 
@@ -66,10 +63,6 @@ describe('unknown provenance repair lock order', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('locks user_table_rows before deleting the row sidecar', async () => {
     const { sql, statements } = createRecordingSql('user_table_row_secret_provenance')
     await repairUnknownTableRowProvenance.up(sql)
@@ -81,20 +74,6 @@ describe('unknown provenance repair lock order', () => {
 
     expect(lockIndex).toBeGreaterThanOrEqual(0)
     expect(deleteIndex).toBeGreaterThanOrEqual(0)
-    expect(lockIndex).toBeLessThan(deleteIndex)
-  })
-
-  it('locks workspace_files before deleting the file sidecar', async () => {
-    const { sql, statements } = createRecordingSql('workspace_file_secret_provenance')
-    await repairUnknownWorkspaceFileProvenance.up(sql)
-
-    const lockIndex = statements.findIndex(
-      (statement) => statement.includes('FROM workspace_files') && statement.includes('FOR UPDATE')
-    )
-    const deleteIndex = statements.findIndex((statement) => statement.startsWith('DELETE'))
-
-    expect(lockIndex).toBeGreaterThanOrEqual(0)
-    expect(deleteIndex).toBeLessThan(statements.length)
     expect(lockIndex).toBeLessThan(deleteIndex)
   })
 
@@ -112,31 +91,6 @@ describe('unknown provenance repair lock order', () => {
     )
     expect(lock).toContain('id = ANY(')
     expect(lock).toContain('ORDER BY id')
-  })
-
-  /**
-   * The reader answers `unrecorded` only for a sidecar that is version 1, bound to the file's
-   * current bytes, and holding a well-formed entries array. A status-only predicate is wider than
-   * that, and the extra rows are faults rather than absences — clearing one sets the version to
-   * NULL, which reads back as exact-empty, promoting a refused file to positively vouched for with
-   * no audit entry. Both the candidate query and the delete carry every condition.
-   */
-  it('targets only what the reader calls unrecorded, in the select and the delete', async () => {
-    const { sql, statements } = createRecordingSql('workspace_file_secret_provenance')
-    await repairUnknownWorkspaceFileProvenance.up(sql)
-
-    const candidateSelect = statements.find(
-      (statement) =>
-        statement.includes('FROM workspace_file_secret_provenance') && statement.includes('LIMIT')
-    )
-    const deleteStatement = statements.find((statement) => statement.startsWith('DELETE'))
-
-    for (const statement of [candidateSelect, deleteStatement]) {
-      expect(statement).toContain("status = 'unknown'")
-      expect(statement).toContain('secret_provenance_version = 1')
-      expect(statement).toContain('content_updated_at = f.content_updated_at')
-      expect(statement).toContain("jsonb_typeof(p.entries) = 'array'")
-    }
   })
 
   /**

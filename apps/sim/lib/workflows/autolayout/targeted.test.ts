@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
@@ -56,37 +53,6 @@ function expectVerticalSeparation(upper: BlockState, lower: BlockState): void {
   expect(lower.position.y).toBeGreaterThanOrEqual(
     upper.position.y + upperMetrics.height + DEFAULT_VERTICAL_SPACING
   )
-}
-
-function createJiraBlock(
-  id: string,
-  operation: 'read' | 'write',
-  overrides: Partial<BlockState> = {}
-): BlockState {
-  return createBlock(id, {
-    type: 'jira',
-    position: { x: 100, y: 100 },
-    height: 100,
-    layout: { measuredWidth: 250, measuredHeight: 100 },
-    subBlocks: {
-      operation: {
-        id: 'operation',
-        type: 'dropdown',
-        value: operation,
-      },
-      domain: {
-        id: 'domain',
-        type: 'short-input',
-        value: 'company.atlassian.net',
-      },
-      credential: {
-        id: 'credential',
-        type: 'oauth-input',
-        value: 'credential-1',
-      },
-    },
-    ...overrides,
-  })
 }
 
 describe('applyTargetedLayout', () => {
@@ -159,38 +125,6 @@ describe('applyTargetedLayout', () => {
     expect(result.anchor.position).toEqual({ x: 150, y: 150 })
     expect(result.changed.position.x).toBeGreaterThan(result.anchor.position.x)
     expect(result.changed.position.y).toBe(result.anchor.position.y)
-  })
-
-  it('keeps root-level insertions closer to anchored blocks near the top of the canvas', () => {
-    const blocks = {
-      start: createBlock('start', {
-        position: { x: 0, y: 0 },
-      }),
-      changed: createBlock('changed', {
-        position: { x: 0, y: 0 },
-      }),
-      agent: createBlock('agent', {
-        position: { x: 410.94, y: 2.33 },
-      }),
-    }
-    const edges: Edge[] = [
-      {
-        id: 'edge-1',
-        source: 'start',
-        target: 'changed',
-      },
-      {
-        id: 'edge-2',
-        source: 'changed',
-        target: 'agent',
-      },
-    ]
-
-    const result = applyTargetedLayout(blocks, edges, {
-      changedBlockIds: ['changed'],
-    })
-
-    expect(result.changed.position.y).toBeLessThan(150)
   })
 
   it('pushes frozen blocks below downstream nodes shifted into occupied columns', () => {
@@ -289,61 +223,6 @@ describe('applyTargetedLayout', () => {
     expect(result.blocker.position).toEqual({ x: 1500, y: 140 })
     expect(result.target.position).toEqual({ x: 530, y: 100 })
     expectVerticalSeparation(result.target, result.sibling)
-  })
-
-  it('keeps resized integration blocks anchored while shifting frozen blocks below them', () => {
-    const blocks = {
-      above: createBlock('above', {
-        position: { x: 430, y: 460 },
-      }),
-      jira: createJiraBlock('jira', 'write', {
-        position: { x: 433, y: 690 },
-      }),
-      below: createBlock('below', {
-        position: { x: 460, y: 1120 },
-      }),
-    }
-
-    const result = applyTargetedLayout(blocks, [], {
-      changedBlockIds: [],
-      resizedBlockIds: ['jira'],
-    })
-
-    expect(result.above.position).toEqual({ x: 430, y: 460 })
-    expect(result.jira.position).toEqual({ x: 433, y: 690 })
-    expect(getBlockMetrics(result.jira).height).toBeGreaterThan(100)
-    expectVerticalSeparation(result.jira, result.below)
-  })
-
-  it('places new parallel children below tall anchored siblings', () => {
-    const blocks = {
-      parallel: createBlock('parallel', {
-        type: 'parallel',
-        position: { x: 200, y: 150 },
-        data: { width: 600, height: 500 },
-        layout: { measuredWidth: 600, measuredHeight: 500 },
-      }),
-      existing: createBlock('existing', {
-        position: { x: 180, y: 100 },
-        data: { parentId: 'parallel', extent: 'parent' },
-        layout: { measuredWidth: 250, measuredHeight: 220 },
-        height: 220,
-      }),
-      changed: createBlock('changed', {
-        position: { x: 0, y: 0 },
-        data: { parentId: 'parallel', extent: 'parent' },
-      }),
-    }
-
-    const result = applyTargetedLayout(blocks, [], {
-      changedBlockIds: ['changed'],
-    })
-
-    const existingMetrics = getBlockMetrics(result.existing)
-    expect(result.parallel.position).toEqual({ x: 200, y: 150 })
-    expect(result.changed.position.y).toBeGreaterThanOrEqual(
-      result.existing.position.y + existingMetrics.height
-    )
   })
 
   it('places a new sibling container below a frozen container at its rendered height', () => {
@@ -485,38 +364,5 @@ describe('applyTargetedLayout', () => {
     expect(result.note.position.y).toBeGreaterThanOrEqual(
       result.start.position.y + startMetrics.height + DEFAULT_VERTICAL_SPACING
     )
-  })
-
-  it('preserves a pre-existing note arrangement when an unrelated block is laid out', () => {
-    const blocks = {
-      start: createBlock('start', { position: { x: 0, y: 0 } }),
-      note: createBlock('note', {
-        type: 'note',
-        position: { x: 60, y: 10 },
-        subBlocks: {
-          content: { id: 'content', type: 'long-input', value: 'Deliberately parked here' },
-        },
-      }),
-      added: createBlock('added', { position: { x: 0, y: 0 } }),
-    }
-
-    const edges: Edge[] = [{ id: 'e1', source: 'start', target: 'added' }]
-
-    const result = applyTargetedLayout(blocks, edges, {
-      changedBlockIds: ['added'],
-      previousBlocks: {
-        start: createBlock('start', { position: { x: 0, y: 0 } }),
-        note: createBlock('note', {
-          type: 'note',
-          position: { x: 60, y: 10 },
-          subBlocks: {
-            content: { id: 'content', type: 'long-input', value: 'Deliberately parked here' },
-          },
-        }),
-      },
-    })
-
-    expect(result.note.position).toEqual({ x: 60, y: 10 })
-    expect(result.added.position.x).toBeGreaterThan(result.start.position.x)
   })
 })

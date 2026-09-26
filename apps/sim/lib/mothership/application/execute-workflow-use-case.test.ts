@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
@@ -29,7 +26,6 @@ const trustedContext = {
 
 describe('Copilot Workflow application adapter', () => {
   afterEach(() => {
-    vi.clearAllMocks()
     vi.useRealTimers()
   })
 

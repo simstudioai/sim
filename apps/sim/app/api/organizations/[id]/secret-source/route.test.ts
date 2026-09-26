@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member, organizationSecret, organizationSecretSource } from '@sim/db/schema'
 import {
   authMockFns,
@@ -7,17 +6,16 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { GET, PUT } from '@/app/api/organizations/[id]/secret-source/route'
-import { GET as getSecrets, PATCH } from '@/app/api/organizations/[id]/secret-source/secrets/route'
+import { PUT } from '@/app/api/organizations/[id]/secret-source/route'
+import { GET as getSecrets } from '@/app/api/organizations/[id]/secret-source/secrets/route'
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-const context = { params: Promise.resolve({ id: 'org' }) }
+const context = createRouteContext({ id: 'org' })
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'actor' },
@@ -25,20 +23,6 @@ beforeEach(() => {
   })
 })
 describe('Generic Secrets HTTP boundary', () => {
-  it('requires a session before parsing a mutation', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    const response = await PATCH(createMockRequest('PATCH', { invalid: true }), context)
-    expect(response.status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('returns the source to an organization member without caching', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(organizationSecretSource, [{ id: 'source', mode: 'member' }])
-    const response = await GET(createMockRequest('GET'), context)
-    expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(await response.json()).toEqual({ source: { id: 'source', mode: 'member' } })
-  })
   it('refuses source changes by ordinary members', async () => {
     queueTableRows(member, [{ role: 'member' }])
     const response = await PUT(

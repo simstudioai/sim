@@ -649,12 +649,7 @@ export async function capturePanelSnapshot(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
 ): Promise<BrowserPanelSnapshot | null> {
-  if (
-    !scopeId ||
-    !panelUpdateAllowed(ownerWindow, scopeId) ||
-    panelBounds === null ||
-    panelOccluded
-  ) {
+  if (!scopeId || !panelUpdateAllowed(ownerWindow, scopeId) || panelBounds === null) {
     return null
   }
   const active = host.activeTab()
@@ -725,7 +720,8 @@ export async function capturePanelSnapshot(
   const generation = ++panelCaptureGeneration
   let capture: ReturnType<typeof contents.capturePage>
   try {
-    capture = contents.capturePage(undefined, { stayHidden: false })
+    /** Refresh an occluded frame without exposing the native view above renderer overlays. */
+    capture = contents.capturePage(undefined, { stayHidden: panelOccluded })
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
       error: getErrorMessage(error, 'unknown'),

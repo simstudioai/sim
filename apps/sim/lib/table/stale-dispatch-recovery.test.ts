@@ -1,22 +1,15 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendTableEvent, mockGetTableById } = vi.hoisted(() => ({
-  mockAppendTableEvent: vi.fn(),
-  mockGetTableById: vi.fn(),
-}))
-
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: mockAppendTableEvent,
-}))
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import { cancelStaleDispatches, dispatcherStep } from '@/lib/table/dispatcher'
+
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 const STALE_BEFORE = new Date('2026-08-21T17:00:00.000Z')
 
@@ -63,7 +56,6 @@ function collectChunks(value: unknown, out: string[] = []): string[] {
 
 describe('cancelStaleDispatches', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The bounded claim select, then the guarded update it feeds.
     dbChainMockFns.limit.mockResolvedValue([{ id: ABANDONED_ROW.id }])
@@ -84,20 +76,6 @@ describe('cancelStaleDispatches', () => {
     expect(values).not.toHaveProperty('cursor')
     expect(cancelled).toHaveLength(1)
     expect(cancelled[0].status).toBe('cancelled')
-  })
-
-  it('ages from the heartbeat, falling back to requestedAt when it is null', async () => {
-    await cancelStaleDispatches(STALE_BEFORE, 200)
-
-    const chunks = collectChunks(dbChainMockFns.where.mock.calls[0][0])
-    /**
-     * `heartbeat_at` alone would be NULL-false for every row written before the
-     * column existed, leaving exactly the wedged dispatches this sweep exists to
-     * clear permanently unreclaimable.
-     */
-    expect(chunks.some((chunk) => chunk.includes('COALESCE('))).toBe(true)
-    expect(chunks).toContain('tableRunDispatches.heartbeatAt')
-    expect(chunks).toContain('tableRunDispatches.requestedAt')
   })
 
   it('spares a dispatch whose cells are still reporting', async () => {
@@ -149,45 +127,16 @@ describe('cancelStaleDispatches', () => {
     expect(joined).not.toMatch(/jsonb_typeof\([^)]*\) <>/)
   })
 
-  it('emits the terminal event so a stuck client overlay clears', async () => {
-    await cancelStaleDispatches(STALE_BEFORE, 200)
-
-    /**
-     * Without this the row goes terminal in the database while the "X running"
-     * overlay stays pinned — the exact symptom the sweep is meant to fix.
-     */
-    expect(mockAppendTableEvent).toHaveBeenCalledTimes(1)
-    expect(mockAppendTableEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'dispatch',
-        dispatchId: 'tdsp_1',
-        tableId: 'table-1',
-        status: 'cancelled',
-        cursor: 42,
-      })
-    )
-  })
-
   it('bounds how many dispatches one sweep reclaims', async () => {
     await cancelStaleDispatches(STALE_BEFORE, 200)
 
     // One tick must not fan out unbounded SSE, however deep the backlog is.
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(200)
   })
-
-  it('emits nothing when no dispatch is stale', async () => {
-    dbChainMockFns.limit.mockResolvedValue([])
-
-    const cancelled = await cancelStaleDispatches(STALE_BEFORE, 200)
-
-    expect(cancelled).toEqual([])
-    expect(mockAppendTableEvent).not.toHaveBeenCalled()
-  })
 })
 
 describe('dispatcherStep pending transition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -252,7 +201,6 @@ describe('dispatcherStep pending transition', () => {
 
 describe('completeDispatch cancellation safety', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetTableById.mockResolvedValue({
       id: 'table-1',

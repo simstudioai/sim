@@ -364,11 +364,8 @@ interface ConnectorDocumentCursor {
  * trigger. Every page holds at least one document, so one larger than the cap still makes progress
  * alone. Documents keep their order.
  *
- * Cleanup boundary: the row bound, and {@link lockProjectionPage} and
- * {@link writeProjectionPages} built on it, exist only because a synchronous ACL write rewrites
- * projection rows in its own statement. With `knowledge-async-projection` on, an ACL write only
- * marks its documents; once the flag has been on everywhere and the synchronous triggers are
- * dropped, these collapse to plain pages of {@link ACL_CHANGE_BATCH_SIZE} documents.
+ * The row bound, and {@link lockProjectionPage} and {@link writeProjectionPages} built on it,
+ * exist because an ACL write rewrites the documents' projection rows in its own statement.
  */
 export function pagesByProjectionRows(
   documents: readonly { id: string; chunkCount: number }[]

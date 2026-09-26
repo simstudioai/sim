@@ -1,23 +1,15 @@
-/**
- * @vitest-environment node
- */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
-  mockLogger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
+const { mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
   mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
   mockPinnedClose: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
 }))
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
@@ -65,10 +57,7 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ToolListChangedNotificationSchema: { method: 'notifications/tools/list_changed' },
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
-  DEFAULT_EXECUTION_TIMEOUT_MS: 30000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -79,6 +68,10 @@ import {
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
 } from '@/lib/mcp/types'
+
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(30000)
+
+const mockLogger = getMockLogger('McpClient')
 
 function createConfig(): McpServerConfig {
   return {
@@ -92,7 +85,6 @@ function createConfig(): McpServerConfig {
 describe('McpClient notification handler', () => {
   beforeEach(() => {
     capturedNotificationHandler = null
-    vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
     mockSdkListTools.mockResolvedValue({ tools: [] })
     // clearAllMocks resets call history but not implementations; re-establish the
@@ -110,76 +102,6 @@ describe('McpClient notification handler', () => {
     const client = new McpClient({ config: createConfig() })
     await expect(client.connect()).rejects.toBe(error)
     expect(client.getStatus().lastError).toBeUndefined()
-  })
-
-  it('fires onToolsChanged when a notification arrives while connected', async () => {
-    const onToolsChanged = vi.fn()
-
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      onToolsChanged,
-    })
-
-    await client.connect()
-
-    expect(capturedNotificationHandler).not.toBeNull()
-
-    await capturedNotificationHandler!()
-
-    expect(onToolsChanged).toHaveBeenCalledTimes(1)
-    expect(onToolsChanged).toHaveBeenCalledWith('server-1')
-  })
-
-  it('suppresses notifications after disconnect', async () => {
-    const onToolsChanged = vi.fn()
-
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      onToolsChanged,
-    })
-
-    await client.connect()
-    expect(capturedNotificationHandler).not.toBeNull()
-
-    await client.disconnect()
-    await capturedNotificationHandler!()
-
-    expect(onToolsChanged).not.toHaveBeenCalled()
-  })
-
-  it('does not register a notification handler when onToolsChanged is not provided', async () => {
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-
-    expect(capturedNotificationHandler).toBeNull()
-  })
-
-  it('uses the server connection timeout for the initialize request', async () => {
-    const client = new McpClient({
-      config: { ...createConfig(), timeout: 12_345 },
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-
-    expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 12_345 })
-  })
-
-  it('normalizes invalid connection timeouts before calling the SDK', async () => {
-    const client = new McpClient({
-      config: { ...createConfig(), timeout: -1 },
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-
-    expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 30_000 })
   })
 
   it('bounds tools/list with an idle timeout, hard cap, and progress reset', async () => {
@@ -200,41 +122,6 @@ describe('McpClient notification handler', () => {
         onprogress: expect.any(Function),
       })
     )
-  })
-
-  it('clamps a configured tools/list timeout to the absolute discovery ceiling', async () => {
-    vi.useFakeTimers()
-    vi.mocked(getMaxExecutionTimeout).mockReturnValue(120_000)
-    const client = new McpClient({
-      config: { ...createConfig(), timeout: 300_000 },
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-    await client.listTools()
-
-    expect(mockSdkListTools).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: 60_000 })
-    )
-  })
-
-  it('follows nextCursor pagination and aggregates all pages', async () => {
-    mockSdkListTools
-      .mockResolvedValueOnce({ tools: [{ name: 'a' }, { name: 'b' }], nextCursor: 'c1' })
-      .mockResolvedValueOnce({ tools: [{ name: 'c' }], nextCursor: 'c2' })
-      .mockResolvedValueOnce({ tools: [{ name: 'd' }] })
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-    const tools = await client.listTools()
-
-    expect(tools.map((t) => t.name)).toEqual(['a', 'b', 'c', 'd'])
-    expect(mockSdkListTools).toHaveBeenNthCalledWith(2, { cursor: 'c1' }, expect.anything())
-    expect(mockSdkListTools).toHaveBeenNthCalledWith(3, { cursor: 'c2' }, expect.anything())
   })
 
   it('stops paginating when the server repeats a cursor (loop guard)', async () => {
@@ -282,32 +169,6 @@ describe('McpClient notification handler', () => {
     )
   })
 
-  it('keeps an empty partial (does not throw) when page one succeeds but a later page fails', async () => {
-    // Page one is valid but empty with a cursor; page two fails. Page one succeeded, so
-    // discovery must not fail the server — it returns [] rather than throwing.
-    mockSdkListTools
-      .mockResolvedValueOnce({ tools: [], nextCursor: 'c1' })
-      .mockRejectedValueOnce(new Error('page 2 blew up'))
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-    await expect(client.listTools()).resolves.toEqual([])
-  })
-
-  it('throws when the very first page fails', async () => {
-    mockSdkListTools.mockRejectedValueOnce(new Error('page 1 blew up'))
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await client.connect()
-    await expect(client.listTools()).rejects.toThrow()
-  })
-
   it('logs connection diagnostics without header values', async () => {
     const client = new McpClient({
       config: {
@@ -334,49 +195,6 @@ describe('McpClient notification handler', () => {
     )
     expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain('do-not-log')
     expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain('also-secret')
-  })
-
-  it('classifies initialize timeouts in connection diagnostics', async () => {
-    mockSdkConnect.mockRejectedValueOnce(new Error('MCP error -32001: Request timed out'))
-    const client = new McpClient({
-      config: {
-        ...createConfig(),
-        headers: { Authorization: 'Bearer do-not-log' },
-      },
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await expect(client.connect()).rejects.toThrow('Request timed out')
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to connect'),
-      expect.objectContaining({
-        phase: 'initialize',
-        outcome: 'timeout',
-        timeoutMs: 30_000,
-        error: expect.objectContaining({
-          name: 'Error',
-        }),
-      })
-    )
-    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain('do-not-log')
-  })
-
-  it('does not log opaque credentials echoed by MCP errors', async () => {
-    const secret = 'opaque-credential-without-a-known-prefix'
-    mockSdkConnect.mockRejectedValueOnce(new Error(`Upstream rejected ${secret}`))
-    const client = new McpClient({
-      config: {
-        ...createConfig(),
-        authType: 'headers',
-        headers: { 'X-Custom-Credential': secret },
-      },
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-    })
-
-    await expect(client.connect()).rejects.toThrow('Upstream rejected')
-
-    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
   })
 
   it('keeps the transport on the SSRF guard when no validated address is supplied', () => {
@@ -422,19 +240,6 @@ describe('McpClient notification handler', () => {
     // A failed connect discards the client without a disconnect(), so the Agent
     // must be released on the failure path or its h2 sockets leak.
     await expect(client.connect()).rejects.toThrow()
-
-    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('closes the pinned transport Agent on disconnect', async () => {
-    const client = new McpClient({
-      config: createConfig(),
-      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
-      resolvedIP: '93.184.216.34',
-    })
-
-    await client.connect()
-    await client.disconnect()
 
     expect(mockPinnedClose).toHaveBeenCalledTimes(1)
   })

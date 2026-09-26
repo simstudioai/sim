@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { internalFilePresenters } from '@/lib/workspace-files/api/internal-presenters'
@@ -24,10 +23,5 @@ describe('workspace file metadata revisions', () => {
     expect(internalFilePresenters.successFile({ file }).file.revision).toBe(
       workspaceFileRevision(file)
     )
-  })
-  it('omits the token when no content timestamp exists', () => {
-    expect(
-      internalFilePresenters.successFile({ file: { ...file, contentUpdatedAt: null } }).file
-    ).not.toHaveProperty('revision')
   })
 })

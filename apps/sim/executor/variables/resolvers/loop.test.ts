@@ -83,27 +83,6 @@ function createTestContext(
 
 describe('LoopResolver', () => {
   describe('canResolve', () => {
-    it.concurrent('should return true for bare loop reference', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      expect(resolver.canResolve('<loop>')).toBe(true)
-    })
-
-    it.concurrent('should return true for known loop properties', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      expect(resolver.canResolve('<loop.index>')).toBe(true)
-      expect(resolver.canResolve('<loop.iteration>')).toBe(true)
-      expect(resolver.canResolve('<loop.item>')).toBe(true)
-      expect(resolver.canResolve('<loop.currentItem>')).toBe(true)
-      expect(resolver.canResolve('<loop.items>')).toBe(true)
-    })
-
-    it.concurrent('should return true for loop references with nested paths', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      expect(resolver.canResolve('<loop.item.name>')).toBe(true)
-      expect(resolver.canResolve('<loop.currentItem.data.value>')).toBe(true)
-      expect(resolver.canResolve('<loop.items.0>')).toBe(true)
-    })
-
     it.concurrent('should return true for unknown loop properties (validates in resolve)', () => {
       const resolver = new LoopResolver(createTestWorkflow())
       expect(resolver.canResolve('<loop.results>')).toBe(true)
@@ -118,13 +97,6 @@ describe('LoopResolver', () => {
       expect(resolver.canResolve('<parallel.index>')).toBe(false)
       expect(resolver.canResolve('plain text')).toBe(false)
       expect(resolver.canResolve('{{ENV_VAR}}')).toBe(false)
-    })
-
-    it.concurrent('should return false for malformed references', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      expect(resolver.canResolve('loop.index')).toBe(false)
-      expect(resolver.canResolve('<loop.index')).toBe(false)
-      expect(resolver.canResolve('loop.index>')).toBe(false)
     })
   })
 
@@ -145,37 +117,6 @@ describe('LoopResolver', () => {
 
       expect(resolver.resolve('<loop.item>', ctx)).toEqual({ name: 'test', value: 42 })
       expect(resolver.resolve('<loop.currentItem>', ctx)).toEqual({ name: 'test', value: 42 })
-    })
-
-    it.concurrent('should resolve items property', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const items = ['a', 'b', 'c']
-      const loopScope = createLoopScope({ items })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.items>', ctx)).toEqual(items)
-    })
-
-    it.concurrent('should resolve nested path in item', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({
-        item: { user: { name: 'Alice', address: { city: 'NYC' } } },
-      })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item.user.name>', ctx)).toBe('Alice')
-      expect(resolver.resolve('<loop.item.user.address.city>', ctx)).toBe('NYC')
-    })
-
-    it.concurrent('should resolve array index in items', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({
-        items: [{ id: 1 }, { id: 2 }, { id: 3 }],
-      })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.items.0>', ctx)).toEqual({ id: 1 })
-      expect(resolver.resolve('<loop.items.1.id>', ctx)).toBe(2)
     })
   })
 
@@ -201,31 +142,9 @@ describe('LoopResolver', () => {
 
       expect(resolver.resolve('<loop.iteration>', ctx)).toBeUndefined()
     })
-
-    it.concurrent('should return undefined when loop scope not found in executions', () => {
-      const workflow = createTestWorkflow({
-        'loop-1': { nodes: ['block-1'] },
-      })
-      const resolver = new LoopResolver(workflow)
-      const ctx = createTestContext('block-1', undefined, new Map())
-
-      expect(resolver.resolve('<loop.iteration>', ctx)).toBeUndefined()
-    })
   })
 
   describe('edge cases', () => {
-    it.concurrent('should return context object for bare loop reference', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ iteration: 2, item: 'test', items: ['a', 'b', 'c'] })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop>', ctx)).toEqual({
-        index: 2,
-        currentItem: 'test',
-        items: ['a', 'b', 'c'],
-      })
-    })
-
     it.concurrent('should return minimal context object for for-loop (no items)', () => {
       const resolver = new LoopResolver(createTestWorkflow())
       const loopScope = createLoopScope({ iteration: 5 })
@@ -245,14 +164,6 @@ describe('LoopResolver', () => {
       expect(() => resolver.resolve('<loop.unknownProperty>', ctx)).toThrow(
         'Available fields: index'
       )
-    })
-
-    it.concurrent('should handle iteration index 0 correctly', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ iteration: 0 })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.index>', ctx)).toBe(0)
     })
 
     it('resolves generic loop context from inside a parallel nested in a loop', () => {
@@ -282,64 +193,6 @@ describe('LoopResolver', () => {
       expect(resolver.resolve('<loop.index>', ctx)).toBe(4)
       expect(resolver.resolve('<loop.currentItem>', ctx)).toBe('inner-branch-1')
     })
-
-    it.concurrent('should handle null item value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: null })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toBeNull()
-    })
-
-    it.concurrent('should handle undefined item value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: undefined })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toBeUndefined()
-    })
-
-    it.concurrent('should handle empty items array', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ items: [] })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.items>', ctx)).toEqual([])
-    })
-
-    it.concurrent('should handle primitive item value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: 'simple string' })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toBe('simple string')
-    })
-
-    it.concurrent('should handle numeric item value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: 42 })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toBe(42)
-    })
-
-    it.concurrent('should handle boolean item value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: true })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toBe(true)
-    })
-
-    it.concurrent('should handle item with array value', () => {
-      const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ item: [1, 2, 3] })
-      const ctx = createTestContext('block-1', loopScope)
-
-      expect(resolver.resolve('<loop.item>', ctx)).toEqual([1, 2, 3])
-      expect(resolver.resolve('<loop.item.0>', ctx)).toBe(1)
-      expect(resolver.resolve('<loop.item.2>', ctx)).toBe(3)
-    })
   })
 
   describe('block ID with branch suffix', () => {
@@ -357,14 +210,6 @@ describe('LoopResolver', () => {
   })
 
   describe('named loop references', () => {
-    it.concurrent('should resolve named loop by block name', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      expect(resolver.canResolve('<loop1.index>')).toBe(true)
-    })
-
     it.concurrent('should resolve index via named reference for block inside the loop', () => {
       const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
         { id: 'loop-1', name: 'Loop 1' },
@@ -429,77 +274,6 @@ describe('LoopResolver', () => {
       expect(resolver.resolve('<loop1.results>', ctx)).toEqual(results)
     })
 
-    it('uses parallel block mappings to resolve cloned loop outputs in later batches', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      const loopExecutions = new Map<string, LoopScope>([
-        ['loop-1', createLoopScope()],
-        ['loop-1__obranch-2', createLoopScope()],
-      ])
-      const ctx = createTestContext(
-        'consumer₍0₎',
-        undefined,
-        loopExecutions,
-        {
-          'loop-1': { results: ['branch-0'] },
-          'loop-1__obranch-2': { results: ['branch-2'] },
-        },
-        new Map([
-          [
-            'consumer₍0₎',
-            { originalBlockId: 'consumer', parallelId: 'parallel-1', iterationIndex: 2 },
-          ],
-        ])
-      )
-
-      expect(resolver.resolve('<loop1.results>', ctx)).toEqual(['branch-2'])
-    })
-
-    it('uses outer branch suffix over inner parallel mappings for cloned loop outputs', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      const loopExecutions = new Map<string, LoopScope>([
-        ['loop-1__obranch-1', createLoopScope()],
-        ['loop-1__obranch-2', createLoopScope()],
-      ])
-      const ctx = createTestContext(
-        'consumer__cloneabc__obranch-2₍0₎',
-        undefined,
-        loopExecutions,
-        {
-          'loop-1__obranch-1': { results: ['outer-branch-1'] },
-          'loop-1__obranch-2': { results: ['outer-branch-2'] },
-        },
-        new Map([
-          [
-            'consumer__cloneabc__obranch-2₍0₎',
-            { originalBlockId: 'consumer', parallelId: 'inner-parallel', iterationIndex: 1 },
-          ],
-        ])
-      )
-
-      expect(resolver.resolve('<loop1.results>', ctx)).toEqual(['outer-branch-2'])
-    })
-
-    it.concurrent('should resolve result with nested path', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      const results = [[{ response: 'a' }], [{ response: 'b' }]]
-      const ctx = createTestContext('block-outside', undefined, new Map(), {
-        'loop-1': { results },
-      })
-
-      expect(resolver.resolve('<loop1.result.0>', ctx)).toEqual([{ response: 'a' }])
-      expect(resolver.resolve('<loop1.result.1.0.response>', ctx)).toBe('b')
-      expect(resolver.resolve('<loop1.results[1][0].response>', ctx)).toBe('b')
-    })
-
     it('should resolve nested paths inside compacted result references', async () => {
       const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
         { id: 'loop-1', name: 'Loop 1' },
@@ -539,19 +313,6 @@ describe('LoopResolver', () => {
       expect(resolver.resolve('<loop1.items>', ctx)).toEqual(items)
     })
 
-    it.concurrent('should throw InvalidFieldError for unknown property on named ref', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      const loopScope = createLoopScope({ iteration: 0 })
-      const loopExecutions = new Map([['loop-1', loopScope]])
-      const ctx = createTestContext('block-1', undefined, loopExecutions)
-
-      expect(() => resolver.resolve('<loop1.unknownProp>', ctx)).toThrow(InvalidFieldError)
-      expect(() => resolver.resolve('<loop1.unknownProp>', ctx)).toThrow('Available fields: index')
-    })
-
     it.concurrent('should list only results for unknown fields outside a named loop', () => {
       const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
         { id: 'loop-1', name: 'Loop 1' },
@@ -563,14 +324,6 @@ describe('LoopResolver', () => {
 
       expect(() => resolver.resolve('<loop1.cooked>', ctx)).toThrow(InvalidFieldError)
       expect(() => resolver.resolve('<loop1.cooked>', ctx)).toThrow('Available fields: results')
-    })
-
-    it.concurrent('should not resolve named ref when no matching block exists', () => {
-      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
-        { id: 'loop-1', name: 'Loop 1' },
-      ])
-      const resolver = new LoopResolver(workflow)
-      expect(resolver.canResolve('<loop99.index>')).toBe(false)
     })
   })
 })

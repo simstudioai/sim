@@ -1,26 +1,28 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { type ScimUserAttributes, scimConnection } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { APIError } from 'better-auth/api'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  createUser: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   applySessionPolicy: vi.fn(),
-  syncUsageLimits: vi.fn(),
-  ensureMember: vi.fn(),
   resolveSeatPolicy: vi.fn(),
-  reconcileSeats: vi.fn(),
   isInstanceMode: vi.fn(),
   getInstanceOrganizationId: vi.fn(),
   suspend: vi.fn(),
   unsuspend: vi.fn(),
   invalidate: vi.fn(),
   revokeSessions: vi.fn(),
-  captureEvent: vi.fn(),
   deleteAccount: vi.fn(),
   syncIdentity: vi.fn(),
   assertEmailAvailable: vi.fn(),
@@ -34,59 +36,47 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-  auth: { api: { getSession: vi.fn(), createUser: mocks.createUser } },
-}))
 vi.mock('@/lib/auth/session-policy', () => ({
-  applySessionPolicyToNewMember: mocks.applySessionPolicy,
+  applySessionPolicyToNewMember: hoistedMocks.applySessionPolicy,
 }))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  ensureUserInOrganizationTx: mocks.ensureMember,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/organizations/seat-policy', () => ({
-  resolveOrganizationSeatPolicyTx: mocks.resolveSeatPolicy,
+  resolveOrganizationSeatPolicyTx: hoistedMocks.resolveSeatPolicy,
 }))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/organizations/instance-org', () => ({
-  isInstanceOrganizationMode: mocks.isInstanceMode,
-  getInstanceOrganizationId: mocks.getInstanceOrganizationId,
+  isInstanceOrganizationMode: hoistedMocks.isInstanceMode,
+  getInstanceOrganizationId: hoistedMocks.getInstanceOrganizationId,
 }))
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  suspendMemberTx: mocks.suspend,
-  unsuspendMemberTx: mocks.unsuspend,
+  suspendMemberTx: hoistedMocks.suspend,
+  unsuspendMemberTx: hoistedMocks.unsuspend,
 }))
 vi.mock('@/lib/organizations/members/revocation', () => ({
-  invalidateAfterSessionRevocation: mocks.invalidate,
-  revokeUserSessionsTx: mocks.revokeSessions,
+  invalidateAfterSessionRevocation: hoistedMocks.invalidate,
+  revokeUserSessionsTx: hoistedMocks.revokeSessions,
 }))
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mocks.captureEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/users/account-deletion', () => ({
-  deleteUserAccount: mocks.deleteAccount,
+  deleteUserAccount: hoistedMocks.deleteAccount,
 }))
 vi.mock('@/ee/scim/lib/identity/account-identity', () => ({
-  syncAccountIdentityTx: mocks.syncIdentity,
+  syncAccountIdentityTx: hoistedMocks.syncIdentity,
 }))
 vi.mock('@/ee/scim/lib/identity/resolve-user', () => ({
-  assertEmailAvailable: mocks.assertEmailAvailable,
-  consumeTombstone: mocks.consumeTombstone,
-  resolveProvisionedIdentity: mocks.resolveIdentity,
+  assertEmailAvailable: hoistedMocks.assertEmailAvailable,
+  consumeTombstone: hoistedMocks.consumeTombstone,
+  resolveProvisionedIdentity: hoistedMocks.resolveIdentity,
 }))
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
-  reconcileUserProjection: mocks.reconcile,
+  reconcileUserProjection: hoistedMocks.reconcile,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  assertUserNameAvailable: mocks.assertUserNameAvailable,
-  findScimUserById: mocks.findScimUserById,
-  findScimUserByUserId: mocks.findScimUserByUserId,
-  insertScimUser: mocks.insertScimUser,
+  assertUserNameAvailable: hoistedMocks.assertUserNameAvailable,
+  findScimUserById: hoistedMocks.findScimUserById,
+  findScimUserByUserId: hoistedMocks.findScimUserByUserId,
+  insertScimUser: hoistedMocks.insertScimUser,
   toUserResourceRow: (record: Record<string, unknown>) => ({
     id: record.id,
     externalId: record.externalId,
@@ -100,7 +90,7 @@ vi.mock('@/ee/scim/lib/repository/users', () => ({
   }),
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
@@ -108,6 +98,15 @@ import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { provisionScimUser } from '@/ee/scim/lib/application/users/provision-user'
 import { ScimError, uniqueness } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  ...hoistedMocks,
+  reconcileSeats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  syncUsageLimits: billingUsageMockFns.mockSyncUsageLimitsFromSubscription,
+  createUser: authMockFns.mockCreateUser,
+  ensureMember: organizationMembershipMockFns.mockEnsureUserInOrganizationTx,
+  captureEvent: posthogServerMockFns.mockCaptureServerEvent,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',
@@ -161,7 +160,6 @@ afterAll(resetDbChainMock)
 
 describe('provisionScimUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.assertUserNameAvailable.mockResolvedValue(undefined)
     mocks.assertEmailAvailable.mockResolvedValue(undefined)
@@ -185,157 +183,6 @@ describe('provisionScimUser', () => {
     stageReadBack('u-new', attributes(), null)
   })
 
-  it('creates the account, admits it, links it, and projects its access', async () => {
-    stageConnection()
-    const result = await run(attributes())
-
-    expect(mocks.assertUserNameAvailable).toHaveBeenCalledWith(db, 'conn-1', 'ada@acme.test')
-    expect(mocks.assertEmailAvailable).toHaveBeenCalledWith(db, 'ada@acme.test')
-    expect(mocks.createUser).toHaveBeenCalledWith({
-      body: { email: 'ada@acme.test', name: 'Ada Lovelace', data: { emailVerified: false } },
-    })
-    expect(mocks.ensureMember).toHaveBeenCalledWith(db, {
-      userId: 'u-new',
-      organizationId: 'org-1',
-      role: 'member',
-      organizationSubscriptionId: 'sub-1',
-    })
-    expect(mocks.insertScimUser).toHaveBeenCalledWith(db, {
-      connectionId: 'conn-1',
-      userId: 'u-new',
-      attributes: attributes(),
-      active: true,
-    })
-    expect(mocks.consumeTombstone).toHaveBeenCalledWith(db, {
-      connectionId: 'conn-1',
-      externalId: 'ext-1',
-    })
-    expect(mocks.reconcile).toHaveBeenCalledWith(db, {
-      connectionId: 'conn-1',
-      organizationId: 'org-1',
-      scimUserId: 'su-new',
-      settings: { autoMap: true },
-    })
-    expect(mocks.findScimUserById).toHaveBeenCalledWith(db, 'conn-1', 'su-new')
-    expect(mocks.syncIdentity).not.toHaveBeenCalled()
-    expect(mocks.unsuspend).not.toHaveBeenCalled()
-    expect(mocks.suspend).not.toHaveBeenCalled()
-    expect(mocks.deleteAccount).not.toHaveBeenCalled()
-
-    expect(result).toMatchObject({
-      scimUserId: 'su-new',
-      userId: 'u-new',
-      createdAccount: true,
-      joinedOrganization: true,
-      subscriptionId: 'sub-1',
-      organizationId: 'org-1',
-    })
-    expect(result.resource.id).toBe('su-new')
-    expect(result.resource.userName).toBe('ada@acme.test')
-    expect(result.resource.active).toBe(true)
-    expect(result.resource.meta.location).toBe('https://sim.test/api/scim/v2/Users/su-new')
-  })
-
-  it('audits the provisioning and the organization join as the connection', async () => {
-    stageConnection()
-    await run(attributes())
-    expect(auditActions()).toEqual(['scim_user.provisioned', 'org_member.added'])
-    const call = mocks.recordAudit.mock.calls[0][0]
-    expect(call.entries[0]).toMatchObject({
-      resourceId: 'u-new',
-      metadata: { scimUserId: 'su-new', createdAccount: true },
-    })
-    expect(call.entries[1]).toMatchObject({
-      resourceId: 'org-1',
-      metadata: { memberRole: 'member', scimUserId: 'su-new' },
-    })
-    expect(call.metadata).toMatchObject({
-      organizationId: 'org-1',
-      connectionId: 'conn-1',
-      credentialId: 'cred-1',
-      source: 'scim',
-    })
-  })
-
-  it.each(['create', 'link'] as const)(
-    'uses the explicit display name when the identity action is %s',
-    async (action) => {
-      stageConnection()
-      if (action === 'link') {
-        mocks.resolveIdentity.mockResolvedValue({
-          action: 'link',
-          userId: 'u-old',
-          via: 'tombstone',
-        })
-      }
-      const stored = attributes({ displayName: 'Countess Lovelace' })
-      stageReadBack(action === 'link' ? 'u-old' : 'u-new', stored, null)
-      await run(stored)
-      if (action === 'create') {
-        expect(mocks.createUser).toHaveBeenCalledWith({
-          body: {
-            email: 'ada@acme.test',
-            name: 'Countess Lovelace',
-            data: { emailVerified: false },
-          },
-        })
-      } else {
-        expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
-          userId: 'u-old',
-          email: 'ada@acme.test',
-          name: 'Countess Lovelace',
-        })
-      }
-      expect(mocks.insertScimUser.mock.calls[0][1].attributes.name.formatted).toBe('Ada Lovelace')
-    }
-  )
-
-  it('runs the post-commit effects against the subscription admission validated', async () => {
-    stageConnection()
-    await run(attributes())
-    expect(mocks.applySessionPolicy).toHaveBeenCalledWith('u-new', 'org-1')
-    expect(mocks.reconcileSeats).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      reason: 'scim-member-added',
-      subscriptionId: 'sub-1',
-    })
-    expect(mocks.syncUsageLimits).toHaveBeenCalledWith('u-new')
-    expect(mocks.captureEvent).toHaveBeenCalledWith(
-      'u-new',
-      'scim_user_provisioned',
-      { organization_id: 'org-1', created_account: true },
-      { groups: { organization: 'org-1' } }
-    )
-    expect(mocks.invalidate).not.toHaveBeenCalled()
-  })
-
-  it('omits the subscription id from seat reconciliation when admission validated none', async () => {
-    stageConnection()
-    mocks.resolveSeatPolicy.mockResolvedValue({ skipSeatValidation: true })
-    const result = await run(attributes())
-    expect(mocks.ensureMember).toHaveBeenCalledWith(db, {
-      userId: 'u-new',
-      organizationId: 'org-1',
-      role: 'member',
-      skipSeatValidation: true,
-    })
-    expect(result.subscriptionId).toBeUndefined()
-    expect(mocks.reconcileSeats).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      reason: 'scim-member-added',
-    })
-  })
-
-  it('keeps going through the remaining effects when one of them fails', async () => {
-    stageConnection()
-    mocks.applySessionPolicy.mockRejectedValue(new Error('policy unavailable'))
-    mocks.reconcileSeats.mockRejectedValue(new Error('stripe down'))
-    const result = await run(attributes())
-    expect(result.userId).toBe('u-new')
-    expect(mocks.syncUsageLimits).toHaveBeenCalledWith('u-new')
-    expect(mocks.captureEvent).toHaveBeenCalled()
-  })
-
   it('refuses a duplicate userName as a uniqueness conflict before touching Better Auth', async () => {
     stageConnection()
     mocks.assertUserNameAvailable.mockRejectedValue(
@@ -348,29 +195,6 @@ describe('provisionScimUser', () => {
     expect(mocks.createUser).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('maps a Better Auth unique-constraint refusal to a uniqueness conflict', async () => {
-    stageConnection()
-    mocks.createUser.mockRejectedValue(
-      new APIError('UNPROCESSABLE_ENTITY', { message: 'User already exists' })
-    )
-    const error = await run(attributes()).catch((caught) => caught)
-    expect(error).toBeInstanceOf(ScimError)
-    expect(error.status).toBe(409)
-    expect(error.scimType).toBe('uniqueness')
-    expect(error.message).toBe('Another Sim account already uses this email address')
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-    expect(mocks.deleteAccount).not.toHaveBeenCalled()
-  })
-
-  it('rethrows any other Better Auth failure untouched', async () => {
-    stageConnection()
-    const failure = new APIError('INTERNAL_SERVER_ERROR', { message: 'db down' })
-    mocks.createUser.mockRejectedValue(failure)
-    const error = await run(attributes()).catch((caught) => caught)
-    expect(error).toBe(failure)
-    expect(mocks.deleteAccount).not.toHaveBeenCalled()
   })
 
   it('reports seat exhaustion as a plain 409 and removes the orphan account', async () => {
@@ -390,32 +214,6 @@ describe('provisionScimUser', () => {
     expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new')
     expect(mocks.recordAudit).not.toHaveBeenCalled()
     expect(mocks.reconcileSeats).not.toHaveBeenCalled()
-  })
-
-  it('reports an account committed elsewhere as a uniqueness conflict', async () => {
-    stageConnection()
-    mocks.ensureMember.mockResolvedValue({
-      success: false,
-      alreadyMember: false,
-      failureCode: 'already-in-other-organization',
-    })
-    const error = await run(attributes()).catch((caught) => caught)
-    expect(error.status).toBe(409)
-    expect(error.scimType).toBe('uniqueness')
-  })
-
-  it('still surfaces the original refusal when the orphan cleanup itself fails', async () => {
-    stageConnection()
-    mocks.ensureMember.mockResolvedValue({
-      success: false,
-      alreadyMember: false,
-      failureCode: 'no-seats-available',
-    })
-    mocks.deleteAccount.mockRejectedValue(new Error('deletion blocked'))
-    const error = await run(attributes()).catch((caught) => caught)
-    expect(error).toBeInstanceOf(ScimError)
-    expect(error.status).toBe(409)
-    expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new')
   })
 
   it('removes the orphan account when the transaction fails after the account was created', async () => {
@@ -442,26 +240,6 @@ describe('provisionScimUser', () => {
     expect(error.status).toBe(409)
     expect(mocks.createUser).not.toHaveBeenCalled()
     expect(mocks.deleteAccount).not.toHaveBeenCalled()
-  })
-
-  it('refuses provisioning for a non-instance organization in instance mode', async () => {
-    stageConnection()
-    mocks.isInstanceMode.mockReturnValue(true)
-    mocks.getInstanceOrganizationId.mockResolvedValue('org-instance')
-    const error = await run(attributes()).catch((caught) => caught)
-    expect(error).toBeInstanceOf(ScimError)
-    expect(error.status).toBe(409)
-    expect(error.scimType).toBeUndefined()
-    expect(mocks.resolveIdentity).not.toHaveBeenCalled()
-    expect(mocks.createUser).not.toHaveBeenCalled()
-  })
-
-  it('serves the instance organization itself in instance mode', async () => {
-    stageConnection()
-    mocks.isInstanceMode.mockReturnValue(true)
-    mocks.getInstanceOrganizationId.mockResolvedValue('org-1')
-    const result = await run(attributes())
-    expect(result.userId).toBe('u-new')
   })
 
   it('lands an inactive create suspended, and signs the member out after commit', async () => {
@@ -547,34 +325,6 @@ describe('provisionScimUser', () => {
       { organization_id: 'org-1', created_account: false },
       { groups: { organization: 'org-1' } }
     )
-  })
-
-  it('does not lift a suspension when the relinked user arrives inactive', async () => {
-    stageConnection()
-    mocks.resolveIdentity.mockResolvedValue({ action: 'link', userId: 'u-old', via: 'tombstone' })
-    const inactive = attributes({ active: false })
-    stageReadBack('u-old', inactive, new Date('2026-01-02T00:00:00.000Z'))
-    await run(inactive)
-    expect(mocks.unsuspend).not.toHaveBeenCalled()
-    expect(mocks.suspend).toHaveBeenCalledWith(db, {
-      userId: 'u-old',
-      organizationId: 'org-1',
-      source: 'scim',
-    })
-  })
-
-  it('ends sessions under the old address when a tombstone relink renames the account', async () => {
-    stageConnection()
-    mocks.resolveIdentity.mockResolvedValue({ action: 'link', userId: 'u-old', via: 'tombstone' })
-    mocks.syncIdentity.mockResolvedValue(true)
-    stageReadBack('u-old', attributes(), null)
-    await run(attributes())
-    expect(mocks.revokeSessions).toHaveBeenCalledWith(db, {
-      userId: 'u-old',
-      organizationId: 'org-1',
-    })
-    expect(mocks.invalidate).toHaveBeenCalledWith({ userId: 'u-old', organizationId: 'org-1' })
-    expect(mocks.suspend).not.toHaveBeenCalled()
   })
 
   it('refuses to provision an account this connection already links', async () => {

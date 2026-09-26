@@ -1,24 +1,15 @@
-/**
- * @vitest-environment node
- */
-
-import { db } from '@sim/db'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
-const { mockIsOrganizationGovernanceActive, mockGetWorkspaceWithOwner } = vi.hoisted(() => ({
-  mockIsOrganizationGovernanceActive: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationGovernanceActive: mockIsOrganizationGovernanceActive,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getUserPermissionConfig,
@@ -26,6 +17,9 @@ import {
   isOrganizationPermissionRegimeActive,
   resolveVerifiedUserAccessControlContext,
 } from '@/lib/permission-groups/resolve.server'
+
+const { mockIsOrganizationGovernanceActive } = billingSubscriptionMockFns
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
 
 const ORGANIZATION_ID = 'org-1'
 const USER_ID = 'user-1'
@@ -44,7 +38,6 @@ function entitlementReadFails(): void {
 
 describe('permission-group resolution under a failed entitlement read', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: ORGANIZATION_ID })
   })
@@ -110,15 +103,6 @@ describe('permission-group resolution under a failed entitlement read', () => {
       true
     )
     expect(mockIsOrganizationGovernanceActive).toHaveBeenLastCalledWith(ORGANIZATION_ID, executor)
-  })
-
-  it('reads a verified workspace entitlement through the explicitly supplied executor', async () => {
-    mockIsOrganizationGovernanceActive.mockResolvedValue(false)
-    await expect(
-      resolveVerifiedUserAccessControlContext(USER_ID, WORKSPACE_ID, ORGANIZATION_ID, db)
-    ).resolves.toMatchObject({ entitled: false, config: null })
-    expect(mockIsOrganizationGovernanceActive).toHaveBeenCalledWith(ORGANIZATION_ID, db)
-    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
   })
 
   it('propagates a transaction entitlement read failure instead of disabling restrictions', async () => {

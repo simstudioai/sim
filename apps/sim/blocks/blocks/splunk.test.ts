@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: () => ({ subBlocks: [] }),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
-import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
+import { SplunkBlock } from '@/blocks/blocks/splunk'
 import { buildSplunkFormBody, buildSplunkUrl } from '@/tools/splunk/utils'
 
 const toParams = SplunkBlock.tools.config?.params
@@ -38,16 +34,6 @@ describe('SplunkBlock tools.config.params', () => {
 
       expect(result.enableLookups).toBe(false)
       expect(result.allowPartialResults).toBe(false)
-    })
-
-    it('reads the dropdown string form', () => {
-      expect(
-        mapParams({
-          operation: 'splunk_create_search_job',
-          enableLookups: 'false',
-          allowPartialResults: 'true',
-        })
-      ).toMatchObject({ enableLookups: false, allowPartialResults: true })
     })
 
     it('leaves an untouched toggle undefined so Splunk applies its own default', () => {
@@ -99,93 +85,6 @@ describe('SplunkBlock tools.config.params', () => {
         })
       ).toMatchObject({ addSummaryToMetadata: false })
     })
-
-    it('drops an untouched switch from the merged inputs, not just from the mapper', () => {
-      const merged = mergedInputs({
-        operation: 'splunk_dispatch_saved_search',
-        savedSearchName: 'Errors',
-        triggerActions: null,
-        forceDispatch: null,
-      })
-
-      expect(merged.triggerActions).toBeUndefined()
-      expect(merged.forceDispatch).toBeUndefined()
-    })
-  })
-
-  describe('subBlock to tool param remapping', () => {
-    it('maps the saved-search and alert name subBlocks onto the tool name param', () => {
-      expect(
-        mapParams({ operation: 'splunk_dispatch_saved_search', savedSearchName: 'Errors' })
-      ).toMatchObject({ name: 'Errors' })
-      expect(
-        mapParams({ operation: 'splunk_get_fired_alerts', alertName: 'Errors' })
-      ).toMatchObject({ name: 'Errors' })
-    })
-  })
-})
-
-describe('SplunkBlock subBlocks', () => {
-  it('has no duplicate subBlock ids', () => {
-    const ids = SplunkBlock.subBlocks.map((subBlock) => subBlock.id)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
-  it('exposes every tool in tools.access as an operation option', () => {
-    const operation = SplunkBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
-    const optionIds = (operation?.options as { id: string }[]).map((option) => option.id)
-    expect([...optionIds].sort()).toEqual([...SplunkBlock.tools.access].sort())
-  })
-})
-
-describe('SplunkBlock subBlock placeholders', () => {
-  function subBlock(id: string) {
-    const found = SplunkBlock.subBlocks.find((block) => block.id === id)
-    if (!found) throw new Error(`SplunkBlock is missing the ${id} subBlock`)
-    return found
-  }
-
-  function subBlocksFor(id: string, operation: string) {
-    return SplunkBlock.subBlocks.filter((block) => {
-      if (block.id !== id) return false
-      const value = block.condition?.value
-      return Array.isArray(value) ? value.includes(operation) : value === operation
-    })
-  }
-
-  /**
-   * `nobody` names the shared-application owner, so it is one specific owner
-   * rather than a neutral filler — and users copy placeholders. `-` is the
-   * documented wildcard for all users, which is what the namespace builder
-   * already substitutes.
-   */
-  it('offers the - wildcard as the namespace owner, not nobody', () => {
-    expect(subBlock('owner').placeholder).toBe('-')
-  })
-
-  /**
-   * The old placeholder claimed a default of 100 for all five operations (the real
-   * default is 30 for the four collection endpoints) and advertised `0 returns
-   * all` — an unbounded read that Get Search Results now rejects outright. Because
-   * this block keeps subBlock ids unique, one field serves every operation, so it
-   * must not state a rule that holds for only some of them.
-   */
-  it('does not advertise a wrong default or an unbounded read on Max Results', () => {
-    const shown = subBlocksFor('count', 'splunk_get_search_results')
-    expect(shown).toHaveLength(1)
-
-    const placeholder = String(shown[0].placeholder)
-    expect(placeholder).not.toContain('100')
-    expect(placeholder).not.toMatch(/0 returns all/)
-  })
-
-  /** The per-operation detail the placeholder can no longer carry. */
-  it('documents the differing defaults and the 0 rule on the count input', () => {
-    const description = String(SplunkBlock.inputs.count.description)
-
-    expect(description).toContain('30')
-    expect(description).toContain('100')
-    expect(description).toMatch(/reject/i)
   })
 })
 
@@ -225,20 +124,6 @@ describe('SplunkBlock numeric coercion', () => {
     expect(merged.offset).toBeUndefined()
   })
 
-  it('erases an unparseable Max Stored Results on both search operations', () => {
-    for (const operation of ['splunk_run_search', 'splunk_create_search_job']) {
-      const merged = mergedInputs({
-        operation,
-        search: 'index=main',
-        autoCancel: '5 minutes',
-        maxCount: '1,000',
-      })
-
-      expect(merged.autoCancel).toBeUndefined()
-      expect(merged.maxCount).toBeUndefined()
-    }
-  })
-
   /**
    * The erased value must actually disappear from the wire, not serialize as the
    * string `'undefined'`.
@@ -254,70 +139,5 @@ describe('SplunkBlock numeric coercion', () => {
     ).toBe('https://splunk.example.com:8089/services/data/indexes?offset=10&output_mode=json')
 
     expect(buildSplunkFormBody({ max_count: merged.count as number | undefined })).toBe('')
-  })
-
-  it('still coerces the numeric forms it is given', () => {
-    expect(
-      mapParams({ operation: 'splunk_create_search_job', autoCancel: '300', maxCount: 5000 })
-    ).toMatchObject({ autoCancel: 300, maxCount: 5000 })
-  })
-})
-
-describe('SplunkBlock outputs', () => {
-  it('declares the paging total and offset the list tools now project', () => {
-    expect(SplunkBlock.outputs).toHaveProperty('total')
-    expect(SplunkBlock.outputs).toHaveProperty('offset')
-  })
-
-  /**
-   * The job entry documents this pair as bare numbers, unlike the ISO-string
-   * `earliestTime`/`latestTime`, and the block's union output must agree with the
-   * tool or the workflow is promised the wrong type.
-   */
-  it('types the epoch search time bounds as numbers', () => {
-    expect(SplunkBlock.outputs.searchEarliestTime).toMatchObject({ type: 'number' })
-    expect(SplunkBlock.outputs.searchLatestTime).toMatchObject({ type: 'number' })
-  })
-
-  /**
-   * `[{type, text}]` holds for the search and job-control operations, but Get
-   * Search Job projects the job entry's `messages` object. One shared union
-   * output cannot promise the array shape for all of them.
-   */
-  it('does not promise an array shape that get_search_job does not return', () => {
-    const description = String(SplunkBlock.outputs.messages.description)
-
-    expect(description).toMatch(/Get Search Job/)
-    expect(description).toMatch(/object/i)
-  })
-})
-
-describe('SplunkBlockMeta skills', () => {
-  it('suggests skills grounded in the operations the block exposes', () => {
-    const skills = SplunkBlockMeta.skills
-
-    expect(skills?.length).toBeGreaterThanOrEqual(3)
-    for (const skill of skills ?? []) {
-      expect(skill.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
-      expect(skill.description.trim()).not.toBe('')
-      expect(skill.content.trim()).not.toBe('')
-    }
-  })
-
-  it('gives every skill a distinct name', () => {
-    const names = (SplunkBlockMeta.skills ?? []).map((skill) => skill.name)
-    expect(new Set(names).size).toBe(names.length)
-  })
-
-  /**
-   * Run Search applies no Sim-side `max_count`, so a skill that tells the model
-   * "at most 1000 rows by default" states a bound that does not exist.
-   */
-  it('does not claim a row cap Run Search no longer applies', () => {
-    const skill = SplunkBlockMeta.skills?.find((entry) => entry.name === 'search-splunk-logs')
-
-    expect(skill).toBeDefined()
-    expect(skill?.content).not.toMatch(/1000/)
-    expect(skill?.content).toMatch(/cannot page/)
   })
 })

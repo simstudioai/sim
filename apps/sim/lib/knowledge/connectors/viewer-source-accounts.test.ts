@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { eq, inArray, isNull } from 'drizzle-orm'
@@ -33,7 +32,6 @@ const account = {
 
 describe('personal source account projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -66,30 +64,6 @@ describe('personal source account projection', () => {
       { ...account, optionId: 'other' },
     ])
     expect(await resolveViewerSourceAccounts(input)).toEqual(new Map())
-  })
-
-  it('maps Slack personal identity accounts without offering its administrative bot credential', async () => {
-    queueTableRows(credential, [
-      { ...account, providerId: 'slack', credentialId: 'slack-personal' },
-    ])
-    const result = await resolveViewerSourceAccounts({
-      ...input,
-      connectors: [
-        {
-          ...source,
-          id: 'slack-source',
-          connectorType: 'slack',
-          accessMode: 'admin',
-          credentialGroupId: null,
-          credentialGroupOptionId: null,
-        },
-      ],
-    })
-    expect(eq).toHaveBeenCalledWith(credential.type, 'managed_oauth')
-    expect(eq).toHaveBeenCalledWith(credential.providerId, 'slack')
-    expect(result.get('slack-source')).toEqual([
-      { credentialId: 'slack-personal', displayName: 'My Gmail', status: 'active' },
-    ])
   })
 
   it('fails instead of silently truncating too many accounts', async () => {

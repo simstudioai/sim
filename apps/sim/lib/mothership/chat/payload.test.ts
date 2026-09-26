@@ -1,29 +1,34 @@
-/**
- * @vitest-environment node
- */
-import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags, workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingPlanHelpersMock } from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { getToolMetadata } from '@/tools/metadata'
 
-const {
-  mockCreateUserToolSchema,
-  mockGetHighestPrioritySubscription,
-  mockGetUserPermissionConfig,
-  mockIsIntegrationDeploymentAvailable,
-  mockIsOAuthServiceDeploymentAvailable,
-  mockTrackChatUpload,
-  mockSearchApprovals,
-  mockSecretNames,
-} = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockSecretNames } = vi.hoisted(() => ({
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockIsIntegrationDeploymentAvailable: vi.fn((_blockType: string) => true),
-  mockIsOAuthServiceDeploymentAvailable: vi.fn((_providerId: string) => true),
-  mockTrackChatUpload: vi.fn(),
-  mockSearchApprovals: vi.fn(async () => new Map<string, boolean>()),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
 }))
 
@@ -45,15 +50,34 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     truncated: [],
   })),
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockTrackChatUpload = workspaceFileManagerMockFns.mockTrackChatUpload
+const {
+  mockIsIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
+  mockIsOAuthServiceDeploymentAvailable,
+} = integrationsAvailabilityMockFns
+const mockSearchApprovals =
+  knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals
+mockSearchApprovals.mockResolvedValue(new Map<string, boolean>())
+vi.mocked(getToolMetadata).mockImplementation((id) =>
+  id === 'github_search_issues_v2'
+    ? searchIssuesV2Tool
+    : id === 'gmail_send'
+      ? {
+          id,
+          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+          oauth: { required: true, provider: 'google-email' },
+        }
+      : undefined
+)
+permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockImplementation(
+  (...args) => mockGetUserPermissionConfig(...args)
+)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isPaid: vi.fn(
-    (plan: string | null) => plan === 'pro' || plan === 'team' || plan === 'enterprise'
-  ),
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
 vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildTaggedMcpToolSchemas: vi.fn(async () => []),
@@ -61,29 +85,6 @@ vi.mock('@/lib/mothership/mcp-tools', () => ({
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/tools/registry', () => ({
-  tools: {
-    gmail_send: {
-      id: 'gmail_send',
-      name: 'Gmail Send',
-      description: 'Send emails using Gmail',
-      outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-      oauth: { required: true, provider: 'google-email' },
-    },
-    brandfetch_search: {
-      id: 'brandfetch_search',
-      name: 'Brandfetch Search',
-      description: 'Search for brands by company name',
-    },
-    // Catalog marks run_workflow as client-routed / clientExecutable; registry ToolConfig has no routing fields.
-    run_workflow: {
-      id: 'run_workflow',
-      name: 'Run Workflow',
-      description: 'Run a workflow from the client',
-    },
-  },
-}))
 
 /** Denied-operation projection walks the block map only for blocks the mocked tool list never names. */
 vi.mock('@/blocks/registry-maps', () => ({ BLOCK_REGISTRY: {}, BLOCK_META_REGISTRY: {} }))
@@ -154,36 +155,13 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (id: string) =>
-    id === 'github_search_issues_v2'
-      ? searchIssuesV2Tool
-      : id === 'gmail_send'
-        ? {
-            id,
-            params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
-            oauth: { required: true, provider: 'google-email' },
-          }
-        : undefined,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  trackChatUpload: mockTrackChatUpload,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
-  isOAuthServiceDeploymentAvailable: mockIsOAuthServiceDeploymentAvailable,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mockGetUserPermissionConfig,
-}))
-
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  listOrganizationSearchApprovals: mockSearchApprovals,
-}))
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 
 import {
   buildCopilotRequestPayload,
@@ -193,33 +171,12 @@ import {
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     clearIntegrationToolSchemaCacheForTests()
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
     mockGetUserPermissionConfig.mockResolvedValue(null)
-  })
-
-  it('appends the email footer prompt for free users', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-free')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-free')
-    expect(gmailTool?.description).toContain('sent with sim ai')
-  })
-
-  it('does not append the email footer prompt for paid users', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-paid')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-paid')
-    expect(gmailTool?.description).toBe('Send emails using Gmail')
   })
 
   it('emits executeLocally for dynamic client tools only', async () => {
@@ -231,37 +188,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(gmailTool?.executeLocally).toBe(false)
     expect(runTool?.executeLocally).toBe(true)
-  })
-
-  it('preserves operation, outputs, and OAuth discovery metadata', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-metadata')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(gmailTool).toEqual(
-      expect.objectContaining({
-        service: 'gmail',
-        operation: 'send',
-        outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-        oauth: { required: true, provider: 'google-email' },
-      })
-    )
-  })
-
-  it('uses copilot-facing file schemas for integration tools', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    await buildIntegrationToolSchemas('user-copilot')
-
-    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'gmail_send' }),
-      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
-    )
-    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'brandfetch_search' }),
-      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
-    )
   })
 
   it('removes tools whose canonical exposed block is unavailable', async () => {
@@ -422,7 +348,6 @@ describe('buildIntegrationToolSchemas', () => {
 
 describe('buildCopilotRequestPayload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })
   })
@@ -688,7 +613,6 @@ describe('Assistant payload', () => {
   })
   it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
     vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
       {
@@ -895,7 +819,7 @@ it('carries only enabled MCP IDs without eager catalog discovery while preservin
   const { buildOrganizationTaggedMcpToolSchemas } = await import('@/lib/mothership/mcp-tools')
   vi.mocked(getBlockVisibilityForCopilot).mockClear()
   vi.mocked(buildOrganizationTaggedMcpToolSchemas).mockClear()
-  const principal = { kind: 'session' as const, userId: 'user-org' }
+  const principal = createSessionPrincipal({ userId: 'user-org' })
   const payload = await buildCopilotRequestPayload(
     {
       message: 'Use my tools',

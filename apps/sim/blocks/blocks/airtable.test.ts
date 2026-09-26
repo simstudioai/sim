@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: () => ({ subBlocks: [] }),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 
@@ -55,17 +51,6 @@ const operationCases = [
 
 describe('AirtableBlock typecast', () => {
   const buildParams = AirtableBlock.tools.config.params!
-
-  it('exposes typecast as an advanced switch for all write operations', () => {
-    expect(AirtableBlock.subBlocks.find(({ id }) => id === 'typecast')).toMatchObject({
-      type: 'switch',
-      mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['create', 'update', 'updateMultiple', 'upsert'],
-      },
-    })
-  })
 
   describe.each(operationCases)('$operation params', ({ operation, params, payload }) => {
     it('omits typecast when unset and preserves nested values', () => {

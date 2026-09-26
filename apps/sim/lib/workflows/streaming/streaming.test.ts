@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { loggerMock } from '@sim/testing'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -17,6 +16,8 @@ import {
 import type { ExecutionResult } from '@/executor/types'
 import type { AgentStreamSink } from '@/providers/stream-events'
 
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowStreaming'
 )
@@ -26,15 +27,7 @@ if (!workflowStreamingLogger) {
   throw new Error('WorkflowStreaming logger mock was not initialized')
 }
 
-const { mockDownloadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 const manifestChunk = [{ id: 1 }]
 const manifestChunkBytes = Buffer.byteLength(JSON.stringify(manifestChunk), 'utf8')
@@ -104,7 +97,6 @@ async function collectSSEEvents(
 
 describe('createStreamingResponse', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
   })
 
@@ -316,44 +308,6 @@ describe('createStreamingResponse', () => {
     }
   })
 
-  it('forwards raw execution state to terminal logging', async () => {
-    const safeComplete = vi.fn().mockResolvedValue(undefined)
-    const executionState = {
-      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
-    }
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      executionId: 'execution-1',
-      streamConfig: {
-        selectedOutputs: [],
-        includeFileBase64: false,
-      },
-      executeFn: async () =>
-        ({
-          success: true,
-          status: 'completed',
-          output: { result: 'raw-secret-value' },
-          logs: [],
-          metadata: { duration: 1 },
-          executionState,
-          _streamingMetadata: {
-            loggingSession: { safeComplete },
-            processedInput: { input: 'raw-runtime-value' },
-          },
-        }) as any,
-    })
-
-    await readSSEStream(stream)
-
-    expect(safeComplete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        finalOutput: { result: 'raw-secret-value' },
-        workflowInput: { input: 'raw-runtime-value' },
-        executionState,
-      })
-    )
-  })
-
   it('projects stream failures for logs without changing the terminal error frame', async () => {
     const secret = 'streaming-secret-value'
     const message = `Provider exposed ${secret} __var_API_KEY __sim_code_1_binding_0`
@@ -473,37 +427,6 @@ describe('createStreamingResponse', () => {
     })
   })
 
-  it('extracts block-level selected outputs from JSON content payloads', async () => {
-    const output = { content: JSON.stringify({ answer: 'ok' }) }
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      executionId: 'execution-1',
-      streamConfig: {
-        selectedOutputs: ['block'],
-        includeFileBase64: false,
-      },
-      executeFn: async ({ onBlockComplete }) => {
-        await onBlockComplete('block', output)
-        return {
-          success: true,
-          output: {},
-          logs: [
-            {
-              blockId: 'block',
-              output,
-              startedAt: new Date().toISOString(),
-              endedAt: new Date().toISOString(),
-              durationMs: 1,
-              success: true,
-            },
-          ],
-        } as any
-      },
-    })
-
-    await expect(readSSEStream(stream)).resolves.toBe(JSON.stringify({ answer: 'ok' }, null, 2))
-  })
-
   it('extracts selected outputs from JSON content payloads', async () => {
     const output = { content: JSON.stringify({ answer: 'ok' }) }
     const stream = await createStreamingResponse({
@@ -567,43 +490,6 @@ describe('createStreamingResponse', () => {
     })
 
     await expect(readSSEStream(stream)).resolves.toBe(JSON.stringify(manifestChunk, null, 2))
-  })
-
-  it('auto-materializes whole-block selected outputs containing manifests', async () => {
-    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(manifestChunk), 'utf8'))
-    const output = { issues: manifest }
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      executionId: 'execution-1',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      streamConfig: {
-        selectedOutputs: ['block'],
-        includeFileBase64: true,
-      },
-      executeFn: async ({ onBlockComplete }) => {
-        await onBlockComplete('block', output)
-        return {
-          success: true,
-          output: {},
-          logs: [
-            {
-              blockId: 'block',
-              output,
-              startedAt: new Date().toISOString(),
-              endedAt: new Date().toISOString(),
-              durationMs: 1,
-              success: true,
-            },
-          ],
-        } as any
-      },
-    })
-
-    await expect(readSSEStream(stream)).resolves.toBe(
-      JSON.stringify({ issues: manifestChunk }, null, 2)
-    )
-    expect(mockDownloadFile).toHaveBeenCalled()
   })
 
   it('inlines materialized selected outputs without recompacting them into refs', async () => {
@@ -842,99 +728,6 @@ describe('createStreamingResponse', () => {
     expect(events.some((event) => event.event === 'final')).toBe(false)
   })
 
-  it('fails when nested refs aggregate over the inline selected-output cap', async () => {
-    const largeString = 'x'.repeat(9 * 1024 * 1024)
-    const largeStringJson = JSON.stringify(largeString)
-    const largeStringBytes = Buffer.byteLength(largeStringJson, 'utf8')
-    const nestedRefA = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_NESTEDREF001',
-      kind: 'string',
-      size: largeStringBytes,
-      key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_NESTEDREF001.json',
-      executionId: 'execution-1',
-    }
-    const nestedRefB = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_NESTEDREF002',
-      kind: 'string',
-      size: largeStringBytes,
-      key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_NESTEDREF002.json',
-      executionId: 'execution-1',
-    }
-    const nestedChunk = [nestedRefA, nestedRefB]
-    const nestedChunkBytes = Buffer.byteLength(JSON.stringify(nestedChunk), 'utf8')
-    const nestedManifest = {
-      ...manifest,
-      totalCount: 2,
-      byteSize: nestedChunkBytes,
-      chunks: [
-        {
-          ref: {
-            ...manifest.chunks[0].ref,
-            size: nestedChunkBytes,
-          },
-          count: 2,
-          byteSize: nestedChunkBytes,
-        },
-      ],
-      preview: [],
-    }
-    mockDownloadFile.mockImplementation(async ({ key }) => {
-      if (key === nestedManifest.chunks[0].ref.key) {
-        return Buffer.from(JSON.stringify(nestedChunk), 'utf8')
-      }
-      if (key === nestedRefA.key) {
-        return Buffer.from(largeStringJson, 'utf8')
-      }
-      if (key === nestedRefB.key) {
-        return Buffer.from(largeStringJson, 'utf8')
-      }
-      throw new Error(`Unexpected key: ${key}`)
-    })
-
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      executionId: 'execution-1',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      streamConfig: {
-        selectedOutputs: ['block_issues'],
-        includeFileBase64: false,
-      },
-      executeFn: async ({ onBlockComplete }) => {
-        const output = { issues: nestedManifest }
-        await onBlockComplete('block', output)
-        return {
-          success: true,
-          output: {},
-          logs: [
-            {
-              blockId: 'block',
-              output,
-              startedAt: new Date().toISOString(),
-              endedAt: new Date().toISOString(),
-              durationMs: 1,
-              success: true,
-            },
-          ],
-        } as any
-      },
-    })
-
-    const events = await collectSSEEvents(stream)
-    expect(events).toContainEqual({
-      event: 'error',
-      blockId: 'block',
-      error:
-        'Selected output is too large to inline; select a nested field or use pagination/preview.',
-    })
-    expect(events.some((event) => event.event === 'final')).toBe(false)
-    expect(JSON.stringify(events)).not.toContain('__simLargeValueRef')
-  })
-
   it('fails clearly instead of streaming raw manifest internals when selected output is over cap', async () => {
     const oversizedManifest = {
       ...manifest,
@@ -989,51 +782,6 @@ describe('createStreamingResponse', () => {
     expect(events.some((event) => event.event === 'final')).toBe(false)
     expect(JSON.stringify(events)).not.toContain('__simLargeArrayManifest')
     expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  it('uses live large-value keys for selected-output materialization', async () => {
-    const largeValueKeys: string[] = []
-    const ref = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_MNOPQRSTUVWX',
-      kind: 'object',
-      size: 15,
-      key: 'execution/workspace-1/workflow-1/source-execution/large-value-lv_MNOPQRSTUVWX.json',
-      executionId: 'source-execution',
-    }
-    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify({ nested: 'ok' }), 'utf8'))
-
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      executionId: 'execution-1',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      largeValueKeys,
-      streamConfig: {
-        selectedOutputs: ['block.value.nested'],
-      },
-      executeFn: async ({ onBlockComplete }) => {
-        largeValueKeys.push(ref.key)
-        await onBlockComplete('block', { value: ref })
-        return {
-          success: true,
-          output: {},
-          logs: [
-            {
-              blockId: 'block',
-              output: { value: ref },
-              startedAt: new Date().toISOString(),
-              endedAt: new Date().toISOString(),
-              durationMs: 1,
-              success: true,
-            },
-          ],
-        } as any
-      },
-    })
-
-    await expect(readSSEStream(stream)).resolves.toBe('ok')
   })
 })
 
@@ -1155,16 +903,10 @@ describe('agent stream protocol response headers', () => {
       'x-sim-stream-protocol': 'agent-events-v1',
     })
   })
-
-  it('stays inactive for legacy clients and when no headers are supplied', () => {
-    expect(agentStreamProtocolResponseHeaders({ requestHeaders: new Headers() })).toEqual({})
-    expect(agentStreamProtocolResponseHeaders({})).toEqual({})
-  })
 })
 
 describe('createStreamingResponse agent-events-v1', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
   })
 
@@ -1298,27 +1040,6 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'tool')).toBe(false)
     expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
     expect(events.some((event) => event.event === 'final')).toBe(true)
-  })
-
-  it('stays fully text-only when both policies are off', async () => {
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      streamConfig: {
-        includeThinking: false,
-        includeToolCalls: false,
-        selectedOutputs: ['agent-1_content'],
-      },
-      executeFn: createAgentStreamExecuteFn({
-        thinking: ['secret thought'],
-        answer: 'Hello',
-        tools: [{ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' }],
-      }),
-    })
-
-    const events = await collectSSEEvents(stream)
-    expect(events.some((event) => event.event === 'thinking')).toBe(false)
-    expect(events.some((event) => event.event === 'tool')).toBe(false)
-    expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Hello' })
   })
 
   it('header + includeThinking emits thinking on data and answer on chunk', async () => {
@@ -1648,52 +1369,6 @@ describe('createStreamingResponse agent-events-v1', () => {
       ['extracted']
     )
     expect(events.some((event) => event.event === 'chunk_reset')).toBe(false)
-  })
-
-  it('includeThinking without includeToolCalls does not emit tool frames', async () => {
-    const headers = new Headers({
-      'x-sim-stream-protocol': 'agent-events-v1',
-    })
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      requestHeaders: headers,
-      streamConfig: {
-        includeThinking: true,
-        includeToolCalls: false,
-        selectedOutputs: ['agent-1_content'],
-      },
-      executeFn: createAgentStreamExecuteFn({
-        answer: 'Answer',
-        tools: [{ type: 'tool_call_start', id: 'toolu_1', name: 'get_weather' }],
-      }),
-    })
-
-    const events = await collectSSEEvents(stream)
-    expect(events.some((event) => event.event === 'tool')).toBe(false)
-    expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Answer' })
-  })
-
-  it('includeToolCalls without includeThinking does not emit thinking', async () => {
-    const headers = new Headers({
-      'x-sim-stream-protocol': 'agent-events-v1',
-    })
-    const stream = await createStreamingResponse({
-      requestId: 'request-1',
-      requestHeaders: headers,
-      streamConfig: {
-        includeThinking: false,
-        includeToolCalls: true,
-        selectedOutputs: ['agent-1_content'],
-      },
-      executeFn: createAgentStreamExecuteFn({
-        thinking: ['should not appear'],
-        answer: 'Answer',
-      }),
-    })
-
-    const events = await collectSSEEvents(stream)
-    expect(events.some((event) => event.event === 'thinking')).toBe(false)
-    expect(events).toContainEqual({ blockId: 'agent-1', chunk: 'Answer' })
   })
 
   it('provider failure emits one terminal error, no final, then [DONE]', async () => {

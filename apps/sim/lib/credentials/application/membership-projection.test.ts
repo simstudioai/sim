@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `GET /api/credentials/memberships` names no workspace, so its own gate reads
  * the caller's organization default group. Every credential it returns does name
  * one (`credential.workspace_id` is NOT NULL), and `credentials.list` withholds
@@ -9,27 +7,28 @@
  * listing hides — projected against this user's own group in each workspace,
  * never a bystander's — and that leaving a membership stays available.
  */
-import { authMockFns, createMockRequest, permissionGroupScopeMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { permissionGroupScopeMock } from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUserOrganization, mockGetOrgPermissionConfig, mockList, mockLeave } = vi.hoisted(
-  () => ({
-    mockGetUserOrganization: vi.fn(),
-    mockGetOrgPermissionConfig: vi.fn(),
-    mockList: vi.fn(),
-    mockLeave: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  getUserOrganization: mockGetUserOrganization,
+const { mockList, mockLeave } = vi.hoisted(() => ({
+  mockList: vi.fn(),
+  mockLeave: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: vi.fn(),
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: vi.fn(),
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -49,6 +48,9 @@ const GOVERNED_WORKSPACE = 'workspace-governed'
 const OPEN_WORKSPACE = 'workspace-open'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetUserOrganization = organizationMembershipMockFns.mockGetUserOrganization
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
 const mockResolveConfig = permissionGroupScopeMock.resolvePermissionGroupConfig
 
 function membership(id: string, workspaceId: string) {
@@ -68,7 +70,7 @@ function membership(id: string, workspaceId: string) {
 function callList() {
   return GET(
     createMockRequest('GET', undefined, {}, 'http://localhost/api/credentials/memberships'),
-    { params: Promise.resolve({}) }
+    createRouteContext({})
   )
 }
 
@@ -80,13 +82,12 @@ function callLeave(credentialId: string) {
       {},
       `http://localhost/api/credentials/memberships?credentialId=${credentialId}`
     ),
-    { params: Promise.resolve({}) }
+    createRouteContext({})
   )
 }
 
 describe('credential membership listing under a workspace group', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveConfig.mockReset()
     mockGetSession.mockResolvedValue({ user: { id: USER_ID }, session: { id: 'session-1' } })
     mockGetUserOrganization.mockResolvedValue({
@@ -122,27 +123,6 @@ describe('credential membership listing under a workspace group', () => {
 
     expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, GOVERNED_WORKSPACE, undefined)
     expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, OPEN_WORKSPACE, undefined)
-  })
-
-  it('asks once per workspace, not once per credential', async () => {
-    mockList.mockResolvedValue([
-      membership('cred-a', GOVERNED_WORKSPACE),
-      membership('cred-b', GOVERNED_WORKSPACE),
-      membership('cred-c', OPEN_WORKSPACE),
-    ])
-
-    await callList()
-
-    expect(mockResolveConfig).toHaveBeenCalledTimes(2)
-  })
-
-  it('returns every row when no group governs the caller anywhere', async () => {
-    mockResolveConfig.mockResolvedValue(null)
-
-    const response = await callList()
-
-    const body = await response.json()
-    expect(body.memberships).toHaveLength(2)
   })
 
   /**

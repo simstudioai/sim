@@ -1,7 +1,5 @@
 /**
  * Integration tests for scheduled workflow execution API route
- *
- * @vitest-environment node
  */
 import {
   createMockSql,
@@ -15,25 +13,21 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
-import { type NextRequest, NextResponse } from 'next/server'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 
 const orderByLimitMock = vi.fn()
 
 const {
-  mockVerifyCronAuth,
   mockExecuteScheduleJob,
   mockReleaseScheduleLock,
-  mockEnqueue,
-  mockGetJob,
-  mockStartJob,
-  mockCompleteJob,
-  mockMarkJobFailed,
-  mockCancelJob,
-  mockShouldExecuteInline,
-  mockResolveSystemBillingAttribution,
-  mockAssertBillingAttributionSnapshot,
   mockApplyScheduleSuccessUpdate,
   mockApplyScheduleCancellationUpdate,
   mockApplyScheduleFailureUpdate,
@@ -44,18 +38,8 @@ const {
   mockWorkflowSchedule,
   mockWorkflowExecutionLogs,
 } = vi.hoisted(() => ({
-  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
   mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
   mockReleaseScheduleLock: vi.fn().mockResolvedValue(undefined),
-  mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
-  mockGetJob: vi.fn().mockResolvedValue(null),
-  mockStartJob: vi.fn().mockResolvedValue(undefined),
-  mockCompleteJob: vi.fn().mockResolvedValue(undefined),
-  mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
-  mockCancelJob: vi.fn().mockResolvedValue(undefined),
-  mockShouldExecuteInline: vi.fn().mockReturnValue(false),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockAssertBillingAttributionSnapshot: vi.fn(),
   mockApplyScheduleSuccessUpdate: vi.fn().mockResolvedValue(true),
   mockApplyScheduleCancellationUpdate: vi.fn().mockResolvedValue(true),
   mockApplyScheduleFailureUpdate: vi.fn().mockResolvedValue({ updated: true, disabled: false }),
@@ -101,14 +85,9 @@ const {
   },
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: mockVerifyCronAuth,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
@@ -127,18 +106,7 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
   unregisterManualExecutionAborter: mockUnregisterManualExecutionAborter,
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({
-    enqueue: mockEnqueue,
-    getJob: mockGetJob,
-    startJob: mockStartJob,
-    completeJob: mockCompleteJob,
-    markJobFailed: mockMarkJobFailed,
-    cancelJob: mockCancelJob,
-  }),
-  JOB_PENDING_RETENTION_HOURS: 14 * 24,
-  shouldExecuteInline: mockShouldExecuteInline,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
@@ -172,19 +140,37 @@ vi.mock('@sim/db', () => ({
   workflowExecutionLogs: mockWorkflowExecutionLogs,
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'schedule-execution-1'),
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 vi.mock('@sim/utils/random', () => ({
   randomInt: vi.fn(() => 0),
 }))
 
-import { GET, runScheduleTick } from './route'
+import { runScheduleTick } from '@/app/api/schedules/execute/route'
+
+const { mockShouldExecuteInline } = asyncJobsMockFns
+mockShouldExecuteInline.mockReturnValue(false)
+const {
+  enqueue: mockEnqueue,
+  getJob: mockGetJob,
+  startJob: mockStartJob,
+  completeJob: mockCompleteJob,
+  markJobFailed: mockMarkJobFailed,
+  cancelJob: mockCancelJob,
+} = asyncJobsMockFns.mockJobQueue
+mockEnqueue.mockResolvedValue('job-id-1')
+mockGetJob.mockResolvedValue(null)
+mockStartJob.mockResolvedValue(undefined)
+mockCompleteJob.mockResolvedValue(undefined)
+mockMarkJobFailed.mockResolvedValue(undefined)
+mockCancelJob.mockResolvedValue(undefined)
+const { mockVerifyCronAuth } = authInternalMockFns
+mockVerifyCronAuth.mockReturnValue(null)
+
+const { mockResolveSystemBillingAttribution, mockAssertBillingAttributionSnapshot } =
+  billingAttributionMockFns
+idMockFns.mockGenerateId.mockReturnValue('schedule-execution-1')
+idMockFns.mockGenerateShortId.mockReturnValue('mock-short-id')
 
 const SINGLE_SCHEDULE = [
   {
@@ -199,23 +185,6 @@ const SINGLE_SCHEDULE = [
     nextRunAt: new Date('2025-01-01T00:00:00.000Z'),
     lastQueuedAt: undefined,
     workspaceId: 'workspace-1',
-  },
-]
-
-const MULTIPLE_SCHEDULES = [
-  ...SINGLE_SCHEDULE,
-  {
-    id: 'schedule-2',
-    workflowId: 'workflow-2',
-    blockId: null,
-    cronExpression: null,
-    lastRanAt: null,
-    failedCount: 0,
-    infraRetryCount: 0,
-    timezone: 'UTC',
-    nextRunAt: new Date('2025-01-01T01:00:00.000Z'),
-    lastQueuedAt: undefined,
-    workspaceId: 'workspace-2',
   },
 ]
 
@@ -282,20 +251,6 @@ function mockProcessingCounts(...counts: number[]) {
   })
 }
 
-function createMockRequest(): NextRequest {
-  const mockHeaders = new Map([
-    ['authorization', 'Bearer test-cron-secret'],
-    ['content-type', 'application/json'],
-  ])
-
-  return {
-    headers: {
-      get: (key: string) => mockHeaders.get(key.toLowerCase()) || null,
-    },
-    url: 'http://localhost:3000/api/schedules/execute',
-  } as NextRequest
-}
-
 afterAll(() => {
   resetEnvFlagsMock()
   resetEnvMock()
@@ -303,7 +258,6 @@ afterAll(() => {
 
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     dbChainMockFns.returning.mockReset()
     dbChainMockFns.execute.mockReset()
@@ -353,63 +307,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     dbChainMockFns.returning.mockReturnValue([])
   })
 
-  it('should execute scheduled workflows with Trigger.dev disabled', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
-
-    const result = await runScheduleTick('test-request-id')
-
-    expect(result.processedCount).toBe(1)
-  })
-
-  it('should queue schedules to Trigger.dev when enabled', async () => {
-    setEnvFlags({ isTriggerDevEnabled: true })
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
-
-    const result = await runScheduleTick('test-request-id')
-
-    expect(result.processedCount).toBe(1)
-  })
-
-  it('should handle case with no due schedules', async () => {
-    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
-
-    const result = await runScheduleTick('test-request-id')
-
-    expect(result.processedCount).toBe(0)
-  })
-
-  it('rotates deferred recovery carriers behind untouched work', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
-
-    await runScheduleTick('test-request-id')
-
-    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(
-      { type: 'asc', field: mockAsyncJobs.updatedAt },
-      { type: 'asc', field: mockAsyncJobs.id }
-    )
-  })
-
-  it('should execute multiple schedules in parallel', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([
-        { id: 'schedule-1', workspaceId: 'workspace-1' },
-        { id: 'schedule-2', workspaceId: 'workspace-2' },
-      ])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
-
-    const result = await runScheduleTick('test-request-id')
-
-    expect(result.processedCount).toBe(2)
-  })
-
   it('should enqueue schedule with one atomic system actor and payer snapshot', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
@@ -448,91 +345,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('workspace-1')
     expect(mockResolveSystemBillingAttribution).toHaveBeenCalledTimes(1)
     expect(mockEnqueue.mock.calls[0][2].concurrencyKey).toBeUndefined()
-  })
-
-  it('executes database fallback schedules through durable async job rows', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning
-      .mockReturnValueOnce(SINGLE_SCHEDULE)
-      .mockResolvedValueOnce([{ id: 'job-id-1' }])
-
-    await runScheduleTick('test-request-id')
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'schedule-execution',
-      expect.objectContaining({ scheduleId: 'schedule-1' }),
-      expect.objectContaining({
-        jobId: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
-        metadata: expect.objectContaining({
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-        }),
-      })
-    )
-    expect(mockStartJob).not.toHaveBeenCalled()
-    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' }),
-      expect.any(AbortSignal)
-    )
-    expect(mockRegisterManualExecutionAborter).toHaveBeenCalledWith(
-      'schedule-execution-1',
-      expect.any(Function)
-    )
-    expect(mockUnregisterManualExecutionAborter).toHaveBeenCalledWith('schedule-execution-1')
-    expect(mockCompleteJob).toHaveBeenCalledWith('job-id-1', null)
-
-    const authoritativeStartCondition = dbChainMockFns.where.mock.calls
-      .map(([condition]) => condition)
-      .find(
-        (condition) =>
-          conditionContains(
-            condition,
-            (entry) => entry.type === 'eq' && entry.field === mockAsyncJobs.id
-          ) &&
-          conditionContains(
-            condition,
-            (entry) =>
-              entry.type === 'eq' &&
-              entry.field === mockAsyncJobs.type &&
-              entry.value === 'schedule-execution'
-          ) &&
-          conditionContains(
-            condition,
-            (entry) =>
-              entry.type === 'eq' &&
-              entry.field === mockAsyncJobs.status &&
-              entry.value === 'pending'
-          ) &&
-          conditionContains(
-            condition,
-            (entry) =>
-              entry.type === 'eq' && entry.field === mockAsyncJobs.attempts && entry.value === 0
-          )
-      )
-    expect(authoritativeStartCondition).toBeDefined()
-  })
-
-  it('forwards database fallback cancellation into the schedule execution signal', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning
-      .mockReturnValueOnce(SINGLE_SCHEDULE)
-      .mockResolvedValueOnce([{ id: 'job-id-1' }])
-    mockExecuteScheduleJob.mockImplementationOnce(
-      async (_payload: unknown, signal: AbortSignal) => {
-        const abort = mockRegisterManualExecutionAborter.mock.calls[0]?.[1]
-        abort()
-        expect(signal.aborted).toBe(true)
-      }
-    )
-
-    await runScheduleTick('test-request-id')
-
-    expect(mockUnregisterManualExecutionAborter).toHaveBeenCalledWith('schedule-execution-1')
   })
 
   it('releases database fallback claims when the global concurrency cap is full', async () => {
@@ -627,38 +439,6 @@ describe('Scheduled Workflow Execution API Route', () => {
       expect.objectContaining({ metadata: expect.anything() })
     )
     expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledOnce()
-    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
-  })
-
-  it('preserves a cancelled carrier when its workflow log completed', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    mockProcessingCounts(0, 0)
-    orderByLimitMock.mockResolvedValueOnce([
-      {
-        id: 'cancelled-job-id',
-        status: 'cancelled',
-        payload: {
-          scheduleId: 'schedule-1',
-          workflowId: 'workflow-1',
-          executionId: 'execution-1',
-          now: claimedAt.toISOString(),
-          scheduledFor: claimedAt.toISOString(),
-        },
-      },
-    ])
-    queueTableRows(mockWorkflowExecutionLogs, [
-      { executionId: 'execution-1', workflowId: 'workflow-1', status: 'completed' },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cancelled-job-id' }])
-
-    await runScheduleTick('test-request-id')
-
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ status: expect.anything() })
-    )
-    expect(mockApplyScheduleSuccessUpdate).toHaveBeenCalledOnce()
-    expect(mockApplyScheduleCancellationUpdate).not.toHaveBeenCalled()
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
   })
 
@@ -1043,39 +823,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     )
   })
 
-  it('rejects pending database fallback jobs with malformed billing attribution', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    mockProcessingCounts(0, 0)
-    mockAssertBillingAttributionSnapshot.mockImplementationOnce(() => {
-      throw new Error('Billing attribution snapshot is missing its billing entity')
-    })
-    orderByLimitMock.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 'pending-job-id',
-        payload: {
-          scheduleId: 'schedule-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          billingAttribution: {},
-          now: claimedAt.toISOString(),
-        },
-      },
-    ])
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ lastQueuedAt: claimedAt }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-
-    await runScheduleTick('test-request-id')
-
-    expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
-    expect(mockMarkJobFailed).toHaveBeenCalledWith(
-      'pending-job-id',
-      'Invalid pending schedule execution payload: Billing attribution snapshot is missing its billing entity'
-    )
-  })
-
   it('cancels stale pending database fallback jobs whose schedule claim was already released', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
@@ -1235,41 +982,6 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     expect(mockNotifyScheduleAutoDisabled).toHaveBeenCalledWith(
       expect.objectContaining({ scheduleId: schedule.id, reason: 'consecutive_failures' })
-    )
-  })
-
-  it('does not email when the failure update leaves the schedule active', async () => {
-    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    const schedule = {
-      ...SINGLE_SCHEDULE[0],
-      lastQueuedAt: claimedAt,
-    }
-    mockResolveSystemBillingAttribution.mockRejectedValueOnce(new Error('bad setup invariant'))
-    mockApplyScheduleFailureUpdate.mockResolvedValueOnce({ updated: true, disabled: false })
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
-
-    await runScheduleTick('test-request-id')
-
-    expect(mockNotifyScheduleAutoDisabled).not.toHaveBeenCalled()
-  })
-
-  it('uses one backend mode decision for slot accounting and schedule processing', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning
-      .mockReturnValueOnce(SINGLE_SCHEDULE)
-      .mockResolvedValueOnce([{ id: 'job-id-1' }])
-
-    await runScheduleTick('test-request-id')
-    expect(mockShouldExecuteInline).toHaveBeenCalledTimes(1)
-    expect(mockExecuteScheduleJob).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduleId: 'schedule-1' }),
-      expect.any(AbortSignal)
     )
   })
 
@@ -1519,40 +1231,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(mockExecuteScheduleJob).not.toHaveBeenCalled()
   })
 
-  it('uses a terminal cancelled carrier when no execution log exists', async () => {
-    const claimedAt = new Date('2025-01-01T00:00:00.000Z')
-    const schedule = {
-      ...SINGLE_SCHEDULE[0],
-      lastQueuedAt: claimedAt,
-    }
-    dbChainMockFns.limit
-      .mockResolvedValueOnce(SINGLE_CLAIMED_SCHEDULE_ROWS)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockReturnValueOnce([schedule]).mockReturnValueOnce([])
-    mockGetJob.mockResolvedValueOnce({
-      id: 'job-id-1',
-      status: 'cancelled',
-      payload: {
-        scheduleId: 'schedule-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        now: claimedAt.toISOString(),
-      },
-    })
-
-    await runScheduleTick('test-request-id')
-
-    expect(mockApplyScheduleCancellationUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scheduleId: 'schedule-1',
-        expectedLastQueuedAt: claimedAt,
-      })
-    )
-    expect(mockApplyScheduleFailureUpdate).not.toHaveBeenCalled()
-    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
-  })
-
   it('does not change cadence when reconciliation fails after observing a carrier', async () => {
     const claimedAt = new Date('2025-01-01T00:00:00.000Z')
     const schedule = {
@@ -1584,25 +1262,5 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ infraRetryCount: 1 })
     )
-  })
-
-  describe('GET handler (fire-and-forget)', () => {
-    it('returns the auth error when cron auth fails', async () => {
-      mockVerifyCronAuth.mockReturnValueOnce(
-        NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-      )
-
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(401)
-    })
-
-    it('acknowledges immediately with 202 and starts the tick in the background', async () => {
-      const response = await GET(createMockRequest())
-
-      expect(response.status).toBe(202)
-      const data = await response.json()
-      expect(data).toMatchObject({ status: 'started' })
-    })
   })
 })

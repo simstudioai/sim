@@ -1,20 +1,11 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { slackApp } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
-  env: {
-    SLACK_SEARCH_APP_ID: 'ASHARED',
-    SLACK_SEARCH_CLIENT_ID: '123.456',
-    SLACK_SEARCH_CLIENT_SECRET: 'environment-client-secret',
-    SLACK_SEARCH_SIGNING_SECRET: 'environment-signing-secret',
-  },
-  decrypt: vi.fn(async (value: string) => ({ decrypted: value.replace('encrypted:', '') })),
-}))
-vi.mock('@/lib/core/config/env', () => ({ env: m.env }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: m.decrypt }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   loadSlackAppConfiguration,
@@ -22,6 +13,10 @@ import {
   slackBotCredentialVersion,
 } from '@/lib/slack-search/app-configuration'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
+
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: value.replace('encrypted:', ''),
+}))
 
 const stored = {
   id: 'ASHARED',
@@ -41,9 +36,8 @@ const credentialKeys = [
 ] as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
-  Object.assign(m.env, {
+  Object.assign(mockEnvObject, {
     SLACK_SEARCH_APP_ID: 'ASHARED',
     SLACK_SEARCH_CLIENT_ID: '123.456',
     SLACK_SEARCH_CLIENT_SECRET: 'environment-client-secret',
@@ -58,7 +52,7 @@ describe('deployment-owned Slack app configuration', () => {
       app: { id: 'ASHARED', kind: 'shared', organizationId: null },
     })
     expect(db.select).not.toHaveBeenCalled()
-    expect(m.decrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 
   it('ignores previously registered credentials for the configured company app', async () => {
@@ -66,21 +60,21 @@ describe('deployment-owned Slack app configuration', () => {
       clientId: '123.456',
       clientSecret: 'environment-client-secret',
     })
-    expect(m.decrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 
   it.each(credentialKeys)('does not use stored secrets when %s is missing', async (key) => {
-    m.env[key] = ''
+    mockEnvObject[key] = ''
     queueTableRows(slackApp, [stored])
     await expect(loadSlackAppConfiguration('ASHARED')).rejects.toThrow('Configure SLACK_SEARCH')
     await expect(resolveSlackAppCredentials(stored)).rejects.toThrow('Configure SLACK_SEARCH')
-    expect(m.decrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 
   it.each(credentialKeys)('invalidates queued work when %s rotates', (key) => {
     const previous = getSharedSlackSearchAppConfiguration()?.revision
     expect(getSharedSlackSearchAppConfiguration()?.revision).toBe(previous)
-    m.env[key] = 'rotated'
+    mockEnvObject[key] = 'rotated'
     const current = getSharedSlackSearchAppConfiguration()?.revision
     expect(current).not.toBe(previous)
     expect(slackBotCredentialVersion('token', current)).not.toBe(
@@ -89,7 +83,7 @@ describe('deployment-owned Slack app configuration', () => {
   })
 
   it('preserves custom ingress when shared credentials are incomplete', async () => {
-    m.env.SLACK_SEARCH_CLIENT_SECRET = ''
+    mockEnvObject.SLACK_SEARCH_CLIENT_SECRET = ''
     queueTableRows(slackApp, [{ ...stored, id: 'ACUSTOM', kind: 'custom', organizationId: 'org' }])
     await expect(loadSlackAppConfiguration('ACUSTOM')).resolves.toMatchObject({
       signingSecret: 'old-signing-secret',

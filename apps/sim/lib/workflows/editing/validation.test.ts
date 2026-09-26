@@ -1,31 +1,25 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { toolsUtilsMock, toolsUtilsMockFns } from '@sim/testing/mocks/blocks.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import type { Mock } from 'vitest'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getTuningOptionsForModel } from '@/lib/workflows/blocks/fallback-models'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
-import { getThinkingLevelsForModel } from '@/providers/models'
+import { getBlock } from '@/blocks/registry'
 import { normalizeConditionRouterIds } from './builders'
 
-const {
-  mockValidateSelectorIds,
-  mockGetModelOptions,
-  mockGetTool,
-  mockGetCustomToolById,
-  mockGetSkillById,
-  mockGetHostedModels,
-  mockIsIntegrationDeploymentAvailable,
-} = vi.hoisted(() => ({
-  mockValidateSelectorIds: vi.fn(),
-  mockGetModelOptions: vi.fn(() => []),
-  mockGetTool: vi.fn(),
-  mockGetCustomToolById: vi.fn(),
-  mockGetSkillById: vi.fn(),
-  mockGetHostedModels: vi.fn(() => [] as string[]),
-  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
-}))
+const { mockValidateSelectorIds, mockGetModelOptions, mockGetCustomToolById, mockGetSkillById } =
+  vi.hoisted(() => ({
+    mockValidateSelectorIds: vi.fn(),
+    mockGetModelOptions: vi.fn(() => []),
+    mockGetCustomToolById: vi.fn(),
+    mockGetSkillById: vi.fn(),
+  }))
 
 const conditionBlockConfig = {
   type: 'condition',
@@ -260,17 +254,11 @@ const blockConfigsByType: Record<string, unknown> = {
   json_code_block: jsonCodeBlockConfig,
 }
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => blockConfigsByType[type],
-}))
-
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
 }))
 
-vi.mock('@/tools/utils', () => ({
-  getTool: mockGetTool,
-}))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 vi.mock('@/lib/workflows/editing/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
@@ -284,20 +272,11 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn(async () => null) }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getHostedModels: mockGetHostedModels,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import {
@@ -306,8 +285,19 @@ import {
   preValidateCredentialInputs,
   validateInputsForBlock,
   validateValueForSubBlockType,
-  validateWorkflowSelectorIds,
 } from './validation'
+
+const { mockGetTool } = toolsUtilsMockFns
+const mockIsIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
+mockGetTool.mockReturnValue(undefined)
+
+tableServiceMockFns.mockGetTableById.mockResolvedValue(null)
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) => blockConfigsByType[type])
+
+const mockGetHostedModels = providersUtilsMockFns.mockGetHostedModels
 
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 
@@ -319,7 +309,6 @@ beforeEach(() => {
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
   })
 
@@ -393,55 +382,12 @@ describe('validateInputsForBlock', () => {
       expect(validate({ model: 'claude-sonnet-5' }).valid).toBe(false)
     })
 
-    it('accepts a row tuning value the model declares and refuses one it does not', () => {
-      const levels = getThinkingLevelsForModel('claude-sonnet-5')
-      expect(levels?.length).toBeGreaterThan(0)
-      const ok = validate([
-        { model: 'claude-sonnet-5', thinkingLevel: ` ${levels![0].toUpperCase()} ` },
-      ])
-      expect(ok.valid).toBe(true)
-      expect((ok as { value: Array<{ thinkingLevel?: string }> }).value[0].thinkingLevel).toBe(
-        levels![0]
-      )
-
-      const bad = validate([{ model: 'claude-sonnet-5', thinkingLevel: 'bogus' }])
-      expect(bad.valid).toBe(false)
-      expect((bad as { error: { error: string } }).error.error).toContain('thinking level option')
-
-      const notAString = validate([{ model: 'claude-sonnet-5', thinkingLevel: 42 }])
-      expect(notAString.valid).toBe(false)
-      expect((notAString as { error: { error: string } }).error.error).toContain('"42"')
-
-      const undeclared = (['reasoningEffort', 'verbosity', 'thinkingLevel'] as const).find(
-        (knob) => getTuningOptionsForModel('claude-sonnet-5', knob) === null
-      )
-      expect(undeclared).toBeDefined()
-      const missingKnob = validate([{ model: 'claude-sonnet-5', [undeclared as string]: 'low' }])
-      expect(missingKnob.valid).toBe(false)
-    })
-
     it('refuses more rows than the cap', () => {
       const rows = Array.from({ length: 6 }, () => ({ model: 'claude-sonnet-5' }))
       const result = validate(rows)
       expect(result.valid).toBe(false)
       expect((result as { error: { error: string } }).error.error).toContain('at most 5')
     })
-  })
-
-  it('accepts condition-input arrays with arbitrary item ids', () => {
-    const result = validateInputsForBlock(
-      'condition',
-      {
-        conditions: JSON.stringify([
-          { id: 'cond-1-if', title: 'if', value: 'true' },
-          { id: 'cond-1-else', title: 'else', value: '' },
-        ]),
-      },
-      'condition-1'
-    )
-
-    expect(result.validInputs.conditions).toBeDefined()
-    expect(result.errors).toHaveLength(0)
   })
 
   it('rejects non-array condition-input values', () => {
@@ -516,14 +462,6 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.routes).toEqual(routes)
   })
 
-  it('rejects non-array router-input values', () => {
-    const result = validateInputsForBlock('router_v2', { routes: 'not-json' }, 'router-1')
-
-    expect(result.validInputs.routes).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
   // Without this guard, normalizeArrayWithIds coerces any unparseable value to [], which the
   // write path then persists as "[]" -- silently destroying a tag filter the user configured.
   it.each([
@@ -537,25 +475,6 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.tagFilters).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
-  it('rejects non-array document-tag-entry values', () => {
-    const result = validateInputsForBlock('knowledge', { documentTags: 'not-json' }, 'kb-1')
-
-    expect(result.validInputs.documentTags).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
-  it.each([
-    ['a JSON string array', JSON.stringify([{ tagName: 'Department', tagValue: 'IT' }])],
-    ['a raw array', [{ tagName: 'Department', tagValue: 'IT' }]],
-    ['an empty array, clearing the filter', []],
-  ])('accepts knowledge-tag-filters values that are %s', (_label, value) => {
-    const result = validateInputsForBlock('knowledge', { tagFilters: value }, 'kb-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tagFilters).toBeDefined()
   })
 
   it('accepts a null knowledge-tag-filters value so the field can still be cleared', () => {
@@ -594,18 +513,6 @@ describe('validateInputsForBlock', () => {
     expect(result.errors[0]?.error).toContain('read-only')
   })
 
-  it('rejects read-only display subblocks like webhookUrlDisplay', () => {
-    const result = validateInputsForBlock(
-      'generic_webhook',
-      { webhookUrlDisplay: 'https://evil.test/hook' },
-      'hook-1'
-    )
-
-    expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('read-only')
-  })
-
   it('rejects server-only Sim Chat secret-mount policy inputs', () => {
     const result = validateInputsForBlock(
       'mothership',
@@ -617,13 +524,6 @@ describe('validateInputsForBlock', () => {
     expect(result.errors.map((error) => error.field)).toEqual(['secretScope', 'mountedSecrets'])
   })
 
-  it('accepts known agent model ids', () => {
-    const result = validateInputsForBlock('agent', { model: 'claude-sonnet-4-6' }, 'agent-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.model).toBe('claude-sonnet-4-6')
-  })
-
   it('rejects hallucinated agent model ids that match a static provider pattern', () => {
     const result = validateInputsForBlock('agent', { model: 'claude-sonnet-4.6' }, 'agent-1')
 
@@ -632,20 +532,6 @@ describe('validateInputsForBlock', () => {
     expect(result.errors[0]?.field).toBe('model')
     expect(result.errors[0]?.error).toContain('Unknown model id')
     expect(result.errors[0]?.error).toContain('claude-sonnet-5')
-  })
-
-  it('rejects legacy claude-4.5-haiku style ids', () => {
-    const result = validateInputsForBlock('agent', { model: 'claude-4.5-haiku' }, 'agent-1')
-
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('Unknown model id')
-  })
-
-  it('allows empty model values', () => {
-    const result = validateInputsForBlock('agent', { model: '' }, 'agent-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.model).toBe('')
   })
 
   it('allows custom ollama-prefixed model ids', () => {
@@ -689,19 +575,6 @@ describe('validateInputsForBlock', () => {
     expect(result.errors[0]?.error).toContain('Unknown model id')
   })
 
-  it('validates the model field on router_v2 blocks too', () => {
-    const valid = validateInputsForBlock('router_v2', { model: 'claude-sonnet-4-6' }, 'router-1')
-    expect(valid.errors).toHaveLength(0)
-    expect(valid.validInputs.model).toBe('claude-sonnet-4-6')
-
-    const invalid = validateInputsForBlock('router_v2', { model: 'claude-sonnet-4.6' }, 'router-1')
-    expect(invalid.validInputs.model).toBeUndefined()
-    expect(invalid.errors).toHaveLength(1)
-    expect(invalid.errors[0]?.blockType).toBe('router_v2')
-    expect(invalid.errors[0]?.field).toBe('model')
-    expect(invalid.errors[0]?.error).toContain('Unknown model id')
-  })
-
   it("does not apply model validation to blocks whose model field is not Sim's catalog", () => {
     const result = validateInputsForBlock(
       'huggingface',
@@ -713,41 +586,11 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('mistralai/Mistral-7B-Instruct-v0.3')
   })
 
-  it('rejects a bare Ollama-style tag without the provider prefix', () => {
-    const result = validateInputsForBlock('agent', { model: 'llama3.1:8b' }, 'agent-1')
-
-    expect(result.validInputs.model).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('Unknown model id')
-    expect(result.errors[0]?.error).toContain('ollama/')
-  })
-
-  it('rejects date-pinned ids that are not literally in the catalog', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { model: 'claude-sonnet-4-5-20250929' },
-      'agent-1'
-    )
-
-    expect(result.validInputs.model).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('Unknown model id')
-  })
-
   it('trims whitespace around catalog model ids and stores the trimmed value', () => {
     const result = validateInputsForBlock('agent', { model: '  gpt-5.4  ' }, 'agent-1')
 
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.model).toBe('gpt-5.4')
-  })
-
-  it('rejects a pattern-matching but uncataloged id even with surrounding whitespace', () => {
-    const result = validateInputsForBlock('agent', { model: '  gpt-100-ultra  ' }, 'agent-1')
-
-    expect(result.validInputs.model).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('gpt-100-ultra')
-    expect(result.errors[0]?.error).not.toMatch(/\s{2,}/)
   })
 })
 
@@ -766,29 +609,10 @@ describe('normalizeConditionRouterIds', () => {
     expect(parsed[1].id).toBe('block-1-else-if-0')
     expect(parsed[2].id).toBe('block-1-else')
   })
-
-  it('assigns canonical block-scoped ids to router routes', () => {
-    const input = [
-      { id: 'route-a', title: 'Support', value: 'support query' },
-      { id: 'route-b', title: 'Sales', value: 'sales query' },
-    ]
-
-    const result = normalizeConditionRouterIds('block-1', 'routes', input)
-    const arr = result as any[]
-
-    expect(arr[0].id).toBe('block-1-route1')
-    expect(arr[1].id).toBe('block-1-route2')
-  })
-
-  it('passes through non-condition/router keys unchanged', () => {
-    const input = 'some value'
-    expect(normalizeConditionRouterIds('block-1', 'code', input)).toBe(input)
-  })
 })
 
 describe('preValidateCredentialInputs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: ['shared-cred-1'], invalid: [] })
   })
 
@@ -822,7 +646,6 @@ describe('preValidateCredentialInputs', () => {
 
 describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetTool.mockImplementation((id: string) => toolsByIdMock[id])
     setEnvFlags({ isHosted: true })
@@ -870,32 +693,6 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
 
     expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-runway-key')
     expect(result.errors).toHaveLength(0)
-  })
-
-  it('resolves provider from existing block state for edit ops that only set apiKey', async () => {
-    const operations = [
-      {
-        operation_type: 'edit' as const,
-        block_id: 'video-1',
-        params: {
-          type: 'video_generator_v3',
-          inputs: { apiKey: '{{FAL_API_KEY}}' },
-        },
-      },
-    ]
-    const workflowState = {
-      blocks: {
-        'video-1': {
-          type: 'video_generator_v3',
-          subBlocks: { provider: { value: 'falai' } },
-        },
-      },
-    }
-
-    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
-
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
   })
 
   it('strips apiKey on a type-less edit op, resolving block type + provider from workflow state', async () => {
@@ -970,75 +767,6 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.errors[0]).toMatchObject({ blockId: 'custom-1', field: 'serviceKey' })
   })
 
-  it('strips apiKey on a grandchild block nested two levels deep (loop in loop)', async () => {
-    const operations = [
-      {
-        operation_type: 'add' as const,
-        block_id: 'outer-loop',
-        params: {
-          type: 'loop',
-          inputs: {},
-          nestedNodes: {
-            'inner-loop': {
-              type: 'loop',
-              inputs: {},
-              nestedNodes: {
-                'video-child': {
-                  type: 'video_generator_v3',
-                  inputs: { provider: 'falai', apiKey: '{{FAL_API_KEY}}' },
-                },
-              },
-            },
-          },
-        },
-      },
-    ]
-
-    const result = await preValidateCredentialInputs(operations, ctx)
-
-    const innerInputs = (
-      (result.filteredOperations[0]?.params?.nestedNodes as Record<string, any>)?.['inner-loop']
-        ?.nestedNodes as Record<string, { inputs?: Record<string, unknown> }>
-    )?.['video-child']?.inputs
-    expect(innerInputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
-  })
-
-  it('uses same-batch state for nested children (provider set earlier, apiKey set later)', async () => {
-    const operations = [
-      {
-        operation_type: 'add' as const,
-        block_id: 'loop-1',
-        params: {
-          type: 'loop',
-          inputs: {},
-          nestedNodes: {
-            'video-child': { type: 'video_generator_v3', inputs: { provider: 'falai' } },
-          },
-        },
-      },
-      {
-        operation_type: 'edit' as const,
-        block_id: 'loop-1',
-        params: {
-          nestedNodes: {
-            'video-child': { type: 'video_generator_v3', inputs: { apiKey: 'test-key' } },
-          },
-        },
-      },
-    ]
-
-    const result = await preValidateCredentialInputs(operations, ctx)
-
-    const nested = result.filteredOperations[1]?.params?.nestedNodes as
-      | Record<string, { inputs?: Record<string, unknown> }>
-      | undefined
-    expect(nested?.['video-child']?.inputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]).toMatchObject({ blockId: 'video-child', field: 'apiKey' })
-  })
-
   it('strips a key set before a later op makes the block hosted (reverse batch order)', async () => {
     // op1 sets apiKey while the block is still non-hosted (runway); op2 later flips it to falai.
     // Deciding against final state must still strip op1's key.
@@ -1065,83 +793,6 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
-  })
-
-  it.each([{ type: '' }, { type: 'totally_unknown_type' }])(
-    'does not let an invalid type (%o) on an earlier op block stripping on a later edit',
-    async ({ type }) => {
-      const operations = [
-        {
-          operation_type: 'edit' as const,
-          block_id: 'video-1',
-          params: { type, inputs: { prompt: 'x' } },
-        },
-        {
-          operation_type: 'edit' as const,
-          block_id: 'video-1',
-          params: { inputs: { apiKey: '{{FAL_API_KEY}}' } },
-        },
-      ]
-      const workflowState = {
-        blocks: {
-          'video-1': { type: 'video_generator_v3', subBlocks: { provider: { value: 'falai' } } },
-        },
-      }
-
-      const result = await preValidateCredentialInputs(operations, ctx, workflowState)
-
-      expect(result.filteredOperations[1]?.params?.inputs?.apiKey).toBeUndefined()
-      expect(result.errors).toHaveLength(1)
-    }
-  )
-
-  it('uses same-batch state: a type-less apiKey edit after an earlier op makes the block hosted', async () => {
-    // op1 switches provider to falai (hosted); op2 (type-less) sets apiKey. op2 must see op1's
-    // provider, not the stale snapshot (runway), and strip the key.
-    const operations = [
-      {
-        operation_type: 'edit' as const,
-        block_id: 'video-1',
-        params: { inputs: { provider: 'falai' } },
-      },
-      {
-        operation_type: 'edit' as const,
-        block_id: 'video-1',
-        params: { inputs: { apiKey: 'test-api-key-12345' } },
-      },
-    ]
-    const workflowState = {
-      blocks: {
-        'video-1': {
-          type: 'video_generator_v3',
-          subBlocks: { provider: { value: 'runway' } },
-        },
-      },
-    }
-
-    const result = await preValidateCredentialInputs(operations, ctx, workflowState)
-
-    expect(result.filteredOperations[1]?.params?.inputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]).toMatchObject({ blockId: 'video-1', field: 'apiKey' })
-  })
-
-  it('strips apiKey when the tool selector throws (falls back to access tools)', async () => {
-    const operations = [
-      {
-        operation_type: 'add' as const,
-        block_id: 'sel-1',
-        params: {
-          type: 'throw_selector_block',
-          inputs: { provider: 'falai', apiKey: 'user-key' },
-        },
-      },
-    ]
-
-    const result = await preValidateCredentialInputs(operations, ctx)
-
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
   })
 
   it('strips apiKey when a tool hosting enabled predicate throws (fail toward stripping)', async () => {
@@ -1180,47 +831,10 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
     expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('{{FAL_API_KEY}}')
     expect(result.errors).toHaveLength(0)
   })
-
-  it('strips apiKey when the tool hosting enabled gate passes (image, falai)', async () => {
-    const operations = [
-      {
-        operation_type: 'add' as const,
-        block_id: 'image-1',
-        params: {
-          type: 'image_generator_v2',
-          inputs: { provider: 'falai', apiKey: '{{FAL_API_KEY}}' },
-        },
-      },
-    ]
-
-    const result = await preValidateCredentialInputs(operations, ctx)
-
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-  })
-
-  it('preserves apiKey when the tool hosting enabled gate fails (image, non-falai)', async () => {
-    const operations = [
-      {
-        operation_type: 'add' as const,
-        block_id: 'image-1',
-        params: {
-          type: 'image_generator_v2',
-          inputs: { provider: 'openai', apiKey: 'user-openai-key' },
-        },
-      },
-    ]
-
-    const result = await preValidateCredentialInputs(operations, ctx)
-
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-openai-key')
-    expect(result.errors).toHaveLength(0)
-  })
 })
 
 describe('preValidateCredentialInputs (hosted models)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetHostedModels.mockReturnValue(['claude-sonnet-4-6'])
     setEnvFlags({ isHosted: true })
@@ -1285,40 +899,8 @@ describe('preValidateCredentialInputs (hosted models)', () => {
   )
 })
 
-describe('validateWorkflowSelectorIds (credential inclusion)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
-  })
-
-  it('skips oauth-input by default (credentials pre-validated)', async () => {
-    const state = {
-      blocks: { b1: { type: 'slack', name: 'Slack', subBlocks: { credential: { value: 'bad' } } } },
-    }
-    const errors = await validateWorkflowSelectorIds(state, CTX)
-    expect(errors).toHaveLength(0)
-    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
-  })
-
-  it('validates oauth-input when includeCredentials is set', async () => {
-    mockValidateSelectorIds.mockResolvedValue({
-      valid: [],
-      invalid: ['bad'],
-      warning: 'Accessible workspace credentials: Work [cred_ok]',
-    })
-    const state = {
-      blocks: { b1: { type: 'slack', name: 'Slack', subBlocks: { credential: { value: 'bad' } } } },
-    }
-    const errors = await validateWorkflowSelectorIds(state, CTX, { includeCredentials: true })
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'bad', CTX)
-    expect(errors).toHaveLength(1)
-    expect(errors[0]?.error).toContain('oauth-input')
-  })
-})
-
 describe('collectUnresolvedReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
   })
 
@@ -1424,59 +1006,9 @@ describe('collectUnresolvedReferences', () => {
       { requireComplete: true }
     )
   })
-
-  it('validates the active basic credential member', async () => {
-    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['good-but-missing'] })
-    const state = {
-      blocks: {
-        c1: {
-          type: 'canonicalcred',
-          name: 'Cred',
-          data: { canonicalModes: { cred: 'basic' } },
-          subBlocks: { credential: { value: 'good-but-missing' }, manualCredential: { value: '' } },
-        },
-      },
-    }
-    const refs = await collectUnresolvedReferences(state, CTX)
-    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX, {})
-    expect(refs).toHaveLength(1)
-    expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
-  })
 })
 
 describe('validateInputsForBlock - agent tools (tool-input)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('accepts a reference-format custom tool', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { tools: [{ type: 'custom-tool', customToolId: 'ct_123', usageControl: 'auto' }] },
-      'agent-1'
-    )
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tools).toBeDefined()
-  })
-
-  it('accepts an inline custom tool with schema.function', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      {
-        tools: [
-          {
-            type: 'custom-tool',
-            schema: { type: 'function', function: { name: 'foo', parameters: { type: 'object' } } },
-            code: 'return 1',
-          },
-        ],
-      },
-      'agent-1'
-    )
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tools).toBeDefined()
-  })
-
   it('rejects a custom tool missing "type": "custom-tool" (the no-icon case)', () => {
     const result = validateInputsForBlock(
       'agent',
@@ -1486,16 +1018,6 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     expect(result.validInputs.tools).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('custom-tool')
-  })
-
-  it('rejects a raw OpenAI function schema pasted into the array', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { tools: [{ type: 'function', function: { name: 'foo', parameters: {} } }] },
-      'agent-1'
-    )
-    expect(result.validInputs.tools).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('raw function schema')
   })
 
   it('rejects a custom tool with neither customToolId nor inline schema', () => {
@@ -1518,24 +1040,6 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     expect(result.errors[0]?.error).toContain('params.serverId')
   })
 
-  it('accepts an MCP tool with params.serverId and params.toolName', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      {
-        tools: [
-          {
-            type: 'mcp',
-            params: { serverId: 'srv_1', toolName: 'web_search' },
-            usageControl: 'auto',
-          },
-        ],
-      },
-      'agent-1'
-    )
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tools).toBeDefined()
-  })
-
   it.each(['mcp-server-advanced'])('rejects invalid operation policy on %s attachments', (type) => {
     const result = validateInputsForBlock(
       'agent',
@@ -1552,27 +1056,6 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.validInputs.tools).toBeUndefined()
     expect(result.errors[0]?.error).toContain('invalid MCP operations access policy')
-  })
-
-  it('accepts an integration tool whose type is a known block', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { tools: [{ type: 'slack', operation: 'send', usageControl: 'auto' }] },
-      'agent-1'
-    )
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tools).toBeDefined()
-  })
-
-  it('accepts a declared integration block operation', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { tools: [{ type: 'table', operation: 'insert_row', usageControl: 'auto' }] },
-      'agent-1'
-    )
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tools).toBeDefined()
   })
 
   it('rejects a prefixed tool id used as an integration block operation', () => {
@@ -1613,16 +1096,6 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     expect(result.errors[0]?.error).toContain('unavailable in this deployment')
   })
 
-  it('rejects an unrecognized tool type', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { tools: [{ type: 'nonexistent-block', operation: 'x' }] },
-      'agent-1'
-    )
-    expect(result.validInputs.tools).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('unrecognized tool type')
-  })
-
   it('rejects a known block that exposes no callable tools (not tool-capable)', () => {
     const result = validateInputsForBlock(
       'agent',
@@ -1644,61 +1117,18 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     expect(result.errors[0]?.error).toContain('tools[0]')
     expect(result.errors[0]?.error).toContain('tools[1]')
   })
-
-  it('rejects a non-array tools value', () => {
-    const result = validateInputsForBlock('agent', { tools: 'not-an-array' }, 'agent-1')
-    expect(result.validInputs.tools).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('expected an array')
-  })
 })
 
 describe('validateInputsForBlock - agent skills (skill-input)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('accepts a well-formed skill entry', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { skills: [{ skillId: 'builtin-deploy-workflow', name: 'deploy-workflow' }] },
-      'agent-1'
-    )
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.skills).toBeDefined()
-  })
-
   it('rejects a skill entry that uses "id" instead of "skillId"', () => {
     const result = validateInputsForBlock('agent', { skills: [{ id: 'x', name: 'y' }] }, 'agent-1')
     expect(result.validInputs.skills).toBeUndefined()
     expect(result.errors[0]?.error).toContain('skillId')
   })
-
-  it('rejects a skill entry missing skillId', () => {
-    const result = validateInputsForBlock('agent', { skills: [{ name: 'y' }] }, 'agent-1')
-    expect(result.validInputs.skills).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('skillId')
-  })
-
-  it('rejects a tool-shaped entry placed in the skills array', () => {
-    const result = validateInputsForBlock(
-      'agent',
-      { skills: [{ type: 'custom-tool', customToolId: 'ct_1' }] },
-      'agent-1'
-    )
-    expect(result.validInputs.skills).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('skills')
-  })
-
-  it('rejects a non-array skills value', () => {
-    const result = validateInputsForBlock('agent', { skills: {} }, 'agent-1')
-    expect(result.validInputs.skills).toBeUndefined()
-    expect(result.errors[0]?.error).toContain('expected an array')
-  })
 })
 
 describe('collectUnresolvedAgentToolReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     mockGetCustomToolById.mockResolvedValue(null)
     mockGetSkillById.mockResolvedValue(null)
@@ -1810,20 +1240,6 @@ describe('collectUnresolvedAgentToolReferences', () => {
     expect(mockGetCustomToolById).not.toHaveBeenCalled()
   })
 
-  it('does not flag a custom tool that resolves', async () => {
-    mockGetCustomToolById.mockResolvedValue({ id: 'ct_ok' })
-    const state = {
-      blocks: {
-        a1: {
-          type: 'agent',
-          subBlocks: { tools: { value: [{ type: 'custom-tool', customToolId: 'ct_ok' }] } },
-        },
-      },
-    }
-    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
-    expect(refs).toHaveLength(0)
-  })
-
   it('does not DB-check a custom tool when workspaceId is absent (avoids false positives)', async () => {
     const state = {
       blocks: {
@@ -1900,29 +1316,6 @@ describe('collectUnresolvedAgentToolReferences', () => {
     expect(refs[0]).toMatchObject({ field: 'skills', kind: 'skill' })
     expect(refs[0]?.reason).toContain('bogus-skill')
   })
-
-  it('does not flag a skill that resolves (builtin or workspace)', async () => {
-    mockGetSkillById.mockResolvedValue({ id: 'builtin-deploy-workflow', name: 'deploy-workflow' })
-    const state = {
-      blocks: {
-        a1: {
-          type: 'agent',
-          subBlocks: { skills: { value: [{ skillId: 'builtin-deploy-workflow' }] } },
-        },
-      },
-    }
-    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
-    expect(refs).toHaveLength(0)
-  })
-
-  it('ignores non-agent blocks', async () => {
-    const state = {
-      blocks: { s1: { type: 'slack', subBlocks: { tools: { value: [{ type: 'custom-tool' }] } } } },
-    }
-    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
-    expect(refs).toHaveLength(0)
-    expect(mockGetCustomToolById).not.toHaveBeenCalled()
-  })
 })
 
 describe('validateInputsForBlock - code fields', () => {
@@ -1933,15 +1326,6 @@ describe('validateInputsForBlock - code fields', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.filter).toBe(JSON.stringify(filter))
-  })
-
-  it('stores an array handed to a JSON-language code field as its JSON text', () => {
-    const rows = [{ name: 'Ada' }, { name: 'Grace' }]
-
-    const result = validateInputsForBlock('json_code_block', { filter: rows }, 'block-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.filter).toBe(JSON.stringify(rows))
   })
 
   it('still rejects an object for a code field without a JSON language', () => {

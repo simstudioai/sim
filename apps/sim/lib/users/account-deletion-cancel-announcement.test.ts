@@ -1,31 +1,27 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { workspacesUtilsMock } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  isSoleOwnerOfPaidOrganization: vi.fn(),
-  getPersonalSubscription: vi.fn(),
-  isUsingCloudStorage: vi.fn(),
-  appendTableEvent: vi.fn(),
-}))
+const mocks = {
+  getPersonalSubscription: billingPlanMockFns.mockGetHighestPriorityPersonalSubscription,
+  isSoleOwnerOfPaidOrganization: organizationMembershipMockFns.mockIsSoleOwnerOfPaidOrganization,
+  isUsingCloudStorage: uploadsMockFns.mockIsUsingCloudStorage,
+  appendTableEvent: tableEventsMockFns.mockAppendTableEvent,
+}
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  isSoleOwnerOfPaidOrganization: mocks.isSoleOwnerOfPaidOrganization,
-}))
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mocks.getPersonalSubscription,
-}))
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: mocks.isUsingCloudStorage,
-  StorageService: { deleteFiles: vi.fn(async () => ({ failed: [] })) },
-}))
-vi.mock('@/lib/workspaces/utils', () => ({
-  reassignBilledAccountForUser: vi.fn(async () => ({ unresolved: [] })),
-  reassignOwnedWorkspacesForUser: vi.fn(async () => ({ unresolved: [] })),
-}))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mocks.appendTableEvent }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
@@ -43,11 +39,11 @@ const MARKER_ROWS = [{ tableId: 'table-1', rowId: 'row-1', groupId: 'group-2' }]
 
 describe('announcing the work a deleted account’s cancels stopped', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.isSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mocks.getPersonalSubscription.mockResolvedValue(null)
     mocks.isUsingCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockDeleteFiles.mockResolvedValue({ failed: [] })
     mocks.appendTableEvent.mockResolvedValue(null)
     // The two cancels are the only `.returning()` reads this teardown makes: no
     // workspace is doomed, so the workspace-delete block never runs.

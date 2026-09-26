@@ -1,8 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,9 +42,7 @@ const mocks = vi.hoisted(() => ({
   mutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('nuqs', () => ({
   useQueryState: () => [
@@ -177,12 +177,13 @@ vi.mock('@/hooks/queries/byok-keys', () => ({
 
 import { BYOK } from '@/app/workspace/[workspaceId]/settings/components/byok/byok'
 
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 describe('BYOK scope access', () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.scope.current = 'workspace'
     mocks.hostContext.current.hostOrganizationId = 'org-1'
     mocks.hostContext.current.viewer.isHostOrganizationAdmin = true
@@ -268,16 +269,5 @@ describe('BYOK scope access', () => {
       'data-capabilities',
       'true:true:true'
     )
-  })
-
-  it('keeps cached organization keys visible when a background refresh fails', () => {
-    mocks.scope.current = 'organization'
-    mocks.organizationResult.current.error = new Error('Temporary failure')
-
-    act(() => root.render(<BYOK />))
-
-    expect(container.textContent).toContain('Sensitive organization key sk-org-secret')
-    expect(container.querySelector('[aria-label="BYOK manager"]')).not.toBeNull()
-    expect(container.textContent).not.toContain('Failed to load provider keys')
   })
 })

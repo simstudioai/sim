@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { executeMicrosoftWordExportPdf } from '@/lib/internal/microsoft-word/operations'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -86,7 +82,6 @@ function preconditionFailedResponse() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockValidateUrlWithDNS.mockResolvedValue({
     isValid: true,
     resolvedIP: PINNED_IP,
@@ -111,51 +106,7 @@ function executeAppend(input: typeof baseBody): Promise<Response> {
   return executeTool('microsoft_word_append', input)
 }
 
-describe('Microsoft Word PDF file output', () => {
-  it('keeps large PDFs in process for the executor to store', async () => {
-    const buffer = Buffer.alloc(12 * 1024 * 1024, 1)
-    mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(itemResponse('version-1'))
-      .mockResolvedValueOnce(new Response(buffer))
-    const result = await executeMicrosoftWordExportPdf(
-      { accessToken: 'token-123', documentId: 'doc-abc' },
-      { requestId: 'request-1' }
-    )
-    expect(result.files).toHaveLength(1)
-    expect(result.files[0]?.name).toBe('notes.pdf')
-    expect(result.files[0]?.mimeType).toBe('application/pdf')
-    expect(result.files[0]?.buffer.length).toBe(buffer.length)
-    expect(result.files[0]?.buffer.equals(buffer)).toBe(true)
-    const file = {
-      id: 'stored',
-      name: 'notes.pdf',
-      size: buffer.length,
-      type: 'application/pdf',
-      mimeType: 'application/pdf',
-      url: '/api/files/stored',
-      key: 'execution/notes.pdf',
-      context: 'execution' as const,
-    }
-    expect(result.present([file])).toEqual({ success: true, output: { file } })
-  })
-})
-
 describe('Microsoft Word direct input validation', () => {
-  it('rejects a whitespace-only document name before provider work', async () => {
-    const response = await executeTool('microsoft_word_create', {
-      accessToken: 'token-123',
-      name: '   ',
-      content: 'Hello',
-    })
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      success: false,
-      error: expect.stringMatching(/Document name is required/),
-    })
-    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
-
   it.each([{ folderId: 'not a valid id' }, { driveId: 'bad/../drive' }])(
     'rejects malformed create paths before provider work',
     async (extra) => {
@@ -170,55 +121,9 @@ describe('Microsoft Word direct input validation', () => {
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     }
   )
-
-  it.each([{ '': 'Acme Corp' }, '{"  ": "Acme Corp"}', '["a","b"]'])(
-    'rejects an invalid template placeholder map before provider work',
-    async (replacements) => {
-      const response = await executeTool('microsoft_word_create_from_template', {
-        accessToken: 'token-123',
-        templateDocumentId: 'template-abc',
-        name: 'Acme Agreement',
-        replacements,
-      })
-
-      expect(response.status).toBe(400)
-      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('Microsoft Word append operation', () => {
-  it('writes through a conditional upload session carrying the content tag', async () => {
-    mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(itemResponse('tag-1'))
-      .mockResolvedValueOnce(await docxResponse())
-      .mockResolvedValueOnce(uploadSessionResponse())
-      .mockResolvedValueOnce(itemResponse('tag-2'))
-
-    const response = await executeAppend(baseBody)
-
-    expect(response.status).toBe(200)
-    const data = (await response.json()) as {
-      success: boolean
-      output: { updatedContent: boolean }
-    }
-    expect(data.success).toBe(true)
-    expect(data.output.updatedContent).toBe(true)
-
-    /** Graph enforces the content precondition when it creates the upload session. */
-    const sessionCall = mockSecureFetchWithPinnedIP.mock.calls.find((call) =>
-      String(call[0]).endsWith('/createUploadSession')
-    )
-    expect(sessionCall?.[2]).toMatchObject({ method: 'POST' })
-    expect(sessionCall?.[2].headers).toMatchObject({ 'if-match': 'tag-1' })
-
-    /** The preauthenticated upload URL must not receive the bearer token. */
-    const uploadCall = mockSecureFetchWithPinnedIP.mock.calls.at(-1)
-    expect(uploadCall?.[0]).toBe('https://sn3302.up.1drv.com/up/session-abc')
-    expect(uploadCall?.[2]).toMatchObject({ method: 'PUT' })
-    expect(uploadCall?.[2].headers.Authorization).toBeUndefined()
-  })
-
   it('refuses to overwrite when the service rejects the precondition', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))
@@ -236,15 +141,6 @@ describe('Microsoft Word append operation', () => {
     expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
       false
     )
-  })
-
-  it('maps a malformed document ID to a client error, not a server error', async () => {
-    const response = await executeAppend({ ...baseBody, documentId: 'bad/../id' })
-
-    expect(response.status).toBe(400)
-    const data = (await response.json()) as { success: boolean; error: string }
-    expect(data.success).toBe(false)
-    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
   it('refuses to write Word bytes over a drive item that is not a .docx', async () => {

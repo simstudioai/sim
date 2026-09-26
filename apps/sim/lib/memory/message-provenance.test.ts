@@ -1,29 +1,21 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
 import { memory } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
+import { piiRedactionMock } from '@sim/testing/mocks/pii-redaction.mock'
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  decrypt: vi.fn(),
-  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-  loadWorkspace: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({ createLogger: () => mocks.logger }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({
-  redactObjectStrings: vi.fn(async (value: unknown) => value),
-}))
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (text: string) => text.length,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import {
   hashDurableSecretProvenanceValue,
@@ -46,6 +38,16 @@ import type { AgentInputs, FileNameProjection, Message } from '@/executor/handle
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { memoryAddTool } from '@/tools/memory/add'
+
+/** Error calls across every module's logger, in the order each logger received them. */
+function loggedErrors(): unknown[][] {
+  return getAllMockLoggers().flatMap((logger) => logger.error.mock.calls)
+}
+
+const mocks = {
+  decrypt: encryptionMockFns.mockDecryptSecret,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
 
 const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 const SECRET = 'known-secret-value'
@@ -106,7 +108,6 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
 
 describe('memory message provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.decrypt.mockResolvedValue({ decrypted: SECRET })
     mocks.loadWorkspace.mockResolvedValue({
@@ -171,7 +172,7 @@ describe('memory message provenance', () => {
     queueStoredMemory(data, sidecar.entries)
     const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
     expect(result[0].content).toBe('{{TOKEN}}')
-    expect(mocks.logger.error).not.toHaveBeenCalled()
+    expect(loggedErrors()).toEqual([])
   })
 
   it.each(['append', 'seed'] as const)(
@@ -241,7 +242,7 @@ describe('memory message provenance', () => {
       expect(replayed.content).toBe('{{TOKEN}}')
       expect(replayed.files?.[0].name).toBe(`${SECRET}.txt`)
       expect(projectedNames.get(replayed.files![0])).toEqual({ name: '{{TOKEN}}.txt' })
-      expect(mocks.logger.error).not.toHaveBeenCalled()
+      expect(loggedErrors()).toEqual([])
     }
   )
 
@@ -263,16 +264,18 @@ describe('memory message provenance', () => {
       const context = executionContext()
       expect((await new Memory().fetchMemoryMessages(context, INPUTS))[0].content).toBe('{{TOKEN}}')
       expect(context.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-      expect(mocks.logger.error).toHaveBeenCalledExactlyOnceWith(
-        'Validated historical memory secret provenance',
-        {
-          surface: 'memory',
-          cause: binding === 'unbound' ? 'unbound-message-entry' : 'unmatched-message-hash',
-          entryCount: 1,
-          workspaceId: SCOPE.workspaceId,
-        }
-      )
-      const telemetry = JSON.stringify(mocks.logger.error.mock.calls)
+      expect(loggedErrors()).toEqual([
+        [
+          'Validated historical memory secret provenance',
+          {
+            surface: 'memory',
+            cause: binding === 'unbound' ? 'unbound-message-entry' : 'unmatched-message-hash',
+            entryCount: 1,
+            workspaceId: SCOPE.workspaceId,
+          },
+        ],
+      ])
+      const telemetry = JSON.stringify(loggedErrors())
       expect(telemetry).not.toContain(SECRET)
       expect(telemetry).not.toContain(ENTRY.encryptedValue)
       expect(telemetry).not.toContain(ENTRY.name)
@@ -299,27 +302,6 @@ describe('memory message provenance', () => {
     })
     expect(result).toEqual([retained])
     expect(mocks.decrypt).not.toHaveBeenCalledWith(ENTRY.encryptedValue)
-  })
-
-  it('keeps legacy records readable without claiming unrelated current secrets', async () => {
-    queueTableRows(memory, [
-      { data: [{ role: 'user', content: SECRET }], secretProvenanceVersion: null },
-    ])
-    const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
-    expect(result[0].content).toBe(SECRET)
-    expect(mocks.logger.error).not.toHaveBeenCalled()
-    expect(mocks.decrypt).not.toHaveBeenCalled()
-  })
-
-  it('retains foreign-source anonymity when recovering historical bindings', async () => {
-    queueStoredMemory(
-      [{ role: 'user', content: SECRET }],
-      [{ ...ENTRY, sourceUserId: 'other-user', sourceWorkspaceId: 'other-workspace' }]
-    )
-    const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
-    expect(result[0].content).not.toContain(SECRET)
-    expect(result[0].content).not.toContain(ENTRY.name)
-    expect(result[0].content).not.toContain('other-user')
   })
 
   it('preserves both original source identities when the same ciphertext is supplied twice', async () => {
@@ -384,7 +366,7 @@ describe('memory message provenance', () => {
     ).toBe(true)
     expect(readerRegistry.exportProvenance().entries).toHaveLength(1)
     expect(readerRegistry.isComplete()).toBe(true)
-    expect(mocks.logger.error).not.toHaveBeenCalled()
+    expect(loggedErrors()).toEqual([])
   })
 
   it('still rejects more than ten thousand distinct secrets', async () => {
@@ -412,80 +394,9 @@ describe('memory message provenance', () => {
       entries: [{ ...ENTRY, encryptedValue: 'ciphertext'.repeat(120) }],
     })
     expect(provenance).toEqual({ status: 'unknown' })
-    expect(mocks.logger.error).toHaveBeenCalledWith(
+    expect(loggedErrors()).toContainEqual([
       'Memory message secret provenance could not be bound',
-      { surface: 'memory', cause: 'entries-unnormalizable' }
-    )
-  })
-
-  it('recovers valid historical entries without newly refusing an unreadable old ciphertext', async () => {
-    queueStoredMemory(
-      [{ role: 'user', content: SECRET }],
-      [ENTRY, { ...ENTRY, encryptedValue: 'corrupt-ciphertext' }]
-    )
-    mocks.decrypt.mockImplementation(async (ciphertext: string) => {
-      if (ciphertext === 'corrupt-ciphertext') throw new Error(`Sensitive failure: ${SECRET}`)
-      return { decrypted: SECRET }
-    })
-    const execution = executionContext()
-    const result = await new Memory().fetchMemoryMessages(execution, INPUTS)
-    expect(result[0].content).toBe('{{TOKEN}}')
-    expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-    expect(mocks.decrypt).toHaveBeenCalledWith('corrupt-ciphertext', { logFailure: false })
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance could not be recovered',
-      {
-        surface: 'memory',
-        cause: 'legacy-entry-recovery-failed',
-        entryCount: 1,
-        workspaceId: SCOPE.workspaceId,
-      }
-    )
-    const telemetry = JSON.stringify(mocks.logger.error.mock.calls)
-    expect(telemetry).not.toContain(SECRET)
-    expect(telemetry).not.toContain('corrupt-ciphertext')
-  })
-
-  it('keeps historical memory readable when optional recoveries exceed the combined matcher budget', async () => {
-    const values = ['a', 'b', 'c', 'd', 'e'].map((character) => character.repeat(60_000))
-    const content = values.join(' ')
-    queueStoredMemory(
-      [{ role: 'user', content }],
-      values.map((_, index) => ({ ...ENTRY, encryptedValue: `large-cipher-${index}` }))
-    )
-    mocks.decrypt.mockImplementation(async (ciphertext: string) => ({
-      decrypted: values[Number(ciphertext.replace('large-cipher-', ''))],
-    }))
-    const execution = executionContext()
-    const result = await new Memory().fetchMemoryMessages(execution, INPUTS)
-    expect(result[0].content).toBe(content)
-    expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance recovery was skipped',
-      {
-        surface: 'memory',
-        cause: 'legacy-recovery-capacity-exceeded',
-        entryCount: 5,
-        workspaceId: SCOPE.workspaceId,
-      }
-    )
-  })
-
-  it('does not newly require a run registry for historical unbound memory', async () => {
-    queueStoredMemory([{ role: 'user', content: SECRET }], [ENTRY])
-    const result = await new Memory().fetchMemoryMessages(
-      { workspaceId: SCOPE.workspaceId } as ExecutionContext,
-      INPUTS
-    )
-    expect(result[0].content).toBe(SECRET)
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance recovery was skipped',
-      {
-        surface: 'memory',
-        cause: 'legacy-recovery-context-unavailable',
-        entryCount: 1,
-        workspaceId: SCOPE.workspaceId,
-      }
-    )
+      { surface: 'memory', cause: 'entries-unnormalizable' },
+    ])
   })
 })

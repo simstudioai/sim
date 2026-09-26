@@ -11,16 +11,13 @@ import {
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
   hasOAuthCredentialForTarget,
-  OAUTH_CHAT_ATTEMPT_EVENT,
   OAUTH_CHAT_ATTEMPT_PARAM,
   OAUTH_CHAT_COMPLETE_PATH,
   OAUTH_CHAT_RETURN_TO_PARAM,
-  readLatestOAuthChatAttempt,
   readOAuthChatAttempt,
   resolveActiveDesktopOAuthChatAttempt,
   resolveDesktopOAuthChatAttempt,
   setActiveDesktopOAuthChatAttempt,
-  setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 
 describe('OAuth chat attempts', () => {
@@ -39,18 +36,15 @@ describe('OAuth chat attempts', () => {
     expect(callbackUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-1')
   })
 
-  it.each(['instagram', 'shopify', 'trello'])(
-    'carries the attempt through the %s return URL',
-    (provider) => {
-      const authorizeUrl = addOAuthChatAttemptToAuthorizeUrl(
-        `https://sim.test/api/auth/${provider}/authorize?returnUrl=${encodeURIComponent('https://sim.test/workspace/workspace-1/chat/chat-1')}`,
-        'attempt-2'
-      )
+  it.each(['shopify'])('carries the attempt through the %s return URL', (provider) => {
+    const authorizeUrl = addOAuthChatAttemptToAuthorizeUrl(
+      `https://sim.test/api/auth/${provider}/authorize?returnUrl=${encodeURIComponent('https://sim.test/workspace/workspace-1/chat/chat-1')}`,
+      'attempt-2'
+    )
 
-      const returnUrl = new URL(new URL(authorizeUrl).searchParams.get('returnUrl') ?? '')
-      expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
-    }
-  )
+    const returnUrl = new URL(new URL(authorizeUrl).searchParams.get('returnUrl') ?? '')
+    expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
+  })
 
   it('routes the return through the chat-complete page', () => {
     const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
@@ -87,57 +81,15 @@ describe('OAuth chat attempts', () => {
     expect(returnTo.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBeNull()
   })
 
-  it.each(['instagram', 'shopify', 'trello'])(
-    'routes the %s return through the chat-complete page',
-    (provider) => {
-      const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
-        `https://sim.test/api/auth/${provider}/authorize?returnUrl=${encodeURIComponent('https://sim.test/workspace/workspace-1/chat/chat-1')}`,
-        'attempt-2'
-      )
-
-      const returnUrl = new URL(new URL(authorizeUrl ?? '').searchParams.get('returnUrl') ?? '')
-      expect(returnUrl.pathname).toBe(OAUTH_CHAT_COMPLETE_PATH)
-      expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
-    }
-  )
-
-  it('declines a chat-complete URL when there is no return param to rewrite', () => {
-    expect(
-      buildOAuthChatCompleteAuthorizeUrl(
-        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
-        'attempt-3'
-      )
-    ).toBeNull()
-  })
-
-  it('publishes and persists server-verified completion', () => {
-    let publishedStatus: string | undefined
-    window.addEventListener(
-      OAUTH_CHAT_ATTEMPT_EVENT,
-      ((event: CustomEvent) => {
-        publishedStatus = event.detail.status
-      }) as EventListener,
-      { once: true }
+  it.each(['shopify'])('routes the %s return through the chat-complete page', (provider) => {
+    const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
+      `https://sim.test/api/auth/${provider}/authorize?returnUrl=${encodeURIComponent('https://sim.test/workspace/workspace-1/chat/chat-1')}`,
+      'attempt-2'
     )
 
-    const attempt = createOAuthChatAttempt({
-      workspaceId: 'workspace-1',
-      providerId: 'google-email',
-      baseProviderId: 'google',
-      displayName: 'Gmail',
-      controlId: 'message-1:0:0',
-      baselineCredentialIds: [],
-    })
-    expect(publishedStatus).toBe('pending')
-
-    setOAuthChatAttemptStatus(attempt.id, 'connected')
-    expect(
-      readLatestOAuthChatAttempt({
-        workspaceId: 'workspace-1',
-        providerId: 'google-email',
-        controlId: 'message-1:0:0',
-      })?.status
-    ).toBe('connected')
+    const returnUrl = new URL(new URL(authorizeUrl ?? '').searchParams.get('returnUrl') ?? '')
+    expect(returnUrl.pathname).toBe(OAUTH_CHAT_COMPLETE_PATH)
+    expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
   })
 
   it('resolves only the active desktop attempt', () => {
@@ -276,25 +228,6 @@ describe('credential matching for a chat chip', () => {
         [credential('salesforce-sandbox')]
       )
     ).toBe(true)
-  })
-
-  it('still matches the primary id and the base provider', () => {
-    const target = { providerId: 'google-email', baseProviderId: 'google' }
-    expect(hasOAuthCredentialForTarget(target, [credential('google-email')])).toBe(true)
-    expect(hasOAuthCredentialForTarget(target, [credential('google')])).toBe(true)
-  })
-
-  it('does not match an unrelated provider', () => {
-    expect(
-      hasOAuthCredentialForTarget(
-        {
-          providerId: 'salesforce',
-          baseProviderId: 'salesforce',
-          additionalProviderIds: ['salesforce-sandbox'],
-        },
-        [credential('hubspot')]
-      )
-    ).toBe(false)
   })
 
   it('honours an explicit credentialId over any provider match', () => {

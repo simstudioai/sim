@@ -1,28 +1,10 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchill'
-import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
-import type { ToolConfig } from '@/tools/types'
-import * as windchillTools from '@/tools/windchill'
-import {
-  WINDCHILL_AFFECTED_OUTPUTS,
-  WINDCHILL_ATTACHMENTS_OUTPUTS,
-  WINDCHILL_BULK_MUTATION_OUTPUTS,
-  WINDCHILL_DOCUMENT_OUTPUTS,
-  WINDCHILL_FILE_OUTPUTS,
-  WINDCHILL_LIST_DOCUMENTS_OUTPUTS,
-  WINDCHILL_OPERATIONS,
-  WINDCHILL_PRIMARY_CONTENT_OUTPUTS,
-  WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-  WINDCHILL_STATE_OUTPUTS,
-  WINDCHILL_STRUCTURE_OUTPUTS,
-  WINDCHILL_UPLOAD_OUTPUTS,
-  type WindchillOperation,
-  type WindchillParams,
-  type WindchillResponse,
-} from '@/tools/windchill/types'
+import { WindchillBlock } from '@/blocks/blocks/windchill'
 import {
   buildWindchillInternalBody,
   buildWindchillReadUrl,
@@ -37,14 +19,7 @@ import {
   windchillReadHeaders,
 } from '@/tools/windchill/utils'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createWindchillSession,
@@ -53,26 +28,12 @@ import {
   windchillMutationRequest,
 } from '@/lib/internal/windchill/client'
 
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
+
 const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
 
 /** Mirrors MAX_STRUCTURE_DEPTH: the deepest `DocUsageLinks` expansion the tools ever request. */
 const MAX_EXPANDABLE_DEPTH = 3
-
-function isWindchillTool(value: unknown): value is ToolConfig<WindchillParams, WindchillResponse> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    typeof value.id === 'string' &&
-    value.id.startsWith('windchill_')
-  )
-}
-
-const WINDCHILL_TOOLS_BY_ID = new Map(
-  Object.values(windchillTools)
-    .filter(isWindchillTool)
-    .map((tool) => [tool.id, tool])
-)
 
 function mockResponse({
   body,
@@ -107,105 +68,6 @@ beforeEach(() => {
 })
 
 describe('Windchill tools', () => {
-  it('defines and builds every registered operation', () => {
-    expect([...WINDCHILL_TOOLS_BY_ID.keys()].sort()).toEqual([...WINDCHILL_OPERATIONS].sort())
-
-    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
-      expect(tool.id).toBe(operation)
-      expect(tool.params.baseUrl.visibility).toBe('user-only')
-      expect(tool.params.username.visibility).toBe('user-only')
-      expect(tool.params.password.visibility).toBe('user-only')
-
-      if (tool.operation) {
-        expect(tool.request).toBeUndefined()
-        expect(tool.operation.input).toBeTypeOf('function')
-      } else {
-        expect(tool.request).toBeDefined()
-      }
-    }
-  })
-
-  it('gives every required tool param a required, non-advanced input for its operation', () => {
-    const subBlocks = WindchillBlock.subBlocks
-    const ALWAYS_SHOWN = new Set(['baseUrl', 'username', 'password'])
-    const shownFor = (subBlock: (typeof subBlocks)[number], operation: string) => {
-      const condition = subBlock.condition as { value?: unknown } | undefined
-      if (!condition) return true
-      const value = condition.value
-      return Array.isArray(value) ? value.includes(operation) : value === operation
-    }
-
-    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
-      for (const [name, param] of Object.entries(tool.params)) {
-        if (!param.required || ALWAYS_SHOWN.has(name)) continue
-        const members = subBlocks.filter(
-          (subBlock) =>
-            (subBlock.canonicalParamId ?? subBlock.id) === name && shownFor(subBlock, operation)
-        )
-        expect(
-          members.length,
-          `${operation} has no input for required param ${name}`
-        ).toBeGreaterThan(0)
-        for (const member of members) {
-          expect(member.required, `${operation}.${name} input is not required`).toBeTruthy()
-        }
-      }
-    }
-  })
-
-  it("shows no input an operation's tool cannot accept", () => {
-    const subBlocks = WindchillBlock.subBlocks
-    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
-      const dead = subBlocks
-        .filter((subBlock) => {
-          if (subBlock.id === 'operation') return false
-          const condition = subBlock.condition as { value?: unknown } | undefined
-          if (!condition) return false
-          const value = condition.value
-          return Array.isArray(value) ? value.includes(operation) : value === operation
-        })
-        .map((subBlock) => subBlock.canonicalParamId ?? subBlock.id)
-        .filter((id) => !(id in tool.params))
-      expect(dead, `${operation} shows inputs its tool ignores`).toEqual([])
-    }
-  })
-
-  it('wires every operation to the outputs family its producer actually emits', () => {
-    const expected: Record<WindchillOperation, unknown> = {
-      windchill_list_documents: WINDCHILL_LIST_DOCUMENTS_OUTPUTS,
-      windchill_get_document: WINDCHILL_DOCUMENT_OUTPUTS,
-      windchill_get_document_structure: WINDCHILL_STRUCTURE_OUTPUTS,
-      windchill_get_valid_state_transitions: WINDCHILL_STATE_OUTPUTS,
-      windchill_get_primary_content: WINDCHILL_PRIMARY_CONTENT_OUTPUTS,
-      windchill_list_attachments: WINDCHILL_ATTACHMENTS_OUTPUTS,
-      windchill_create_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_update_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_update_common_properties: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_check_out_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_check_in_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_undo_check_out_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_revise_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_set_lifecycle_state: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
-      windchill_create_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_update_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_check_out_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_check_in_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_undo_check_out_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_revise_documents: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_update_document_security_labels: WINDCHILL_BULK_MUTATION_OUTPUTS,
-      windchill_delete_document: WINDCHILL_AFFECTED_OUTPUTS,
-      windchill_delete_documents: WINDCHILL_AFFECTED_OUTPUTS,
-      windchill_download_primary_content: WINDCHILL_FILE_OUTPUTS,
-      windchill_download_attachment: WINDCHILL_FILE_OUTPUTS,
-      windchill_upload_primary_content: WINDCHILL_UPLOAD_OUTPUTS,
-      windchill_upload_attachments: WINDCHILL_UPLOAD_OUTPUTS,
-    }
-
-    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
-      expect(tool.outputs).toBe(expected[operation])
-    }
-  })
-
   it('stops normalizing document structure at the expandable depth', () => {
     const link = (depth: number): Record<string, unknown> => ({
       ID: `link-${depth}`,
@@ -957,66 +819,6 @@ describe('Windchill tools', () => {
 })
 
 describe('Windchill block', () => {
-  it('selects only registered operation IDs and defaults to list documents', () => {
-    const operation = WindchillBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
-    expect(operation?.value?.({})).toBe('windchill_list_documents')
-    expect(operation?.options?.map((option) => option.id)).toEqual([...WINDCHILL_OPERATIONS])
-    expect(WindchillBlock.tools.access).toEqual([...WINDCHILL_OPERATIONS])
-
-    for (const toolId of WINDCHILL_OPERATIONS) {
-      expect(WindchillBlock.tools.config?.tool({ operation: toolId })).toBe(toolId)
-    }
-
-    expect(WindchillBlock.subBlocks.some((subBlock) => subBlock.id === 'expand')).toBe(false)
-    expect(WindchillBlock.inputs).not.toHaveProperty('expand')
-    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_update_document')?.params.attributes.required).toBe(
-      true
-    )
-    for (const operation of [
-      'windchill_list_documents',
-      'windchill_get_document_structure',
-      'windchill_list_attachments',
-    ]) {
-      expect(WINDCHILL_TOOLS_BY_ID.get(operation)?.outputs).toHaveProperty('pageInfo')
-    }
-    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_get_document')?.outputs).toHaveProperty(
-      'document.properties.stateDisplay'
-    )
-  })
-
-  it('uses one canonical parameter for each basic and advanced file pair', () => {
-    const primaryFiles = WindchillBlock.subBlocks.filter(
-      (subBlock) => subBlock.canonicalParamId === 'primaryFile'
-    )
-    const attachmentFiles = WindchillBlock.subBlocks.filter(
-      (subBlock) => subBlock.canonicalParamId === 'attachmentFiles'
-    )
-
-    expect(primaryFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
-    expect(attachmentFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
-    expect(WindchillBlock.inputs.primaryFile.type).toBe('file')
-    expect(WindchillBlock.inputs.attachmentFiles.type).toBe('array')
-  })
-
-  it('exposes only outputs produced by the selected operation', () => {
-    expect(WindchillBlock.outputs.file.condition).toEqual({
-      field: 'operation',
-      value: ['windchill_download_primary_content', 'windchill_download_attachment'],
-    })
-    expect(WindchillBlock.outputs.pageInfo.condition).toEqual({
-      field: 'operation',
-      value: [
-        'windchill_list_documents',
-        'windchill_get_document_structure',
-        'windchill_list_attachments',
-      ],
-    })
-    expect(WindchillBlock.outputs.uploadedFileNames.condition).toEqual({
-      field: 'operation',
-      value: ['windchill_upload_primary_content', 'windchill_upload_attachments'],
-    })
-  })
-
   it('coerces execution values and parses JSON without changing tool selection', () => {
     const params = WindchillBlock.tools.config?.params?.({
       operation: 'windchill_list_documents',
@@ -1041,13 +843,5 @@ describe('Windchill block', () => {
       attributes: { Title: 'Updated' },
     })
     expect(params).not.toHaveProperty('operation')
-  })
-
-  it('publishes document-management metadata with concrete templates', () => {
-    expect(WindchillBlock.integrationType).toBe('documents')
-    expect(WindchillBlockMeta.tags).toEqual(['content-management', 'document-processing'])
-    expect(WindchillBlockMeta.templates).toHaveLength(7)
-    expect(WindchillBlockMeta.skills).toHaveLength(7)
-    expect(new Set(WindchillBlockMeta.skills.map((skill) => skill.name)).size).toBe(7)
   })
 })

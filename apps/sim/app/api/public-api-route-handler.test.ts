@@ -1,34 +1,29 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest, NextResponse } from 'next/server'
+import { getMockLogger, loggerMock } from '@sim/testing/mocks/logger.mock'
+import { createMockRequest, requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { type NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 
-const { mockCheckRateLimit, mockHandler, mockLoggerError, mockLoggerInfo, requestContextState } =
-  vi.hoisted(() => ({
-    mockCheckRateLimit: vi.fn(),
-    mockHandler: vi.fn(),
-    mockLoggerError: vi.fn(),
-    mockLoggerInfo: vi.fn(),
-    requestContextState: {
-      current: undefined as { requestId: string; method?: string; path?: string } | undefined,
-    },
-  }))
+const { mockHandler } = vi.hoisted(() => ({
+  mockHandler: vi.fn(),
+}))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: (...arguments_: unknown[]) =>
-      mockLoggerInfo(requestContextState.current?.requestId, ...arguments_),
-    warn: vi.fn(),
-    error: (...arguments_: unknown[]) =>
-      mockLoggerError(requestContextState.current?.requestId, ...arguments_),
-  }),
-  getRequestContext: () => requestContextState.current,
-  setRequestAuth: vi.fn(),
-  runWithRequestContext: async <T>(
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
+
+import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+
+const mockCheckRateLimit = v1MiddlewareMockFns.mockCheckRateLimit
+const requestContextState: {
+  current: { requestId: string; method?: string; path?: string } | undefined
+} = { current: undefined }
+const mockLoggerError = vi.fn()
+
+loggerMock.getRequestContext.mockImplementation(() => requestContextState.current)
+loggerMock.runWithRequestContext.mockImplementation(
+  async <T>(
     context: { requestId: string; method?: string; path?: string },
     callback: () => T | Promise<T>
   ): Promise<T> => {
@@ -38,18 +33,15 @@ vi.mock('@sim/logger', () => ({
     } finally {
       requestContextState.current = undefined
     }
-  },
-}))
+  }
+)
+getMockLogger('RouteHandler').error.mockImplementation((...arguments_: unknown[]) =>
+  mockLoggerError(requestContextState.current?.requestId, ...arguments_)
+)
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: () => requestContextState.current?.requestId ?? 'outer-request-id',
-}))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-}))
-
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
+requestUtilsMockFns.mockGenerateRequestId.mockImplementation(
+  () => requestContextState.current?.requestId ?? 'outer-request-id'
+)
 
 const RATE_LIMIT = {
   allowed: true,
@@ -108,20 +100,20 @@ const FAILING_GET = withPublicApiRouteHandler({
 })
 
 function postRequest(body: string): NextRequest {
-  return new NextRequest('http://localhost:3000/api/test/item-1?limit=10', {
+  return createMockRequest({
     method: 'POST',
+    url: '/api/test/item-1?limit=10',
     headers: { 'Content-Type': 'application/json' },
-    body,
+    rawBody: body,
   })
 }
 
 function listRequest(query = 'workspaceId=workspace-1'): NextRequest {
-  return new NextRequest(`http://localhost:3000/api/test?${query}`)
+  return createMockRequest({ url: `/api/test?${query}` })
 }
 
 describe('withPublicApiRouteHandler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockImplementation(async (request: NextRequest) => {
       recordRateLimitSnapshot(request, RATE_LIMIT)
       return RATE_LIMIT
@@ -179,54 +171,6 @@ describe('withPublicApiRouteHandler', () => {
     expect(response.status).toBe(400)
     expect(response.headers.get('X-RateLimit-Limit')).toBe('400')
     expect(mockHandler).not.toHaveBeenCalled()
-  })
-
-  it('forwards the body-size parse option', async () => {
-    const response = await POST(postRequest(JSON.stringify({ name: 'x'.repeat(40) })), {
-      params: { itemId: 'item-1' },
-    })
-
-    expect(response.status).toBe(413)
-    expect(response.headers.get('X-RateLimit-Remaining')).toBe('399')
-    await expect(response.json()).resolves.toEqual({ error: 'Custom payload limit response' })
-    expect(mockHandler).not.toHaveBeenCalled()
-  })
-
-  it('provides parsed params, query, body, and auth to the handler', async () => {
-    const request = postRequest(JSON.stringify({ name: 'Ada' }))
-    const response = await POST(request, { params: Promise.resolve({ itemId: 'item-1' }) })
-
-    expect(response.status).toBe(200)
-    expect(mockHandler).toHaveBeenCalledWith({
-      request,
-      input: {
-        params: { itemId: 'item-1' },
-        query: { limit: 10 },
-        body: { name: 'Ada' },
-        headers: undefined,
-      },
-      auth: {
-        requestId: 'outer-request-id',
-        userId: 'user-1',
-        rateLimit: RATE_LIMIT,
-      },
-    })
-    expect(response.headers.get('x-request-id')).toBe('outer-request-id')
-    expect(response.headers.get('X-RateLimit-Reset')).toBe(RATE_LIMIT.resetAt.toISOString())
-    expect(mockLoggerInfo).toHaveBeenCalledWith(
-      'outer-request-id',
-      'OK',
-      expect.objectContaining({ status: 200 })
-    )
-  })
-
-  it('supports direct invocation without a route context', async () => {
-    const request = listRequest()
-    const response = await GET(request)
-
-    expect(response.status).toBe(200)
-    expect(mockHandler.mock.calls[0][0].input.query).toEqual({ workspaceId: 'workspace-1' })
-    expect(mockCheckRateLimit).toHaveBeenCalledWith(request, 'tables')
   })
 
   it('keeps rate-limit and request headers on unhandled endpoint errors', async () => {

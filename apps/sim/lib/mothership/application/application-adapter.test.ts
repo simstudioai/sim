@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it, vi } from 'vitest'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'

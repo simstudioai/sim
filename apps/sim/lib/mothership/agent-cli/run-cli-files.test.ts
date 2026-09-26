@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { read, write, open } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), open: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
@@ -23,7 +22,6 @@ describe('the CLI owns workbench file semantics', () => {
     read.mockResolvedValue({ outcome: 'error', detail: 'Workbench unavailable' })
     open.mockRejectedValue(new Error('Workbench unavailable'))
   })
-  afterEach(() => vi.unstubAllGlobals())
 
   it.each(['inline', 'saved'] as const)(
     'preserves terminal escapes in %s file output',

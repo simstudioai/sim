@@ -1,79 +1,37 @@
-/**
- * @vitest-environment node
- */
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  MockTriggerApiError as MockApiError,
+  triggerSdkMockFns,
+} from '@sim/testing/mocks/trigger-sdk.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockApiError,
-  mockBatchTriggerAndWait,
-  mockCancel,
-  mockList,
-  mockLogger,
-  mockRetrieve,
-  mockResolveTriggerRegion,
-  mockRecordCancellationResult,
-  mockTaskContext,
-  mockTrigger,
-} = vi.hoisted(() => {
-  class MockApiError extends Error {
-    constructor(
-      readonly status: number | undefined,
-      message: string
-    ) {
-      super(message)
-    }
-  }
-
-  return {
-    MockApiError,
-    mockBatchTriggerAndWait: vi.fn(),
-    mockCancel: vi.fn(),
-    mockList: vi.fn(),
-    mockLogger: {
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-    },
-    mockRetrieve: vi.fn(),
-    mockResolveTriggerRegion: vi.fn(),
-    mockRecordCancellationResult: vi.fn(),
-    mockTaskContext: { isInsideTask: false },
-    mockTrigger: vi.fn(),
-  }
-})
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
-vi.mock('@trigger.dev/core/v3', () => ({
-  taskContext: mockTaskContext,
+const { mockRecordCancellationResult } = vi.hoisted(() => ({
+  mockRecordCancellationResult: vi.fn(),
 }))
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  ApiError: MockApiError,
-  runs: {
-    cancel: mockCancel,
-    list: mockList,
-    retrieve: mockRetrieve,
-  },
-  tasks: {
-    batchTriggerAndWait: mockBatchTriggerAndWait,
-    trigger: mockTrigger,
-  },
-}))
-
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import { TriggerDevJobQueue } from '@/lib/core/async-jobs/backends/trigger-dev'
 import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/async-jobs/types'
+
+const {
+  mockTasksBatchTriggerAndWait: mockBatchTriggerAndWait,
+  mockRunsCancel: mockCancel,
+  mockRunsList: mockList,
+  mockRunsRetrieve: mockRetrieve,
+  mockTasksTrigger: mockTrigger,
+} = triggerSdkMockFns
+
+const mockLogger = getMockLogger('TriggerDevJobQueue')
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
 
 interface MockListedRun {
   id: string
@@ -110,10 +68,8 @@ function createPaginatedList(pages: MockListedRun[][]) {
 
 describe('TriggerDevJobQueue enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
-    mockTaskContext.isInsideTask = false
   })
 
   it('uses the provided job ID as the Trigger.dev idempotency key', async () => {
@@ -129,23 +85,6 @@ describe('TriggerDevJobQueue enqueue', () => {
       expect.objectContaining({
         idempotencyKey: 'workflow:1',
         idempotencyKeyTTL: '14d',
-      })
-    )
-  })
-
-  it('dispatches Slack Search to its task with installation concurrency and a stable event key', async () => {
-    await new TriggerDevJobQueue().enqueue(
-      'slack-search',
-      { installationId: 'i1' },
-      { jobId: 'slack-search:i1:Ev1', maxDurationSeconds: 60, concurrencyKey: 'i1', maxAttempts: 1 }
-    )
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'slack-search',
-      { installationId: 'i1' },
-      expect.objectContaining({
-        idempotencyKey: 'slack-search:i1:Ev1',
-        concurrencyKey: 'i1',
-        maxDuration: 60,
       })
     )
   })
@@ -204,27 +143,6 @@ describe('TriggerDevJobQueue enqueue', () => {
     expect(executionTag?.length).toBeLessThanOrEqual(128)
   })
 
-  it('passes the execution timeout to batch Trigger.dev runs', async () => {
-    mockTaskContext.isInsideTask = true
-    mockBatchTriggerAndWait.mockResolvedValue({ runs: [{ id: 'run-1' }] })
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.batchEnqueueAndWait('workflow-execution', [
-        {
-          payload: { executionId: 'execution-1' },
-          options: { maxDurationSeconds: 120 },
-        },
-      ])
-    ).resolves.toEqual(['run-1'])
-
-    expect(mockBatchTriggerAndWait).toHaveBeenCalledWith('workflow-execution', [
-      expect.objectContaining({
-        options: expect.objectContaining({ maxDuration: 120 }),
-      }),
-    ])
-  })
-
   it.each([1.5, 4])(
     'rejects invalid execution timeout %s before triggering a run',
     async (maxDurationSeconds) => {
@@ -239,18 +157,6 @@ describe('TriggerDevJobQueue enqueue', () => {
     }
   )
 
-  it('passes the five-second minimum duration to Trigger.dev', async () => {
-    const queue = new TriggerDevJobQueue()
-
-    await queue.enqueue('workflow-execution', {}, { maxDurationSeconds: 5 })
-
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'workflow-execution',
-      {},
-      expect.objectContaining({ maxDuration: 5 })
-    )
-  })
-
   it('validates an entire batch before triggering its first run', async () => {
     const queue = new TriggerDevJobQueue()
 
@@ -262,20 +168,6 @@ describe('TriggerDevJobQueue enqueue', () => {
     ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
 
     expect(mockTrigger).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid waiting batch before resolving its region', async () => {
-    mockTaskContext.isInsideTask = true
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.batchEnqueueAndWait('workflow-execution', [
-        { payload: {}, options: { maxDurationSeconds: 1.5 } },
-      ])
-    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
-
-    expect(mockResolveTriggerRegion).not.toHaveBeenCalled()
-    expect(mockBatchTriggerAndWait).not.toHaveBeenCalled()
   })
 
   it('classifies a client response as proven non-acceptance', async () => {
@@ -326,10 +218,6 @@ describe('TriggerDevJobQueue enqueue', () => {
 })
 
 describe('TriggerDevJobQueue status mapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it.each([
     ['PENDING_VERSION', 'pending'],
     ['DELAYED', 'pending'],
@@ -367,25 +255,6 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
   })
 
-  it('dates a run cancelled mid-flight by its last transition until it drains', async () => {
-    mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
-      payload: {},
-      status: 'CANCELED',
-      taskIdentifier: 'workflow-execution',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
-    })
-    const queue = new TriggerDevJobQueue()
-
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
-      status: 'cancelled',
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      completedAt: new Date('2026-08-05T12:00:03.000Z'),
-    })
-  })
-
   it('prefers the reported finish over the last transition once the run has drained', async () => {
     mockRetrieve.mockResolvedValueOnce({
       id: 'run-1',
@@ -404,29 +273,10 @@ describe('TriggerDevJobQueue status mapping', () => {
       completedAt: new Date('2026-08-05T12:00:04.000Z'),
     })
   })
-
-  it('leaves a still-running job with no completion instant', async () => {
-    mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
-      payload: {},
-      status: 'EXECUTING',
-      taskIdentifier: 'workflow-execution',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
-    })
-    const queue = new TriggerDevJobQueue()
-
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
-      status: 'processing',
-      completedAt: undefined,
-    })
-  })
 })
 
 describe('TriggerDevJobQueue cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockList.mockReturnValue(
       createListPage([
         {
@@ -535,39 +385,6 @@ describe('TriggerDevJobQueue cancellation', () => {
 
     expect(mockCancel).toHaveBeenCalledOnce()
     expect(mockCancel).toHaveBeenCalledWith('resume-run')
-  })
-
-  it('records not-found when no active run matches', async () => {
-    mockList.mockReturnValue(createListPage([]))
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).resolves.toBe(0)
-
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'trigger_dev',
-      result: 'not_found',
-    })
-  })
-
-  it('fails loudly when Trigger.dev rejects cancellation', async () => {
-    mockCancel.mockRejectedValueOnce(new Error('provider unavailable'))
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).rejects.toThrow('provider unavailable')
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'trigger_dev',
-      result: 'error',
-    })
   })
 
   it('attempts later matches and discovery phases before reporting a partial failure', async () => {

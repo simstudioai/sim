@@ -121,7 +121,7 @@ function ManualSourceSetupModal({
             : undefined
         }
         primaryAction={{
-          label: isPending ? 'Connecting…' : 'Connect',
+          label: isPending ? 'Connecting' : 'Connect',
           onClick: submit,
           disabled: !complete || isPending,
         }}

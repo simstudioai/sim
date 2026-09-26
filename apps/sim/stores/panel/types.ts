@@ -31,22 +31,36 @@ export interface TerminalTextSelection {
   endLine: number
 }
 
+/**
+ * Names the workspace that owns a referenced resource. An organization chat has
+ * no workspace of its own, so its contexts carry their owner, which the server
+ * authorizes before reading anything; a workspace chat's contexts omit it.
+ */
+interface WorkspaceOwned {
+  workspaceId?: string
+}
+
 export type ChatContext =
-  | { kind: 'past_chat'; chatId: string; label: string }
-  | { kind: 'workflow'; workflowId: string; label: string }
+  | ({ kind: 'past_chat'; chatId: string; label: string } & WorkspaceOwned)
+  | ({ kind: 'workflow'; workflowId: string; label: string } & WorkspaceOwned)
   | { kind: 'current_workflow'; workflowId: string; label: string }
   | { kind: 'blocks'; blockIds: string[]; label: string }
-  | { kind: 'logs'; executionId?: string; label: string }
-  | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
-  | { kind: 'knowledge'; knowledgeId?: string; label: string }
-  | {
+  | ({ kind: 'logs'; executionId?: string; label: string } & WorkspaceOwned)
+  | ({
+      kind: 'workflow_block'
+      workflowId: string
+      blockId: string
+      label: string
+    } & WorkspaceOwned)
+  | ({ kind: 'knowledge'; knowledgeId?: string; label: string } & WorkspaceOwned)
+  | ({
       kind: 'table'
       tableId: string
       viewId?: string
       currentView?: MothershipTableViewContext
       label: string
-    }
-  | {
+    } & WorkspaceOwned)
+  | ({
       kind: 'table_selection'
       tableId: string
       label: string
@@ -63,9 +77,9 @@ export type ChatContext =
        * range; absent when whole rows are selected.
        */
       columnIds?: string[]
-    }
-  | { kind: 'file'; fileId: string; label: string }
-  | {
+    } & WorkspaceOwned)
+  | ({ kind: 'file'; fileId: string; label: string } & WorkspaceOwned)
+  | ({
       kind: 'file_selection'
       fileId: string
       label: string
@@ -84,9 +98,11 @@ export type ChatContext =
        */
       startLine?: number
       endLine?: number
-    }
-  | { kind: 'folder'; folderId: string; label: string }
-  | { kind: 'filefolder'; fileFolderId: string; label: string }
+    } & WorkspaceOwned)
+  | ({ kind: 'folder'; folderId: string; label: string } & WorkspaceOwned)
+  | ({ kind: 'filefolder'; fileFolderId: string; label: string } & WorkspaceOwned)
+  /** A whole workspace in an organization chat: "I'm working in this one". */
+  | { kind: 'workspace'; workspaceId: string; label: string }
   | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to
@@ -98,7 +114,7 @@ export type ChatContext =
   | { kind: 'terminal_tab'; terminalId: string; label: string; selection?: TerminalTextSelection }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
-  | { kind: 'skill'; skillId: string; label: string; workspaceId?: string }
+  | ({ kind: 'skill'; skillId: string; label: string } & WorkspaceOwned)
   | {
       kind: 'mcp'
       serverId: string

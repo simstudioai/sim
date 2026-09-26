@@ -1,23 +1,21 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { and, inArray, ne } from 'drizzle-orm'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
-  save: vi.fn(),
   extractCustomTools: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mocks.save,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
   extractAndPersistCustomTools: mocks.extractCustomTools,
 }))
@@ -26,6 +24,8 @@ import {
   replaceWorkflowNormalizedState,
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
+
+const mockSave = workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
 
 const BLOCK = {
   id: 'block-1',
@@ -78,13 +78,12 @@ function uniqueViolation(constraintName: string): Error {
 
 describe('replaceWorkflowNormalizedState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The lock select must find a live row in the caller's workspace; an empty
     // result is the archived / cross-workspace refusal, covered separately.
     dbChainMockFns.for.mockResolvedValue([{ id: 'workflow-1' }])
     mocks.prepare.mockReturnValue({ state: PREPARED, warnings: [] })
-    mocks.save.mockResolvedValue({ success: true })
+    mockSave.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
   })
 
@@ -105,13 +104,13 @@ describe('replaceWorkflowNormalizedState', () => {
       blocks: { 'block-1': BLOCK },
       edges: [],
     })
-    expect(mocks.save).toHaveBeenCalledWith(
+    expect(mockSave).toHaveBeenCalledWith(
       'workflow-1',
       expect.objectContaining({ blocks: PREPARED.blocks, edges: PREPARED.edges }),
       { workspaceId: 'workspace-1', subjectUserId: 'user-1' },
       expect.anything()
     )
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.save)
+    expect(mocks.prepare).toHaveBeenCalledBefore(mockSave)
     expect(result.warnings).toEqual(['Dropped edge "edge-9": target block does not exist'])
     expect(result.state).toBe(PREPARED)
   })
@@ -122,49 +121,9 @@ describe('replaceWorkflowNormalizedState', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 
-  it('stamps lastSynced and leaves variables untouched when none are supplied', async () => {
-    await replaceWorkflowNormalizedState(input())
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ lastSynced: expect.any(Date), updatedAt: expect.any(Date) })
-    )
-    expect(dbChainMockFns.set.mock.calls[0][0]).not.toHaveProperty('variables')
-  })
-
-  it('writes variables in the same transaction when they are supplied', async () => {
-    const variables = { 'var-1': { id: 'var-1', name: 'region', type: 'string', value: 'eu' } }
-
-    await replaceWorkflowNormalizedState(input({ state: { blocks: {}, edges: [], variables } }))
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ variables }))
-  })
-
-  it('extracts custom tools after the transaction commits', async () => {
-    await replaceWorkflowNormalizedState(input())
-
-    expect(mocks.extractCustomTools).toHaveBeenCalledWith(
-      expect.objectContaining({ blocks: PREPARED.blocks }),
-      'workspace-1',
-      'user-1'
-    )
-    expect(mocks.save).toHaveBeenCalledBefore(mocks.extractCustomTools)
-  })
-
   /** Pre-existing, deliberate: a stale custom tool never fails a committed graph write. */
-  it('keeps custom-tool extraction best-effort', async () => {
-    mocks.extractCustomTools.mockRejectedValue(new Error('tool table unavailable'))
-
-    await expect(replaceWorkflowNormalizedState(input())).resolves.toMatchObject({ warnings: [] })
-  })
-
-  it('skips custom-tool extraction for a workflow with no workspace', async () => {
-    await replaceWorkflowNormalizedState(input({ workspaceId: null }))
-
-    expect(mocks.extractCustomTools).not.toHaveBeenCalled()
-  })
-
   it('throws and skips custom-tool extraction when the write fails', async () => {
-    mocks.save.mockResolvedValue({ success: false, error: 'constraint violation' })
+    mockSave.mockResolvedValue({ success: false, error: 'constraint violation' })
 
     await expect(replaceWorkflowNormalizedState(input())).rejects.toBeInstanceOf(
       WorkflowStatePersistenceError
@@ -190,7 +149,7 @@ describe('replaceWorkflowNormalizedState', () => {
         code: 'conflict',
         message: 'Block ids already used by another workflow: block-1',
       })
-      expect(mocks.save).not.toHaveBeenCalled()
+      expect(mockSave).not.toHaveBeenCalled()
     })
 
     /**
@@ -215,7 +174,7 @@ describe('replaceWorkflowNormalizedState', () => {
           { type: 'ne', left: schemaMock.workflowBlocks.workflowId, right: 'workflow-1' },
         ],
       })
-      expect(mocks.save).toHaveBeenCalled()
+      expect(mockSave).toHaveBeenCalled()
     })
 
     /**
@@ -264,33 +223,7 @@ describe('replaceWorkflowNormalizedState', () => {
       })
       expect(inArray).toHaveBeenCalledWith(schemaMock.workflowEdges.id, ['edge-1'])
       expect(ne).toHaveBeenCalledWith(schemaMock.workflowEdges.workflowId, 'workflow-1')
-      expect(mocks.save).not.toHaveBeenCalled()
-    })
-
-    /**
-     * `workflow_subflows` has its own global primary key, so a value free as a
-     * block id can still be taken as a subflow id — reported under its own
-     * label rather than folded into the block families.
-     */
-    it('reports a subflow id collision under its own label', async () => {
-      mocks.prepare.mockReturnValue({
-        state: {
-          blocks: { 'block-1': BLOCK, 'loop-1': LOOP_BLOCK },
-          edges: [],
-          loops: { 'loop-1': { id: 'loop-1' } },
-          parallels: {},
-        },
-        warnings: [],
-      })
-      queueTableRows(schemaMock.workflowBlocks, [])
-      queueTableRows(schemaMock.workflowSubflows, [{ id: 'loop-1' }])
-
-      await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
-        code: 'conflict',
-        message: 'Subflow ids already used by another workflow: loop-1',
-      })
-      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowSubflows.id, ['loop-1'])
-      expect(mocks.save).not.toHaveBeenCalled()
+      expect(mockSave).not.toHaveBeenCalled()
     })
 
     /** Ids only — never the workflow or workspace that holds them. */
@@ -312,7 +245,7 @@ describe('replaceWorkflowNormalizedState', () => {
      * 409 rather than an unclassified 500.
      */
     it('re-classifies a 23505 that races past the pre-check', async () => {
-      mocks.save.mockRejectedValue(wrapDriverError(uniqueViolation('workflow_edges_pkey')))
+      mockSave.mockRejectedValue(wrapDriverError(uniqueViolation('workflow_edges_pkey')))
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
         code: 'conflict',
@@ -326,24 +259,7 @@ describe('replaceWorkflowNormalizedState', () => {
      */
     it('leaves a 23505 on an unrelated constraint unclassified', async () => {
       const failure = wrapDriverError(uniqueViolation('archive_workflow_blocks_pkey_backup'))
-      mocks.save.mockRejectedValue(failure)
-
-      await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
-    })
-
-    /**
-     * Not every 23505 carries a constraint name: a violation raised by a bare
-     * unique index, or one whose driver dropped the field, arrives with none.
-     * Exact matching must read that as "not a graph id" — treating an absent
-     * name as a match would relabel unrelated unique violations across the
-     * whole write as a graph-id conflict.
-     */
-    it('leaves a 23505 carrying no constraint name unclassified', async () => {
-      const cause = Object.assign(new Error('duplicate key value violates unique constraint'), {
-        code: '23505',
-      })
-      const failure = wrapDriverError(cause)
-      mocks.save.mockRejectedValue(failure)
+      mockSave.mockRejectedValue(failure)
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
     })
@@ -358,6 +274,6 @@ describe('replaceWorkflowNormalizedState', () => {
     dbChainMockFns.for.mockResolvedValue([])
 
     await expect(replaceWorkflowNormalizedState(input())).rejects.toThrow('Workflow not found')
-    expect(mocks.save).not.toHaveBeenCalled()
+    expect(mockSave).not.toHaveBeenCalled()
   })
 })

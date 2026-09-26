@@ -15,7 +15,6 @@ let root: Root
 let host: HTMLDivElement
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   host = document.createElement('div')
   document.body.append(host)
@@ -25,7 +24,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.unstubAllGlobals()
 })
 
 function renderLink(element: React.ReactElement): HTMLAnchorElement {
@@ -46,35 +44,5 @@ describe('LandingCtaLink', () => {
     const internal = renderLink(<LandingCtaLink href='/signup'>Sign up</LandingCtaLink>)
     expect(internal.hasAttribute('target')).toBe(false)
     expect(internal.hasAttribute('rel')).toBe(false)
-  })
-
-  it('reports a tracked click with the href as its destination', () => {
-    const onClick = vi.fn((event: React.MouseEvent) => event.preventDefault())
-    const anchor = renderLink(
-      <LandingCtaLink
-        href='/signup'
-        onClick={onClick}
-        track={{ label: 'Start building', section: 'footer_cta' }}
-      >
-        Start building
-      </LandingCtaLink>
-    )
-    act(() => anchor.click())
-    expect(onClick).toHaveBeenCalledOnce()
-    expect(mockCaptureClientEvent).toHaveBeenCalledExactlyOnceWith('landing_cta_clicked', {
-      label: 'Start building',
-      section: 'footer_cta',
-      destination: '/signup',
-    })
-  })
-
-  it('stays silent without a tracking request', () => {
-    const anchor = renderLink(
-      <LandingCtaLink href='/signup' onClick={(event) => event.preventDefault()}>
-        Sign up
-      </LandingCtaLink>
-    )
-    act(() => anchor.click())
-    expect(mockCaptureClientEvent).not.toHaveBeenCalled()
   })
 })

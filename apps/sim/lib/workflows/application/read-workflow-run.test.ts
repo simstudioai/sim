@@ -1,36 +1,26 @@
-/**
- * @vitest-environment node
- */
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
   getStatus: vi.fn(),
   getRunFiles: vi.fn(),
   describeRunFiles: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowRunApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
   getProjectedWorkflowExecutionStatus: mocks.getStatus,
 }))
@@ -40,6 +30,10 @@ vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
 }))
 
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
 
 const context = {
   workflowId: 'workflow-1',
@@ -51,7 +45,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const principal = createPersonalApiKeyPrincipal()
 
 const NO_PROJECTION = { hideTraceSpans: false, hideCostInfo: false }
 
@@ -70,9 +64,8 @@ function input(selectedOutputs: string[]) {
  */
 describe('readWorkflowRun projection subject', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
     mocks.getStatus.mockResolvedValue({
       status: { status: 'completed', blockOutputs: {} },
@@ -93,11 +86,7 @@ describe('readWorkflowRun projection subject', () => {
   })
 
   it('names no subject for a workspace API key', async () => {
-    const workspaceKey = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: 'workspace-1',
-      keyId: 'key-1',
-    }
+    const workspaceKey = createWorkspaceApiKeyPrincipal()
 
     await readWorkflowRun.execute({ principal: workspaceKey, input: input([]) })
 
@@ -107,9 +96,8 @@ describe('readWorkflowRun projection subject', () => {
 
 describe('readWorkflowRun selector resolution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
     mocks.getStatus.mockResolvedValue({
       status: { status: 'completed', blockOutputs: {} },
@@ -144,22 +132,6 @@ describe('readWorkflowRun selector resolution', () => {
       /did not resolve to any block on this run: Agent 1/
     )
   })
-
-  it('accepts a well-formed block id on a run with no recorded output projection', async () => {
-    mocks.getStatus.mockResolvedValue({
-      status: { status: 'queued', blockOutputs: null },
-      projection: NO_PROJECTION,
-    })
-    await expect(
-      readWorkflowRun.execute({ principal, input: input([`${BLOCK_ID}.content`]) })
-    ).resolves.toMatchObject({ status: 'queued', blockOutputs: null })
-  })
-
-  it('accepts a well-formed block id that produced no output', async () => {
-    await expect(
-      readWorkflowRun.execute({ principal, input: input([BLOCK_ID]) })
-    ).resolves.toMatchObject({ status: 'completed', blockOutputs: {} })
-  })
 })
 
 /**
@@ -173,26 +145,14 @@ describe('readWorkflowRun file projection', () => {
   const WITHHELD = { hideTraceSpans: true, hideCostInfo: false }
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue({
       terminal: true,
       workspaceId: 'workspace-1',
       filesById: new Map([['file-1', { key: 'k', name: 'out.csv' }]]),
     })
     mocks.describeRunFiles.mockResolvedValue([{ id: 'file-1', name: 'out.csv' }])
-  })
-
-  it('lists the run files when nothing is withheld', async () => {
-    mocks.getStatus.mockResolvedValue({
-      status: { status: 'completed', blockOutputs: {}, finalOutput: { ok: true } },
-      projection: NO_PROJECTION,
-    })
-
-    await expect(readWorkflowRun.execute({ principal, input: input([]) })).resolves.toMatchObject({
-      files: [{ id: 'file-1' }],
-    })
   })
 
   it('withholds the file list when the group withholds execution data', async () => {

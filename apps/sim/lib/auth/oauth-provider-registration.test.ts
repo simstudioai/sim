@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'

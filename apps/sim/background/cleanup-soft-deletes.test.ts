@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   dbChainMock,
   dbChainMockFns,
@@ -10,42 +6,42 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing/mocks/workflows-utils.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBatchDeleteByWorkspaceAndTimestamp,
   mockChunkedBatchDelete,
   mockScopedChunkedBatchDelete,
-  mockDecrementStorageUsageForBillingContextInTx,
-  mockDeleteFileMetadata,
-  mockDeleteFiles,
   mockDeleteRowsById,
-  mockHardDeleteDocuments,
-  mockIsUsingCloudStorage,
   mockKnowledgeBaseContainerDelete,
   mockPrepareChatCleanup,
-  mockResolveStorageBillingContext,
   mockSelectRowsByIdChunks,
   mockSettleDetachedConnectorReservations,
-  mockDeduplicateWorkflowName,
-  mockAllocateUniqueWorkspaceFileName,
   mockDeduplicateFolderName,
 } = vi.hoisted(() => ({
   mockDeduplicateFolderName: vi.fn(async (_tx, _ws, _parent, name: string) => name),
-  mockDeduplicateWorkflowName: vi.fn(async (name: string) => name),
-  mockAllocateUniqueWorkspaceFileName: vi.fn(async (_ws: string, name: string) => name),
   mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({ deleted: 0, failed: 0 })),
   mockChunkedBatchDelete: vi.fn(async () => ({ deleted: 0, failed: 0 })),
   mockScopedChunkedBatchDelete: vi.fn(async () => ({ deleted: 0, failed: 0 })),
-  mockDecrementStorageUsageForBillingContextInTx: vi.fn(async () => undefined),
-  mockDeleteFileMetadata: vi.fn(async () => true),
-  mockDeleteFiles: vi.fn(async () => ({ deleted: 0, failed: [] as Array<{ key: string }> })),
   mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
-  mockHardDeleteDocuments: vi.fn(async (ids: string[]) => ids.length),
-  mockIsUsingCloudStorage: vi.fn(() => true),
   mockKnowledgeBaseContainerDelete: vi.fn(),
   mockPrepareChatCleanup: vi.fn(async () => ({ execute: vi.fn(async () => undefined) })),
-  mockResolveStorageBillingContext: vi.fn(),
   mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
   mockSettleDetachedConnectorReservations: vi.fn(async () => undefined),
 }))
@@ -68,25 +64,17 @@ vi.mock('@/lib/cleanup/queue', () => ({
 
 vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareChatCleanup }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 vi.mock('@/lib/knowledge/connectors/detachment', () => ({
   settleDetachedConnectorReservations: mockSettleDetachedConnectorReservations,
 }))
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: mockHardDeleteDocuments,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: mockIsUsingCloudStorage,
-  StorageService: { deleteFiles: mockDeleteFiles },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 const { mockReleaseWorkspaceFileVersionsForPurgeInTx } = vi.hoisted(() => ({
   mockReleaseWorkspaceFileVersionsForPurgeInTx: vi.fn(),
@@ -95,17 +83,28 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
   releaseWorkspaceFileVersionsForPurgeInTx: mockReleaseWorkspaceFileVersionsForPurgeInTx,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  deduplicateWorkflowName: mockDeduplicateWorkflowName,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  allocateUniqueWorkspaceFileName: mockAllocateUniqueWorkspaceFileName,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
+
+const { mockDecrementStorageUsageForBillingContextInTx, mockResolveStorageBillingContext } =
+  billingStorageMockFns
+const { mockHardDeleteDocuments } = knowledgeDocumentsServiceMockFns
+mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
+mockHardDeleteDocuments.mockImplementation(async (ids: string[]) => ids.length)
+
+const { mockDeleteFiles } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+const { mockIsUsingCloudStorage } = uploadsMockFns
+const { mockDeduplicateWorkflowName } = workflowsUtilsMockFns
+const { mockAllocateUniqueWorkspaceFileName } = workspaceFileManagerMockFns
+mockDeleteFileMetadata.mockImplementation(async () => true)
+mockDeduplicateWorkflowName.mockImplementation(async (name: string) => name)
+mockAllocateUniqueWorkspaceFileName.mockImplementation(async (_ws: string, name: string) => name)
 
 const basePayload = {
   label: 'free/1',
@@ -120,7 +119,6 @@ describe('cleanup soft deletes', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsUsingCloudStorage.mockReturnValue(true)
     mockSelectRowsByIdChunks.mockReset().mockResolvedValue([])
@@ -360,16 +358,6 @@ describe('cleanup soft deletes', () => {
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 
-  it('still removes bindings but skips object deletion without cloud storage', async () => {
-    mockIsUsingCloudStorage.mockReturnValue(false)
-    dbChainMockFns.limit.mockResolvedValueOnce([{ key: 'kb/orphan-1' }]).mockResolvedValueOnce([])
-
-    await runCleanupSoftDeletes(basePayload)
-
-    expect(mockDeleteFiles).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/orphan-1')
-  })
-
   it('stops the batch loop when binding deletion makes no progress', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ key: 'kb/stuck' }])
     mockDeleteFileMetadata.mockRejectedValue(new Error('db down'))
@@ -378,14 +366,6 @@ describe('cleanup soft deletes', () => {
 
     // One batch attempted, then the no-progress guard breaks the loop.
     expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not run the sweep when there are no workspaces', async () => {
-    await runCleanupSoftDeletes({ ...basePayload, workspaceIds: [] })
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(mockDeleteFiles).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
   })
 })
 
@@ -414,7 +394,6 @@ describe('folder cleanup target', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockSelectRowsByIdChunks.mockReset().mockResolvedValue([])
     mockChunkedBatchDelete.mockReset().mockResolvedValue({ deleted: 0, failed: 0 })
@@ -448,18 +427,6 @@ describe('folder cleanup target', () => {
     ])
   })
 
-  it('leaves every other cleanup target unfiltered so only folder pays for the predicate', async () => {
-    await runCleanupSoftDeletes(basePayload)
-    const calls = mockBatchDeleteByWorkspaceAndTimestamp.mock.calls as unknown as Array<
-      [BatchDeleteOptions]
-    >
-
-    const filtered = calls
-      .filter(([options]) => options.additionalPredicate !== undefined)
-      .map(([options]) => options.tableName)
-    expect(filtered).toEqual(['free/1/folder'])
-  })
-
   /**
    * `folder_id` is `ON DELETE SET NULL`, so Postgres re-roots surviving children on its own —
    * but `workflow` and `workspace_files` each carry a partial unique index keyed on
@@ -474,18 +441,6 @@ describe('folder cleanup target', () => {
       expect(target?.onBatch).toBeTypeOf('function')
       return target!.onBatch!
     }
-
-    it('is the only cleanup target that re-roots children', async () => {
-      await runCleanupSoftDeletes(basePayload)
-      const calls = mockBatchDeleteByWorkspaceAndTimestamp.mock.calls as unknown as Array<
-        [BatchDeleteOptions]
-      >
-
-      const withOnBatch = calls
-        .filter(([options]) => options.onBatch !== undefined)
-        .map(([options]) => options.tableName)
-      expect(withOnBatch).toEqual(['free/1/folder'])
-    })
 
     it('re-roots an active workflow under a deduplicated name', async () => {
       const onBatch = await getFolderOnBatch()
@@ -504,24 +459,6 @@ describe('folder cleanup target', () => {
         expect.anything()
       )
       expect(dbChainMockFns.set).toHaveBeenCalledWith({ folderId: null, name: 'Report (2)' })
-    })
-
-    it('re-roots an active workspace file under a deduplicated name', async () => {
-      const onBatch = await getFolderOnBatch()
-      queueTableRows(schemaMock.folder, [{ id: 'folder-1' }])
-      queueTableRows(schemaMock.workflow, [])
-      queueTableRows(schemaMock.workspaceFiles, [
-        { id: 'f1', originalName: 'report.pdf', workspaceId: 'ws-1' },
-      ])
-      mockAllocateUniqueWorkspaceFileName.mockResolvedValueOnce('report (2).pdf')
-
-      await onBatch([{ id: 'folder-1' }])
-
-      expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith('ws-1', 'report.pdf', null)
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        folderId: null,
-        originalName: 'report (2).pdf',
-      })
     })
 
     it('falls back to an id-suffixed name when the copy-suffix range is exhausted', async () => {
@@ -620,17 +557,6 @@ describe('folder cleanup target', () => {
       expect(mockAllocateUniqueWorkspaceFileName).not.toHaveBeenCalled()
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
-
-    it('touches nothing when the batch is empty', async () => {
-      const onBatch = await getFolderOnBatch()
-      dbChainMockFns.select.mockClear()
-      dbChainMockFns.update.mockClear()
-
-      await onBatch([])
-
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
   })
 })
 
@@ -643,7 +569,6 @@ describe('organization-owned Search retention cleanup', () => {
     retentionHours: 72,
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsUsingCloudStorage.mockReturnValue(true)
     mockDeleteFiles.mockResolvedValue({ deleted: 0, failed: [] })

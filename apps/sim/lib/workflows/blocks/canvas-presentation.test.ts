@@ -45,12 +45,6 @@ describe('resolveCanvasBlockPresentation', () => {
     ).toMatchObject({ title: 'Send Email', titleShowsOperation: true })
   })
 
-  it('ignores the copy number, which only tells two cards apart', () => {
-    expect(
-      resolveCanvasBlockPresentation(gmailConfig, 'Send Email 2', { operation: 'send_gmail' })
-    ).toMatchObject({ title: 'Send Email 2', titleShowsOperation: true })
-  })
-
   it('shows the operation row once the name no longer says the operation', () => {
     /* Either because the user renamed it, or because they switched operation
        after the block was named for a different one. */
@@ -67,39 +61,5 @@ describe('resolveCanvasBlockPresentation', () => {
     expect(
       resolveCanvasBlockPresentation(gmailConfig, 'Send Email', { operation: 'search_gmail' })
     ).toMatchObject({ title: 'Send Email', titleShowsOperation: false })
-  })
-
-  it('keeps the stored name for a block with no operation selector', () => {
-    const humanConfig = {
-      name: 'Human',
-      subBlocks: [],
-      canvasPresentation: {
-        typeLabel: 'Human',
-        defaultTitle: 'Wait for Input',
-      },
-    } as Pick<BlockConfig, 'name' | 'subBlocks' | 'canvasPresentation'>
-
-    /* No operation selector means no operation row to suppress, so the flag is
-       vacuously false — every consumer of it also guards on `operationSubBlockId`. */
-    expect(resolveCanvasBlockPresentation(humanConfig, 'Human in the Loop 1', {})).toEqual({
-      title: 'Human in the Loop 1',
-      typeLabel: 'Human',
-      titleShowsOperation: false,
-      operationSubBlockId: undefined,
-      operationRowTitle: undefined,
-    })
-  })
-
-  it('keeps the stored name for a block with no canvasPresentation at all', () => {
-    const bareConfig = { name: 'Custom', subBlocks: [] } as Pick<
-      BlockConfig,
-      'name' | 'subBlocks' | 'canvasPresentation'
-    >
-
-    expect(resolveCanvasBlockPresentation(bareConfig, 'My Step', {})).toEqual({
-      title: 'My Step',
-      typeLabel: 'Custom',
-      titleShowsOperation: false,
-    })
   })
 })

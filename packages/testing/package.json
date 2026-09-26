@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "sideEffects": [
-    "./src/setup/*"
+    "./src/mocks/executor.mock.ts"
   ],
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -20,9 +20,21 @@
       "types": "./src/factories/index.ts",
       "default": "./src/factories/index.ts"
     },
+    "./factories/*": {
+      "types": "./src/factories/*.ts",
+      "default": "./src/factories/*.ts"
+    },
     "./builders": {
       "types": "./src/builders/index.ts",
       "default": "./src/builders/index.ts"
+    },
+    "./helpers": {
+      "types": "./src/helpers/index.ts",
+      "default": "./src/helpers/index.ts"
+    },
+    "./helpers/*": {
+      "types": "./src/helpers/*.ts",
+      "default": "./src/helpers/*.ts"
     },
     "./mocks": {
       "types": "./src/mocks/index.ts",
@@ -36,21 +48,12 @@
       "types": "./src/mocks/*.ts",
       "default": "./src/mocks/*.ts"
     },
-    "./assertions": {
-      "types": "./src/assertions/index.ts",
-      "default": "./src/assertions/index.ts"
-    },
-    "./setup": {
-      "types": "./src/setup/vitest.setup.ts",
-      "default": "./src/setup/vitest.setup.ts"
-    },
     "./environment": {
       "types": "./src/environment/index.ts",
       "default": "./src/environment/index.ts"
     }
   },
   "scripts": {
-    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
@@ -60,7 +63,7 @@
   "peerDependencies": {
     "next": ">=15 <17",
     "stripe": ">=18 <19",
-    "vitest": "^3.0.0 || >=4.1.0 <5.0.0"
+    "vitest": "^5.0.1"
   },
   "peerDependenciesMeta": {
     "stripe": {
@@ -72,9 +75,10 @@
     "next": "16.3.4",
     "stripe": "18.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@sim/auth": "workspace:*",
     "@sim/utils": "workspace:*"
   }
 }

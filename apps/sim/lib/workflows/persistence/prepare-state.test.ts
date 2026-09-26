@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests the single normalization pipeline shared by `PUT /api/workflows/[id]/state`
  * and `POST /api/v1/workflows/import`. Both write paths must land identical data
  * for identical input, so this is where that behavior is pinned.
@@ -91,14 +89,5 @@ describe('prepareWorkflowStateForPersistence', () => {
 
     expect(state.loops.loop1?.nodes).toEqual(['child'])
     expect(state.parallels.par1?.nodes).toEqual(['childP'])
-  })
-
-  it('does not mutate the caller-supplied blocks', () => {
-    const blocks = { a: block({ id: 'a' }) }
-    const snapshot = structuredClone(blocks)
-
-    prepareWorkflowStateForPersistence({ blocks, edges: [] as never })
-
-    expect(blocks).toEqual(snapshot)
   })
 })

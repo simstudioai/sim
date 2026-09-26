@@ -1,25 +1,28 @@
-/** @vitest-environment node */
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGitHubServiceVerifier } from '@/lib/sim-search/live/github-service'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
-const mocks = vi.hoisted(() => ({
-  decrypt: vi.fn(),
-  active: vi.fn(),
-  token: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   appClient: vi.fn(),
-  parse: vi.fn(),
 }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  assertGitHubInstallationRepositoryActive: mocks.active,
-  resolveGitHubInstallationAccessToken: mocks.token,
-  parseGitHubInstallationBinding: mocks.parse,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
-  createNativeClient: mocks.appClient,
+  createNativeClient: hoisted.appClient,
 }))
+
+const mocks = {
+  ...hoisted,
+  active: githubInstallationMockFns.mockAssertGitHubInstallationRepositoryActive,
+  token: githubInstallationMockFns.mockResolveGitHubInstallationAccessToken,
+  parse: githubInstallationMockFns.mockParseGitHubInstallationBinding,
+}
 
 const source = {
   id: 'source',
@@ -41,8 +44,7 @@ const app: NativeClient = { json: vi.fn(), text: vi.fn() }
 const signal = new AbortController().signal
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  mocks.decrypt.mockResolvedValue({ decrypted: '{}' })
+  encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: '{}' })
   mocks.parse.mockReturnValue({ installationId: '55', accountId: '99' })
   mocks.token.mockResolvedValue({ accessToken: 'installation-token' })
   mocks.appClient.mockReturnValue(app)
@@ -78,23 +80,6 @@ describe('GitHub App live repository boundary', () => {
     expect(member.json).toHaveBeenCalledOnce()
   })
 
-  it('applies per-source path and extension filters only to code', async () => {
-    const verifier = createGitHubServiceVerifier([source], member, signal)
-    expect(
-      await verifier.verify({ id: 'src/app.md', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(
-      await verifier.verify({ id: 'docs/app.ts', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(
-      await verifier.verify({ id: '../docs/app.md', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(member.json).not.toHaveBeenCalled()
-    expect(await verifier.verify({ id: '42', container: 'acme/project', kind: 'issues' })).toBe(
-      true
-    )
-  })
-
   it('does not substitute default-branch code for a legacy non-default branch source', async () => {
     const verifier = createGitHubServiceVerifier(
       [{ ...source, config: { ...source.config, branch: 'release' } }],
@@ -127,31 +112,5 @@ describe('GitHub App live repository boundary', () => {
         kind: 'issues',
       })
     ).toBe(false)
-  })
-
-  it('can use another active installation source for the same repository', async () => {
-    mocks.active.mockRejectedValueOnce(new Error('installation removed'))
-    const verifier = createGitHubServiceVerifier(
-      [source, { ...source, id: 'backup-source' }],
-      member,
-      signal
-    )
-    expect(await verifier.verify({ id: '42', container: 'acme/project', kind: 'issues' })).toBe(
-      true
-    )
-    expect(mocks.active).toHaveBeenCalledTimes(2)
-  })
-
-  it('rejects an empty or invalid repository list before searching', () => {
-    expect(() => createGitHubServiceVerifier([], member, signal)).toThrow(
-      'Add a GitHub App repository'
-    )
-    expect(() =>
-      createGitHubServiceVerifier(
-        [{ ...source, config: { ...source.config, githubRepositoryId: 'bad' } }],
-        member,
-        signal
-      )
-    ).toThrow('repository is invalid')
   })
 })

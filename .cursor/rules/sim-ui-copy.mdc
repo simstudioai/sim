@@ -1,6 +1,6 @@
 ---
 description: "UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings"
-globs: ["apps/sim/**/*.tsx","apps/sim/components/emcn/**"]
+globs: ["apps/sim/**/*.tsx","packages/emcn/**/*.tsx"]
 ---
 
 <!-- Generated from .claude/rules/sim-ui-copy.md by `bun run skills:sync`. Edit the source, not this file. -->

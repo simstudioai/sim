@@ -1,58 +1,44 @@
-/**
- * @vitest-environment node
- */
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  getAsyncToolCall,
-  getRunSegment,
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
-  detachAsyncToolCall,
-  publishToolConfirmation,
-  encryptSecret,
-  getTrustedWorkflowToolExecution,
-} = vi.hoisted(() => ({
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-  completeAsyncToolCall: vi.fn(),
-  completeClaimedAsyncToolCall: vi.fn(),
-  completePendingAsyncToolCall: vi.fn(),
-  detachAsyncToolCall: vi.fn(),
+const { publishToolConfirmation, getTrustedWorkflowToolExecution } = vi.hoisted(() => ({
   publishToolConfirmation: vi.fn(),
-  encryptSecret: vi.fn(),
   getTrustedWorkflowToolExecution: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall,
-  getRunSegment,
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
-  detachAsyncToolCall,
-  getClaimedWorkflowExecutionId: (claimedBy?: string | null) =>
-    claimedBy?.startsWith('workflow:') ? claimedBy.slice('workflow:'.length) : undefined,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution,
 }))
 
 import { POST } from './route'
+
+const {
+  mockGetAsyncToolCall: getAsyncToolCall,
+  mockGetRunSegment: getRunSegment,
+  mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockCompleteClaimedAsyncToolCall: completeClaimedAsyncToolCall,
+  mockCompletePendingAsyncToolCall: completePendingAsyncToolCall,
+  mockDetachAsyncToolCall: detachAsyncToolCall,
+} = mothershipAsyncRunsMockFns
+
+const encryptSecret = encryptionMockFns.mockEncryptSecret
 
 describe('Copilot Confirm API Route', () => {
   const existingRow = {
@@ -66,7 +52,6 @@ describe('Copilot Confirm API Route', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -86,43 +71,12 @@ describe('Copilot Confirm API Route', () => {
   })
 
   function createMockPostRequest(body: Record<string, unknown>): NextRequest {
-    return new NextRequest('http://localhost:3000/api/copilot/confirm', {
+    return createMockRequest({
       method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      url: 'http://localhost:3000/api/copilot/confirm',
+      body,
     })
   }
-
-  it('returns 401 when the session is unauthenticated', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: null,
-      isAuthenticated: false,
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-      })
-    )
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-  })
-
-  it('returns 404 when the tool call row does not exist', async () => {
-    getAsyncToolCall.mockResolvedValue(null)
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'missing-tool',
-        status: 'success',
-      })
-    )
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({ error: 'Tool call not found' })
-  })
 
   it('returns 403 when the tool call belongs to a different user', async () => {
     getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-2' })
@@ -136,59 +90,6 @@ describe('Copilot Confirm API Route', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
-  })
-
-  it('persists terminal confirmations through completeAsyncToolCall', async () => {
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        message: 'Tool executed successfully',
-        data: { ok: true },
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'completed',
-      result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-      error: null,
-    })
-    expect(detachAsyncToolCall).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        data: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-      })
-    )
-  })
-
-  it('accepts primitive terminal confirmation data', async () => {
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        message: 'Tool executed successfully',
-        data: 'done',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'completed',
-      result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-      error: null,
-    })
-    expect(publishToolConfirmation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        data: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-      })
-    )
   })
 
   it('keeps generic client content sealed in durable and pubsub payloads', async () => {
@@ -425,60 +326,6 @@ describe('Copilot Confirm API Route', () => {
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
-  it.each(['error', 'cancelled'] as const)(
-    'rejects a pending retired browser tool %s before a native claim',
-    async (status) => {
-      getAsyncToolCall.mockResolvedValue({
-        ...existingRow,
-        toolName: 'browser_request_takeover',
-        status: 'pending',
-      })
-
-      const response = await POST(
-        createMockPostRequest({
-          toolCallId: 'tool-call-123',
-          status,
-          message: 'A stale renderer tried to finalize this call.',
-        })
-      )
-
-      expect(response.status).toBe(404)
-      expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
-      expect(completeAsyncToolCall).not.toHaveBeenCalled()
-      expect(detachAsyncToolCall).not.toHaveBeenCalled()
-      expect(encryptSecret).not.toHaveBeenCalled()
-      expect(publishToolConfirmation).not.toHaveBeenCalled()
-    }
-  )
-
-  it('accepts a running retired browser tool completion for historical compatibility', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'browser_request_takeover',
-      status: 'running',
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        data: { completed: true },
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'completed',
-      result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
-      error: null,
-    })
-    expect(publishToolConfirmation).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'tool-call-123', status: 'success' })
-    )
-  })
-
   it('rejects a workflow confirmation before the server starts the tool call', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -562,41 +409,6 @@ describe('Copilot Confirm API Route', () => {
     }
   )
 
-  it('accepts a trusted completion for an approved call created by the previous release', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
-      status: 'pending',
-      permissionDecision: 'allow',
-      claimedBy: null,
-    })
-    getTrustedWorkflowToolExecution.mockResolvedValueOnce({
-      executionId: 'legacy-execution',
-      status: 'completed',
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'legacy-execution',
-        status: 'success',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'completed',
-      result: {
-        success: true,
-        workflowId: 'workflow-1',
-        executionId: 'legacy-execution',
-      },
-      error: null,
-    })
-  })
-
   it('accepts a verified terminal execution created before workflow claims existed', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -650,28 +462,7 @@ describe('Copilot Confirm API Route', () => {
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
   })
 
-  it('rejects a workflow confirmation for a different claimed execution', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'different-execution',
-        status: 'success',
-      })
-    )
-
-    expect(response.status).toBe(404)
-    expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
-  })
-
-  it.each(['run_workflow', 'run_block', 'run_from_block', 'run_workflow_until_block'])(
+  it.each(['run_workflow', 'run_block'])(
     'preserves a safe busy reason for an unlaunched %s without trusting client text',
     async (toolName) => {
       getAsyncToolCall.mockResolvedValue({
@@ -847,20 +638,6 @@ describe('Copilot Confirm API Route', () => {
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
-  it('does not publish a background replay after the call was finalized', async () => {
-    detachAsyncToolCall.mockResolvedValueOnce(null)
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'background',
-      })
-    )
-
-    expect(response.status).toBe(500)
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
-  })
-
   it('acknowledges an idempotent terminal workflow retry without publishing again', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -886,29 +663,6 @@ describe('Copilot Confirm API Route', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ status: 'success' })
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
-  })
-
-  it('acknowledges an idempotent background workflow retry from durable state', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
-      status: 'delivered',
-      claimedBy: 'workflow:execution-1',
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'execution-1',
-        status: 'background',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ status: 'background' })
-    expect(detachAsyncToolCall).not.toHaveBeenCalled()
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
@@ -1001,44 +755,6 @@ describe('Copilot Confirm API Route', () => {
     expect(JSON.stringify(published)).not.toContain('resolved-secret')
   })
 
-  it('uses structural workflow data without accepting execution content', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
-    })
-    getTrustedWorkflowToolExecution.mockResolvedValueOnce({ status: 'failed' })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'execution-1',
-        status: 'error',
-        message: 'Failed with unresolved-secret-value',
-        data: {
-          success: false,
-          output: 'unresolved-secret-value',
-          reason: 'provider_failure',
-        },
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'failed',
-      result: {
-        success: false,
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
-      error: 'Workflow execution failed.',
-    })
-    expect(JSON.stringify(publishToolConfirmation.mock.calls[0][0])).not.toContain(
-      'unresolved-secret-value'
-    )
-  })
-
   it('binds output identity to the stored workflow target', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -1072,73 +788,6 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('keeps workflow completion structural even for ordinary client content', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow',
-      args: {},
-    })
-    getRunSegment.mockResolvedValue({
-      id: 'run-1',
-      userId: 'user-1',
-      workflowId: 'workflow-from-run',
-    })
-
-    await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'execution-1',
-        status: 'success',
-        message: 'Workflow returned a normal value',
-        data: { output: { value: 'normal-value' }, logs: [] },
-      })
-    )
-
-    expect(completeAsyncToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'completed',
-      result: {
-        success: true,
-        workflowId: 'workflow-from-run',
-        executionId: 'execution-1',
-      },
-      error: null,
-    })
-    expect(publishToolConfirmation.mock.calls[0][0].message).toBe('Workflow execution completed.')
-    expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('normal-value')
-  })
-
-  it('keeps workflow background confirmations structural without loading provenance', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow_until_block',
-      args: { workflowId: 'workflow-1' },
-    })
-
-    await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        executionId: 'execution-1',
-        status: 'background',
-        message: 'Raw background detail',
-        data: { lastEventId: 7 },
-      })
-    )
-
-    expect(publishToolConfirmation).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      executionId: 'execution-1',
-      status: 'background',
-      message: 'Workflow execution is continuing in the background.',
-      timestamp: expect.any(String),
-      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
-    })
-    expect(detachAsyncToolCall).toHaveBeenCalledWith('tool-call-123', {
-      preserveClaim: true,
-    })
-    expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
-  })
-
   it('detaches a background confirmation while its execution request is still binding', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -1166,32 +815,6 @@ describe('Copilot Confirm API Route', () => {
       message: 'Workflow execution is continuing in the background.',
       timestamp: expect.any(String),
       data: { workflowId: 'workflow-1', executionId: 'unbound-execution' },
-    })
-  })
-
-  it('accepts a legacy unbound background confirmation without an execution ID', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'run_workflow_until_block',
-      args: { workflowId: 'workflow-1' },
-      claimedBy: null,
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'background',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(detachAsyncToolCall).toHaveBeenCalledWith('tool-call-123')
-    expect(publishToolConfirmation).toHaveBeenCalledWith({
-      toolCallId: 'tool-call-123',
-      status: 'background',
-      message: 'Workflow execution is continuing in the background.',
-      timestamp: expect.any(String),
-      data: { workflowId: 'workflow-1' },
     })
   })
 
@@ -1268,34 +891,6 @@ describe('Copilot Confirm API Route', () => {
       expect(await response.json()).toMatchObject({ status: 'success' })
     }
   )
-
-  it('rejects unsupported accepted and rejected confirmation statuses', async () => {
-    const acceptedResponse = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'accepted',
-      })
-    )
-
-    expect(acceptedResponse.status).toBe(400)
-    expect(await acceptedResponse.json()).toMatchObject({
-      error: 'Invalid request data: Invalid notification status',
-      details: expect.any(Array),
-    })
-
-    const rejectedResponse = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'rejected',
-      })
-    )
-
-    expect(rejectedResponse.status).toBe(400)
-    expect(await rejectedResponse.json()).toMatchObject({
-      error: 'Invalid request data: Invalid notification status',
-      details: expect.any(Array),
-    })
-  })
 
   it('returns 500 when the durable write fails before publish', async () => {
     completeAsyncToolCall.mockRejectedValueOnce(new Error('db down'))

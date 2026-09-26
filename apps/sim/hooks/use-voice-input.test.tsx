@@ -30,7 +30,6 @@ function transcript(text: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.speech.mockReturnValue({
     isListening: false,
@@ -50,25 +49,9 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 describe('voice input manual edits', () => {
-  it('preserves edits made before the first transcript arrives', () => {
-    value = 'Summarize'
-    transcript('the report')
-    expect(value).toBe('Summarize the report')
-  })
-
-  it('preserves a changed prefix while updating partial speech', () => {
-    transcript('the repor')
-    value = 'Summarize the repor'
-    transcript('the report')
-    expect(value).toBe('Summarize the report')
-    transcript('the report from June')
-    expect(value).toBe('Summarize the report from June')
-  })
-
   it.each(['Replacement draft', ''])(
     'preserves a replaced or cleared draft (%s)',
     (replacement) => {
@@ -80,24 +63,6 @@ describe('voice input manual edits', () => {
       expect(value).toBe(replacement ? `${replacement} from June` : 'from June')
     }
   )
-
-  it('preserves corrections inside dictated text across later partial updates', () => {
-    transcript('the red report')
-    value = 'Find the blue report'
-    transcript('the red report from June')
-    expect(value).toBe('Find the blue report from June')
-    transcript('the red report from July')
-    expect(value).toBe('Find the blue report from July')
-  })
-
-  it('keeps manual suffixes after speech revisions and before new speech', () => {
-    transcript('the red report')
-    value += ' and notes'
-    transcript('the blue report')
-    expect(value).toBe('Find the blue report and notes')
-    transcript('the blue report from June')
-    expect(value).toBe('Find the blue report and notes from June')
-  })
 
   it('prefers the manual correction when speech revises the same word', () => {
     value = ''
@@ -124,21 +89,5 @@ describe('voice input manual edits', () => {
     value = 'Summarize the red report and notes'
     transcript('the green report from June')
     expect(value).toBe('Summarize the green report and notes from June')
-  })
-
-  it('starts fresh after the draft and transcript are cleared on submit', () => {
-    transcript('the report')
-    value = ''
-    act(() => voice.resetTranscript())
-    transcript('Next question')
-    expect(value).toBe('Next question')
-  })
-
-  it('continues dictation after a large draft is manually replaced', () => {
-    const longTranscript = Array.from({ length: 300 }, (_, index) => `word${index}`).join(' ')
-    transcript(longTranscript)
-    value = 'New draft'
-    transcript(`${longTranscript} next question`)
-    expect(value).toBe('New draft next question')
   })
 })

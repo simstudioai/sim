@@ -1,17 +1,15 @@
-/**
- * @vitest-environment node
- */
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsOpaqueWorkspaceFileEgressSafe } = vi.hoisted(() => ({
-  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
-}))
+const { mockIsOpaqueWorkspaceFileEgressSafe } = workspaceFileSecretProvenanceMockFns
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/mothership/tools/server/model-input'
 
@@ -31,7 +29,6 @@ const file = {
 
 describe('server tool model-input boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
   })
 

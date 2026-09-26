@@ -3,6 +3,7 @@
  * connector registry, member sync, storage, chunking, and application authorization.
  * Provider replies and embeddings are deterministic; no live GitHub account is used.
  */
+
 import { createHash, generateKeyPairSync, verify } from 'node:crypto'
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
@@ -25,11 +26,18 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
@@ -83,7 +91,6 @@ import {
   listKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { readIndexedKnowledgeDocument } from '@/lib/knowledge/application/read-indexed-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
@@ -95,22 +102,12 @@ import {
 } from '@/lib/knowledge/connectors/sync-limits'
 import { getDocuments } from '@/lib/knowledge/documents/service'
 import { getTagUsageStats } from '@/lib/knowledge/tags/service'
+import { readIndexedKnowledgeDocument } from '@/lib/sim-search/indexed/documents/read-indexed-document'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
-if (redisUrl) {
-  const target = new URL(redisUrl)
-  if (
-    target.protocol !== 'redis:' ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    target.username ||
-    target.password
-  ) {
-    throw new Error('GitHub OAuth integration tests require an explicitly configured local Redis')
-  }
-}
+const redisUrl = readTestRedisUrl()
 
 /** Private repositories require the intersection of installation access and member access. */
 interface RepositoryFixture {

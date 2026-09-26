@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createBlock } from '@sim/testing/factories'
 import {
   blocksMock,
@@ -12,11 +11,13 @@ import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { Serializer } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 vi.mock('@/blocks', () => ({ ...blocksMock, getBlock: createMockGetBlock({ mcp: McpBlock }) }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
-
 describe('MCP action serialization and runtime resolution', () => {
   it.each(['run', 'list'])(
     'keeps %s targets unresolved until the runtime phase',

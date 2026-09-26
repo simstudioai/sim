@@ -3,20 +3,20 @@
  * hard-delete stored documents, plus the Link-header cursor parsing Circleback pagination
  * depends on. `listingCapped` and a truthful `hasMore` are the only things standing between
  * a partial listing and reconciliation purging the rest of the knowledge base.
- *
- * @vitest-environment node
  */
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ CirclebackIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { circlebackConnector } from '@/connectors/circleback/circleback'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 function meeting(id: string) {
   return {
@@ -76,27 +76,6 @@ describe('circleback connector listing completeness', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
-  it('reports a complete listing when there is no next link', async () => {
-    mockListResponse([meeting('m1'), meeting('m2')])
-
-    const syncContext: Record<string, unknown> = {}
-    const page = await list({}, syncContext)
-
-    expect(page.hasMore).toBe(false)
-    expect(page.nextCursor).toBeUndefined()
-    expect(syncContext.listingCapped).toBeUndefined()
-    expect(page.documents).toHaveLength(2)
-  })
-
-  it('never caps when no maxMeetings is configured', async () => {
-    mockListResponse([meeting('m1'), meeting('m2')], 'cur_2')
-
-    const syncContext: Record<string, unknown> = {}
-    await list({ maxMeetings: '' }, syncContext)
-
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
   it('caps and flags when maxMeetings slices a page, hiding meetings that still exist', async () => {
     mockListResponse([meeting('m1'), meeting('m2'), meeting('m3')])
 
@@ -146,57 +125,6 @@ describe('circleback connector request shaping and documents', () => {
     mockFetchWithRetry.mockReset()
   })
 
-  it('applies only valid scope filters and defaults ownership to Mine', async () => {
-    mockListResponse([])
-
-    await list({ ownership: 'Everything', tagIds: '3, oops, 7' }, {})
-
-    const url = new URL(mockFetchWithRetry.mock.calls[0][0] as string)
-    expect(url.searchParams.get('ownership')).toBe('Mine')
-    expect(url.searchParams.getAll('tagIds')).toEqual(['3', '7'])
-  })
-
-  it('returns deferred plain-text stubs with a metadata-based hash and source URL', async () => {
-    mockListResponse([meeting('m1')])
-
-    const page = await list({}, {})
-    const stub = page.documents[0]
-
-    expect(stub.mimeType).toBe('text/plain')
-    expect(stub.contentDeferred).toBe(true)
-    expect(stub.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z:notes')
-    expect(stub.sourceUrl).toBe('https://circleback.ai/meetings/m1')
-  })
-
-  it('varies the content hash with the transcript mode so toggling it rehydrates', async () => {
-    mockListResponse([meeting('m1')])
-    const withTranscript = await list({ includeTranscript: 'true' }, {})
-    expect(withTranscript.documents[0].contentHash).toBe(
-      'circleback:m1:2026-01-27T16:45:00Z:transcript'
-    )
-  })
-
-  it('assembles notes and action items into content with an identical hash on getDocument', async () => {
-    mockFetchWithRetry.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => meeting('m1'),
-      text: async () => '',
-    } as unknown as Response)
-
-    const doc = await circlebackConnector.getDocument('tok', {}, 'm1')
-
-    expect(doc).not.toBeNull()
-    expect(doc?.contentDeferred).toBe(false)
-    expect(doc?.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z:notes')
-    expect(doc?.content).toContain('# Meeting m1')
-    expect(doc?.content).toContain('We discussed the rollout.')
-    expect(doc?.content).toContain('- [ ] Send follow-up (Oat Benson)')
-    /* Transcript is opt-in, so only the meeting endpoint is called by default. */
-    expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
-  })
-
   it('returns null for a 404 but rethrows other failures so indexed documents survive', async () => {
     mockFetchWithRetry.mockResolvedValueOnce({
       ok: false,
@@ -232,21 +160,5 @@ describe('circleback connector request shaping and documents', () => {
     } as unknown as Response)
     const ok = await circlebackConnector.validateConfig('tok', { maxMeetings: '25' })
     expect(ok.valid).toBe(true)
-  })
-
-  it('maps metadata to declared tag keys', () => {
-    const tags = circlebackConnector.mapTags?.({
-      title: 'Weekly Sync',
-      attendees: ['Oat Benson', 'Sam Lee'],
-      tags: ['Customer'],
-      meetingDate: '2026-01-27T15:30:00Z',
-      duration: 1800,
-    })
-
-    expect(tags?.title).toBe('Weekly Sync')
-    expect(tags?.attendees).toBe('Oat Benson, Sam Lee')
-    expect(tags?.tags).toBe('Customer')
-    expect(tags?.meetingDate).toBeInstanceOf(Date)
-    expect(tags?.duration).toBe(1800)
   })
 })

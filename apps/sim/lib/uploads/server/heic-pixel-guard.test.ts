@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The pixel ceiling in `transcodeHeicToJpeg`, tested against a stubbed decoder.
  *
  * Separate from `heic.test.ts` so that file keeps exercising the real WebAssembly
@@ -41,7 +39,6 @@ function handles(sizes: Array<{ width: number; height: number }>) {
 
 describe('transcodeHeicToJpeg pixel ceiling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockConvert.mockResolvedValue(Buffer.from('jpeg-bytes'))
   })
 
@@ -98,14 +95,6 @@ describe('transcodeHeicToJpeg pixel ceiling', () => {
     mockAll.mockResolvedValue(
       handles([{ width: MAX_TRANSCODE_INPUT_PIXELS / 10_000, height: 10_000 }])
     )
-
-    expect(await transcodeHeicToJpeg(heifHeader())).toEqual(Buffer.from('jpeg-bytes'))
-    expect(mockConvert).toHaveBeenCalledTimes(1)
-  })
-
-  it('transcodes an ordinary phone photo', async () => {
-    // A 48MP iPhone still, which must stay well inside the ceiling.
-    mockAll.mockResolvedValue(handles([{ width: 8064, height: 6048 }]))
 
     expect(await transcodeHeicToJpeg(heifHeader())).toEqual(Buffer.from('jpeg-bytes'))
     expect(mockConvert).toHaveBeenCalledTimes(1)

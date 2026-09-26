@@ -1,13 +1,11 @@
-/** @vitest-environment node */
 import { createHash } from 'node:crypto'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => storage }))
 
 /** The same assertions can exercise the actual Lua against an explicitly supplied disposable socket. */
 const redis = process.env.MSHIP_TEST_REDIS_SOCKET
@@ -32,6 +30,7 @@ const memory = {
   get: vi.fn(async (key: string) => recorded.get(key) ?? null),
 }
 let storage: typeof memory | Redis | null = redis ?? memory
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => storage)
 let scope = { workspaceId: 'workspace', userId: 'reader', sessionKey: 'chat' }
 const machine = { providerId: 'e2b', sandboxId: 'physical-machine' } as const
 const bytes = new Uint8Array([255, 254, 0, 1, 90, 13, 10])
@@ -58,7 +57,6 @@ async function download(provenance: WorkspaceFileSecretProvenance = secret) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   recorded.clear()
   storage = redis ?? memory
   scope = { ...scope, sessionKey: `chat-${generateShortId(16)}` }

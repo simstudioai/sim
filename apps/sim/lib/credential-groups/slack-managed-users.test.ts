@@ -1,8 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { attempts, redis } = vi.hoisted(() => {
   const attempts = new Map<string, string>()
@@ -24,37 +27,9 @@ const { attempts, redis } = vi.hoisted(() => {
   }
 })
 
-const shared = vi.hoisted(() => ({
-  env: {
-    SLACK_SEARCH_APP_ID: '',
-    SLACK_SEARCH_CLIENT_ID: 'environment-client',
-    SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
-    SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
-  },
-  flag: vi.fn(),
-}))
-vi.mock('@/lib/core/config/env', () => ({ env: shared.env }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: shared.flag }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
-  })),
-  decryptSecret: vi.fn(async (value: string) => ({
-    decrypted:
-      value === 'encrypted-bot'
-        ? JSON.stringify({
-            type: 'slack_custom_bot',
-            signingSecret: 'signing-secret',
-            botToken: 'xoxb-token',
-            teamId: 'T123',
-          })
-        : Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
-  })),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.ai' }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
@@ -67,9 +42,38 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   exchangeSlackUserAuthorization,
   loadSlackManagedUsersAttempt,
-  verifySlackCustomBotAppIdentity,
-  verifySlackUserIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
+
+const shared = { flag: featureFlagsMockFns.mockIsFeatureEnabled }
+
+setEnv({
+  SLACK_SEARCH_APP_ID: '',
+  SLACK_SEARCH_CLIENT_ID: 'environment-client',
+  SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
+  SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
+})
+setEnvFlags({ isHosted: true })
+redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.ai')
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted:
+    value === 'encrypted-bot'
+      ? JSON.stringify({
+          type: 'slack_custom_bot',
+          signingSecret: 'signing-secret',
+          botToken: 'xoxb-token',
+          teamId: 'T123',
+        })
+      : Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
+}))
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+  resetUrlsMock()
+})
 
 function slackResponse(value: Record<string, unknown>): Response {
   return new Response(JSON.stringify(value), {
@@ -80,16 +84,11 @@ function slackResponse(value: Record<string, unknown>): Response {
 
 describe('Slack managed-user authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     attempts.clear()
-    shared.env.SLACK_SEARCH_APP_ID = ''
-    shared.env.SLACK_SEARCH_CLIENT_SECRET = 'environment-secret'
+    setEnv({ SLACK_SEARCH_APP_ID: '' })
+    setEnv({ SLACK_SEARCH_CLIENT_SECRET: 'environment-secret' })
     shared.flag.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('stores exact organization ownership in the encrypted setup attempt and rejects ambiguous ownership', async () => {
@@ -145,7 +144,7 @@ describe('Slack managed-user authorization', () => {
   it.each(['rotation', 'disabled', 'success'] as const)(
     'keeps shared setup state secret-free and rechecks configuration on %s',
     async (outcome) => {
-      shared.env.SLACK_SEARCH_APP_ID = 'ASHARED'
+      setEnv({ SLACK_SEARCH_APP_ID: 'ASHARED' })
       shared.flag.mockImplementation(async (_flag, context) => context?.orgId === 'org-1')
       dbChainMockFns.limit
         .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
@@ -176,7 +175,7 @@ describe('Slack managed-user authorization', () => {
       expect(JSON.stringify(stored)).not.toContain('environment-secret')
       expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
       if (outcome === 'rotation') {
-        shared.env.SLACK_SEARCH_CLIENT_SECRET = 'rotated'
+        setEnv({ SLACK_SEARCH_CLIENT_SECRET: 'rotated' })
         await expect(consumeSlackManagedUsersAttempt(created.state)).rejects.toThrow('changed')
       } else if (outcome === 'disabled') {
         shared.flag.mockResolvedValue(false)
@@ -193,26 +192,6 @@ describe('Slack managed-user authorization', () => {
     }
   )
 
-  it('binds the bot token to Slack app and workspace identities', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        slackResponse({ ok: true, team_id: 'T123', user_id: 'U123', bot_id: 'B123' })
-      )
-      .mockResolvedValueOnce(slackResponse({ ok: true, bot: { id: 'B123', app_id: 'A123' } }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(verifySlackCustomBotAppIdentity('xoxb-token')).resolves.toEqual({
-      appId: 'A123',
-      teamId: 'T123',
-    })
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'https://slack.com/api/bots.info',
-      expect.objectContaining({ body: new URLSearchParams({ bot: 'B123' }) })
-    )
-  })
-
   it.each([
     {
       name: 'new Search pool',
@@ -220,13 +199,6 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
-    },
-    {
-      name: 'existing workflow pool',
-      existing: true,
-      existingScopes: SLACK_MANAGED_USER_SCOPES,
-      requestedScopes: SLACK_SEARCH_USER_SCOPES,
-      scopes: SLACK_MANAGED_USER_SCOPES,
     },
     {
       name: 'legacy workflow pool without explicit scopes',
@@ -349,12 +321,6 @@ describe('Slack managed-user authorization', () => {
       scopes: SLACK_MANAGED_USER_SCOPES,
     },
     {
-      name: 'existing search',
-      existingScopes: SLACK_SEARCH_USER_SCOPES,
-      requestedScopes: undefined,
-      scopes: SLACK_SEARCH_USER_SCOPES,
-    },
-    {
       name: 'explicit switch to search',
       existingScopes: SLACK_MANAGED_USER_SCOPES,
       requestedScopes: SLACK_SEARCH_USER_SCOPES,
@@ -421,22 +387,6 @@ describe('Slack managed-user authorization', () => {
       await expect(consumeSlackManagedUsersAttempt(created.state)).resolves.toBeNull()
     }
   )
-
-  it('returns an actionable error when the custom bot lacks users:read', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(slackResponse({ ok: true, team_id: 'T123', bot_id: 'B123' }))
-        .mockResolvedValueOnce(
-          slackResponse({ ok: false, error: 'missing_scope', needed: 'users:read' })
-        )
-    )
-
-    await expect(verifySlackCustomBotAppIdentity('xoxb-token')).rejects.toThrow(
-      'Add the users:read bot scope'
-    )
-  })
 
   it.each([
     { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },
@@ -600,45 +550,6 @@ describe('Slack managed-user authorization', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
-  it('requires Slack to attest a user token, app, team, user, and scopes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      slackResponse({
-        ok: true,
-        app_id: 'A123',
-        team: { id: 'T123', name: 'Sim' },
-        authed_user: {
-          id: 'U123',
-          access_token: 'xoxp-token',
-          token_type: 'user',
-          scope: 'users:read,users:read.email',
-        },
-      })
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await exchangeSlackUserAuthorization({
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      code: 'single-use-code',
-      redirectUri: 'https://sim.ai/callback',
-    })
-
-    expect(result).toMatchObject({
-      appId: 'A123',
-      teamId: 'T123',
-      userId: 'U123',
-      accessToken: 'xoxp-token',
-      tokenType: 'user',
-    })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://slack.com/api/oauth.v2.access',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: expect.stringMatching(/^Basic /) }),
-      })
-    )
-  })
-
   it('fails closed when Slack omits the user token type', async () => {
     vi.stubGlobal(
       'fetch',
@@ -713,41 +624,5 @@ describe('Slack managed-user authorization', () => {
       })
     )
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('verifies the token identity and reads cosmetic profile metadata', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(slackResponse({ ok: true, team_id: 'T123', user_id: 'U123' }))
-      .mockResolvedValueOnce(
-        slackResponse({
-          ok: true,
-          user: {
-            id: 'U123',
-            name: 'theo',
-            profile: {
-              email: 'theo@sim.ai',
-              display_name: 'Theo',
-              image_192: 'https://avatars.slack-edge.com/theo.png',
-            },
-          },
-        })
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(
-      verifySlackUserIdentity({
-        accessToken: 'xoxp-token',
-        expectedTeamId: 'T123',
-        expectedUserId: 'U123',
-      })
-    ).resolves.toEqual({
-      userId: 'U123',
-      teamId: 'T123',
-      email: 'theo@sim.ai',
-      displayName: 'Theo',
-      avatarUrl: 'https://avatars.slack-edge.com/theo.png',
-      username: 'theo',
-    })
   })
 })

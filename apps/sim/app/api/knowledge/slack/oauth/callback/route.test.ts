@@ -1,13 +1,14 @@
-/** @vitest-environment node */
 import { authMockFns, dbChainMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const m = vi.hoisted(() => ({
   authenticate: vi.fn(),
   complete: vi.fn(),
-  rate: vi.fn(),
 }))
 vi.mock('@/lib/slack-search/public-install-auth', () => ({
   authenticateSlackPublicInstallation: m.authenticate,
@@ -15,27 +16,23 @@ vi.mock('@/lib/slack-search/public-install-auth', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/setup', () => ({
   completeSlackSearchSetup: { execute: m.complete },
 }))
-vi.mock('@/lib/core/rate-limiter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/rate-limiter')>()),
-  enforceIpRateLimit: m.rate,
-  enforceUserRateLimit: m.rate,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://www.sim.ai',
-  SITE_URL: 'https://www.sim.ai',
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { GET, HEAD } from '@/app/api/knowledge/slack/oauth/callback/route'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://www.sim.ai')
+
+const { mockEnforceIpRateLimit, mockEnforceUserRateLimit } = rateLimiterMockFns
+
 const request = (query: string) =>
-  new NextRequest(`https://www.sim.ai/api/knowledge/slack/oauth/callback?${query}`)
+  createMockRequest({ url: `https://www.sim.ai/api/knowledge/slack/oauth/callback?${query}` })
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'admin' },
     session: { id: 'session' },
   })
-  m.rate.mockResolvedValue(null)
+  mockEnforceIpRateLimit.mockResolvedValue(null)
+  mockEnforceUserRateLimit.mockResolvedValue(null)
   m.authenticate.mockResolvedValue({ teamId: 'T1' })
   m.complete.mockResolvedValue({ organizationId: 'org1' })
 })
@@ -70,7 +67,7 @@ describe('Slack OAuth callback', () => {
     )
     expect(m.complete).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
         input: { state: 'state', code: 'code', error: undefined },
       })
     )
@@ -97,7 +94,8 @@ describe('Slack OAuth callback', () => {
   )
   it('does not consume codes on HEAD requests or after rate limiting', async () => {
     expect((await HEAD(request('code=code'))).status).toBe(405)
-    m.rate.mockResolvedValue(new Response(null, { status: 429 }))
+    mockEnforceIpRateLimit.mockResolvedValue(new Response(null, { status: 429 }))
+    mockEnforceUserRateLimit.mockResolvedValue(new Response(null, { status: 429 }))
     expect((await GET(request('code=code'))).status).toBe(429)
     expect(m.authenticate).not.toHaveBeenCalled()
   })

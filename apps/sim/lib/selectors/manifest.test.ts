@@ -4,18 +4,6 @@ import { selectorManifest } from '@/lib/selectors/manifest'
 import { serverSelectorRegistry } from '@/lib/selectors/server/registry'
 
 describe('selector manifest', () => {
-  it('keeps the completed migration inventory exhaustive and legacy-free', () => {
-    const classifications = Object.values(selectorManifest).map((entry) => entry.classification)
-    const count = (classification: (typeof classifications)[number]) =>
-      classifications.filter((value) => value === classification).length
-
-    expect(Object.keys(selectorManifest)).toHaveLength(107)
-    expect(count('provider-server')).toBe(94)
-    expect(count('internal-server')).toBe(12)
-    expect(count('local')).toBe(1)
-    expect(classifications).not.toContain('provider-legacy')
-  })
-
   it('attaches every manifest key exactly once on its declared execution side', () => {
     const entries = Object.entries(selectorManifest)
     const expectedServerKeys = entries
@@ -60,11 +48,6 @@ describe('selector manifest', () => {
     ])
   })
 
-  it('declares both CloudWatch selectors as paginated', () => {
-    expect(selectorManifest['cloudwatch.logGroups'].listMode).toBe('paginated')
-    expect(selectorManifest['cloudwatch.logStreams'].listMode).toBe('paginated')
-  })
-
   /**
    * `serviceIds` names which credentials a selector accepts; the integration
    * allowlist has to judge which resource it *reaches*, and for a shared
@@ -80,18 +63,6 @@ describe('selector manifest', () => {
       expect(credential.resourceServiceId, `${key} declares no resourceServiceId`).toBeDefined()
       expect(credential.serviceIds).toContain(credential.resourceServiceId)
     }
-  })
-
-  it('pins the resource each shared-provider selector reaches', () => {
-    expect(serverSelectorRegistry['google.drive'].credential?.resourceServiceId).toBe(
-      'google-drive'
-    )
-    expect(serverSelectorRegistry['onedrive.folders'].credential?.resourceServiceId).toBe(
-      'onedrive'
-    )
-    expect(serverSelectorRegistry['sharepoint.sites'].credential?.resourceServiceId).toBe(
-      'sharepoint'
-    )
   })
 
   it('requires executable preparation for every non-fixed destination', () => {

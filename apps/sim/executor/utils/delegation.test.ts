@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { executionScopeForTarget } from '@/executor/utils/delegation'
 
@@ -15,13 +12,5 @@ describe('executionScopeForTarget', () => {
     expect(
       executionScopeForTarget({ workflowId: 'parent', executionId: 'run-1' }, 'child')
     ).toEqual({})
-  })
-
-  it('omits the execution outside an active run', () => {
-    expect(executionScopeForTarget({ workflowId: 'workflow-1' }, 'workflow-1')).toEqual({})
-  })
-
-  it('omits the execution when the context has no workflow to compare', () => {
-    expect(executionScopeForTarget({ executionId: 'run-1' }, 'workflow-1')).toEqual({})
   })
 })

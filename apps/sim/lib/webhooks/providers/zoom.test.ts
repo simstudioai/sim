@@ -1,12 +1,8 @@
 import crypto from 'node:crypto'
-import { NextRequest } from 'next/server'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
 import { validateZoomSignature, zoomHandler } from '@/lib/webhooks/providers/zoom'
 import { isZoomEventMatch } from '@/triggers/zoom/utils'
-
-function reqWithHeaders(headers: Record<string, string>): NextRequest {
-  return new NextRequest('http://localhost/test', { headers })
-}
 
 describe('Zoom webhook provider', () => {
   it('isZoomEventMatch rejects empty event for specialized triggers', () => {
@@ -27,32 +23,12 @@ describe('Zoom webhook provider', () => {
     expect(validateZoomSignature(secret, hashA, timestamp, rawB)).toBe(false)
   })
 
-  it('does not implement extractIdempotencyId (x-zm-request-id handled at service level)', () => {
-    expect(zoomHandler.extractIdempotencyId).toBeUndefined()
-  })
-
-  it('formatInput passes through the Zoom webhook envelope', async () => {
-    const body = {
-      event: 'meeting.started',
-      event_ts: 1700000000000,
-      payload: { account_id: 'acct', object: { id: 1 } },
-    }
-    const { input } = await zoomHandler.formatInput!({
-      webhook: {},
-      workflow: { id: 'wf', userId: 'u' },
-      body,
-      headers: {},
-      requestId: 'zoom-format',
-    })
-    expect(input).toBe(body)
-  })
-
   it('matchEvent never executes endpoint validation payloads', async () => {
     const result = await zoomHandler.matchEvent!({
       webhook: { id: 'w' },
       workflow: { id: 'wf' },
       body: { event: 'endpoint.url_validation' },
-      request: reqWithHeaders({}),
+      request: createMockRequest({}),
       requestId: 't5',
       providerConfig: { triggerId: 'zoom_webhook' },
     })

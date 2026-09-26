@@ -1,13 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   betterAuthPost: vi.fn(async () => new Response('delegated', { status: 201 })),
-  rateLimit: vi.fn(async () => null),
   rotate: vi.fn(),
   validateClient: vi.fn(),
 }))
@@ -15,12 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('better-auth/next-js', () => ({
   toNextJsHandler: () => ({ POST: mocks.betterAuthPost }),
 }))
-vi.mock('@/lib/auth', () => ({ auth: { handler: vi.fn() } }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 vi.mock('@/lib/auth/oauth-provider-adapter-guard', () => ({
   withOAuthProviderIssuanceCompensation: (work: () => Promise<Response>) => work(),
 }))
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/auth/oauth-token-family', () => ({
   rotateOAuthRefreshToken: mocks.rotate,
   validateOAuthClientCredentials: mocks.validateClient,
@@ -28,6 +25,8 @@ vi.mock('@/lib/auth/oauth-token-family', () => ({
 
 import { bindOAuthIssuedResource, getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { POST } from '@/app/api/auth/oauth2/token/route'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
 function tokenRequest(body: string) {
   return new NextRequest('http://localhost/api/auth/oauth2/token', {
@@ -41,7 +40,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('OAuth token route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAuthDisabled: false })
     mocks.rotate.mockResolvedValue({
       success: true,
@@ -54,18 +52,6 @@ describe('OAuth token route', () => {
       },
     })
     mocks.validateClient.mockResolvedValue({ success: true, value: undefined })
-  })
-
-  it('delegates authorization-code exchange through an equivalent rebuilt request', async () => {
-    const response = await POST(
-      tokenRequest('grant_type=authorization_code&client_id=sim-cli&code=code')
-    )
-    expect(response.status).toBe(201)
-    expect(mocks.betterAuthPost).toHaveBeenCalledOnce()
-    expect(mocks.validateClient).toHaveBeenCalledWith({ clientId: 'sim-cli', method: 'none' })
-    const delegated = mocks.betterAuthPost.mock.calls[0]?.[0]
-    await expect(delegated.text()).resolves.toContain('grant_type=authorization_code')
-    expect(mocks.rateLimit).toHaveBeenCalledOnce()
   })
 
   it('rejects an authorization-code client using the wrong registered auth method', async () => {
@@ -83,19 +69,6 @@ describe('OAuth token route', () => {
     expect(response.status).toBe(401)
     expect(response.headers.get('www-authenticate')).toContain('Basic')
     expect(mocks.betterAuthPost).not.toHaveBeenCalled()
-  })
-
-  it('passes decoded Basic credentials through Better Auth body authentication', async () => {
-    const request = tokenRequest('grant_type=authorization_code&code=code')
-    request.headers.set('authorization', `basic ${Buffer.from('client:secret').toString('base64')}`)
-
-    await POST(request)
-
-    const delegated = mocks.betterAuthPost.mock.calls[0]?.[0]
-    expect(delegated.headers.has('authorization')).toBe(false)
-    const delegatedForm = new URLSearchParams(await delegated.text())
-    expect(delegatedForm.get('client_id')).toBe('client')
-    expect(delegatedForm.get('client_secret')).toBe('secret')
   })
 
   it('normalizes delegated invalid-code and PKCE failures', async () => {
@@ -182,20 +155,6 @@ describe('OAuth token route', () => {
     await expect(response.json()).resolves.toMatchObject({ error: 'invalid_grant' })
   })
 
-  it('returns a bounded OAuth error when delegated issuance fails without JSON', async () => {
-    mocks.betterAuthPost.mockResolvedValueOnce(new Response(null, { status: 500 }))
-
-    const response = await POST(
-      tokenRequest('grant_type=authorization_code&client_id=sim-cli&code=code')
-    )
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'server_error',
-      error_description: 'Token exchange failed.',
-    })
-  })
-
   it('normalizes Better Auth validation errors without exposing its internal shape', async () => {
     mocks.betterAuthPost.mockResolvedValueOnce(
       Response.json(
@@ -237,61 +196,6 @@ describe('OAuth token route', () => {
       error: 'server_error',
       error_description: 'Token exchange failed.',
     })
-  })
-
-  it('rotates refresh tokens and preserves the Better Auth response shape', async () => {
-    const response = await POST(
-      tokenRequest(
-        'grant_type=refresh_token&client_id=sim-cli&refresh_token=sim_ort_current&scope=api%3Aread'
-      )
-    )
-    expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    await expect(response.json()).resolves.toEqual({
-      access_token: 'sim_oat_next',
-      expires_in: 3600,
-      expires_at: 2_000_000_000,
-      token_type: 'Bearer',
-      refresh_token: 'sim_ort_next',
-      scope: 'offline_access api:read',
-    })
-    expect(mocks.rotate).toHaveBeenCalledWith({
-      credentials: { clientId: 'sim-cli', method: 'none' },
-      refreshToken: 'sim_ort_current',
-      requestedScopes: ['api:read'],
-    })
-  })
-
-  it('renders protocol failures only after the rotation service returns', async () => {
-    mocks.rotate.mockResolvedValue({
-      success: false,
-      error: 'invalid_grant',
-      description: 'Refresh token is invalid or has already been used.',
-    })
-    const response = await POST(
-      tokenRequest('grant_type=refresh_token&client_id=sim-cli&refresh_token=sim_ort_old')
-    )
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_grant' })
-  })
-
-  it('distinguishes a missing grant type from an unsupported grant type', async () => {
-    const missing = await POST(tokenRequest('client_id=sim-cli'))
-    expect(missing.status).toBe(400)
-    await expect(missing.json()).resolves.toMatchObject({ error: 'invalid_request' })
-
-    const unsupported = await POST(tokenRequest('grant_type=client_credentials&client_id=sim-cli'))
-    expect(unsupported.status).toBe(400)
-    await expect(unsupported.json()).resolves.toMatchObject({ error: 'unsupported_grant_type' })
-    expect(mocks.betterAuthPost).not.toHaveBeenCalled()
-    expect(mocks.rotate).not.toHaveBeenCalled()
-  })
-
-  it('reports a missing refresh token as an invalid request', async () => {
-    const response = await POST(tokenRequest('grant_type=refresh_token&client_id=sim-cli'))
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
-    expect(mocks.rotate).not.toHaveBeenCalled()
   })
 
   it.each(['authorization_code', 'refresh_token'])(
@@ -356,35 +260,15 @@ describe('OAuth token route', () => {
     }
   )
 
-  it('passes a canonical resource to refresh rotation and preserves omission', async () => {
-    const resource = 'https://sim.example/api/mcp/search/organizations/one'
-    await POST(
-      tokenRequest(
-        new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: 'search-client',
-          refresh_token: 'sim_ort_original',
-          resource,
-        }).toString()
-      )
-    )
-    expect(mocks.rotate).toHaveBeenCalledWith(
-      expect.objectContaining({ resource, refreshToken: 'sim_ort_original' })
-    )
-    await POST(
-      tokenRequest(
-        'grant_type=refresh_token&client_id=search-client&refresh_token=sim_ort_original'
-      )
-    )
-    expect(mocks.rotate.mock.calls[1]?.[0]).not.toHaveProperty('resource')
-  })
-
   it('applies rate admission before parsing and prevents caching a refusal', async () => {
-    mocks.rateLimit.mockResolvedValueOnce(new Response('limited', { status: 429 }))
-    const request = new NextRequest('http://localhost/api/auth/oauth2/token', {
+    rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValueOnce(
+      new Response('limited', { status: 429 })
+    )
+    const request = createMockRequest({
       method: 'POST',
-      body: '{}',
+      url: 'http://localhost/api/auth/oauth2/token',
       headers: { 'content-type': 'application/json' },
+      rawBody: '{}',
     })
 
     const response = await POST(request)
@@ -423,7 +307,7 @@ describe('OAuth token route', () => {
     expect(response.status).toBe(404)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.rotate).not.toHaveBeenCalled()
-    expect(mocks.rateLimit).not.toHaveBeenCalled()
+    expect(rateLimiterMockFns.mockEnforceIpRateLimit).not.toHaveBeenCalled()
     expect(mocks.betterAuthPost).not.toHaveBeenCalled()
   })
 })

@@ -1,25 +1,21 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createExecutorPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const resolvePermission = vi.hoisted(() => vi.fn())
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeTableOperation } from '@/lib/table/application/authorization'
 import { tableOperations } from '@/lib/table/application/operations'
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const authorizationContext = {
   workspaceId: 'workspace-1',
@@ -37,18 +33,17 @@ async function expectForbidden(principal: Principal) {
 
 describe('table operation authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolvePermission.mockResolvedValue('write')
   })
 
   it('reauthorizes session and personal-key subjects against current policy', async () => {
     await authorizeTableOperation(
-      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      createSessionPrincipal(),
       tableOperations.updateRow,
       authorizationContext
     )
     await authorizeTableOperation(
-      { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      createPersonalApiKeyPrincipal(),
       tableOperations.updateRow,
       authorizationContext
     )
@@ -67,23 +62,22 @@ describe('table operation authorization', () => {
   it('rejects a current reader for a write operation', async () => {
     resolvePermission.mockResolvedValue('read')
 
-    await expectForbidden({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    await expectForbidden(createSessionPrincipal())
   })
 
   it('rejects disabled personal keys before permission lookup', async () => {
     await expect(
-      authorizeTableOperation(
-        { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-        tableOperations.updateRow,
-        { ...authorizationContext, allowPersonalApiKeys: false }
-      )
+      authorizeTableOperation(createPersonalApiKeyPrincipal(), tableOperations.updateRow, {
+        ...authorizationContext,
+        allowPersonalApiKeys: false,
+      })
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
     expect(resolvePermission).not.toHaveBeenCalled()
   })
 
   it('allows workspace keys only in their credential workspace', async () => {
     await authorizeTableOperation(
-      { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      createWorkspaceApiKeyPrincipal(),
       tableOperations.updateRow,
       authorizationContext
     )
@@ -98,17 +92,11 @@ describe('table operation authorization', () => {
 
   it('reauthorizes a valid table-scoped delegation as its human subject', async () => {
     await authorizeTableOperation(
-      {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
+      createDelegatedPrincipal({
         delegationId: 'tool-call-1',
         audience: 'sim:tables',
-        issuedAt: new Date(Date.now() - 1_000),
-        expiresAt: new Date(Date.now() + 60_000),
         resourceScope: { tableId: 'table-1', chatId: 'chat-1' },
-      },
+      }),
       tableOperations.updateRow,
       authorizationContext
     )
@@ -123,16 +111,10 @@ describe('table operation authorization', () => {
   })
 
   it('requires delegated scope to match the context in both directions', async () => {
-    const unscopedPrincipal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
+    const unscopedPrincipal = createExecutorPrincipal({
       delegationId: 'execution-1',
       audience: 'sim:tables',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-    }
+    })
     const workspaceContext = { ...authorizationContext, tableId: undefined }
 
     await authorizeTableOperation(unscopedPrincipal, tableOperations.readImport, workspaceContext)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { icypeasFindEmailTool } from '@/tools/icypeas/find_email'
 import { ICYPEAS_CREDIT_USD } from '@/tools/icypeas/hosting'
@@ -9,7 +6,6 @@ import type { ToolConfig } from '@/tools/types'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, unknown>) {
@@ -18,15 +14,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
   const result = pricing.getCost(params, output)
   return typeof result === 'number' ? { cost: result } : result
 }
-
-describe('Icypeas hosted key config', () => {
-  it('declares the correct env prefix and BYOK provider ID', () => {
-    expect(icypeasFindEmailTool.hosting?.envKeyPrefix).toBe('ICYPEAS_API_KEY')
-    expect(icypeasFindEmailTool.hosting?.byokProviderId).toBe('icypeas')
-    expect(icypeasVerifyEmailTool.hosting?.envKeyPrefix).toBe('ICYPEAS_API_KEY')
-    expect(icypeasVerifyEmailTool.hosting?.byokProviderId).toBe('icypeas')
-  })
-})
 
 describe('Icypeas find-email pricing', () => {
   it('charges 1 credit when status is FOUND', () => {

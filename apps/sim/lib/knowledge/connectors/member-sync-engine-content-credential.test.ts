@@ -1,0 +1,1229 @@
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+} from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExternalDocument } from '@/connectors/types'
+
+const hoisted = vi.hoisted(() => ({
+  list: vi.fn(),
+  get: vi.fn(),
+  add: vi.fn(),
+  update: vi.fn(),
+  token: vi.fn(),
+  isCredentialInvalidError: vi.fn(),
+  observe: vi.fn(),
+  removeUnseen: vi.fn(),
+  removeForDocuments: vi.fn(),
+  materialize: vi.fn(),
+  rematerialize: vi.fn(async () => 0),
+  lifecycle: vi.fn(),
+  getChangeCursor: vi.fn(),
+  listChanges: vi.fn(),
+  supportsChangeFeed: vi.fn(),
+  persistFailures: vi.fn(),
+  scopes: vi.fn(),
+  renew: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
+  inviteWorkspaceMembersToCredentialGroup: vi.fn(async () => ({ invited: 0 })),
+}))
+vi.mock('@/lib/knowledge/connectors/access-token', () => ({
+  resolveConnectorTokenUserId: vi.fn(async () => 'credential-owner'),
+  resolveConnectorAccessToken: hoisted.token,
+  syncContextForToken: (token: { cloudId?: string }) => ({ cloudId: token.cloudId }),
+}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
+  applyMemberDocumentLifecycle: hoisted.lifecycle,
+  materializeDocumentAcls: hoisted.materialize,
+  rematerializeDocumentAcls: hoisted.rematerialize,
+  recordMemberObservations: hoisted.observe,
+  removeMemberObservationsForDocuments: hoisted.removeForDocuments,
+  removeUnseenMemberObservations: hoisted.removeUnseen,
+  renewMemberObservationsInScopes: hoisted.renew,
+  rewriteConnectorAcls: vi.fn(async () => true),
+  tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
+  resurrectObservedDocuments: vi.fn(async () => 0),
+}))
+vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
+  addDocument: hoisted.add,
+  updateDocument: hoisted.update,
+  persistSkippedDocuments: vi.fn(async () => []),
+  persistSourceDocumentFailures: hoisted.persistFailures,
+  persistHashOnlyUpdates: vi.fn(async () => []),
+  resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
+}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    full_listing: {
+      id: 'full_listing',
+      name: 'Full listing source',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
+      supportsSeparateContentCredential: true,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+    },
+    scoped_listing: {
+      id: 'scoped_listing',
+      name: 'Container-scoped source',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
+      supportsSeparateContentCredential: true,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      listAccessibleScopes: hoisted.scopes,
+      isListingCursorInvalidError: (error: unknown) =>
+        error instanceof Error && error.message === 'cursor expired',
+    },
+    drive: {
+      id: 'drive',
+      name: 'Drive',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
+      supportsSeparateContentCredential: true,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      getChangeCursor: hoisted.getChangeCursor,
+      listChanges: hoisted.listChanges,
+      supportsChangeFeed: hoisted.supportsChangeFeed,
+      isCredentialInvalidError: hoisted.isCredentialInvalidError,
+    },
+  },
+}))
+
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import {
+  CredentialGroupCredentialCursorNotFoundError,
+  loadScopedAccountsCredentialListContext,
+} from '@/lib/credential-groups/credentials'
+import {
+  beginListingCheckpoint,
+  listingFingerprint,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
+import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
+import {
+  MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+  SOURCE_CONTENT_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
+
+const mocks = {
+  ...hoisted,
+  credentials: knowledgeMemberAccessMockFns.mockListKnowledgeConnectorMemberCredentials,
+  rejectToken: knowledgeMemberAccessMockFns.mockRejectKnowledgeConnectorMemberToken,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+}
+
+credentialGroupsCredentialsMockFns.mockIsManagedCredentialGroupBindingLive.mockReturnValue(true)
+credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext.mockImplementation(
+  async () => ({
+    status: 'active',
+    options: [{ id: 'option', status: 'active' }],
+  })
+)
+knowledgeMemberAccessMockFns.mockMintKnowledgeConnectorMemberToken.mockImplementation(async () => ({
+  accessToken: 'member-token',
+}))
+triggerAvailabilityMockFns.mockIsTriggerAvailable.mockReturnValue(true)
+
+const serviceDocument: ExternalDocument = {
+  externalId: 'file-shared',
+  title: 'Shared file',
+  content: '',
+  contentHash: 'v1',
+  contentDeferred: true,
+  mimeType: 'text/plain',
+}
+
+const member = {
+  id: 'member',
+  credentialId: 'member-credential',
+  connectorId: 'connector',
+  status: 'active',
+  subjectToken: 'subject:google-drive:person',
+  consecutiveFailures: 0,
+  lastCompleteListingAt: null,
+  memberSyncedThrough: null,
+  changeCursor: null,
+}
+
+/** Real engine, content stages, pagination, classification, and leases; external I/O is mocked. */
+function arrange(
+  options: {
+    isSearchIndex?: boolean
+    connectorType?: 'drive' | 'full_listing' | 'scoped_listing'
+    members?: boolean
+    memberContent?: boolean
+    existingDocument?: boolean
+    openMemberFeed?: boolean
+    contentFresh?: boolean
+    forceContentRefresh?: boolean
+    noDueMembers?: boolean
+    syncIntervalMinutes?: number
+    unchangedContent?: boolean
+    contentIncomplete?: boolean
+    changedIdentity?: boolean
+    directoryCheckpoint?: Record<string, unknown>
+    organizationId?: string
+    memberCheckpoint?: Record<string, unknown>
+    scopeRenewedAt?: Date
+    scopeRenewal?: { cursor: string; startedAt: Date }
+  } = {}
+) {
+  const connector = {
+    id: 'connector',
+    knowledgeBaseId: 'kb',
+    connectorType: options.connectorType ?? 'drive',
+    credentialId: options.memberContent ? null : 'content-credential',
+    encryptedApiKey: null,
+    credentialGroupId: 'group',
+    credentialGroupOptionId: 'option',
+    accessMode: 'members',
+    status: 'active',
+    memberSyncStatus: 'idle',
+    memberSyncConsecutiveFailures: 0,
+    syncIntervalMinutes: options.syncIntervalMinutes ?? 1440,
+    lastSyncAt: options.contentFresh ? new Date() : null,
+    directoryCheckpoint: options.directoryCheckpoint ?? null,
+    sourceConfig: { folderId: 'shared-folder', adminEmail: 'admin@example.com' },
+    accessRewritePending: false,
+    archivedAt: null,
+    deletedAt: null,
+    connectorArchivedAt: null,
+    connectorDeletedAt: null,
+    kbDeletedAt: null,
+  }
+  for (let i = 0; i < 40; i++) {
+    queueTableRows(schemaMock.knowledgeConnector, [connector])
+    queueTableRows(schemaMock.knowledgeBase, [
+      {
+        id: 'kb',
+        isSearchIndex: options.isSearchIndex,
+        workspaceId: options.organizationId ? null : 'workspace',
+        organizationId: options.organizationId ?? null,
+        userId: 'owner',
+        deletedAt: null,
+      },
+    ])
+  }
+  const memberRow = options.openMemberFeed
+    ? {
+        ...member,
+        lastCompleteListingAt: new Date(),
+        memberSyncedThrough: new Date(),
+        changeCursor: 'old-cursor',
+      }
+    : {
+        ...member,
+        scopeRenewedAt: options.scopeRenewedAt ?? null,
+        scopeRenewalCursor: options.scopeRenewal?.cursor ?? null,
+        scopeRenewalStartedAt: options.scopeRenewal?.startedAt ?? null,
+        ...(options.memberCheckpoint ? { listingCheckpoint: options.memberCheckpoint } : {}),
+      }
+  const claims = options.members && !options.noDueMembers ? [[memberRow], []] : [[]]
+  dbChainMockFns.returning.mockImplementation(async () => {
+    const values = dbChainMockFns.set.mock.calls.at(-1)?.[0]
+    if (values && 'lastStartedAt' in values) return claims.shift() ?? []
+    return [connector]
+  })
+  if (!options.contentFresh || options.forceContentRefresh) {
+    queueTableRows(
+      schemaMock.document,
+      options.unchangedContent
+        ? [
+            {
+              id: 'stored-file',
+              externalId: 'file-shared',
+              contentHash: 'v1',
+              storageKey: 'stored',
+              userExcluded: false,
+            },
+          ]
+        : []
+    )
+    if (!options.contentIncomplete) {
+      queueTableRows(schemaMock.document, [
+        {
+          ownedCount: options.existingDocument ? 2 : 1,
+          listedCount: 1,
+          softCount: 0,
+          hardCount: 0,
+        },
+      ])
+      queueTableRows(schemaMock.document, [])
+      queueTableRows(schemaMock.document, [])
+    }
+    queueTableRows(schemaMock.document, [{ count: 1 }])
+  }
+  if (options.members && !options.noDueMembers)
+    queueTableRows(schemaMock.document, [
+      { id: 'stored-file', externalId: 'file-shared', contentHash: 'v1', userExcluded: false },
+    ])
+  queueTableRows(schemaMock.document, [])
+  queueTableRows(
+    schemaMock.knowledgeConnectorMember,
+    options.changedIdentity
+      ? [
+          {
+            ...member,
+            memberSyncedThrough: new Date(),
+            lastCompleteListingAt: new Date(),
+            changeCursor: 'old-account-cursor',
+          },
+        ]
+      : []
+  )
+  if (options.changedIdentity) queueTableRows(schemaMock.knowledgeConnectorMember, [])
+  queueTableRows(schemaMock.knowledgeConnectorMember, [])
+  queueTableRows(schemaMock.knowledgeConnectorMember, [{ count: 0 }])
+  queueTableRows(schemaMock.credential, [{ count: 0 }])
+  mocks.credentials.mockResolvedValue({
+    credentials: options.changedIdentity
+      ? [
+          {
+            credentialId: member.credentialId,
+            providerId: 'google-drive',
+            providerTenantId: null,
+            providerSubjectId: 'different-person',
+            managedOauthStatus: 'active',
+            enrollmentStatus: 'completed',
+          },
+        ]
+      : [],
+    nextCursor: null,
+  })
+  mocks.token.mockResolvedValue({ accessToken: 'service-token', cloudId: 'site' })
+  mocks.get.mockResolvedValue({
+    ...serviceDocument,
+    content: 'Service content',
+    contentDeferred: false,
+  })
+  mocks.list.mockImplementation(async (token: string) => ({
+    documents:
+      token === 'service-token'
+        ? [serviceDocument]
+        : [
+            serviceDocument,
+            { ...serviceDocument, externalId: 'member-only', content: 'Private body' },
+          ],
+    hasMore: false,
+  }))
+  mocks.add.mockResolvedValue({ documentId: 'stored-file' })
+  mocks.dispatch.mockResolvedValue({ accepted: 1, failed: 0 })
+  mocks.observe.mockResolvedValue(1)
+  mocks.removeUnseen.mockResolvedValue({ removed: 0, finished: true })
+  mocks.removeForDocuments.mockResolvedValue([])
+  mocks.getChangeCursor.mockResolvedValue('new-cursor')
+  mocks.listChanges.mockResolvedValue({ changes: [], hasMore: false, nextCursor: 'drained' })
+  mocks.supportsChangeFeed.mockReturnValue(true)
+  mocks.isCredentialInvalidError.mockReturnValue(false)
+  mocks.rejectToken.mockResolvedValue(true)
+  mocks.persistFailures.mockResolvedValue(undefined)
+  mocks.renew.mockResolvedValue({ renewed: 0, finished: true })
+  mocks.lifecycle.mockResolvedValue({ tombstoned: 0, resurrected: 0, purged: 0, finished: true })
+  return () =>
+    executeMemberSync('connector', {
+      forceContentRefresh: options.forceContentRefresh,
+      billingAttribution: {
+        actorUserId: 'owner',
+        ...(options.organizationId
+          ? { organizationId: options.organizationId }
+          : { workspaceId: 'workspace' }),
+      } as Parameters<typeof executeMemberSync>[1]['billingAttribution'],
+    })
+}
+
+describe('member engine with a dedicated content credential', () => {
+  beforeEach(() => {
+    resetEnvFlagsMock()
+    resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  })
+
+  it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
+    const result = await arrange({ isSearchIndex: true, members: true })()
+    expect(result.skipReason).toBe('connector_not_syncable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(mocks.credentials).not.toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, 'organization'])(
+    'loads the account container within the canonical owner %s',
+    async (organizationId) => {
+      const result = await arrange({ organizationId, contentFresh: true, noDueMembers: true })()
+      expect(result.error).toBeUndefined()
+      expect(loadScopedAccountsCredentialListContext).toHaveBeenCalledWith(
+        organizationId
+          ? { kind: 'organization', organizationId }
+          : { kind: 'workspace', workspaceId: 'workspace' },
+        'group'
+      )
+    }
+  )
+
+  it('invalidates authorization freshness and cursors before reusing a changed provider identity', async () => {
+    const run = arrange({ changedIdentity: true, contentFresh: true, noDueMembers: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectToken: 's:google-drive:-:different-person',
+        memberSyncedThrough: null,
+        lastCompleteListingAt: null,
+        scopeRenewedAt: null,
+        scopeRenewalCursor: null,
+        scopeRenewalStartedAt: null,
+        listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
+        changeCursor: null,
+        nextAttemptAt: expect.any(Date),
+      })
+    )
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('restarts a deleted directory cursor without treating its unfinished page as EOF', async () => {
+    const fingerprint = listingFingerprint({
+      workspaceId: 'workspace',
+      credentialGroupId: 'group',
+      credentialGroupOptionId: 'option',
+      option: { id: 'option', status: 'active' },
+      status: 'active',
+    })
+    const run = arrange({
+      contentFresh: true,
+      directoryCheckpoint: {
+        version: 1,
+        fingerprint,
+        phase: 'listing',
+        cursor: 'deleted-credential',
+      },
+    })
+    mocks.credentials.mockRejectedValueOnce(new CredentialGroupCredentialCursorNotFoundError())
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.credentials.mock.calls.map(([value]) => value.cursor)).toEqual([
+      'deleted-credential',
+      undefined,
+    ])
+  })
+
+  it('holds a directory cursor across a worker budget without running absence cleanup', async () => {
+    const run = arrange({ contentFresh: true })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    mocks.credentials.mockImplementationOnce(async () => {
+      clock.mockReturnValue(now + 46 * 60_000)
+      return { credentials: [], nextCursor: 'next-directory-page' }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.membersRemaining).toBe(true)
+      expect(mocks.credentials).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          directoryCheckpoint: expect.objectContaining({
+            phase: 'listing',
+            cursor: 'next-directory-page',
+          }),
+        })
+      )
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value.directoryCheckpoint === null)
+      ).toBe(false)
+      expect(mocks.removeUnseen).not.toHaveBeenCalled()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('indexes with no enrolled members and keeps the next content crawl scheduled', async () => {
+    const run = arrange()
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsAdded).toBe(1)
+    expect(result.membersClaimed).toBe(0)
+    expect(mocks.get).toHaveBeenCalledWith(
+      'service-token',
+      expect.objectContaining({ folderId: 'shared-folder', adminEmail: 'admin@example.com' }),
+      'file-shared',
+      expect.objectContaining({ cloudId: 'site' })
+    )
+    expect(mocks.add.mock.calls[0][6]).toBe('members')
+    expect(mocks.lifecycle).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ memberSyncStatus: 'idle', nextMemberSyncAt: expect.any(Date) })
+    )
+  })
+
+  it('uses member listings only for visibility and ignores identities outside the content corpus', async () => {
+    const run = arrange({ members: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersCompleted).toBe(1)
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+    expect(mocks.get.mock.calls[0][0]).toBe('service-token')
+    expect(mocks.add).toHaveBeenCalledTimes(1)
+    expect(mocks.add.mock.calls[0][3].content).toBe('Service content')
+    expect(mocks.observe).toHaveBeenCalledWith(
+      expect.anything(),
+      'member',
+      ['stored-file'],
+      expect.any(String)
+    )
+    expect(mocks.list.mock.calls[1][3]).toMatchObject({ perMemberListing: true })
+    expect(mocks.lifecycle).not.toHaveBeenCalled()
+  })
+
+  it('refreshes dedicated content even when enrolled members are not due', async () => {
+    const run = arrange({ members: true, noDueMembers: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsAdded).toBe(1)
+    expect(result.membersClaimed).toBe(0)
+    expect(mocks.list).toHaveBeenCalledTimes(1)
+    expect(mocks.list.mock.calls[0][0]).toBe('service-token')
+    expect(mocks.token).toHaveBeenCalledWith(expect.objectContaining({ accessMode: 'members' }))
+    expect(mocks.observe).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The content completion counts the whole connector. That scan runs before the lease
+   * transaction, which stays under the role's own timeouts, so a large connector that finished
+   * every content page cannot then fail its completion on a page bound.
+   */
+  it('counts the connector before its content completion takes the lease', async () => {
+    const run = arrange({ members: true, noDueMembers: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    const insertIndex = dbChainMockFns.insert.mock.calls.findIndex(
+      ([table]) => table === schemaMock.knowledgeConnectorSyncLog
+    )
+    expect(insertIndex).toBeGreaterThanOrEqual(0)
+    const inserted = dbChainMockFns.insert.mock.invocationCallOrder[insertIndex]
+    const opened = Math.max(
+      ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < inserted)
+    )
+    const counted = dbChainMockFns.select.mock.calls
+      .map(([fields], index) => ({
+        fields,
+        order: dbChainMockFns.select.mock.invocationCallOrder[index],
+      }))
+      .filter(({ fields, order }) => fields && 'count' in fields && order < inserted)
+      .map(({ order }) => order)
+    expect(Math.max(...counted)).toBeLessThan(opened)
+    const bounded = dbChainMockFns.execute.mock.calls
+      .map((call: unknown[], index) => ({
+        call,
+        order: dbChainMockFns.execute.mock.invocationCallOrder[index],
+      }))
+      .filter(
+        ({ call, order }) =>
+          order > opened && order < inserted && JSON.stringify(call).includes('lock_timeout')
+      )
+    expect(bounded).toEqual([])
+  })
+
+  it('reserves time for member permissions when a slow dedicated content page has more batches', async () => {
+    const run = arrange({ members: true, contentIncomplete: true })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    const memberListing = mocks.list.getMockImplementation()!
+    mocks.list.mockImplementation(async (token: string) =>
+      token === 'service-token'
+        ? {
+            documents: Array.from({ length: 26 }, (_, i) => ({
+              ...serviceDocument,
+              externalId: `content-${i}`,
+            })),
+            hasMore: false,
+          }
+        : memberListing(token)
+    )
+    mocks.get.mockImplementation(async (_token, _config, externalId: string) => {
+      clock.mockReturnValue(now + 35 * 60_000)
+      return { ...serviceDocument, externalId, content: 'Service content', contentDeferred: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.docsAdded).toBeGreaterThan(0)
+      expect(result.docsAdded).toBeLessThan(26)
+      expect(result.membersCompleted).toBe(1)
+      expect(result.membersRemaining).toBe(true)
+      expect(mocks.observe).toHaveBeenCalledWith(
+        expect.anything(),
+        'member',
+        ['stored-file'],
+        expect.any(String)
+      )
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listingCheckpoint: expect.objectContaining({
+            cursor: null,
+            complete: false,
+            listedCount: 0,
+          }),
+        })
+      )
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('keeps a manual connector unscheduled after its requested content pass', async () => {
+    const run = arrange({ syncIntervalMinutes: 0 })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsAdded).toBe(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ memberSyncStatus: 'idle', nextMemberSyncAt: null })
+    )
+  })
+
+  it('does not crawl members or grant observations when the content credential fails', async () => {
+    const run = arrange({ members: true })
+    mocks.token.mockRejectedValueOnce(new Error('Service token revoked'))
+    const result = await run()
+    expect(result.error).toBe('Service token revoked')
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.observe).not.toHaveBeenCalled()
+    expect(mocks.add).not.toHaveBeenCalled()
+  })
+
+  it('refreshes member visibility hourly while the dedicated content interval has not elapsed', async () => {
+    const run = arrange({ members: true, contentFresh: true })
+    const startedAt = Date.now()
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersCompleted).toBe(1)
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(mocks.list).toHaveBeenCalledTimes(1)
+    expect(mocks.list.mock.calls[0][0]).toBe('member-token')
+    const completion = dbChainMockFns.set.mock.calls.find(
+      ([value]) => value.memberSyncStatus === 'idle'
+    )?.[0]
+    expect(completion.nextMemberSyncAt.getTime() - startedAt).toBeLessThan(66 * 60_000)
+  })
+
+  it('refreshes permissions without rehydrating or reindexing unchanged source content', async () => {
+    const run = arrange({ members: true, unchangedContent: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsUnchanged).toBe(1)
+    expect(result.membersCompleted).toBe(1)
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.observe).toHaveBeenCalledWith(
+      expect.anything(),
+      'member',
+      ['stored-file'],
+      expect.any(String)
+    )
+  })
+
+  it('reconciles omissions on every complete listing when the source has no incremental API', async () => {
+    const run = arrange({
+      connectorType: 'full_listing',
+      members: true,
+      contentFresh: true,
+      openMemberFeed: true,
+    })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersCompleted).toBe(1)
+    expect(mocks.list.mock.calls[0][4]).toBeUndefined()
+    expect(mocks.removeUnseen).toHaveBeenCalled()
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.listChanges).not.toHaveBeenCalled()
+  })
+
+  it('does not advance the content watermark when hydration fails', async () => {
+    const run = arrange()
+    mocks.get.mockRejectedValueOnce(new Error('Download interrupted'))
+    const result = await run()
+    expect(result.docsFailed).toBe(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial', docsFailed: 1, processingDispatchFailed: 0 })
+    )
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => value.lastSyncAt instanceof Date)).toBe(
+      false
+    )
+  })
+
+  it('an explicit sync request refreshes content before its configured interval elapses', async () => {
+    const run = arrange({ contentFresh: true, forceContentRefresh: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsAdded).toBe(1)
+    expect(mocks.get.mock.calls[0][0]).toBe('service-token')
+  })
+
+  it('records processing dispatch failures separately from document failures', async () => {
+    const run = arrange()
+    mocks.dispatch.mockResolvedValue({ accepted: 0, failed: 1 })
+    const result = await run()
+    expect(result.processingDispatch.failed).toBe(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial', docsFailed: 0, processingDispatchFailed: 1 })
+    )
+  })
+
+  it('keeps an interrupted forced crawl due instead of retaining its previous fresh watermark', async () => {
+    const run = arrange({ contentFresh: true, forceContentRefresh: true })
+    mocks.list
+      .mockResolvedValueOnce({
+        documents: [serviceDocument],
+        hasMore: true,
+        nextCursor: 'page-two',
+      })
+      .mockRejectedValueOnce(new Error('Source interrupted'))
+    const result = await run()
+    expect(result.error).toBe('Source interrupted')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ lastSyncAt: null }))
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => value.lastSyncAt instanceof Date)).toBe(
+      false
+    )
+  })
+
+  it('relists visibility for newly indexed content even when the member already has a drained change feed', async () => {
+    const run = arrange({ members: true, openMemberFeed: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.docsAdded).toBe(1)
+    expect(mocks.listChanges).not.toHaveBeenCalled()
+    expect(mocks.getChangeCursor).toHaveBeenCalled()
+    expect(mocks.observe).toHaveBeenCalledWith(
+      expect.anything(),
+      'member',
+      ['stored-file'],
+      expect.any(String)
+    )
+  })
+
+  it('removes the final observer without handing content deletion to the member lifecycle', async () => {
+    const run = arrange({ members: true })
+    mocks.list.mockImplementation(async (token: string) => ({
+      documents: token === 'service-token' ? [serviceDocument] : [],
+      hasMore: false,
+    }))
+    mocks.removeUnseen.mockImplementation(async (_tx, _member, _runId, onRemoved) => {
+      await onRemoved(['stored-file'])
+      return { removed: 1, finished: true }
+    })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRemoved).toBe(1)
+    expect(mocks.materialize).toHaveBeenCalledWith('connector', ['stored-file'], expect.anything())
+    expect(mocks.lifecycle).not.toHaveBeenCalled()
+    expect(result.docsDeleted).toBe(0)
+  })
+
+  it('hands the documents whose observations a complete listing removed to the member lifecycle', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.list.mockResolvedValue({ documents: [], hasMore: false })
+    mocks.removeUnseen.mockImplementation(async (_tx, _member, _runId, onRemoved) => {
+      await onRemoved(['no-longer-listed'])
+      return { removed: 1, finished: true }
+    })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRemoved).toBe(1)
+    expect(mocks.lifecycle).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(
+      new Set(['no-longer-listed'])
+    )
+  })
+
+  it('hands the documents a change feed withdrew to the member lifecycle', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(mocks.removeForDocuments).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(new Set(['stored-file']))
+  })
+
+  it('advances the change cursor only after the ACLs a feed removal decides are written', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const cursorWrites = () =>
+      dbChainMockFns.set.mock.calls.filter(([values]) => values?.changeCursor === 'drained')
+    mocks.rematerialize.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+
+    expect((await run()).error).toBeDefined()
+    expect(mocks.rematerialize).toHaveBeenCalledOnce()
+    expect(cursorWrites()).toEqual([])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
+    )
+
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    const retry = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    /** The first attempt already committed the observation removal, so the replay removes nothing. */
+    mocks.removeForDocuments.mockResolvedValue([])
+
+    expect((await retry()).error).toBeUndefined()
+    expect(mocks.rematerialize).toHaveBeenCalledWith(
+      'connector',
+      new Set(['stored-file']),
+      expect.any(Function),
+      expect.any(Function)
+    )
+    expect(cursorWrites()).toHaveLength(1)
+    expect(mocks.rematerialize.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.findIndex(([values]) => values?.changeCursor === 'drained')
+      ]
+    )
+  })
+
+  it('fully lists scopes whose ancestor moves cannot be represented by the change feed', async () => {
+    const run = arrange({ members: true, openMemberFeed: true, contentFresh: true })
+    mocks.supportsChangeFeed.mockReturnValue(false)
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.supportsChangeFeed).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'shared-folder' })
+    )
+    expect(mocks.listChanges).not.toHaveBeenCalled()
+    expect(mocks.getChangeCursor).not.toHaveBeenCalled()
+    expect(mocks.list).toHaveBeenCalledWith(
+      'member-token',
+      expect.anything(),
+      undefined,
+      expect.anything(),
+      undefined
+    )
+    expect(mocks.removeUnseen).toHaveBeenCalled()
+  })
+
+  it('suspends observations immediately when the provider rejects the current member token', async () => {
+    const run = arrange({ members: true, openMemberFeed: true, contentFresh: true })
+    mocks.listChanges.mockRejectedValue(new Error('provider token revoked'))
+    mocks.isCredentialInvalidError.mockReturnValue(true)
+    expect((await run()).membersFailed).toBe(1)
+    expect(mocks.rejectToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'member-credential',
+        rejectedAccessToken: 'member-token',
+      })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'suspended',
+        memberSyncedThrough: null,
+        lastCompleteListingAt: null,
+        scopeRenewedAt: null,
+        scopeRenewalCursor: null,
+        scopeRenewalStartedAt: null,
+        listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
+      })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ directoryCheckpoint: null })
+    expect(mocks.observe).not.toHaveBeenCalled()
+  })
+
+  it('withdraws access when a token is revoked after listing but before content hydration', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.isCredentialInvalidError.mockImplementation(
+      (error: Error) => error.message === 'revoked during hydration'
+    )
+    mocks.list.mockResolvedValue({
+      documents: [{ ...serviceDocument, contentHash: 'v2' }],
+      hasMore: false,
+    })
+    mocks.get.mockRejectedValue(new Error('revoked during hydration'))
+    mocks.lifecycle.mockResolvedValue({ tombstoned: 0, resurrected: 0, purged: 0, finished: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersFailed).toBe(1)
+    expect(result.membersCompleted).toBe(0)
+    expect(mocks.rejectToken).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'suspended' })
+    )
+    expect(mocks.observe).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'preserves observations when terminal=%s but the credential was reconnected',
+    async (terminal) => {
+      const run = arrange({ members: true, openMemberFeed: true, contentFresh: true })
+      mocks.listChanges.mockRejectedValue(new Error('provider request failed'))
+      mocks.isCredentialInvalidError.mockReturnValue(terminal)
+      mocks.rejectToken.mockResolvedValue(false)
+      expect((await run()).membersFailed).toBe(1)
+      expect(dbChainMockFns.set.mock.calls.some(([value]) => value.status === 'suspended')).toBe(
+        false
+      )
+      expect(mocks.rejectToken).toHaveBeenCalledTimes(terminal ? 1 : 0)
+    }
+  )
+
+  it('yields a member content page between hydration batches before its worker deadline', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    mocks.list.mockResolvedValue({
+      documents: Array.from({ length: 6 }, (_, index) => ({
+        ...serviceDocument,
+        externalId: `paced-${index}`,
+        estimatedBytes: 1024,
+      })),
+      hasMore: false,
+    })
+    mocks.get.mockImplementation(async (_token, _source, externalId: string) => {
+      clock.mockReturnValue(now + 46 * 60_000)
+      return { ...serviceDocument, externalId, content: 'Complete bytes', contentDeferred: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.membersIncomplete).toBe(1)
+      expect(result.membersCompleted).toBe(0)
+      expect(mocks.get).toHaveBeenCalledTimes(5)
+      expect(mocks.get.mock.calls.some((call) => call[2] === 'paced-5')).toBe(false)
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listingCheckpoint: expect.objectContaining({ complete: false, listedCount: 0 }),
+        })
+      )
+      expect(mocks.observe).toHaveBeenCalled()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('retains the EOF checkpoint and old permission watermark when revocation exhausts its budget', async () => {
+    const run = arrange({ members: true, contentFresh: true })
+    const clock = vi.spyOn(Date, 'now')
+    const now = Date.now()
+    mocks.removeUnseen.mockImplementation(async () => {
+      clock.mockReturnValue(now + 46 * 60_000)
+      return { removed: 500, finished: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.membersIncomplete).toBe(1)
+      expect(result.membersCompleted).toBe(0)
+      expect(result.observationsRemoved).toBe(500)
+      const completedMember = dbChainMockFns.set.mock.calls.find(
+        ([value]) =>
+          'lastError' in value && 'consecutiveFailures' in value && 'nextAttemptAt' in value
+      )?.[0]
+      expect(completedMember).toBeDefined()
+      expect(completedMember).not.toHaveProperty('listingCheckpoint')
+      expect(completedMember).not.toHaveProperty('memberSyncedThrough')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('withholds deletion and corroboration when service pagination has no continuation cursor', async () => {
+    const run = arrange({ existingDocument: true })
+    mocks.list.mockResolvedValue({ documents: [serviceDocument], hasMore: true })
+    const result = await run()
+    expect(result.error).toContain('pagination did not advance')
+    expect(result.docsDeleted).toBe(0)
+    expect(mocks.add).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => value.deletedAt instanceof Date)).toBe(
+      false
+    )
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => value.lastSyncAt instanceof Date)).toBe(
+      false
+    )
+  })
+
+  const scopeRenewal = () =>
+    dbChainMockFns.set.mock.calls.find(
+      ([value]) => 'scopeRenewedAt' in value || 'scopeRenewalCursor' in value
+    )?.[0]
+
+  it('renews member access by scope before listing and records when it finished', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 3, finished: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRenewed).toBe(3)
+    expect(mocks.renew).toHaveBeenCalledWith(
+      expect.objectContaining({ memberId: 'member', scopePrefixes: ['source:container-a:'] })
+    )
+    const memberListing = mocks.list.mock.calls.findIndex(([token]) => token === 'member-token')
+    expect(mocks.renew.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.list.mock.invocationCallOrder[memberListing]
+    )
+    expect(scopeRenewal()).toEqual({
+      scopeRenewedAt: expect.any(Date),
+      scopeRenewalCursor: null,
+      scopeRenewalStartedAt: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 3 })
+    )
+  })
+
+  it('records renewed observations on the log of a deferred run', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
+    mocks.list.mockRejectedValue(new ProviderCapacityDeferredError('admission_unavailable'))
+    expect((await run()).deferred).toBeDefined()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ completedAt: expect.any(Date), observationsRenewed: 2 })
+    )
+  })
+
+  it('gathers scope pages into one pass over the stale observations', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes
+      .mockResolvedValueOnce({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prefixes: ['source:container-b:'] })
+    mocks.renew.mockResolvedValue({ renewed: 2, finished: true })
+    expect((await run()).observationsRenewed).toBe(2)
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual([undefined, 'page-2'])
+    expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes)).toEqual([
+      ['source:container-a:', 'source:container-b:'],
+    ])
+    expect(scopeRenewal()).toMatchObject({ scopeRenewedAt: expect.any(Date) })
+  })
+
+  it('renews a full batch of scopes before reading more, and resumes an unfinished batch', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    const fullBatch = Array.from(
+      { length: MEMBER_SCOPE_RENEWAL_PREFIX_BATCH },
+      (_, index) => `source:container-${index}:`
+    )
+    mocks.scopes
+      .mockResolvedValueOnce({ prefixes: fullBatch, nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prefixes: ['source:container-last:'] })
+    mocks.renew
+      .mockResolvedValueOnce({ renewed: 5, finished: true })
+      .mockResolvedValueOnce({ renewed: 1, finished: false })
+    expect((await run()).observationsRenewed).toBe(6)
+    expect(mocks.renew.mock.calls.map(([call]) => call.scopePrefixes.length)).toEqual([
+      MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
+      1,
+    ])
+    expect(scopeRenewal()).toEqual({
+      scopeRenewalCursor: 'page-2',
+      scopeRenewalStartedAt: expect.any(Date),
+    })
+  })
+
+  it('does not renew again while the last renewal is recent', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewedAt: new Date(),
+    })
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.scopes).not.toHaveBeenCalled()
+    expect(mocks.renew).not.toHaveBeenCalled()
+  })
+
+  it('stores the cursor of an unfinished page so the next run reads it again', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt: new Date('2026-09-01T00:00:00Z') },
+    })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1000, finished: false })
+    expect((await run()).observationsRenewed).toBe(1000)
+    expect(mocks.scopes.mock.calls[0]?.[2]).toBe('page-7')
+    expect(scopeRenewal()).toEqual({
+      scopeRenewalCursor: 'page-7',
+      scopeRenewalStartedAt: new Date('2026-09-01T00:00:00Z'),
+    })
+  })
+
+  it('resumes a stored pass and records its original start once every page is renewed', async () => {
+    const startedAt = new Date('2026-09-01T00:00:00Z')
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt },
+    })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-z:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    await run()
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual(['page-7'])
+    expect(scopeRenewal()).toEqual({
+      scopeRenewedAt: startedAt,
+      scopeRenewalCursor: null,
+      scopeRenewalStartedAt: null,
+    })
+  })
+
+  it('stops a scope listing whose cursor does not advance', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockResolvedValue({ prefixes: ['source:container-a:'], nextCursor: 'page-2' })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    expect((await run()).error).toBeUndefined()
+    expect(mocks.scopes).toHaveBeenCalledTimes(2)
+    expect(mocks.renew).not.toHaveBeenCalled()
+    expect(mocks.observe).toHaveBeenCalled()
+  })
+
+  it('restarts a pass whose stored cursor expired', async () => {
+    const run = arrange({
+      connectorType: 'scoped_listing',
+      members: true,
+      contentFresh: true,
+      scopeRenewal: { cursor: 'page-7', startedAt: new Date('2026-09-01T00:00:00Z') },
+    })
+    mocks.scopes
+      .mockRejectedValueOnce(new Error('cursor expired'))
+      .mockResolvedValueOnce({ prefixes: ['source:container-a:'] })
+    mocks.renew.mockResolvedValue({ renewed: 1, finished: true })
+    await run()
+    expect(mocks.scopes.mock.calls.map((call) => call[2])).toEqual(['page-7', undefined])
+    expect(scopeRenewal()).toMatchObject({ scopeRenewalCursor: null })
+  })
+
+  it('still lists the member when their access scopes cannot be read', async () => {
+    const run = arrange({ connectorType: 'scoped_listing', members: true, contentFresh: true })
+    mocks.scopes.mockRejectedValue(new Error('provider unavailable'))
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.membersFailed).toBe(0)
+    expect(mocks.renew).not.toHaveBeenCalled()
+    expect(scopeRenewal()).toBeUndefined()
+    expect(mocks.observe).toHaveBeenCalled()
+  })
+
+  it('records every failed refresh through the shared failure policy', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.list.mockResolvedValue({
+      documents: [
+        { ...serviceDocument, contentHash: 'v2' },
+        { ...serviceDocument, externalId: 'member-only' },
+      ],
+      hasMore: false,
+    })
+    mocks.get.mockRejectedValue(new Error('provider unavailable'))
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(mocks.persistFailures).toHaveBeenCalledWith(
+      expect.objectContaining({ failedExternalIds: new Set(['file-shared', 'member-only']) })
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastError: SOURCE_CONTENT_ERROR, consecutiveFailures: 0 })
+    )
+  })
+
+  it.each([
+    [true, null],
+    [false, SOURCE_CONTENT_ERROR],
+  ])(
+    'reports earlier content failures of a listing only once it completes (resuming=%s)',
+    async (resuming, lastError) => {
+      const checkpoint = {
+        ...beginListingCheckpoint({
+          fingerprint: listingFingerprint({
+            connectorType: 'full_listing',
+            sourceConfig: { folderId: 'shared-folder', adminEmail: 'admin@example.com' },
+            credentialId: member.credentialId,
+            subjectToken: member.subjectToken,
+          }),
+          generationId: 'earlier-run',
+          startedAt: new Date(),
+        }),
+        cursor: 'page-1',
+        contentFailures: true,
+      }
+      const run = arrange({
+        connectorType: 'full_listing',
+        members: true,
+        memberContent: true,
+        contentFresh: true,
+        memberCheckpoint: checkpoint,
+      })
+      mocks.list.mockImplementation(async (_token: string, _source: unknown, cursor?: string) => ({
+        documents: [],
+        hasMore: resuming,
+        ...(resuming ? { nextCursor: `${cursor}+` } : {}),
+      }))
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      const memberUpdate = dbChainMockFns.set.mock.calls.find(
+        ([value]) =>
+          'lastError' in value && 'consecutiveFailures' in value && 'nextAttemptAt' in value
+      )?.[0]
+      expect(memberUpdate).toMatchObject({ lastError })
+    }
+  )
+})

@@ -1,17 +1,20 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (url: string, init: RequestInit) => fetch(url, init),
-}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { jiraGetAttachmentsTool } from '@/tools/jira/get_attachments'
 import { jiraRetrieveTool } from '@/tools/jira/retrieve'
 import { downloadJiraAttachments } from '@/tools/jira/utils'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (url: string, init: RequestInit) => fetch(url, init)
+)
 
 const fetchMock = vi.fn<typeof fetch>()
 const attachment = {
@@ -30,11 +33,7 @@ const params = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
-})
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('Jira attachment downloads', () => {

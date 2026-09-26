@@ -1,18 +1,13 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
-const {
-  mockAnthropic,
-  anthropicArgs,
-  mockValidate,
-  mockCreatePinnedFetch,
-  mockExecuteAnthropic,
-  sentinelFetch,
-} = vi.hoisted(() => {
+const { mockAnthropic, anthropicArgs, mockExecuteAnthropic, sentinelFetch } = vi.hoisted(() => {
   const anthropicArgs: Array<Record<string, unknown>> = []
   const sentinelFetch = vi.fn()
   class MockAnthropic {
@@ -23,31 +18,23 @@ const {
   return {
     mockAnthropic: MockAnthropic,
     anthropicArgs,
-    mockValidate: vi.fn(),
-    mockCreatePinnedFetch: vi.fn(() => sentinelFetch),
     mockExecuteAnthropic: vi.fn(),
     sentinelFetch,
   }
 })
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mockAnthropic }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mockValidate,
-  createPinnedFetch: mockCreatePinnedFetch,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/providers/anthropic/core', () => ({
   executeAnthropicProviderRequest: mockExecuteAnthropic,
 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn(() => []),
-  getProviderDefaultModel: vi.fn(() => 'azure-anthropic/claude'),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
 import { azureAnthropicProvider } from '@/providers/azure-anthropic/index'
+
+const mockCreatePinnedFetch = inputValidationMockFns.mockCreatePinnedFetch
+mockCreatePinnedFetch.mockImplementation(() => sentinelFetch)
+const mockValidate = inputValidationMockFns.mockValidateUrlWithDNS
 
 function request(overrides: Partial<ProviderRequest>): ProviderRequest {
   return { model: 'azure-anthropic/claude-3-5-sonnet', apiKey: 'k', messages: [], ...overrides }
@@ -64,7 +51,6 @@ afterAll(resetEnvMock)
 
 describe('azureAnthropicProvider — SSRF pinning', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     anthropicArgs.length = 0
     setEnv({ AZURE_ANTHROPIC_ENDPOINT: undefined, AZURE_ANTHROPIC_API_VERSION: undefined })
     mockExecuteAnthropic.mockResolvedValue({ content: 'ok' })

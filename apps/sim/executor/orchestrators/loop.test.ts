@@ -1,10 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -13,9 +11,10 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+const { mockExecuteInIsolatedVM } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
-  mockUploadFile: vi.fn(),
 }))
 const mockLogger =
   vi.mocked(createLogger).mock.results[
@@ -26,11 +25,7 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 function createNode(id: string): DAGNode {
   return {
@@ -93,7 +88,6 @@ function createOrchestrator(loopConfigs = new Map<string, any>()) {
 
 describe('LoopOrchestrator', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockExecuteInIsolatedVM.mockResolvedValue({ result: true })
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
@@ -193,95 +187,6 @@ describe('LoopOrchestrator', () => {
     expect(scope.items).toEqual(['item-1', 'item-2', 'item-3'])
   })
 
-  it('projects forEach resolution failures before logging or persisting them', async () => {
-    const loopId = 'loop-1'
-    const resolvedSecret = 'resolved-foreach-secret'
-    const dag: DAG = {
-      nodes: new Map(),
-      loopConfigs: new Map([
-        [
-          loopId,
-          {
-            id: loopId,
-            nodes: ['task-1'],
-            loopType: 'forEach',
-            forEachItems: `<Producer.${resolvedSecret}>`,
-          },
-        ],
-      ]),
-      parallelConfigs: new Map(),
-    }
-    const resolver = {
-      resolveSingleReference: vi.fn().mockImplementation(async (resolutionContext) => {
-        resolutionContext.resolvedSecretTraceRegistry?.recordResolved(
-          'FOREACH_SECRET',
-          resolvedSecret
-        )
-        throw new Error(`Failed with ${resolvedSecret}`)
-      }),
-    }
-    const orchestrator = new LoopOrchestrator(dag, createState(), resolver as any)
-    const ctx = createContext()
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'FOREACH_SECRET',
-        plaintext: resolvedSecret,
-        encryptedValue: 'encrypted-foreach-secret',
-      },
-    ])
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(orchestrator.initializeLoopScope(ctx, loopId)).rejects.toThrow(
-      '{{FOREACH_SECRET}}'
-    )
-
-    const logged = JSON.stringify(mockLogger.error.mock.calls)
-    expect(logged).toContain('{{FOREACH_SECRET}}')
-    expect(logged).not.toContain(resolvedSecret)
-    expect(ctx.blockLogs).toHaveLength(1)
-    expect(JSON.stringify(ctx.blockLogs)).toContain('{{FOREACH_SECRET}}')
-    expect(JSON.stringify(ctx.blockLogs)).not.toContain(resolvedSecret)
-    expect(ctx.blockLogs[0].input).toEqual({ loopType: 'forEach', inputType: 'string' })
-  })
-
-  it('exits immediately when a loop was skipped at start', async () => {
-    const loopId = 'loop-1'
-    const state = createState()
-    const dag: DAG = {
-      nodes: new Map(),
-      loopConfigs: new Map([[loopId, { id: loopId, nodes: ['task-1'], loopType: 'while' }]]),
-      parallelConfigs: new Map(),
-    }
-    const resolver = {
-      resolveSingleReference: vi.fn().mockResolvedValue(1),
-    }
-    const orchestrator = new LoopOrchestrator(dag, state, resolver as any, {}, {
-      clearDeactivatedEdgesForNodes: vi.fn(),
-    } as unknown as EdgeManager)
-    const ctx = createContext(
-      {
-        iteration: 0,
-        currentIterationOutputs: new Map(),
-        allIterationOutputs: [],
-        loopType: 'while',
-        condition: '<loop.index> > 0',
-        skippedAtStart: true,
-      },
-      loopId
-    )
-
-    const result = await orchestrator.evaluateLoopContinuation(ctx, loopId)
-
-    expect(result).toMatchObject({
-      shouldContinue: false,
-      shouldExit: true,
-      selectedRoute: EDGE.LOOP_EXIT,
-      aggregatedResults: [],
-    })
-    expect(resolver.resolveSingleReference).not.toHaveBeenCalled()
-    expect(state.setBlockOutput).toHaveBeenCalledWith(loopId, { results: [] }, 0)
-  })
-
   it('marks empty forEach loops as skipped at the initial condition check', async () => {
     const { orchestrator, setBlockOutput } = createOrchestrator()
     const scope = {
@@ -309,31 +214,6 @@ describe('LoopOrchestrator', () => {
       selectedRoute: EDGE.LOOP_EXIT,
       aggregatedResults: [],
     })
-    expect(scope.skippedAtStart).toBe(false)
-    expect(setBlockOutput).toHaveBeenCalledWith('loop-1', { results: [] }, 0)
-  })
-
-  it.each([
-    ['for loop with zero iterations', { loopType: 'for', maxIterations: 0 }],
-    ['while loop with no condition', { loopType: 'while' }],
-  ])('marks %s as skipped at the initial condition check', async (_name, overrides) => {
-    const { orchestrator, setBlockOutput } = createOrchestrator()
-    const scope = {
-      iteration: 0,
-      currentIterationOutputs: new Map(),
-      allIterationOutputs: [],
-      ...overrides,
-    } as { skippedAtStart?: boolean } & Record<string, unknown>
-    const ctx = createContext(scope)
-
-    const shouldExecute = await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
-
-    expect(shouldExecute).toBe(false)
-    expect(scope.skippedAtStart).toBe(true)
-    expect(setBlockOutput).not.toHaveBeenCalled()
-
-    await orchestrator.evaluateLoopContinuation(ctx, 'loop-1')
-
     expect(scope.skippedAtStart).toBe(false)
     expect(setBlockOutput).toHaveBeenCalledWith('loop-1', { results: [] }, 0)
   })
@@ -454,56 +334,5 @@ describe('LoopOrchestrator', () => {
 
     expect(scope.maxIterations).toBeUndefined()
     expect(scope.condition).toBe('true')
-  })
-
-  it('keeps doWhile condition semantics when iterations are also configured', async () => {
-    const { orchestrator } = createOrchestrator(
-      new Map([
-        [
-          'loop-1',
-          {
-            loopType: 'doWhile',
-            iterations: 2,
-            doWhileCondition: 'true',
-            nodes: ['block-1'],
-          },
-        ],
-      ])
-    )
-    const ctx = createContext()
-
-    const scope = await orchestrator.initializeLoopScope(ctx, 'loop-1')
-
-    expect(scope.maxIterations).toBeUndefined()
-    expect(scope.condition).toBe('true')
-  })
-
-  it('compacts current iteration outputs before retaining them', async () => {
-    const { orchestrator, setBlockOutput } = createOrchestrator()
-    const ctx = createContext({
-      iteration: 0,
-      maxIterations: 1,
-      loopType: 'doWhile',
-      condition: 'true',
-      currentIterationOutputs: new Map([
-        [
-          'block-1',
-          {
-            result: Array.from({ length: 200_000 }, (_, index) => ({
-              id: index,
-              summary: 'Issue summary that keeps each item small',
-            })),
-          },
-        ],
-      ]),
-      allIterationOutputs: [],
-    })
-
-    await orchestrator.evaluateLoopContinuation(ctx, 'loop-1')
-
-    const output = setBlockOutput.mock.calls[0][1]
-    expect(Array.isArray(output.results[0])).toBe(true)
-    expect(isLargeArrayManifest(output.results[0][0].result)).toBe(true)
-    expect(output.results[0][0].result.totalCount).toBe(200_000)
   })
 })

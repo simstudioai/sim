@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { logfireGetTraceTool } from '@/tools/logfire/get_trace'
 

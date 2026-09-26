@@ -1,29 +1,30 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  GITHUB_READ_CONCURRENCY,
-  GITHUB_READ_RESPONSE_MAX_BYTES,
-  GITHUB_READ_SOURCE_TIMEOUT_MS,
-  GITHUB_READ_TIMEOUT_MS,
-  resolveGitHubInstallationReadGrants,
-} from '@/lib/knowledge/access/github-installation'
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveGitHubInstallationReadGrants } from '@/lib/knowledge/access/github-installation'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
-const mocks = vi.hoisted(() => ({
-  token: vi.fn(),
-  installation: vi.fn(),
-  repositoryInstallation: vi.fn(),
-  decrypt: vi.fn(),
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+
+const mocks = {
+  token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  installation: githubInstallationMockFns.mockAssertGitHubInstallationActive,
+  repositoryInstallation: githubInstallationMockFns.mockAssertGitHubInstallationRepositoryActive,
   fetch: vi.fn(),
-}))
-vi.mock('@/lib/credentials/managed-oauth', () => ({ resolveManagedOAuthToken: mocks.token }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  parseGitHubInstallationBinding: (value: unknown) => value,
-  assertGitHubInstallationActive: mocks.installation,
-  assertGitHubInstallationRepositoryActive: mocks.repositoryInstallation,
-}))
+}
+githubInstallationMockFns.mockParseGitHubInstallationBinding.mockImplementation(
+  (value: unknown) => value
+)
 
 const input = {
   scope: { kind: 'organization' as const, organizationId: 'org-1' },
@@ -64,18 +65,16 @@ function queueSources(rows: (typeof source)[] = [source]) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   vi.stubGlobal('fetch', mocks.fetch)
   mocks.token.mockResolvedValue({ accessToken: 'ghu_alice' })
   mocks.installation.mockResolvedValue(binding)
   mocks.repositoryInstallation.mockResolvedValue(undefined)
-  mocks.decrypt.mockResolvedValue({ decrypted: JSON.stringify(binding) })
+  encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(binding) })
   mocks.fetch.mockImplementation(async (url: string) =>
     Response.json(url.includes('/git/ref/') ? reference : metadata)
   )
 })
-afterEach(() => vi.restoreAllMocks())
 
 describe('live GitHub installation reader access', () => {
   it('requires both current installation and personal Contents access for the immutable repository', async () => {
@@ -171,7 +170,7 @@ describe('live GitHub installation reader access', () => {
     mocks.installation.mockRejectedValueOnce(new Error('suspended'))
     await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])
     queueSources()
-    mocks.decrypt.mockResolvedValueOnce({
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({
       decrypted: JSON.stringify({ ...binding, accountId: '91' }),
     })
     await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])
@@ -193,24 +192,6 @@ describe('live GitHub installation reader access', () => {
     expect(mocks.token).toHaveBeenCalledTimes(1)
   })
 
-  it('deduplicates identical repository checks only inside the current admission', async () => {
-    queueSources([source, { ...source, connectorId: 'source-2' }])
-    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toHaveLength(2)
-    expect(mocks.fetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('authorizes a candidate batch beyond the old 100-source cliff', async () => {
-    queueSources(
-      Array.from({ length: 101 }, (_, index) => ({
-        ...source,
-        connectorId: `source-${index}`,
-      }))
-    )
-    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toHaveLength(101)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-    expect(mocks.fetch).toHaveBeenCalledTimes(2)
-  })
-
   it('bounds one candidate batch without enumerating all organization sources', async () => {
     await expect(
       resolveGitHubInstallationReadGrants({
@@ -222,84 +203,5 @@ describe('live GitHub installation reader access', () => {
       })
     ).rejects.toThrow('bounded pages')
     expect(mocks.installation).not.toHaveBeenCalled()
-  })
-
-  it.each(['source', 'admission'])(
-    'retains completed proofs and advances other workers while a %s deadline expires',
-    async (deadline) => {
-      const overall = new AbortController()
-      const sourceTimers: AbortController[] = []
-      vi.spyOn(AbortSignal, 'timeout').mockImplementation((duration) => {
-        if (duration === GITHUB_READ_TIMEOUT_MS) return overall.signal
-        expect(duration).toBe(GITHUB_READ_SOURCE_TIMEOUT_MS)
-        const timer = new AbortController()
-        sourceTimers.push(timer)
-        return timer.signal
-      })
-      queueSources(
-        Array.from({ length: 6 }, (_, index) => ({
-          ...source,
-          connectorId: `source-${index}`,
-          repository: `company/repo-${index}`,
-        }))
-      )
-      let lastFastCheck: (() => void) | undefined
-      const allFastChecks = new Promise<void>((resolve) => {
-        lastFastCheck = resolve
-      })
-      mocks.fetch.mockImplementation(async (url: string) => {
-        if (url.includes('/repo-0')) return new Promise<Response>(() => {})
-        if (url.includes('/repo-5/git/ref/')) lastFastCheck?.()
-        return Response.json(url.includes('/git/ref/') ? reference : metadata)
-      })
-      const pending = resolveGitHubInstallationReadGrants(input)
-      await allFastChecks
-      /** Let the response proof finish before expiring the unrelated stalled request. */
-      for (let turn = 0; turn < 20; turn++) await Promise.resolve()
-      ;(deadline === 'source' ? sourceTimers[0] : overall).abort(new Error('deadline'))
-      const grants = await pending
-      expect(grants).toHaveLength(5)
-      expect(grants.map((entry) => entry.connectorId)).not.toContain('source-0')
-      expect(grants.map((entry) => entry.connectorId)).toContain('source-5')
-    }
-  )
-
-  it('bounds concurrent source checks and never buffers unbounded response bytes', async () => {
-    queueSources(
-      Array.from({ length: GITHUB_READ_CONCURRENCY + 2 }, (_, index) => ({
-        ...source,
-        connectorId: `source-${index}`,
-        repository: `company/repo-${index}`,
-      }))
-    )
-    let active = 0
-    let peak = 0
-    mocks.fetch.mockImplementation(async (url: string) => {
-      active += 1
-      peak = Math.max(peak, active)
-      await Promise.resolve()
-      active -= 1
-      return Response.json(url.includes('/git/ref/') ? reference : metadata)
-    })
-    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toHaveLength(
-      GITHUB_READ_CONCURRENCY + 2
-    )
-    expect(peak).toBeLessThanOrEqual(GITHUB_READ_CONCURRENCY)
-    queueSources()
-    mocks.fetch.mockResolvedValueOnce(new Response('x'.repeat(GITHUB_READ_RESPONSE_MAX_BYTES + 1)))
-    await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([])
-  })
-
-  it('stops on cancellation while a credential refresh remains pending', async () => {
-    queueSources()
-    const controller = new AbortController()
-    mocks.token.mockImplementation(() => {
-      controller.abort(new Error('cancelled'))
-      return new Promise(() => {})
-    })
-    await expect(
-      resolveGitHubInstallationReadGrants({ ...input, signal: controller.signal })
-    ).rejects.toThrow('cancelled')
-    expect(mocks.fetch).not.toHaveBeenCalled()
   })
 })

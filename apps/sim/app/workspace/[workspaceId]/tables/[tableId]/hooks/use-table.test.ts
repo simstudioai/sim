@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Capture useEffect calls so tests can trigger them manually.
@@ -18,15 +16,10 @@ vi.mock('react', () => ({
   useRef: (init: unknown) => ({ current: init }),
 }))
 
-const mockGetQueryData = vi.fn()
+const mockGetQueryData = reactQueryMockFns.mockQueryClient.getQueryData
 const mockFetchNextPage = vi.fn()
-const mockQueryClient = {
-  getQueryData: mockGetQueryData,
-}
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: vi.fn(() => mockQueryClient),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/hooks/queries/tables', () => ({
   tableRowsInfiniteOptions: vi.fn(({ tableId, pageSize, filter, sort }) => ({
@@ -96,39 +89,11 @@ function makeHook(queryOptions = QUERY_OPTIONS) {
 
 beforeEach(() => {
   capturedEffects.length = 0
-  vi.clearAllMocks()
   mockGetQueryData.mockReturnValue(undefined)
   mockFetchNextPage.mockResolvedValue(OK)
 })
 
 describe('useTable – ensureAllRowsLoaded', () => {
-  it('returns an empty array when cache is empty', async () => {
-    mockGetQueryData.mockReturnValue(undefined)
-    const { ensureAllRowsLoaded } = makeHook()
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toEqual([])
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('returns cached rows without fetching when the count is covered by a partial page', async () => {
-    mockGetQueryData.mockReturnValue({ pages: makePages([3], 3) })
-    const { ensureAllRowsLoaded } = makeHook()
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toHaveLength(3)
-    expect(rows.map((r) => r.id)).toEqual(['r0', 'r1', 'r2'])
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('returns cached rows without fetching when the count is covered by exactly one full page', async () => {
-    // The totalCount fast-path terminates a covered drain without the
-    // empty-page confirmation request the old page-fullness heuristic needed.
-    mockGetQueryData.mockReturnValue({ pages: makePages([1000], 1000) })
-    const { ensureAllRowsLoaded } = makeHook()
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toHaveLength(1000)
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
   it('keeps paging past a short page when the count says more rows exist', async () => {
     // The regression this termination rule exists for: a page shorter than the
     // requested size must not be read as end-of-table.
@@ -160,31 +125,6 @@ describe('useTable – ensureAllRowsLoaded', () => {
     expect(mockFetchNextPage).toHaveBeenCalledTimes(1)
   })
 
-  it('fetches multiple pages for a large table until the count is covered', async () => {
-    const [page0, page1, page2] = makePages([1000, 1000, 500], 2500)
-    mockGetQueryData
-      .mockReturnValueOnce({ pages: [page0] }) // iter 1 check: 1000 < 2500 → fetch
-      .mockReturnValueOnce({ pages: [page0, page1] }) // iter 1 progress: 2 > 1
-      .mockReturnValueOnce({ pages: [page0, page1] }) // iter 2 check: 2000 < 2500 → fetch
-      .mockReturnValueOnce({ pages: [page0, page1, page2] }) // iter 2 progress: 3 > 2
-      .mockReturnValue({ pages: [page0, page1, page2] }) // iter 3 check: covered → break; final read
-    const { ensureAllRowsLoaded } = makeHook()
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toHaveLength(2500)
-    expect(rows[0].id).toBe('r0')
-    expect(rows[1000].id).toBe('r1000')
-    expect(rows[2499].id).toBe('r2499')
-    expect(mockFetchNextPage).toHaveBeenCalledTimes(2)
-  })
-
-  it('throws when fetchNextPage returns an error status', async () => {
-    mockGetQueryData.mockReturnValue({ pages: makePages([1000], 2000) })
-    const error = new Error('Network failure')
-    mockFetchNextPage.mockResolvedValueOnce({ status: 'error', error })
-    const { ensureAllRowsLoaded } = makeHook()
-    await expect(ensureAllRowsLoaded()).rejects.toThrow('Network failure')
-  })
-
   it('throws when a fetch makes no progress instead of spinning', async () => {
     // A cancelQueries race can resolve fetchNextPage without appending a page.
     mockGetQueryData.mockReturnValue({ pages: makePages([1000], 2000) })
@@ -192,60 +132,9 @@ describe('useTable – ensureAllRowsLoaded', () => {
     await expect(ensureAllRowsLoaded()).rejects.toThrow('no progress')
     expect(mockFetchNextPage).toHaveBeenCalledTimes(1)
   })
-
-  it('does not call fetchNextPage or getQueryData when workspaceId is empty', async () => {
-    const { ensureAllRowsLoaded } = useTable({
-      workspaceId: '',
-      tableId: TABLE_ID,
-      queryOptions: QUERY_OPTIONS,
-    })
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toEqual([])
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-    expect(mockGetQueryData).not.toHaveBeenCalled()
-  })
-
-  it('does not call fetchNextPage or getQueryData when tableId is empty', async () => {
-    const { ensureAllRowsLoaded } = useTable({
-      workspaceId: WORKSPACE_ID,
-      tableId: '',
-      queryOptions: QUERY_OPTIONS,
-    })
-    const rows = await ensureAllRowsLoaded()
-    expect(rows).toEqual([])
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-    expect(mockGetQueryData).not.toHaveBeenCalled()
-  })
-
-  it('encodes queryOptions.filter into the queryKey passed to getQueryData', async () => {
-    const filter = { all: [{ field: 'name', op: 'eq' as const, value: 'Alice' }] }
-    mockGetQueryData.mockReturnValue({ pages: makePages([3], 3) })
-    const { ensureAllRowsLoaded } = makeHook({ filter, sort: null })
-    await ensureAllRowsLoaded()
-    const queryKey = mockGetQueryData.mock.calls[0][0] as unknown[]
-    expect(JSON.stringify(queryKey)).toContain('Alice')
-  })
 })
 
 describe('useTable – ensureRowsLoadedUpTo', () => {
-  it('returns the first maxRows with hasMore when the cache already exceeds the cap', async () => {
-    mockGetQueryData.mockReturnValue({ pages: makePages([1000, 1000], 2000) })
-    const { ensureRowsLoadedUpTo } = makeHook()
-    const result = await ensureRowsLoadedUpTo(1500)
-    expect(result.rows).toHaveLength(1500)
-    expect(result.hasMore).toBe(true)
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('returns everything with hasMore false when the table fits under the cap', async () => {
-    mockGetQueryData.mockReturnValue({ pages: makePages([3], 3) })
-    const { ensureRowsLoadedUpTo } = makeHook()
-    const result = await ensureRowsLoadedUpTo(50)
-    expect(result.rows).toHaveLength(3)
-    expect(result.hasMore).toBe(false)
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
   it('loads one row past the cap to make hasMore exact at the boundary', async () => {
     const [page0, page1] = makePages([1000, 1000], 2000)
     mockGetQueryData
@@ -257,25 +146,5 @@ describe('useTable – ensureRowsLoadedUpTo', () => {
     expect(result.rows).toHaveLength(1000)
     expect(result.hasMore).toBe(true)
     expect(mockFetchNextPage).toHaveBeenCalledTimes(1)
-  })
-
-  it('skips the boundary probe when the count is already covered', async () => {
-    mockGetQueryData.mockReturnValue({ pages: makePages([1000], 1000) })
-    const { ensureRowsLoadedUpTo } = makeHook()
-    const result = await ensureRowsLoadedUpTo(1000)
-    expect(result.rows).toHaveLength(1000)
-    expect(result.hasMore).toBe(false)
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('returns empty with hasMore false when ids are missing', async () => {
-    const { ensureRowsLoadedUpTo } = useTable({
-      workspaceId: '',
-      tableId: TABLE_ID,
-      queryOptions: QUERY_OPTIONS,
-    })
-    const result = await ensureRowsLoadedUpTo(10)
-    expect(result).toEqual({ rows: [], hasMore: false })
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
   })
 })

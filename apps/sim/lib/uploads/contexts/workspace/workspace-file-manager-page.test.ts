@@ -1,4 +1,12 @@
-/** @vitest-environment node */
+import { dbChainMockFns } from '@sim/testing'
+import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -9,48 +17,35 @@ const mocks = vi.hoisted(() => {
       return { onConflictDoNothing: () => ({ returning: async () => [metadata] }) }
     },
   }))
-  return { values, insert, upload: vi.fn() }
+  return { values, insert }
 })
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: async (run: (tx: { insert: typeof mocks.insert }) => Promise<unknown>) =>
-      run({ insert: mocks.insert }),
-  },
-}))
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: vi.fn(),
-  incrementStorageUsageForBillingContextInTx: vi.fn(),
-  maybeNotifyStorageLimitForBillingContext: vi.fn(),
-  resolveStorageBillingContext: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/folders/locks', () => ({ acquireFolderMutationLock: vi.fn() }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ getServePathPrefix: () => '/api/files/serve/' }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-  downloadFile: vi.fn(),
-  hasCloudStorage: () => false,
-  headObject: vi.fn(),
-  uploadFile: mocks.upload,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: async () => null,
-  buildWorkspaceFileFolderPathMap: () => new Map(),
-  fileNameExistsInWorkspaceFolder: async () => false,
-  findWorkspaceFileFolderIdByPath: vi.fn(),
-  getWorkspaceFileFolderPath: vi.fn(),
-  listWorkspaceFileFolders: async () => [],
-  normalizeWorkspaceFileItemName: (name: string) => name,
-  resolveWorkspaceFileFolderTarget: async () => null,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 import { createWorkspaceFileBodySchema } from '@/lib/api/contracts/workspace-files'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { compileSimPage, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 
+workspaceFileFoldersMockFns.mockBuildWorkspaceFileFolderPathMap.mockImplementation(() => new Map())
+workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
+  (name: string) => name
+)
+
+const mockUpload = storageServiceMockFns.mockUploadFile
+
 beforeEach(() => {
-  vi.clearAllMocks()
-  mocks.upload.mockImplementation(async ({ fileName }: { fileName: string }) => ({ key: fileName }))
+  dbChainMockFns.transaction.mockImplementation(
+    async (run: (tx: { insert: typeof mocks.insert }) => Promise<unknown>) =>
+      run({ insert: mocks.insert })
+  )
+  mockUpload.mockImplementation(async ({ fileName }: { fileName: string }) => ({ key: fileName }))
 })
 
 it('registers agent-authored Page source as a native Page and preserves editable source', async () => {
@@ -76,7 +71,7 @@ it('registers agent-authored Page source as a native Page and preserves editable
   expect(mocks.values).toHaveBeenCalledWith(
     expect.objectContaining({ originalName: 'Team handbook', contentType: SIM_PAGE_CONTENT_TYPE })
   )
-  expect(mocks.upload).toHaveBeenCalledWith(
+  expect(mockUpload).toHaveBeenCalledWith(
     expect.objectContaining({ file: bytes, contentType: SIM_PAGE_CONTENT_TYPE })
   )
   expect(compileSimPage(input.content)).toContain('Team handbook')

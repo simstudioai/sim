@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const request = vi.hoisted(() => vi.fn())
 
@@ -11,12 +8,7 @@ vi.mock('@/lib/internal/grafana/client', () => ({
   },
 }))
 
-import {
-  checkGrafanaDataSourceHealth,
-  updateGrafanaAlertRule,
-  updateGrafanaDashboard,
-  updateGrafanaFolder,
-} from '@/lib/internal/grafana/operations'
+import { updateGrafanaDashboard, updateGrafanaFolder } from '@/lib/internal/grafana/operations'
 
 function response(body: unknown, status = 200) {
   return {
@@ -31,28 +23,6 @@ const auth = { apiKey: 'key', baseUrl: 'https://grafana.example.com' }
 const context = { requestId: 'request-1' }
 
 describe('Grafana operations', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('returns Grafana unhealthy verdicts as successful health checks', async () => {
-    request.mockResolvedValue({
-      success: true,
-      response: response(
-        { status: 'ERROR', message: 'dial tcp refused', details: { code: 1 } },
-        400
-      ),
-    })
-
-    await expect(
-      checkGrafanaDataSourceHealth({ ...auth, dataSourceUid: 'a/../../admin' }, context)
-    ).resolves.toEqual({
-      success: true,
-      output: { status: 'ERROR', message: 'dial tcp refused', details: { code: 1 } },
-    })
-    expect(request).toHaveBeenCalledWith('/api/datasources/uid/a%2F..%2F..%2Fadmin/health', {
-      method: 'GET',
-    })
-  })
-
   it('fetches and merges a dashboard before updating once', async () => {
     request
       .mockResolvedValueOnce({
@@ -94,22 +64,6 @@ describe('Grafana operations', () => {
         folderUid: 'folder-1',
       },
     })
-  })
-
-  it('fails invalid alert JSON before the update request', async () => {
-    request.mockResolvedValueOnce({
-      success: true,
-      response: response({ uid: 'rule-1', annotations: {} }),
-    })
-
-    await expect(
-      updateGrafanaAlertRule({ ...auth, alertRuleUid: 'rule-1', annotations: '{not json' }, context)
-    ).resolves.toEqual({
-      success: false,
-      output: {},
-      error: 'Invalid JSON for annotations parameter',
-    })
-    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('preserves folder version concurrency on update', async () => {

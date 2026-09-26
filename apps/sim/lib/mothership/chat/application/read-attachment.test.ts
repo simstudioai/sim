@@ -1,25 +1,30 @@
-/** @vitest-environment node */
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
-  authorize: vi.fn(),
-  messages: vi.fn(),
   read: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mocks.context,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({ loadCopilotChatMessages: mocks.messages }))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
   readOrganizationChatAttachment: mocks.read,
 }))
 
 import { readChatAttachment } from './read-attachment'
+
+const mockLoadCopilotChatMessages = mothershipChatLifecycleMockFns.mockLoadCopilotChatMessages
 
 const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
 const file = {
@@ -30,10 +35,13 @@ const file = {
   size: 4,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue({ organizationId: 'org', chatId: 'chat', userId: 'user' })
-  mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'user', role: 'member' })
-  mocks.messages.mockResolvedValue([{ fileAttachments: [file] }])
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
+    organizationId: 'org',
+    userId: 'user',
+    role: 'member',
+  })
+  mockLoadCopilotChatMessages.mockResolvedValue([{ fileAttachments: [file] }])
   mocks.read.mockResolvedValue({ buffer: Buffer.from('a,b'), name: 'a.csv' })
 })
 describe('organization chat upload references', () => {
@@ -41,7 +49,7 @@ describe('organization chat upload references', () => {
     'reads %s only through a saved attachment in the owned chat',
     async (reference) => {
       await readChatAttachment.execute({ principal, input: { chatId: 'chat', reference } })
-      expect(mocks.messages).toHaveBeenCalledWith('chat')
+      expect(mockLoadCopilotChatMessages).toHaveBeenCalledWith('chat')
       expect(mocks.read).toHaveBeenCalledWith({
         principal,
         organizationId: 'org',
@@ -61,7 +69,7 @@ describe('organization chat upload references', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
   it('requires an ID for ambiguous filenames while repeated mentions of one attachment remain readable', async () => {
-    mocks.messages.mockResolvedValue([
+    mockLoadCopilotChatMessages.mockResolvedValue([
       { fileAttachments: [file, file, { ...file, id: 'upload-b', key: 'other' }] },
     ])
     await expect(
@@ -87,17 +95,19 @@ describe('organization chat upload references', () => {
         input: { chatId: 'chat', reference: 'uploads/a.csv' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.messages).not.toHaveBeenCalled()
+    expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
   })
   it('propagates revoked membership before transcript or byte access', async () => {
-    mocks.authorize.mockRejectedValue(new Error('membership revoked'))
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
+      new Error('membership revoked')
+    )
     await expect(
       readChatAttachment.execute({
         principal,
         input: { chatId: 'chat', reference: 'uploads/a.csv' },
       })
     ).rejects.toThrow('membership revoked')
-    expect(mocks.messages).not.toHaveBeenCalled()
+    expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
   })
 })

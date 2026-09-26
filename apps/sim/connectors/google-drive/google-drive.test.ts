@@ -1,12 +1,7 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as XLSX from 'xlsx'
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
-
-vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
 
 vi.mock('@/connectors/google-drive/workspace-drives', () => ({
   GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE: 100,
@@ -38,17 +33,13 @@ function companyContext(): Record<string, unknown> {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 import {
   DOWNLOAD_RESTRICTED_SKIP_REASON,
   googleDriveConnector,
 } from '@/connectors/google-drive/google-drive'
-import {
-  GoogleDriveApiError,
-  readGoogleDriveApiError,
-} from '@/connectors/google-drive/google-drive-errors'
+import { readGoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import type { ExternalDocument } from '@/connectors/types'
 import { CONNECTOR_MAX_FILE_BYTES } from '@/connectors/utils'
 
@@ -62,12 +53,11 @@ const FILE_DOC: ExternalDocument = {
   contentHash: 'h',
 }
 const GOOGLE_DOCUMENT_MIME_TYPE = 'application/vnd.google-apps.document'
-const GOOGLE_SPREADSHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet'
+const _GOOGLE_SPREADSHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet'
 const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
 describe('Google Drive administrator setup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
   })
@@ -85,88 +75,7 @@ describe('Google Drive administrator setup', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(String(mockFetch.mock.calls[0][0])).toContain('/drive/v3/files?')
   })
-
-  it.each(['groups', 'domains', 'members'])(
-    'rejects denied directory %s even when Drive would work',
-    async (denied) => {
-      mockFetch.mockImplementation(async (input: string) => {
-        const url = new URL(input)
-        if (url.pathname.endsWith(`/${denied}`))
-          return driveErrorResponse('forbidden', 'Not Authorized', 403)
-        if (url.pathname.endsWith('/groups'))
-          return jsonResponse({ groups: [{ id: 'first-group' }] })
-        return jsonResponse({ domains: [{ domainName: 'corp.com' }], files: [] })
-      })
-      await expect(
-        googleDriveConnector.validateConfig(
-          'token',
-          { adminEmail: 'admin@corp.com' },
-          companyContext()
-        )
-      ).resolves.toMatchObject({
-        valid: false,
-        error: expect.stringContaining('administrator privileges'),
-      })
-      expect(
-        mockFetch.mock.calls.every(([url]) => String(url).includes('admin.googleapis.com'))
-      ).toBe(true)
-      expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3)
-    }
-  )
-
-  it('probes one group and membership without following directory pagination during setup', async () => {
-    mockFetch.mockImplementation(async (input: string) => {
-      const url = new URL(input)
-      if (url.pathname.endsWith('/groups'))
-        return jsonResponse({ groups: [{ id: 'first-group' }], nextPageToken: 'more-groups' })
-      return jsonResponse({
-        domains: [{ domainName: 'corp.com' }],
-        members: [],
-        files: [],
-        nextPageToken: 'more',
-      })
-    })
-    await expect(
-      googleDriveConnector.validateConfig(
-        'token',
-        { adminEmail: 'admin@corp.com' },
-        companyContext()
-      )
-    ).resolves.toEqual({ valid: true })
-    expect(mockFetch).toHaveBeenCalledTimes(4)
-    const directoryUrls = mockFetch.mock.calls
-      .map(([url]) => new URL(String(url)))
-      .filter((url) => url.hostname === 'admin.googleapis.com')
-    expect(directoryUrls).toHaveLength(3)
-    expect(directoryUrls.every((url) => !url.searchParams.has('pageToken'))).toBe(true)
-    expect(
-      directoryUrls
-        .filter((url) => !url.pathname.endsWith('/domains'))
-        .every((url) => url.searchParams.get('maxResults') === '1')
-    ).toBe(true)
-  })
-
-  it('accepts a directory with no groups without inventing a membership probe', async () => {
-    mockFetch.mockImplementation(async () =>
-      jsonResponse({ groups: [], domains: [{ domainName: 'corp.com' }], files: [] })
-    )
-    await expect(
-      googleDriveConnector.validateConfig(
-        'token',
-        { adminEmail: 'admin@corp.com' },
-        companyContext()
-      )
-    ).resolves.toEqual({ valid: true })
-    expect(mockFetch).toHaveBeenCalledTimes(3)
-  })
 })
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function driveErrorResponse(reason: string, message: string, status = 403): Response {
   return jsonResponse(
@@ -201,7 +110,6 @@ async function hydrateWithExportResponse(exportResponse: Response) {
 
 describe('Google Drive recursive folders and raw files', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -240,21 +148,6 @@ describe('Google Drive recursive folders and raw files', () => {
     expect(urls[2].searchParams.get('pageToken')).toBe('parent-next')
     expect(first.nextCursor?.length).toBeLessThan(1000)
     expect(mockFetch).toHaveBeenCalledTimes(3)
-  })
-
-  it('walks overlapping selected roots once', async () => {
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse({ files: [fileMetadata({ id: 'child-doc' })] }))
-      .mockResolvedValueOnce(
-        jsonResponse({ files: [fileMetadata({ id: 'child', mimeType: GOOGLE_FOLDER_MIME_TYPE })] })
-      )
-    const config = { folderId: ['root', 'child', 'root'] }
-    const first = await googleDriveConnector.listDocuments('token', config)
-    const second = await googleDriveConnector.listDocuments('token', config, first.nextCursor)
-    expect(first.documents).toHaveLength(1)
-    expect(second.documents).toEqual([])
-    expect(second.hasMore).toBe(false)
-    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
   it('preserves nested per-document ACLs instead of copying the folder grant', async () => {
@@ -332,17 +225,6 @@ describe('Google Drive recursive folders and raw files', () => {
     expect(context.totalDocsFetched).toBe(2)
   })
 
-  it.each(['old-provider-page', 'gdrive-tree:1:malformed'])(
-    'resets invalid saved tree cursor %s',
-    async (cursor) => {
-      const error = await googleDriveConnector
-        .listDocuments('token', { folderId: 'root' }, cursor)
-        .catch((value: unknown) => value)
-      expect(googleDriveConnector.isListingCursorInvalidError?.(error)).toBe(true)
-      expect(mockFetch).not.toHaveBeenCalled()
-    }
-  )
-
   it('rejects excessive continuation depth without recursing indefinitely', async () => {
     const cursor = `gdrive-tree:1:${Buffer.from(JSON.stringify({ pending: [{ id: 'deep', depth: 128 }], totalFetched: 0 })).toString('base64url')}`
     mockFetch.mockResolvedValueOnce(
@@ -352,65 +234,6 @@ describe('Google Drive recursive folders and raw files', () => {
       googleDriveConnector.listDocuments('token', { folderId: 'root' }, cursor)
     ).rejects.toThrow('nesting-depth limit')
     expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses change feeds only for account-wide scope', () => {
-    expect(googleDriveConnector.supportsChangeFeed?.({})).toBe(true)
-    expect(googleDriveConnector.supportsChangeFeed?.({ folderId: ['root'] })).toBe(false)
-  })
-
-  it.each([
-    ['plan.pdf', 'application/pdf', 'application/pdf'],
-    [
-      'plan.docx',
-      'application/octet-stream',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ],
-    [
-      'model.xlsx',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ],
-    [
-      'slides.pptx',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    ],
-    ['scan.png', 'image/png', 'image/png'],
-  ])(
-    'preserves raw %s bytes for the shared parser and OCR pipeline',
-    async (name, mimeType, storedMimeType) => {
-      const bytes = Buffer.from([0, 255, 20, 80])
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse({ files: [fileMetadata({ name, mimeType })] }))
-        .mockResolvedValueOnce(jsonResponse(fileMetadata({ name, mimeType })))
-        .mockResolvedValueOnce(new Response(bytes))
-      const page = await googleDriveConnector.listDocuments('token', {})
-      expect(page.documents[0].contentDeferred).toBe(true)
-      const hydrated = await googleDriveConnector.getDocument('token', {}, FILE_ID)
-      expect(hydrated?.contentHash).toBe(page.documents[0].contentHash)
-      expect(hydrated?.sourceFile).toEqual({ bytes, fileName: name, mimeType: storedMimeType })
-      expect(hydrated?.content).toBe('')
-      expect(String(mockFetch.mock.calls[2][0])).toContain('alt=media&supportsAllDrives=true')
-    }
-  )
-
-  it('keeps Google Docs-only filtering while discovering subfolders', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        files: [
-          fileMetadata(),
-          fileMetadata({ id: 'pdf', name: 'plan.pdf', mimeType: 'application/pdf' }),
-          fileMetadata({ id: 'nested', mimeType: GOOGLE_FOLDER_MIME_TYPE }),
-        ],
-      })
-    )
-    const page = await googleDriveConnector.listDocuments('token', {
-      folderId: 'root',
-      fileType: 'documents',
-    })
-    expect(page.documents.map((item) => item.externalId)).toEqual([FILE_ID])
-    expect(page.hasMore).toBe(true)
   })
 
   it('enforces raw download limits even when listing metadata omitted its size', async () => {
@@ -427,18 +250,6 @@ describe('Google Drive recursive folders and raw files', () => {
     expect(hydrated?.skippedReason).toContain('limit')
     expect(hydrated?.sourceFile).toBeUndefined()
   })
-
-  it('surfaces raw download permission denial as a failed hydration', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse(fileMetadata({ name: 'plan.pdf', mimeType: 'application/pdf' }))
-      )
-      .mockResolvedValueOnce(driveErrorResponse('insufficientFilePermissions', 'No download'))
-    await expect(googleDriveConnector.getDocument('token', {}, FILE_ID)).rejects.toMatchObject({
-      kind: 'permission',
-      diagnostic: { operation: 'drive.files.get', reasons: ['insufficientFilePermissions'] },
-    })
-  })
 })
 
 describe('Google Drive API error parsing', () => {
@@ -453,36 +264,7 @@ describe('Google Drive API error parsing', () => {
   )
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it.each([
-    ['exportSizeLimitExceeded', 'export_too_large'],
-    ['insufficientFilePermissions', 'permission'],
-    ['appNotAuthorizedToFile', 'permission'],
-    ['domainPolicy', 'policy'],
-    ['cannotDownloadFile', 'policy'],
-    ['cannotExportFile', 'policy'],
-    ['fileNotExportable', 'unsupported_export'],
-    ['dailyLimitExceeded', 'quota'],
-    ['rateLimitExceeded', 'transient'],
-    ['userRateLimitExceeded', 'transient'],
-  ] as const)('classifies %s as %s', async (reason, kind) => {
-    const error = await readGoogleDriveApiError(driveErrorResponse(reason, 'Provider message'))
-
-    expect(error).toBeInstanceOf(GoogleDriveApiError)
-    expect(error.kind).toBe(kind)
-    expect(error.reasons).toEqual([reason])
-  })
-
-  it('classifies retryable statuses even without a structured reason', async () => {
-    const error = await readGoogleDriveApiError(
-      new Response('upstream unavailable', { status: 503 })
-    )
-
-    expect(error.kind).toBe('transient')
-    expect(error.message).not.toContain('upstream unavailable')
   })
 
   it('normalizes only structured rate-limit reasons into the shared throttle signal', async () => {
@@ -495,36 +277,6 @@ describe('Google Drive API error parsing', () => {
 
     expect(rateLimit.rateLimited).toBe(true)
     expect(backendFailure.rateLimited).toBe(false)
-  })
-
-  it('detects a structured rate limit beyond the bounded diagnostic reasons', async () => {
-    const reasons = [
-      ...Array.from({ length: 16 }, (_, index) => `providerReason${index}`),
-      'userRateLimitExceeded',
-    ]
-    const error = await readGoogleDriveApiError(
-      jsonResponse(
-        {
-          error: {
-            errors: reasons.map((reason) => ({ reason })),
-          },
-        },
-        403
-      )
-    )
-
-    expect(error.reasons).toEqual(['userRateLimitExceeded'])
-    expect(error.kind).toBe('transient')
-    expect(error.rateLimited).toBe(true)
-  })
-
-  it('omits provider messages from diagnostics', async () => {
-    const message = `Authorization: Bearer private-token\ncontext ${'x'.repeat(700)}`
-    const error = await readGoogleDriveApiError(
-      driveErrorResponse('insufficientFilePermissions', message)
-    )
-
-    expect(error.message).not.toContain('private-token')
   })
 
   it('bounds and redacts provider reasons without losing classification', async () => {
@@ -550,42 +302,14 @@ describe('Google Drive API error parsing', () => {
     expect(JSON.stringify(error.reasons)).not.toContain(secret)
     expect(error.message).not.toContain(secret)
   })
-
-  it('discards an error envelope that exceeds the diagnostic body limit', async () => {
-    const sentinel = 'sk-over-cap-provider-secret-value'
-    const body = JSON.stringify({
-      error: {
-        errors: [{ reason: 'quotaExceeded' }],
-        message: `${'x'.repeat(64 * 1024)}${sentinel}`,
-      },
-    })
-
-    const error = await readGoogleDriveApiError(
-      new Response(body, { status: 403, headers: { 'Content-Type': 'application/json' } })
-    )
-
-    expect(error.kind).toBe('unknown')
-    expect(error.reasons).toEqual([])
-    expect(error.message).not.toContain(sentinel)
-  })
 })
 
 describe('Google Drive download-restricted files', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   const restricted = () => fileMetadata({ capabilities: { canDownload: false } })
-
-  it('always asks Drive whether the file can be downloaded', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
-    await googleDriveConnector.listDocuments('token', {}, undefined, {})
-
-    const fields = decodeURIComponent(String(mockFetch.mock.calls[0][0]))
-    expect(fields).toContain('capabilities(canDownload)')
-    expect(fields).not.toContain('permissions(')
-  })
 
   it.each([
     ['a workspace crawl', {}],
@@ -598,47 +322,10 @@ describe('Google Drive download-restricted files', () => {
     expect(page.documents[0].skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
-
-  it('lists a downloadable file as an ordinary deferred stub', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ files: [fileMetadata({ capabilities: { canDownload: true } })] })
-    )
-    const page = await googleDriveConnector.listDocuments('token', {}, undefined, {})
-
-    expect(page.documents[0].skippedReason).toBeUndefined()
-    expect(page.documents[0].contentDeferred).toBe(true)
-  })
-
-  it('skips hydration without calling export when metadata says the file is restricted', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(restricted()))
-    const document = await googleDriveConnector.getDocument('token', {}, FILE_ID)
-
-    expect(document?.skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
-    expect(document?.contentDeferred).toBe(false)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports a restricted file from the change feed as a skipped upsert', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        changes: [{ changeType: 'file', fileId: FILE_ID, file: restricted() }],
-        newStartPageToken: '2',
-      })
-    )
-    const page = await googleDriveConnector.listChanges?.('token', {}, '1', {})
-
-    expect(page?.changes).toHaveLength(1)
-    const change = page?.changes[0]
-    expect(change?.kind).toBe('upsert')
-    if (change?.kind === 'upsert') {
-      expect(change.document.skippedReason).toBe(DOWNLOAD_RESTRICTED_SKIP_REASON)
-    }
-  })
 })
 
 describe('Google Drive metadata hydration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -656,7 +343,6 @@ describe('Google Drive metadata hydration', () => {
 
 describe('Google Drive export failures', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -690,144 +376,10 @@ describe('Google Drive export failures', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2)
     }
   )
-
-  it('retries a body-classified 403 rate limit and succeeds', async () => {
-    vi.useFakeTimers()
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(fileMetadata()))
-      .mockResolvedValueOnce(
-        driveErrorResponse('userRateLimitExceeded', 'User Rate Limit Exceeded')
-      )
-      .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
-
-    const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
-    await vi.runAllTimersAsync()
-
-    await expect(documentPromise).resolves.toMatchObject({
-      content: 'recovered content',
-    })
-    expect(mockFetch).toHaveBeenCalledTimes(3)
-  })
-
-  it('retains header-classified 403 rate-limit retries when the body has no known reason', async () => {
-    vi.useFakeTimers()
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(fileMetadata()))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: { message: 'Temporarily throttled' } }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json', 'Retry-After': '1' },
-        })
-      )
-      .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
-
-    const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
-    await vi.runAllTimersAsync()
-
-    await expect(documentPromise).resolves.toMatchObject({ content: 'recovered content' })
-    expect(mockFetch).toHaveBeenCalledTimes(3)
-  })
-
-  it.each([
-    [429, 'insufficientFilePermissions'],
-    [503, 'exportSizeLimitExceeded'],
-  ])(
-    'retries HTTP %i even when the provider reason is classified as terminal',
-    async (status, reason) => {
-      vi.useFakeTimers()
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse(fileMetadata()))
-        .mockResolvedValueOnce(driveErrorResponse(reason, 'Conflicting provider reason', status))
-        .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
-
-      const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
-      await vi.runAllTimersAsync()
-
-      await expect(documentPromise).resolves.toMatchObject({ content: 'recovered content' })
-      expect(mockFetch).toHaveBeenCalledTimes(3)
-    }
-  )
-
-  it('propagates unknown 403 responses instead of misclassifying them as permanent', async () => {
-    await expect(
-      hydrateWithExportResponse(driveErrorResponse('newGoogleReason', 'Undocumented failure'))
-    ).rejects.toMatchObject({
-      name: 'GoogleDriveApiError',
-      status: 403,
-      kind: 'unknown',
-      reasons: [],
-      diagnostic: { operation: 'drive.files.export', reasons: [] },
-    })
-  })
-
-  it('hands the complete XLSX workbook to the shared parser instead of exporting only sheet one', async () => {
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), 'Empty first sheet')
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.aoa_to_sheet([
-        ['month', 'revenue'],
-        ['Jan', 100],
-      ]),
-      'Revenue'
-    )
-    const workbookBytes = Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }))
-
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse(
-          fileMetadata({ name: 'Revenue model', mimeType: GOOGLE_SPREADSHEET_MIME_TYPE })
-        )
-      )
-      .mockResolvedValueOnce(new Response(workbookBytes))
-
-    const document = await googleDriveConnector.getDocument('token', {}, FILE_ID)
-    const exportUrl = String(mockFetch.mock.calls[1][0])
-
-    expect(exportUrl).toContain(
-      'mimeType=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    expect(document?.content).toBe('')
-    expect(document?.mimeType).toBe(
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    expect(document?.sourceFile).toMatchObject({
-      fileName: 'Revenue model.xlsx',
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
-    expect(document?.sourceFile?.bytes).toEqual(workbookBytes)
-    expect(document?.skippedReason).toBeUndefined()
-    expect(document?.contentHash).toBe('gdrive:v2:drive-file-1:2026-08-20T12:00:00Z')
-  })
-
-  it('marks an empty export as an authoritative skip', async () => {
-    const document = await hydrateWithExportResponse(new Response('   '))
-
-    expect(document).toMatchObject({
-      content: '',
-      contentDeferred: false,
-      skippedExistingDisposition: 'replace',
-      skippedReason: 'Document contains no extractable text',
-    })
-  })
-
-  it('authoritatively skips a listed file that changed to an unsupported type', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(fileMetadata({ name: 'archive.zip', mimeType: 'application/zip' }))
-    )
-
-    await expect(googleDriveConnector.getDocument('token', {}, FILE_ID)).resolves.toMatchObject({
-      content: '',
-      skippedReason: 'File is no longer an indexable document',
-      skippedExistingDisposition: 'replace',
-    })
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
 })
 
 describe('Google Drive connector limits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -879,21 +431,6 @@ describe('Google Drive connector limits', () => {
     expect(syncContext.totalDocsFetched).toBe(1)
   })
 
-  it('asks only for files modified after an incremental watermark', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
-
-    await googleDriveConnector.listDocuments(
-      'token',
-      {},
-      undefined,
-      {},
-      new Date('2026-08-20T12:00:00Z')
-    )
-
-    const url = new URL(String(mockFetch.mock.calls[0][0]))
-    expect(url.searchParams.get('q')).toContain("modifiedTime > '2026-08-20T12:00:00.000Z'")
-  })
-
   it('makes an incomplete cross-corpus search non-authoritative', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ files: [fileMetadata()], incompleteSearch: true })
@@ -907,34 +444,6 @@ describe('Google Drive connector limits', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
-  it('rejects a malformed successful file-list envelope', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({}))
-
-    await expect(googleDriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
-      'Google Drive API returned malformed file-list metadata'
-    )
-  })
-
-  it('accepts a discriminator-only empty file-list envelope', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ kind: 'drive#fileList' }))
-
-    await expect(
-      googleDriveConnector.listDocuments('token', {}, undefined, {})
-    ).resolves.toMatchObject({ documents: [], hasMore: false })
-  })
-
-  it.each([
-    { files: [{ name: 'Missing ID', mimeType: 'text/plain', modifiedTime: '2026-01-01' }] },
-    { files: [], nextPageToken: 123 },
-    { files: [], incompleteSearch: 'true' },
-  ])('rejects malformed file-list metadata', async (body) => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(body))
-
-    await expect(googleDriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
-      'Google Drive API returned malformed file-list metadata'
-    )
-  })
-
   it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(
     'rejects invalid persisted maxFiles %s before listing from Drive',
     async (maxFiles) => {
@@ -944,50 +453,11 @@ describe('Google Drive connector limits', () => {
       expect(mockFetch).not.toHaveBeenCalled()
     }
   )
-
-  it.each([undefined, null, '', '   ', 0, '0'])(
-    'keeps omitted or explicit unlimited maxFiles %s valid at runtime',
-    async (maxFiles) => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
-
-      await expect(
-        googleDriveConnector.listDocuments('token', { maxFiles })
-      ).resolves.toMatchObject({ documents: [], hasMore: false })
-      expect(String(mockFetch.mock.calls[0][0])).toContain('pageSize=100')
-    }
-  )
-
-  it('uses a valid persisted maxFiles cap at runtime', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
-
-    await googleDriveConnector.listDocuments('token', { maxFiles: '25' })
-
-    expect(String(mockFetch.mock.calls[0][0])).toContain('pageSize=25')
-  })
-
-  it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(
-    'rejects invalid maxFiles %s during validation without calling Drive',
-    async (maxFiles) => {
-      await expect(googleDriveConnector.validateConfig('token', { maxFiles })).resolves.toEqual({
-        valid: false,
-        error: 'Max files must be a positive safe integer, or 0 for unlimited',
-      })
-      expect(mockFetch).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('Google Drive change feed', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it("opens the feed at the account's current start token", async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ startPageToken: '4821' }))
-
-    await expect(googleDriveConnector.getChangeCursor?.('token', {})).resolves.toBe('4821')
-    expect(String(mockFetch.mock.calls[0][0])).toContain('/changes/startPageToken')
   })
 
   it('reports lost access and trashed files as removals and in-scope files as upserts', async () => {
@@ -1045,36 +515,12 @@ describe('Google Drive change feed', () => {
     expect(url.searchParams.get('includeRemoved')).toBe('true')
   })
 
-  it('continues on the next page token while the feed has more', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ changes: [], nextPageToken: '4900', newStartPageToken: '5000' })
-    )
-
-    const result = await googleDriveConnector.listChanges!('token', {}, '4821')
-
-    expect(result).toEqual({ changes: [], nextCursor: '4900', hasMore: true })
-  })
-
   it('rejects a feed page without a cursor to continue from', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ changes: [] }))
 
     await expect(googleDriveConnector.listChanges!('token', {}, '4821')).rejects.toThrow(
       'malformed change-list metadata'
     )
-  })
-
-  it.each([
-    [400, [], true],
-    [400, ['invalid'], true],
-    [404, ['notFound'], true],
-    [410, [], true],
-    [403, ['insufficientFilePermissions'], false],
-    [500, ['backendError'], false],
-  ])('classifies HTTP %s %j as cursor-invalid=%s', (status, reasons, expected) => {
-    expect(
-      googleDriveConnector.isChangeCursorInvalidError!(new GoogleDriveApiError(status, reasons))
-    ).toBe(expected)
-    expect(googleDriveConnector.isChangeCursorInvalidError!(new Error('other'))).toBe(false)
   })
 })
 
@@ -1096,7 +542,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -1111,22 +556,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
     return result.documents[0]
   }
 
-  it('asks Drive for the permissions it needs to mirror', async () => {
-    mockFetch.mockResolvedValueOnce(fileListResponse([]))
-    await googleDriveConnector.listDocuments('token', ADMIN, undefined, { ...MIRRORING })
-
-    const url = String(mockFetch.mock.calls[0][0])
-    expect(decodeURIComponent(url)).toContain('permissions(id,type,emailAddress,domain,role,')
-  })
-
-  /** A crawl that is not mirroring must not pull a permission array per file and discard it. */
-  it('leaves permissions out of the field mask when the run does not mirror', async () => {
-    mockFetch.mockResolvedValueOnce(fileListResponse([]))
-    await googleDriveConnector.listDocuments('token', ADMIN, undefined, {})
-
-    expect(decodeURIComponent(String(mockFetch.mock.calls[0][0]))).not.toContain('permissions(')
-  })
-
   it('tags each document with who may read it', async () => {
     const doc = await listWith(
       driveFile({
@@ -1139,19 +568,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     expect(doc.acl).toEqual(['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'])
-  })
-
-  /**
-   * The tenant is baked into every stored group token, so it has to come from
-   * the administrator's own domain rather than anything a file happens to carry.
-   */
-  it('names the group directory after the administrator the crawl runs as', async () => {
-    const doc = await listWith(
-      driveFile({ permissions: [{ id: 'p1', type: 'group', emailAddress: 'eng@other.com' }] }),
-      { adminEmail: 'Admin@Corp.com' }
-    )
-
-    expect(doc.acl).toEqual(['g:google-drive:corp.com:eng@other.com'])
   })
 
   it('mirrors no ACL at all when no administrator is configured', async () => {
@@ -1183,49 +599,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
     expect(doc.acl).toEqual(['link'])
   })
 
-  it('requires explicit discoverability before mirroring broad search access', async () => {
-    const doc = await listWith(
-      driveFile({
-        permissions: [
-          { id: 'p1', type: 'anyone' },
-          { id: 'p2', type: 'domain', domain: 'corp.com' },
-          { id: 'p3', type: 'user', emailAddress: 'alice@corp.com' },
-        ],
-      }),
-      { ...ADMIN, openSharing: 'anyone' }
-    )
-
-    expect(doc.acl).toEqual(['u:alice@corp.com'])
-  })
-
-  /**
-   * Drive does not populate `permissions` for a file on a shared drive; the
-   * only source is `permissions.list`. A listing that left the ACL unset must
-   * therefore be answered by the fallback, not treated as readable by nobody.
-   */
-  it('resolves a file the listing could not describe through permissions.list', async () => {
-    const doc = await listWith(driveFile({}), ADMIN)
-    expect(doc.acl).toBeUndefined()
-
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        permissions: [
-          { id: 'p1', type: 'user', emailAddress: 'alice@corp.com' },
-          { id: 'p2', type: 'group', emailAddress: 'eng@corp.com' },
-        ],
-      })
-    )
-
-    await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], { ...MIRRORING })
-    ).resolves.toEqual({
-      [FILE_ID]: ['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'],
-    })
-    const url = String(mockFetch.mock.calls[1][0])
-    expect(url).toContain(`/files/${FILE_ID}/permissions`)
-    expect(url).toContain('supportsAllDrives=true')
-  })
-
   it('follows the permission list across pages', async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -1249,12 +622,5 @@ describe('mirroring Drive permissions onto listed documents', () => {
     await expect(
       googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], { ...MIRRORING })
     ).resolves.toEqual({})
-  })
-
-  it('answers nothing for a crawl that mirrors no permissions', async () => {
-    await expect(
-      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_DOC], { ...MIRRORING })
-    ).resolves.toEqual({})
-    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

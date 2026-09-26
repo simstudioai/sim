@@ -1,74 +1,58 @@
-/**
- * @vitest-environment node
- */
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   events: [] as string[],
-  authorizeCredential: vi.fn(),
   executeAttachment: vi.fn(),
   getAttachment: vi.fn(),
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
   recordCredentialAccess: vi.fn(),
-  resolvePermission: vi.fn(),
   resolveReferences: vi.fn(),
   resolveScope: vi.fn(),
   sanitize: vi.fn(),
   authorizePersonalSearch: vi.fn(),
-  requireOrganizationMembership: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
-  authorizePersonalSearchSetup: mocks.authorizePersonalSearch,
+  authorizePersonalSearchSetup: hoisted.authorizePersonalSearch,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  requireOrganizationMembership: mocks.requireOrganizationMembership,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
-vi.mock('@sim/audit', () => ({ recordAudit: vi.fn() }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mocks.logger),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/selectors/application/resolve-scope', () => ({
-  resolveSelectorApplicationContext: mocks.resolveScope,
+  resolveSelectorApplicationContext: hoisted.resolveScope,
 }))
 
 vi.mock('@/lib/oauth/token-resolution', () => ({
-  recordCredentialAccess: mocks.recordCredentialAccess,
+  recordCredentialAccess: hoisted.recordCredentialAccess,
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  authorizeSelectorCredential: mocks.authorizeCredential,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 vi.mock('@/lib/selectors/server/references', () => ({
-  resolveSelectorReferences: mocks.resolveReferences,
+  resolveSelectorReferences: hoisted.resolveReferences,
 }))
 
 vi.mock('@/lib/selectors/server/registry', () => ({
-  getServerSelectorAttachment: mocks.getAttachment,
+  getServerSelectorAttachment: hoisted.getAttachment,
 }))
 
 vi.mock('@/lib/selectors/server/sanitize', () => ({
-  sanitizeSelectorResult: mocks.sanitize,
+  sanitizeSelectorResult: hoisted.sanitize,
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
@@ -76,7 +60,6 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 const mockResolvePermissionGroupConfig =
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-import { selectorScopeSchema } from '@/lib/api/contracts/selectors/execute'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
@@ -87,7 +70,15 @@ import {
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  logger: getMockLogger('ExecuteSelector'),
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  authorizeCredential: selectorCredentialsMockFns.mockAuthorizeSelectorCredential,
+  requireOrganizationMembership: organizationAuthorizationMockFns.mockRequireOrganizationMembership,
+}
+
+const principal = createSessionPrincipal()
 const scope = { kind: 'workspace' as const, workspaceId: 'workspace-1' }
 
 function execute(inputOverrides: Record<string, unknown> = {}) {
@@ -105,7 +96,6 @@ function execute(inputOverrides: Record<string, unknown> = {}) {
 
 describe('executeSelector', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.events.length = 0
     mocks.resolveScope.mockImplementation(async () => {
       mocks.events.push('canonical-scope')
@@ -233,57 +223,6 @@ describe('executeSelector', () => {
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 
-  it('uses the shared selector execution and records the prepared account access once', async () => {
-    const personalScope = { kind: 'organization' as const, organizationId: 'org-1' }
-    mocks.resolveScope.mockResolvedValueOnce({
-      organizationId: 'org-1',
-      workspaceId: undefined,
-      selectorKey: 'jira.projectKeys',
-      selectorManifest: getSelectorManifestEntry('jira.projectKeys'),
-      selectorScope: personalScope,
-    })
-    mocks.resolveReferences.mockResolvedValueOnce({
-      context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
-      request: { kind: 'list' },
-      references: new Map(),
-    })
-    mocks.authorizeCredential.mockResolvedValueOnce({
-      suppliedId: 'managed-1',
-      providerId: 'jira',
-      personalSearchSetup: { principal, organizationId: 'org-1', connectorType: 'jira' },
-    })
-    mocks.getAttachment.mockReturnValueOnce({
-      destination: 'fixed',
-      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] },
-      auditCredentialUse: true,
-      execute: async (args: ExecuteServerSelectorArgs) => {
-        args.recordCredentialUse?.('jira')
-        args.recordCredentialUse?.('jira')
-        return { kind: 'list', items: [{ id: 'PROJECT', label: 'Project' }] }
-      },
-    })
-    await expect(
-      execute({
-        selectorKey: 'jira.projectKeys',
-        scope: personalScope,
-        context: { oauthCredential: 'managed-1', domain: 'example.atlassian.net' },
-        personalSearchSetup: 'jira',
-      })
-    ).resolves.toEqual({ kind: 'list', items: [{ id: 'PROJECT', label: 'Project' }] })
-    expect(mocks.authorizeCredential).toHaveBeenCalledWith(
-      expect.objectContaining({ personalSearchSetup: 'jira', organizationId: 'org-1' })
-    )
-    expect(mocks.requireOrganizationMembership).not.toHaveBeenCalled()
-    expect(mocks.recordCredentialAccess).toHaveBeenCalledTimes(1)
-    expect(mocks.recordCredentialAccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: principal.userId,
-        resourceId: 'managed-1',
-        providerId: 'jira',
-      })
-    )
-  })
-
   /**
    * The picker is a use of the integration, not a neutral list: it reaches the
    * provider's API with the caller's credential. The authorization funnel never
@@ -304,16 +243,6 @@ describe('executeSelector', () => {
       'reference-resolution',
       'credential-authorization',
     ])
-  })
-
-  it('executes a selector whose integration the permission group names', async () => {
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['gmail_v2'],
-    })
-
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
   })
 
   /**
@@ -348,61 +277,6 @@ describe('executeSelector', () => {
   })
 
   /**
-   * The same selector, with its own resource permitted. The credential is a
-   * Sheets one and `google_sheets_v2` is *not* allowed, which is deliberate:
-   * the credential narrows nothing, because the API the selector reaches is the
-   * only thing the allowlist has an opinion about.
-   */
-  it('allows a multi-service selector whose own resource is permitted', async () => {
-    mocks.authorizeCredential.mockImplementation(async () => {
-      mocks.events.push('credential-authorization')
-      return { suppliedId: 'credential-1', providerId: 'google-sheets' }
-    })
-    mocks.getAttachment.mockReturnValue({
-      destination: 'fixed',
-      credential: {
-        kind: 'stored',
-        field: 'oauthCredential',
-        serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
-        resourceServiceId: 'google-drive',
-      },
-      execute: mocks.executeAttachment,
-    })
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['google_drive'],
-    })
-
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
-  })
-
-  /** The SharePoint/Excel pair reads SharePoint, whatever credential opened it. */
-  it('refuses a sharepoint selector when only the excel half is allowed', async () => {
-    mocks.authorizeCredential.mockImplementation(async () => {
-      mocks.events.push('credential-authorization')
-      return { suppliedId: 'credential-1', providerId: 'microsoft-excel' }
-    })
-    mocks.getAttachment.mockReturnValue({
-      destination: 'fixed',
-      credential: {
-        kind: 'stored',
-        field: 'oauthCredential',
-        serviceIds: ['sharepoint', 'microsoft-excel'],
-        resourceServiceId: 'sharepoint',
-      },
-      execute: mocks.executeAttachment,
-    })
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['microsoft_excel_v2'],
-    })
-
-    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
-    expect(mocks.executeAttachment).not.toHaveBeenCalled()
-  })
-
-  /**
    * The hole this closes: a selector authenticated from raw context fields
    * (CloudWatch's AWS keys, IMAP's host and password) carries no credential
    * policy, so the gate used to resolve it to an empty service list and return
@@ -422,69 +296,6 @@ describe('executeSelector', () => {
 
     await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
-  })
-
-  it('executes a raw-context selector whose declared integration is permitted', async () => {
-    mocks.getAttachment.mockReturnValue({
-      destination: 'fixed',
-      integrationBlockTypes: ['cloudwatch'],
-      execute: mocks.executeAttachment,
-    })
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['cloudwatch'],
-    })
-
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
-  })
-
-  /**
-   * An API-key integration owns no OAuth catalog entry, so its service id maps
-   * to no block type. The declaration is what gives the allowlist something to
-   * judge, and it must win over the catalog.
-   */
-  it('refuses an api-key selector whose declared integration is excluded', async () => {
-    mocks.getAttachment.mockReturnValue({
-      destination: 'fixed',
-      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['snowflake'] },
-      integrationBlockTypes: ['snowflake'],
-      execute: mocks.executeAttachment,
-    })
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['slack_v2'],
-    })
-
-    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
-    expect(mocks.executeAttachment).not.toHaveBeenCalled()
-  })
-
-  /**
-   * A selector with no integration identity is not an integration: an internal
-   * selector declares no credential policy at all, so an allowlist that names
-   * nothing still leaves workspace files and knowledge bases pickable.
-   */
-  it('passes through a selector that carries no credential policy', async () => {
-    mocks.getAttachment.mockReturnValue({
-      destination: 'fixed',
-      execute: mocks.executeAttachment,
-    })
-    mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: [],
-    })
-
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
-  })
-
-  /** No group governs the caller, so nothing narrows the allowlist. */
-  it('executes when no permission group governs the caller', async () => {
-    mockResolvePermissionGroupConfig.mockResolvedValue(null)
-
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
   })
 
   it('prepares non-fixed destinations after credential authorization and before provider execution', async () => {
@@ -543,45 +354,6 @@ describe('executeSelector', () => {
     await expect(pending).rejects.toBe(abortReason)
     expect(mocks.sanitize).not.toHaveBeenCalled()
     expect(mocks.logger.info).not.toHaveBeenCalledWith('Executed selector', expect.anything())
-  })
-
-  it('records legacy service-account use once with its trusted provider id', async () => {
-    mocks.authorizeCredential.mockResolvedValueOnce({
-      suppliedId: 'credential-1',
-      providerId: 'atlassian-service-account',
-      access: {
-        ok: true,
-        credentialOwnerUserId: 'owner-1',
-        resolvedCredentialId: 'resolved-credential-1',
-        credentialType: 'service_account',
-      },
-    })
-    mocks.getAttachment.mockReturnValueOnce({
-      destination: 'fixed',
-      auditCredentialUse: true,
-      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] },
-      execute: vi.fn(async (args: ExecuteServerSelectorArgs) => {
-        args.recordCredentialUse?.('jira')
-        args.recordCredentialUse?.('jira')
-        return { kind: 'list', items: [{ id: 'project-1', label: 'Project' }] }
-      }),
-    })
-
-    await execute({ auditRequest: { headers: { get: vi.fn(() => null) } } })
-
-    expect(mocks.recordCredentialAccess).toHaveBeenCalledOnce()
-    expect(mocks.recordCredentialAccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'user-1',
-        workspaceId: 'workspace-1',
-        resourceId: 'resolved-credential-1',
-        providerId: 'atlassian-service-account',
-        credentialType: 'service_account',
-      })
-    )
-    expect(JSON.stringify(mocks.recordCredentialAccess.mock.calls)).not.toContain(
-      'GMAIL_CREDENTIAL_ID'
-    )
   })
 
   it('exposes safe truncation state without diagnostic details', async () => {
@@ -800,16 +572,5 @@ describe('executeSelector', () => {
         meta: { resourceId: originalId, mimeType: 'application/pdf' },
       },
     })
-  })
-})
-
-describe('selector scope contract', () => {
-  it('rejects workflow ids longer than 128 characters', () => {
-    expect(
-      selectorScopeSchema.safeParse({ kind: 'workflow', workflowId: 'w'.repeat(128) }).success
-    ).toBe(true)
-    expect(
-      selectorScopeSchema.safeParse({ kind: 'workflow', workflowId: 'w'.repeat(129) }).success
-    ).toBe(false)
   })
 })

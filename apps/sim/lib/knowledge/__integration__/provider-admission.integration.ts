@@ -1,3 +1,4 @@
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import Redis from 'ioredis'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,18 +6,7 @@ import type { RateLimitStorageAdapter } from '@/lib/core/rate-limiter/storage/ad
 import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
 import { RedisTokenBucket } from '@/lib/core/rate-limiter/storage/redis-token-bucket'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
-if (redisUrl) {
-  const target = new URL(redisUrl)
-  if (
-    target.protocol !== 'redis:' ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    target.username ||
-    target.password
-  ) {
-    throw new Error('Provider admission tests require an explicitly configured local Redis')
-  }
-}
+const redisUrl = readTestRedisUrl()
 
 describe.each(['PostgreSQL', 'Redis'] as const)('%s provider admission', (backend) => {
   describe.runIf(backend === 'PostgreSQL' || Boolean(redisUrl))('real shared buckets', () => {

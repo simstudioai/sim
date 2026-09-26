@@ -24,6 +24,14 @@ import { generateId } from '@sim/utils/id'
 import { serializeSignedCookie } from 'better-call'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+/** Its search-index knowledge bases are read through indexed organization search, dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
+  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
+    importOriginal
+  )
+)
+
 import { z } from 'zod'
 
 const metrics = vi.hoisted(() => ({ embeddingCalls: 0 }))
@@ -79,9 +87,10 @@ const permissionListSchema = z.object({
   nextPageToken: z.string().optional(),
 })
 
-describe
-  .skipIf(!tokenPath || !fixturePath || !secondEmail)
-  .sequential('live Coda ingestion and source access', () => {
+describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
+  'live Coda ingestion and source access',
+  { concurrent: false },
+  () => {
     let ids: Awaited<ReturnType<typeof seedKnowledgeAclFixture>>
     let connectorId: string
     let documentId: string
@@ -378,4 +387,5 @@ describe
       },
       120_000
     )
-  })
+  }
+)

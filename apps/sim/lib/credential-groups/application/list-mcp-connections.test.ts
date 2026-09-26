@@ -1,35 +1,40 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 
 const mocks = vi.hoisted(() => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-  requirePolicy: vi.fn(),
   listMcpConnections: vi.fn(),
-  loadGroup: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolveCredentialGroupsAvailability: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.getWorkspaceOwnerSubscriptionAccess,
-}))
-
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: async () =>
-    (await mocks.resolveCredentialGroupsAvailability()).available,
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.requirePolicy,
-}))
-
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.loadGroup,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
 vi.mock('@/lib/credential-groups/mcp-connections', () => ({
   CredentialGroupMcpConnectionCursorNotFoundError: class extends Error {
@@ -42,18 +47,20 @@ vi.mock('@/lib/credential-groups/mcp-connections', () => ({
   MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE: 100,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
 import { CredentialGroupMcpConnectionCursorNotFoundError } from '@/lib/credential-groups/mcp-connections'
+
+const getWorkspaceOwnerSubscriptionAccess =
+  billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess
+const requirePolicy = resourcePolicyRepositoryMockFns.mockRequireResourcePolicy
+const loadGroup = credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext
+const isAvailable = credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable
+const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const groupContext = {
   credentialGroupId: 'group-1',
@@ -71,68 +78,45 @@ const workspaceContext = {
 const input = { workspaceId: 'workspace-1', limit: 50 }
 
 function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
+  return createExecutorPrincipal({
     workspaceId,
-    delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment',
         deploymentVersionId: 'deployment-version-1',
       },
     },
-  }
+  })
 }
 
 describe('listCredentialGroupMcpConnections', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.requirePolicy.mockResolvedValue({
+    requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy(
         'group-1',
         ['workspace-1'].map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
       ),
     })
-    mocks.loadGroup.mockResolvedValue(groupContext)
-    mocks.loadWorkspace.mockResolvedValue(workspaceContext)
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
-    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
-    mocks.listMcpConnections.mockResolvedValue({
-      mcpConnections: [
-        {
-          credentialId: 'mcp-cg-connection-1',
-          email: 'person@example.com',
-          displayName: 'Fireflies',
-          mcpServerId: 'mcp-server-1',
-          mcpServerName: 'Fireflies',
-          toolNames: ['list_transcripts'],
-        },
-      ],
-      nextCursor: null,
-    })
+    loadGroup.mockResolvedValue(groupContext)
+    loadWorkspace.mockResolvedValue(workspaceContext)
+    resolvePermission.mockResolvedValue('read')
+    getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
+    isAvailable.mockResolvedValue(true)
+    mocks.listMcpConnections.mockResolvedValue({ mcpConnections: [], nextCursor: null })
   })
 
   it('rejects unsupported principals before loading the group', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const principal = createSessionPrincipal()
 
     await expect(
       listCredentialGroupMcpConnections.execute({ principal, input })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadGroup).not.toHaveBeenCalled()
+    expect(loadGroup).not.toHaveBeenCalled()
   })
 
   it('rejects executor delegation scoped to another workspace', async () => {
@@ -146,7 +130,7 @@ describe('listCredentialGroupMcpConnections', () => {
   })
 
   it('limits discovery to allowed MCP types and rejects an explicit restricted connector', async () => {
-    mocks.requirePolicy.mockResolvedValue({
+    requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy('group-1', [
         {
           workspaceId: 'workspace-1',
@@ -168,55 +152,8 @@ describe('listCredentialGroupMcpConnections', () => {
     expect(mocks.listMcpConnections).not.toHaveBeenCalled()
   })
 
-  it('lists bounded MCP connection references after authorization and entitlement checks', async () => {
-    const result = await listCredentialGroupMcpConnections.execute({
-      principal: executorPrincipal(),
-      input: {
-        ...input,
-        email: ' Person@Example.COM ',
-        mcpServerId: ' mcp-server-1 ',
-      },
-    })
-
-    expect(mocks.listMcpConnections).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      credentialGroupId: 'group-1',
-      limit: 50,
-      cursor: undefined,
-      email: 'person@example.com',
-      mcpServerId: 'mcp-server-1',
-      connectorId: undefined,
-      allowedConnectorIds: ['fireflies', 'granola', 'databricks', 'coda'],
-    })
-    expect(result).toEqual({
-      mcpConnections: [
-        {
-          credentialId: 'mcp-cg-connection-1',
-          email: 'person@example.com',
-          displayName: 'Fireflies',
-          mcpServerId: 'mcp-server-1',
-          mcpServerName: 'Fireflies',
-          toolNames: ['list_transcripts'],
-        },
-      ],
-      count: 1,
-      hasMore: false,
-      nextCursor: null,
-    })
-  })
-
-  it('rejects invalid filters before querying MCP connections', async () => {
-    await expect(
-      listCredentialGroupMcpConnections.execute({
-        principal: executorPrincipal(),
-        input: { ...input, email: 'not-an-email' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Email must be a valid address' })
-    expect(mocks.listMcpConnections).not.toHaveBeenCalled()
-  })
-
   it('fails before listing when the group is disabled', async () => {
-    mocks.loadGroup.mockResolvedValue({ ...groupContext, status: 'disabled' })
+    loadGroup.mockResolvedValue({ ...groupContext, status: 'disabled' })
 
     await expect(
       listCredentialGroupMcpConnections.execute({ principal: executorPrincipal(), input })

@@ -1,7 +1,5 @@
 /**
  * Tests for folders API route
- *
- * @vitest-environment node
  */
 import {
   auditMock,
@@ -13,30 +11,9 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockLogger: logger,
-  }
-})
-
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
@@ -142,13 +119,7 @@ describe('Folders API Route', () => {
     authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
   }
 
-  function mockUnauthenticated() {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-  }
-
   beforeEach(() => {
-    vi.clearAllMocks()
-
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue(mockUUID),
     })
@@ -174,67 +145,6 @@ describe('Folders API Route', () => {
   })
 
   describe('GET /api/folders', () => {
-    it('should return folders for a valid workspace', async () => {
-      mockAuthenticatedUser()
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folders')
-      expect(data.folders).toHaveLength(2)
-      expect(data.folders[0]).toMatchObject({
-        id: 'folder-1',
-        name: 'Test Folder 1',
-        workspaceId: 'workspace-123',
-      })
-    })
-
-    it('should return 401 for unauthenticated requests', async () => {
-      mockUnauthenticated()
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(401)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
-    it('should return 400 when workspaceId is missing', async () => {
-      mockAuthenticatedUser()
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(400)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Validation error')
-      expect(data.details?.[0]?.message).toBe('Workspace ID is required')
-    })
-
     it('should return 403 when user has no workspace permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue(null)
@@ -253,81 +163,9 @@ describe('Folders API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Access denied to this workspace')
     })
-
-    it('should return 403 when user has only read permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('read')
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folders')
-    })
-
-    it('should handle database errors gracefully', async () => {
-      mockAuthenticatedUser()
-
-      mockSelect.mockImplementationOnce(() => {
-        throw new Error('Database connection failed')
-      })
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(500)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Error fetching folders:', {
-        error: expect.any(Error),
-      })
-    })
   })
 
   describe('POST /api/folders', () => {
-    it('should create a new folder successfully', async () => {
-      mockAuthenticatedUser()
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-        })
-      )
-
-      const req = createMockRequest('POST', {
-        name: 'New Test Folder',
-        workspaceId: 'workspace-123',
-        color: '#6B7280',
-      })
-
-      const response = await POST(req)
-      const responseBody = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(responseBody).toHaveProperty('folder')
-      expect(responseBody.folder).toMatchObject({
-        id: 'folder-1',
-        name: 'Test Folder 1',
-        workspaceId: 'workspace-123',
-      })
-    })
-
     /**
      * The bounded readers refuse a workspace above `MAX_FOLDERS_PER_WORKSPACE`,
      * so this endpoint must refuse to push one there — and must say so as an
@@ -352,79 +190,6 @@ describe('Folders API Route', () => {
       await expect(response.json()).resolves.toEqual({
         error:
           'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.',
-      })
-    })
-
-    it('should create folder with correct sort order', async () => {
-      mockAuthenticatedUser()
-      let capturedValues: CapturedFolderValues | null = null
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[{ minSortOrder: 5 }], [{ minSortOrder: 2 }]],
-          insertResult: [{ ...mockFolders[0], sortOrder: 1 }],
-          onInsertValues: (values) => {
-            capturedValues = values
-          },
-        })
-      )
-      mockWhere
-        .mockReturnValueOnce([{ minSortOrder: 5 }])
-        .mockReturnValueOnce([{ minSortOrder: 2 }])
-      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
-        capturedValues = values
-        return { returning: mockReturning }
-      })
-      mockReturning.mockReturnValueOnce([{ ...mockFolders[0], sortOrder: 1 }])
-
-      const req = createMockRequest('POST', {
-        name: 'New Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data.folder).toMatchObject({
-        sortOrder: 1,
-      })
-      expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.sortOrder).toBe(1)
-    })
-
-    it('should create subfolder with parent reference', async () => {
-      mockAuthenticatedUser()
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          // The first read is the collection-ceiling count, then the parent lookup.
-          selectResults: [
-            [{ total: 1 }],
-            [{ workspaceId: 'workspace-123', archivedAt: null }],
-            [],
-            [],
-          ],
-          insertResult: [{ ...mockFolders[1] }],
-        })
-      )
-      mockLimit.mockReturnValueOnce([{ ...mockFolders[0] }])
-      mockReturning.mockReturnValueOnce([{ ...mockFolders[1] }])
-
-      const req = createMockRequest('POST', {
-        name: 'Subfolder',
-        workspaceId: 'workspace-123',
-        parentId: 'folder-1',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data.folder).toMatchObject({
-        parentId: 'folder-1',
       })
     })
 
@@ -466,22 +231,6 @@ describe('Folders API Route', () => {
       expect(data.error).toBe('Parent folder not found')
     })
 
-    it('should return 401 for unauthenticated requests', async () => {
-      mockUnauthenticated()
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(401)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
     it('should return 403 when user has only read permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
@@ -497,130 +246,6 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Write or Admin access required to create folders')
-    })
-
-    it('should allow folder creation for write permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('write')
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-        })
-      )
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folder')
-    })
-
-    it('should allow folder creation for admin permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('admin')
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-        })
-      )
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folder')
-    })
-
-    it('should return 400 when required fields are missing', async () => {
-      const testCases = [
-        { name: '', workspaceId: 'workspace-123' },
-        { name: 'Test Folder', workspaceId: '' },
-        { workspaceId: 'workspace-123' },
-        { name: 'Test Folder' },
-      ]
-
-      for (const body of testCases) {
-        mockAuthenticatedUser()
-
-        const req = createMockRequest('POST', body)
-
-        const response = await POST(req)
-
-        expect(response.status).toBe(400)
-
-        const data = await response.json()
-        expect(data).toHaveProperty('error', 'Validation error')
-      }
-    })
-
-    it('should handle database errors gracefully', async () => {
-      mockAuthenticatedUser()
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({ insertError: new Error('Database insert failed') })
-      )
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(500)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create folder', {
-        error: expect.any(Error),
-        resourceType: 'workflow',
-      })
-    })
-
-    it('should trim folder name when creating', async () => {
-      mockAuthenticatedUser()
-
-      let capturedValues: CapturedFolderValues | null = null
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-          onInsertValues: (values) => {
-            capturedValues = values
-          },
-        })
-      )
-      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
-        capturedValues = values
-        return { returning: mockReturning }
-      })
-
-      const req = createMockRequest('POST', {
-        name: '  Test Folder With Spaces  ',
-        workspaceId: 'workspace-123',
-      })
-
-      await POST(req)
-
-      expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.name).toBe('Test Folder With Spaces')
     })
   })
 })

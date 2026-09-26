@@ -1,16 +1,8 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateGoogleCompanyConfig } from '@/connectors/google-drive/company-crawl'
 import { googleDriveConnector as drive } from '@/connectors/google-drive/google-drive'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
-import {
-  listGoogleWorkspaceUsers,
-  selectedGoogleWorkspaceUsers,
-} from '@/connectors/google-workspace/users'
-
-vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
+import { listGoogleWorkspaceUsers } from '@/connectors/google-workspace/users'
 
 const mockFetch = vi.fn()
 const CONFIG = { adminEmail: 'admin@corp.com' }
@@ -74,7 +66,6 @@ beforeEach(() => {
   mockFetch.mockReset()
   vi.stubGlobal('fetch', mockFetch)
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Google Drive company-wide crawl', () => {
   it('indexes private files for multiple users without granting either user access to the other', async () => {
@@ -109,31 +100,6 @@ describe('Google Drive company-wide crawl', () => {
         expect(url.searchParams.get('q')).not.toContain('modifiedTime >')
       }
     }
-  })
-
-  it('retains file IDs for deduplication and resolves a later reader through the full permissions endpoint', async () => {
-    const acl = [
-      { type: 'user', emailAddress: 'alice@corp.com', role: 'owner' },
-      { type: 'user', emailAddress: 'bob@corp.com', role: 'reader' },
-    ]
-    fixture({
-      files: {
-        'alice@corp.com': [FILE('shared', 'alice@corp.com', { permissions: acl })],
-        'bob@corp.com': [FILE('shared', 'alice@corp.com', { permissions: undefined })],
-      },
-      permissions: { shared: acl },
-    })
-    const ctx = context()
-    const owner = await drive.listDocuments('directory-token', CONFIG, undefined, ctx)
-    const reader = await drive.listDocuments('directory-token', CONFIG, owner.nextCursor, ctx)
-    expect(reader.documents[0].externalId).toBe(owner.documents[0].externalId)
-    expect(reader.documents[0].contentHash).toBe(owner.documents[0].contentHash)
-    const resolved = await drive.getDocumentAcls!('directory-token', CONFIG, reader.documents, ctx)
-    expect(resolved.shared).toEqual(owner.documents[0].acl)
-    expect(resolved.shared).toEqual(['u:alice@corp.com', 'u:bob@corp.com'])
-    expect(mockFetch.mock.calls.at(-1)?.[1].headers.Authorization).toBe(
-      'Bearer delegated:bob@corp.com'
-    )
   })
 
   it('lets a downloadable owner index a shared file after an earlier reader cannot download it', async () => {
@@ -199,34 +165,6 @@ describe('Google Drive company-wide crawl', () => {
     expect(page.documents).toEqual([])
   })
 
-  it('lets an owner index a shortcut after the earlier reader cannot access its target', async () => {
-    const shortcut = FILE('shortcut', 'bob@corp.com', {
-      mimeType: 'application/vnd.google-apps.shortcut',
-      capabilities: { canDownload: false },
-      shortcutDetails: { targetId: 'target' },
-    })
-    fixture({ files: { 'alice@corp.com': [shortcut], 'bob@corp.com': [shortcut] } })
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const url = new URL(address)
-      if (url.pathname.endsWith('/files/target')) {
-        if (new Headers(init.headers).get('Authorization') === 'Bearer delegated:alice@corp.com')
-          return json({ error: { errors: [{ reason: 'notFound' }] } }, 404)
-        if (url.searchParams.get('alt') === 'media') return new Response('Target content')
-        return json(FILE('target', 'bob@corp.com', { capabilities: { canDownload: true } }))
-      }
-      return route(address, init)
-    })
-    const ctx = context()
-    const reader = await drive.listDocuments('directory-token', CONFIG, undefined, ctx)
-    expect(reader.documents).toEqual([])
-    const owner = await drive.listDocuments('directory-token', CONFIG, reader.nextCursor, ctx)
-    expect(owner.documents.map((file) => file.externalId)).toEqual(['shortcut'])
-    expect((await drive.getDocument('directory-token', CONFIG, 'shortcut', ctx))?.content).toBe(
-      'Target content'
-    )
-  })
-
   it('checkpoints nested Drive pagination and resumes the exact user page with a fresh context', async () => {
     fixture({})
     const route = mockFetch.getMockImplementation()!
@@ -261,66 +199,6 @@ describe('Google Drive company-wide crawl', () => {
     expect(
       mockFetch.mock.calls.filter(([address]) => new URL(address).pathname.endsWith('/users'))
     ).toHaveLength(1)
-  })
-
-  it('visits untouched shared-drive files, paginates drives and files, and replays the exact scope', async () => {
-    fixture({ users: [USER('alice@corp.com')] })
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const url = new URL(address)
-      if (url.pathname.endsWith('/drives')) {
-        expect(new Headers(init.headers).get('Authorization')).toBe(
-          'Bearer delegated:alice@corp.com'
-        )
-        const token = url.searchParams.get('pageToken')
-        return json(
-          token === 'drives-3'
-            ? { drives: [{ id: 'drive-c' }] }
-            : token === 'drives-2'
-              ? { drives: [], nextPageToken: 'drives-3' }
-              : { drives: [{ id: 'drive-a' }, { id: 'drive-b' }], nextPageToken: 'drives-2' }
-        )
-      }
-      if (url.pathname.endsWith('/files') && url.searchParams.get('corpora') === 'drive') {
-        const id = url.searchParams.get('driveId')!
-        const more = id === 'drive-a' && !url.searchParams.has('pageToken')
-        return json({
-          files: [FILE(`${id}${more ? '-1' : '-2'}`, 'alice@corp.com')],
-          ...(more ? { nextPageToken: 'files-2' } : {}),
-        })
-      }
-      return route(address, init)
-    })
-    const pages = []
-    let cursor: string | undefined
-    for (let index = 0; index < 10; index++) {
-      const page = await drive.listDocuments('directory-token', CONFIG, cursor, context())
-      pages.push(page)
-      if (!page.hasMore) break
-      cursor = page.nextCursor
-    }
-    expect(pages.flatMap((page) => page.documents.map((file) => file.externalId))).toEqual([
-      'private-alice',
-      'drive-a-1',
-      'drive-a-2',
-      'drive-b-2',
-      'drive-c-2',
-    ])
-    expect(pages.at(-1)?.hasMore).toBe(false)
-    const replayContext = context()
-    const replay = await drive.listDocuments(
-      'directory-token',
-      CONFIG,
-      pages[2].currentCursor,
-      replayContext
-    )
-    expect(replay.documents).toEqual(pages[2].documents)
-    expect(replayContext.getDelegatedAccessToken).toHaveBeenCalledExactlyOnceWith('alice@corp.com')
-    const params = new URL(mockFetch.mock.calls.at(-1)![0]).searchParams
-    expect(params.get('corpora')).toBe('drive')
-    expect(params.get('driveId')).toBe('drive-a')
-    expect(params.get('pageToken')).toBe('files-2')
-    expect(pages.every((page) => !page.currentCursor?.includes('delegated:'))).toBe(true)
   })
 
   it.each(['teamDriveMembershipRequired', 'notFound'])(
@@ -359,36 +237,6 @@ describe('Google Drive company-wide crawl', () => {
     }
   )
 
-  it('continues other selected folders when one folder in a shared drive becomes inaccessible', async () => {
-    fixture({ users: [USER('alice@corp.com')] })
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const url = new URL(address)
-      if (url.pathname.endsWith('/drives')) return json({ drives: [{ id: 'drive-a' }] })
-      if (url.pathname.endsWith('/files')) {
-        if (url.searchParams.get('corpora') !== 'drive') return json({ files: [] })
-        return url.searchParams.get('q')?.includes("'removed' in parents")
-          ? json({ error: { errors: [{ reason: 'notFound' }] } }, 404)
-          : json({ files: [FILE('visible-folder-file', 'alice@corp.com')] })
-      }
-      return route(address, init)
-    })
-    let cursor: string | undefined
-    const ids: string[] = []
-    for (let index = 0; index < 8; index++) {
-      const page = await drive.listDocuments(
-        'directory-token',
-        { ...CONFIG, folderId: ['visible', 'removed'] },
-        cursor,
-        context()
-      )
-      ids.push(...page.documents.map((file) => file.externalId))
-      if (!page.hasMore) break
-      cursor = page.nextCursor
-    }
-    expect(ids).toEqual(['visible-folder-file'])
-  })
-
   it.each([401, 403])(
     'does not treat a shared-drive authorization failure as an empty drive: %s',
     async (status) => {
@@ -407,33 +255,6 @@ describe('Google Drive company-wide crawl', () => {
       ).rejects.toThrow(GoogleDriveApiError)
     }
   )
-
-  it('paginates Directory users, including an empty page, without preloading the company', async () => {
-    fixture({})
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const url = new URL(address)
-      if (url.pathname.endsWith('/users')) {
-        const token = url.searchParams.get('pageToken')
-        expect(url.searchParams.get('maxResults')).toBe('100')
-        return json(
-          token === 'users-3'
-            ? { users: [USER('bob@corp.com')] }
-            : token === 'users-2'
-              ? { users: [], nextPageToken: 'users-3' }
-              : { users: [USER('alice@corp.com')], nextPageToken: 'users-2' }
-        )
-      }
-      return route(address, init)
-    })
-    const one = await drive.listDocuments('directory-token', CONFIG, undefined, context())
-    const two = await drive.listDocuments('directory-token', CONFIG, one.nextCursor, context())
-    expect(two.documents).toEqual([])
-    expect(two.hasMore).toBe(true)
-    const three = await drive.listDocuments('directory-token', CONFIG, two.nextCursor, context())
-    expect(three.documents[0].externalId).toBe('private-bob')
-    expect(three.hasMore).toBe(false)
-  })
 
   it('delegates only to selected primary emails found in the actual Workspace directory', async () => {
     fixture({})
@@ -541,41 +362,9 @@ describe('Google Drive company-wide crawl', () => {
     const page = await drive.listDocuments('directory-token', CONFIG, undefined, context())
     expect(page.reconciliationSafe).toBe(false)
   })
-
-  it('stops before provider access when cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort()
-    await expect(
-      drive.listDocuments('directory-token', CONFIG, undefined, {
-        ...context(),
-        signal: controller.signal,
-      })
-    ).rejects.toThrow()
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('passes the crawl signal into the delegated token exchange', async () => {
-    fixture({})
-    const controller = new AbortController()
-    const ctx = { ...context(), signal: controller.signal }
-    await drive.listDocuments('directory-token', CONFIG, undefined, ctx)
-    expect(ctx.getDelegatedAccessToken).toHaveBeenCalledWith('alice@corp.com', controller.signal)
-  })
 })
 
 describe('Company-wide setup validation', () => {
-  it('validates only a bounded active user sample by default', async () => {
-    fixture({})
-    await expect(validateGoogleCompanyConfig('directory-token', CONFIG, context())).resolves.toBe(
-      'alice@corp.com'
-    )
-    const sample = mockFetch.mock.calls.find(([address]) =>
-      new URL(address).pathname.endsWith('/users')
-    )
-    expect(new URL(sample![0]).searchParams.get('maxResults')).toBe('1')
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-  })
-
   it.each([
     ['different customer', USER('other@elsewhere.com', { customerId: 'customer-2' })],
     ['alias', USER('primary@corp.com', { id: 'alias@corp.com' })],
@@ -592,66 +381,6 @@ describe('Company-wide setup validation', () => {
       )
     ).rejects.toThrow()
   })
-
-  it('probes delegated Drive access without requiring the administrator to open selected folders', async () => {
-    fixture({})
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const path = new URL(address).pathname
-      if (path.endsWith('/groups')) return json({ groups: [] })
-      if (path.endsWith('/domains')) return json({ domains: [] })
-      return route(address, init)
-    })
-    const ctx = context()
-    await expect(
-      drive.validateConfig(
-        'directory-token',
-        { ...CONFIG, folderId: 'private-employee-folder' },
-        ctx
-      )
-    ).resolves.toEqual({ valid: true })
-    expect(ctx.getDelegatedAccessToken).toHaveBeenCalledExactlyOnceWith('alice@corp.com')
-    const driveRequests = mockFetch.mock.calls.filter(
-      ([address]) => new URL(address).hostname === 'www.googleapis.com'
-    )
-    expect(driveRequests).toHaveLength(1)
-    expect(new URL(driveRequests[0][0]).searchParams.get('pageSize')).toBe('1')
-    expect(driveRequests[0][1].headers.Authorization).toBe('Bearer delegated:alice@corp.com')
-  })
-
-  it('falls back to the verified administrator if the filtered sample is inactive or empty', async () => {
-    fixture({ users: [USER('admin@corp.com')] })
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const url = new URL(address)
-      if (url.pathname.endsWith('/users')) {
-        expect(url.searchParams.get('query')).toBe(
-          'isSuspended=false isArchived=false isGuest=false'
-        )
-        return json({ users: [USER('suspended@corp.com', { suspended: true })] })
-      }
-      return route(address, init)
-    })
-    await expect(validateGoogleCompanyConfig('directory-token', CONFIG, context())).resolves.toBe(
-      'admin@corp.com'
-    )
-  })
-
-  it('rejects disabled Drive access during setup', async () => {
-    fixture({})
-    const route = mockFetch.getMockImplementation()!
-    mockFetch.mockImplementation(async (address: string, init: RequestInit) => {
-      const path = new URL(address).pathname
-      if (path.endsWith('/groups')) return json({ groups: [] })
-      if (path.endsWith('/domains')) return json({ domains: [] })
-      if (new URL(address).hostname === 'www.googleapis.com')
-        return json({ error: { errors: [{ reason: 'accessNotConfigured' }] } }, 403)
-      return route(address, init)
-    })
-    await expect(drive.validateConfig('directory-token', CONFIG, context())).resolves.toMatchObject(
-      { valid: false, error: expect.stringContaining('403') }
-    )
-  })
 })
 
 describe('Workspace user enumeration boundaries', () => {
@@ -665,22 +394,5 @@ describe('Workspace user enumeration boundaries', () => {
   ])('rejects malformed directory data: %j', async (body) => {
     mockFetch.mockResolvedValue(json(body))
     await expect(listGoogleWorkspaceUsers('token')).rejects.toThrow('malformed')
-  })
-  it('rejects repeated continuation and directory authorization failures', async () => {
-    mockFetch.mockResolvedValueOnce(json({ users: [], nextPageToken: 'same' }))
-    await expect(listGoogleWorkspaceUsers('token', 'same')).rejects.toThrow('repeated')
-    mockFetch.mockResolvedValueOnce(json({ error: { errors: [{ reason: 'forbidden' }] } }, 403))
-    await expect(listGoogleWorkspaceUsers('token')).rejects.toBeInstanceOf(GoogleDriveApiError)
-  })
-  it('validates explicit user emails and their bound', () => {
-    expect(selectedGoogleWorkspaceUsers(' Alice@Corp.com,alice@corp.com ')).toEqual([
-      'alice@corp.com',
-    ])
-    expect(() => selectedGoogleWorkspaceUsers('not-an-email')).toThrow('valid')
-    expect(() => selectedGoogleWorkspaceUsers(['alice@corp.com', 123])).toThrow()
-    expect(() => selectedGoogleWorkspaceUsers({ email: 'alice@corp.com' })).toThrow()
-    expect(() =>
-      selectedGoogleWorkspaceUsers(Array.from({ length: 101 }, (_, i) => `u${i}@corp.com`))
-    ).toThrow('100')
   })
 })

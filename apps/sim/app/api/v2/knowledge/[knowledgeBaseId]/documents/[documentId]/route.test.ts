@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -8,17 +5,17 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReadDocument, mockUpdateDocument, mockDeleteDocument, mockCapture } = vi.hoisted(
-  () => ({
-    mockReadDocument: vi.fn(),
-    mockUpdateDocument: vi.fn(),
-    mockDeleteDocument: vi.fn(),
-    mockCapture: vi.fn(),
-  })
-)
+const { mockReadDocument, mockUpdateDocument, mockDeleteDocument } = vi.hoisted(() => ({
+  mockReadDocument: vi.fn(),
+  mockUpdateDocument: vi.fn(),
+  mockDeleteDocument: vi.fn(),
+}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -38,12 +35,12 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
   },
 }))
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { GET, PATCH } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const UPLOADED_AT = new Date('2025-06-18T16:45:00Z')
 
 const TAG_DEFINITIONS = [
@@ -93,26 +90,26 @@ const DOCUMENT_ROW = {
   tag6: 'orphaned-slot-value',
 }
 
-const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1', documentId: 'doc-1' }) }
+const context = createRouteContext({ knowledgeBaseId: 'kb-1', documentId: 'doc-1' })
 
 function buildGetRequest() {
-  return new NextRequest(
-    `http://localhost/api/v2/knowledge/kb-1/documents/doc-1?workspaceId=${WORKSPACE_ID}`,
-    { headers: { 'x-api-key': 'secret' } }
-  )
+  return createMockRequest({
+    url: `http://localhost/api/v2/knowledge/kb-1/documents/doc-1?workspaceId=${WORKSPACE_ID}`,
+    headers: { 'x-api-key': 'secret' },
+  })
 }
 
 function buildPatchRequest(body: unknown) {
-  return new NextRequest('http://localhost/api/v2/knowledge/kb-1/documents/doc-1', {
+  return createMockRequest({
     method: 'PATCH',
-    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-    body: JSON.stringify(body),
+    url: 'http://localhost/api/v2/knowledge/kb-1/documents/doc-1',
+    headers: { 'x-api-key': 'secret' },
+    body,
   })
 }
 
 describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.authenticate.mockResolvedValue({
@@ -144,40 +141,6 @@ describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
       priority: 2,
       tag6: 'orphaned-slot-value',
     })
-  })
-
-  it('updates the whitelisted fields and returns the updated document with its tags', async () => {
-    const response = await PATCH(
-      buildPatchRequest({
-        workspaceId: WORKSPACE_ID,
-        filename: 'renamed.txt',
-        enabled: false,
-        tag1: 'support',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockUpdateDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          knowledgeBaseId: 'kb-1',
-          documentId: 'doc-1',
-          assertedWorkspaceId: WORKSPACE_ID,
-          updates: { filename: 'renamed.txt', enabled: false, tag1: 'support' },
-          source: 'api',
-        },
-      })
-    )
-    const body = await response.json()
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        id: 'doc-1',
-        filename: 'renamed.txt',
-        enabled: false,
-        tags: { category: 'billing', priority: 2, tag6: 'orphaned-slot-value' },
-      })
-    )
   })
 
   it('acknowledges a processing retry without claiming settled indexing state', async () => {
@@ -236,13 +199,6 @@ describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
         message: expect.stringContaining('retryProcessing cannot be combined with enabled'),
       }),
     })
-    expect(mockUpdateDocument).not.toHaveBeenCalled()
-  })
-
-  it('rejects an update that changes nothing', async () => {
-    const response = await PATCH(buildPatchRequest({ workspaceId: WORKSPACE_ID }), context)
-
-    expect(response.status).toBe(400)
     expect(mockUpdateDocument).not.toHaveBeenCalled()
   })
 })

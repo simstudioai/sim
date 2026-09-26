@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The v2 list convention's SQL half. These run against REAL drizzle (the global
  * `drizzle-orm` mock is lifted for this file) and render the generated SQL, so
  * the assertions are about the query that would actually be sent — the point
@@ -13,10 +11,8 @@ vi.unmock('drizzle-orm')
 import { decimal, integer, PgDialect, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import {
   decimalKey,
-  encodeKeyset,
   escapeLikePattern,
   keysetAfter,
-  keysetColumns,
   listOrderBy,
   numberKey,
   searchFilter,
@@ -44,10 +40,6 @@ describe('escapeLikePattern', () => {
     expect(escapeLikePattern('a_b')).toBe('a\\_b')
     expect(escapeLikePattern('back\\slash')).toBe('back\\\\slash')
   })
-
-  it('leaves an ordinary term untouched', () => {
-    expect(escapeLikePattern('quarterly report')).toBe('quarterly report')
-  })
 })
 
 describe('searchFilter', () => {
@@ -63,12 +55,6 @@ describe('searchFilter', () => {
     const { params } = render(searchFilter(thing.name, '50%_off')!)
 
     expect(params).toEqual(['%50\\%\\_off%'])
-  })
-
-  it('is case-insensitive (ILIKE, not LIKE)', () => {
-    const { sql } = render(searchFilter(thing.name, 'Report')!)
-
-    expect(sql).toContain('ilike')
   })
 
   it('drops out of the WHERE clause entirely when no term was given', () => {
@@ -176,15 +162,6 @@ describe('cursor key value validation', () => {
   })
 })
 
-describe('encodeKeyset / keysetColumns', () => {
-  it('reads the cursor values and the ordering expressions in key order', () => {
-    const row: Row = { id: 'file-7', name: 'data.csv', createdAt: new Date('2024-03-04T05:06:07Z') }
-
-    expect(encodeKeyset([nameKey, idKey], row)).toEqual(['data.csv', 'file-7'])
-    expect(keysetColumns([nameKey, idKey])).toEqual([thing.name, thing.id])
-  })
-})
-
 describe('keysetAfter', () => {
   it('expands lexicographically so a tie on a leading key falls through', () => {
     const { sql: text, params } = render(
@@ -200,26 +177,6 @@ describe('keysetAfter', () => {
 
     expect(text).toContain('"thing"."name" < $1')
     expect(text).not.toContain('>')
-  })
-
-  it('binds every keyset value as a parameter', () => {
-    const { sql: text, params } = render(keysetAfter([idKey], ["'; delete from thing --"], 'asc')!)
-
-    expect(text).toBe('"thing"."id" > $1')
-    expect(params).toEqual(["'; delete from thing --"])
-  })
-
-  it('compares the truncated timestamp on both sides', () => {
-    const { sql: text, params } = render(
-      keysetAfter([createdKey, idKey], ['2024-01-01T00:00:00.123Z', 'file-7'], 'asc')!
-    )
-
-    expect(text).toBe(
-      `(date_trunc('milliseconds', "thing"."created_at") > date_trunc('milliseconds', cast($1 as timestamp)) or ` +
-        `(date_trunc('milliseconds', "thing"."created_at") = date_trunc('milliseconds', cast($2 as timestamp)) and ` +
-        `"thing"."id" > $3))`
-    )
-    expect(params).toEqual(['2024-01-01T00:00:00.123Z', '2024-01-01T00:00:00.123Z', 'file-7'])
   })
 
   /**

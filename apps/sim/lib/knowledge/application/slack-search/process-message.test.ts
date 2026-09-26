@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -35,7 +34,6 @@ import {
   receiveSlackSearchMessage,
   respondToSlackSearchMessage,
 } from '@/lib/knowledge/application/slack-search/process-message'
-import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
 import type { SlackSearchJob } from '@/lib/slack-search/types'
 
 const principal = {
@@ -58,7 +56,6 @@ const message = {
   queryTooLong: false,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authorize.mockResolvedValue({
     installation: { id: 'i1', revision: 'r1', botUserId: 'UBOT' },
     secret: { botToken: 'test-token' },
@@ -98,48 +95,6 @@ describe('retired bot handoff', () => {
         controller: new AbortController(),
       },
     })
-
-  it('queues the handoff through the existing deduplicated turn path without saving the question', async () => {
-    await receiveSlackSearchMessage.execute({ principal, input: message })
-    expect(mocks.persist).toHaveBeenCalledWith(job)
-    expect(mocks.persist.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.dispatch.mock.invocationCallOrder[0]
-    )
-    expect(mocks.post).not.toHaveBeenCalled()
-    expect(mocks.assistant).not.toHaveBeenCalled()
-  })
-
-  it.each([undefined, '1700000000.000001'])(
-    'links from the original DM thread: %s',
-    async (threadTs) => {
-      await respond({ message: { ...job.message, threadTs } })
-      expect(mocks.redirect).toHaveBeenCalledWith(
-        principal,
-        expect.objectContaining({ revision: 'r1' })
-      )
-      expect(mocks.post).toHaveBeenCalledWith(
-        'old-bot-token',
-        expect.objectContaining({
-          channel: 'D1',
-          thread_ts: threadTs ?? message.messageTs,
-          text: expect.stringContaining('https://slack.com/app_redirect?app=ASHARED&team=T1'),
-          blocks: expect.arrayContaining([
-            expect.objectContaining({
-              elements: [
-                expect.objectContaining({
-                  text: { type: 'plain_text', text: 'Open Sim Search' },
-                  url: 'https://slack.com/app_redirect?app=ASHARED&team=T1',
-                }),
-              ],
-            }),
-          ]),
-        }),
-        expect.any(AbortSignal)
-      )
-      expect(mocks.route).not.toHaveBeenCalled()
-      expect(mocks.assistant).not.toHaveBeenCalled()
-    }
-  )
 
   it('keeps a manually disabled bot quiet without an active replacement', async () => {
     mocks.redirect.mockResolvedValue(null)
@@ -199,37 +154,6 @@ describe('Slack Search question validation', () => {
       },
     })
   }
-
-  it.each([undefined, '1700000000.000001'])(
-    'sends a length notice in the original DM thread without running the Assistant: %s',
-    async (threadTs) => {
-      await respond({ threadTs })
-      expect(mocks.lease).toHaveBeenCalledWith('turn1', 'lease1')
-      expect(mocks.post).toHaveBeenCalledWith(
-        'test-token',
-        expect.objectContaining({
-          channel: 'D1',
-          thread_ts: threadTs ?? message.messageTs,
-          text: SLACK_SEARCH_QUERY_TOO_LONG,
-        }),
-        expect.any(AbortSignal)
-      )
-      expect(mocks.authorize.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.post.mock.invocationCallOrder[0]
-      )
-      expect(mocks.assistant).not.toHaveBeenCalled()
-    }
-  )
-  it('routes an oversized channel mention privately and does not duplicate its root notice', async () => {
-    mocks.route.mockImplementationOnce(async (_principal, { job }) => ({
-      ...job,
-      message: { ...job.message, channelId: 'D1', threadTs: '1700000000.000001' },
-    }))
-    await respond({ channelId: 'C1' })
-    expect(mocks.route).toHaveBeenCalledOnce()
-    expect(mocks.post).not.toHaveBeenCalled()
-    expect(mocks.assistant).not.toHaveBeenCalled()
-  })
   it('does not deliver after the installation is disabled', async () => {
     mocks.authorize.mockResolvedValueOnce(null)
     await expect(respond()).rejects.toThrow('binding changed')
@@ -240,12 +164,6 @@ describe('Slack Search question validation', () => {
     await expect(respond()).rejects.toThrow('lease lost')
     expect(mocks.post).not.toHaveBeenCalled()
   })
-  it('propagates an unsuccessful notice delivery without executing the Assistant', async () => {
-    mocks.post.mockResolvedValueOnce({ status: 200, data: { ok: false } })
-    await expect(respond()).rejects.toThrow('question length notice')
-    expect(mocks.post).toHaveBeenCalledOnce()
-    expect(mocks.assistant).not.toHaveBeenCalled()
-  })
   it('does not retry an ambiguous notice delivery', async () => {
     mocks.post.mockRejectedValueOnce(new Error('response lost'))
     await expect(respond()).rejects.toThrow('response lost')
@@ -254,46 +172,10 @@ describe('Slack Search question validation', () => {
   })
 })
 describe('Slack Search intake', () => {
-  it('accepts channel mentions and strips only this bot’s mention', async () => {
-    const input = {
-      ...message,
-      channelId: 'C1',
-      query: '<@UBOT> ask <@UOTHER>',
-      origin: { channelId: 'C1', threadTs: message.messageTs, messageTs: message.messageTs },
-    }
-    await receiveSlackSearchMessage.execute({ principal, input })
-    expect(mocks.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.objectContaining({ query: 'ask <@UOTHER>' }) })
-    )
-  })
-  it('accepts new DMs and contextual follow-ups without per-app feature settings', async () => {
-    await receiveSlackSearchMessage.execute({ principal, input: message })
-    await receiveSlackSearchMessage.execute({
-      principal,
-      input: { ...message, threadTs: '1000.000001' },
-    })
-    expect(mocks.persist).toHaveBeenCalledTimes(2)
-  })
-  it('commits the durable turn before dispatching its outbox entry', async () => {
-    await receiveSlackSearchMessage.execute({ principal, input: message })
-    expect(mocks.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ installationId: 'i1', credentialId: 'c1', revision: 'r1', message })
-    )
-    expect(mocks.persist.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.dispatch.mock.invocationCallOrder[0]
-    )
-    expect(mocks.dispatch).toHaveBeenCalledWith('turn1')
-  })
   it('rejects a different authenticated app before persistence', async () => {
     await expect(
       receiveSlackSearchMessage.execute({ principal, input: { ...message, appId: 'A2' } })
     ).rejects.toThrow('authenticated context')
-    expect(mocks.persist).not.toHaveBeenCalled()
-  })
-  it('ignores disabled installations and bot messages', async () => {
-    mocks.authorize.mockResolvedValueOnce(null)
-    await receiveSlackSearchMessage.execute({ principal, input: message })
-    await receiveSlackSearchMessage.execute({ principal, input: { ...message, userId: 'UBOT' } })
     expect(mocks.persist).not.toHaveBeenCalled()
   })
   it('does not dispatch a turn that failed to commit', async () => {

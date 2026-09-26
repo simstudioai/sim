@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
-afterEach(() => vi.restoreAllMocks())
 
 describe('embedded CLI output ownership', () => {
   it('leaves host logging and process functions untouched through parallel streamed calls', async () => {

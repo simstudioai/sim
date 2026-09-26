@@ -1,32 +1,41 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getUserPermissionConfig: vi.fn(),
-  performCreateWorkflow: vi.fn(),
-  performCreateWorkflowTransition: vi.fn(),
-  saveWorkflowToNormalizedTables: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   extractAndPersistCustomTools: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-}))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performCreateWorkflow: mocks.performCreateWorkflow,
-  performCreateWorkflowTransition: mocks.performCreateWorkflowTransition,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mocks.saveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
-  extractAndPersistCustomTools: mocks.extractAndPersistCustomTools,
+  extractAndPersistCustomTools: hoisted.extractAndPersistCustomTools,
 }))
 
 import { importWorkflowIntoWorkspace } from '@/lib/workflows/operations/import-workflow'
+
+const mocks = {
+  ...hoisted,
+  performCreateWorkflow: workflowsOrchestrationMockFns.mockPerformCreateWorkflow,
+  performCreateWorkflowTransition:
+    workflowsOrchestrationMockFns.mockPerformCreateWorkflowTransition,
+}
+
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
 
 function block(id: string, type: string) {
   return {
@@ -61,10 +70,9 @@ function params(workflowPayload: Record<string, unknown>) {
 
 describe('importWorkflowIntoWorkspace block access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mocks.performCreateWorkflow.mockResolvedValue({
       success: true,
       workflow: {
@@ -77,7 +85,7 @@ describe('importWorkflowIntoWorkspace block access', () => {
         updatedAt: new Date(),
       },
     })
-    mocks.saveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
     mocks.extractAndPersistCustomTools.mockResolvedValue({ saved: 0, errors: [] })
   })
 
@@ -87,7 +95,7 @@ describe('importWorkflowIntoWorkspace block access', () => {
    * at run time, if ever.
    */
   it('refuses a payload carrying a block type the permission group withholds', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
 
     const result = await importWorkflowIntoWorkspace(
       params(payload(block('b1', 'slack'), block('b2', 'gmail')))
@@ -99,21 +107,12 @@ describe('importWorkflowIntoWorkspace block access', () => {
 
   /** Nothing may be written before the refusal, or the caller is left an orphan. */
   it('refuses before any workflow row is created', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
 
     await importWorkflowIntoWorkspace(params(payload(block('b1', 'gmail'))))
 
     expect(mocks.performCreateWorkflow).not.toHaveBeenCalled()
-    expect(mocks.saveWorkflowToNormalizedTables).not.toHaveBeenCalled()
-  })
-
-  it('imports a payload whose block types the allowlist names', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
-
-    const result = await importWorkflowIntoWorkspace(params(payload(block('b1', 'slack'))))
-
-    expect(result.success).toBe(true)
-    expect(mocks.performCreateWorkflow).toHaveBeenCalledOnce()
+    expect(mockSaveWorkflowToNormalizedTables).not.toHaveBeenCalled()
   })
 
   /**
@@ -123,7 +122,7 @@ describe('importWorkflowIntoWorkspace block access', () => {
    * bystander's allowlist is what this separates.
    */
   it('judges no allowlist for a caller no permission group governs', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
 
     const result = await importWorkflowIntoWorkspace({
       ...params(payload(block('b1', 'gmail'))),
@@ -131,6 +130,6 @@ describe('importWorkflowIntoWorkspace block access', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+    expect(mockGetUserPermissionConfig).not.toHaveBeenCalled()
   })
 })

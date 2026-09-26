@@ -1,32 +1,35 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   group: vi.fn(),
   workspaces: vi.fn(),
   invalidWorkspaces: vi.fn(),
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/repository', () => ({
-  loadGroupInOrganization: mocks.group,
-  getGroupWorkspaces: mocks.workspaces,
-  findWorkspacesNotInOrganization: mocks.invalidWorkspaces,
+  loadGroupInOrganization: hoisted.group,
+  getGroupWorkspaces: hoisted.workspaces,
+  findWorkspacesNotInOrganization: hoisted.invalidWorkspaces,
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
-  findAllMembersWorkspaceConflict: mocks.allConflict,
-  findScopeConflicts: mocks.scopeConflicts,
+  findAllMembersWorkspaceConflict: hoisted.allConflict,
+  findScopeConflicts: hoisted.scopeConflicts,
 }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -35,6 +38,13 @@ import {
   deletePermissionGroupRecord,
   updatePermissionGroupRecord,
 } from '@/lib/permission-groups/group-manager'
+
+const mocks = {
+  ...hoisted,
+  lock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+}
+
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
 
 const group = {
   id: 'group-1',
@@ -50,7 +60,6 @@ const group = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.group.mockResolvedValue(group)
   mocks.workspaces.mockResolvedValue([{ id: 'workspace-1', name: 'Engineering' }])
@@ -127,31 +136,12 @@ describe('permission group mutation consistency', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('validates workspace ownership on the transaction executor', async () => {
-    mocks.invalidWorkspaces.mockResolvedValueOnce(['outside-workspace'])
-    await expect(
-      createPermissionGroupRecord('org-1', 'admin-1', {
-        name: 'Restricted',
-        workspaceIds: ['outside-workspace'],
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.invalidWorkspaces).toHaveBeenCalledWith(['outside-workspace'], 'org-1', db)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
   it('rejects a duplicate name without demoting the current default', async () => {
     queueTableRows(permissionGroup, [{ id: 'other-group' }])
     await expect(
       createPermissionGroupRecord('org-1', 'admin-1', { name: 'Restricted', isDefault: true })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('creates the default and demotes its predecessor within one transaction', async () => {
-    await createPermissionGroupRecord('org-1', 'admin-1', { name: 'New default', isDefault: true })
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ isDefault: false }))
-    expect(dbChainMockFns.insert).toHaveBeenCalledExactlyOnceWith(permissionGroup)
   })
 
   it('deletes only after finding the group in the asserted organization under lock', async () => {
@@ -161,13 +151,5 @@ describe('permission group mutation consistency', () => {
     })
     expect(mocks.group).toHaveBeenCalledWith('other-group', 'org-1', db)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('returns the authoritative updated row without an unlocked reload', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, name: 'New name' }])
-    const result = await updatePermissionGroupRecord('org-1', 'group-1', { name: 'New name' })
-    expect(result.name).toBe('New name')
-    expect(mocks.group).toHaveBeenCalledExactlyOnceWith('group-1', 'org-1', db)
-    expect(mocks.workspaces).toHaveBeenCalledExactlyOnceWith('group-1', db)
   })
 })

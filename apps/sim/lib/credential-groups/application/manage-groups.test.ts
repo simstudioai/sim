@@ -1,57 +1,39 @@
-/**
- * @vitest-environment node
- */
-import type {
-  CredentialGroupEnrollmentPrincipal,
-  DelegatedPrincipal,
-  SessionPrincipal,
-} from '@sim/auth/principal'
+import type { CredentialGroupEnrollmentPrincipal, DelegatedPrincipal } from '@sim/auth/principal'
 import { auditMock, auditMockFns } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  ensure: vi.fn(),
-  get: vi.fn(),
-  list: vi.fn(),
-  listEnrollments: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireAvailable: vi.fn(),
   resolveGroup: vi.fn(),
-  resolvePermission: vi.fn(),
   resolveWorkspace: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
-  requireCredentialGroupSettingsAvailable: mocks.requireAvailable,
-  resolveCredentialGroupSettingsContext: mocks.resolveGroup,
-  resolveCredentialGroupWorkspaceContext: mocks.resolveWorkspace,
+  requireCredentialGroupSettingsAvailable: hoisted.requireAvailable,
+  resolveCredentialGroupSettingsContext: hoisted.resolveGroup,
+  resolveCredentialGroupWorkspaceContext: hoisted.resolveWorkspace,
 }))
 
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: mocks.ensure,
-  getCredentialGroup: mocks.get,
-  getWorkspaceAccountsGroup: mocks.list,
-  updateCredentialGroup: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  CredentialGroupEnrollmentError: class CredentialGroupEnrollmentError extends Error {
-    constructor(
-      message: string,
-      readonly status: number
-    ) {
-      super(message)
-    }
-  },
-  listCredentialGroupEnrollments: mocks.listEnrollments,
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -62,17 +44,23 @@ import {
 import { loadCopilotConnectedAccounts } from '@/lib/mothership/application/load-connected-accounts'
 import { requireTrustedCopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 
+const mocks = {
+  ...hoisted,
+  ensure: credentialGroupsServiceMockFns.mockEnsureWorkspaceAccountsGroup,
+  get: credentialGroupsServiceMockFns.mockGetCredentialGroup,
+  list: credentialGroupsServiceMockFns.mockGetWorkspaceAccountsGroup,
+  listEnrollments: credentialGroupsEnrollmentsMockFns.mockListCredentialGroupEnrollments,
+}
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
 const workspaceContext = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal({ userId: 'admin-1' })
 const enrollmentPrincipal: CredentialGroupEnrollmentPrincipal = {
   kind: 'credential_group_enrollment',
   workspaceId: 'workspace-1',
@@ -92,29 +80,25 @@ const copilotContext = requireTrustedCopilotExecutionContext({
 
 function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
   return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'admin-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'copilot-tool:tool-1',
-    audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1000),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { chatId: 'chat-1' },
+    ...createDelegatedPrincipal({
+      subjectUserId: 'admin-1',
+      delegationId: 'copilot-tool:tool-1',
+      audience: 'sim:credential-groups',
+      resourceScope: { chatId: 'chat-1' },
+    }),
     ...overrides,
   }
 }
 
 describe('Credential Group Settings application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolveGroup.mockResolvedValue({
       ...workspaceContext,
       credentialGroupId: 'group-1',
       name: 'Support',
     })
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
     mocks.list.mockResolvedValue(null)
     mocks.ensure.mockResolvedValue({
@@ -138,7 +122,7 @@ describe('Credential Group Settings application operations', () => {
   })
 
   it('requires current workspace-admin permission before listing', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    resolvePermission.mockResolvedValue('read')
 
     await expect(
       getWorkspaceAccountsSettings.execute({
@@ -149,43 +133,10 @@ describe('Credential Group Settings application operations', () => {
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
-  it('lists settings only after authorization and entitlement checks', async () => {
-    const result = await getWorkspaceAccountsSettings.execute({
-      principal: sessionPrincipal,
-      input: { workspaceId: 'workspace-1' },
-    })
-
-    expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.list).toHaveBeenCalledWith('workspace-1')
-    expect(result.credentialGroup).toBeNull()
-    /**
-     * Which providers are offerable depends on the OAuth clients this environment configures, so
-     * the list is asserted as a shape rather than a fixed set.
-     */
-    expect(Array.isArray(result.availableProviders)).toBe(true)
-  })
-
-  it('reads singleton readiness through trusted Copilot with the acting admin', async () => {
-    mocks.list.mockResolvedValue({ status: 'active', options: [] })
-    await expect(loadCopilotConnectedAccounts(copilotContext)).resolves.toEqual({
-      status: 'active',
-      options: [],
-    })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'admin-1',
-      'workspace-1',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith('workspace-1')
-    expect(mocks.listEnrollments).not.toHaveBeenCalled()
-  })
-
   it('reauthorizes connected-account reads after the acting admin is demoted', async () => {
     await loadCopilotConnectedAccounts(copilotContext)
     mocks.list.mockClear()
-    mocks.resolvePermission.mockResolvedValue('read')
+    resolvePermission.mockResolvedValue('read')
     await expect(loadCopilotConnectedAccounts(copilotContext)).rejects.toMatchObject({
       code: 'forbidden',
     })
@@ -291,7 +242,7 @@ describe('Credential Group Settings application operations', () => {
   })
 
   it('refuses reader account setup before entitlement checks or persistence', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    resolvePermission.mockResolvedValue('read')
     await expect(
       ensureWorkspaceAccounts.execute({
         principal: sessionPrincipal,

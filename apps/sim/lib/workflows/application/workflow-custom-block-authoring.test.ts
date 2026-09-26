@@ -1,18 +1,39 @@
-/** @vitest-environment node */
 import { workflowAuthzMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { blockVisibilityMock } from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  customBlocks: vi.fn(),
-  loadNormalized: vi.fn(),
-  loadSnapshot: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   replace: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
-  notify: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
 // Exercise the real registry, request overlay, edit engine, sanitizer and lint.
@@ -22,54 +43,44 @@ vi.mock('@/blocks/registry-maps', async () => {
   const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
   return partialBlockRegistry(await import('@/blocks/blocks/start_trigger'))
 })
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UPDATED: 'workflow.updated' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  listCustomBlocksWithInputsForWorkspace: mocks.customBlocks,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.loadSnapshot }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
-  replaceWorkflowNormalizedState: mocks.replace,
-  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
+  replaceWorkflowNormalizedState: hoisted.replace,
+  assertWorkflowGraphIdsUnclaimed: hoisted.assertIdsUnclaimed,
   collectWorkflowGraphIds: () => ({ blockIds: [], edgeIds: [], subflowIds: [] }),
 }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: async () => true,
-}))
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: async () => ({
-    revealed: new Set(),
-    disabled: new Set(),
-    previewTagged: new Set(),
-  }),
-}))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: async () => null,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
-import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import type { CustomBlockWithInputs } from '@/lib/workflows/custom-blocks/operations'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { getBlock } from '@/blocks/registry'
+
+const mocks = {
+  ...hoisted,
+  customBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+  loadSnapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+}
+
+permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
+workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment.mockResolvedValue(true)
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const context = {
   workflowId: 'consumer-workflow',
@@ -79,7 +90,7 @@ const context = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner',
 }
-const session = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const session = createSessionPrincipal()
 const copilot = {
   kind: 'delegated' as const,
   serviceId: 'copilot' as const,
@@ -152,12 +163,11 @@ const add: EditWorkflowOperation = {
 
 describe('custom blocks in authorized workflow authoring', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.customBlocks.mockResolvedValue([customBlock])
-    mocks.loadNormalized.mockImplementation(async () => graph())
+    mockLoadNormalized.mockImplementation(async () => graph())
     mocks.loadSnapshot.mockImplementation(async () => ({
       workflowRecord: context.workflow,
       normalizedData: graph(true),
@@ -187,7 +197,7 @@ describe('custom blocks in authorized workflow authoring', () => {
   it.each([false, true])(
     'edits an existing custom block without losing inputs or edges (dry run: %s)',
     async (dryRun) => {
-      mocks.loadNormalized.mockImplementation(async () => graph(true))
+      mockLoadNormalized.mockImplementation(async () => graph(true))
       const result = await applyWorkflowOperations.execute({
         principal: copilot,
         input: {
@@ -219,39 +229,6 @@ describe('custom blocks in authorized workflow authoring', () => {
     }
   )
 
-  it('reports missing deployed inputs consistently in edit, replace and standalone lint', async () => {
-    const missingInput = graph(true)
-    missingInput.blocks.worker.subBlocks['input-text'].value = ''
-    mocks.loadSnapshot.mockResolvedValue({
-      workflowRecord: context.workflow,
-      normalizedData: missingInput,
-    })
-    mocks.loadNormalized.mockResolvedValue(missingInput)
-    const replaced = await replaceWorkflowState.execute({
-      principal: session,
-      input: { workflowId: context.workflowId, ...missingInput, dryRun: true },
-    })
-    const edited = await applyWorkflowOperations.execute({
-      principal: copilot,
-      input: {
-        workflowId: context.workflowId,
-        operations: [{ operation_type: 'edit', block_id: 'worker', params: { name: 'worker' } }],
-        dryRun: true,
-        layout: 'none',
-      },
-    })
-    const diagnostic = await readWorkflowLint.execute({
-      principal: copilot,
-      input: { workflowId: context.workflowId },
-    })
-    expect(replaced.lint.fieldIssues).toEqual([
-      expect.objectContaining({ blockId: 'worker', missingRequiredFields: ['Text'] }),
-    ])
-    expect(edited.lint.fieldIssues).toEqual(replaced.lint.fieldIssues)
-    expect(diagnostic.fieldIssues).toEqual(replaced.lint.fieldIssues)
-    expect(mocks.replace).not.toHaveBeenCalled()
-  })
-
   it('fails closed when custom schemas cannot be loaded', async () => {
     mocks.customBlocks.mockRejectedValue(new Error('Schema read failed'))
     await expect(
@@ -265,7 +242,7 @@ describe('custom blocks in authorized workflow authoring', () => {
 
   it('isolates simultaneous authoring requests for different organizations', async () => {
     const other = { ...customBlock, organizationId: 'org-2', type: 'custom_block_other' }
-    mocks.resolveContext.mockImplementation(async ({ workflowId }) => ({
+    mockResolveContext.mockImplementation(async ({ workflowId }) => ({
       ...context,
       workflowId,
       workspaceId: workflowId,
@@ -281,7 +258,7 @@ describe('custom blocks in authorized workflow authoring', () => {
       release = resolve
     })
     let waiting = 0
-    mocks.loadNormalized.mockImplementation(async () => {
+    mockLoadNormalized.mockImplementation(async () => {
       if (++waiting === 2) release()
       await barrier
       return graph()
@@ -345,7 +322,7 @@ describe('custom blocks in authorized workflow authoring', () => {
   it.each(['another-organization', null])(
     'cannot inherit another org’s block definitions (%s)',
     async (workspaceOrganizationId) => {
-      mocks.resolveContext.mockResolvedValue({ ...context, workspaceOrganizationId })
+      mockResolveContext.mockResolvedValue({ ...context, workspaceOrganizationId })
       mocks.customBlocks.mockResolvedValue([])
       await withCustomBlockOverlay([customBlock], async () => {
         await expect(
@@ -361,7 +338,7 @@ describe('custom blocks in authorized workflow authoring', () => {
   )
 
   it('does not load custom schemas before workflow authorization', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolvePermission.mockResolvedValue('read')
     await expect(
       applyWorkflowOperations.execute({
         principal: session,

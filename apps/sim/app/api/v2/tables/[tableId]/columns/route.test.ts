@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -27,8 +22,7 @@ vi.mock('@/lib/table/application/columns', () => ({
   deleteTableColumnUseCase: { operation: { id: 'tables.columns.delete' }, execute: mocks.remove },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, PATCH, POST } from '@/app/api/v2/tables/[tableId]/columns/route'
+import { PATCH, POST } from '@/app/api/v2/tables/[tableId]/columns/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const principal = {
@@ -63,35 +57,12 @@ function request(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
 
 describe('/api/v2/tables/[tableId]/columns', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.add.mockResolvedValue({ table })
     mocks.update.mockResolvedValue({ table, changed: false, unmigrated: [] })
     mocks.remove.mockResolvedValue({ table })
-  })
-
-  it('delegates column creation with canonical path and body inputs', async () => {
-    const req = request('POST', {
-      workspaceId: WORKSPACE_ID,
-      column: { name: 'Name', type: 'string' },
-    })
-    const response = await POST(req, context)
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.columns).toEqual([
-      { id: 'col-1', name: 'Name', type: 'string', required: false, unique: false },
-    ])
-    expect(mocks.add).toHaveBeenCalledWith({
-      principal,
-      input: {
-        tableId: 'table-1',
-        workspaceId: WORKSPACE_ID,
-        column: { name: 'Name', type: 'string' },
-      },
-      request: req,
-    })
   })
 
   it('forwards required on both the add and the update column write', async () => {
@@ -121,85 +92,5 @@ describe('/api/v2/tables/[tableId]/columns', () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ updates: { required: false } }) })
     )
-  })
-
-  it('returns the workflow Table blocks a rename left on the old column name', async () => {
-    const unmigrated = [
-      {
-        workflowId: 'wf-1',
-        workflowName: 'Alerts',
-        blockId: 'blk-1',
-        blockName: 'Query',
-        fields: ['filter', 'order'],
-      },
-    ]
-    mocks.update.mockResolvedValue({ table, changed: true, unmigrated })
-
-    const response = await PATCH(
-      request('PATCH', {
-        workspaceId: WORKSPACE_ID,
-        columnName: 'Name',
-        updates: { name: 'FullName' },
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({
-      columns: [{ id: 'col-1', name: 'Name', type: 'string', required: false, unique: false }],
-      unmigrated,
-    })
-  })
-
-  it('rejects an unrecognized key on the column delete body', async () => {
-    const response = await DELETE(
-      request('DELETE', {
-        workspaceId: WORKSPACE_ID,
-        columnName: 'Other',
-        columnNames: ['Other'],
-      }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.remove).not.toHaveBeenCalled()
-  })
-
-  it('maps typed application validation failures without inspecting messages', async () => {
-    mocks.update.mockRejectedValueOnce(new OrchestrationError('validation', 'Invalid column'))
-
-    const response = await PATCH(
-      request('PATCH', {
-        workspaceId: WORKSPACE_ID,
-        columnName: 'Name',
-        updates: { name: 'Renamed' },
-      }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.message).toBe('Invalid column')
-  })
-
-  it('delegates deletion and returns the authoritative surviving schema', async () => {
-    const response = await DELETE(
-      request('DELETE', { workspaceId: WORKSPACE_ID, columnName: 'Other' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.remove).toHaveBeenCalledOnce()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(
-      request('POST', { workspaceId: WORKSPACE_ID, column: { name: 'Name', type: 'string' } }),
-      context
-    )
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

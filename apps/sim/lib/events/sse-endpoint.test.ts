@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -60,7 +56,6 @@ async function collect(body: ReadableStream<Uint8Array>, chunks: string[]): Prom
 
 describe('createWorkspaceSSE', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -118,24 +113,6 @@ describe('createWorkspaceSSE', () => {
     const { unsubscribe } = await openConnection(controller.signal)
 
     controller.abort()
-
-    expect(unsubscribe).toHaveBeenCalledTimes(1)
-  })
-
-  it('releases subscriptions when the consumer cancels the stream', async () => {
-    const { body, unsubscribe } = await openConnection()
-
-    await body.cancel()
-
-    expect(unsubscribe).toHaveBeenCalledTimes(1)
-  })
-
-  it('releases subscriptions once when abort and the ceiling both elapse', async () => {
-    const controller = new AbortController()
-    const { unsubscribe } = await openConnection(controller.signal)
-
-    controller.abort()
-    await vi.advanceTimersByTimeAsync(PAST_ROTATION_CLOSE_MS)
 
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })

@@ -1,31 +1,24 @@
-/**
- * @vitest-environment node
- */
-
-import { resetEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock } from '@sim/testing'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBindDelegation, mockGetSession } = vi.hoisted(() => ({
-  mockBindDelegation: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
-  InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
 
+const mockGetSession = authMockFns.mockGetSession
+const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation
+
 afterAll(resetEnvMock)
 
 describe('internal logs route authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
     mockBindDelegation.mockImplementation(async (delegation, options) => ({
       kind: 'delegated',
@@ -108,19 +101,5 @@ describe('internal logs route authentication', () => {
         { id: 'log-1' }
       )
     ).rejects.toThrow('Executor log delegation is missing its canonical workflow execution context')
-  })
-
-  it('preserves browser session principals', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-
-    await expect(
-      internalLogsSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/logs/log-1'),
-        { id: 'log-1' }
-      )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
   })
 })

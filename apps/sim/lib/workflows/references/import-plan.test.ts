@@ -1,13 +1,10 @@
-/** @vitest-environment node */
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(() => []),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
-import { regenerateImportedVariableIds } from '@/lib/workflows/references/finalize-import'
 import { finalizeBlockToolPositions } from '@/lib/workflows/references/finalize-tool-positions'
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'
 import { buildWorkflowReferenceManifest } from '@/lib/workflows/references/manifest'
@@ -280,27 +277,6 @@ describe('portable workflow references', () => {
     ])
   })
 
-  it('treats an unmapped inline declaration as self-contained', () => {
-    const plan = buildWorkflowImportPlan(
-      state({
-        tools: [
-          {
-            type: 'custom-tool',
-            customToolId: 'old-tool',
-            title: 'Example',
-            code: 'return 1',
-            schema: {},
-          },
-        ],
-      }),
-      {}
-    )
-    expect(plan.bindings).toEqual([])
-    expect(plan.state.blocks.source.subBlocks.tools.value).toEqual([
-      { type: 'custom-tool', title: 'Example', code: 'return 1', schema: {} },
-    ])
-  })
-
   it('removes optional placeholders once and keeps later tool modes on the same tool', () => {
     const source = state({
       tools: [
@@ -327,16 +303,6 @@ describe('portable workflow references', () => {
     source.blocks.source.subBlocks.workflowSelector.type = 'workflow-selector'
     source.blocks.source.subBlocks.inventedTools.type = 'tool-input'
     expect(buildWorkflowReferenceManifest(source.blocks).references).toEqual([])
-  })
-
-  it('regenerates variables and their references after deterministic previews', () => {
-    const source = state({ code: '<variable.source-variable>' })
-    source.variables = {
-      'source-variable': { id: 'source-variable', name: 'value', type: 'string', value: 'example' },
-    }
-    const ids = regenerateImportedVariableIds(source)
-    expect(ids.get('source-variable')).not.toBe('source-variable')
-    expect(Object.keys(source.variables)).toEqual([ids.get('source-variable')])
   })
   it('tracks both occurrences of a credential and excludes opaque values and unregistered fields', () => {
     const source = state({

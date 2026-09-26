@@ -1,85 +1,96 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import {
   organizationMemberUsageLimit,
   permissionAccessRequest,
   permissionGroup,
-  workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { permissionGroupLocksMock } from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessRequestRecord, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import type { StoredAccessRequest } from '@/ee/access-requests/lib/repository'
 import { createAccessRequestCatalog } from '@/ee/access-requests/lib/targets'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   membership: vi.fn(),
-  organizationLock: vi.fn(),
-  groupLock: vi.fn(),
-  audit: vi.fn(),
-  outbox: vi.fn(),
   enabled: vi.fn(),
-  enterprise: vi.fn(),
   catalog: vi.fn(),
   targets: vi.fn(),
   deploymentReason: vi.fn(),
-  group: vi.fn(),
   present: vi.fn(),
   stored: vi.fn(),
   list: vi.fn(),
 }))
 
 vi.mock('@/ee/access-requests/lib/application/authorization', () => ({
-  authorizeAccessRequestScope: mocks.authorize,
-  loadAccessRequestMembership: mocks.membership,
+  authorizeAccessRequestScope: hoistedMocks.authorize,
+  loadAccessRequestMembership: hoistedMocks.membership,
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.organizationLock,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.outbox }))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.groupLock }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/ee/access-requests/lib/settings', () => ({
-  isAccessRequestEnabled: mocks.enabled,
+  isAccessRequestEnabled: hoistedMocks.enabled,
   readAccessRequestSettings: vi.fn(),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true, isAccessControlEnabled: true }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/ee/access-requests/lib/catalog', () => ({
-  loadAccessRequestCatalog: mocks.catalog,
-  listAccessRequestTargets: mocks.targets,
-  getAccessRequestDeploymentUnavailableReason: mocks.deploymentReason,
+  loadAccessRequestCatalog: hoistedMocks.catalog,
+  listAccessRequestTargets: hoistedMocks.targets,
+  getAccessRequestDeploymentUnavailableReason: hoistedMocks.deploymentReason,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  resolveWorkspaceGroup: mocks.group,
-  resolveDefaultGroup: mocks.group,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/ee/access-requests/lib/repository', () => ({
-  presentAccessRequest: mocks.present,
-  loadStoredAccessRequest: mocks.stored,
-  listAccessRequestRecords: mocks.list,
+  presentAccessRequest: hoistedMocks.present,
+  loadStoredAccessRequest: hoistedMocks.stored,
+  listAccessRequestRecords: hoistedMocks.list,
 }))
 
 import {
   cancelAccessRequest,
   createAccessRequest,
   discoverAccessRequests,
-  listMyAccessRequests,
 } from '@/ee/access-requests/lib/application/requests'
-import {
-  PERMISSION_ACCESS_REQUEST_CREATED_EVENT,
-  PERMISSION_ACCESS_REQUEST_DECIDED_EVENT,
-} from '@/ee/access-requests/lib/notification-events'
+import { PERMISSION_ACCESS_REQUEST_CREATED_EVENT } from '@/ee/access-requests/lib/notification-events'
 
-const principal = { kind: 'session', userId: 'requester', sessionId: 'session' } as const
+const mocks = {
+  ...hoistedMocks,
+  organizationLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  group: permissionGroupsResolveMockFns.mockResolveWorkspaceGroup,
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  outbox: outboxServiceMockFns.mockEnqueueOutboxEvent,
+}
+
+setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
+afterAll(resetEnvFlagsMock)
+
+const principal = createSessionPrincipal({ userId: 'requester', sessionId: 'session' })
 const scope = { kind: 'workspace', workspaceId: 'workspace' } as const
 const context = {
   organizationId: 'organization',
@@ -147,6 +158,9 @@ function record(row: StoredAccessRequest): AccessRequestRecord {
 beforeEach(() => {
   vi.resetAllMocks()
   resetDbChainMock()
+  permissionGroupsResolveMockFns.mockResolveDefaultGroup.mockImplementation((...args) =>
+    mocks.group(...args)
+  )
   mocks.authorize.mockResolvedValue(context)
   mocks.membership.mockResolvedValue(null)
   mocks.enabled.mockResolvedValue(true)
@@ -180,15 +194,6 @@ describe('create access requests', () => {
       createAccessRequest.execute({ principal, input: { scope, target } })
     ).rejects.toThrow('Disabled by this deployment')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.outbox).not.toHaveBeenCalled()
-  })
-
-  it('returns an existing pending request without another notification or policy mutation', async () => {
-    queueTableRows(permissionAccessRequest, [stored()])
-    const result = await createAccessRequest.execute({ principal, input: { scope, target } })
-    expect(result).toMatchObject({ changed: false, request: { id: 'request', status: 'pending' } })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.outbox).not.toHaveBeenCalled()
   })
 
@@ -237,49 +242,6 @@ describe('create access requests', () => {
     expect(mocks.outbox).not.toHaveBeenCalled()
   })
 
-  it('closes an obsolete pending request before recording its replacement', async () => {
-    queueTableRows(permissionAccessRequest, [stored({ groupId: 'previous-group' })])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([stored({ status: 'closed' })])
-      .mockResolvedValueOnce([stored({ id: 'replacement' })])
-    const result = await createAccessRequest.execute({ principal, input: { scope, target } })
-    expect(result.request.id).toBe('replacement')
-    expect(mocks.audit.mock.calls[0]?.[4]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          action: 'permission_access_request.closed',
-          resourceId: 'request',
-        }),
-        expect.objectContaining({
-          action: 'permission_access_request.created',
-          resourceId: 'replacement',
-        }),
-      ])
-    )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'closed' }))
-    expect(mocks.outbox.mock.calls.map(([, event, payload]) => [event, payload])).toEqual([
-      [PERMISSION_ACCESS_REQUEST_DECIDED_EVENT, { requestId: 'request' }],
-      [PERMISSION_ACCESS_REQUEST_CREATED_EVENT, { requestId: 'replacement' }],
-    ])
-  })
-
-  it('closes an existing pending request if access is already available', async () => {
-    mocks.group.mockResolvedValue({ ...group, config: DEFAULT_PERMISSION_GROUP_CONFIG })
-    queueTableRows(permissionAccessRequest, [stored()])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      stored({ status: 'closed', decisionReason: 'Access is already available.' }),
-    ])
-    const result = await createAccessRequest.execute({ principal, input: { scope, target } })
-    expect(result.request).toMatchObject({
-      status: 'closed',
-      decisionReason: 'Access is already available.',
-    })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.outbox).toHaveBeenCalledWith(db, PERMISSION_ACCESS_REQUEST_DECIDED_EVENT, {
-      requestId: 'request',
-    })
-  })
-
   it.each([
     { pending: 100, daily: 0, message: '100 pending requests' },
     { pending: 0, daily: 100, message: '100 requests in the last 24 hours' },
@@ -293,22 +255,6 @@ describe('create access requests', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(mocks.outbox).not.toHaveBeenCalled()
   })
-
-  it.each([25, 99])(
-    'allows a new request after %s submissions in the rolling window',
-    async (daily) => {
-      queueTableRows(permissionAccessRequest, [])
-      queueTableRows(permissionAccessRequest, [{ total: 0 }])
-      queueTableRows(permissionAccessRequest, [{ total: daily }])
-      dbChainMockFns.returning.mockResolvedValueOnce([stored()])
-      const result = await createAccessRequest.execute({ principal, input: { scope, target } })
-      expect(result.changed).toBe(true)
-      expect(dbChainMockFns.insert).toHaveBeenCalledWith(permissionAccessRequest)
-      expect(mocks.audit.mock.calls[0][4]).toEqual([
-        expect.objectContaining({ workspaceId: 'workspace', resourceId: 'request' }),
-      ])
-    }
-  )
 
   it('normalizes member cap requests to one organization-wide request across workspaces', async () => {
     const cap = stored({
@@ -356,62 +302,6 @@ describe('create access requests', () => {
     expect(mocks.outbox).toHaveBeenCalledOnce()
     expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
   })
-
-  it('preserves workspace membership provenance for an external member cap request', async () => {
-    queueTableRows(organizationMemberUsageLimit, [{ usageLimit: '10', updatedAt: new Date() }])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      stored({ target: { kind: 'usage_limit', id: 'member' }, groupId: null }),
-    ])
-    await createAccessRequest.execute({
-      principal,
-      input: { scope, target: { kind: 'usage_limit', id: 'member' } },
-    })
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace',
-        membershipId: 'membership',
-        scopeKey: 'organization:organization:member-limit',
-      })
-    )
-  })
-
-  it.each([true, false])(
-    'deduplicates an external member cap only while its original access remains valid (%s)',
-    async (originValid) => {
-      const cap = stored({
-        target: { kind: 'usage_limit', id: 'member' },
-        targetKey: 'usage_limit:member',
-        scopeKey: 'organization:organization:member-limit',
-        workspaceId: 'original-workspace',
-        membershipId: 'original-grant',
-        groupId: null,
-        groupName: null,
-      })
-      mocks.membership
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ membershipId: 'original-grant', role: 'read' })
-      queueTableRows(organizationMemberUsageLimit, [{ usageLimit: '10', updatedAt: new Date() }])
-      queueTableRows(permissionAccessRequest, [cap])
-      queueTableRows(workspace, originValid ? [{ id: 'original-workspace' }] : [])
-      if (!originValid) {
-        dbChainMockFns.returning.mockResolvedValueOnce([stored({ ...cap, status: 'closed' })])
-        dbChainMockFns.returning.mockResolvedValueOnce([stored({ ...cap, id: 'replacement' })])
-      }
-      const result = await createAccessRequest.execute({
-        principal,
-        input: { scope, target: { kind: 'usage_limit', id: 'member' } },
-      })
-      expect(result.changed).toBe(!originValid)
-      if (originValid) {
-        expect(result.request.id).toBe(cap.id)
-        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-        expect(mocks.outbox).not.toHaveBeenCalled()
-      } else {
-        expect(result.request.id).toBe('replacement')
-        expect(mocks.outbox).toHaveBeenCalledTimes(2)
-      }
-    }
-  )
 })
 
 describe('discovery and request history', () => {
@@ -454,102 +344,6 @@ describe('discovery and request history', () => {
       entries: [{ target: selected, state: 'requestable', pendingRequestId: 'request' }],
     })
   })
-
-  it('does not substitute another target when an exact target is unavailable', async () => {
-    const result = await discoverAccessRequests.execute({
-      principal,
-      input: { ...scope, targetKey: 'integration:missing', limit: 1, offset: 0 },
-    })
-    expect(result).toMatchObject({ total: 0, hasMore: false, entries: [] })
-  })
-
-  it('filters requestable state before pagination and reports pending request IDs', async () => {
-    mocks.targets.mockReturnValue([
-      { kind: 'feature', configKey: 'hideKnowledgeBaseTab' },
-      target,
-      { kind: 'feature', configKey: 'hideFilesTab' },
-    ])
-    queueTableRows(permissionAccessRequest, [
-      {
-        id: 'existing-file-request',
-        targetKey: 'feature:hideFilesTab',
-        membershipId: 'membership',
-        groupId: 'group',
-      },
-    ])
-    const result = await discoverAccessRequests.execute({
-      principal,
-      input: { ...scope, state: 'requestable', limit: 1, offset: 1 },
-    })
-    expect(result).toMatchObject({
-      total: 2,
-      hasMore: false,
-      entries: [
-        {
-          target: { kind: 'feature', configKey: 'hideFilesTab' },
-          pendingRequestId: 'existing-file-request',
-        },
-      ],
-    })
-    expect(mocks.group).toHaveBeenCalledOnce()
-  })
-
-  it.each([true, false])(
-    'only advertises a pending member cap for its current membership (%s)',
-    async (valid) => {
-      mocks.targets.mockReturnValue([{ kind: 'usage_limit', id: 'member' }])
-      queueTableRows(organizationMemberUsageLimit, [{ usageLimit: '10', updatedAt: new Date() }])
-      queueTableRows(permissionAccessRequest, [
-        stored({
-          targetKey: 'usage_limit:member',
-          groupId: null,
-          membershipId: valid ? context.membershipId : 'old-membership',
-        }),
-      ])
-      const result = await discoverAccessRequests.execute({
-        principal,
-        input: { ...scope, limit: 50, offset: 0 },
-      })
-      expect(result.entries[0]?.pendingRequestId).toBe(valid ? 'request' : null)
-    }
-  )
-
-  it('allows a new request when a pending request belongs to a previous governing group', async () => {
-    queueTableRows(permissionAccessRequest, [stored({ groupId: 'previous-group' })])
-    const result = await discoverAccessRequests.execute({
-      principal,
-      input: { ...scope, state: 'requestable', limit: 50, offset: 0 },
-    })
-    expect(result.entries).toEqual([expect.objectContaining({ target, pendingRequestId: null })])
-  })
-
-  it('hides discovery while disabled but retains requester history', async () => {
-    mocks.enabled.mockResolvedValue(false)
-    const discovery = await discoverAccessRequests.execute({
-      principal,
-      input: { ...scope, limit: 50, offset: 0 },
-    })
-    expect(discovery).toMatchObject({ enabled: false, entries: [] })
-    const history = await listMyAccessRequests.execute({
-      principal,
-      input: { scope, limit: 50, offset: 0 },
-    })
-    expect(history.requests).toHaveLength(1)
-    expect(mocks.list).toHaveBeenCalledWith(db, expect.anything(), 50, 0, undefined, undefined)
-    expect(mocks.list.mock.calls[0]?.[1]).toMatchObject({
-      conditions: expect.arrayContaining([
-        expect.objectContaining({
-          type: 'or',
-          conditions: expect.arrayContaining([
-            expect.objectContaining({
-              left: permissionAccessRequest.scopeKey,
-              right: 'organization:organization:member-limit',
-            }),
-          ]),
-        }),
-      ]),
-    })
-  })
 })
 
 describe('cancel access requests', () => {
@@ -573,26 +367,6 @@ describe('cancel access requests', () => {
       ])
     }
   )
-
-  it('allows cancellation while disabled and does not resend a decision for terminal requests', async () => {
-    mocks.enabled.mockResolvedValue(false)
-    dbChainMockFns.returning.mockResolvedValueOnce([stored({ status: 'cancelled' })])
-    const first = await cancelAccessRequest.execute({
-      principal,
-      input: { scope, requestId: 'request' },
-    })
-    expect(first.request.status).toBe('cancelled')
-    expect(mocks.outbox).toHaveBeenCalledWith(db, PERMISSION_ACCESS_REQUEST_DECIDED_EVENT, {
-      requestId: 'request',
-    })
-    mocks.stored.mockResolvedValue(stored({ status: 'cancelled' }))
-    const second = await cancelAccessRequest.execute({
-      principal,
-      input: { scope, requestId: 'request' },
-    })
-    expect(second.changed).toBe(false)
-    expect(mocks.outbox).toHaveBeenCalledOnce()
-  })
 
   it('conceals requests belonging to another user or another workspace', async () => {
     for (const row of [

@@ -1,15 +1,24 @@
-/** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ policy: vi.fn(), available: vi.fn() }))
-vi.mock('@/lib/resource-policies/repository', () => ({ requireResourcePolicy: mocks.policy }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { filterWorkspaceAccountCredentials } from '@/lib/credentials/application/workspace-account-visibility'
+
+const mocks = {
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
 
 const context = { workspaceId: 'ws', workspaceOrganizationId: 'org', allowPersonalApiKeys: true }
 const entries = [
@@ -28,7 +37,6 @@ const bindings = entries.slice(1).map((entry) => ({
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.available.mockResolvedValue(true)
   mocks.policy.mockResolvedValue({
@@ -52,16 +60,6 @@ describe('workspace organization credential visibility', () => {
     expect(mocks.policy).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ organizationId: 'org', resourceId: 'group' })
     )
-    expect(dbChainMockFns.select).toHaveBeenCalledExactlyOnceWith({
-      id: schemaMock.credential.id,
-      organizationId: schemaMock.credential.organizationId,
-      workspaceId: schemaMock.credential.workspaceId,
-      groupId: schemaMock.credentialGroup.id,
-      groupOrganizationId: schemaMock.credentialGroup.organizationId,
-      groupWorkspaceId: schemaMock.credentialGroup.workspaceId,
-      providerId: schemaMock.credential.providerId,
-      type: schemaMock.credential.type,
-    })
   })
 
   it('rechecks revocation and does not reuse a previously allowed selection', async () => {

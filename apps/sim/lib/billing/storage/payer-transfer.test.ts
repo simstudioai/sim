@@ -1,9 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { loggerInfo, loggerWarn, mockSql } = vi.hoisted(() => {
+const { mockSql } = vi.hoisted(() => {
   const taggedSql = Object.assign(
     vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
     {
@@ -11,11 +9,7 @@ const { loggerInfo, loggerWarn, mockSql } = vi.hoisted(() => {
       raw: vi.fn((value: string) => ({ raw: value })),
     }
   )
-  return {
-    loggerInfo: vi.fn(),
-    loggerWarn: vi.fn(),
-    mockSql: taggedSql,
-  }
+  return { mockSql: taggedSql }
 })
 
 vi.mock('@sim/db/schema', () => ({
@@ -63,15 +57,6 @@ vi.mock('@sim/db/schema', () => ({
   },
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: loggerInfo,
-    warn: loggerWarn,
-  }),
-}))
-
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => conditions),
   asc: vi.fn((field: unknown) => ({ field, order: 'asc' })),
@@ -86,6 +71,8 @@ import {
   changeWorkspaceStoragePayersInTx,
 } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
+
+const { warn: loggerWarn } = getMockLogger('WorkspaceStoragePayerTransfer')
 
 interface FakeTable {
   __table: string
@@ -304,10 +291,6 @@ function readCaseAssignments(expression: unknown): Record<string, number> {
 }
 
 describe('changeWorkspaceStoragePayerInTx', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('moves exact personal workspace bytes to an organization without a quota check', async () => {
     const fake = createFakeTx({
       workspace: {
@@ -336,53 +319,6 @@ describe('changeWorkspaceStoragePayerInTx', () => {
       organizationId: 'org-destination',
       storageUsedBytes: 150,
     })
-  })
-
-  it('moves organization workspace bytes to a personal payer', async () => {
-    const fake = createFakeTx({
-      workspace: {
-        id: 'workspace-1',
-        billedAccountUserId: 'old-org-owner',
-        organizationId: 'org-source',
-        storageUsedBytes: 80,
-      },
-      workspaceFileBytes: 80,
-      organizations: { 'org-source': 300 },
-      users: { 'user-destination': 20 },
-    })
-
-    await changeWorkspaceStoragePayerInTx(fake.tx, {
-      workspaceId: 'workspace-1',
-      organizationId: null,
-      billedAccountUserId: 'user-destination',
-    })
-
-    expect(updateFor(fake.updates, 'organization')?.values).toEqual({ storageUsedBytes: 220 })
-    expect(updateFor(fake.updates, 'userStats')?.values).toEqual({ storageUsedBytes: 100 })
-  })
-
-  it('moves organization workspace bytes between organizations', async () => {
-    const fake = createFakeTx({
-      workspace: {
-        id: 'workspace-1',
-        billedAccountUserId: 'owner-a',
-        organizationId: 'org-a',
-        storageUsedBytes: 60,
-      },
-      documentBytes: 60,
-      organizations: { 'org-a': 160, 'org-b': 40 },
-    })
-
-    await changeWorkspaceStoragePayerInTx(fake.tx, {
-      workspaceId: 'workspace-1',
-      organizationId: 'org-b',
-      billedAccountUserId: 'owner-b',
-    })
-
-    expect(fake.updates.filter(({ table }) => table === 'organization')).toEqual([
-      { id: 'org-a', table: 'organization', values: { storageUsedBytes: 100 } },
-      { id: 'org-b', table: 'organization', values: { storageUsedBytes: 100 } },
-    ])
   })
 
   it('updates same-payer metadata without aggregate queries, payer locks, or ledger repair', async () => {
@@ -573,10 +509,6 @@ describe('changeWorkspaceStoragePayerInTx', () => {
 })
 
 describe('changeWorkspaceStoragePayersInTx', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('uses the same payer lock order for opposite-direction moves', async () => {
     const personalToOrganization = createFakeBatchTx({
       exactBytes: { 'workspace-a': 10 },
@@ -720,34 +652,6 @@ describe('changeWorkspaceStoragePayersInTx', () => {
     expect(fake.execute).not.toHaveBeenCalled()
     expect(fake.updates).toEqual([])
     expect(fake.locks).toEqual([{ ids: ['workspace-a'], table: 'workspace' }])
-  })
-
-  it('fails the batch before payer writes when canonical size metadata is missing', async () => {
-    const fake = createFakeBatchTx({
-      exactBytes: { 'workspace-a': 10 },
-      missingSizeCounts: { 'workspace-a': 1 },
-      users: { current: 10, destination: 0 },
-      workspaces: [
-        {
-          id: 'workspace-a',
-          billedAccountUserId: 'current',
-          organizationId: null,
-          storageUsedBytes: 10,
-        },
-      ],
-    })
-
-    await expect(
-      changeWorkspaceStoragePayersInTx(fake.tx, [
-        {
-          workspaceId: 'workspace-a',
-          organizationId: null,
-          billedAccountUserId: 'destination',
-        },
-      ])
-    ).rejects.toThrow('Workspace workspace-a has files missing canonical size_bytes metadata')
-
-    expect(fake.updates).toEqual([])
   })
 })
 

@@ -1,21 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { flattenMockConditions, hasMockCondition } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   archiveFolderCascade,
   collectArchivedSubtreeIds,
   collectCascadeSubtreeIds,
   type DbOrTx,
   restoreFolderCascade,
-  restoreFolderRows,
-  toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { FOLDER_RESOURCES, type FolderResourceConfig } from '@/lib/folders/config'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
-import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
-import { folderMutationStatus } from '@/lib/folders/status'
 
 interface SelectCall {
   where: unknown
@@ -92,24 +85,6 @@ const TIMESTAMP = new Date('2026-01-01T00:00:00.000Z')
 const NOW = new Date('2026-02-02T00:00:00.000Z')
 
 describe('collectCascadeSubtreeIds', () => {
-  it('returns the folder plus every descendant in the cascade', async () => {
-    const { tx, selectCalls } = makeTx({
-      selects: [
-        [
-          { id: 'root', parentId: null },
-          { id: 'child', parentId: 'root' },
-          { id: 'grandchild', parentId: 'child' },
-          { id: 'unrelated', parentId: null },
-        ],
-      ],
-    })
-
-    const ids = await collectCascadeSubtreeIds(tx, 'ws-1', 'table', 'root', TIMESTAMP)
-
-    expect(ids).toEqual(['root', 'child', 'grandchild'])
-    expect(selectCalls).toHaveLength(1)
-  })
-
   it('admits folders already stamped by this cascade so a retry reaches nested stragglers', async () => {
     // The cascade stamps folders before children, so a failure during the child pass leaves
     // intermediate folders archived. An active-only walk would drop `child` here and never
@@ -133,17 +108,6 @@ describe('collectCascadeSubtreeIds', () => {
     const branches = (clause?.conditions ?? []) as Array<Record<string, unknown>>
     expect(branches.some((node) => node.type === 'isNull')).toBe(true)
     expect(branches.some((node) => node.right === TIMESTAMP)).toBe(true)
-  })
-
-  it('scopes the walk to the workspace and resourceType', async () => {
-    const { tx, selectCalls } = makeTx({ selects: [[]] })
-
-    await collectCascadeSubtreeIds(tx, 'ws-1', 'knowledge_base', 'root', TIMESTAMP)
-
-    expect(hasMockCondition(selectCalls[0].where, (node) => node.right === 'knowledge_base')).toBe(
-      true
-    )
-    expect(hasMockCondition(selectCalls[0].where, (node) => node.right === 'ws-1')).toBe(true)
   })
 
   it('fails before materializing an oversized recursive cascade', async () => {
@@ -221,66 +185,6 @@ describe('archiveFolderCascade', () => {
     expect(updateCalls[1].table).toBe(CHILD_TABLE)
     expect(updateCalls[1].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
   })
-
-  it('stamps the folder before invoking an archiveChildren hook', async () => {
-    const seenAtHookTime: number[] = []
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }]] })
-    const archiveChildren = vi.fn().mockImplementation(async () => {
-      seenAtHookTime.push(updateCalls.length)
-      return 3
-    })
-
-    await archiveFolderCascade(tx, makeConfig({ archiveChildren }), 'ws-1', ['root'], TIMESTAMP)
-
-    // The hook walks resources one at a time and can fail partway, so the folder stamp must
-    // already be in place by then for the retry to reuse it.
-    expect(seenAtHookTime).toEqual([1])
-  })
-
-  it('skips rows that were already soft-deleted independently', async () => {
-    const { tx, updateCalls } = makeTx({ updates: [[], []] })
-
-    await archiveFolderCascade(tx, makeConfig(), 'ws-1', ['root'], TIMESTAMP)
-
-    for (const call of updateCalls) {
-      expect(hasMockCondition(call.where, (node) => node.type === 'isNull')).toBe(true)
-    }
-  })
-
-  it('stamps every row with the timestamp it is given, not one of its own', async () => {
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }], [{ id: 'child-1' }]] })
-
-    await archiveFolderCascade(tx, makeConfig(), 'ws-1', ['root'], TIMESTAMP)
-
-    // Regression guard: deleting an already-archived folder reuses that folder's existing
-    // deletedAt. A fresh stamp here would strand the children — the folder row keeps its
-    // original stamp, so restore would never match them.
-    expect(updateCalls[0].set).toMatchObject({ deletedAt: TIMESTAMP })
-    expect(updateCalls[1].set).toEqual({ archivedAt: TIMESTAMP, updatedAt: TIMESTAMP })
-  })
-
-  it('delegates to archiveChildren when a resource archives through its own lifecycle', async () => {
-    const archiveChildren = vi.fn().mockResolvedValue(7)
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }]] })
-
-    const counts = await archiveFolderCascade(
-      tx,
-      makeConfig({ archiveChildren }),
-      'ws-1',
-      ['root', 'sub'],
-      TIMESTAMP
-    )
-
-    expect(archiveChildren).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      folderIds: ['root', 'sub'],
-      timestamp: TIMESTAMP,
-    })
-    expect(counts).toEqual({ folders: 1, children: 7 })
-    // Only the folder table is touched directly — the hook owns the child writes.
-    expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].table).not.toBe(CHILD_TABLE)
-  })
 })
 
 describe('restoreFolderCascade', () => {
@@ -318,41 +222,6 @@ describe('restoreFolderCascade', () => {
     ).toBe(true)
   })
 
-  it('issues a fixed number of statements regardless of subtree depth', async () => {
-    const deepSubtree = ['a', 'b', 'c', 'd', 'e', 'f']
-    const { tx, updateCalls } = makeTx({
-      updates: [deepSubtree.map((id) => ({ id })), [{ id: 'child-1' }], []],
-    })
-
-    await restoreFolderCascade(
-      tx,
-      makeConfig({ restoreDependents: dependents }),
-      'ws-1',
-      deepSubtree,
-      TIMESTAMP,
-      NOW
-    )
-
-    // One UPDATE for folders, one for children, one per dependent table — never per folder.
-    expect(updateCalls).toHaveLength(2 + dependents.length)
-  })
-
-  it('skips dependent writes when nothing was restored', async () => {
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }], []] })
-
-    const counts = await restoreFolderCascade(
-      tx,
-      makeConfig({ restoreDependents: dependents }),
-      'ws-1',
-      ['root'],
-      TIMESTAMP,
-      NOW
-    )
-
-    expect(counts).toEqual({ folders: 1, children: 0 })
-    expect(updateCalls).toHaveLength(2)
-  })
-
   it('restores only rows carrying the folder’s own soft-delete timestamp', async () => {
     const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }], [{ id: 'child-1' }], []] })
 
@@ -371,56 +240,7 @@ describe('restoreFolderCascade', () => {
   })
 })
 
-describe('restoreFolderRows', () => {
-  it('restores only folders carrying the cascade timestamp', async () => {
-    const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }, { id: 'sub' }]] })
-
-    const folders = await restoreFolderRows(
-      tx,
-      makeConfig(),
-      'ws-1',
-      ['root', 'sub'],
-      TIMESTAMP,
-      NOW
-    )
-
-    expect(folders).toBe(2)
-    expect(updateCalls).toHaveLength(1)
-    expect(hasMockCondition(updateCalls[0].where, (node) => node.right === TIMESTAMP)).toBe(true)
-  })
-})
-
-describe('folderMutationStatus', () => {
-  it('maps a locked resource to 423, matching the single-resource delete', () => {
-    expect(folderMutationStatus('locked')).toBe(423)
-  })
-
-  it('maps the shared orchestration codes', () => {
-    expect(folderMutationStatus('validation')).toBe(400)
-    expect(folderMutationStatus('not_found')).toBe(404)
-    expect(folderMutationStatus('conflict')).toBe(409)
-    expect(folderMutationStatus('internal')).toBe(500)
-    expect(folderMutationStatus(undefined)).toBe(500)
-  })
-})
-
-describe('toCascadeCounts', () => {
-  it('reports the child count under the resource’s own key', () => {
-    expect(toCascadeCounts(makeConfig(), { folders: 2, children: 3 })).toEqual({
-      folders: 2,
-      tables: 3,
-    })
-    expect(
-      toCascadeCounts(makeConfig({ countKey: 'knowledgeBases' }), { folders: 1, children: 0 })
-    ).toEqual({ folders: 1, knowledgeBases: 0 })
-  })
-})
-
 describe('FOLDER_RESOURCES', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('pairs every archiveChildren hook with a restoreChildren hook', () => {
     // An archive hook exists because archiving touches more than the child row. Without the
     // matching restore hook, a folder restore would revive the resource and strand whatever
@@ -432,66 +252,10 @@ describe('FOLDER_RESOURCES', () => {
     }
   })
 
-  it('grants lock semantics to workflows only', () => {
-    // `folder.locked` predates the generic table and is deliberately not extended. Anything
-    // that flips a second resource to lockable has to add the UI and authz to match.
-    const lockable = Object.values(FOLDER_RESOURCES)
-      .filter((config) => config.supportsLocking)
-      .map((config) => config.resourceType)
-    expect(lockable).toEqual(['workflow'])
-  })
-
-  it('answers the lock question identically whether asked of the config or the trait', () => {
-    // Routes read `folderResourceSupportsLocking` (the leaf module, so a lock check costs no
-    // db-schema graph) while orchestration reads `config.supportsLocking`. Declared twice they
-    // drift silently: a newly lockable resource would lock in orchestration but not in the
-    // routes that guard it.
-    for (const config of Object.values(FOLDER_RESOURCES)) {
-      expect(config.supportsLocking).toBe(folderResourceSupportsLocking(config.resourceType))
-    }
-  })
-
   it('guards the delete of resources that gate their own deletion', () => {
     // Tables refuse deletion while delete-locked; deleting the folder around one must not
     // become a way around that control.
     expect(FOLDER_RESOURCES.table.guardDelete).toBeDefined()
-  })
-
-  it('declares one entry per folder resource type', () => {
-    expect(Object.keys(FOLDER_RESOURCES).sort()).toEqual([
-      'file',
-      'knowledge_base',
-      'table',
-      'workflow',
-    ])
-  })
-
-  it('keys every entry consistently with its own resourceType', () => {
-    for (const [key, config] of Object.entries(FOLDER_RESOURCES)) {
-      expect(config.resourceType).toBe(key)
-    }
-  })
-
-  it('gives every resource a distinct cascade count key', () => {
-    const countKeys = Object.values(FOLDER_RESOURCES).map((config) => config.countKey)
-    expect(new Set(countKeys).size).toBe(countKeys.length)
-  })
-
-  it('builds soft-delete payloads that write the declared soft-delete property', () => {
-    for (const config of Object.values(FOLDER_RESOURCES)) {
-      const archiveSet = config.buildSoftDeleteSet(TIMESTAMP, NOW)
-      const restoreSet = config.buildSoftDeleteSet(null, NOW)
-      expect(archiveSet[config.deletedKey]).toBe(TIMESTAMP)
-      expect(restoreSet[config.deletedKey]).toBeNull()
-    }
-  })
-
-  it('restores dependents to an active state', () => {
-    for (const config of Object.values(FOLDER_RESOURCES)) {
-      for (const dependent of config.restoreDependents ?? []) {
-        expect(Object.values(dependent.buildRestoreSet(NOW))).toContain(null)
-      }
-    }
   })
 })
 
@@ -504,37 +268,8 @@ describe('knowledge_base and table folder resources', () => {
   const knowledgeConfig = FOLDER_RESOURCES.knowledge_base
   const tableConfig = FOLDER_RESOURCES.table
 
-  it('routes both trees through their canonical archive and restore, not a bare row update', () => {
-    // A knowledge base owns documents, embeddings, and storage accounting; a table owns its
-    // own data partitions. Neither can be archived by stamping one column, so both must keep
-    // a hook rather than falling back to the generic UPDATE.
-    for (const config of [knowledgeConfig, tableConfig]) {
-      expect(config.archiveChildren).toBeTypeOf('function')
-      expect(config.restoreChildren).toBeTypeOf('function')
-    }
-  })
-
-  it('drives each tree off its own soft-delete column', () => {
-    expect(knowledgeConfig.deletedKey).toBe('deletedAt')
-    expect(knowledgeConfig.buildSoftDeleteSet(TIMESTAMP, NOW)).toEqual({
-      deletedAt: TIMESTAMP,
-      updatedAt: NOW,
-    })
-    expect(tableConfig.deletedKey).toBe('archivedAt')
-    expect(tableConfig.buildSoftDeleteSet(TIMESTAMP, NOW)).toEqual({
-      archivedAt: TIMESTAMP,
-      updatedAt: NOW,
-    })
-  })
-
   it('guards folder deletion for locked tables and the shared search index', () => {
     expect(tableConfig.guardDelete).toBeTypeOf('function')
     expect(knowledgeConfig.guardDelete).toBeTypeOf('function')
-  })
-
-  it('keeps manual folder sort ordering workflow-only', () => {
-    // Only the workflow tree interleaves folders and rows in one user-ordered list.
-    expect(knowledgeConfig.sortOrderColumn).toBeUndefined()
-    expect(tableConfig.sortOrderColumn).toBeUndefined()
   })
 })

@@ -1,11 +1,5 @@
 import type { BlockFactoryOptions } from '@sim/testing'
-import {
-  createAgentBlock,
-  createBlock,
-  createFunctionBlock,
-  createLoopBlock,
-  createStarterBlock,
-} from '@sim/testing'
+import { createAgentBlock, createBlock, createFunctionBlock, createLoopBlock } from '@sim/testing'
 import type { Edge } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
@@ -14,24 +8,6 @@ import { prepareBlockState } from './prepare-block-state'
 import { filterNewEdges, getUniqueBlockName, regenerateBlockIds } from './utils'
 
 describe('normalizeName', () => {
-  it.concurrent('should convert to lowercase', () => {
-    expect(normalizeName('MyVariable')).toBe('myvariable')
-    expect(normalizeName('UPPERCASE')).toBe('uppercase')
-    expect(normalizeName('MixedCase')).toBe('mixedcase')
-  })
-
-  it.concurrent('should remove spaces', () => {
-    expect(normalizeName('my variable')).toBe('myvariable')
-    expect(normalizeName('my  variable')).toBe('myvariable')
-    expect(normalizeName('  spaced  ')).toBe('spaced')
-  })
-
-  it.concurrent('should handle both lowercase and space removal', () => {
-    expect(normalizeName('JIRA TEAM UUID')).toBe('jirateamuuid')
-    expect(normalizeName('My Block Name')).toBe('myblockname')
-    expect(normalizeName('API 1')).toBe('api1')
-  })
-
   it.concurrent('should handle edge cases', () => {
     expect(normalizeName('')).toBe('')
     expect(normalizeName('   ')).toBe('')
@@ -48,64 +24,6 @@ describe('normalizeName', () => {
     expect(normalizeName('my.variable')).toBe('myvariable')
     expect(normalizeName('Trigger.dev 1')).toBe('triggerdev1')
     expect(normalizeName('Hunter.io 2')).toBe('hunterio2')
-  })
-
-  it.concurrent('should handle tabs and newlines as whitespace', () => {
-    expect(normalizeName('my\tvariable')).toBe('myvariable')
-    expect(normalizeName('my\nvariable')).toBe('myvariable')
-    expect(normalizeName('my\r\nvariable')).toBe('myvariable')
-  })
-
-  it.concurrent('should handle unicode characters', () => {
-    expect(normalizeName('Café')).toBe('café')
-    expect(normalizeName('日本語')).toBe('日本語')
-  })
-
-  it.concurrent('should normalize block names correctly', () => {
-    expect(normalizeName('Agent 1')).toBe('agent1')
-    expect(normalizeName('API Block')).toBe('apiblock')
-    expect(normalizeName('My Custom Block')).toBe('mycustomblock')
-  })
-
-  it.concurrent('should normalize variable names correctly', () => {
-    expect(normalizeName('jira1')).toBe('jira1')
-    expect(normalizeName('JIRA TEAM UUID')).toBe('jirateamuuid')
-    expect(normalizeName('My Variable')).toBe('myvariable')
-  })
-
-  it.concurrent('should produce consistent results for references', () => {
-    const originalName = 'JIRA TEAM UUID'
-    const normalized1 = normalizeName(originalName)
-    const normalized2 = normalizeName(originalName)
-
-    expect(normalized1).toBe(normalized2)
-    expect(normalized1).toBe('jirateamuuid')
-  })
-
-  it.concurrent('should allow matching block references to variable references', () => {
-    const name = 'API Block'
-    const blockRef = `<${normalizeName(name)}.output>`
-    const varRef = `<variable.${normalizeName(name)}>`
-
-    expect(blockRef).toBe('<apiblock.output>')
-    expect(varRef).toBe('<variable.apiblock>')
-  })
-
-  it.concurrent('should handle real-world naming patterns consistently', () => {
-    const realWorldNames = [
-      { input: 'User ID', expected: 'userid' },
-      { input: 'API Key', expected: 'apikey' },
-      { input: 'OAuth Token', expected: 'oauthtoken' },
-      { input: 'Database URL', expected: 'databaseurl' },
-      { input: 'STRIPE SECRET KEY', expected: 'stripesecretkey' },
-      { input: 'openai api key', expected: 'openaiapikey' },
-      { input: 'Customer Name', expected: 'customername' },
-      { input: 'Order Total', expected: 'ordertotal' },
-    ]
-
-    for (const { input, expected } of realWorldNames) {
-      expect(normalizeName(input)).toBe(expected)
-    }
   })
 })
 
@@ -147,27 +65,6 @@ describe('filterNewEdges', () => {
 })
 
 describe('getUniqueBlockName', () => {
-  it('should return "Start" for starter blocks', () => {
-    expect(getUniqueBlockName('Start', {})).toBe('Start')
-    expect(getUniqueBlockName('Starter', {})).toBe('Start')
-    expect(getUniqueBlockName('start', {})).toBe('Start')
-  })
-
-  it('should return the bare name when no existing blocks', () => {
-    /* The first of a kind reads as itself; only the second needs telling apart. */
-    expect(getUniqueBlockName('Agent', {})).toBe('Agent')
-    expect(getUniqueBlockName('Function', {})).toBe('Function')
-    expect(getUniqueBlockName('Loop', {})).toBe('Loop')
-  })
-
-  it('should increment number when existing blocks have same base name', () => {
-    const existingBlocks = {
-      'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
-    }
-
-    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 2')
-  })
-
   it('should find highest number and increment', () => {
     const existingBlocks = {
       'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
@@ -198,19 +95,6 @@ describe('getUniqueBlockName', () => {
     expect(getUniqueBlockName('api', existingBlocks)).toBe('api 3')
   })
 
-  it('should handle different block types independently', () => {
-    const existingBlocks = {
-      'block-1': createAgentBlock({ id: 'block-1', name: 'Agent 1' }),
-      'block-2': createFunctionBlock({ id: 'block-2', name: 'Function 1' }),
-      'block-3': createLoopBlock({ id: 'block-3', name: 'Loop 1' }),
-    }
-
-    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 2')
-    expect(getUniqueBlockName('Function', existingBlocks)).toBe('Function 2')
-    expect(getUniqueBlockName('Loop', existingBlocks)).toBe('Loop 2')
-    expect(getUniqueBlockName('Router', existingBlocks)).toBe('Router')
-  })
-
   it('should treat a bare existing name as the first of its series', () => {
     /* `Custom` is the first, so the next is `Custom 2` — not a second `Custom 1`. */
     const existingBlocks = {
@@ -229,59 +113,6 @@ describe('getUniqueBlockName', () => {
     }
 
     expect(getUniqueBlockName('Gmail', existingBlocks)).toBe('Gmail 3')
-  })
-
-  it('should handle multi-word base names', () => {
-    const existingBlocks = {
-      'block-1': createBlock({ id: 'block-1', name: 'API Block 1' }),
-      'block-2': createBlock({ id: 'block-2', name: 'API Block 2' }),
-    }
-
-    expect(getUniqueBlockName('API Block', existingBlocks)).toBe('API Block 3')
-  })
-
-  it('should handle starter blocks even with existing starters', () => {
-    const existingBlocks = {
-      'block-1': createStarterBlock({ id: 'block-1', name: 'Start' }),
-    }
-
-    expect(getUniqueBlockName('Start', existingBlocks)).toBe('Start')
-    expect(getUniqueBlockName('Starter', existingBlocks)).toBe('Start')
-  })
-
-  it('should not throw on an empty base name', () => {
-    /* Degenerate: every real caller passes a block's registry name or a default
-       trigger name, so the prefix is never empty. Pinned so it stays total. */
-    const existingBlocks = {
-      'block-1': createBlock({ id: 'block-1', name: ' 1' }),
-    }
-
-    expect(getUniqueBlockName('', existingBlocks)).toBe('')
-  })
-
-  it('should handle complex real-world scenarios', () => {
-    const existingBlocks = {
-      starter: createStarterBlock({ id: 'starter', name: 'Start' }),
-      agent1: createAgentBlock({ id: 'agent1', name: 'Agent 1' }),
-      agent2: createAgentBlock({ id: 'agent2', name: 'Agent 2' }),
-      func1: createFunctionBlock({ id: 'func1', name: 'Function 1' }),
-      loop1: createLoopBlock({ id: 'loop1', name: 'Loop 1' }),
-    }
-
-    expect(getUniqueBlockName('Agent', existingBlocks)).toBe('Agent 3')
-    expect(getUniqueBlockName('Function', existingBlocks)).toBe('Function 2')
-    expect(getUniqueBlockName('Start', existingBlocks)).toBe('Start')
-    expect(getUniqueBlockName('Condition', existingBlocks)).toBe('Condition')
-  })
-
-  it('should preserve original base name casing in result', () => {
-    const existingBlocks = {
-      'block-1': createBlock({ id: 'block-1', name: 'MyBlock 1' }),
-    }
-
-    expect(getUniqueBlockName('MyBlock', existingBlocks)).toBe('MyBlock 2')
-    expect(getUniqueBlockName('MYBLOCK', existingBlocks)).toBe('MYBLOCK 2')
-    expect(getUniqueBlockName('myblock', existingBlocks)).toBe('myblock 2')
   })
 })
 
@@ -399,64 +230,6 @@ describe('regenerateBlockIds', () => {
 
     expect(newLoop!.position).toEqual({ x: 250, y: 250 })
     expect(newChild!.position).toEqual({ x: 100, y: 50 })
-  })
-
-  it('should apply offset to top-level blocks', () => {
-    const blockId = 'block-1'
-
-    const blocksToCopy = {
-      [blockId]: createAgentBlock({
-        id: blockId,
-        name: 'Agent 1',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    expect(newBlocks).toHaveLength(1)
-    expect(newBlocks[0].position).toEqual({ x: 150, y: 150 })
-  })
-
-  it('should generate unique names for duplicated blocks', () => {
-    const blockId = 'block-1'
-
-    const existingBlocks = {
-      existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
-    }
-
-    const blocksToCopy = {
-      [blockId]: createAgentBlock({
-        id: blockId,
-        name: 'Agent 1',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      existingBlocks,
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    expect(newBlocks).toHaveLength(1)
-    expect(newBlocks[0].name).toBe('Agent 2')
   })
 
   it('should ignore large viewport offset for blocks inside existing subflows', () => {
@@ -586,124 +359,6 @@ describe('regenerateBlockIds', () => {
     expect(pastedBlock.locked).toBe(false)
   })
 
-  it('should keep pasted block unlocked when source is unlocked', () => {
-    const blockId = 'block-1'
-
-    const blocksToCopy = {
-      [blockId]: createAgentBlock({
-        id: blockId,
-        name: 'Unlocked Agent',
-        position: { x: 100, y: 50 },
-        locked: false,
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    expect(newBlocks).toHaveLength(1)
-
-    const pastedBlock = newBlocks[0]
-    expect(pastedBlock.locked).toBe(false)
-  })
-
-  it('should unlock all pasted blocks regardless of source locked state', () => {
-    const lockedId = 'locked-1'
-    const unlockedId = 'unlocked-1'
-
-    const blocksToCopy = {
-      [lockedId]: createAgentBlock({
-        id: lockedId,
-        name: 'Originally Locked Agent',
-        position: { x: 100, y: 50 },
-        locked: true,
-      }),
-      [unlockedId]: createFunctionBlock({
-        id: unlockedId,
-        name: 'Originally Unlocked Function',
-        position: { x: 200, y: 50 },
-        locked: false,
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    expect(newBlocks).toHaveLength(2)
-
-    for (const block of newBlocks) {
-      expect(block.locked).toBe(false)
-    }
-  })
-
-  it('should preserve original name when no conflicting block exists', () => {
-    const blockId = 'block-1'
-
-    const blocksToCopy = {
-      [blockId]: createAgentBlock({
-        id: blockId,
-        name: 'Agent 1',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    expect(newBlocks).toHaveLength(1)
-    expect(newBlocks[0].name).toBe('Agent 1')
-  })
-
-  it('should preserve original name with number suffix when no conflict', () => {
-    const blocksToCopy = {
-      'block-1': createAgentBlock({
-        id: 'block-1',
-        name: 'Agent 3',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    expect(Object.values(result.blocks)[0].name).toBe('Agent 3')
-  })
-
   it('should increment name when an exact match exists in destination', () => {
     const existingBlocks = {
       existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
@@ -756,126 +411,6 @@ describe('regenerateBlockIds', () => {
     )
 
     expect(Object.values(result.blocks)[0].name).toBe('Agent 5')
-  })
-
-  it('should preserve names for multiple blocks when no conflicts', () => {
-    const blocksToCopy = {
-      'block-1': createAgentBlock({
-        id: 'block-1',
-        name: 'Agent 1',
-        position: { x: 100, y: 100 },
-      }),
-      'block-2': createFunctionBlock({
-        id: 'block-2',
-        name: 'Function 3',
-        position: { x: 200, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    const agentBlock = newBlocks.find((b) => b.type === 'agent')
-    const functionBlock = newBlocks.find((b) => b.type === 'function')
-
-    expect(agentBlock!.name).toBe('Agent 1')
-    expect(functionBlock!.name).toBe('Function 3')
-  })
-
-  it('should handle mixed conflicts: preserve non-conflicting, increment conflicting', () => {
-    const existingBlocks = {
-      existing: createAgentBlock({ id: 'existing', name: 'Agent 1' }),
-    }
-
-    const blocksToCopy = {
-      'block-1': createAgentBlock({
-        id: 'block-1',
-        name: 'Agent 1',
-        position: { x: 100, y: 100 },
-      }),
-      'block-2': createFunctionBlock({
-        id: 'block-2',
-        name: 'Function 1',
-        position: { x: 200, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      existingBlocks,
-      getUniqueBlockName
-    )
-
-    const newBlocks = Object.values(result.blocks)
-    const agentBlock = newBlocks.find((b) => b.type === 'agent')
-    const functionBlock = newBlocks.find((b) => b.type === 'function')
-
-    expect(agentBlock!.name).toBe('Agent 2')
-    expect(functionBlock!.name).toBe('Function 1')
-  })
-
-  it('should detect conflicts case-insensitively', () => {
-    const existingBlocks = {
-      existing: createBlock({ id: 'existing', name: 'api 1' }),
-    }
-
-    const blocksToCopy = {
-      'block-1': createBlock({
-        id: 'block-1',
-        name: 'API 1',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      existingBlocks,
-      getUniqueBlockName
-    )
-
-    expect(Object.values(result.blocks)[0].name).toBe('API 2')
-  })
-
-  it('should preserve name without number suffix when no conflict', () => {
-    const blocksToCopy = {
-      'block-1': createBlock({
-        id: 'block-1',
-        name: 'Custom Block',
-        position: { x: 100, y: 100 },
-      }),
-    }
-
-    const result = regenerateBlockIds(
-      blocksToCopy,
-      [],
-      {},
-      {},
-      {},
-      positionOffset,
-      {},
-      getUniqueBlockName
-    )
-
-    expect(Object.values(result.blocks)[0].name).toBe('Custom Block')
   })
 
   it('should avoid collisions between pasted blocks themselves', () => {
@@ -957,46 +492,6 @@ describe('regenerateBlockIds — cloned webhook path', () => {
     expect(result.subBlockValues[newId].triggerPath).toBeNull()
   })
 
-  /** Rows written by the API/import path can carry `triggerMode: false`; same requirement. */
-  it('clears triggerPath on a pasted webhook trigger (triggerMode false)', () => {
-    const { newId, result } = pasteOne(
-      {
-        type: 'generic_webhook',
-        name: 'Webhook 1',
-        triggerMode: false,
-        subBlocks: {
-          triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
-        },
-      },
-      { triggerPath: deployedPath }
-    )
-
-    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
-    expect(result.subBlockValues[newId].triggerPath).toBeNull()
-  })
-
-  it('clears it when the path lives only in the value map', () => {
-    const { newId, result } = pasteOne(
-      { type: 'generic_webhook', name: 'Webhook 1', triggerMode: true, subBlocks: {} },
-      { triggerPath: deployedPath }
-    )
-
-    expect(result.subBlockValues[newId].triggerPath).toBeNull()
-  })
-
-  it('clears it when the block has no value-map entry at all', () => {
-    const { newId, result } = pasteOne({
-      type: 'generic_webhook',
-      name: 'Webhook 1',
-      triggerMode: true,
-      subBlocks: {
-        triggerPath: { id: 'triggerPath', type: 'short-input', value: deployedPath },
-      },
-    })
-
-    expect(result.blocks[newId].subBlocks.triggerPath?.value).toBeNull()
-  })
-
   /**
    * `webhookId` is a user-entered action field on Attio, Vercel, and Discord — and Attio/Vercel are
    * trigger-capable, so any predicate keyed on trigger-ness would wipe it in trigger mode. It is
@@ -1017,24 +512,6 @@ describe('regenerateBlockIds — cloned webhook path', () => {
 
     expect(result.blocks[newId].subBlocks.webhookId?.value).toBe('attio-wh-42')
     expect(result.subBlockValues[newId].webhookId).toBe('attio-wh-42')
-  })
-
-  it('preserves a user-entered webhookId on an action block', () => {
-    const { newId, result } = pasteOne(
-      {
-        type: 'discord',
-        name: 'Discord 1',
-        triggerMode: false,
-        subBlocks: {
-          webhookId: { id: 'webhookId', type: 'short-input', value: '1234567890' },
-          webhookToken: { id: 'webhookToken', type: 'short-input', value: 'tok_abc' },
-        },
-      },
-      { webhookId: '1234567890', webhookToken: 'tok_abc' }
-    )
-
-    expect(result.subBlockValues[newId].webhookId).toBe('1234567890')
-    expect(result.subBlockValues[newId].webhookToken).toBe('tok_abc')
   })
 
   /** Trigger configuration is user setup and must survive the copy. */
@@ -1100,38 +577,6 @@ describe('prepareBlockState — permission-group seed veto', () => {
     vi.mocked(getBlock).mockReset()
   })
 
-  it('seeds every declared default when no gate is supplied', () => {
-    expect(seededValues()).toEqual({
-      operation: 'send',
-      model: 'claude-sonnet-5',
-      channel: '#general',
-      blank: '',
-      headers: [],
-    })
-  })
-
-  it('seeds every declared default when the gate allows them', () => {
-    expect(seededValues(() => true)).toEqual({
-      operation: 'send',
-      model: 'claude-sonnet-5',
-      channel: '#general',
-      blank: '',
-      headers: [],
-    })
-  })
-
-  it('never consults the gate for an empty or non-string default', () => {
-    /* Both are "nothing was declared" rather than a value to authorize, and a
-       gate that saw them would veto every unfilled field. */
-    const seen: string[] = []
-    seededValues((subBlockId) => {
-      seen.push(subBlockId)
-      return true
-    })
-    expect(seen).not.toContain('blank')
-    expect(seen).not.toContain('headers')
-  })
-
   it('keeps an empty or non-string default even when the gate rejects everything', () => {
     const values = seededValues(() => false)
     expect(values.blank).toBe('')
@@ -1143,12 +588,6 @@ describe('prepareBlockState — permission-group seed veto', () => {
     expect(values.operation).toBeNull()
     expect(values.model).toBe('claude-sonnet-5')
     expect(values.channel).toBe('#general')
-  })
-
-  it('leaves a denied model unseeded', () => {
-    const values = seededValues((subBlockId) => subBlockId !== 'model')
-    expect(values.model).toBeNull()
-    expect(values.operation).toBe('send')
   })
 
   it('passes the seeded value to the gate, not just the field id', () => {

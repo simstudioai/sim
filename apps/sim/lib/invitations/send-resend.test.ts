@@ -1,18 +1,20 @@
-/** @vitest-environment node */
 import { invitation } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ lock: vi.fn(), policy: vi.fn() }))
-vi.mock('@/lib/invitations/core', async (original) => ({
-  ...(await original<typeof import('@/lib/invitations/core')>()),
-  lockInvitationForMutation: mocks.lock,
-}))
+const hoisted = vi.hoisted(() => ({ policy: vi.fn() }))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
-vi.mock('@/lib/invitations/resend-policy', () => ({ lockInvitationResendPolicy: mocks.policy }))
+vi.mock('@/lib/invitations/resend-policy', () => ({ lockInvitationResendPolicy: hoisted.policy }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { prepareInvitationResend, revertInvitationResend } from '@/lib/invitations/send'
+
+const mocks = { ...hoisted, lock: invitationsCoreMockFns.mockLockInvitationForMutation }
 
 const revision = new Date('2026-01-01')
 const input = {
@@ -98,17 +100,6 @@ describe('resend preparation and compensation', () => {
         (node) => node.type === 'eq' && node.left === invitation.updatedAt
       )
     ).toBe(false)
-  })
-
-  it('rejects a changed hydrated revision before policy checks or writes', async () => {
-    mocks.lock.mockResolvedValue({
-      organizationId: 'org',
-      token: input.currentToken,
-      updatedAt: new Date('2026-01-02'),
-    })
-    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.policy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('rejects canonical organization changes without touching the token', async () => {

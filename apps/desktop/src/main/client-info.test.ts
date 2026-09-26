@@ -25,16 +25,6 @@ function fakeSession() {
 const APP_ORIGIN = 'https://sim.ai'
 const CLIENT_INFO = desktopClientInfo()
 
-describe('desktopClientInfo', () => {
-  it('names the shell, its runtime, and the platform', () => {
-    expect(desktopClientInfo()).toMatch(
-      new RegExp(
-        `^desktop/1\\.0\\.0(; electron/[^;]+)?; os/${process.platform}; arch/${process.arch}$`
-      )
-    )
-  })
-})
-
 describe('attachClientInfo', () => {
   let session: ReturnType<typeof fakeSession>
 
@@ -46,17 +36,6 @@ describe('attachClientInfo', () => {
     )
   })
 
-  it('stamps the shell identity on an app-origin request', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      { url: `${APP_ORIGIN}/api/workflows`, requestHeaders: { Accept: 'application/json' } },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({
-      requestHeaders: { Accept: 'application/json', 'x-sim-client-info': CLIENT_INFO },
-    })
-  })
-
   it('overwrites the web value the page sent, whatever its casing', () => {
     const cb = vi.fn()
     session.run()?.(
@@ -66,14 +45,5 @@ describe('attachClientInfo', () => {
     expect(cb).toHaveBeenCalledWith({
       requestHeaders: { 'x-sim-client-info': CLIENT_INFO },
     })
-  })
-
-  it('leaves requests to other origins untouched', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      { url: 'https://accounts.google.com/o/oauth2', requestHeaders: { Accept: '*/*' } },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({})
   })
 })

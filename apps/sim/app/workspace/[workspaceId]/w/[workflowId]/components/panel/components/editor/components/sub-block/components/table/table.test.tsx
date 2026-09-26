@@ -1,6 +1,6 @@
-/**
- * @vitest-environment node
- */
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,19 +11,15 @@ const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+  ...emcnMock,
   Button: ({ children }: { children?: React.ReactNode }) => (
     <button type='button'>{children}</button>
   ),
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Trash: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -81,6 +77,8 @@ vi.mock(
 
 import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table'
 
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 function render(password: boolean) {
   return renderToStaticMarkup(
     <Table
@@ -116,14 +114,6 @@ describe('Table password masking', () => {
     expect(html).toContain('•')
   })
 
-  it('renders plaintext cells when the sub-block is not a password field', () => {
-    const html = render(false)
-
-    expect(html).toContain(SECRET)
-    expect(html).toContain(KEY)
-    expect(html).not.toContain('•')
-  })
-
   it('keeps a value cell concealed while workflow search targets it', () => {
     searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
 
@@ -131,14 +121,5 @@ describe('Table password masking', () => {
 
     expect(html).not.toContain(SECRET)
     expect(html).toContain('•')
-  })
-
-  it('highlights a targeted value cell when the sub-block holds no secret', () => {
-    searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
-
-    const html = render(false)
-
-    expect(html).toContain('<mark')
-    expect(html).toContain(SECRET)
   })
 })

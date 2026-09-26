@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Agent } from 'undici'
 import { describe, expect, it } from 'vitest'
 import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'

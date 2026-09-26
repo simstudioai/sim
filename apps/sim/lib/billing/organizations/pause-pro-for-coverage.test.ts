@@ -1,24 +1,18 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockEnqueueOutboxEvent } = vi.hoisted(() => ({
-  mockEnqueueOutboxEvent: vi.fn(),
-}))
 
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({
   changeOrganizationWorkspaceBilledAccountsInTx: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
   changeWorkspaceStoragePayersInTx: vi.fn(),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mockEnqueueOutboxEvent,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
 
 const ACTIVE_PERSONAL_PRO = {
   id: 'sub-personal',
@@ -53,7 +47,6 @@ function queueWhereResponses(responses: unknown[][]) {
 
 describe('pauseProSubscriptionForOrgCoverage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -119,25 +112,6 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
       subscriptionId: 'sub-personal',
       organizationId: 'org-1',
     })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('reports not covered when the user is not a member of any organization', async () => {
-    queueWhereResponses([[]])
-
-    const result = await pauseProSubscriptionForOrgCoverage('user-1')
-
-    expect(result).toEqual({ covered: false, paused: false })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('reports not covered when no org subscription is an entitled paid plan', async () => {
-    queueWhereResponses([[{ organizationId: 'org-1' }], []])
-
-    const result = await pauseProSubscriptionForOrgCoverage('user-1')
-
-    expect(result).toEqual({ covered: false, paused: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })

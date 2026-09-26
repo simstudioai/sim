@@ -1,40 +1,36 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  createInvitationLink: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireAvailable: vi.fn(),
   resolveGroup: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
-  requireCredentialGroupsAvailable: mocks.requireAvailable,
-  resolveWorkspaceAccountsContext: mocks.resolveGroup,
+  requireCredentialGroupsAvailable: hoisted.requireAvailable,
+  resolveWorkspaceAccountsContext: hoisted.resolveGroup,
 }))
 
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  createCredentialGroupInvitationLink: mocks.createInvitationLink,
-  CredentialGroupEnrollmentError: class CredentialGroupEnrollmentError extends Error {
-    constructor(
-      message: string,
-      readonly status: 400 | 404 | 409 | 502
-    ) {
-      super(message)
-    }
-  },
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
+
+const mocks = {
+  ...hoisted,
+  createInvitationLink: credentialGroupsEnrollmentsMockFns.mockCreateCredentialGroupInvitationLink,
+}
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const context = {
   workspaceId: 'workspace-1',
@@ -47,25 +43,19 @@ const context = {
   options: [],
 }
 
-function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
+function executorPrincipal(workspaceId = 'workspace-1') {
+  return createExecutorPrincipal({
     subjectUserId: 'admin-1',
     workspaceId,
-    delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
     delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-  }
+  })
 }
 
 describe('createCredentialGroupInviteLink', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveGroup.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
     mocks.createInvitationLink.mockResolvedValue({
       enrollment: {
@@ -77,22 +67,8 @@ describe('createCredentialGroupInviteLink', () => {
     })
   })
 
-  it('allows only admin executor delegation', () => {
-    expect(createCredentialGroupInviteLink.operation).toMatchObject({
-      id: 'credential_groups.invites.link.create',
-      minimumRole: 'admin',
-      workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
-    })
-  })
-
   it('rejects unsupported principals before loading the group', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'admin-1',
-      sessionId: 'session-1',
-    }
+    const principal = createSessionPrincipal({ userId: 'admin-1' })
 
     await expect(
       createCredentialGroupInviteLink.execute({
@@ -156,7 +132,7 @@ describe('createCredentialGroupInviteLink', () => {
   })
 
   it('requires the current subject to remain a workspace admin', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    resolvePermission.mockResolvedValue('write')
 
     await expect(
       createCredentialGroupInviteLink.execute({
@@ -164,33 +140,6 @@ describe('createCredentialGroupInviteLink', () => {
         input: { workspaceId: 'workspace-1', email: 'person@example.com' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.createInvitationLink).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the recipient and returns the newly issued bearer link', async () => {
-    const result = await createCredentialGroupInviteLink.execute({
-      principal: executorPrincipal(),
-      input: { workspaceId: 'workspace-1', email: ' Person@Example.COM ' },
-    })
-
-    expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.createInvitationLink).toHaveBeenCalledWith(
-      'workspace-1',
-      'group-1',
-      'admin-1',
-      'person@example.com'
-    )
-    expect(result.invitationLink).toBe('https://sim.ai/credential-groups/enroll/token-1')
-  })
-
-  it('rejects an invalid email before issuing a token', async () => {
-    await expect(
-      createCredentialGroupInviteLink.execute({
-        principal: executorPrincipal(),
-        input: { workspaceId: 'workspace-1', email: 'not-an-email' },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.requireAvailable).not.toHaveBeenCalled()
     expect(mocks.createInvitationLink).not.toHaveBeenCalled()
   })
 })

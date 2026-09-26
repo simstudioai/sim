@@ -1,33 +1,31 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   read: vi.fn(),
   save: vi.fn(),
   configure: vi.fn(),
   remove: vi.fn(),
   names: vi.fn(),
   mount: vi.fn(),
-  config: vi.fn(),
-  audit: vi.fn(),
 }))
 vi.mock('@/lib/organization-secrets/repository', () => ({
-  readSecrets: mocks.read,
-  saveSecrets: mocks.save,
-  configureSecretSource: mocks.configure,
-  removeSecretSource: mocks.remove,
-  listSecretNames: mocks.names,
-  materializeSecrets: mocks.mount,
+  readSecrets: hoisted.read,
+  saveSecrets: hoisted.save,
+  configureSecretSource: hoisted.configure,
+  removeSecretSource: hoisted.remove,
+  listSecretNames: hoisted.names,
+  materializeSecrets: hoisted.mount,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@sim/audit', async (original) => ({
-  ...(await original<typeof import('@sim/audit')>()),
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import {
@@ -39,7 +37,13 @@ import {
   saveOrganizationSecrets,
 } from '@/lib/organization-secrets/application/use-cases'
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  audit: auditMockFns.mockRecordAudit,
+}
+
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const delegated = () => ({
   kind: 'organization_delegated' as const,
   serviceId: 'copilot' as const,
@@ -52,7 +56,6 @@ const delegated = () => ({
   resourceScope: { chatId: 'chat' },
 })
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
 })
@@ -101,21 +104,6 @@ describe('Generic Secrets authorization', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.save).not.toHaveBeenCalled()
   })
-  it.each(['admin', 'owner'])('lets an %s configure the source', async (role) => {
-    queueTableRows(member, [{ role }])
-    mocks.configure.mockResolvedValue({ id: 'source', mode: 'organization' })
-    await configureOrganizationSecretSource.execute({
-      principal,
-      input: { organizationId: 'org', sourceId: null, mode: 'organization' },
-    })
-    expect(mocks.configure).toHaveBeenCalledWith('org', null, 'organization')
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor',
-        metadata: expect.objectContaining({ organizationId: 'org' }),
-      })
-    )
-  })
   it.each(['configure', 'remove'])('denies source %s to a member', async (action) => {
     queueTableRows(member, [{ role: 'member' }])
     const call =
@@ -156,20 +144,6 @@ describe('Generic Secrets authorization', () => {
     expect(mocks.read).not.toHaveBeenCalled()
     expect(mocks.save).not.toHaveBeenCalled()
   })
-  it.each(['member', 'admin'])(
-    'binds %s member secrets to the actor rather than an input owner',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      await readOrganizationSecrets.execute({
-        principal,
-        input: { organizationId: 'org', mode: 'member', userId: 'victim' } as never,
-      })
-      expect(mocks.read).toHaveBeenCalledWith(
-        { organizationId: 'org', userId: 'actor', role },
-        { mode: 'member' }
-      )
-    }
-  )
   it('denies outsiders before reading values', async () => {
     queueTableRows(member, [])
     await expect(

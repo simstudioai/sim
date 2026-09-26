@@ -1,38 +1,34 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
-  authorizeChat: vi.fn(),
-  info: vi.fn(),
 }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mocks.info, error: vi.fn(), warn: vi.fn() }),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
-}))
-vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/sim-search/indexed', () => ({
   searchOrganizationKnowledge: {
     get operation() {
       return knowledgeOperations.search
     },
-    execute: mocks.search,
+    execute: hoisted.search,
   },
   searchWorkspaceKnowledge: {
     get operation() {
       return knowledgeOperations.search
     },
-    execute: mocks.search,
+    execute: hoisted.search,
   },
-}))
-vi.mock('@/lib/knowledge/application/read-search-document', () => ({
   readSearchDocument: {
     get operation() {
       return knowledgeOperations.readDocument
     },
-    execute: mocks.read,
+    execute: hoisted.read,
   },
 }))
 
@@ -44,6 +40,12 @@ import {
   searchWorkspaceServerTool,
 } from '@/lib/mothership/tools/server/knowledge/workspace-search'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  authorizeChat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+  info: getMockLogger('KnowledgeSearchDiagnostics').info,
+}
 
 const context = {
   userId: 'reader',
@@ -57,8 +59,10 @@ const context = {
   }),
 }
 describe('Assistant retrieval tools', () => {
+  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
-    vi.clearAllMocks()
+    /** These cover the indexed arm of Sim's search and read tools. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     mocks.search.mockResolvedValue({
       retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],

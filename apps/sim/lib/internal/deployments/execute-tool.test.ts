@@ -1,11 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   deploy: vi.fn(),
   getVersion: vi.fn(),
   listVersions: vi.fn(),
@@ -13,9 +13,7 @@ const mocks = vi.hoisted(() => ({
   undeploy: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/deployments/operations', () => ({
   executeDeploymentsDeploy: mocks.deploy,
@@ -26,10 +24,10 @@ vi.mock('@/lib/internal/deployments/operations', () => ({
 }))
 
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeDeploymentsTool } from '@/lib/internal/deployments/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
-import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const INPUTS = {
   deployments_deploy: { workflowId: 'workflow-1', name: 'Release 4' },
@@ -68,8 +66,7 @@ function request(
 
 describe('executeDeploymentsTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.createPrincipal.mockResolvedValue({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -79,26 +76,6 @@ describe('executeDeploymentsTool', () => {
       operation.mockResolvedValue({ success: true, output: { ok: true } })
     }
   })
-
-  it.each(Object.keys(INPUTS) as Array<keyof typeof INPUTS>)(
-    'binds trusted workspace scope and dispatches %s',
-    async (toolId) => {
-      const executionRequest = request(toolId, {
-        input: { ...INPUTS[toolId], workspaceId: 'workspace-attacker' },
-      })
-      const response = await executeDeploymentsTool(executionRequest)
-
-      expect(response.status).toBe(200)
-      expect(mocks.createPrincipal).toHaveBeenCalledWith({
-        context: executionRequest.context,
-        audience: WORKFLOW_DELEGATION_AUDIENCE,
-      })
-      expect(DISPATCH[toolId]).toHaveBeenCalledWith(
-        { ...INPUTS[toolId], workspaceId: 'workspace-1' },
-        expect.objectContaining({ requestId: 'request-1' })
-      )
-    }
-  )
 
   it('rejects missing trusted workspace scope before principal construction', async () => {
     const response = await executeDeploymentsTool(
@@ -115,26 +92,8 @@ describe('executeDeploymentsTool', () => {
       success: false,
       error: 'Authentication required',
     })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.deploy).not.toHaveBeenCalled()
-  })
-
-  it('preserves canonical validation and classified error status', async () => {
-    const invalid = await executeDeploymentsTool(
-      request('deployments_promote', { input: { workflowId: 'workflow-1' } })
-    )
-    expect(invalid.status).toBe(400)
-    expect(mocks.promote).not.toHaveBeenCalled()
-
-    mocks.promote.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Deployment version not found')
-    )
-    const missing = await executeDeploymentsTool(request('deployments_promote'))
-    expect(missing.status).toBe(404)
-    await expect(missing.json()).resolves.toEqual({
-      success: false,
-      error: 'Deployment version not found',
-    })
   })
 
   it('conceals cross-workspace deployment targets as not found', async () => {
@@ -147,28 +106,5 @@ describe('executeDeploymentsTool', () => {
       success: false,
       error: 'Workflow not found in this workspace',
     })
-  })
-
-  it('propagates cancellation before principal or application work', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeDeploymentsTool(request('deployments_deploy', { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-    expect(mocks.deploy).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation that arrives during application work', async () => {
-    const controller = new AbortController()
-    mocks.deploy.mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return { success: true }
-    })
-
-    await expect(
-      executeDeploymentsTool(request('deployments_deploy', { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

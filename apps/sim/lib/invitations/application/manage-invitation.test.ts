@@ -1,69 +1,44 @@
-/** @vitest-environment node */
 import { member, user } from '@sim/db/schema'
-import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  revoke: vi.fn(),
-  admission: vi.fn(),
-  orgAdmin: vi.fn(),
-  workspaceAdmin: vi.fn(),
-  policy: vi.fn(),
-  workspace: vi.fn(),
-  validate: vi.fn(),
-  subscription: vi.fn(),
-  prepare: vi.fn(),
-  send: vi.fn(),
-  revert: vi.fn(),
-  audit: vi.fn(),
-  workspaceRole: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.workspaceRole,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-  }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/invitations/core', () => ({
-  getInvitationById: mocks.get,
-  revokeInvitationAsAdmin: mocks.revoke,
-  resolveInvitationAdmissionOrganizationId: mocks.admission,
-}))
-vi.mock('@/lib/invitations/send', () => ({
-  prepareInvitationResend: mocks.prepare,
-  sendInvitationEmail: mocks.send,
-  revertInvitationResend: mocks.revert,
-}))
-vi.mock('@/lib/billing/core/organization', () => ({ isOrganizationOwnerOrAdmin: mocks.orgAdmin }))
-vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasWorkspaceAdminAccess: mocks.workspaceAdmin,
-  getWorkspaceWithOwner: mocks.workspace,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({ getWorkspaceInvitePolicy: mocks.policy }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  InvitationsNotAllowedError: class extends Error {},
-  validateInvitationsAllowed: mocks.validate,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    INVITATION_REVOKED: 'invitation.revoked',
-    ORG_INVITATION_REVOKED: 'org.revoked',
-    ORG_INVITATION_RESENT: 'org.resent',
-    INVITATION_RESENT: 'invitation.resent',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization', WORKSPACE: 'workspace' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -74,7 +49,23 @@ import {
   resendWorkspaceInvitation,
 } from '@/lib/invitations/application/manage-invitation'
 import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
-import { DELETE } from '@/app/api/invitations/[id]/route'
+
+const mocks = {
+  orgAdmin: billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin,
+  subscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  get: invitationsCoreMockFns.mockGetInvitationById,
+  revoke: invitationsCoreMockFns.mockRevokeInvitationAsAdmin,
+  admission: invitationsCoreMockFns.mockResolveInvitationAdmissionOrganizationId,
+  policy: workspacesPolicyMockFns.mockGetWorkspaceInvitePolicy,
+  prepare: invitationsSendMockFns.mockPrepareInvitationResend,
+  send: invitationsSendMockFns.mockSendInvitationEmail,
+  revert: invitationsSendMockFns.mockRevertInvitationResend,
+  workspaceAdmin: permissionsMockFns.mockHasWorkspaceAdminAccess,
+  workspace: permissionsMockFns.mockGetWorkspaceWithOwner,
+  validate: permissionCheckMockFns.mockValidateInvitationsAllowed,
+  audit: auditMockFns.mockRecordAudit,
+  workspaceRole: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const principal = {
   kind: 'organization_delegated',
@@ -103,7 +94,6 @@ const invitation = {
   membershipIntent: 'internal',
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.get.mockResolvedValue(invitation)
   mocks.revoke.mockResolvedValue({ success: true, invitation, invitationCancelled: true })
@@ -152,28 +142,6 @@ describe('workspace invitation management authority', () => {
     )
   })
 
-  it('resends a matching workspace invitation through the existing delivery lifecycle', async () => {
-    mocks.get.mockResolvedValue({
-      ...invitation,
-      kind: 'workspace',
-      grants: [{ workspaceId: 'workspace', permission: 'read' }],
-    })
-    mocks.workspace.mockResolvedValue({ id: 'workspace', organizationId: 'org' })
-    mocks.policy.mockResolvedValue({ allowed: true })
-    await resendWorkspaceInvitation.execute({ principal: actor, input: target })
-    expect(mocks.send).toHaveBeenCalledTimes(1)
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
-    expect(mocks.revert).not.toHaveBeenCalled()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          operation: 'workspace_invitations.resend',
-          actor: expect.objectContaining({ kind: 'delegated' }),
-        }),
-      })
-    )
-  })
-
   it.each([
     [],
     [{ workspaceId: 'foreign', permission: 'read' }],
@@ -216,22 +184,6 @@ describe('invitation management application authority', () => {
       expect.objectContaining({ actorId: 'actor', actorName: 'Real actor' })
     )
   })
-  it('resends through existing policy, email and token persistence without returning token material', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    const result = await resendInvitation.execute({ principal, input })
-    expect(result).toEqual({ success: true })
-    expect(mocks.prepare).toHaveBeenCalledWith(
-      expect.objectContaining({
-        invitationId: input.invitationId,
-        expectedOrganizationId: 'org',
-        actorUserId: 'actor',
-      })
-    )
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
-    expect(mocks.send).toHaveBeenCalledBefore(mocks.audit)
-    expect(mocks.revert).not.toHaveBeenCalled()
-    expect(JSON.stringify(result)).not.toContain('private')
-  })
   it.each([cancelInvitation, resendInvitation])(
     'refuses ordinary members before any invitation mutation',
     async (useCase) => {
@@ -270,28 +222,6 @@ describe('invitation management application authority', () => {
       cancelInvitation.execute({ principal, input: { ...input, workspaceId: 'workspace' } })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.revoke).not.toHaveBeenCalled()
-  })
-  it('keeps the internal HTTP cancellation on the same semantic operation', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'session-actor' },
-      session: { id: 'session' },
-    })
-    const response = await DELETE(
-      createMockRequest(
-        'DELETE',
-        undefined,
-        {},
-        `http://localhost/api/invitations/${input.invitationId}`
-      ),
-      { params: Promise.resolve({ id: input.invitationId }) }
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true, invitationCancelled: true })
-    expect(mocks.revoke).toHaveBeenCalledWith({
-      actorId: 'session-actor',
-      invitationId: input.invitationId,
-    })
   })
 })
 

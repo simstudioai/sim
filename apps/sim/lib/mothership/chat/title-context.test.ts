@@ -26,7 +26,6 @@ const inventory = {
 
 describe('buildChatTitleContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     getWorkspace.mockResolvedValue({ workspace: { name: 'Finance' } })
   })
 

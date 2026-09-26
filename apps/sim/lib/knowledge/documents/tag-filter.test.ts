@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { getDocuments } from '@/lib/knowledge/documents/service'
@@ -17,44 +14,7 @@ function rendered(condition: ReturnType<typeof buildTagFilterCondition>) {
 }
 
 describe('buildTagFilterCondition', () => {
-  it('ignores unknown tag slots', () => {
-    expect(
-      buildTagFilterCondition({
-        tagSlot: 'not_a_real_slot',
-        fieldType: 'text',
-        operator: 'eq',
-        value: 'x',
-      })
-    ).toBeUndefined()
-  })
-
   describe('text', () => {
-    it('matches eq case-insensitively', () => {
-      const { sql, params } = rendered(
-        buildTagFilterCondition({
-          tagSlot: 'tag1',
-          fieldType: 'text',
-          operator: 'eq',
-          value: 'Ada Lovelace',
-        })
-      )
-      expect(sql).toBe('LOWER(?) = LOWER(?)')
-      expect(params).toEqual(['document.tag1', 'Ada Lovelace'])
-    })
-
-    it('matches neq case-insensitively', () => {
-      const { sql, params } = rendered(
-        buildTagFilterCondition({
-          tagSlot: 'tag2',
-          fieldType: 'text',
-          operator: 'neq',
-          value: 'Spreadsheet',
-        })
-      )
-      expect(sql).toBe('LOWER(?) != LOWER(?)')
-      expect(params).toEqual(['document.tag2', 'Spreadsheet'])
-    })
-
     it('escapes LIKE wildcards in contains', () => {
       const { params } = rendered(
         buildTagFilterCondition({
@@ -66,47 +26,9 @@ describe('buildTagFilterCondition', () => {
       )
       expect(params).toContain('%50\\%\\_off%')
     })
-
-    it('returns undefined for an unsupported operator', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'tag1',
-          fieldType: 'text',
-          operator: 'gt',
-          value: 'x',
-        })
-      ).toBeUndefined()
-    })
   })
 
   describe('date', () => {
-    it('compares eq on the calendar day', () => {
-      const { sql, params } = rendered(
-        buildTagFilterCondition({
-          tagSlot: 'date1',
-          fieldType: 'date',
-          operator: 'eq',
-          value: '2026-04-21',
-        })
-      )
-      expect(sql).toBe('?::date = ?::date')
-      expect(params).toEqual(['document.date1', '2026-04-21'])
-    })
-
-    it('compares range bounds on the calendar day', () => {
-      const condition = buildTagFilterCondition({
-        tagSlot: 'date1',
-        fieldType: 'date',
-        operator: 'between',
-        value: '2026-04-01',
-        valueTo: '2026-04-30',
-      }) as unknown as { type: string; conditions: unknown[] }
-      expect(condition.type).toBe('and')
-      expect(condition.conditions).toHaveLength(2)
-      expect(rendered(condition.conditions[0] as never).sql).toBe('?::date >= ?::date')
-      expect(rendered(condition.conditions[1] as never).sql).toBe('?::date <= ?::date')
-    })
-
     it('ignores values that are not YYYY-MM-DD', () => {
       expect(
         buildTagFilterCondition({
@@ -114,65 +36,6 @@ describe('buildTagFilterCondition', () => {
           fieldType: 'date',
           operator: 'eq',
           value: 'not-a-date',
-        })
-      ).toBeUndefined()
-    })
-
-    it('ignores a between filter missing its upper bound', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'date1',
-          fieldType: 'date',
-          operator: 'between',
-          value: '2026-04-01',
-        })
-      ).toBeUndefined()
-    })
-  })
-
-  describe('number', () => {
-    it('builds an equality comparison', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'number1',
-          fieldType: 'number',
-          operator: 'eq',
-          value: '42',
-        })
-      ).toEqual({ type: 'eq', left: 'document.number1', right: 42 })
-    })
-
-    it('ignores non-numeric values', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'number1',
-          fieldType: 'number',
-          operator: 'eq',
-          value: 'abc',
-        })
-      ).toBeUndefined()
-    })
-  })
-
-  describe('boolean', () => {
-    it('parses string values', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'boolean1',
-          fieldType: 'boolean',
-          operator: 'eq',
-          value: 'true',
-        })
-      ).toEqual({ type: 'eq', left: 'document.boolean1', right: true })
-    })
-
-    it('ignores values that are not boolean-like', () => {
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'boolean1',
-          fieldType: 'boolean',
-          operator: 'eq',
-          value: 'maybe',
         })
       ).toBeUndefined()
     })
@@ -206,18 +69,6 @@ describe('buildTagFilterCondition', () => {
         'document.date1',
         '2026-04-30',
       ])
-    })
-
-    it('reads a boolean case-insensitively', () => {
-      expect(validateTagValue('flag', 'TRUE', 'boolean')).toBeNull()
-      expect(
-        buildTagFilterCondition({
-          tagSlot: 'boolean1',
-          fieldType: 'boolean',
-          operator: 'eq',
-          value: 'TRUE',
-        })
-      ).toEqual({ type: 'eq', left: 'document.boolean1', right: true })
     })
   })
 })

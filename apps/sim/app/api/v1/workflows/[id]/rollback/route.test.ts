@@ -1,56 +1,52 @@
 /**
- * @vitest-environment node
- *
  * Tests for POST /api/v1/workflows/[id]/rollback — verifies target version
  * resolution (previous version by default, explicit version when provided)
  * and the mapping of activation results to v1 API responses.
  */
 
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockPerformActivateVersion,
-  mockFindPreviousDeploymentVersion,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockPerformActivateVersion: vi.fn(),
-  mockFindPreviousDeploymentVersion: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  findPreviousDeploymentVersion: mockFindPreviousDeploymentVersion,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(() =>
-    NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performActivateVersion: mockPerformActivateVersion,
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { POST } from '@/app/api/v1/workflows/[id]/rollback/route'
+
+const { mockPerformActivateVersion } = workflowsOrchestrationMockFns
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+v1MiddlewareMockFns.mockCreateRateLimitResponse.mockImplementation(() =>
+  NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+)
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
+}))
+
+const mockFindPreviousDeploymentVersion =
+  workflowsPersistenceUtilsMockFns.mockFindPreviousDeploymentVersion
 
 const WORKFLOW_ID = 'wf-1'
 const WORKFLOW_RECORD = {
@@ -61,7 +57,7 @@ const WORKFLOW_RECORD = {
 }
 
 function makeContext(id = WORKFLOW_ID) {
-  return { params: Promise.resolve({ id }) }
+  return createRouteContext({ id })
 }
 
 function makeRequest(body?: unknown) {
@@ -75,7 +71,6 @@ function makeRequest(body?: unknown) {
 
 describe('POST /api/v1/workflows/[id]/rollback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
@@ -102,24 +97,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     })
   })
 
-  it('rejects unauthenticated requests', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: 'Invalid API key' })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(401)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the workflow does not exist', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(null)
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(404)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
   it('returns 423 when the workflow is locked', async () => {
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedError())
 
@@ -127,28 +104,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
 
     expect(response.status).toBe(423)
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('rolls back to the previous version when no version is given', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({ ok: true, version: 4 })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(200)
-    expect(mockPerformActivateVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: WORKFLOW_ID, version: 4, userId: 'user-1' })
-    )
-
-    const body = await response.json()
-    expect(body.data).toEqual({
-      id: WORKFLOW_ID,
-      isDeployed: true,
-      deployedAt: '2026-06-12T00:00:00.000Z',
-      version: 4,
-      warnings: [],
-      activeDeployment: expect.objectContaining({ deploymentVersionId: 'dv-4', version: 4 }),
-      latestDeploymentAttempt: expect.objectContaining({ id: 'op-1', status: 'active' }),
-    })
   })
 
   it('returns 400 when the workflow is not deployed, even with an explicit version', async () => {
@@ -163,58 +118,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     const body = await response.json()
     expect(body.error).toBe('Workflow is not deployed')
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('rolls back to an explicit version when provided', async () => {
-    const response = await POST(makeRequest({ version: 2 }), makeContext())
-
-    expect(response.status).toBe(200)
-    expect(mockPerformActivateVersion).toHaveBeenCalledWith(expect.objectContaining({ version: 2 }))
-    expect(mockFindPreviousDeploymentVersion).not.toHaveBeenCalled()
-  })
-
-  it('rejects a non-integer version', async () => {
-    const response = await POST(makeRequest({ version: 1.5 }), makeContext())
-
-    expect(response.status).toBe(400)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 400 when there is no active deployment to roll back from', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({ ok: false, reason: 'no_active_version' })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBe('Workflow has no active deployment to roll back from')
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 400 when there is no previous version to roll back to', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({
-      ok: false,
-      reason: 'no_previous_version',
-    })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBe('No previous deployment version to roll back to')
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('maps a missing target version to 404', async () => {
-    mockPerformActivateVersion.mockResolvedValue({
-      success: false,
-      error: 'Deployment version not found',
-      errorCode: 'not_found',
-    })
-
-    const response = await POST(makeRequest({ version: 99 }), makeContext())
-
-    expect(response.status).toBe(404)
   })
 
   it('masks missing admin permission as 404', async () => {

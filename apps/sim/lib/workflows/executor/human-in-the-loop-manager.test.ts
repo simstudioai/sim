@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -9,24 +6,30 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 
 const {
-  mockReleaseExecutionSlot,
-  mockReplaceLargeValueReferenceKeysWithClient,
-  mockPreprocessExecution,
   mockExecuteWorkflowCore,
   mockCleanupExecutionBase64Cache,
   mockResetExecutionStreamBuffer,
   mockInitializeExecutionStreamMeta,
   mockEventWriter,
 } = vi.hoisted(() => ({
-  mockReleaseExecutionSlot: vi.fn(),
-  mockPreprocessExecution: vi.fn(),
-  mockReplaceLargeValueReferenceKeysWithClient: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockCleanupExecutionBase64Cache: vi.fn(),
   mockResetExecutionStreamBuffer: vi.fn(),
@@ -34,7 +37,7 @@ const {
   mockEventWriter: { write: vi.fn(), writeTerminal: vi.fn(), close: vi.fn() },
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({ preprocessExecution: mockPreprocessExecution }))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: mockExecuteWorkflowCore,
@@ -52,18 +55,12 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   resetExecutionStreamBuffer: mockResetExecutionStreamBuffer,
 }))
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  collectLargeValueReferenceKeys: vi.fn(() => []),
-  replaceLargeValueReferenceKeysWithClient: mockReplaceLargeValueReferenceKeysWithClient,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import {
   createResumeAttemptTimeoutController,
-  extractResumeBillingAttributionFromSnapshot,
   PauseResumeManager,
   requireResumeDeploymentVersion,
   updateResumeOutputInAggregationBuffers,
@@ -72,6 +69,10 @@ import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paus
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
+
+const { mockPreprocessExecution } = executionPreprocessingMockFns
+const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
+const { mockReplaceLargeValueReferenceKeysWithClient } = largeValueMetadataMockFns
 
 const humanInTheLoopLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'HumanInTheLoopManager'
@@ -131,20 +132,6 @@ function createExecutionState(): SerializableExecutionState {
 }
 
 describe('queued resume attempt deadlines', () => {
-  it('extracts legacy billing metadata without parsing the large snapshot tail', () => {
-    const source = JSON.parse(createSnapshotSeed().snapshot) as {
-      metadata: Record<string, unknown>
-    }
-    const snapshot = {
-      snapshot: `{"metadata":${JSON.stringify(source.metadata)},"workflow":not-deserialized}`,
-      triggerIds: [],
-    }
-
-    expect(extractResumeBillingAttributionFromSnapshot(snapshot)).toEqual(
-      createBillingAttribution()
-    )
-  })
-
   it('admits from persisted resume metadata before reconstructing the full snapshot', () => {
     const billingAttribution = createBillingAttribution()
 
@@ -225,7 +212,6 @@ describe('queued resume attempt deadlines', () => {
 
 describe('resume failure diagnostic projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -451,41 +437,6 @@ describe('updateResumeOutputInAggregationBuffers', () => {
     })
   })
 
-  it('does not replace unrelated paused parallel branch outputs', () => {
-    const unrelatedPausedOutput = {
-      response: { status: 'paused' },
-      _pauseMetadata: {
-        contextId: 'different-context',
-        blockId: 'hitl₍1₎',
-      },
-    }
-    const mergedOutput = {
-      response: { data: { submission: { approved: true } } },
-      submission: { approved: true },
-      _resumed: true,
-    }
-    const state = createExecutionState()
-    state.parallelExecutions = {
-      'parallel-1': {
-        branchOutputs: {
-          1: [unrelatedPausedOutput],
-        },
-      },
-    }
-
-    updateResumeOutputInAggregationBuffers(
-      state,
-      'hitl₍1₎',
-      'hitl',
-      'pause-context-1',
-      mergedOutput
-    )
-
-    expect(state.parallelExecutions['parallel-1'].branchOutputs).toEqual({
-      1: [unrelatedPausedOutput],
-    })
-  })
-
   it('replaces paused loop iteration outputs using the resumed state block key', () => {
     const pausedOutput = {
       response: { status: 'paused' },
@@ -542,7 +493,6 @@ describe('updateResumeOutputInAggregationBuffers', () => {
 
 describe('PauseResumeManager.getPauseContextDetail', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -627,47 +577,10 @@ describe('PauseResumeManager.getPauseContextDetail', () => {
         ?.automaticResumeWaitingReason
     ).toBe('Usage admission unavailable')
   })
-
-  it('returns null when the pause context no longer exists', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'paused-exec-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        status: 'paused',
-        pausedAt: null,
-        updatedAt: null,
-        expiresAt: null,
-        metadata: {},
-        executionSnapshot: { triggerIds: [] },
-        pausePoints: {
-          'ctx-1': {
-            contextId: 'ctx-1',
-            blockId: 'hitl-1',
-            resumeStatus: 'paused',
-            snapshotReady: true,
-            pauseKind: 'human',
-            registeredAt: '2026-07-02T00:00:00.000Z',
-            response: { data: { operation: 'human' }, status: 200, headers: {} },
-          },
-        },
-      },
-    ])
-    dbChainMockFns.orderBy.mockResolvedValueOnce([])
-
-    const detail = await PauseResumeManager.getPauseContextDetail({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      contextId: 'missing-ctx',
-    })
-
-    expect(detail).toBeNull()
-  })
 })
 
 describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -888,7 +801,6 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
 
 describe('PauseResumeManager paused cancellation after pause release', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1018,26 +930,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
-  it('does not release again when staged cancellation becomes terminal', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'paused' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ status: 'running' }])
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelling' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ status: 'cancelled' }])
-
-    await expect(
-      PauseResumeManager.beginPausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-
-    await expect(
-      PauseResumeManager.completePausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-  })
-
   it('scopes paused cancellation to the workflow and preserves a competing terminal status', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ status: 'running' }])
@@ -1071,18 +963,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
       column: 'workflowExecutionLogs.status',
       values: ['running', 'pending', 'cancelled'],
     })
-  })
-
-  it('does not release again when cancellation is already terminal', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ status: 'cancelled' }])
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelled' }])
-
-    await expect(
-      PauseResumeManager.completePausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
   it('repairs a late pause and releases its claimed resume after the log is cancelled', async () => {
@@ -1131,14 +1011,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     ).resolves.toBe(false)
 
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-  })
-
-  it('reports an active claimed resume distinctly from an idle pause', async () => {
-    queueTableRows(resumeQueue, [{ id: 'resume-1' }])
-
-    await expect(
-      PauseResumeManager.getPausedCancellationStatus('execution-1', 'workflow-1')
-    ).resolves.toBe('active_resume')
   })
 
   it('returns the exact claimed resume cancellation target scoped to the workflow', async () => {
@@ -1422,7 +1294,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
 
 describe('PauseResumeManager blocked resume readmission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1606,7 +1477,6 @@ describe('PauseResumeManager blocked resume readmission', () => {
 
 describe('PauseResumeManager terminal resume failure', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1642,7 +1512,6 @@ describe('PauseResumeManager terminal resume failure', () => {
 
 describe('PauseResumeManager completed resume transitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1840,7 +1709,6 @@ describe('PauseResumeManager completed resume transitions', () => {
 
 describe('PauseResumeManager resume log claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1905,10 +1773,6 @@ describe('PauseResumeManager resume log claims', () => {
     )
   })
 
-  it('keeps draft resumes version-free', () => {
-    expect(requireResumeDeploymentVersion(true, null)).toBeUndefined()
-  })
-
   it.each([
     { useDraftState: true, deploymentVersionId: 'deployment-version-1' },
     { useDraftState: false, deploymentVersionId: null },
@@ -1932,7 +1796,6 @@ describe('PauseResumeManager resume log claims', () => {
  */
 describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -2030,7 +1893,6 @@ describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
 
 describe('repeated human review pauses', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

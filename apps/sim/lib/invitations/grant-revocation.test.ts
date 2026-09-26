@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { invitation, invitationWorkspaceGrant } from '@sim/db/schema'
 import {
@@ -22,7 +19,6 @@ import { revokeInvitationWorkspaceGrantTx } from '@/lib/invitations/core'
 
 describe('revokeInvitationWorkspaceGrantTx', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

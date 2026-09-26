@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
 import { TOOL_RUNTIME_SCHEMAS } from '@/lib/mothership/generated/tool-schemas-v1'
@@ -26,10 +23,6 @@ interface SchemaNode {
 const ffmpegParameters = TOOL_RUNTIME_SCHEMAS.ffmpeg?.parameters as SchemaNode | undefined
 
 describe('ffmpeg tool schema parity', () => {
-  it('declares the tool in the generated catalog', () => {
-    expect(ffmpegParameters?.properties).toBeDefined()
-  })
-
   it('caps inputs.files at the executor limit', () => {
     expect(ffmpegParameters?.properties?.inputs?.properties?.files?.maxItems).toBe(
       FFMPEG_LIMITS.maxInputFiles

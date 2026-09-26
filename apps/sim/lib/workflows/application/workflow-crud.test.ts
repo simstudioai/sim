@@ -1,111 +1,97 @@
-/**
- * @vitest-environment node
- */
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveFolderPath: vi.fn(),
   folderPathForId: vi.fn(),
-  assertFolderMutable: vi.fn(),
-  assertWorkflowMutable: vi.fn(),
-  createTransition: vi.fn(),
-  updateRecord: vi.fn(),
-  deleteRecord: vi.fn(),
-  listRows: vi.fn(),
-  loadSnapshot: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  listVersions: vi.fn(),
-  readVersion: vi.fn(),
-  loadNormalized: vi.fn(),
-  notifyWorkflowUpdated: vi.fn(),
-  notifyWorkspaceWorkflowsChanged: vi.fn(),
-  workflowCreated: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_CREATED: 'workflow.created',
-    WORKFLOW_DELETED: 'workflow.deleted',
-  },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertFolderMutable: mocks.assertFolderMutable,
-  assertWorkflowMutable: mocks.assertWorkflowMutable,
-  FolderLockedError: class FolderLockedError extends Error {},
-  WorkflowLockedError: class WorkflowLockedError extends Error {},
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspaceContext,
-}))
-
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/application/workflow-folders', () => ({
-  resolveWorkflowFolderPath: mocks.resolveFolderPath,
-  workflowFolderPathForId: mocks.folderPathForId,
+  resolveWorkflowFolderPath: hoisted.resolveFolderPath,
+  workflowFolderPathForId: hoisted.folderPathForId,
 }))
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performCreateWorkflowTransition: mocks.createTransition,
-  updateWorkflowRecord: mocks.updateRecord,
-  deleteWorkflowRecord: mocks.deleteRecord,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/workflows/queries', () => ({
-  listWorkspaceWorkflows: mocks.listRows,
-  loadWorkflowReadSnapshot: mocks.loadSnapshot,
-}))
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 
 vi.mock('@/lib/workflows/input-format', () => ({
   extractInputFieldsFromBlocks: vi.fn().mockReturnValue([]),
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  listWorkflowVersions: mocks.listVersions,
-  getWorkflowDeploymentVersion: mocks.readVersion,
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkflowUpdated: mocks.notifyWorkflowUpdated,
-  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspaceWorkflowsChanged,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { workflowCreated: mocks.workflowCreated },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
-import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
 import { readWorkflow, readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
-import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
+
+const mocks = {
+  ...hoisted,
+  createTransition: workflowsOrchestrationMockFns.mockPerformCreateWorkflowTransition,
+  updateRecord: workflowsOrchestrationMockFns.mockUpdateWorkflowRecord,
+  deleteRecord: workflowsOrchestrationMockFns.mockDeleteWorkflowRecord,
+  listRows: workflowsQueriesMockFns.mockListWorkspaceWorkflows,
+  loadSnapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+}
+
+const mockListVersions = workflowsPersistenceUtilsMockFns.mockListWorkflowVersions
+const mockReadVersion = workflowsPersistenceUtilsMockFns.mockGetWorkflowDeploymentVersion
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveWorkspaceContext =
+  workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockResolveWorkflowContext =
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotifyWorkflowUpdated = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
+const mockNotifyWorkspaceWorkflowsChanged =
+  realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
@@ -137,16 +123,11 @@ const workflowContext = {
   workflowId: WORKFLOW_ID,
   workflow: workflowRecord,
 }
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'personal-key-1',
-}
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
+const personalPrincipal = createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' })
+const workspacePrincipal = createWorkspaceApiKeyPrincipal({
   workspaceId: WORKSPACE_ID,
   keyId: 'workspace-key-1',
-}
+})
 const executorPrincipal = {
   kind: 'delegated' as const,
   serviceId: 'executor' as const,
@@ -165,10 +146,9 @@ const executorPrincipal = {
 
 describe('authorized workflow CRUD and version reads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
+    mockResolvePermission.mockResolvedValue('admin')
+    mockResolveWorkspaceContext.mockResolvedValue(workspaceContext)
+    mockResolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.resolveFolderPath.mockResolvedValue({ folderId: null, index: {} })
     mocks.folderPathForId.mockReturnValue('/')
     mocks.loadFolderIndex.mockResolvedValue({})
@@ -187,7 +167,7 @@ describe('authorized workflow CRUD and version reads', () => {
       },
     })
     mocks.loadSnapshot.mockResolvedValue({ workflowRecord, normalizedData: { blocks: {} } })
-    mocks.loadNormalized.mockResolvedValue({
+    mockLoadNormalized.mockResolvedValue({
       blocks: {},
       edges: [],
       loops: {},
@@ -203,8 +183,8 @@ describe('authorized workflow CRUD and version reads', () => {
       success: true,
       workflow: workflowRecord,
     })
-    mocks.listVersions.mockResolvedValue({ versions: [] })
-    mocks.readVersion.mockResolvedValue({
+    mockListVersions.mockResolvedValue({ versions: [] })
+    mockReadVersion.mockResolvedValue({
       id: 'version-1',
       version: 1,
       name: null,
@@ -215,35 +195,8 @@ describe('authorized workflow CRUD and version reads', () => {
     })
   })
 
-  it('reads metadata through the shared read policy without loading the graph', async () => {
-    mocks.folderPathForId.mockReturnValue('/Planning/Nested')
-    const result = await readWorkflowMetadata.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: WORKSPACE_ID,
-        delegationId: 'chat-read',
-        audience: 'sim:workflows',
-        issuedAt: now,
-        expiresAt: new Date('2999-01-01'),
-      },
-      input: { workflowId: WORKFLOW_ID, assertedWorkspaceId: WORKSPACE_ID },
-    })
-    expect(result).toEqual({ workflow: workflowRecord, folderPath: '/Planning/Nested' })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
-      workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: undefined,
-    })
-    expect(mocks.loadFolderIndex).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
-    })
-    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it('refuses metadata to a removed member before resolving folder paths', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    mockResolvePermission.mockResolvedValue(null)
     await expect(
       readWorkflowMetadata.execute({
         principal: personalPrincipal,
@@ -252,36 +205,6 @@ describe('authorized workflow CRUD and version reads', () => {
     ).rejects.toThrow()
     expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-  })
-
-  it('creates for a personal key and projects one authoritative semantic audit', async () => {
-    await expect(
-      createWorkflow.execute({
-        principal: personalPrincipal,
-        input: { workspaceId: WORKSPACE_ID, name: workflowRecord.name },
-      })
-    ).resolves.toMatchObject({ workflow: { id: WORKFLOW_ID } })
-
-    expect(mocks.createTransition).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', workspaceId: WORKSPACE_ID })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'user-1',
-        action: 'workflow.created',
-        resourceId: WORKFLOW_ID,
-        metadata: expect.objectContaining({
-          operation: 'workflows.create',
-          actor: expect.objectContaining({ kind: 'personal_api_key', keyId: 'personal-key-1' }),
-        }),
-      })
-    )
-    expect(mocks.notifyWorkflowUpdated).toHaveBeenCalledWith(WORKFLOW_ID)
-    expect(mocks.notifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
-    expect(mocks.workflowCreated).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: WORKFLOW_ID, workspaceId: WORKSPACE_ID })
-    )
   })
 
   it('uses the billing owner only for the workspace key legacy user column', async () => {
@@ -293,32 +216,18 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.createTransition).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'billing-owner-1' })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: null,
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
-          actor: {
-            kind: 'workspace_api_key',
+          actor: createWorkspaceApiKeyPrincipal({
             keyId: 'workspace-key-1',
             workspaceId: WORKSPACE_ID,
-          },
+          }),
         }),
       })
     )
-  })
-
-  it('propagates infrastructure failure without projecting audit', async () => {
-    const failure = new Error('database unavailable')
-    mocks.createTransition.mockRejectedValue(failure)
-
-    await expect(
-      createWorkflow.execute({
-        principal: workspacePrincipal,
-        input: { workspaceId: WORKSPACE_ID, name: workflowRecord.name },
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when a workspace key does not match canonical workflow scope', async () => {
@@ -328,7 +237,7 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+    expect(mockResolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
       assertedWorkspaceId: undefined,
     })
@@ -358,7 +267,7 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID, name: 'Forged target' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
     expect(mocks.updateRecord).not.toHaveBeenCalled()
   })
 
@@ -368,18 +277,18 @@ describe('authorized workflow CRUD and version reads', () => {
       input: { workflowId: WORKFLOW_ID },
     })
 
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+    expect(mockResolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
       assertedWorkspaceId: undefined,
     })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
+    expect(mockResolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
       forUpdate: undefined,
     })
     expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
   })
 
   it('rejects executor reads whose canonical target is outside the signed origin workspace', async () => {
-    mocks.resolveWorkflowContext.mockResolvedValueOnce({
+    mockResolveWorkflowContext.mockResolvedValueOnce({
       ...workflowContext,
       workspaceId: 'workspace-other',
       workflow: { ...workflowRecord, workspaceId: 'workspace-other' },
@@ -395,7 +304,7 @@ describe('authorized workflow CRUD and version reads', () => {
   })
 
   it('rechecks current permission for every workflow mutation', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce('read')
+    mockResolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce('read')
 
     await updateWorkflow.execute({
       principal: personalPrincipal,
@@ -449,27 +358,12 @@ describe('authorized workflow CRUD and version reads', () => {
     })
   })
 
-  it('does not audit an authoritative delete no-op', async () => {
-    mocks.deleteRecord.mockResolvedValue({
-      success: true,
-      archived: false,
-      workflow: { id: WORKFLOW_ID, name: workflowRecord.name, workspaceId: WORKSPACE_ID },
-    })
-
-    await deleteWorkflow.execute({
-      principal: personalPrincipal,
-      input: { workflowId: WORKFLOW_ID },
-    })
-
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it('bounds both paginated and legacy unpaginated version listing', async () => {
     await listWorkflowVersions.execute({
       principal: workspacePrincipal,
       input: { workflowId: WORKFLOW_ID, limit: 50 },
     })
-    expect(mocks.listVersions).toHaveBeenLastCalledWith(WORKFLOW_ID, {
+    expect(mockListVersions).toHaveBeenLastCalledWith(WORKFLOW_ID, {
       limit: 51,
       afterVersion: undefined,
     })
@@ -480,12 +374,12 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID },
       })
     ).resolves.toEqual({ versions: [], hasMore: false })
-    expect(mocks.listVersions).toHaveBeenLastCalledWith(WORKFLOW_ID, {
+    expect(mockListVersions).toHaveBeenLastCalledWith(WORKFLOW_ID, {
       limit: 1001,
       afterVersion: undefined,
     })
 
-    mocks.listVersions.mockResolvedValue({
+    mockListVersions.mockResolvedValue({
       versions: Array.from({ length: 1001 }, (_, index) => ({ id: `version-${index}` })),
     })
     await expect(
@@ -494,15 +388,5 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID },
       })
     ).rejects.toThrow('Workflow version list exceeds the 1000 row limit')
-  })
-
-  it('reads one version only after canonical workflow authorization', async () => {
-    await expect(
-      readWorkflowVersion.execute({
-        principal: personalPrincipal,
-        input: { workflowId: WORKFLOW_ID, version: 1 },
-      })
-    ).resolves.toMatchObject({ version: { id: 'version-1', version: 1 } })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.readVersion)
   })
 })

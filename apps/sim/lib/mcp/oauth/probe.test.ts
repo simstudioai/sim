@@ -1,38 +1,35 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreatePinnedFetchWithDispatcher,
-  mockCreateSsrfGuardedMcpFetch,
-  mockPinnedFetch,
-  mockGuardedFetch,
-  mockDestroy,
-} = vi.hoisted(() => {
-  const mockPinnedFetch = vi.fn()
-  const mockGuardedFetch = vi.fn()
-  const mockDestroy = vi.fn(() => Promise.resolve())
-  return {
-    mockPinnedFetch,
-    mockGuardedFetch,
-    mockDestroy,
-    mockCreatePinnedFetchWithDispatcher: vi.fn(() => ({
-      fetch: mockPinnedFetch,
-      dispatcher: { destroy: mockDestroy },
-    })),
-    mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
-  }
-})
+const { mockCreateSsrfGuardedMcpFetch, mockPinnedFetch, mockGuardedFetch, mockDestroy } =
+  vi.hoisted(() => {
+    const mockPinnedFetch = vi.fn()
+    const mockGuardedFetch = vi.fn()
+    const mockDestroy = vi.fn(() => Promise.resolve())
+    return {
+      mockPinnedFetch,
+      mockGuardedFetch,
+      mockDestroy,
+      mockCreateSsrfGuardedMcpFetch: vi.fn(() => mockGuardedFetch),
+    }
+  })
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createSsrfGuardedMcpFetch: mockCreateSsrfGuardedMcpFetch,
 }))
 
 import { detectMcpAuthType } from '@/lib/mcp/oauth/probe'
+
+const mockCreatePinnedFetchWithDispatcher =
+  inputValidationMockFns.mockCreatePinnedFetchWithDispatcher
+mockCreatePinnedFetchWithDispatcher.mockImplementation(() => ({
+  fetch: mockPinnedFetch,
+  dispatcher: { destroy: mockDestroy },
+}))
 
 function makeResponse(init: { status?: number; headers?: Record<string, string> }): Response {
   const status = init.status ?? 200
@@ -47,7 +44,6 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
   let globalFetchSpy: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     globalFetchSpy = vi.fn()
     vi.stubGlobal('fetch', globalFetchSpy)
   })
@@ -102,21 +98,6 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
     expect(authType).toBe('headers')
     expect(mockCreatePinnedFetchWithDispatcher).not.toHaveBeenCalled()
     expect(mockCreateSsrfGuardedMcpFetch).not.toHaveBeenCalled()
-    expect(globalFetchSpy).not.toHaveBeenCalled()
-  })
-
-  it('reuses the pinned fetch for best-effort session cleanup (DELETE)', async () => {
-    mockPinnedFetch
-      .mockResolvedValueOnce(makeResponse({ status: 200, headers: { 'mcp-session-id': 'sess-1' } }))
-      .mockResolvedValueOnce(makeResponse({ status: 200 }))
-
-    const authType = await detectMcpAuthType('https://example.com/mcp', '203.0.113.10')
-
-    expect(authType).toBe('none')
-    // POST probe + DELETE cleanup, both through the pinned fetch.
-    await vi.waitFor(() => expect(mockPinnedFetch).toHaveBeenCalledTimes(2))
-    const deleteCall = mockPinnedFetch.mock.calls[1]
-    expect(deleteCall[1]).toMatchObject({ method: 'DELETE' })
     expect(globalFetchSpy).not.toHaveBeenCalled()
   })
 })

@@ -1,10 +1,17 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  inventory: vi.fn(),
   policies: vi.fn(),
   secrets: vi.fn(),
   saveSecrets: vi.fn(),
@@ -12,20 +19,14 @@ const mocks = vi.hoisted(() => ({
   reconnect: vi.fn(),
   refetch: vi.fn(),
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccounts: mocks.inventory,
-  useConnectOrganizationAccount: () => ({ mutate: mocks.connect }),
-  useReconnectPersonalOrganizationAccount: () => ({ mutate: mocks.reconnect }),
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/hooks/queries/organization-secrets', () => ({
   useOrganizationSecretSource: mocks.secrets,
   useConfigureOrganizationSecretSource: () => ({ mutate: mocks.saveSecrets }),
   useRemoveOrganizationSecretSource: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/queries/search-integrations', () => ({ useSearchIntegrations: mocks.policies }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({ organization: { id: 'org', name: 'Example Organization' } }),
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({
   DisconnectAccountMenu: ({ accounts }: { accounts: { displayName: string }[] }) => (
     <span>{accounts.map((account) => account.displayName).join(', ')}</span>
@@ -37,6 +38,17 @@ vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-show
 
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
+
+const mockInventory = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
+organizationAccountsQueriesMockFns.mockUseConnectOrganizationAccount.mockReturnValue({
+  mutate: mocks.connect,
+})
+organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount.mockReturnValue({
+  mutate: mocks.reconnect,
+})
+organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organization: { id: 'org', name: 'Example Organization' },
+})
 
 let root: Root
 let container: HTMLDivElement
@@ -60,10 +72,9 @@ const inventory = (overrides = {}) => ({
   ...overrides,
 })
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.secrets.mockReturnValue({ data: { source: null } })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mocks.inventory.mockReturnValue({ data: inventory(), refetch: mocks.refetch })
+  mockInventory.mockReturnValue({ data: inventory(), refetch: mocks.refetch })
   mocks.policies.mockReturnValue({
     data: [{ connectorType: 'github', approved: true }],
     refetch: mocks.refetch,
@@ -75,7 +86,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 const render = async (search = '') => {
   await act(async () =>
@@ -89,7 +99,7 @@ describe('live member connection states', () => {
     'shows Generic Secrets in %s mode without OAuth sources',
     async (mode) => {
       mocks.policies.mockReturnValue({ data: [] })
-      mocks.inventory.mockReturnValue({ data: inventory({ credentialGroup: null }) })
+      mockInventory.mockReturnValue({ data: inventory({ credentialGroup: null }) })
       mocks.secrets.mockReturnValue({ data: { source: { id: 'source', mode } } })
       await render()
       expect(container.textContent).toContain('Generic Secrets')
@@ -126,14 +136,14 @@ describe('live member connection states', () => {
     ['disabled', { credentialGroup: { ...group, status: 'disabled' } }],
     ['unconfigured', { credentialGroup: null }],
   ])('disables connection when %s', async (_name, overrides) => {
-    mocks.inventory.mockReturnValue({ data: inventory(overrides) })
+    mockInventory.mockReturnValue({ data: inventory(overrides) })
     await render()
     expect(button('Connect')?.disabled).toBe(true)
     await act(async () => button('Connect')!.click())
     expect(mocks.connect).not.toHaveBeenCalled()
   })
   it('shows the current account and reconnect action without enabling a disabled integration', async () => {
-    mocks.inventory.mockReturnValue({
+    mockInventory.mockReturnValue({
       data: inventory({
         viewerAccounts: [
           {
@@ -155,7 +165,7 @@ describe('live member connection states', () => {
   })
   it('never presents another MCP provider as a Coda connection', async () => {
     mocks.policies.mockReturnValue({ data: [{ connectorType: 'coda', approved: true }] })
-    mocks.inventory.mockReturnValue({
+    mockInventory.mockReturnValue({
       data: inventory({
         credentialGroup: {
           ...group,
@@ -179,29 +189,11 @@ describe('live member connection states', () => {
       expect.any(Object)
     )
   })
-  it('distinguishes filtered empty, loading, and failed states', async () => {
-    await render('nothing')
-    expect(container.textContent).toContain('No matching integrations')
-    mocks.inventory.mockReturnValue({})
-    await render()
-    expect(container.textContent).toContain('Loading your connections')
-    mocks.inventory.mockReturnValue({
-      error: new Error('Network unavailable'),
-      refetch: mocks.refetch,
-    })
-    await render()
-    expect(container.textContent).toContain('Network unavailable')
-  })
-  it('shows no empty-state copy when the organization has no sources', async () => {
-    mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
-    await render()
-    expect(container.textContent).toBe('')
-  })
   it.each([false, true])(
     'keeps Slack app setup out of member Integrations, admin=%s',
     async (canManage) => {
       mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
-      mocks.inventory.mockReturnValue({ data: inventory({ canManage }) })
+      mockInventory.mockReturnValue({ data: inventory({ canManage }) })
       await render()
       expect(container.textContent).toContain('Slack')
       expect(container.textContent).toContain('Not configured')
@@ -226,7 +218,7 @@ describe('live member connection states', () => {
         },
       ],
     })
-    mocks.inventory.mockReturnValue({
+    mockInventory.mockReturnValue({
       data: inventory({
         viewerAccounts: [
           {

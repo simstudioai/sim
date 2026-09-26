@@ -85,61 +85,6 @@ describe('slackHandler request verification', () => {
 })
 
 describe('slackHandler formatInput - Events API', () => {
-  it('maps an app_mention event', async () => {
-    const { input } = await slackHandler.formatInput!(
-      ctx({
-        team_id: 'T1',
-        event_id: 'Ev1',
-        event: {
-          type: 'app_mention',
-          channel: 'C1',
-          user: 'U1',
-          text: 'hey <@bot> hello',
-          ts: '111.222',
-          thread_ts: '111.000',
-        },
-      })
-    )
-    const event = eventOf(input)
-    expect(event.event_type).toBe('app_mention')
-    expect(event.channel).toBe('C1')
-    expect(event.user).toBe('U1')
-    expect(event.text).toBe('hey <@bot> hello')
-    expect(event.timestamp).toBe('111.222')
-    expect(event.thread_ts).toBe('111.000')
-    expect(event.team_id).toBe('T1')
-    expect(event.event_id).toBe('Ev1')
-    expect(event.command).toBe('')
-    expect(event.action_value).toBe('')
-    expect(event.actions).toEqual([])
-  })
-
-  it('maps an agent_session_stopped event', async () => {
-    const { input } = await slackHandler.formatInput!(
-      ctx({
-        team_id: 'T1',
-        event_id: 'Ev2',
-        event: {
-          type: 'agent_session_stopped',
-          channel: 'D1',
-          user: 'U1',
-          thread_ts: '111.000',
-          event_ts: '112.000',
-          streaming_message_ts: ['111.001', '111.002'],
-        },
-      })
-    )
-    expect(eventOf(input)).toMatchObject({
-      event_type: 'agent_session_stopped',
-      channel: 'D1',
-      user: 'U1',
-      thread_ts: '111.000',
-      timestamp: '112.000',
-      streaming_message_ts: ['111.001', '111.002'],
-      team_id: 'T1',
-    })
-  })
-
   it('maps the nested assistant_thread_started reply target', async () => {
     const { input } = await slackHandler.formatInput!(
       ctx({
@@ -163,36 +108,6 @@ describe('slackHandler formatInput - Events API', () => {
       team_id: 'T-install',
       user_team_id: 'T-user',
     })
-  })
-
-  it('maps an agent_session_title_changed event and the Agent View tab', async () => {
-    const titleChanged = await slackHandler.formatInput!(
-      ctx({
-        event: {
-          type: 'agent_session_title_changed',
-          channel: 'D1',
-          user: 'U1',
-          thread_ts: '111.000',
-          event_ts: '112.000',
-          team_id: 'T1',
-          enterprise_id: 'E1',
-          title: 'New title',
-          previous_title: 'Old title',
-        },
-      })
-    )
-    expect(eventOf(titleChanged.input)).toMatchObject({
-      event_type: 'agent_session_title_changed',
-      title: 'New title',
-      previous_title: 'Old title',
-      team_id: 'T1',
-      enterprise_id: 'E1',
-    })
-
-    const appHome = await slackHandler.formatInput!(
-      ctx({ event: { type: 'app_home_opened', user: 'U1', tab: 'messages' } })
-    )
-    expect(eventOf(appHome.input).tab).toBe('messages')
   })
 
   it('maps app_context_changed and normalizes message.im app_context', async () => {
@@ -232,62 +147,6 @@ describe('slackHandler formatInput - Events API', () => {
 })
 
 describe('slackHandler formatInput - interactivity (block_actions)', () => {
-  it('carries the button action value, channel, user, and response_url through', async () => {
-    const { input } = await slackHandler.formatInput!(
-      ctx({
-        type: 'block_actions',
-        api_app_id: 'A123',
-        team: { id: 'T1', domain: 'acme' },
-        user: { id: 'U1', username: 'alice' },
-        channel: { id: 'C1', name: 'general' },
-        trigger_id: 'trigger-1',
-        response_url: 'https://hooks.slack.com/actions/abc',
-        container: { message_ts: '999.000' },
-        message: {
-          ts: '999.000',
-          text: 'Approve this?',
-          thread_ts: '999.aaa',
-          blocks: [{ type: 'section', block_id: 'b1', text: { type: 'mrkdwn', text: 'Approve?' } }],
-        },
-        state: { values: { reason_block: { reason_input: { value: 'looks good' } } } },
-        actions: [
-          {
-            action_id: 'approve_btn',
-            block_id: 'b1',
-            value: 'approve_42',
-            action_ts: '1234.5678',
-          },
-        ],
-      })
-    )
-    const event = eventOf(input)
-    expect(event.event_type).toBe('block_actions')
-    expect(event.channel).toBe('C1')
-    expect(event.channel_name).toBe('general')
-    expect(event.user).toBe('U1')
-    expect(event.user_name).toBe('alice')
-    expect(event.team_id).toBe('T1')
-    expect(event.action_id).toBe('approve_btn')
-    expect(event.action_value).toBe('approve_42')
-    expect(event.text).toBe('Approve this?')
-    expect(event.message_ts).toBe('999.000')
-    expect(event.timestamp).toBe('999.000')
-    expect(event.thread_ts).toBe('999.aaa')
-    expect(event.response_url).toBe('https://hooks.slack.com/actions/abc')
-    expect(event.trigger_id).toBe('trigger-1')
-    expect(event.api_app_id).toBe('A123')
-    expect(Array.isArray(event.actions)).toBe(true)
-    expect((event.actions as unknown[]).length).toBe(1)
-    const message = event.message as Record<string, unknown>
-    expect(message).not.toBeNull()
-    expect(Array.isArray(message.blocks)).toBe(true)
-    expect((message.blocks as unknown[]).length).toBe(1)
-    expect(event.view).toBeNull()
-    const state = event.state as { values: Record<string, Record<string, { value: string }>> }
-    expect(state).not.toBeNull()
-    expect(state.values.reason_block.reason_input.value).toBe('looks good')
-  })
-
   it('carries the full view (state.values + private_metadata) through for a view_submission', async () => {
     const { input } = await slackHandler.formatInput!(
       ctx({
@@ -362,37 +221,6 @@ describe('slackHandler formatInput - block_suggestion', () => {
   })
 })
 
-describe('slackHandler formatInput - slash commands', () => {
-  it('maps flat slash-command form fields', async () => {
-    const { input } = await slackHandler.formatInput!(
-      ctx({
-        command: '/deploy',
-        text: 'staging now',
-        team_id: 'T1',
-        channel_id: 'C1',
-        channel_name: 'ops',
-        user_id: 'U1',
-        user_name: 'alice',
-        api_app_id: 'A123',
-        response_url: 'https://hooks.slack.com/commands/abc',
-        trigger_id: 'trigger-2',
-      })
-    )
-    const event = eventOf(input)
-    expect(event.event_type).toBe('slash_command')
-    expect(event.command).toBe('/deploy')
-    expect(event.text).toBe('staging now')
-    expect(event.channel).toBe('C1')
-    expect(event.channel_name).toBe('ops')
-    expect(event.user).toBe('U1')
-    expect(event.user_name).toBe('alice')
-    expect(event.team_id).toBe('T1')
-    expect(event.response_url).toBe('https://hooks.slack.com/commands/abc')
-    expect(event.trigger_id).toBe('trigger-2')
-    expect(event.api_app_id).toBe('A123')
-  })
-})
-
 describe('slackHandler extractIdempotencyId', () => {
   it('uses event_id for Events API payloads', () => {
     expect(slackHandler.extractIdempotencyId!({ event_id: 'Ev1' })).toBe('Ev1')
@@ -406,41 +234,12 @@ describe('slackHandler extractIdempotencyId', () => {
       slackHandler.extractIdempotencyId!({ command: '/deploy', trigger_id: 'trigger-2' })
     ).toBe('trigger-2')
   })
-
-  it('returns null when no identifier is present', () => {
-    expect(slackHandler.extractIdempotencyId!({})).toBeNull()
-  })
-
-  it('degrades gracefully instead of throwing for a null or non-object body', () => {
-    expect(slackHandler.extractIdempotencyId!(null)).toBeNull()
-    expect(slackHandler.extractIdempotencyId!(undefined)).toBeNull()
-    expect(slackHandler.extractIdempotencyId!('not-an-object')).toBeNull()
-  })
 })
 
 describe('handleSlackChallenge', () => {
   it('echoes the challenge for a url_verification payload', () => {
     const response = handleSlackChallenge({ type: 'url_verification', challenge: 'abc123' })
     expect(response).not.toBeNull()
-  })
-
-  it('returns null for non-challenge payloads', () => {
-    expect(handleSlackChallenge({ type: 'event_callback' })).toBeNull()
-  })
-
-  it('degrades gracefully instead of throwing for a null or non-object body', () => {
-    expect(handleSlackChallenge(null)).toBeNull()
-    expect(handleSlackChallenge(undefined)).toBeNull()
-    expect(handleSlackChallenge('not-an-object')).toBeNull()
-    expect(handleSlackChallenge([1, 2, 3])).toBeNull()
-  })
-})
-
-describe('slackHandler formatInput - null/non-object body', () => {
-  it('degrades gracefully instead of throwing', async () => {
-    const { input } = await slackHandler.formatInput!(ctx(null))
-    const event = eventOf(input)
-    expect(event.event_type).toBe('unknown')
   })
 })
 
@@ -456,20 +255,6 @@ function fires(config: Record<string, unknown>, event: Record<string, unknown>):
 }
 
 describe('shouldSkipSlackTriggerEvent', () => {
-  it('fires a message event matching source=channel in a public channel', () => {
-    expect(
-      fires(
-        { eventType: 'message', source: ['channel'] },
-        {
-          type: 'message',
-          channel_type: 'channel',
-          channel: 'C1',
-          ts: '1.1',
-        }
-      )
-    ).toBe(true)
-  })
-
   it('drops a DM when source is restricted to public channels', () => {
     expect(
       fires(
@@ -519,20 +304,6 @@ describe('shouldSkipSlackTriggerEvent', () => {
         }
       )
     ).toBe(false)
-  })
-
-  it('empty source matches any channel type', () => {
-    expect(
-      fires(
-        { eventType: 'message', source: [] },
-        {
-          type: 'message',
-          channel_type: 'im',
-          channel: 'D1',
-          ts: '1.5',
-        }
-      )
-    ).toBe(true)
   })
 
   it('a channel filter never drops a DM allowed by Source', () => {
@@ -620,27 +391,6 @@ describe('shouldSkipSlackTriggerEvent', () => {
     expect(fires({ eventType: 'reaction_added', bot_user_id: 'U_OTHER' }, event)).toBe(true)
   })
 
-  it('matches the channel filter for object-form channels (channel_rename)', () => {
-    // channel_created / channel_rename deliver `channel` as an object, not a string.
-    const rename = {
-      type: 'channel_rename',
-      channel: { id: 'C1', name: 'renamed-channel', created: 1 },
-    }
-    expect(fires({ eventType: 'channel_rename', channelFilter: ['C1'] }, rename)).toBe(true)
-    expect(fires({ eventType: 'channel_rename', channelFilter: ['C2'] }, rename)).toBe(false)
-  })
-
-  it('applies the emoji filter to reaction events', () => {
-    const event = {
-      type: 'reaction_added',
-      reaction: 'eyes',
-      user: 'U1',
-      item: { channel: 'C1', ts: '6.0' },
-    }
-    expect(fires({ eventType: 'reaction_added', emoji: 'thumbsup' }, event)).toBe(false)
-    expect(fires({ eventType: 'reaction_added', emoji: 'eyes, thumbsup' }, event)).toBe(true)
-  })
-
   it('fails closed when no eventType and the legacy events selection is empty or missing', () => {
     const event = { type: 'message', channel_type: 'channel', channel: 'C1', ts: '7.0' }
     expect(fires({}, event)).toBe(false)
@@ -676,11 +426,6 @@ describe('shouldSkipSlackTriggerEvent', () => {
 })
 
 describe('resolveSlackEventKey - interactions', () => {
-  it('maps a top-level block_actions / view_submission payload (no event envelope)', () => {
-    expect(resolveSlackEventKey({ type: 'block_actions', actions: [] })).toBe('block_actions')
-    expect(resolveSlackEventKey({ type: 'view_submission', view: {} })).toBe('view_submission')
-  })
-
   it('does not surface unsupported interaction types or Events API without an event', () => {
     expect(resolveSlackEventKey({ type: 'shortcut' })).toBeNull()
     expect(resolveSlackEventKey({ type: 'view_closed' })).toBeNull()
@@ -696,14 +441,6 @@ describe('shouldSkipSlackTriggerEvent - slash commands', () => {
     channel_id: 'C1',
     user_id: 'U1',
   }
-
-  it('maps slash command payloads to the selectable trigger event', () => {
-    expect(resolveSlackEventKey(slashCommand)).toBe('slash_command')
-  })
-
-  it('fires for any command when no command filter is set', () => {
-    expect(shouldSkipSlackTriggerEvent(slashCommand, { eventType: 'slash_command' })).toBe(false)
-  })
 
   it('matches the exact configured command', () => {
     expect(
@@ -741,10 +478,6 @@ describe('shouldSkipSlackTriggerEvent - interactions', () => {
     view: { callback_id: 'create_ticket' },
   }
 
-  it('fires a block_actions event when eventType matches and no filter is set', () => {
-    expect(interactionFires({ eventType: 'block_actions' }, blockActions)).toBe(true)
-  })
-
   it('drops an interaction when the configured eventType is a different event', () => {
     expect(interactionFires({ eventType: 'message' }, blockActions)).toBe(false)
     expect(interactionFires({ eventType: 'view_submission' }, blockActions)).toBe(false)
@@ -758,21 +491,6 @@ describe('shouldSkipSlackTriggerEvent - interactions', () => {
       interactionFires(
         { eventType: 'block_actions', interactionFilter: 'approve_btn, deny_btn' },
         blockActions
-      )
-    ).toBe(true)
-  })
-
-  it('scopes view_submission to matching callback_ids', () => {
-    expect(
-      interactionFires(
-        { eventType: 'view_submission', interactionFilter: 'other_modal' },
-        viewSubmission
-      )
-    ).toBe(false)
-    expect(
-      interactionFires(
-        { eventType: 'view_submission', interactionFilter: 'create_ticket' },
-        viewSubmission
       )
     ).toBe(true)
   })

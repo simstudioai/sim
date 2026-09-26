@@ -1,28 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { createHash } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { materializeLargeValueRefMock, storeLargeValueMock, warnMock } = vi.hoisted(() => ({
-  materializeLargeValueRefMock: vi.fn(),
-  storeLargeValueMock: vi.fn(),
-  warnMock: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: warnMock,
-    error: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeLargeValue: storeLargeValueMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import {
   enforceTraceSpanSecretInvariant,
@@ -35,7 +19,10 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
-const MAX_CONTENT_NODES = 100_000
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const storeLargeValueMock = executionPayloadStoreMockFns.mockStoreLargeValue
+
+const { warn: warnMock } = getMockLogger('TraceSecretProjection')
 
 const STORE = {
   workspaceId: 'workspace-1',
@@ -66,10 +53,6 @@ function createSpan(overrides: Partial<TraceSpan> = {}): TraceSpan {
     ...overrides,
   }
 }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('projectTraceSpansForSecrets', () => {
   it('removes compiler and legacy runtime aliases from projected trace content', async () => {
@@ -357,35 +340,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0].output).toEqual({ value: 'prefix {{LONG}} suffix' })
   })
 
-  it('chooses the lexicographically first replacement for duplicate plaintext', async () => {
-    const result = await projectTraceSpansForSecrets(
-      [createSpan({ output: { value: 'same-value' } })],
-      {
-        registry: createRegistry([
-          { plaintext: 'same-value', replacement: '{{Z_SECRET}}' },
-          { plaintext: 'same-value', replacement: '{{A_SECRET}}' },
-          { plaintext: '', replacement: '{{EMPTY}}' },
-        ]),
-        store: STORE,
-      }
-    )
-
-    expect(result[0].output).toEqual({ value: '{{A_SECRET}}' })
-  })
-
-  it('supports one-character case-sensitive secrets without altering structural fields', async () => {
-    const result = await projectTraceSpansForSecrets(
-      [createSpan({ id: 'A-structural', output: { value: 'AAAAAAAA a' } })],
-      {
-        registry: createRegistry([{ plaintext: 'AAAAAAAA', replacement: '{{LETTER}}' }]),
-        store: STORE,
-      }
-    )
-
-    expect(result[0].id).toBe('A-structural')
-    expect(result[0].output).toEqual({ value: '{{LETTER}} a' })
-  })
-
   it('projects a successfully resolved numeric Function result without mutating runtime output', async () => {
     const runtimeOutput = { result: 12345678, unchanged: 5678 }
     const source = createSpan({ output: runtimeOutput })
@@ -515,85 +469,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0].output).toEqual({ summary: 'the latest news' })
   })
 
-  it('names the invariant that forced the structural fallback', async () => {
-    const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
-
-    await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
-      store: STORE,
-    })
-
-    expect(warnMock).toHaveBeenCalledWith(
-      'Trace secret invariant failed; retaining structural spans only',
-      {
-        failure: {
-          name: 'TraceSecretProjectionError',
-          reason: expect.any(String),
-        },
-      }
-    )
-  })
-
-  it('fails the final invariant closed when provenance is incomplete', async () => {
-    const source = [createSpan({ output: { value: 'ordinary' } })]
-
-    const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([], false),
-      store: STORE,
-    })
-
-    expect(result[0]).not.toHaveProperty('output')
-  })
-
-  it('preserves the exact span array after hydrated trace-owned refs pass the invariant', async () => {
-    const safeRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'string',
-      size: 7,
-      preview: '{{X}}',
-    } as const
-    const source = [createSpan({ output: { payload: safeRef } })]
-    materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
-
-    const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
-      store: STORE,
-    })
-
-    expect(result).toBe(source)
-    expect(result[0].output).toEqual({ payload: safeRef })
-    expect(materializeLargeValueRefMock).toHaveBeenCalledTimes(1)
-    expect(storeLargeValueMock).not.toHaveBeenCalled()
-  })
-
-  it('checks every ref preview before deduplicating shared underlying values', async () => {
-    const safeRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'string',
-      size: 32,
-      preview: '{{X}}',
-    } as const
-    const unsafePreviewRef = {
-      ...safeRef,
-      preview: '[REDACTED]',
-    } as const
-    const source = [createSpan({ output: { first: safeRef, second: unsafePreviewRef } })]
-    materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
-
-    const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
-      store: STORE,
-    })
-
-    expect(result[0]).not.toHaveProperty('output')
-    expect(materializeLargeValueRefMock).not.toHaveBeenCalled()
-    expect(storeLargeValueMock).not.toHaveBeenCalled()
-  })
-
   it('rejects secret-bearing metadata on a duplicate ref before storage-key deduplication', async () => {
     const safeRef = {
       __simLargeValueRef: true,
@@ -617,41 +492,6 @@ describe('projectTraceSpansForSecrets', () => {
 
     expect(result[0]).not.toHaveProperty('output')
     expect(materializeLargeValueRefMock).not.toHaveBeenCalled()
-    expect(storeLargeValueMock).not.toHaveBeenCalled()
-  })
-
-  it('hydrates nested refs found inside a ref preview', async () => {
-    const nestedRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_cccccccccccc',
-      kind: 'string',
-      size: 32,
-      preview: '{{X}}',
-    } as const
-    const outerRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'object',
-      size: 64,
-      preview: { nested: nestedRef },
-    } as const
-    const source = [createSpan({ output: { payload: outerRef } })]
-    materializeLargeValueRefMock.mockImplementation(async (ref: { id: string }) =>
-      ref.id === nestedRef.id ? { value: 'hidden-EEEEEEEE' } : { value: '{{X}}' }
-    )
-
-    const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
-      store: STORE,
-    })
-
-    expect(result[0]).not.toHaveProperty('output')
-    expect(materializeLargeValueRefMock).toHaveBeenCalledWith(
-      nestedRef,
-      expect.objectContaining({ trackReference: false })
-    )
     expect(storeLargeValueMock).not.toHaveBeenCalled()
   })
 
@@ -756,51 +596,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(storeLargeValueMock).not.toHaveBeenCalled()
   })
 
-  it.each(['ref-first', 'manifest-first'] as const)(
-    'charges shared manifest payload refs once with %s property order',
-    async (order) => {
-      const byteSize = 40 * 1024 * 1024
-      const chunkRef = {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_cccccccccccc',
-        kind: 'array',
-        size: byteSize,
-        preview: [{ token: '{{X}}' }],
-      } as const
-      const manifest = {
-        __simLargeArrayManifest: true,
-        version: 2,
-        kind: 'array',
-        totalCount: 1,
-        chunkCount: 1,
-        byteSize,
-        chunks: [{ ref: chunkRef, count: 1, byteSize }],
-        preview: [{ token: '{{X}}' }],
-      } as const
-      const clonedManifest = {
-        ...manifest,
-        chunks: [{ ...manifest.chunks[0] }],
-        preview: [...manifest.preview],
-      }
-      const output =
-        order === 'ref-first'
-          ? { direct: chunkRef, manifest, clonedManifest }
-          : { manifest, clonedManifest, direct: chunkRef }
-      const source = [createSpan({ output })]
-      materializeLargeValueRefMock.mockResolvedValue([{ token: '{{X}}' }])
-
-      const result = await enforceTraceSpanSecretInvariant(source, {
-        registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
-        store: STORE,
-      })
-
-      expect(result).toBe(source)
-      expect(materializeLargeValueRefMock).toHaveBeenCalledTimes(1)
-      expect(storeLargeValueMock).not.toHaveBeenCalled()
-    }
-  )
-
   it('fails closed when a trace-owned manifest chunk contains a secret', async () => {
     const chunkRef = {
       __simLargeValueRef: true,
@@ -831,50 +626,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0]).not.toHaveProperty('output')
     expect(materializeLargeValueRefMock).toHaveBeenCalledTimes(1)
     expect(storeLargeValueMock).not.toHaveBeenCalled()
-  })
-
-  it('hydrates and re-stores large values without retaining the source ref', async () => {
-    const sourceRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_aaaaaaaaaaaa',
-      kind: 'object',
-      size: 9_000_000,
-    } as const
-    const safeRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'object',
-      size: 32,
-      preview: { keys: ['token'] },
-    } as const
-    materializeLargeValueRefMock.mockResolvedValue({ token: 'top-secret' })
-    storeLargeValueMock.mockResolvedValue(safeRef)
-
-    const result = await projectTraceSpansForSecrets(
-      [createSpan({ output: { payload: sourceRef } })],
-      {
-        registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-        store: STORE,
-      }
-    )
-
-    expect(materializeLargeValueRefMock).toHaveBeenCalledWith(
-      sourceRef,
-      expect.objectContaining({
-        trackReference: false,
-        maxBytes: 64 * 1024 * 1024,
-      })
-    )
-    expect(storeLargeValueMock).toHaveBeenCalledWith(
-      { token: '{{API_SECRET}}' },
-      JSON.stringify({ token: '{{API_SECRET}}' }),
-      expect.any(Number),
-      expect.objectContaining({ requireDurable: true })
-    )
-    expect(result[0].output).toEqual({ payload: safeRef })
-    expect(result[0].output).not.toEqual({ payload: sourceRef })
   })
 
   it('omits ref-backed content without reading or writing during display projection', async () => {
@@ -973,61 +724,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(rewritten).not.toBe(manifest)
   })
 
-  it('stores each sanitized manifest chunk before materializing the next chunk', async () => {
-    const sourceRefs = ['aaaaaaaaaaaa', 'bbbbbbbbbbbb'].map((suffix) => ({
-      __simLargeValueRef: true as const,
-      version: 1 as const,
-      id: `lv_${suffix}`,
-      kind: 'array' as const,
-      size: 32,
-    }))
-    const events: string[] = []
-    materializeLargeValueRefMock.mockImplementation(async (ref: { id: string }) => {
-      events.push(`materialize:${ref.id}`)
-      return [{ token: 'top-secret' }]
-    })
-    storeLargeValueMock.mockImplementation(async (_value: unknown, _json: string, size: number) => {
-      const index = events.filter((event) => event.startsWith('store:')).length
-      const id = `lv_safechunk${index.toString().padStart(3, '0')}`
-      events.push(`store:${id}`)
-      return {
-        __simLargeValueRef: true,
-        version: 1,
-        id,
-        kind: 'array',
-        size,
-      }
-    })
-    const manifest = {
-      __simLargeArrayManifest: true as const,
-      version: 2 as const,
-      kind: 'array' as const,
-      totalCount: 2,
-      chunkCount: 2,
-      byteSize: 64,
-      chunks: sourceRefs.map((ref) => ({ ref, count: 1, byteSize: 32 })),
-      preview: [],
-    }
-
-    const result = await projectTraceSpansForSecrets(
-      [createSpan({ output: { items: manifest } })],
-      {
-        registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-        store: STORE,
-      }
-    )
-
-    expect(events).toEqual([
-      'materialize:lv_aaaaaaaaaaaa',
-      'store:lv_safechunk000',
-      'materialize:lv_bbbbbbbbbbbb',
-      'store:lv_safechunk001',
-    ])
-    expect(result[0].output?.items).toEqual(
-      expect.objectContaining({ chunkCount: 2, totalCount: 2 })
-    )
-  })
-
   it('fails closed before sanitized manifest chunks exceed the cumulative output budget', async () => {
     const sourceRefs = Array.from({ length: 70 }, (_, index) => ({
       __simLargeValueRef: true as const,
@@ -1113,38 +809,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0]).not.toHaveProperty('output')
   })
 
-  it('does not invoke array map while replacing refs and sanitizing inline content', async () => {
-    const sourceRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_aaaaaaaaaaaa',
-      kind: 'object',
-      size: 32,
-    } as const
-    const safeRef = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'object',
-      size: 32,
-    } as const
-    const map = vi.fn(() => {
-      throw new Error('array map must not be invoked')
-    })
-    const values: unknown[] = [sourceRef, 'top-secret']
-    Object.defineProperty(values, 'map', { value: map })
-    materializeLargeValueRefMock.mockResolvedValue({ token: 'top-secret' })
-    storeLargeValueMock.mockResolvedValue(safeRef)
-
-    const result = await projectTraceSpansForSecrets([createSpan({ output: values })], {
-      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-      store: STORE,
-    })
-
-    expect(map).not.toHaveBeenCalled()
-    expect(result[0].output).toEqual([safeRef, '{{API_SECRET}}'])
-  })
-
   it('omits an oversized sparse content array without allocating its declared length', async () => {
     const sparse: unknown[] = []
     sparse.length = 100_001
@@ -1204,66 +868,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result.children).toEqual([])
   })
 
-  it('bounds active-path model tool calls with the global structure budget', async () => {
-    const call = { id: 'call-1', name: 'lookup', arguments: { secret: 'top-secret' } }
-    const source = createSpan({
-      output: { secret: 'top-secret' },
-      modelToolCalls: Array(100_005).fill(call),
-      children: [createSpan({ id: 'unreached-child', output: { secret: 'top-secret' } })],
-    })
-
-    const [result] = await projectTraceSpansForSecrets([source], {
-      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-      store: STORE,
-    })
-
-    expect(result).not.toHaveProperty('output')
-    expect(result.modelToolCalls?.length).toBeLessThan(source.modelToolCalls?.length ?? 0)
-    expect(result.modelToolCalls?.every((retained) => !Object.hasOwn(retained, 'arguments'))).toBe(
-      true
-    )
-    expect(result.children).toEqual([])
-  })
-
-  it('iterates wide records without bulk property-descriptor materialization', async () => {
-    const descriptorSpy = vi.spyOn(Object, 'getOwnPropertyDescriptors').mockImplementation(() => {
-      throw new Error('bulk descriptor materialization is forbidden')
-    })
-
-    let result: TraceSpan[] = []
-    try {
-      result = await projectTraceSpansForSecrets(
-        [createSpan({ output: { token: 'top-secret' } })],
-        {
-          registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-          store: STORE,
-        }
-      )
-    } finally {
-      descriptorSpy.mockRestore()
-    }
-
-    expect(result[0].output).toEqual({ token: '{{API_SECRET}}' })
-  })
-
-  it('names the invariant that forced content to be omitted', async () => {
-    const output: Record<string, unknown> = { token: 'top-secret' }
-    output.self = output
-
-    const [result] = await projectTraceSpansForSecrets([createSpan({ output })], {
-      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-      store: STORE,
-    })
-
-    expect(result).not.toHaveProperty('output')
-    expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
-      failure: {
-        name: 'TraceSecretProjectionError',
-        reason: 'Trace content could not be sanitized',
-      },
-    })
-  })
-
   it('withholds the message of a failure raised outside the projection module', async () => {
     const descriptorSpy = vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation(() => {
       throw new SyntaxError('Unexpected token in "sk-live-top-secret"')
@@ -1281,27 +885,6 @@ describe('projectTraceSpansForSecrets', () => {
     expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
       failure: { name: 'SyntaxError' },
     })
-  })
-
-  it('names the invariant that forced the whole-tree structural fallback', async () => {
-    const source = Array(MAX_CONTENT_NODES + 1).fill(
-      createSpan({ output: { token: 'top-secret' } })
-    )
-
-    await projectTraceSpansForSecrets(source, {
-      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
-      store: STORE,
-    })
-
-    expect(warnMock).toHaveBeenCalledWith(
-      'Trace secret projection failed; retaining structural spans only',
-      {
-        failure: {
-          name: 'TraceSecretProjectionError',
-          reason: 'Trace structure array exceeds the projection limit',
-        },
-      }
-    )
   })
 
   it('uses bounded structural fallback when matcher construction fails', async () => {

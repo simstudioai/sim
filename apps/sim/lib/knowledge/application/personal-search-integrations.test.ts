@@ -1,62 +1,64 @@
-/** @vitest-environment node */
 import { user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  simSearchConnectorsMock,
+  simSearchConnectorsMockFns,
+} from '@sim/testing/mocks/sim-search-connectors.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
-  authorize: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   sources: vi.fn(),
   configuredTypes: vi.fn(),
-  approvals: vi.fn(),
-  availability: vi.fn(),
-  group: vi.fn(),
   accounts: vi.fn(),
-  scoped: vi.fn(),
   completion: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/service', () => ({ getOrganizationAccountsGroup: m.group }))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/viewer-accounts', () => ({
-  listViewerOrganizationAccounts: m.accounts,
+  listViewerOrganizationAccounts: hoisted.accounts,
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: m.scoped,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
-  readSearchConnectionCompletion: m.completion,
+  readSearchConnectionCompletion: hoisted.completion,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.authorize,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
-  listSearchSources: { execute: m.sources },
+  listSearchSources: { execute: hoisted.sources },
 }))
 vi.mock('@/lib/knowledge/application/search-source-overview', () => ({
-  listConfiguredSearchProviderTypes: m.configuredTypes,
+  listConfiguredSearchProviderTypes: hoisted.configuredTypes,
 }))
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  listOrganizationSearchApprovals: m.approvals,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: async () => ({ memberScoped: true, sourceMirrored: true }),
-}))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  getIntegrationAvailability: () => [],
-  isOAuthServiceDeploymentAvailable: () => true,
-}))
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_CONNECTORS: ['gmail', 'slack', 'notion'].map((type) => ({
     type,
     providerId: type === 'gmail' ? 'google-email' : type,
     meta: { name: type },
     setupFields: [],
   })),
-  getConnectorAccessAvailability: m.availability,
 }))
 
 import { personalSearchIntegrationPageSchema } from '@/lib/api/contracts/knowledge/personal-integrations'
@@ -65,7 +67,18 @@ import {
   resolvePersonalSearchConnection,
 } from '@/lib/knowledge/application/personal-search-integrations'
 
-const principal = { kind: 'session', userId: 'person', sessionId: 'session' } as const
+const m = {
+  ...hoisted,
+  group: credentialGroupsServiceMockFns.mockGetOrganizationAccountsGroup,
+  scoped: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
+
+const mockListOrganizationSearchApprovals =
+  knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals
+const mockGetConnectorAccessAvailability =
+  simSearchConnectorsMockFns.mockGetConnectorAccessAvailability
+
+const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
 const input = { organizationId: 'org' }
 const target = {
   type: 'link',
@@ -90,7 +103,6 @@ const source = {
   hasViewerDocuments: false,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   resetEnvFlagsMock()
   m.scoped.mockResolvedValue(true)
@@ -104,18 +116,20 @@ beforeEach(() => {
   m.accounts.mockResolvedValue([])
   m.completion.mockResolvedValue(null)
   queueTableRows(user, [{ emailVerified: true }])
-  m.authorize.mockResolvedValue(undefined)
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue(undefined)
   m.sources.mockResolvedValue({ sources: [source], nextCursor: null })
   m.configuredTypes.mockResolvedValue(['gmail'])
-  m.approvals.mockResolvedValue(
+  mockListOrganizationSearchApprovals.mockResolvedValue(
     new Map([
       ['gmail', true],
       ['slack', true],
     ])
   )
-  m.availability.mockReturnValue({ members: true })
+  mockGetConnectorAccessAvailability.mockReturnValue({ members: true })
 })
 describe('personal Search inventory', () => {
+  beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: false }))
+
   it.each([
     [{}, 'connected', 'not_indexed'],
     [{ isSyncing: true }, 'connected', 'indexing'],
@@ -169,7 +183,9 @@ describe('personal Search inventory', () => {
     expect(m.sources).toHaveBeenCalledWith({ principal, input: filtered })
   })
   it('rechecks authorization before every read and returns nothing after membership is revoked', async () => {
-    m.authorize.mockRejectedValue(new Error('Membership revoked'))
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
+      new Error('Membership revoked')
+    )
     await expect(listPersonalSearchIntegrations.execute({ principal, input })).rejects.toThrow(
       'Membership revoked'
     )
@@ -326,7 +342,7 @@ describe('live Search connection controls', () => {
             },
           ],
         })
-      if (state === 'unapproved') m.approvals.mockResolvedValue(new Map())
+      if (state === 'unapproved') mockListOrganizationSearchApprovals.mockResolvedValue(new Map())
       if (state === 'missing') m.group.mockResolvedValue(null)
       if (state === 'unverified') {
         resetDbChainMock()

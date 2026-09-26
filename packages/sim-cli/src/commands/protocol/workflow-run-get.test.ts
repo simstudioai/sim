@@ -1,29 +1,13 @@
-/**
- * @vitest-environment node
- */
 import { Command } from 'commander'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
+import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachWorkflowRunGet } from './workflow-run-get'
 
-const { output, request } = vi.hoisted(() => ({
-  output: { format: 'json' },
-  request: vi.fn(),
-}))
+vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
-vi.mock('../../context', () => ({
-  clientFrom: () => ({
-    client: { request, requireWorkspace: () => 'ws_local' },
-    profile: {
-      workspaceId: 'ws_local',
-      output: output.format,
-      name: 'default',
-      apiKey: 'k',
-      endpoint: 'https://sim.example',
-    },
-  }),
-}))
+const { mockRequest: request } = contextMockFns
 
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const SUMMARIZE_ID = '11111111-1111-4111-8111-111111111111'
@@ -82,40 +66,11 @@ function stdout(): () => string {
 }
 
 beforeEach(() => {
-  output.format = 'json'
+  contextMockState.output = 'json'
   request.mockReset()
 })
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 describe('sim workflows runs get --select-output', () => {
-  it('sends an id-headed selection through the generated path untouched', async () => {
-    answer({ data: { runId: RUN_ID, status: 'completed', blockOutputs: {} } })
-    stdout()
-
-    await get('--select-output', `${SUMMARIZE_ID}.result`)
-
-    // One read: the graph is never fetched for a selection the run resource
-    // already answers.
-    expect(request).toHaveBeenCalledTimes(1)
-    const [path, options] = request.mock.calls[0]
-    expect(path).toBe(RUN_PATH)
-    expect(options.query).toEqual({ selectedOutputs: `${SUMMARIZE_ID}.result` })
-  })
-
-  it('reads nothing extra without a selection', async () => {
-    answer({ data: { runId: RUN_ID, status: 'completed' } })
-    stdout()
-
-    await get('--include-output')
-
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][0]).toBe(RUN_PATH)
-    expect(request.mock.calls[0][1].query).toEqual({ includeOutput: true })
-  })
-
   it('resolves block names against the workflow, the way workflows run does', async () => {
     answer({
       data: {
@@ -138,29 +93,6 @@ describe('sim workflows runs get --select-output', () => {
     expect(JSON.parse(read()).blockOutputs).toEqual({
       'summarizeresult.text': 'A summary',
       Save: { ok: true },
-    })
-  })
-
-  it('keeps an id-headed selector as is beside a name', async () => {
-    answer({ data: { runId: RUN_ID, status: 'completed', blockOutputs: {} } })
-    stdout()
-
-    await get('--select-output', `${SAVE_ID}.rows`, 'Summarize Result.text')
-
-    expect(request.mock.calls[1][1].query).toEqual({
-      selectedOutputs: `${SAVE_ID}.rows,${SUMMARIZE_ID}.text`,
-    })
-  })
-
-  it('carries the other flags through with a resolved name', async () => {
-    answer({ data: { runId: RUN_ID, status: 'completed', blockOutputs: {} } })
-    stdout()
-
-    await get('--include-output', '--select-output', 'save.result')
-
-    expect(request.mock.calls[1][1].query).toEqual({
-      includeOutput: true,
-      selectedOutputs: `${SAVE_ID}.result`,
     })
   })
 

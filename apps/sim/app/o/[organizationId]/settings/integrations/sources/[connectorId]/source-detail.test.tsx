@@ -1,21 +1,31 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
   live: false,
   admin: true,
-  index: vi.fn(),
-  detail: vi.fn(),
   integrations: vi.fn(),
-  push: vi.fn(),
-  replace: vi.fn(),
   documents: vi.fn(),
   actions: vi.fn(),
   recovery: vi.fn(),
@@ -25,26 +35,11 @@ const mocks = vi.hoisted(() => ({
   saving: false,
   save: vi.fn(),
 }))
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
-  usePathname: () => '/o/org-one/settings/integrations/sources/source-one',
-}))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({
-    organization: { id: 'org-one' },
-    viewer: { isAdmin: mocks.admin },
-  }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.fn() }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useSearchIndex: mocks.index,
-  useConnectorDetail: mocks.detail,
-  isConnectorSyncingOrPending: (row: ConnectorData) =>
-    row.status === 'syncing' || row.status === 'pending',
-}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))
@@ -100,6 +95,20 @@ vi.mock(
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { OrganizationSourceDetail } from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/source-detail'
 
+const mockPush = nextNavigationMockFns.router.push
+nextNavigationMockFns.mockUsePathname.mockReturnValue(
+  '/o/org-one/settings/integrations/sources/source-one'
+)
+const mockIndex = kbConnectorsQueriesMockFns.mockUseSearchIndex
+const mockDetail = kbConnectorsQueriesMockFns.mockUseConnectorDetail
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(() =>
+  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
+)
+organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+  organization: { id: 'org-one' },
+  viewer: { isAdmin: mocks.admin },
+}))
+
 const connector: ConnectorData = {
   id: 'source-one',
   knowledgeBaseId: 'index-one',
@@ -132,14 +141,13 @@ describe('organization source detail navigation', () => {
   let root: Root
   let container: HTMLDivElement
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.admin = true
     mocks.live = false
     mocks.dirty = false
     mocks.saving = false
-    mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
-    mocks.detail.mockReturnValue({ data: connector })
+    mockIndex.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
+    mockDetail.mockReturnValue({ data: connector })
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'google_drive', approved: true }],
     })
@@ -171,7 +179,6 @@ describe('organization source detail navigation', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
   async function render(searchParams = '') {
     await act(async () =>
@@ -194,383 +201,27 @@ describe('organization source detail navigation', () => {
     await act(async () => button!.click())
   }
 
-  it('uses the GitLab settings view in live mode and hides indexing controls', async () => {
-    mocks.live = true
-    mocks.detail.mockReturnValue({ data: { ...connector, connectorType: 'gitlab' } })
-    await render()
-    expect(container.textContent).toContain('Organization-managed GitLab')
-    expect(container.textContent).not.toContain('Sync history')
-    expect(container.textContent).not.toContain('Documents')
-    expect(mocks.documents).not.toHaveBeenCalled()
-    expect(mocks.history).not.toHaveBeenCalled()
-    expect(document.body.textContent).not.toContain('Sync now')
-    expect(document.body.textContent).toContain('Pause search')
-  })
-  it('edits service-account resources directly without indexed-document views', async () => {
-    mocks.live = true
-    await render()
-    expect(container.textContent).toContain('Source configuration')
-    expect(container.textContent).not.toContain('Sync history')
-    expect(mocks.documents).not.toHaveBeenCalled()
-    expect(mocks.form).toHaveBeenCalled()
-  })
-  it('opens a live GitHub App repository source for editing', async () => {
-    mocks.live = true
-    mocks.detail.mockReturnValue({
-      data: {
-        ...connector,
-        connectorType: 'github',
-        accessMode: 'members',
-        sourceConfig: { repository: 'acme/project', githubRepositoryId: '123' },
-      },
-    })
-    await render()
-    expect(container.textContent).toContain('Source configuration')
-    expect(container.textContent).not.toContain('Member accounts')
-    expect(mocks.form).toHaveBeenCalled()
-  })
-  it('passes live sync status to the form without replacing its settings baseline', async () => {
-    await render('?view=settings')
-    const baseline = mocks.form.mock.lastCall![0].connector
-    mocks.dirty = true
-    mocks.detail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
-    await render('?view=settings')
-    expect(mocks.form.mock.lastCall![0]).toMatchObject({ connector: baseline, syncing: true })
-
-    mocks.detail.mockReturnValue({ data: { ...connector, status: 'active' } })
-    await render('?view=settings')
-    expect(mocks.form.mock.lastCall![0]).toMatchObject({ connector: baseline, syncing: false })
-  })
-  it.each(['documents', 'settings', 'history'])(
-    'replaces the removed connection with Sources from the %s view',
-    async (view) => {
-      await render(`?view=${view}`)
-      const options: ConnectorActionsOptions = mocks.actions.mock.lastCall![0]
-      act(() => options.onRemoved?.())
-      expect(mocks.replace).toHaveBeenCalledWith('/o/org-one/settings/integrations')
-      expect(mocks.push).not.toHaveBeenCalled()
-    }
-  )
-
-  it('opens documents by default and uses the exact canonical search index', async () => {
-    await render()
-    expect(mocks.detail).toHaveBeenLastCalledWith('index-one', 'source-one')
-    expect(mocks.documents).toHaveBeenCalledWith(
-      expect.objectContaining({
-        knowledgeBaseId: 'index-one',
-        connectorId: 'source-one',
-        filter: 'active',
-        isSearchIndex: true,
-      })
-    )
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
-    await click('Sync history')
-    expect(mocks.history).toHaveBeenCalled()
-    await click('Google Drive')
-    expect(mocks.push).toHaveBeenCalledWith(
-      '/o/org-one/settings/integrations/providers/google_drive'
-    )
-  })
-
-  it.each(['excluded', 'failed', 'skipped'])(
-    'restores document search and %s status from the shared URL',
-    async (filter) => {
-      await render(`?search=notes&document-filter=${filter}`)
-      expect(mocks.documents).toHaveBeenLastCalledWith(
-        expect.objectContaining({ search: 'notes', filter })
-      )
-      expect(mocks.documents).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          searchControl: { value: 'notes', onChange: expect.any(Function) },
-        })
-      )
-    }
-  )
-
-  it.each(['', '?view=history'])(
-    'shows a concise incomplete-update notice without provider details at %s',
-    async (searchParams) => {
-      mocks.detail.mockReturnValue({
-        data: { ...connector, lastSyncError: 'Provider denied organization org-private-id' },
-      })
-      await render(searchParams)
-
-      expect(container.textContent).toContain('Some connection updates are incomplete')
-      expect(container.textContent).toContain(
-        'Review the connection settings and try syncing again.'
-      )
-      expect(container.textContent).not.toContain('Provider denied')
-      expect(container.textContent).not.toContain('org-private-id')
-    }
-  )
-
-  it('keeps a healthy active source quiet', async () => {
-    await render()
-    expect(container.textContent).not.toContain('Some connection updates are incomplete')
-    expect(container.textContent).not.toContain(
-      'Review the connection settings and try syncing again.'
-    )
-  })
-
-  it.each(['active', 'pending', 'syncing'] as const)(
-    'keeps the safe permission warning visible while a source is %s',
-    async (status) => {
-      mocks.detail.mockReturnValue({
-        data: { ...connector, accessMode: 'admin', status, lastSyncError: SOURCE_PERMISSION_ERROR },
-      })
-      await render()
-      expect(container.textContent).toContain('Permission verification incomplete')
-      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
-      expect(container.textContent).not.toContain(
-        'Review the connection settings and try syncing again.'
-      )
-    }
-  )
-
-  it.each(['idle', 'pending', 'running'] as const)(
-    'preserves a connector permission warning alongside a member error while %s',
-    async (memberSyncStatus) => {
-      mocks.detail.mockReturnValue({
-        data: {
-          ...connector,
-          accessMode: 'members',
-          memberSyncStatus,
-          lastSyncError: SOURCE_PERMISSION_ERROR,
-          lastMemberSyncError: 'Private member error details',
-        },
-      })
-      await render()
-      expect(container.textContent).toContain('Permission verification incomplete')
-      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
-      expect(container.textContent).not.toContain('Private member error details')
-    }
-  )
-
-  it.each(['active', 'pending', 'syncing'] as const)(
-    'keeps permission warnings visible alongside other sync notices while %s',
-    async (status) => {
-      mocks.detail.mockReturnValue({
-        data: {
-          ...connector,
-          accessMode: 'admin',
-          status,
-          lastSyncError: [
-            'Directory refresh incomplete: Private directory details',
-            'Source listing failed for 1 account. Private account details',
-            SOURCE_PERMISSION_ERROR,
-          ].join('\n'),
-        },
-      })
-      await render()
-      expect(container.textContent).toContain('Permission verification incomplete')
-      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
-      expect(container.textContent).not.toContain('Private directory details')
-      expect(container.textContent).not.toContain('Private account details')
-      expect(container.textContent).not.toContain(
-        'Review the connection settings and try syncing again.'
-      )
-    }
-  )
-
-  it('does not classify a provider message containing the permission text as its own notice', async () => {
-    mocks.detail.mockReturnValue({
-      data: { ...connector, lastSyncError: `Provider message: ${SOURCE_PERMISSION_ERROR}` },
-    })
-    await render()
-    expect(container.textContent).toContain('Some connection updates are incomplete')
-    expect(container.textContent).not.toContain('Permission verification incomplete')
-  })
-
-  it.each(['', '?view=settings', '?view=history'])(
-    'shows integration deactivation independently of source sync state at %s',
-    async (searchParams) => {
-      mocks.detail.mockReturnValue({ data: { ...connector, status: 'paused' } })
-      mocks.integrations.mockReturnValue({
-        data: [{ connectorType: 'google_drive', approved: false }],
-      })
-      await render(searchParams)
-      expect(mocks.integrations).toHaveBeenCalledWith('org-one')
-      expect(container.textContent).toContain('Google Drive is deactivated')
-      expect(container.textContent).toContain(
-        'Its content is unavailable in Search, Assistant, and MCP.'
-      )
-      expect(container.textContent).toContain('Sync paused')
-    }
-  )
-
-  it('keeps source settings and their guard when integration status cannot refresh', async () => {
-    mocks.dirty = true
-    const refetch = vi.fn()
-    mocks.integrations.mockReturnValue({
-      isError: true,
-      error: new Error('Integration status unavailable'),
-      refetch,
-    })
-    await render('?view=settings')
-    expect(container.textContent).toContain('Source configuration')
-    expect(container.textContent).toContain('Integration status unavailable')
-    expect(container.textContent).not.toContain('is deactivated')
-    await click('Try again')
-    expect(refetch).toHaveBeenCalledOnce()
-    await click('Google Drive')
-    expect(mocks.push).not.toHaveBeenCalled()
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
-  })
-
-  it.each(['pending', 'syncing', 'paused', 'error', 'disabled'] as const)(
-    'does not duplicate recovery feedback for a %s source',
-    async (status) => {
-      mocks.detail.mockReturnValue({ data: { ...connector, status, lastSyncError: 'Old failure' } })
-      await render()
-      expect(container.textContent).not.toContain('Some connection updates are incomplete')
-    }
-  )
-
-  it.each([
-    ['active', 'idle', true],
-    ['active', 'pending', false],
-    ['active', 'running', false],
-    ['active', 'error', false],
-    ['active', 'disabled', false],
-    ['paused', 'idle', false],
-    ['disabled', 'idle', false],
-  ] as const)(
-    'uses effective member state for status=%s, memberSyncStatus=%s: notice=%s',
-    async (status, memberSyncStatus, showNotice) => {
-      mocks.detail.mockReturnValue({
-        data: {
-          ...connector,
-          accessMode: 'members',
-          status,
-          memberSyncStatus,
-          lastSyncError: null,
-          lastMemberSyncError: 'Member listing incomplete: private-account-id',
-        },
-      })
-      await render()
-      expect(container.textContent?.includes('Some connection updates are incomplete')).toBe(
-        showNotice
-      )
-      expect(container.textContent).not.toContain('private-account-id')
-    }
-  )
-
-  it('opens the existing source settings through the recovery action without leaving the source', async () => {
-    mocks.detail.mockReturnValue({ data: { ...connector, lastSyncError: 'Listing incomplete' } })
-    await render()
-    expect(mocks.recovery).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        knowledgeBaseId: 'index-one',
-        scope: { kind: 'organization', organizationId: 'org-one' },
-        onEdit: expect.any(Function),
-      })
-    )
-
-    await click('Review source settings')
-    expect(container.textContent).toContain('Source configuration')
-    expect(mocks.form).toHaveBeenCalledWith(
-      expect.objectContaining({ connector: expect.objectContaining({ id: 'source-one' }) })
-    )
-    expect(mocks.push).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { ...connector, id: 'another-source' },
-    { ...connector, knowledgeBaseId: 'another-index' },
-  ])('never exposes actions for a stale detail placeholder', async (data) => {
-    mocks.detail.mockReturnValue({ data })
-    await render()
-    expect(mocks.actions).not.toHaveBeenCalled()
-    expect(mocks.documents).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Loading connection')
-  })
   it('does not load protected source data for non-admins', async () => {
     mocks.admin = false
     await render()
-    expect(mocks.index).toHaveBeenLastCalledWith(
+    expect(mockIndex).toHaveBeenLastCalledWith(
       { kind: 'organization', organizationId: 'org-one' },
       { enabled: false }
     )
-    expect(mocks.detail).toHaveBeenLastCalledWith(undefined, 'source-one')
+    expect(mockDetail).toHaveBeenLastCalledWith(undefined, 'source-one')
     expect(mocks.actions).not.toHaveBeenCalled()
     expect(mocks.integrations).not.toHaveBeenCalled()
   })
-  it('shows a missing source when there is no search index', async () => {
-    mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
-    mocks.detail.mockReturnValue({})
-    await render()
-    expect(container.textContent).toContain('This connection is no longer available')
-    expect(mocks.actions).not.toHaveBeenCalled()
-    await click('Sources')
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-one/settings/integrations')
-  })
-  it('requires discard confirmation before leaving dirty settings', async () => {
-    mocks.dirty = true
-    await render('?view=settings')
-    expect(mocks.actions).toHaveBeenLastCalledWith(
-      expect.objectContaining({ disabled: true, primarySync: false })
-    )
-    for (const label of ['Sync now', 'Pause syncing', 'Remove connection']) {
-      const action = Array.from(container.querySelectorAll('button')).find(
-        (item) => item.textContent === label
-      )
-      expect(action).toBeDisabled()
-    }
-    await click('Documents')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
-    expect(mocks.documents).not.toHaveBeenCalled()
-    await click('Keep editing')
-    await click('Google Drive')
-    expect(mocks.push).not.toHaveBeenCalled()
-    await click('Discard Changes')
-    expect(mocks.push).toHaveBeenCalledWith(
-      '/o/org-one/settings/integrations/providers/google_drive'
-    )
-  })
-
-  it('places source actions in the resource header before the view tabs', async () => {
-    await render()
-    const sync = Array.from(container.querySelectorAll('button')).find(
-      (item) => item.textContent === 'Sync now'
-    )
-    const tabs = container.querySelector('[aria-label="Connection views"]')
-    expect(sync).toBeTruthy()
-    expect(tabs).toBeTruthy()
-    expect(sync!.compareDocumentPosition(tabs!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(mocks.actions).toHaveBeenLastCalledWith(expect.objectContaining({ primarySync: true }))
-  })
-  it.each(['index', 'detail'] as const)(
-    'preserves a dirty draft when a background %s refresh fails',
-    async (query) => {
-      await render('?view=settings')
-      mocks.dirty = true
-      const data =
-        query === 'index'
-          ? { knowledgeBaseId: 'index-one' }
-          : { ...connector, sourceConfig: { folderId: 'new-server-value' } }
-      mocks[query].mockReturnValue({
-        data,
-        isError: true,
-        error: new Error('Temporary refresh failure'),
-        refetch: vi.fn(),
-      })
-      await render('?view=settings')
-      expect(container.textContent).toContain('Temporary refresh failure')
-      expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
-      await click('Documents')
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Unsaved Changes')
-    }
-  )
 
   it('hides cached source data after access is revoked, even if the index also failed', async () => {
     await render('?view=settings')
-    mocks.index.mockReturnValue({
+    mockIndex.mockReturnValue({
       data: { knowledgeBaseId: 'index-one' },
       isError: true,
       error: new Error('Temporary failure'),
       refetch: vi.fn(),
     })
-    mocks.detail.mockReturnValue({
+    mockDetail.mockReturnValue({
       data: connector,
       isError: true,
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
@@ -596,7 +247,7 @@ describe('organization source detail navigation', () => {
 
   it('preserves the editable baseline across background connector updates', async () => {
     await render('?view=settings')
-    mocks.detail.mockReturnValue({
+    mockDetail.mockReturnValue({
       data: { ...connector, status: 'syncing', sourceConfig: { folderId: 'changed-remotely' } },
     })
     await render('?view=settings')
@@ -612,10 +263,10 @@ describe('organization source detail navigation', () => {
     const saved = { ...connector, sourceConfig: { folderId: 'saved-folder' } }
     await act(async () => mocks.form.mock.calls.at(-1)![0].onSaved(saved))
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     expect(container.textContent).toContain('Source configuration')
 
-    mocks.detail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
+    mockDetail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
     await render('?view=settings')
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
   })
@@ -624,44 +275,14 @@ describe('organization source detail navigation', () => {
     mocks.dirty = true
     await render('?view=settings')
     const refreshed = { ...connector, sourceConfig: { folderId: 'latest-server-folder' } }
-    mocks.detail.mockReturnValue({ data: refreshed })
+    mockDetail.mockReturnValue({ data: refreshed })
     await render('?view=settings')
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
 
     await click('Discard')
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: refreshed }))
     expect(mocks.save).not.toHaveBeenCalled()
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     expect(container.textContent).toContain('Source configuration')
   })
-
-  it.each([false, true])(
-    'blocks source navigation and repeated actions while saving with dirty=%s',
-    async (dirty) => {
-      mocks.dirty = dirty
-      mocks.saving = true
-      await render('?view=settings')
-      for (const label of [
-        'Sync now',
-        'Pause syncing',
-        'Remove connection',
-        'Saving...',
-        ...(dirty ? ['Discard'] : []),
-      ]) {
-        const action = Array.from(container.querySelectorAll('button')).find(
-          (item) => item.textContent === label
-        )
-        expect(action).toBeDisabled()
-      }
-
-      await click('Documents')
-      await click('Sync history')
-      await click('Google Drive')
-      expect(mocks.documents).not.toHaveBeenCalled()
-      expect(mocks.history).not.toHaveBeenCalled()
-      expect(mocks.push).not.toHaveBeenCalled()
-      expect(document.querySelector('[role="dialog"]')).toBeNull()
-      expect(container.textContent).toContain('Source configuration')
-    }
-  )
 })

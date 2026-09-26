@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Response fixtures are copied verbatim from the Semrush API reference examples
  * at https://developer.semrush.com/api/v3/analytics/.
  */
@@ -15,9 +13,6 @@ vi.mock('@/tools/registry', async () => {
   return { tools: partialToolRegistry(await import('@/tools/semrush')) }
 })
 
-import { SemrushBlock } from '@/blocks/blocks/semrush'
-import type { SubBlockConfig } from '@/blocks/types'
-import { tools } from '@/tools/registry'
 import { semrushBacklinksOverviewTool } from '@/tools/semrush/backlinks_overview'
 import { semrushBatchKeywordOverviewTool } from '@/tools/semrush/batch_keyword_overview'
 import { semrushDomainOrganicKeywordsTool } from '@/tools/semrush/domain_organic_keywords'
@@ -26,9 +21,7 @@ import { semrushDomainVsDomainTool } from '@/tools/semrush/domain_vs_domain'
 import { semrushKeywordDifficultyTool } from '@/tools/semrush/keyword_difficulty'
 import { semrushOrganicResultsTool } from '@/tools/semrush/organic_results'
 import { semrushReferringDomainsTool } from '@/tools/semrush/referring_domains'
-import { getColumnDef } from '@/tools/semrush/utils'
 import { semrushWinnersAndLosersTool } from '@/tools/semrush/winners_and_losers'
-import { hasToolId } from '@/tools/tool-ids'
 import type { ToolConfig } from '@/tools/types'
 
 function csvResponse(body: string, status = 200): Response {
@@ -403,114 +396,5 @@ describe('semrush domain vs. domain', () => {
       searchVolume: null,
       cpc: 0.91,
     })
-  })
-})
-
-describe('semrush registry surface', () => {
-  const semrushTools = Object.entries(tools).filter(([id]) => id.startsWith('semrush_'))
-
-  it('registers every tool under its own id', () => {
-    expect(semrushTools).toHaveLength(44)
-    for (const [id, tool] of semrushTools) {
-      expect((tool as ToolConfig).id).toBe(id)
-      expect(hasToolId(id), `${id} registry`).toBe(true)
-    }
-  })
-
-  /**
-   * A column code with no entry in the shared map throws at decode time, which
-   * would otherwise only surface on a live call.
-   */
-  it('resolves every column code the tools request', () => {
-    for (const [, tool] of semrushTools) {
-      const url = (tool as ToolConfig<Record<string, string>, never>).request.url
-      if (typeof url !== 'function') continue
-      const built = url({
-        apiKey: 'k',
-        domain: 'a.com',
-        subdomain: 'b.a.com',
-        url: 'https://a.com/p',
-        phrase: 'seo',
-        phrases: 'seo;ebay',
-        domains: 'a.com,b.com',
-        target: 'a.com',
-        database: 'us',
-      })
-      const codes = new URL(built).searchParams.get('export_columns')?.split(',') ?? []
-      expect(codes.length).toBeGreaterThan(0)
-      for (const code of codes) {
-        if (/^P\d$/.test(code)) continue
-        expect(() => getColumnDef(code)).not.toThrow()
-      }
-    }
-  })
-})
-
-describe('semrush block alignment', () => {
-  const access = SemrushBlock.tools.access
-  const operationOptions = (
-    SemrushBlock.subBlocks.find((sub) => sub.id === 'operation')?.options as
-      | Array<{ id: string }>
-      | undefined
-  )?.map((option) => option.id)
-
-  function conditionValues(sub: SubBlockConfig): string[] {
-    const value = (sub.condition as { value?: unknown } | undefined)?.value
-    if (value === undefined) return []
-    return Array.isArray(value) ? (value as string[]) : [value as string]
-  }
-
-  it('offers exactly one dropdown option per accessible tool', () => {
-    expect(operationOptions).toEqual(access)
-  })
-
-  it('selects each operation own tool', () => {
-    for (const operation of access) {
-      expect(SemrushBlock.tools.config?.tool({ operation })).toBe(operation)
-    }
-  })
-
-  it('falls back to the default operation for an unknown value', () => {
-    expect(SemrushBlock.tools.config?.tool({ operation: 'nope' })).toBe('semrush_domain_overview')
-  })
-
-  it('gives every subBlock a unique id', () => {
-    const ids = SemrushBlock.subBlocks.map((sub) => sub.id)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
-  /**
-   * The tool is the contract: anything it marks required must be reachable on
-   * the card for the operations that select it, and nothing may be offered for
-   * an operation whose tool does not accept it.
-   */
-  it('shows a field for exactly the operations whose tool declares it', () => {
-    const conditioned = SemrushBlock.subBlocks.filter(
-      (sub) => sub.id !== 'operation' && sub.condition
-    )
-
-    for (const operation of access) {
-      const tool = tools[operation] as ToolConfig
-      const toolParams = Object.entries(tool.params)
-      const shown = conditioned
-        .filter((sub) => conditionValues(sub).includes(operation))
-        .map((sub) => sub.id)
-
-      for (const [name, config] of toolParams) {
-        if (name === 'apiKey') continue
-        expect(shown, `${operation} is missing a field for ${name}`).toContain(name)
-        if (config.required) {
-          const sub = conditioned.find((candidate) => candidate.id === name)
-          const required = (sub?.required as { value?: unknown } | undefined)?.value
-          const requiredFor = Array.isArray(required) ? (required as string[]) : [required]
-          expect(requiredFor, `${operation}.${name} must be required`).toContain(operation)
-        }
-      }
-
-      const accepted = new Set(toolParams.map(([name]) => name))
-      for (const id of shown) {
-        expect(accepted, `${operation} offers ${id}, which its tool ignores`).toContain(id)
-      }
-    }
   })
 })

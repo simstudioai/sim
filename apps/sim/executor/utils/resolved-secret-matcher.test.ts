@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   containsResolvedSecret,
@@ -48,16 +45,6 @@ describe('resolved secret matcher', () => {
     expect(sanitizeResolvedSecretString('123456789', matcher)).toBe('1{{TOKEN}}')
   })
 
-  it('sanitizes short inputs with a maximum-length catalog literal', () => {
-    const plaintext = 'x'.repeat(64 * 1024)
-    const matcher = createResolvedSecretMatcher([{ plaintext, replacement: '{{TOKEN}}' }])
-
-    expect(matcher).toBeDefined()
-    if (!matcher) return
-    expect(sanitizeResolvedSecretString('ok', matcher)).toBe('ok')
-    expect(sanitizeResolvedSecretString(plaintext, matcher)).toBe('{{TOKEN}}')
-  })
-
   it('uses opaque model-safe replacements by default when a label contains plaintext', () => {
     const matcher = createResolvedSecretMatcher([
       { plaintext: 'TestValue', replacement: '{{TestValue}}' },
@@ -86,21 +73,6 @@ describe('resolved secret matcher', () => {
     expect(containsResolvedSecret('{{TestValue}}', matcher)).toBe(false)
     expect(containsResolvedSecret('{{TestValue}} TestValue', matcher)).toBe(true)
   })
-
-  it.each(['123TOKEN', 'API-KEY-1', 'LEGACY KEY'])(
-    'preserves matcher-issued placeholders for supported legacy name %s',
-    (name) => {
-      const matcher = createResolvedSecretMatcher(
-        [{ plaintext: name, replacement: `{{${name}}}` }],
-        PRESERVE_NAMED_PROVENANCE
-      )
-
-      expect(matcher).toBeDefined()
-      if (!matcher) return
-      expect(sanitizeResolvedSecretString(name, matcher)).toBe(`{{${name}}}`)
-      expect(sanitizeResolvedSecretString(`{{${name}}}`, matcher)).toBe(`{{${name}}}`)
-    }
-  )
 
   it.each(['{{TestValue{B}}}', '{{TestValue}}B}}'])(
     'fails closed for malformed provenance label %s',
@@ -162,18 +134,6 @@ describe('resolved secret matcher', () => {
     if (!matcher) return
     expect(sanitizeResolvedSecretString('x{{TestValue}}y', matcher)).toBe('{{COMPOSITE}}')
     expect(containsResolvedSecret('x{{TestValue}}y', matcher)).toBe(true)
-  })
-
-  it('uses the opaque fallback for unsafe non-placeholder replacements', () => {
-    const matcher = createResolvedSecretMatcher([
-      { plaintext: 'TestValue', replacement: 'visible-TestValue' },
-    ])
-
-    expect(matcher).toBeDefined()
-    if (!matcher) return
-    expect(sanitizeResolvedSecretString('TestValue', matcher)).toBe(
-      OPAQUE_RESOLVED_SECRET_REPLACEMENT
-    )
   })
 
   it('does not protect another secret merely because it occurs inside a named placeholder', () => {

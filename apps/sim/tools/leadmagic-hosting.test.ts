@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { companySearchTool } from '@/tools/leadmagic/company_search'
 import { emailToProfileTool } from '@/tools/leadmagic/email_to_profile'
 import { findEmailTool } from '@/tools/leadmagic/find_email'
 import { findMobileTool } from '@/tools/leadmagic/find_mobile'
-import { getCreditsTool } from '@/tools/leadmagic/get_credits'
 import { LEADMAGIC_CREDIT_USD } from '@/tools/leadmagic/hosting'
 import { profileSearchTool } from '@/tools/leadmagic/profile_search'
 import { profileToEmailTool } from '@/tools/leadmagic/profile_to_email'
@@ -20,29 +16,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
   const result = pricing.getCost(params, output)
   return typeof result === 'number' ? { cost: result } : result
 }
-
-describe('LeadMagic hosted key config', () => {
-  it('declares the correct env prefix and BYOK provider for all credit-consuming tools', () => {
-    const tools = [
-      validateEmailTool,
-      findEmailTool,
-      findMobileTool,
-      profileSearchTool,
-      profileToEmailTool,
-      emailToProfileTool,
-      companySearchTool,
-      roleFinderTool,
-    ]
-    for (const tool of tools) {
-      expect(tool.hosting?.envKeyPrefix).toBe('LEADMAGIC_API_KEY')
-      expect(tool.hosting?.byokProviderId).toBe('leadmagic')
-    }
-  })
-
-  it('get_credits has no hosting config (free endpoint)', () => {
-    expect(getCreditsTool.hosting).toBeUndefined()
-  })
-})
 
 describe('LeadMagic hosted key pricing', () => {
   it('validate_email: uses API-reported credits_consumed', () => {

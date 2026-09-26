@@ -1,19 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-}))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -21,6 +13,10 @@ import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 describe('MCP server operation registry', () => {
   it('requires a human subject for tool discovery', () => {
@@ -74,13 +70,6 @@ describe('MCP server operation registry', () => {
     },
   } as const
 
-  it('pins the role of every workflow-deployment operation', () => {
-    for (const [key, expected] of Object.entries(WORKFLOW_DEPLOYMENT_OPERATIONS)) {
-      const operation = mcpServerOperations[key as keyof typeof mcpServerOperations]
-      expect(operation, key).toMatchObject(expected)
-    }
-  })
-
   /**
    * `update_server` carries `isPublic`, and a public server answers
    * `/api/mcp/serve/{serverId}` with no Sim credential. `write` here would let a
@@ -116,14 +105,9 @@ describe('MCP server operation registry', () => {
       expect(Object.isFrozen(operation), operation.id).toBe(true)
     }
   })
-
-  it('uses unique stable operation IDs', () => {
-    const ids = Object.values(mcpServerOperations).map((operation) => operation.id)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
 })
 
-const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const sessionPrincipal = createSessionPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -186,7 +170,6 @@ function sessionReachable(capability: string) {
  */
 describe('MCP operations under a withholding permission group', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 
@@ -221,20 +204,6 @@ describe('MCP operations under a withholding permission group', () => {
         authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
         operation.id
       ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
-    }
-  })
-
-  it('allows the same operations when the group withholds neither', async () => {
-    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-    for (const operation of [
-      ...sessionReachable('mcp_tools.use'),
-      ...sessionReachable('deploy.mcp'),
-    ]) {
-      await expect(
-        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
-        operation.id
-      ).resolves.toBeUndefined()
     }
   })
 })

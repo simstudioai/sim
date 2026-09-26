@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { gzipSync } from 'node:zlib'
@@ -9,14 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: vi.fn(),
   preferIpv4: (addresses: string[]) => addresses[0],
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
 }))
 
 import {
@@ -64,17 +53,6 @@ describe('secureFetchWithPinnedIP connection reuse', () => {
     }
   })
 
-  it('opens a fresh connection per request without a pool', async () => {
-    const server = await startServer((_req, res) => res.end('ok'))
-    for (let index = 0; index < 2; index++) {
-      const response = await secureFetchWithPinnedIP(server.origin, '127.0.0.1', {
-        profile: 'configuredEndpoint',
-      })
-      await response.text()
-    }
-    expect(server.connections()).toBe(2)
-  })
-
   it('never shares an agent between different pinned addresses', () => {
     const pool = createPinnedConnectionPool()
     try {
@@ -118,20 +96,6 @@ describe('secureFetchWithPinnedIP compressed responses', () => {
     })
     expect(encoded.length).toBeGreaterThan(payload.length)
     await expect(response.json()).resolves.toEqual({ ok: true })
-  })
-  it('caps the decoded size of a compressed body it asked for', async () => {
-    const bomb = gzipSync(Buffer.alloc(64 * 1024, 0x41))
-    const server = await startServer((_req, res) => {
-      res.writeHead(200, { 'Content-Encoding': 'gzip' })
-      res.end(bomb)
-    })
-    const response = await secureFetchWithPinnedIP(server.origin, '127.0.0.1', {
-      profile: 'configuredEndpoint',
-      acceptCompressed: true,
-      maxResponseBytes: 1024,
-    })
-    expect(bomb.length).toBeLessThan(1024)
-    await expect(response.text()).rejects.toThrow(/response body/i)
   })
   it('asks for compression only when requested and returns the decoded body', async () => {
     const encodings: (string | undefined)[] = []

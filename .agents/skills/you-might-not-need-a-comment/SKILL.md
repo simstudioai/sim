@@ -16,7 +16,7 @@ User arguments: $ARGUMENTS
 
 A comment must add information the code cannot express itself. Code says *what* and *how*; a comment earns its place only by explaining *why* — a non-obvious constraint, a workaround, a decision, a gotcha. If deleting the comment loses no information a competent reader wouldn't recover from the code in seconds, delete it.
 
-This codebase's convention: **TSDoc for documentation, no non-TSDoc comments, no `====` separators.** Genuine documentation belongs in a `/** ... */` block on the declaration; everything that survives as an inline `//` comment must be a real *why*, kept terse.
+This codebase's convention: **TSDoc for documentation; an inline `//` only for a terse non-obvious why or a script-enforced annotation; no `====` separators.** Genuine documentation belongs in a `/** ... */` block on the declaration; everything that survives as an inline `//` comment must be a real *why*, kept terse.
 
 ## Anti-patterns to detect
 

@@ -1,12 +1,13 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), policy: vi.fn(), runtime: vi.fn() }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.context,
-}))
+const mocks = vi.hoisted(() => ({ policy: vi.fn(), runtime: vi.fn() }))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/credential-groups/application/organization-workspace-access', () => ({
   requireOrganizationAccountsWorkspaceAccess: mocks.policy,
 }))
@@ -29,9 +30,11 @@ const row = {
 }
 describe('Coda personal search authority', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.context.mockResolvedValue({ workspaceId: 'workspace', workspaceOrganizationId: 'org' })
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceId: 'workspace',
+      workspaceOrganizationId: 'org',
+    })
     mocks.policy.mockResolvedValue({})
     mocks.runtime.mockResolvedValue({ credentialType: 'mcp:coda' })
   })
@@ -60,7 +63,7 @@ describe('Coda personal search authority', () => {
   it('supports organization search without inventing a workspace and binds token resolution to the person', async () => {
     queueTableRows(schemaMock.credential, [row])
     await loadOwnCodaMcpRuntime({ organizationId: 'org' }, 'person', 'mine')
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.runtime).toHaveBeenCalledWith(
       'mine',
       { kind: 'organization', organizationId: 'org' },

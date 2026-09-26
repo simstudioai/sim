@@ -1,44 +1,34 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  invite: vi.fn(),
-  loadInviter: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireAvailable: vi.fn(),
   resolveGroup: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
-  requireCredentialGroupSettingsAvailable: mocks.requireAvailable,
-  resolveCredentialGroupSettingsContext: mocks.resolveGroup,
+  requireCredentialGroupSettingsAvailable: hoisted.requireAvailable,
+  resolveCredentialGroupSettingsContext: hoisted.resolveGroup,
 }))
 
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  CredentialGroupEnrollmentError: class CredentialGroupEnrollmentError extends Error {
-    constructor(
-      message: string,
-      readonly status: 400 | 404 | 409 | 502
-    ) {
-      super(message)
-    }
-  },
-  deleteCredentialGroupEnrollment: vi.fn(),
-  inviteCredentialGroupEnrollments: mocks.invite,
-  loadCredentialGroupInviterIdentity: mocks.loadInviter,
-  resendCredentialGroupEnrollment: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { inviteCredentialGroupEnrollmentsSettings } from '@/lib/credential-groups/application/manage-enrollments'
+
+const mocks = {
+  ...hoisted,
+  invite: credentialGroupsEnrollmentsMockFns.mockInviteCredentialGroupEnrollments,
+  loadInviter: credentialGroupsEnrollmentsMockFns.mockLoadCredentialGroupInviterIdentity,
+}
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const context = {
   workspaceId: 'workspace-1',
@@ -50,11 +40,7 @@ const context = {
   status: 'active' as const,
   options: [],
 }
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const input = {
   assertedWorkspaceId: 'workspace-1',
   credentialGroupId: 'group-1',
@@ -63,16 +49,15 @@ const input = {
 
 describe('Credential Group enrollment Settings operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveGroup.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('admin')
+    resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
     mocks.loadInviter.mockResolvedValue({ name: 'Admin', email: 'admin@example.com' })
     mocks.invite.mockResolvedValue({ results: [], sentCount: 0, failedCount: 0 })
   })
 
   it('requires current workspace-admin permission before delivery', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    resolvePermission.mockResolvedValue('write')
 
     await expect(
       inviteCredentialGroupEnrollmentsSettings.execute({ principal, input })

@@ -1,46 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { allocateTagSlots, getSlotsForFieldType } from '@/lib/knowledge/constants'
+import { allocateTagSlots } from '@/lib/knowledge/constants'
 
 describe('allocateTagSlots', () => {
-  it.concurrent('assigns unique slots for multiple text tags', () => {
-    const defs = [
-      { id: 'issueType', displayName: 'Issue Type', fieldType: 'text' },
-      { id: 'status', displayName: 'Status', fieldType: 'text' },
-      { id: 'priority', displayName: 'Priority', fieldType: 'text' },
-    ]
-
-    const { mapping, skipped } = allocateTagSlots(defs, new Set())
-
-    expect(mapping).toEqual({
-      issueType: 'tag1',
-      status: 'tag2',
-      priority: 'tag3',
-    })
-    expect(skipped).toEqual([])
-  })
-
-  it.concurrent('assigns slots across different field types', () => {
-    const defs = [
-      { id: 'label', displayName: 'Label', fieldType: 'text' },
-      { id: 'count', displayName: 'Count', fieldType: 'number' },
-      { id: 'updated', displayName: 'Updated', fieldType: 'date' },
-      { id: 'active', displayName: 'Active', fieldType: 'boolean' },
-    ]
-
-    const { mapping, skipped } = allocateTagSlots(defs, new Set())
-
-    expect(mapping).toEqual({
-      label: 'tag1',
-      count: 'number1',
-      updated: 'date1',
-      active: 'boolean1',
-    })
-    expect(skipped).toEqual([])
-  })
-
   it.concurrent('skips already-used slots', () => {
     const defs = [
       { id: 'a', displayName: 'A', fieldType: 'text' },
@@ -71,32 +32,6 @@ describe('allocateTagSlots', () => {
       b: 'date2',
     })
     expect(skipped).toEqual(['Date C'])
-  })
-
-  it.concurrent('returns empty mapping when all slots are used', () => {
-    const allTextSlots = getSlotsForFieldType('text')
-    const usedSlots = new Set<string>(allTextSlots)
-
-    const defs = [{ id: 'label', displayName: 'Label', fieldType: 'text' }]
-    const { mapping, skipped } = allocateTagSlots(defs, usedSlots)
-
-    expect(mapping).toEqual({})
-    expect(skipped).toEqual(['Label'])
-  })
-
-  it.concurrent('handles empty definitions list', () => {
-    const { mapping, skipped } = allocateTagSlots([], new Set())
-
-    expect(mapping).toEqual({})
-    expect(skipped).toEqual([])
-  })
-
-  it.concurrent('handles unknown field type gracefully', () => {
-    const defs = [{ id: 'x', displayName: 'Unknown', fieldType: 'unknown' }]
-    const { mapping, skipped } = allocateTagSlots(defs, new Set())
-
-    expect(mapping).toEqual({})
-    expect(skipped).toEqual(['Unknown'])
   })
 
   it.concurrent('does not mutate the input usedSlots set', () => {

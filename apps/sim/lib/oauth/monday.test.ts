@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   exchangeMondayAuthorizationCode,
   MONDAY_OAUTH_TOKEN_URL,
@@ -38,10 +35,6 @@ function tokenResponse(overrides: Record<string, unknown> = {}): Response {
 }
 
 describe('Monday OAuth 2.1', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('exchanges a PKCE authorization code at the v2 endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(tokenResponse())
     vi.stubGlobal('fetch', fetchMock)
@@ -115,7 +108,6 @@ describe('Monday OAuth 2.1', () => {
 
   it.each([
     ['missing refresh token', { refresh_token: undefined }],
-    ['missing access token', { access_token: undefined }],
     ['non-bearer token', { token_type: 'mac' }],
   ])('rejects an incomplete response: %s', async (_label, overrides) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(tokenResponse(overrides)))

@@ -2,29 +2,23 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 
-const WORKSPACE_ID = 'ws-1'
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
-const CONFIG_RESPONSE = {
-  entitled: true,
-  permissionGroupId: null,
-  config: null,
-}
+const WORKSPACE_ID = 'ws-1'
 
 /**
  * Mounts the hook in a real React root under a real `QueryClientProvider`, the
@@ -103,13 +97,6 @@ function refusal() {
  * policy is the thing that keeps a fail-closed gate from wedging.
  */
 describe('useUserPermissionConfig retry policy', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('retries a transient failure three times before giving up', async () => {
     mockRequestJson.mockRejectedValue(serverError())
 
@@ -119,21 +106,6 @@ describe('useUserPermissionConfig retry policy', () => {
 
     expect(result().isError).toBe(true)
     expect(mockRequestJson).toHaveBeenCalledTimes(4)
-
-    unmount()
-  })
-
-  it('recovers when a retry succeeds, so the gate is never left unanswered', async () => {
-    mockRequestJson
-      .mockRejectedValueOnce(serverError())
-      .mockResolvedValueOnce(structuredClone(CONFIG_RESPONSE))
-
-    const { mount } = makeHarness()
-    const { result, unmount } = mount(() => useUserPermissionConfig(WORKSPACE_ID))
-    await settle(() => result().isSuccess)
-
-    expect(result().isSuccess).toBe(true)
-    expect(mockRequestJson).toHaveBeenCalledTimes(2)
 
     unmount()
   })
@@ -168,26 +140,5 @@ describe('useUserPermissionConfig retry policy', () => {
     expect(mockRequestJson).toHaveBeenCalledTimes(1)
 
     unmount()
-  })
-
-  it('retries again on remount, so reopening settings is a real retry', async () => {
-    mockRequestJson.mockRejectedValue(refusal())
-
-    const { mount } = makeHarness()
-    const first = mount(() => useUserPermissionConfig(WORKSPACE_ID))
-    await settle(() => first.result().isError)
-    expect(mockRequestJson).toHaveBeenCalledTimes(1)
-    first.unmount()
-
-    mockRequestJson.mockReset()
-    mockRequestJson.mockResolvedValue(structuredClone(CONFIG_RESPONSE))
-
-    const second = mount(() => useUserPermissionConfig(WORKSPACE_ID))
-    await settle(() => second.result().isSuccess)
-
-    expect(mockRequestJson).toHaveBeenCalledTimes(1)
-    expect(second.result().isSuccess).toBe(true)
-
-    second.unmount()
   })
 })

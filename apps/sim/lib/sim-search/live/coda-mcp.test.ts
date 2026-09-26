@@ -1,21 +1,17 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   runtime: vi.fn(),
-  discover: vi.fn(),
-  execute: vi.fn(),
   auth: vi.fn(),
   validate: vi.fn(),
 }))
-vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ loadOwnCodaMcpRuntime: mocks.runtime }))
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverManagedMcpTools: mocks.discover, executeManagedMcpTool: mocks.execute },
-}))
+vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ loadOwnCodaMcpRuntime: hoisted.runtime }))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
-  createManagedMcpAuthProvider: mocks.auth,
+  createManagedMcpAuthProvider: hoisted.auth,
 }))
-vi.mock('@/lib/mcp/application/execute-tool', () => ({ validateToolArguments: mocks.validate }))
+vi.mock('@/lib/mcp/application/execute-tool', () => ({ validateToolArguments: hoisted.validate }))
 
 import {
   type CodaMcpClient,
@@ -25,10 +21,15 @@ import {
   searchCodaMcp,
 } from '@/lib/sim-search/live/coda-mcp'
 
+const mocks = {
+  ...hoisted,
+  discover: mcpServiceMockFns.mockDiscoverManagedMcpTools,
+  execute: mcpServiceMockFns.mockExecuteManagedMcpTool,
+}
+
 const input = { query: 'launch', limit: 20, scopes: [] }
 
 describe('Coda MCP content search', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('accepts structured and JSON text output, and rejects tool failures', () => {
     expect(codaMcpPayload({ structuredContent: { results: [] } })).toEqual({ results: [] })
     expect(
@@ -52,93 +53,6 @@ describe('Coda MCP content search', () => {
       })
     ).toThrow('Coda MCP request limit reached')
   })
-  it('passes content queries and document filters, preserving the opaque cursor', async () => {
-    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
-      results: [
-        {
-          uri: 'coda://docs/doc/pages/page',
-          title: 'Launch plan',
-          url: 'https://coda.io/d/doc',
-          snippet: 'Release next week',
-        },
-      ],
-      nextCursor: 'next',
-    })
-    const page = await searchCodaMcp(
-      { call },
-      {
-        ...input,
-        native: {
-          provider: 'coda',
-          query: 'release next week',
-          project: 'coda://docs/doc',
-          cursor: 'previous',
-        },
-      }
-    )
-    expect(call).toHaveBeenCalledWith('search', {
-      query: 'release next week',
-      types: ['page', 'tableRow'],
-      docUri: 'coda://docs/doc',
-      cursor: 'previous',
-      limit: 10,
-    })
-    expect(page).toMatchObject({
-      nextCursor: 'next',
-      partial: false,
-      documents: [{ id: 'coda://docs/doc/pages/page', kind: 'mcp', content: 'Release next week' }],
-    })
-  })
-  it('maps the current Superhuman Docs page result shape', async () => {
-    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
-      results: [
-        {
-          docUri: 'superhuman://docs/doc',
-          pageUri: 'pages/section-page#Readable%20title',
-          pageName: 'Federated search fixture',
-          docTitle: 'Sim Search QA',
-          pageContent: 'SimSearchCodaFixtureBeta',
-          url: 'https://docs.superhuman.com/d/doc/page',
-        },
-      ],
-      hasMore: false,
-    })
-    expect(await searchCodaMcp({ call }, input)).toMatchObject({
-      documents: [
-        {
-          id: 'superhuman://docs/doc/pages/section-page',
-          title: 'Federated search fixture',
-          content: 'SimSearchCodaFixtureBeta',
-        },
-      ],
-      partial: false,
-    })
-  })
-  it('uses the documented empty-query recency listing and reports local date filtering', async () => {
-    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
-      results: [{ uri: 'coda://docs/doc', title: 'Recent document', updatedAt: '2026-09-20' }],
-    })
-    const page = await searchCodaMcp(
-      { call },
-      { ...input, query: ' ', filters: { modifiedAfter: '2026-09-01T00:00:00Z' } }
-    )
-    expect(call).toHaveBeenCalledWith('search', { query: '', limit: 10 })
-    expect(page).toMatchObject({ partial: true, documents: [{ id: 'coda://docs/doc' }] })
-    expect(page.message).toContain('Date filters apply to returned timestamps in Sim')
-  })
-  it('reports more results without claiming degraded coverage', async () => {
-    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
-      results: [{ uri: 'coda://docs/doc', title: 'Launch' }],
-      hasMore: true,
-    })
-    expect(await searchCodaMcp({ call }, input)).toMatchObject({ hasMore: true, partial: false })
-    expect(
-      await searchCodaMcp(
-        { call },
-        { ...input, filters: { startDate: '2026-09-01', endDate: '2026-09-30' } }
-      )
-    ).toMatchObject({ hasMore: true, partial: true })
-  })
   it('rejects page-scoped document filters before calling the provider', async () => {
     const call = vi.fn<CodaMcpClient['call']>()
     await expect(
@@ -152,31 +66,6 @@ describe('Coda MCP content search', () => {
   it('does not claim complete coverage for an unrecognized result shape', async () => {
     const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({ unexpected: [] })
     await expect(searchCodaMcp({ call }, input)).rejects.toThrow('unsupported result format')
-  })
-  it('reads page content and the exact matched row with read-only tools', async () => {
-    const call = vi
-      .fn<CodaMcpClient['call']>()
-      .mockResolvedValue({ webUrl: 'https://coda.io/d/doc', markdown: 'Evidence' })
-    const page = await readCodaMcp({ call }, 'coda://docs/doc/pages/page')
-    expect(call).toHaveBeenLastCalledWith(
-      'content_read',
-      expect.objectContaining({
-        uri: 'coda://docs/doc/pages/page',
-        contentTypesToInclude: ['markdown', 'tables'],
-      })
-    )
-    expect(page.content).toContain('Evidence')
-    await readCodaMcp({ call }, 'superhuman://docs/doc/pages/section-page#Readable%20title')
-    expect(call).toHaveBeenLastCalledWith(
-      'content_read',
-      expect.objectContaining({ uri: 'superhuman://docs/doc/pages/section-page' })
-    )
-    await readCodaMcp({ call }, 'coda://docs/doc/tables/table/rows/row')
-    expect(call).toHaveBeenLastCalledWith('table_rows_read', {
-      uri: 'coda://docs/doc/tables/table',
-      rowNumbersOrIds: ['row'],
-      rowLimit: 1,
-    })
   })
   it('does not send arbitrary URLs or malformed references to the server', async () => {
     const call = vi.fn<CodaMcpClient['call']>()

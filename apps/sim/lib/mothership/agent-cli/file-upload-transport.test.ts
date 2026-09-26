@@ -1,16 +1,12 @@
-/** @vitest-environment node */
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
   create: vi.fn(),
   complete: vi.fn(),
   evidence: vi.fn(),
 }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class extends Error {},
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/uploads/upload-session/application', () => ({
   createWorkspaceFileUploadOperation: { execute: mocks.create },
   completeWorkspaceFileUploadOperation: { execute: mocks.complete },
@@ -70,7 +66,7 @@ function complete(transport: typeof fetch, uploadId = 'upload', signal?: AbortSi
 beforeEach(() => {
   vi.resetAllMocks()
   fallback.mockResolvedValue(new Response('fallback'))
-  mocks.authenticate.mockResolvedValue({ principal })
+  v2RouteMocks.authenticate.mockResolvedValue({ principal })
   mocks.create.mockResolvedValue(session)
   mocks.complete.mockResolvedValue({ session: { ...session, status: 'completed' }, value: null })
   mocks.evidence.mockReturnValue(source)
@@ -97,7 +93,7 @@ describe('private embedded upload control', () => {
         audience: 'sim:workspace-files',
         resourceScope: { chatId: 'chat' },
       })
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
   })
 
   it('uses pending creation and completed stream evidence without exposing either in the CLI response', async () => {
@@ -141,7 +137,7 @@ describe('private embedded upload control', () => {
   it('checks the current identity again on completion', async () => {
     const transport = makeTransport()
     await create(transport)
-    mocks.authenticate.mockResolvedValue({ principal: { ...principal, userId: 'other' } })
+    v2RouteMocks.authenticate.mockResolvedValue({ principal: { ...principal, userId: 'other' } })
     expect((await complete(transport)).status).toBe(401)
     expect(mocks.complete).not.toHaveBeenCalled()
   })
@@ -181,6 +177,6 @@ describe('private embedded upload control', () => {
     }
     await transport(`${endpoint}${path}/upload`, { method: 'GET' })
     expect(fallback).toHaveBeenCalledTimes(4)
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
   })
 })

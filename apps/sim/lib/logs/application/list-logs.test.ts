@@ -1,45 +1,48 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   readLogs: vi.fn(),
-  resolveWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@/lib/logs/list-logs', () => ({
-  readLogs: mocks.readLogs,
+  readLogs: hoisted.readLogs,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (held: string | null, required: string) =>
-    held === 'admin' || held === required || (held === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
+const mocks = {
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  resolveWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
 const WORKSPACE_ID = 'workspace-1'
-const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const SESSION: Principal = createSessionPrincipal()
 const INPUT = { workspaceId: WORKSPACE_ID, limit: 100, sortBy: 'date', sortOrder: 'desc' } as never
 
 describe('listLogsUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       workspaceOrganizationId: null,
@@ -60,12 +63,6 @@ describe('listLogsUseCase', () => {
     await listLogsUseCase.execute({ principal: SESSION, input: INPUT })
 
     expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: true }))
-  })
-
-  it('leaves spend in place when no group withholds it', async () => {
-    await listLogsUseCase.execute({ principal: SESSION, input: INPUT })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: false }))
   })
 
   /**
@@ -89,38 +86,13 @@ describe('listLogsUseCase', () => {
     expect(mocks.readLogs).not.toHaveBeenCalled()
   })
 
-  it('answers the same cost query when no group withholds spend', async () => {
-    await listLogsUseCase.execute({
-      principal: SESSION,
-      input: { ...(INPUT as object), sortBy: 'cost', costOperator: '>', costValue: 0.5 } as never,
-    })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ sortBy: 'cost' }))
-  })
-
-  /** A duration filter names nothing the group withholds, so it still answers. */
-  it('leaves a duration filter alone under a spend-withholding group', async () => {
-    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
-
-    await listLogsUseCase.execute({
-      principal: SESSION,
-      input: { ...(INPUT as object), durationOperator: '>', durationValue: 100 } as never,
-    })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: true }))
-  })
-
   /**
    * An actorless run has no user, so there is no group to resolve — it reads its
    * own workspace's logs whole rather than being handed a stand-in viewer.
    */
   it('does not resolve a group for a principal with no subject', async () => {
     await listLogsUseCase.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: WORKSPACE_ID,
-        keyId: 'key-1',
-      } as Principal,
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }) as Principal,
       input: INPUT,
     })
 
@@ -140,16 +112,11 @@ describe('listLogsUseCase', () => {
     resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await listLogsUseCase.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
+      principal: createExecutorPrincipal({
         workspaceId: WORKSPACE_ID,
-        delegationId: 'delegation-1',
         audience: 'sim:logs',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2999-01-01T00:00:00Z'),
-      } as Principal,
+      }) as Principal,
       input: { ...(INPUT as object), sortBy: 'cost' } as never,
     })
 

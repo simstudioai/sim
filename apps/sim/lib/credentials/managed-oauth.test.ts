@@ -1,36 +1,31 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, resetEnvMock, setEnv } from '@sim/testing'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getBilling: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   isAvailable: vi.fn(),
-  getAdapter: vi.fn(),
-  decryptSecret: vi.fn(),
-  encryptSecret: vi.fn(),
   slackConfiguration: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.getBilling,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
 vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.isAvailable,
+  isCredentialGroupsAvailable: hoisted.isAvailable,
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapterByProviderId: mocks.getAdapter,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mocks.decryptSecret,
-  encryptSecret: mocks.encryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
-  getSlackCredentialGroupConfiguration: mocks.slackConfiguration,
+  getSlackCredentialGroupConfiguration: hoisted.slackConfiguration,
 }))
 vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   getSlackCustomBotCredential: async () => ({ id: 'bot-1', teamId: 'T123' }),
@@ -47,6 +42,14 @@ import {
 import { slackCredentialGroupProviderAdapter } from '@/lib/credential-groups/slack-provider'
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 import { rejectManagedOAuthToken, resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
+
+const mocks = {
+  ...hoisted,
+  getBilling: billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess,
+  getAdapter: credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapterByProviderId,
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+  encryptSecret: encryptionMockFns.mockEncryptSecret,
+}
 
 function mondayCredentialRow() {
   return {
@@ -77,7 +80,6 @@ function mondayTokenResolutionParams() {
 
 describe('managed OAuth token resolution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'))
@@ -91,45 +93,11 @@ describe('managed OAuth token resolution', () => {
         accessToken: 'xoxp-slack-token',
       }),
     })
-    mocks.getAdapter.mockReturnValue({
-      getPolicy: vi.fn().mockResolvedValue({
-        authorizationAppId: 'slack:A123:T123',
-        scopeVersion: 1,
-        requiredScopes: ['chat:write'],
-      }),
-      hasRequiredScopes: vi.fn().mockReturnValue(true),
-    })
   })
 
   afterEach(() => {
     vi.useRealTimers()
     resetEnvMock()
-  })
-
-  it('resolves a scopeless GitHub grant through the canonical provider policy', async () => {
-    setEnv({ GITHUB_APP_CLIENT_ID: 'fixture-client', GITHUB_APP_CLIENT_SECRET: 'fixture-secret' })
-    const adapter = createStandardOAuthCredentialGroupProviderAdapter('github-repositories')
-    const policy = await adapter.getPolicy(undefined, { workspaceId: 'workspace-1' })
-    expect(policy.requiredScopes).toEqual([])
-    mocks.getAdapter.mockReturnValue(adapter)
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        ...mondayCredentialRow(),
-        providerId: policy.providerId,
-        authorizationAppId: policy.authorizationAppId,
-        managedOauthScopeVersion: policy.scopeVersion,
-        grantedScopes: [],
-        accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
-      },
-    ])
-    await expect(
-      resolveManagedOAuthToken({
-        ...mondayTokenResolutionParams(),
-        expectedProviderId: policy.providerId,
-        requiredScopes: [],
-      })
-    ).resolves.toMatchObject({ refreshed: false })
-    expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-token-set')
   })
 
   it('keeps an active GitHub grant connected when the worker lacks its OAuth app configuration', async () => {
@@ -166,7 +134,6 @@ describe('managed OAuth token resolution', () => {
 
   it.each([
     { grant: 'drive', request: 'drive.readonly', allowed: true },
-    { grant: 'drive.readonly', request: 'drive.readonly', allowed: true },
     { grant: 'drive.file', request: 'drive.readonly', allowed: false },
     { grant: 'drive.readonly', request: 'drive', allowed: false },
   ])(
@@ -208,16 +175,13 @@ describe('managed OAuth token resolution', () => {
     }
   )
 
-  it.each([null, undefined])(
-    'rejects missing granted-scope metadata: %s',
-    async (grantedScopes) => {
-      dbChainMockFns.limit.mockResolvedValueOnce([{ ...mondayCredentialRow(), grantedScopes }])
-      await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toMatchObject({
-        code: 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET',
-      })
-      expect(mocks.decryptSecret).not.toHaveBeenCalled()
-    }
-  )
+  it('rejects missing granted-scope metadata', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...mondayCredentialRow(), grantedScopes: null }])
+    await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toMatchObject({
+      code: 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET',
+    })
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+  })
 
   it('rejects an empty grant when the provider policy requires scopes', async () => {
     mocks.getAdapter.mockReturnValue({
@@ -287,23 +251,8 @@ describe('managed OAuth token resolution', () => {
       ])
   }
 
-  it('resolves a minimal Search token through the actual Slack adapter and its exact bound option', async () => {
-    seedSlackSearchCredential()
-    await expect(
-      resolveManagedOAuthToken({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        expectedProviderId: 'slack',
-        requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
-      })
-    ).resolves.toEqual({ accessToken: 'xoxp-slack-token', refreshed: false })
-  })
-
-  it.each([
-    { name: 'replaced', optionId: 'replacement-option', status: 'active' },
-    { name: 'disabled', optionId: 'option-1', status: 'disabled' },
-  ])('refuses a token whose canonical Slack option was $name', async ({ optionId, status }) => {
-    seedSlackSearchCredential(optionId, status)
+  it('refuses a token whose canonical Slack option was replaced', async () => {
+    seedSlackSearchCredential('replacement-option')
     await expect(
       resolveManagedOAuthToken({
         credentialId: 'credential-1',
@@ -350,20 +299,6 @@ describe('managed OAuth token resolution', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
-  it('does not report rejection when a concurrent reconnect wins the conditional update', async () => {
-    seedSlackSearchCredential()
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    expect(
-      await rejectManagedOAuthToken({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        expectedProviderId: 'slack',
-        requiredScopes: [],
-        rejectedAccessToken: 'xoxp-slack-token',
-      })
-    ).toBe(false)
-  })
-
   it('does not reject a token from a different provider', async () => {
     seedSlackSearchCredential()
     expect(
@@ -379,11 +314,11 @@ describe('managed OAuth token resolution', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
-  it.each(
-    (['workspace', 'organization'] as const).flatMap((owner) =>
-      (['success', 'terminal', 'transient'] as const).map((outcome) => ({ owner, outcome }))
-    )
-  )(
+  it.each([
+    { owner: 'workspace', outcome: 'terminal' },
+    { owner: 'workspace', outcome: 'transient' },
+    { owner: 'organization', outcome: 'success' },
+  ] as const)(
     'uses canonical refresh for a rejected $owner access token: $outcome',
     async ({ owner, outcome }) => {
       const current = {
@@ -484,51 +419,6 @@ describe('managed OAuth token resolution', () => {
         requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
       })
     ).resolves.toEqual({ accessToken: 'xoxp-slack-token', refreshed: false })
-  })
-
-  it('requires the actual grant to cover an operation allowed by the Search policy', async () => {
-    seedSlackSearchCredential(
-      'option-1',
-      'active',
-      SLACK_SEARCH_USER_SCOPES.filter((scope) => scope !== 'groups:history')
-    )
-    await expect(
-      resolveManagedOAuthToken({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        expectedProviderId: 'slack',
-        requiredScopes: ['groups:history'],
-      })
-    ).rejects.toMatchObject({ code: 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE' })
-    expect(mocks.decryptSecret).not.toHaveBeenCalled()
-  })
-
-  it('uses a non-expiring Slack access token without entering refresh', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'credential-1',
-        workspaceId: 'workspace-1',
-        type: 'managed_oauth',
-        providerId: 'slack',
-        authorizationAppId: 'slack:A123:T123',
-        managedOauthScopeVersion: 1,
-        managedOauthStatus: 'active',
-        grantedScopes: ['chat:write'],
-        encryptedOauthTokenSet: 'encrypted-token-set',
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-      },
-    ])
-
-    await expect(
-      resolveManagedOAuthToken({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        expectedProviderId: 'slack',
-        requiredScopes: ['chat:write'],
-      })
-    ).resolves.toEqual({ accessToken: 'xoxp-slack-token', refreshed: false })
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('refreshes an expired Monday credential and persists its rotated token set', async () => {

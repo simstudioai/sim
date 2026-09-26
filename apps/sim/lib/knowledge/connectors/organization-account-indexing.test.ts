@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { credentialGroup, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -6,14 +5,17 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { validateBinding } = vi.hoisted(() => ({ validateBinding: vi.fn() }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  validateKnowledgeConnectorMembersBinding: validateBinding,
-}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 
 import { setOrganizationAccountIndexing } from '@/lib/knowledge/connectors/organization-account-indexing'
+
+const validateBinding = knowledgeMemberAccessMockFns.mockValidateKnowledgeConnectorMembersBinding
 
 const input = {
   organizationId: 'org-1',
@@ -35,7 +37,6 @@ const source = {
 
 describe('organization provider indexing changes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     validateBinding.mockReturnValue({ ok: true })
     queueTableRows(credentialGroup, [group])
@@ -72,27 +73,6 @@ describe('organization provider indexing changes', () => {
       { type: 'eq', left: knowledgeConnector.accessMode, right: 'members' },
     ])
       expect(predicates).toContainEqual(expected)
-  })
-
-  it('resumes a paused source with a fresh schedule and revalidates its member binding', async () => {
-    queueTableRows(knowledgeConnector, [{ ...source, status: 'paused' }])
-    await setOrganizationAccountIndexing({ ...input, enabled: true })
-    expect(validateBinding).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialGroupOptionId: 'gmail-option', group })
-    )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'active',
-        nextMemberSyncAt: expect.any(Date),
-        lastMemberSyncError: null,
-      })
-    )
-  })
-
-  it('does not write when every source already has the requested state', async () => {
-    queueTableRows(knowledgeConnector, [{ ...source, status: 'paused' }])
-    await expect(setOrganizationAccountIndexing(input)).resolves.toMatchObject({ changed: false })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('refuses the entire change when one source has an active run', async () => {

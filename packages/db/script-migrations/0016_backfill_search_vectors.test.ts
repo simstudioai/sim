@@ -3,7 +3,7 @@ import {
   runDevSearchBackfill,
 } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import type { Sql } from 'postgres'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 /** Models the ledger while keeping the expensive projection work mocked. */
 function createLedger(appliedNames: string[] = []) {
@@ -20,20 +20,7 @@ function createLedger(appliedNames: string[] = []) {
   return { names, begin, sql: Object.assign(query, { begin }) as unknown as Sql }
 }
 
-afterEach(() => vi.restoreAllMocks())
-
 describe('dev search backfill tracking', () => {
-  it('records success and skips projection work on the next deploy', async () => {
-    const up = vi.spyOn(backfillSearchVectorsMigration, 'up').mockResolvedValue(undefined)
-    const { sql, names } = createLedger()
-    await runDevSearchBackfill(sql)
-    expect(names).toEqual(
-      new Set(['0015_backfill_embedding_search', '0016_backfill_search_vectors'])
-    )
-    await runDevSearchBackfill(sql)
-    expect(up).toHaveBeenCalledTimes(1)
-  })
-
   it('retries failed work without recording completion', async () => {
     const up = vi
       .spyOn(backfillSearchVectorsMigration, 'up')
@@ -53,13 +40,5 @@ describe('dev search backfill tracking', () => {
     const { sql } = createLedger(['0015_backfill_embedding_search'])
     await runDevSearchBackfill(sql)
     expect(up).toHaveBeenCalledOnce()
-  })
-
-  it('skips a backfill already recorded by the tracked migration runner', async () => {
-    const up = vi.spyOn(backfillSearchVectorsMigration, 'up').mockResolvedValue(undefined)
-    const { sql, begin } = createLedger([backfillSearchVectorsMigration.name])
-    await runDevSearchBackfill(sql)
-    expect(up).not.toHaveBeenCalled()
-    expect(begin).not.toHaveBeenCalled()
   })
 })

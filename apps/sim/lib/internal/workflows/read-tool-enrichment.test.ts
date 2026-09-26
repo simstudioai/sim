@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockReadWorkflowDefinitionAsExecutor } = vi.hoisted(() => ({
   mockReadWorkflowDefinitionAsExecutor: vi.fn(),
@@ -17,10 +14,6 @@ import {
 } from '@/lib/internal/workflows/read-tool-enrichment'
 
 describe('workflow tool enrichment authority', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('derives target draft authority from the verified human execution principal', async () => {
     mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
       workflow: { name: 'Child workflow', description: 'Runs the child' },

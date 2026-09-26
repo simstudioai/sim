@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Knowledge Tools Unit Tests
  *
  * Tests for knowledge_search and knowledge_upload_chunk tools,

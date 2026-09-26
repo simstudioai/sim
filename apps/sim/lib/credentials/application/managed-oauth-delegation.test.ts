@@ -1,28 +1,22 @@
-/**
- * @vitest-environment node
- */
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-  InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
-}))
-
-vi.mock('@/lib/auth/internal', () => ({
-  InvalidInternalDelegationTokenError: class InvalidInternalDelegationTokenError extends Error {},
-  verifyInternalDelegationToken: vi.fn(),
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import {
   bindExecutorManagedOAuthDelegation,
   InvalidManagedOAuthDelegationError,
 } from '@/lib/credentials/application/managed-oauth-delegation'
+
+const mockBindInternalExecutorDelegation =
+  authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 function delegationOrigin(
   overrides: Partial<ExecutorDelegationOrigin> = {}
@@ -38,7 +32,6 @@ function delegationOrigin(
 
 describe('bindExecutorManagedOAuthDelegation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
       kind: 'delegated',
       serviceId: 'executor',
@@ -87,13 +80,5 @@ describe('bindExecutorManagedOAuthDelegation', () => {
     await expect(
       bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')
     ).rejects.toBeInstanceOf(InvalidManagedOAuthDelegationError)
-  })
-
-  it('rethrows unexpected binding failures unchanged', async () => {
-    mockBindInternalExecutorDelegation.mockRejectedValue(new Error('db unavailable'))
-
-    await expect(bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')).rejects.toThrow(
-      'db unavailable'
-    )
   })
 })

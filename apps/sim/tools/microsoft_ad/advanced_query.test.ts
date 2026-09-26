@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Microsoft Graph documents three `$filter` targets that work **only without** advanced query
  * parameters, and documents advanced query capabilities as unsupported in Azure AD B2C tenants.
  * Sending `$count=true` + `ConsistencyLevel: eventual` unconditionally therefore broke filters

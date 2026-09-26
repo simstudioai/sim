@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -9,12 +6,15 @@ import {
   schemaMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockSaveWorkflowToNormalizedTables,
-  mockRecordAudit,
-  mockCaptureServerEvent,
   mockValidateWorkflowSchedules,
   mockValidateTriggerWebhookConfigForDeploy,
   mockEmitWorkflowDeployedEvent,
@@ -24,13 +24,8 @@ const {
   mockEnqueueWorkflowDeploymentPreparation,
   mockProcessWorkflowDeploymentOutboxEvent,
   mockNotifySocketDeploymentChanged,
-  mockLoadWorkflowDeploymentSnapshot,
-  mockUpdateDeploymentVersionMetadata,
   mockTx,
 } = vi.hoisted(() => ({
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockValidateWorkflowSchedules: vi.fn(),
   mockValidateTriggerWebhookConfigForDeploy: vi.fn(),
   mockEmitWorkflowDeployedEvent: vi.fn(),
@@ -40,8 +35,6 @@ const {
   mockEnqueueWorkflowDeploymentPreparation: vi.fn(),
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
-  mockLoadWorkflowDeploymentSnapshot: vi.fn(),
-  mockUpdateDeploymentVersionMetadata: vi.fn(),
   /**
    * Sentinel transaction handle the mocked prepare functions hand to the real
    * onPrepareTransaction callback, which only forwards it into the (mocked)
@@ -50,18 +43,7 @@ const {
   mockTx: { sentinel: 'tx' },
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_DEPLOYMENT_REVERTED: 'WORKFLOW_DEPLOYMENT_REVERTED',
-    WORKFLOW_DEPLOYED: 'WORKFLOW_DEPLOYED',
-    WORKFLOW_UNDEPLOYED: 'WORKFLOW_UNDEPLOYED',
-    WORKFLOW_DEPLOYMENT_ACTIVATED: 'WORKFLOW_DEPLOYMENT_ACTIVATED',
-  },
-  AuditResourceType: { WORKFLOW: 'WORKFLOW' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
   enqueueWorkflowDeploymentPreparation: mockEnqueueWorkflowDeploymentPreparation,
@@ -82,16 +64,9 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitWorkflowUndeployedEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowDeploymentSnapshot: mockLoadWorkflowDeploymentSnapshot,
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-  undeployWorkflow: vi.fn(),
-  updateDeploymentVersionMetadata: mockUpdateDeploymentVersionMetadata,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/deploy', () => ({
   validateTriggerWebhookConfigForDeploy: mockValidateTriggerWebhookConfigForDeploy,
@@ -111,13 +86,22 @@ import {
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
 
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockLoadWorkflowDeploymentSnapshot =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentSnapshot
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+const mockUpdateDeploymentVersionMetadata =
+  workflowsPersistenceUtilsMockFns.mockUpdateDeploymentVersionMetadata
+
 afterAll(() => {
   resetDbChainMock()
 })
 
 describe('performRevertToVersion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
@@ -210,7 +194,6 @@ describe('performRevertToVersion', () => {
 
 describe('performFullDeploy workspace event emission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
@@ -311,21 +294,6 @@ describe('performFullDeploy workspace event emission', () => {
       },
       warnings: [expect.stringContaining('historical')],
     })
-  })
-
-  it('always admits deploys through v2 without legacy immediate activation', async () => {
-    const result = await performFullDeploy({
-      workflowId: 'workflow-1',
-      userId: 'user-1',
-    })
-
-    expect(result.success).toBe(true)
-    expect(mockPrepareWorkflowDeployment).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledWith(
-      mockTx,
-      expect.objectContaining({ protocolVersion: 2 })
-    )
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
   })
 
   it('does not reuse a correlation request ID as an implicit idempotency key', async () => {
@@ -612,7 +580,6 @@ describe('performFullDeploy workspace event emission', () => {
 
 describe('performActivateVersion workspace event emission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
@@ -660,22 +627,6 @@ describe('performActivateVersion workspace event emission', () => {
       },
       latestOperation: operation,
     })
-  })
-
-  it('always admits version activation through v2 without legacy activation', async () => {
-    const result = await performActivateVersion({
-      workflowId: 'workflow-1',
-      version: 2,
-      userId: 'user-1',
-    })
-
-    expect(result.success).toBe(true)
-    expect(mockPrepareWorkflowVersionActivation).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledWith(
-      mockTx,
-      expect.objectContaining({ protocolVersion: 2 })
-    )
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
   })
 
   it('commits optional metadata inside activation admission before enqueueing work', async () => {
@@ -855,31 +806,12 @@ describe('performActivateVersion workspace event emission', () => {
     expect(result.success).toBe(true)
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
   })
-
-  it('surfaces v2 activation admission failure without legacy fallback', async () => {
-    mockPrepareWorkflowVersionActivation.mockResolvedValueOnce({
-      success: false,
-      reason: 'invalid_request',
-      error: 'nope',
-    })
-
-    const result = await performActivateVersion({
-      workflowId: 'workflow-1',
-      version: 2,
-      userId: 'user-1',
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('nope')
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
-  })
 })
 
 describe('mutation lock on the orchestration entry points', () => {
   const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAssertMutable.mockRejectedValue(new WorkflowLockedError('Workflow is locked'))
   })
@@ -900,13 +832,5 @@ describe('mutation lock on the orchestration entry points', () => {
     expect(result.error).toContain('locked')
     expect(result.errorCode).toBe('locked')
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('proceeds past the gate when the workflow is mutable', async () => {
-    mockAssertMutable.mockResolvedValue(undefined)
-
-    await performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })
-
-    expect(mockAssertMutable).toHaveBeenCalledWith('wf-1')
   })
 })

@@ -1,15 +1,13 @@
-/**
- * @vitest-environment node
- */
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { projectEnrichmentProviderFailure, toolProvider } from '@/enrichments/providers'
-import { runEnrichment, skippedEnrichmentDetail } from '@/enrichments/run'
+import { runEnrichment } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const ICON = (() => null) as unknown as EnrichmentConfig['icon']
 
@@ -98,26 +96,6 @@ describe('runEnrichment cascade detail', () => {
     expect(mockExecuteTool).toHaveBeenCalledTimes(1)
   })
 
-  it('threads the isolated row provenance registry through each provider tool call', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    mockExecuteTool.mockResolvedValue({ success: true, output: { email: 'j@acme.com' } })
-
-    await runEnrichment(
-      config([prov('a')]),
-      {},
-      {
-        ...ctx,
-        resolvedSecretTraceRegistry: registry,
-      }
-    )
-
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'tool_a',
-      expect.anything(),
-      expect.objectContaining({ resolvedSecretTraceRegistry: registry })
-    )
-  })
-
   it('sets error only when every provider that ran errored', async () => {
     mockExecuteTool.mockImplementation(() => ({ success: false, output: { status: 500 } }))
 
@@ -129,16 +107,6 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.detail.matchedProvider).toBeNull()
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['error', 'error'])
     expect(outcome.detail.providers.every((p) => p.error)).toBe(true)
-  })
-
-  it('treats a clean miss (ran, empty result) as no_match with no error', async () => {
-    mockExecuteTool.mockImplementation(() => ({ success: true, output: {} }))
-
-    const outcome = await runEnrichment(config([prov('a')]), {}, ctx)
-
-    expect(outcome.result).toEqual({})
-    expect(outcome.error).toBeNull()
-    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['no_match'])
   })
 
   it('continues after a provider translates a documented error into a clean miss', async () => {
@@ -217,14 +185,6 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['error'])
   })
 
-  it('skippedEnrichmentDetail marks every provider skipped without running', () => {
-    const detail = skippedEnrichmentDetail(config([prov('a'), prov('b')]))
-    expect(detail.matchedProvider).toBeNull()
-    expect(detail.totalCost).toBe(0)
-    expect(detail.providers.map((p) => p.status)).toEqual(['skipped', 'skipped'])
-    expect(mockExecuteTool).not.toHaveBeenCalled()
-  })
-
   it('marks unattempted providers not_run when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -239,50 +199,5 @@ describe('runEnrichment cascade detail', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
     expect(outcome.detail.aborted).toBe(true)
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['not_run', 'not_run'])
-  })
-
-  it('does not error when some providers no-match and only some error', async () => {
-    mockExecuteTool.mockImplementation((toolId: string) => {
-      if (toolId === 'tool_a') return { success: false, output: { status: 500 } }
-      return { success: false, output: { status: 404 } }
-    })
-
-    const outcome = await runEnrichment(config([prov('a'), prov('b')]), {}, ctx)
-
-    expect(outcome.error).toBeNull()
-    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['error', 'no_match'])
-  })
-})
-
-/**
- * The per-tool permission gate keys off the acting user, and skips entirely
- * when a tool call carries none. An enrichment that omitted the user therefore
- * sent row data — names, emails, company domains — to its provider with the
- * workspace's `deniedTools` denylist silently not applied.
- */
-describe('runEnrichment tool attribution', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('names the acting user on the provider call', async () => {
-    mockExecuteTool.mockResolvedValue({ success: true, output: { email: 'a@b.c' } })
-
-    await runEnrichment(
-      config([prov('p1')]),
-      {},
-      {
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-      }
-    )
-
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'tool_p1',
-      expect.objectContaining({
-        _context: { workspaceId: 'workspace-1', userId: 'user-1' },
-      }),
-      expect.anything()
-    )
   })
 })

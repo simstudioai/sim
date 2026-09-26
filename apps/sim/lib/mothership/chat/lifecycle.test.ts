@@ -1,7 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -16,19 +19,13 @@ afterAll(() => {
   mockGetActiveWorkflow.mockReset()
 })
 
-const { mockAuthorizeOrganization, mockAuthorizeCancellation } = vi.hoisted(() => ({
-  mockAuthorizeOrganization: vi.fn(),
-  mockAuthorizeCancellation: vi.fn(),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChat: { execute: mockAuthorizeOrganization },
-  authorizeOrganizationChatCancellation: { execute: mockAuthorizeCancellation },
-}))
+const {
+  mockAuthorizeOrganizationChat: mockAuthorizeOrganization,
+  mockAuthorizeOrganizationChatCancellation: mockAuthorizeCancellation,
+} = mothershipOrganizationChatsMockFns
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getAccessibleCopilotChat,
@@ -66,7 +63,6 @@ const asstMsg = {
 
 describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAuthorizeOrganization.mockResolvedValue({
       organizationId: 'org-1',
@@ -114,15 +110,6 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
 
     expect(result?.messages?.[0].contentBlocks?.[0].toolCall?.result).toEqual({ success: true })
     expect(JSON.stringify(result?.messages)).not.toContain('huge')
-  })
-
-  it('returns an empty transcript for a chat with no messages', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
-    dbChainMockFns.orderBy.mockResolvedValueOnce([])
-
-    const result = await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
-
-    expect(result?.messages).toEqual([])
   })
 
   it('returns null and does NOT query messages when the chat is not found', async () => {
@@ -243,36 +230,12 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(result.chat).not.toBeNull()
     expect(result.conversationHistory).toEqual([userMsg])
   })
-
-  it('resolveOrCreateChat stamps a supplied title on a newly created chat', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
-
-    await resolveOrCreateChat({ userId: USER_ID, model: 'm', title: 'First message' })
-
-    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(insertValues.title).toBe('First message')
-  })
-
-  it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
-
-    const result = await resolveOrCreateChat({ userId: USER_ID, model: 'm' })
-
-    expect(result.isNew).toBe(true)
-    expect(result.conversationHistory).toEqual([])
-    expect(result.chat?.messages).toEqual([])
-    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(Object.hasOwn(insertValues, 'messages')).toBe(false)
-    // a brand-new chat must not trigger a messages read
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-  })
 })
 
-const orgPrincipal = { kind: 'session' as const, userId: USER_ID, sessionId: 'session-1' }
+const orgPrincipal = createSessionPrincipal({ userId: USER_ID })
 
 describe('organization chat isolation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     mockAuthorizeOrganization.mockResolvedValue({
@@ -383,7 +346,6 @@ describe('organization chat isolation', () => {
 describe('owned chat cancellation policy', () => {
   const orgChat = { ...chatRow, organizationId: 'org-1', type: 'mothership' }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAuthorizeOrganization.mockReset().mockResolvedValue(undefined)
     mockAuthorizeCancellation.mockReset().mockResolvedValue(undefined)

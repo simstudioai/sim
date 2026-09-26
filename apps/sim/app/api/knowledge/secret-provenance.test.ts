@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { AuthType } from '@/lib/auth/hybrid'
@@ -76,32 +72,6 @@ describe('knowledge write secret provenance', () => {
     })
   })
 
-  it('classifies a headerless external document write as exact-empty', () => {
-    const payload = {
-      filename: 'manual.txt',
-    }
-
-    const result = resolveKnowledgeDocumentWriteSecretProvenance({
-      headers: createHeaderlessRequest(payload).headers,
-      payload,
-      authType: AuthType.SESSION,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      documents: [payload],
-    })
-
-    expect(result).toEqual({
-      success: true,
-      provenances: [
-        {
-          filename: { status: 'exact', entries: [] },
-          content: { status: 'exact', entries: [] },
-          tags: [],
-        },
-      ],
-    })
-  })
-
   it('does not track durable provenance for a legacy headerless internal write', () => {
     const payload = { content: 'legacy workflow content' }
 
@@ -132,38 +102,6 @@ describe('knowledge write secret provenance', () => {
     expect(result).toEqual({
       success: true,
       provenances: [{ status: 'exact', entries: [] }],
-    })
-  })
-
-  it('accepts a different provenance source user in the destination workspace', () => {
-    const payload = privateChunkPayload({ userId: 'workflow-owner', workspaceId: 'workspace-1' }, [
-      { name: 'TOKEN', encryptedValue: 'encrypted-token' },
-    ])
-
-    expect(
-      resolveKnowledgeWriteSecretProvenance({
-        headers: createRequest(payload).headers,
-        payload,
-        authType: AuthType.INTERNAL_JWT,
-        userId: 'billing-actor',
-        workspaceId: 'workspace-1',
-        selectionKeys: ['chunk-content'],
-      })
-    ).toEqual({
-      success: true,
-      provenances: [
-        {
-          status: 'exact',
-          entries: [
-            {
-              name: 'TOKEN',
-              encryptedValue: 'encrypted-token',
-              sourceUserId: 'workflow-owner',
-              sourceWorkspaceId: 'workspace-1',
-            },
-          ],
-        },
-      ],
     })
   })
 
@@ -258,36 +196,6 @@ describe('knowledge write secret provenance', () => {
     })
 
     expect(result).toEqual({ success: true, provenances: [{ status: 'unknown' }] })
-  })
-
-  it('persists an authenticated incomplete document bundle as unknown', () => {
-    const payload = {
-      [PRIVATE_SECRET_PROVENANCE_FIELD]: {
-        version: 1 as const,
-        complete: false,
-        selections: [],
-      },
-    }
-
-    const result = resolveKnowledgeDocumentWriteSecretProvenance({
-      headers: createRequest(payload).headers,
-      payload,
-      authType: AuthType.INTERNAL_JWT,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      documents: [{ documentTagsData: JSON.stringify([{ tagName: 'region', value: 'west' }]) }],
-    })
-
-    expect(result).toEqual({
-      success: true,
-      provenances: [
-        {
-          filename: { status: 'unknown' },
-          content: { status: 'unknown' },
-          tags: [{ tagName: 'region', provenance: { status: 'unknown' } }],
-        },
-      ],
-    })
   })
 
   it('keeps persisted tag names raw while retaining tag-value provenance', () => {

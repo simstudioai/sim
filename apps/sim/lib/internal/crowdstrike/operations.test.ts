@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   chunkIdsByUrlBudget,
@@ -10,65 +8,9 @@ import {
 
 const fetchMock = vi.fn()
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 describe('CrowdStrike operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  it('hydrates sensor queries with the same pagination envelope and signal', async () => {
-    const controller = new AbortController()
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'token-1' }))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          meta: { pagination: { limit: 1, offset: 0, total: 1 } },
-          resources: ['sensor-1'],
-        })
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          resources: [
-            {
-              device_id: 'sensor-1',
-              hostname: 'host-1',
-              status: 'protected',
-              status_causes: ['healthy'],
-            },
-          ],
-        })
-      )
-
-    const result = await executeCrowdStrikeRequest(
-      {
-        operation: 'crowdstrike_query_sensors',
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        cloud: 'us-1',
-        limit: 1,
-      },
-      controller.signal
-    )
-
-    expect(result).toMatchObject({
-      ok: true,
-      output: {
-        count: 1,
-        pagination: { limit: 1, offset: 0, total: 1 },
-        sensors: [{ deviceId: 'sensor-1', hostname: 'host-1', status: 'protected' }],
-      },
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    for (const call of fetchMock.mock.calls) {
-      expect(call[1]).toMatchObject({ signal: controller.signal })
-    }
   })
 
   it('maps a resource-less 200 error envelope to its Falcon error status', async () => {

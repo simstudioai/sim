@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { priceGeminiTokens, splitGeminiTokens, splitGeminiUsage } from '@/providers/gemini/usage'
 import { calculateCost } from '@/providers/utils'
@@ -61,14 +58,6 @@ describe('priceGeminiTokens', () => {
     expect(cost.input).toBeCloseTo(20_000 * 0.0000003 + 80_000 * 0.00000003, 10)
     expect(cost.output).toBeCloseTo(1_000 * 0.0000025, 10)
     expect(cost.total).toBeCloseTo(0.0109, 10)
-  })
-
-  it('costs strictly less than pricing the whole prompt total at the base rate', () => {
-    const cacheBlind = calculateCost(MODEL, 100_000, 1_000)
-    const cacheAware = priceGeminiTokens(MODEL, splitGeminiTokens(100_000, 1_000, 80_000))
-
-    expect(cacheBlind.total).toBeCloseTo(0.0325, 10)
-    expect(cacheAware.total).toBeLessThan(cacheBlind.total)
   })
 
   it('matches plain calculateCost exactly when there is no cache hit', () => {

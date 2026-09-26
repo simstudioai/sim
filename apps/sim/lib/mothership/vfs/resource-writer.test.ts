@@ -1,60 +1,67 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  class FileConflictError extends Error {
-    readonly code = 'FILE_EXISTS' as const
-  }
-
+const hoisted = vi.hoisted(() => {
   return {
-    FileConflictError,
     admitCreateWorkspaceFile: vi.fn(),
-    ensureWorkspaceFileFolderPath: vi.fn(),
-    findWorkspaceFileFolderIdByPath: vi.fn(),
-    listWorkspaceFileFolders: vi.fn(),
-    normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
-    getWorkspaceFileByName: vi.fn(),
-    resolveWorkspaceFileReference: vi.fn(),
-    updateWorkspaceFileContent: vi.fn(),
-    uploadWorkspaceFile: vi.fn(),
     createWorkspaceFileBufferByPath: { execute: vi.fn() },
     updateWorkspaceFileContentBufferByPath: { execute: vi.fn() },
   }
 })
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
-  admitCreateWorkspaceFile: mocks.admitCreateWorkspaceFile,
+  admitCreateWorkspaceFile: hoisted.admitCreateWorkspaceFile,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
-  findWorkspaceFileFolderIdByPath: mocks.findWorkspaceFileFolderIdByPath,
-  listWorkspaceFileFolders: mocks.listWorkspaceFileFolders,
-  normalizeWorkspaceFileItemName: mocks.normalizeWorkspaceFileItemName,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  FileConflictError: mocks.FileConflictError,
-  getWorkspaceFileByName: mocks.getWorkspaceFileByName,
-  updateWorkspaceFileContent: mocks.updateWorkspaceFileContent,
-  uploadWorkspaceFile: mocks.uploadWorkspaceFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/write-workspace-file-by-path', () => ({
-  createWorkspaceFileBufferByPath: mocks.createWorkspaceFileBufferByPath,
-  updateWorkspaceFileContentBufferByPath: mocks.updateWorkspaceFileContentBufferByPath,
+  createWorkspaceFileBufferByPath: hoisted.createWorkspaceFileBufferByPath,
+  updateWorkspaceFileContentBufferByPath: hoisted.updateWorkspaceFileContentBufferByPath,
 }))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
 import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
 
+const mocks = {
+  ...hoisted,
+  ensureWorkspaceFileFolderPath: workspaceFileFoldersMockFns.mockEnsureWorkspaceFileFolderPath,
+  findWorkspaceFileFolderIdByPath: workspaceFileFoldersMockFns.mockFindWorkspaceFileFolderIdByPath,
+  listWorkspaceFileFolders: workspaceFileFoldersMockFns.mockListWorkspaceFileFolders,
+  resolveWorkspaceFileReference: workspaceFileReferenceMockFns.mockResolveWorkspaceFileReference,
+  getWorkspaceFileByName: workspaceFileManagerMockFns.mockGetWorkspaceFileByName,
+  updateWorkspaceFileContent: workspaceFileManagerMockFns.mockUpdateWorkspaceFileContent,
+  uploadWorkspaceFile: workspaceFileManagerMockFns.mockUploadWorkspaceFile,
+}
+
 describe('resource writer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementation(
+      (name: string) => name.trim()
+    )
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
       folderId: 'folder-id',
       createdFolderIds: [],
@@ -70,7 +77,7 @@ describe('resource writer', () => {
     await expect(
       writeWorkspaceFileByPath({
         workspaceId: 'workspace-victim',
-        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
+        principal: createSessionPrincipal({ userId: 'attacker' }),
         target: { path: 'files/README.md', mode: 'overwrite' },
         buffer: Buffer.from('owned'),
         inferredMimeType: 'text/markdown',
@@ -89,7 +96,7 @@ describe('resource writer', () => {
     await expect(
       writeWorkspaceFileByPath({
         workspaceId: 'workspace-1',
-        principal: { kind: 'session', userId: 'reader', sessionId: 'session-1' },
+        principal: createSessionPrincipal({ userId: 'reader' }),
         target: { path: 'files/notes.md', mode: 'create' },
         buffer: Buffer.from('hello'),
         inferredMimeType: 'text/markdown',
@@ -105,7 +112,7 @@ describe('resource writer', () => {
     await expect(
       validateWorkspaceFileWriteTarget({
         workspaceId: 'workspace-victim',
-        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
+        principal: createSessionPrincipal({ userId: 'attacker' }),
         target: { path: 'files/README.md', mode: 'overwrite' },
       })
     ).rejects.toThrow('Insufficient permissions')
@@ -130,7 +137,7 @@ describe('resource writer', () => {
 
     const result = await writeWorkspaceFileByPath({
       workspaceId: 'workspace-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -140,7 +147,7 @@ describe('resource writer', () => {
     })
 
     expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: expect.objectContaining({
         workspaceId: 'workspace-1',
         path: 'files/Reports/2026/summary.csv',
@@ -156,7 +163,7 @@ describe('resource writer', () => {
   })
 
   describe('a folder that moved is not recreated at its old path', () => {
-    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const principal = createSessionPrincipal()
     const movedFolder = { id: 'folder-xp', name: 'xp-files', path: 'fx-archive/xp-files' }
     const staleTarget = { path: 'files/xp-files/xp-tiers.png', mode: 'create' as const }
 
@@ -249,7 +256,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -270,7 +277,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -296,7 +303,7 @@ describe('resource writer', () => {
       folderPath: 'Reports/2026',
     })
 
-    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const principal = createSessionPrincipal()
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
       principal,
@@ -332,7 +339,7 @@ describe('resource writer', () => {
 
     const written = await writeWorkspaceFileByPath({
       workspaceId: 'workspace-1',
-      principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       target: { path: 'files/chart.png', mode: 'overwrite' },
       buffer: Buffer.from('png'),
       inferredMimeType: 'image/png',
@@ -360,7 +367,7 @@ describe('resource writer', () => {
 
     const written = await writeWorkspaceFileByPath({
       workspaceId: 'workspace-1',
-      principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       target: { path: 'files/chart.png', mode: 'overwrite' },
       buffer: Buffer.from('png'),
       inferredMimeType: 'image/png',

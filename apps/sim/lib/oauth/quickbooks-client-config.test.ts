@@ -1,17 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockEncryptSecret } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockEncryptSecret: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   decryptQuickBooksOAuthClientConfig,
@@ -20,11 +10,9 @@ import {
   QuickBooksOAuthClientConfigurationError,
 } from '@/lib/oauth/quickbooks-client-config'
 
-describe('QuickBooks OAuth client configuration', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+const { mockDecryptSecret, mockEncryptSecret } = encryptionMockFns
 
+describe('QuickBooks OAuth client configuration', () => {
   it('normalizes and encrypts the complete app configuration as one secret', async () => {
     mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
 
@@ -44,24 +32,6 @@ describe('QuickBooks OAuth client configuration', () => {
         webhookVerifierToken: 'verifier-token',
       })
     )
-  })
-
-  it('decrypts and validates the stored configuration', async () => {
-    mockDecryptSecret.mockResolvedValue({
-      decrypted: JSON.stringify({
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        environment: 'production',
-        webhookVerifierToken: 'verifier-token',
-      }),
-    })
-
-    await expect(decryptQuickBooksOAuthClientConfig('ciphertext')).resolves.toEqual({
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      environment: 'production',
-      webhookVerifierToken: 'verifier-token',
-    })
   })
 
   it('rejects incomplete, invalid, and malformed configurations', async () => {

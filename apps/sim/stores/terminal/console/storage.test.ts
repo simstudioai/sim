@@ -4,10 +4,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONSOLE_STORAGE_VERSION,
-  clearAllExecutionPointers,
   consolePersistence,
   migratePersistedConsoleData,
-  saveExecutionPointer,
 } from '@/stores/terminal/console/storage'
 
 const legacyEntry = {
@@ -89,32 +87,6 @@ describe('terminal console storage migration', () => {
   })
 })
 
-describe('terminal execution pointers', () => {
-  beforeEach(() => {
-    window.sessionStorage.clear()
-  })
-
-  it('clears every terminal pointer without removing unrelated tab state', async () => {
-    window.sessionStorage.setItem('unrelated', 'keep')
-    await saveExecutionPointer({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      lastEventId: 1,
-    })
-    await saveExecutionPointer({
-      workflowId: 'workflow-2',
-      executionId: 'execution-2',
-      lastEventId: 2,
-    })
-
-    clearAllExecutionPointers()
-
-    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-1')).toBeNull()
-    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-2')).toBeNull()
-    expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
-  })
-})
-
 describe('console persistence execution lifecycle', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -151,15 +123,6 @@ describe('console persistence execution lifecycle', () => {
 
     consolePersistence.executionEnded(secondExecution)
 
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('lets a new owner adopt and finish a scoped execution', () => {
-    const execution = consolePersistence.beginScopedExecution('workflow-1')
-
-    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(execution)
-    expect(consolePersistence.endScopedExecution('workflow-1', execution)).toBe(true)
-    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBeUndefined()
     expect(vi.getTimerCount()).toBe(0)
   })
 

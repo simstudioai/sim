@@ -1,28 +1,37 @@
-/** @vitest-environment node */
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, mint, fetchBootstrap, baseURL, connection, endpoint } = vi.hoisted(() => ({
+const { read, mint, connection, endpoint } = vi.hoisted(() => ({
   connection: vi.fn(),
   endpoint: vi.fn(),
   read: vi.fn(),
   mint: vi.fn(),
-  fetchBootstrap: vi.fn(),
-  baseURL: vi.fn(),
 }))
 vi.mock('@/lib/mothership/transport/connection', () => ({ getSimConnection: connection }))
 vi.mock('node:fs/promises', () => ({ readFile: read }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: { MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test' },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://unused.test' }))
-vi.mock('@/lib/mothership/request/go/fetch', () => ({ fetchGo: fetchBootstrap }))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-test-key' }),
 }))
-vi.mock('@/lib/mothership/server/agent-url', () => ({ getMothershipBaseURL: baseURL }))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
+
+const fetchBootstrap = mothershipGoFetchMockFns.mockFetchGo
+const baseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://unused.test')
+setEnv({ MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test' })
 
 const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user' }
 
@@ -120,7 +129,6 @@ describe('deployment-owned workbench tooling', () => {
 vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({ sandboxResourceEndpoint: endpoint }))
 
 it('does not inject authentication when no active scoped callback can be established', async () => {
-  vi.clearAllMocks()
   connection.mockReturnValue({ mode: 'direct' })
   baseURL.mockResolvedValue('https://worker.test')
   fetchBootstrap.mockResolvedValue(Response.json({ version: 1, entrypoint: 'private-entry' }))

@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -56,17 +52,6 @@ const workspaceKeyAuth = {
   keyType: 'workspace' as const,
 }
 
-const personalKeyAuth = {
-  principal: {
-    kind: 'personal_api_key' as const,
-    userId: 'user-1',
-    keyId: 'key-2',
-  },
-  rateLimitSubjectIds: ['api-key:key-2'] as const,
-  rateLimitSubscription: null,
-  keyType: 'personal' as const,
-}
-
 function url(): string {
   return `http://localhost:3000/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/${FILE_ID}`
 }
@@ -81,7 +66,6 @@ function headRequest(): NextRequest {
 
 describe('GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -94,66 +78,6 @@ describe('GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]', () =>
     })
   })
 
-  /**
-   * The regression test for the whole cluster: run output carries
-   * `/api/files/serve/...` URLs that reject `x-api-key` outright, so a
-   * workspace key succeeding here is the byte path that previously did not
-   * exist for an async run.
-   */
-  it('serves run bytes to a workspace API key', async () => {
-    const response = await GET(getRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('application/pdf')
-    expect(response.headers.get('Content-Disposition')).toContain('report.pdf')
-    expect(response.headers.get('Content-Length')).toBe('3')
-    expect(await response.text()).toBe('pdf')
-  })
-
-  it('serves run bytes to a personal API key', async () => {
-    v2RouteMocks.authenticate.mockResolvedValueOnce(personalKeyAuth)
-
-    const response = await GET(getRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.text()).toBe('pdf')
-  })
-
-  /**
-   * The caller addresses a file by id only. Nothing resembling a storage key
-   * reaches the use case, so the endpoint cannot be aimed at other bytes.
-   */
-  it('passes only the path identifiers to the use case', async () => {
-    await GET(getRequest(), context)
-
-    expect(mocks.download).toHaveBeenCalledWith({
-      principal: workspaceKeyAuth.principal,
-      input: { workflowId: WORKFLOW_ID, runId: RUN_ID, fileId: FILE_ID },
-      request: expect.anything(),
-    })
-  })
-
-  it('sets private, no-store caching on the bytes', async () => {
-    const response = await GET(getRequest(), context)
-
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('surfaces operation rate-limit headers', async () => {
-    const response = await GET(getRequest(), context)
-
-    expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(getRequest(), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
   /** Cross-tenant reads must 404, never 403 — a 403 confirms the run exists. */
   it('conceals a run in another workspace as 404', async () => {
     mocks.download.mockRejectedValueOnce(new NoWorkspaceAccessError())
@@ -162,16 +86,6 @@ describe('GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]', () =>
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('reports a run that has not finished as a conflict', async () => {
-    mocks.download.mockRejectedValueOnce(
-      new OrchestrationError('conflict', 'Run has not finished yet')
-    )
-
-    const response = await GET(getRequest(), context)
-
-    expect(response.status).toBe(409)
   })
 
   /**

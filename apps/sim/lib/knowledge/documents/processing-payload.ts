@@ -199,20 +199,6 @@ export function createWorkspaceDocumentProcessingBillingContext(
   }
 }
 
-export function createNonWorkspaceDocumentProcessingBillingContext(
-  actorUserId: string
-): NonWorkspaceDocumentProcessingBillingContext {
-  const billingContext = assertDocumentProcessingBillingContext({
-    billingScope: 'non-workspace',
-    actorUserId,
-    workspaceId: null,
-  })
-  if (billingContext.billingScope !== 'non-workspace') {
-    throw new Error('Non-workspace document processing context could not be created')
-  }
-  return billingContext
-}
-
 /** Identifies a durable handoff independently of its original indexing pass and scheduled time. */
 export function createDocumentProcessingContinuationToken(
   payload: Pick<DocumentProcessingPayloadBase, 'documentId' | 'requestId'>,

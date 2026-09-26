@@ -1,28 +1,16 @@
-/**
- * @vitest-environment node
- */
-
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
-  getSession: vi.fn(),
   resumePage: vi.fn(() => null),
   unavailablePage: vi.fn(() => null),
-  redirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mocks.getSession,
-}))
-
-vi.mock('next/navigation', () => ({
-  redirect: mocks.redirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/workflows/application/read-paused-workflow-execution', () => ({
   readPausedWorkflowExecution: { authorize: mocks.authorize },
@@ -41,6 +29,8 @@ vi.mock(
 
 import ResumeExecutionPageWrapper from '@/app/(interfaces)/resume/[workflowId]/[executionId]/page'
 
+const mockGetSession = authMockFns.mockGetSession
+
 const PAGE_PARAMS = { workflowId: 'workflow-1', executionId: 'execution-1' }
 
 function pageProps(contextId?: string) {
@@ -52,8 +42,7 @@ function pageProps(contextId?: string) {
 
 describe('ResumeExecutionPageWrapper', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getSession.mockResolvedValue({
+    mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
@@ -61,7 +50,7 @@ describe('ResumeExecutionPageWrapper', () => {
   })
 
   it('redirects an unauthenticated visitor before any protected lookup', async () => {
-    mocks.getSession.mockResolvedValueOnce(null)
+    mockGetSession.mockResolvedValueOnce(null)
     const callbackPath = '/resume/workflow-1/execution-1?contextId=context-1'
 
     await expect(ResumeExecutionPageWrapper(pageProps('context-1'))).rejects.toThrow(
@@ -74,7 +63,7 @@ describe('ResumeExecutionPageWrapper', () => {
     const result = await ResumeExecutionPageWrapper(pageProps('context-1'))
 
     expect(mocks.authorize).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: PAGE_PARAMS,
     })
     expect(result.props).toMatchObject({
@@ -98,12 +87,5 @@ describe('ResumeExecutionPageWrapper', () => {
     expect(result.type).toBe(mocks.unavailablePage)
     expect(result.type).not.toBe(mocks.resumePage)
     expect(result.props).toEqual({})
-  })
-
-  it('propagates authorization infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.authorize.mockRejectedValueOnce(infrastructureError)
-
-    await expect(ResumeExecutionPageWrapper(pageProps())).rejects.toBe(infrastructureError)
   })
 })

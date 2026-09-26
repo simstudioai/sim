@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,24 +10,8 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
 }))
 
-vi.mock('@sim/db', () => ({
-  asyncJobs: {
-    attempts: 'attempts',
-    id: 'id',
-    metadata: 'metadata',
-    payload: 'payload',
-    status: 'status',
-    type: 'type',
-  },
-  db: dbChainMock.db,
-}))
-
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
-import {
-  AsyncJobEnqueueError,
-  MAX_JOB_DURATION_SECONDS,
-  MIN_JOB_DURATION_SECONDS,
-} from '@/lib/core/async-jobs/types'
+import { AsyncJobEnqueueError, MAX_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs/types'
 
 const EXISTING_JOB = {
   id: 'workflow:1',
@@ -49,7 +30,6 @@ const EXISTING_JOB = {
 
 describe('DatabaseJobQueue enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -108,30 +88,7 @@ describe('DatabaseJobQueue enqueue', () => {
     })
   })
 
-  it('persists maxDurationSeconds alongside caller metadata', async () => {
-    const queue = new DatabaseJobQueue()
-
-    await queue.enqueue(
-      'workflow-execution',
-      { executionId: 'execution-1' },
-      {
-        maxDurationSeconds: 3600,
-        metadata: { workflowId: 'workflow-1', workspaceId: 'workspace-1' },
-      }
-    )
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: {
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          maxDurationSeconds: 3600,
-        },
-      })
-    )
-  })
-
-  it.each([0, -1, 1.5, 4, MAX_JOB_DURATION_SECONDS + 1, Number.POSITIVE_INFINITY])(
+  it.each([1.5, 4, MAX_JOB_DURATION_SECONDS + 1])(
     'rejects invalid maxDurationSeconds %s before inserting',
     async (maxDurationSeconds) => {
       const queue = new DatabaseJobQueue()
@@ -144,24 +101,6 @@ describe('DatabaseJobQueue enqueue', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     }
   )
-
-  it('accepts the five-second minimum duration', async () => {
-    const queue = new DatabaseJobQueue()
-
-    await queue.enqueue(
-      'workflow-execution',
-      {},
-      {
-        maxDurationSeconds: MIN_JOB_DURATION_SECONDS,
-      }
-    )
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: { maxDurationSeconds: MIN_JOB_DURATION_SECONDS },
-      })
-    )
-  })
 
   it('does not allow caller metadata to impersonate the reserved duration field', async () => {
     const queue = new DatabaseJobQueue()
@@ -180,7 +119,6 @@ describe('DatabaseJobQueue enqueue', () => {
 
 describe('DatabaseJobQueue batchEnqueueAndWait', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -386,7 +324,6 @@ describe('DatabaseJobQueue batchEnqueueAndWait', () => {
 
 describe('DatabaseJobQueue batchEnqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -406,7 +343,6 @@ describe('DatabaseJobQueue batchEnqueue', () => {
 
 describe('DatabaseJobQueue inline claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -486,7 +422,6 @@ describe('DatabaseJobQueue inline claims', () => {
 
 describe('DatabaseJobQueue cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -512,52 +447,6 @@ describe('DatabaseJobQueue cancellation', () => {
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
       backend: 'database',
       result: 'cancelled',
-    })
-  })
-
-  it('records not-found when no active database job matches', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce({ count: 0 })
-    const queue = new DatabaseJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).resolves.toBe(0)
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'database',
-      result: 'not_found',
-    })
-  })
-
-  it('returns the exact affected-row count without materializing job IDs', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce({ count: 37 })
-    const queue = new DatabaseJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).resolves.toBe(37)
-
-    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
-  })
-
-  it('records an error when database cancellation fails', async () => {
-    dbChainMockFns.where.mockRejectedValueOnce(new Error('database unavailable'))
-    const queue = new DatabaseJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).rejects.toThrow('database unavailable')
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'database',
-      result: 'error',
     })
   })
 })

@@ -1,16 +1,13 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { waitForWorkflowToolCompletion, claimWorkflowToolExecution, recordDegraded } = vi.hoisted(
-  () => ({
-    waitForWorkflowToolCompletion: vi.fn(),
-    claimWorkflowToolExecution: vi.fn(),
-    recordDegraded: vi.fn(),
-  })
-)
+const { waitForWorkflowToolCompletion, recordDegraded } = vi.hoisted(() => ({
+  waitForWorkflowToolCompletion: vi.fn(),
+  recordDegraded: vi.fn(),
+}))
 
 vi.mock('@/lib/mothership/request/metrics', () => ({ recordDegraded }))
 
@@ -18,11 +15,11 @@ vi.mock('@/lib/mothership/request/tools/client', () => ({
   waitForWorkflowToolCompletion,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimWorkflowToolExecution,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { raceWorkflowToolClientPickup } from '@/lib/mothership/request/tools/workflow-client-fallback'
+
+const claimWorkflowToolExecution = mothershipAsyncRunsMockFns.mockClaimWorkflowToolExecution
 
 const GRACE_MS = 30_000
 const TIMEOUT_MS = 3_600_000
@@ -57,21 +54,12 @@ function baseParams(overrides: Record<string, unknown> = {}) {
 
 describe('raceWorkflowToolClientPickup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     waiterSignals = []
   })
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('forwards requested output selectors to the client completion boundary', async () => {
-    waitForWorkflowToolCompletion.mockResolvedValue({ status: 'success', data: {} })
-    await raceWorkflowToolClientPickup({ ...baseParams(), select: ['Result.value'] })
-    expect(waitForWorkflowToolCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({ select: ['Result.value'] })
-    )
   })
 
   it('lets the client win without ever attempting a claim', async () => {

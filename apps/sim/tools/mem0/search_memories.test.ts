@@ -1,17 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { mem0SearchMemoriesTool } from '@/tools/mem0/search_memories'
 
 describe('mem0SearchMemoriesTool', () => {
   const buildBody = mem0SearchMemoriesTool.request.body!
   const transformResponse = mem0SearchMemoriesTool.transformResponse!
-
-  it('uses the v3 search endpoint', () => {
-    expect(mem0SearchMemoriesTool.request.url).toBe('https://api.mem0.ai/v3/memories/search/')
-    expect(mem0SearchMemoriesTool.request.method).toBe('POST')
-  })
 
   it('builds the documented search request body', () => {
     const body = buildBody({

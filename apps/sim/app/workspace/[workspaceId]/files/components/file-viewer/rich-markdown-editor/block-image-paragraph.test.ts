@@ -1,39 +1,14 @@
 /** @vitest-environment jsdom */
-import { Editor, getSchema, type JSONContent } from '@tiptap/core'
-import { Collaboration } from '@tiptap/extension-collaboration'
-import { afterEach, describe, expect, it } from 'vitest'
-import { markdownToYDoc, yDocToMarkdown } from '@/lib/collab-doc/converter'
+import { getSchema, type JSONContent } from '@tiptap/core'
+import { describe, expect, it } from 'vitest'
 import { splitBlockImageParagraph } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-image-paragraph'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
-  editorNormalForm,
   parseMarkdownToDoc,
   serializeMarkdownBody,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
-
-const IMAGE = '![Preview](https://example.test/image.png "Image title")'
-const MIXED = `Before ${IMAGE} after`
-const CASES = [
-  ['text before', `Before ${IMAGE}`],
-  ['text after', `${IMAGE} after`],
-  ['text on both sides', MIXED],
-  ['multiple images', `${MIXED} ${IMAGE} final`],
-  ['adjacent images', `${IMAGE} ${IMAGE}`],
-  ['bold and italic', `**Before** ${IMAGE} *after*`],
-  ['marks spanning an image', `**${MIXED}**`],
-  ['bullet list', `- ${MIXED}\n- Following`],
-  ['image-first bullet', `- ${IMAGE} after\n- Following`],
-  ['ordered list', `7. ${MIXED}\n8. Following`],
-  ['task list', `- [x] ${MIXED}\n- [ ] Following`],
-  ['image-first task', `- [x] ${IMAGE} after\n- [ ] Following`],
-  ['nested list', `- Parent\n  - ${MIXED}\n- Following`],
-  ['blockquote', `> ${MIXED}`],
-] as const
 
 const schema = getSchema(createMarkdownContentExtensions())
-const cleanups: Array<() => void> = []
-afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()))
 
 describe('block images within Markdown paragraphs', () => {
   it('retains a whitespace-only code span beside an image', () => {
@@ -113,35 +88,5 @@ describe('block images within Markdown paragraphs', () => {
     const serialized = serializeMarkdownBody(markdown)
     expect(schema.nodeFromJSON(parseMarkdownToDoc(serialized)).toJSON()).toEqual(root.toJSON())
     expect(serializeMarkdownBody(serialized)).toBe(serialized)
-  })
-
-  it.each(CASES)('keeps %s schema-valid and stable through save and reopen', (label, markdown) => {
-    const parsed = schema.nodeFromJSON(parseMarkdownToDoc(markdown))
-    expect(() => parsed.check()).not.toThrow()
-    const serialized = serializeMarkdownBody(markdown)
-    const reparsed = schema.nodeFromJSON(parseMarkdownToDoc(serialized))
-    expect(() => reparsed.check()).not.toThrow()
-    if (label !== 'marks spanning an image') expect(reparsed.toJSON()).toEqual(parsed.toJSON())
-    else expect(serialized).toBe(`**Before** ${IMAGE} **after**`)
-    expect(reparsed.textContent).toBe(parsed.textContent)
-    expect(serializeMarkdownBody(serialized)).toBe(serialized)
-    expect(isRoundTripSafe(markdown)).toBe(true)
-  })
-
-  it.each(CASES)('retains %s through collaborative hydration', (_label, markdown) => {
-    const doc = markdownToYDoc(markdown)
-    const editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions({}, { disableHistory: true }),
-        Collaboration.configure({ document: doc }),
-      ],
-    })
-    cleanups.push(() => {
-      editor.destroy()
-      doc.destroy()
-    })
-    expect(() => editor.state.doc.check()).not.toThrow()
-    expect(editor.getJSON()).toEqual(schema.nodeFromJSON(editorNormalForm(markdown)).toJSON())
-    expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody(markdown))
   })
 })

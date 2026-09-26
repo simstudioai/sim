@@ -1,14 +1,20 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import { toast } from '@sim/emcn'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  accounts: vi.fn(),
-  people: vi.fn(),
   invite: vi.fn(),
   refetch: vi.fn(),
   update: vi.fn(),
@@ -16,57 +22,68 @@ const mocks = vi.hoisted(() => ({
   updateError: null as Error | null,
   resetUpdate: vi.fn(),
 }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: mocks.context,
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock(
-  '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup',
+  '@/app/o/[organizationId]/settings/components/integrations/indexed/organization-integrations-setup',
   () => ({ OrganizationIntegrationsSetup: () => <div>Provider setup</div> })
 )
 vi.mock(
-  '@/app/o/[organizationId]/settings/components/integrations/organization-source-stats',
+  '@/app/o/[organizationId]/settings/components/integrations/indexed/organization-source-stats',
   () => ({
     OrganizationSourceStats: ({ organizationId }: { organizationId: string }) => (
       <div>Stats for {organizationId}</div>
     ),
   })
 )
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccounts: mocks.accounts,
-  useUpdateOrganizationAccounts: () => ({
-    mutate: mocks.update,
-    isPending: mocks.updatePending,
-    error: mocks.updateError,
-    reset: mocks.resetUpdate,
-  }),
-  useOrganizationAccountPeople: mocks.people,
-  useInviteOrganizationAccountPeople: () => ({ mutateAsync: mocks.invite, reset: vi.fn() }),
-  useResendOrganizationAccountInvitation: () => ({}),
-  useRevokeOrganizationAccountEnrollment: () => ({}),
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import { resetDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { OrganizationIntegrationsSettings } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-settings'
+
+const mockContext = organizationProviderMockFns.mockUseOrganizationContext
+const { mockUseOrganizationAccounts: mockAccounts, mockUseOrganizationAccountPeople: mockPeople } =
+  organizationAccountsQueriesMockFns
+organizationAccountsQueriesMockFns.mockUseUpdateOrganizationAccounts.mockImplementation(() => ({
+  mutate: mocks.update,
+  isPending: mocks.updatePending,
+  error: mocks.updateError,
+  reset: mocks.resetUpdate,
+}))
+organizationAccountsQueriesMockFns.mockUseInviteOrganizationAccountPeople.mockImplementation(
+  () => ({
+    mutateAsync: mocks.invite,
+    reset: vi.fn(),
+  })
+)
+organizationAccountsQueriesMockFns.mockUseResendOrganizationAccountInvitation.mockImplementation(
+  () => ({})
+)
+organizationAccountsQueriesMockFns.mockUseRevokeOrganizationAccountEnrollment.mockImplementation(
+  () => ({})
+)
 
 describe('organization integration invitations', () => {
   let root: Root
   let container: HTMLDivElement
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    /** These cover the indexed organization Integrations settings. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
+    resetDeploymentShape()
     vi.spyOn(toast, 'success').mockReturnValue('toast-id')
     vi.spyOn(toast, 'error').mockReturnValue('toast-id')
     mocks.updatePending = false
     mocks.updateError = null
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
-    mocks.accounts.mockReturnValue({
+    mockContext.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: { id: 'group-a', options: [] } },
       error: null,
       refetch: mocks.refetch,
     })
-    mocks.people.mockReturnValue({ data: { pages: [{ enrollments: [] }] } })
+    mockPeople.mockReturnValue({ data: { pages: [{ enrollments: [] }] } })
     mocks.invite.mockResolvedValue({
       sentCount: 2,
       results: [
@@ -82,8 +99,8 @@ describe('organization integration invitations', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
+    resetEnvFlagsMock()
+    resetDeploymentShape()
   })
 
   async function render(searchParams = '') {
@@ -128,13 +145,13 @@ describe('organization integration invitations', () => {
   it('keeps provider setup as the default and sends manual invitations from People to this org', async () => {
     await render()
     expect(container.textContent).toContain('Provider setup')
-    expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
-    expect(mocks.people).not.toHaveBeenCalled()
+    expect(mockAccounts).toHaveBeenLastCalledWith('org-a')
+    expect(mockPeople).not.toHaveBeenCalled()
 
     await click('People')
     expect(container.textContent).not.toContain('Provider setup')
-    expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+    expect(mockAccounts).toHaveBeenLastCalledWith('org-a')
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
     expect(container.querySelector('input[placeholder="Search people..."]')).not.toBeNull()
     expect(mocks.invite).not.toHaveBeenCalled()
 
@@ -155,7 +172,7 @@ describe('organization integration invitations', () => {
   })
 
   it('refreshes saved provider identities only after choosing the maintenance action and confirming', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: {
         credentialGroup: {
@@ -214,7 +231,7 @@ describe('organization integration invitations', () => {
   })
 
   it('keeps failed refreshes open for retry and blocks duplicate submissions', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: { id: 'group-a', options: [{ provider: 'gmail' }] } },
       error: null,
@@ -241,26 +258,26 @@ describe('organization integration invitations', () => {
     await render('?tab=people')
     expect(container.textContent).toContain('Request connections')
     expect(container.textContent).not.toContain('Provider setup')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
   })
 
   it('waits for integration options before loading filtered people or allowing invitations', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: false,
       data: undefined,
       error: null,
       isPending: true,
     })
     await render('?tab=people&integration=jira')
-    expect(mocks.accounts).toHaveBeenLastCalledWith('org-a')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(mockAccounts).toHaveBeenLastCalledWith('org-a')
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
     expect(container.textContent).toContain('Loading connected accounts')
     expect(container.textContent).not.toContain('No people invited yet')
     expect(findButton('Request connections')).toBeDisabled()
     await click('Request connections')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
 
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: { id: 'group-a', options: [] } },
       error: null,
@@ -274,38 +291,38 @@ describe('organization integration invitations', () => {
   })
 
   it('stops the people query when setup resolves without a pool and preserves the setup action', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: false,
       data: undefined,
       error: null,
       isPending: true,
     })
-    mocks.people.mockReturnValue({ error: new Error('Organization accounts not configured') })
+    mockPeople.mockReturnValue({ error: new Error('Organization accounts not configured') })
     await render('?tab=people&integration=jira')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
     expect(container.textContent).not.toContain('Organization accounts not configured')
 
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: null },
       error: null,
     })
     await render('?tab=people&integration=jira')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
     expect(container.textContent).toContain('before requesting connections')
     expect(container.textContent).not.toContain('Organization accounts not configured')
     expect(findButton('Request connections')).toBeDisabled()
   })
 
   it('sends an org without a credential group back to provider setup before invitations', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: { credentialGroup: null },
       error: null,
     })
     await render('?tab=people')
     expect(container.textContent).toContain('before requesting connections')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
     expect(findButton('Request connections')).toBeDisabled()
     await click('View sources')
     expect(container.textContent).toContain('Provider setup')
@@ -313,7 +330,7 @@ describe('organization integration invitations', () => {
   })
 
   it('surfaces account lookup errors instead of treating them as missing setup', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       error: new Error('Account access denied'),
       refetch: mocks.refetch,
@@ -321,29 +338,29 @@ describe('organization integration invitations', () => {
     await render('?tab=people')
     expect(container.textContent).toContain('Account access denied')
     expect(container.textContent).not.toContain('View sources')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: false })
     expect(findButton('Request connections')).toBeDisabled()
     await click('Try again')
     expect(mocks.refetch).toHaveBeenCalledOnce()
   })
 
   it('does not load admin account data or expose invitations to an ordinary member', async () => {
-    mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: false } })
+    mockContext.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: false } })
     await render('?tab=people')
     expect(container.textContent).toBe('')
-    expect(mocks.accounts).toHaveBeenLastCalledWith(undefined)
-    expect(mocks.people).not.toHaveBeenCalled()
+    expect(mockAccounts).toHaveBeenLastCalledWith(undefined)
+    expect(mockPeople).not.toHaveBeenCalled()
     expect(mocks.invite).not.toHaveBeenCalled()
   })
   it('opens organization stats without loading people', async () => {
     await render()
     await click('Stats')
     expect(container.textContent).toContain('Stats for org-a')
-    expect(mocks.people).not.toHaveBeenCalled()
+    expect(mockPeople).not.toHaveBeenCalled()
   })
 
   it('filters connection summaries and requests to the selected integration, then returns to All', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: {
         credentialGroup: {
@@ -357,7 +374,7 @@ describe('organization integration invitations', () => {
       },
     })
     await render('?tab=people&integration=jira&credential-group-people=alex')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', 'alex', {
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', 'alex', {
       enabled: true,
       optionId: 'jira-option',
     })
@@ -379,7 +396,7 @@ describe('organization integration invitations', () => {
     expect(document.querySelector('[role="menu"]')?.textContent).not.toContain('Confluence')
     await act(async () => all?.click())
     await vi.waitFor(() =>
-      expect(mocks.people).toHaveBeenLastCalledWith('org-a', 'alex', { enabled: true })
+      expect(mockPeople).toHaveBeenLastCalledWith('org-a', 'alex', { enabled: true })
     )
     expect(container.querySelector('input[placeholder="Search people..."]')).toHaveValue('alex')
   })
@@ -387,7 +404,7 @@ describe('organization integration invitations', () => {
   it.each(['', '&integration=gmail'])(
     'defaults to All on navigation with one integration and initial filter %s',
     async (filter) => {
-      mocks.accounts.mockReturnValue({
+      mockAccounts.mockReturnValue({
         isSuccess: true,
         data: {
           credentialGroup: {
@@ -400,19 +417,19 @@ describe('organization integration invitations', () => {
       expect(findButton('Filter people by integration').textContent).toContain(
         filter ? 'Gmail' : 'All integrations'
       )
-      expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', {
+      expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', {
         enabled: true,
         ...(filter ? { optionId: 'gmail-option' } : {}),
       })
       await click('Sources')
       await click('People')
       expect(findButton('Filter people by integration').textContent).toContain('All integrations')
-      expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
+      expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', { enabled: true })
     }
   )
 
   it('preserves Slack setup recovery in People without hiding existing connections', async () => {
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       isSuccess: true,
       data: {
         credentialGroup: {
@@ -429,7 +446,7 @@ describe('organization integration invitations', () => {
       },
     })
     await render('?tab=people&integration=slack')
-    expect(mocks.people).toHaveBeenLastCalledWith('org-a', '', {
+    expect(mockPeople).toHaveBeenLastCalledWith('org-a', '', {
       enabled: true,
       optionId: 'slack-option',
     })

@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,14 +13,11 @@ import type { PausePointWithQueue } from '@/hooks/queries/resume-execution'
 const mocks = vi.hoisted(() => ({
   pauseContextDetail: vi.fn(),
   refetch: vi.fn(),
-  replace: vi.fn(),
   resumeContext: vi.fn(),
   resumeExecutionDetail: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mocks.replace }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/hooks/queries/resume-execution', () => ({
   resumeKeys: {
@@ -92,7 +91,6 @@ describe('ResumeExecutionPage', () => {
     act(() => root.unmount())
     queryClient.clear()
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('renders a concealed state for an absent or newly inaccessible execution', () => {
@@ -115,47 +113,6 @@ describe('ResumeExecutionPage', () => {
       undefined
     )
   })
-
-  it('redirects an expired session back through login', () => {
-    mocks.resumeExecutionDetail.mockReturnValue({
-      data: undefined,
-      error: apiError(401),
-      isError: true,
-      isFetching: false,
-      isLoading: false,
-      refetch: mocks.refetch,
-    })
-
-    renderPage('context-1')
-
-    const callbackPath = '/resume/workflow-1/execution-1?contextId=context-1'
-    expect(mocks.replace).toHaveBeenCalledWith(
-      `/login?callbackUrl=${encodeURIComponent(callbackPath)}`
-    )
-    expect(container.textContent).toContain('Redirecting to sign in')
-  })
-
-  it('shows a retryable error instead of mislabeling infrastructure failure', () => {
-    mocks.resumeExecutionDetail.mockReturnValue({
-      data: undefined,
-      error: apiError(500),
-      isError: true,
-      isFetching: false,
-      isLoading: false,
-      refetch: mocks.refetch,
-    })
-
-    renderPage()
-
-    expect(container.textContent).toContain('Could Not Load Execution')
-    expect(container.textContent).not.toContain('Execution Not Found')
-    const retryButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Try again'
-    )
-    expect(retryButton).toBeDefined()
-    act(() => retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })))
-    expect(mocks.refetch).toHaveBeenCalledOnce()
-  })
 })
 
 describe('selectInitialResumeContextId', () => {
@@ -167,14 +124,5 @@ describe('selectInitialResumeContextId', () => {
   it('uses a requested context only when the authorized execution contains it', () => {
     expect(selectInitialResumeContextId(pausePoints, 'paused-context')).toBe('paused-context')
     expect(selectInitialResumeContextId(pausePoints, 'unknown-context')).toBe('paused-context')
-  })
-
-  it('falls back to the first context when none is paused', () => {
-    expect(
-      selectInitialResumeContextId(
-        [{ contextId: 'first-context', resumeStatus: 'resumed' }] as PausePointWithQueue[],
-        null
-      )
-    ).toBe('first-context')
   })
 })

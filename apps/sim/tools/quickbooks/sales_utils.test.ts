@@ -1,10 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeQuickBooksUpdateCustomerPaymentOperation } from '@/lib/internal/quickbooks/provider-operations'
-
-vi.mock('@/lib/core/config/env', () => ({
-  env: { QUICKBOOKS_ENV: 'production' },
-}))
-
 import {
   buildQuickBooksCreatePaymentBody,
   buildQuickBooksCreateSalesDocumentBody,
@@ -113,10 +108,6 @@ describe('QuickBooks customer payment allocations', () => {
     { invoiceId: ' invoice-1 ', amount: 5 },
     { invoiceId: 'invoice-1', amount: 5 },
   ]
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
 
   it('rejects duplicate trimmed invoice IDs during parsing', () => {
     expect(() => parseQuickBooksInvoiceAllocations(duplicates)).toThrow(

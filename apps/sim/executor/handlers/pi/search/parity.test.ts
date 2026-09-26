@@ -7,8 +7,6 @@
  * `params` never declares (`exa_search` folds `text` into `contents`, `firecrawl_search` reads
  * `limit` and `timeout`). Refactor any of those four tools and the sandbox would quietly search with
  * different parameters than the other two modes, with nothing failing. This is that failure.
- *
- * @vitest-environment node
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -66,7 +64,6 @@ afterAll(async () => {
 // Per test, not once: globals and env are restored between tests, and an unstubbed `fetch` here
 // would reach the real providers.
 beforeEach(() => {
-  vi.unstubAllEnvs()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })

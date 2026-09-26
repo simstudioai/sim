@@ -3,16 +3,12 @@
  * This is the executor-specific context, different from the generic testing context.
  */
 
-import type {
-  SerializedBlock,
-  SerializedConnection,
-  SerializedWorkflow,
-} from './serialized-block.factory'
+import type { SerializedWorkflow } from './serialized-block.factory'
 
 /**
  * Block state in execution context.
  */
-export interface ExecutorBlockState {
+interface ExecutorBlockState {
   output: Record<string, any>
   executed: boolean
   executionTime: number
@@ -21,7 +17,7 @@ export interface ExecutorBlockState {
 /**
  * Execution context for executor tests.
  */
-export interface ExecutorContext {
+interface ExecutorContext {
   workflowId: string
   workspaceId?: string
   executionId?: string
@@ -51,7 +47,7 @@ export interface ExecutorContext {
 /**
  * Options for creating an executor context.
  */
-export interface ExecutorContextFactoryOptions {
+interface ExecutorContextFactoryOptions {
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -132,74 +128,5 @@ export function createExecutorContext(
     workflow: options.workflow,
     currentVirtualBlockId: options.currentVirtualBlockId,
     abortSignal: options.abortSignal,
-  }
-}
-
-/**
- * Creates an executor context with pre-executed blocks.
- *
- * @example
- * ```ts
- * const ctx = createExecutorContextWithBlocks({
- *   'source-block': { value: 10, text: 'hello' },
- *   'other-block': { result: true }
- * })
- * ```
- */
-export function createExecutorContextWithBlocks(
-  blockOutputs: Record<string, Record<string, any>>,
-  options: Omit<ExecutorContextFactoryOptions, 'blockStates' | 'executedBlocks'> = {}
-): ExecutorContext {
-  const blockStates = new Map<string, ExecutorBlockState>()
-  const executedBlocks = new Set<string>()
-
-  for (const [blockId, output] of Object.entries(blockOutputs)) {
-    blockStates.set(blockId, {
-      output,
-      executed: true,
-      executionTime: 100,
-    })
-    executedBlocks.add(blockId)
-  }
-
-  return createExecutorContext({
-    ...options,
-    blockStates,
-    executedBlocks,
-  })
-}
-
-/**
- * Adds a block state to an existing context.
- * Returns the context for chaining.
- */
-export function addBlockState(
-  ctx: ExecutorContext,
-  blockId: string,
-  output: Record<string, any>,
-  executionTime = 100
-): ExecutorContext {
-  ;(ctx.blockStates as Map<string, ExecutorBlockState>).set(blockId, {
-    output,
-    executed: true,
-    executionTime,
-  })
-  ;(ctx.executedBlocks as Set<string>).add(blockId)
-  return ctx
-}
-
-/**
- * Creates a minimal workflow for context.
- */
-export function createMinimalWorkflow(
-  blocks: SerializedBlock[],
-  connections: SerializedConnection[] = []
-): SerializedWorkflow {
-  return {
-    version: '1.0',
-    blocks,
-    connections,
-    loops: {},
-    parallels: {},
   }
 }

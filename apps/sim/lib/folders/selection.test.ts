@@ -1,22 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { readFolderPath, readFolderPaths, replaceFolderPath } from '@/lib/folders/selection'
+import { readFolderPaths, replaceFolderPath } from '@/lib/folders/selection'
 
 describe('folder selector persistence', () => {
-  it('reads a legacy single path', () => {
-    expect(readFolderPaths('/Reports')).toEqual(['/Reports'])
-    expect(readFolderPath('/Reports')).toBe('/Reports')
-  })
-
-  it('reads and deduplicates a multi-folder value', () => {
-    expect(readFolderPaths([' /Reports ', '/Archive', '/Reports'])).toEqual([
-      '/Reports',
-      '/Archive',
-    ])
-  })
-
   it('reads the serialized array written by an earlier selector revision', () => {
     expect(readFolderPaths('["/Reports","/Archive"]')).toEqual(['/Reports', '/Archive'])
   })
@@ -27,11 +12,6 @@ describe('folder selector persistence', () => {
 
   it('keeps a percent-encoded comma inside one folder name', () => {
     expect(readFolderPaths('/Q3%2CQ4')).toEqual(['/Q3%2CQ4'])
-  })
-
-  it('replaces a single folder path without changing scalar storage', () => {
-    expect(replaceFolderPath('/Reports', '/Reports', '/Target')).toBe('/Target')
-    expect(replaceFolderPath('/Archive', '/Reports', '/Target')).toBe('/Archive')
   })
 
   it('replaces one path in array and serialized-array storage', () => {

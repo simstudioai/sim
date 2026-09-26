@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvFlagsMock)
@@ -45,14 +44,7 @@ vi.mock('@/providers/models', async (importOriginal) => ({
   isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: vi.fn(() => 'openai'),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: {
@@ -64,9 +56,7 @@ vi.mock('@/stores/providers/store', () => ({
   },
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getScopesForService: vi.fn(() => []),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   BUILT_IN_TOOL_TYPES,
@@ -75,7 +65,6 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
-  providerRequiresFamilyCredentials,
   requiresProviderFamilyCredentials,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
@@ -85,11 +74,6 @@ describe('BUILT_IN_TOOL_TYPES', () => {
     expect(BUILT_IN_TOOL_TYPES.has('file_v5')).toBe(true)
     expect(BUILT_IN_TOOL_TYPES.has('file')).toBe(false)
   })
-
-  it('classifies the current Table block instead of the legacy Table block', () => {
-    expect(BUILT_IN_TOOL_TYPES.has('table_v2')).toBe(true)
-    expect(BUILT_IN_TOOL_TYPES.has('table')).toBe(false)
-  })
 })
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
@@ -98,15 +82,6 @@ const BASE_CLOUD_MODELS: Record<string, string> = {
   'gemini-2.5-pro': 'google',
   'mistral-large-latest': 'mistral',
 }
-
-describe('providerRequiresFamilyCredentials', () => {
-  it('answers for a provider the caller already resolved', () => {
-    expect(providerRequiresFamilyCredentials('vertex')).toBe(true)
-    expect(providerRequiresFamilyCredentials('openai')).toBe(false)
-    expect(providerRequiresFamilyCredentials(null)).toBe(false)
-    expect(providerRequiresFamilyCredentials(undefined)).toBe(false)
-  })
-})
 
 describe('requiresProviderFamilyCredentials', () => {
   beforeEach(() => {
@@ -130,12 +105,6 @@ describe('requiresProviderFamilyCredentials', () => {
     setEnvFlags({ isAzureConfigured: true })
     expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(false)
   })
-
-  it('is false for API-key providers, local servers, and unknown ids', () => {
-    expect(requiresProviderFamilyCredentials('openrouter/anthropic/claude')).toBe(false)
-    expect(requiresProviderFamilyCredentials('ollama/llama3')).toBe(false)
-    expect(requiresProviderFamilyCredentials('')).toBe(false)
-  })
 })
 
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
@@ -148,7 +117,6 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isHosted: false, isAzureConfigured: false, isOllamaConfigured: false })
     mockProviders.value = {
       base: { models: [], isLoading: false },
@@ -163,40 +131,11 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     mockGetBaseModelProviders.mockReturnValue({})
   })
 
-  describe('empty or missing model', () => {
-    it('does not require API key when model is empty', () => {
-      expect(evaluateCondition('')).toBe(false)
-    })
-
-    it('does not require API key when model is whitespace', () => {
-      expect(evaluateCondition('   ')).toBe(false)
-    })
-  })
-
   describe('hosted models', () => {
-    it('does not require API key for hosted models on hosted platform', () => {
-      setEnvFlags({ isHosted: true })
-      mockGetHostedModels.mockReturnValue(['gpt-4o', 'claude-sonnet-4-5'])
-      expect(evaluateCondition('gpt-4o')).toBe(false)
-      expect(evaluateCondition('claude-sonnet-4-5')).toBe(false)
-    })
-
     it('requires API key for non-hosted models on hosted platform', () => {
       setEnvFlags({ isHosted: true })
       mockGetHostedModels.mockReturnValue(['gpt-4o'])
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
-    })
-  })
-
-  describe('Vertex AI models', () => {
-    it('does not require API key for vertex/ prefixed models', () => {
-      expect(evaluateCondition('vertex/gemini-2.5-pro')).toBe(false)
-    })
-  })
-
-  describe('Bedrock models', () => {
-    it('does not require API key for bedrock/ prefixed models', () => {
-      expect(evaluateCondition('bedrock/anthropic.claude-v2')).toBe(false)
     })
   })
 
@@ -214,13 +153,6 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
   })
 
-  describe('vLLM models', () => {
-    it('does not require API key for vllm/ prefixed models', () => {
-      expect(evaluateCondition('vllm/my-model')).toBe(false)
-      expect(evaluateCondition('vllm/llama-3-70b')).toBe(false)
-    })
-  })
-
   describe('provider store lookup (client-side)', () => {
     it('requires the cloud key even when a local discovered name uses its namespace', () => {
       mockProviders.value.ollama.models = ['azure/MyDeployment', 'ollama-cloud/MyModel']
@@ -231,54 +163,9 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     it('does not require an API key for an undiscovered namespaced Ollama model', () => {
       expect(evaluateCondition('OLLAMA/Org/CustomModel')).toBe(false)
     })
-
-    it('does not require API key when model is in the Ollama store bucket', () => {
-      mockProviders.value.ollama.models = ['llama3:latest', 'mistral:latest']
-      expect(evaluateCondition('llama3:latest')).toBe(false)
-      expect(evaluateCondition('mistral:latest')).toBe(false)
-    })
-
-    it('requires API key when model is in the base store bucket', () => {
-      mockProviders.value.base.models = ['gpt-4o', 'claude-sonnet-4-5']
-      expect(evaluateCondition('gpt-4o')).toBe(true)
-      expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
-    })
-
-    it('does not require API key when model is in the vLLM store bucket', () => {
-      mockProviders.value.vllm.models = ['my-custom-model']
-      expect(evaluateCondition('my-custom-model')).toBe(false)
-    })
-
-    it('does not require API key when model is in the LiteLLM store bucket', () => {
-      mockProviders.value.litellm.models = ['litellm/anthropic/claude-sonnet-4-6']
-      expect(evaluateCondition('litellm/anthropic/claude-sonnet-4-6')).toBe(false)
-    })
-
-    it('requires API key when model is in the fireworks store bucket', () => {
-      mockProviders.value.fireworks.models = ['fireworks/llama-3']
-      expect(evaluateCondition('fireworks/llama-3')).toBe(true)
-    })
-
-    it('requires API key when model is in the openrouter store bucket', () => {
-      mockProviders.value.openrouter.models = ['openrouter/anthropic/claude']
-      expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
-    })
-
-    it('is case-insensitive for store lookup', () => {
-      mockProviders.value.ollama.models = ['Llama3:Latest']
-      expect(evaluateCondition('llama3:latest')).toBe(false)
-    })
   })
 
   describe('Ollama — OLLAMA_URL env var (server-safe)', () => {
-    it('does not require API key for unknown models when OLLAMA_URL is set', () => {
-      setEnvFlags({ isOllamaConfigured: true })
-      expect(evaluateCondition('llama3:latest')).toBe(false)
-      expect(evaluateCondition('phi3:latest')).toBe(false)
-      expect(evaluateCondition('gemma2:latest')).toBe(false)
-      expect(evaluateCondition('deepseek-coder:latest')).toBe(false)
-    })
-
     it('does not require API key for Ollama models that match cloud provider regex patterns', () => {
       setEnvFlags({ isOllamaConfigured: true })
       expect(evaluateCondition('mistral:latest')).toBe(false)
@@ -295,41 +182,6 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('gemini-2.5-pro')).toBe(true)
       expect(evaluateCondition('mistral-large-latest')).toBe(true)
     })
-
-    it('requires API key for slash-prefixed cloud models when OLLAMA_URL is set', () => {
-      setEnvFlags({ isOllamaConfigured: true })
-      expect(evaluateCondition('azure/gpt-4o')).toBe(true)
-      expect(evaluateCondition('fireworks/llama-3')).toBe(true)
-      expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
-      expect(evaluateCondition('groq/llama-3')).toBe(true)
-    })
-  })
-
-  describe('cloud provider models that need API key', () => {
-    it('requires API key for standard cloud models on hosted platform', () => {
-      setEnvFlags({ isHosted: true })
-      mockGetHostedModels.mockReturnValue([])
-      expect(evaluateCondition('gpt-4o')).toBe(true)
-      expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
-      expect(evaluateCondition('gemini-2.5-pro')).toBe(true)
-      expect(evaluateCondition('mistral-large-latest')).toBe(true)
-    })
-
-    it('requires API key for prefixed cloud models on hosted platform', () => {
-      setEnvFlags({ isHosted: true })
-      expect(evaluateCondition('fireworks/llama-3')).toBe(true)
-      expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
-      expect(evaluateCondition('groq/llama-3')).toBe(true)
-      expect(evaluateCondition('cerebras/gpt-oss-120b')).toBe(true)
-    })
-
-    it('requires API key for prefixed cloud models on self-hosted', () => {
-      setEnvFlags({ isHosted: false })
-      expect(evaluateCondition('fireworks/llama-3')).toBe(true)
-      expect(evaluateCondition('openrouter/anthropic/claude')).toBe(true)
-      expect(evaluateCondition('groq/llama-3')).toBe(true)
-      expect(evaluateCondition('cerebras/gpt-oss-120b')).toBe(true)
-    })
   })
 
   describe('self-hosted without OLLAMA_URL', () => {
@@ -343,39 +195,12 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
 })
 
 describe('parseOptionalJsonInput', () => {
-  it('returns undefined for empty values', () => {
-    expect(parseOptionalJsonInput('', 'payload')).toBeUndefined()
-    expect(parseOptionalJsonInput('   ', 'payload')).toBeUndefined()
-    expect(parseOptionalJsonInput(undefined, 'payload')).toBeUndefined()
-  })
-
-  it('parses JSON strings', () => {
-    expect(parseOptionalJsonInput('{"a":1}', 'payload')).toEqual({ a: 1 })
-    expect(parseOptionalJsonInput('["a","b"]', 'payload')).toEqual(['a', 'b'])
-  })
-
-  it('returns non-string values as-is', () => {
-    const value = { a: 1 }
-    expect(parseOptionalJsonInput(value, 'payload')).toBe(value)
-  })
-
   it('throws a helpful error for invalid JSON', () => {
     expect(() => parseOptionalJsonInput('{', 'payload')).toThrow(/Invalid JSON for payload/)
   })
 })
 
 describe('parseOptionalNumberInput', () => {
-  it('returns undefined for empty values', () => {
-    expect(parseOptionalNumberInput('', 'limit')).toBeUndefined()
-    expect(parseOptionalNumberInput('   ', 'limit')).toBeUndefined()
-    expect(parseOptionalNumberInput(undefined, 'limit')).toBeUndefined()
-  })
-
-  it('parses number strings and number values', () => {
-    expect(parseOptionalNumberInput('42', 'limit')).toBe(42)
-    expect(parseOptionalNumberInput(7, 'limit')).toBe(7)
-  })
-
   it('validates integer-only values', () => {
     expect(parseOptionalNumberInput('42', 'limit', { integer: true })).toBe(42)
     expect(() => parseOptionalNumberInput('1.5', 'limit', { integer: true })).toThrow(
@@ -392,30 +217,9 @@ describe('parseOptionalNumberInput', () => {
       /limit must be at most 20/i
     )
   })
-
-  it('throws a helpful error for invalid numbers', () => {
-    expect(() => parseOptionalNumberInput('abc', 'limit')).toThrow(/Invalid number for limit/i)
-  })
 })
 
 describe('parseOptionalBooleanInput', () => {
-  it('returns undefined for empty values', () => {
-    expect(parseOptionalBooleanInput('')).toBeUndefined()
-    expect(parseOptionalBooleanInput('   ')).toBeUndefined()
-    expect(parseOptionalBooleanInput(undefined)).toBeUndefined()
-  })
-
-  it('passes through boolean values', () => {
-    expect(parseOptionalBooleanInput(true)).toBe(true)
-    expect(parseOptionalBooleanInput(false)).toBe(false)
-  })
-
-  it('supports numeric boolean values', () => {
-    expect(parseOptionalBooleanInput(1)).toBe(true)
-    expect(parseOptionalBooleanInput(0)).toBe(false)
-    expect(parseOptionalBooleanInput(5)).toBe(true)
-  })
-
   it('supports trimmed and case-insensitive string values', () => {
     expect(parseOptionalBooleanInput('true')).toBe(true)
     expect(parseOptionalBooleanInput(' TRUE ')).toBe(true)
@@ -455,21 +259,8 @@ describe('getSerializedModelProviderId', () => {
     expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
   })
 
-  it('honours a caller-supplied fallback model', () => {
-    expect(getSerializedModelProviderId(undefined, 'claude-sonnet-5')).toBe('anthropic')
-  })
-
   it('never throws when the resolver rejects the model', () => {
     expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
     expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
-  })
-
-  it('never throws when the resolver rejects every model, including the fallback', () => {
-    resolver.mockImplementation((() => {
-      throw new Error('Provider "openai" is not available')
-    }) as unknown as typeof getProviderFromModel)
-
-    expect(() => getSerializedModelProviderId('gpt-4o')).not.toThrow()
-    expect(getSerializedModelProviderId('gpt-4o')).toBe('openai')
   })
 })

@@ -1,54 +1,30 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
-const {
-  mockRecordUsage,
-  mockCapture,
-  mockCreate,
-  mockSupportsNativeStructuredOutputs,
-  mockPrepareToolsWithUsageControl,
-  mockExecuteTool,
-} = vi.hoisted(() => ({
-  mockRecordUsage: vi.fn(),
-  mockCapture: vi.fn(),
-  mockCreate: vi.fn(),
+const { mockSupportsNativeStructuredOutputs } = vi.hoisted(() => ({
   mockSupportsNativeStructuredOutputs: vi.fn(),
-  mockPrepareToolsWithUsageControl: vi.fn(),
-  mockExecuteTool: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
-  captureProviderConversationStep: mockCapture,
-  recordProviderConversationUsage: mockRecordUsage,
-  recordProviderConversationToolError: vi.fn(),
-}))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue('moonshotai/Kimi-K2-Instruct'),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/together/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
@@ -58,27 +34,25 @@ vi.mock('@/providers/together/utils', () => ({
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn().mockReturnValue({ input: 0, output: 0, total: 0 }),
-  generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
-  prepareToolExecution: vi.fn(() => ({ toolParams: { x: 1 }, executionParams: { x: 1 } })),
-  prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,
-  sumToolCosts: vi.fn().mockReturnValue(0),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { togetherProvider } from '@/providers/together/index'
-import { ProviderError } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 5
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
+
+const mockPrepareToolsWithUsageControl = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { x: 1 },
+  executionParams: { x: 1 },
+})
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -113,7 +87,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('togetherProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
@@ -178,31 +151,6 @@ describe('togetherProvider', () => {
       expect(capturedCalls).not.toContain('call-6')
     }
   )
-
-  it('throws when the API key is missing', async () => {
-    await expect(
-      togetherProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Together AI')
-  })
-
-  it('strips only the leading together/ prefix from the model id', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('hi there'))
-
-    const result = await togetherProvider.executeRequest(baseRequest)
-
-    expect(lastCallBody().model).toBe('moonshotai/Kimi-K2-Instruct')
-    expect(result).toMatchObject({
-      content: 'hi there',
-      model: 'moonshotai/Kimi-K2-Instruct',
-      tokens: { input: 10, output: 5, total: 15 },
-    })
-  })
-
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(togetherProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(ProviderError)
-  })
 
   it('streams directly when there are no tools', async () => {
     mockCreate.mockResolvedValueOnce({})

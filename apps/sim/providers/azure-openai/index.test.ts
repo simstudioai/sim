@@ -1,54 +1,34 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
 const {
-  mockAzureOpenAI,
-  azureOpenAIArgs,
-  mockChatCreate,
-  mockValidate,
-  mockCreatePinnedFetch,
   mockExecuteResponses,
   sentinelFetch,
   mockIsChatCompletionsEndpoint,
   mockIsResponsesEndpoint,
-  mockPrepareTools,
-  mockExecuteTool,
-} = vi.hoisted(() => {
-  const azureOpenAIArgs: Array<Record<string, unknown>> = []
-  const sentinelFetch = vi.fn()
-  const mockChatCreate = vi.fn()
-  class MockAzureOpenAI {
-    chat = { completions: { create: mockChatCreate } }
-    constructor(opts: Record<string, unknown>) {
-      azureOpenAIArgs.push(opts)
-    }
-  }
-  return {
-    mockAzureOpenAI: MockAzureOpenAI,
-    azureOpenAIArgs,
-    mockChatCreate,
-    mockValidate: vi.fn(),
-    mockCreatePinnedFetch: vi.fn(() => sentinelFetch),
-    mockExecuteResponses: vi.fn(),
-    sentinelFetch,
-    mockIsChatCompletionsEndpoint: vi.fn(() => false),
-    mockIsResponsesEndpoint: vi.fn(() => false),
-    mockPrepareTools: vi.fn(),
-    mockExecuteTool: vi.fn(),
-  }
-})
-
-vi.mock('openai', () => ({ AzureOpenAI: mockAzureOpenAI }))
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mockValidate,
-  createPinnedFetch: mockCreatePinnedFetch,
+} = vi.hoisted(() => ({
+  mockExecuteResponses: vi.fn(),
+  sentinelFetch: vi.fn(),
+  mockIsChatCompletionsEndpoint: vi.fn(() => false),
+  mockIsResponsesEndpoint: vi.fn(() => false),
 }))
+
+vi.mock('openai', () => openaiMock)
+vi.mock('@/providers', () => providersMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/providers/openai/core', () => ({
   executeResponsesProviderRequest: mockExecuteResponses,
 }))
@@ -61,34 +41,26 @@ vi.mock('@/providers/azure-openai/utils', () => ({
   createReadableStreamFromAzureOpenAIStream: vi.fn(),
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn(() => []),
-  getProviderDefaultModel: vi.fn(() => 'azure/gpt-4o'),
-}))
-vi.mock('@/providers/attachments', () => ({
-  prepareProviderAttachments: vi.fn(() => []),
-}))
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: mockPrepareTools,
-  sumToolCosts: vi.fn(() => 0),
-}))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { azureOpenAIProvider } from '@/providers/azure-openai/index'
+
+const mockChatCreate = openaiMockFns.mockChatCompletionsCreate
+/** Options each `new AzureOpenAI(...)` received, in construction order. */
+const azureOpenAIArgs = () =>
+  openaiMockFns.mockAzureOpenAI.mock.calls.map(
+    (call) => (call as unknown[])[0] as Record<string, unknown>
+  )
+
+const mockCreatePinnedFetch = inputValidationMockFns.mockCreatePinnedFetch
+mockCreatePinnedFetch.mockImplementation(() => sentinelFetch)
+const mockValidate = inputValidationMockFns.mockValidateUrlWithDNS
+const mockPrepareTools = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 function request(overrides: Partial<ProviderRequest>): ProviderRequest {
   return { model: 'azure/gpt-4o', apiKey: 'k', messages: [], ...overrides }
@@ -120,8 +92,6 @@ afterAll(resetEnvMock)
 
 describe('azureOpenAIProvider — SSRF pinning', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    azureOpenAIArgs.length = 0
     setEnv({ AZURE_OPENAI_ENDPOINT: undefined, AZURE_OPENAI_API_VERSION: undefined })
     mockIsChatCompletionsEndpoint.mockReturnValue(false)
     mockIsResponsesEndpoint.mockReturnValue(false)
@@ -209,7 +179,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
         profile: 'configuredEndpoint',
       })
-      expect(azureOpenAIArgs[0]).toMatchObject({ fetch: sentinelFetch })
+      expect(azureOpenAIArgs()[0]).toMatchObject({ fetch: sentinelFetch })
     })
 
     it('constructs the AzureOpenAI client without a custom fetch for a trusted env endpoint', async () => {
@@ -226,7 +196,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(azureOpenAIArgs[0]).not.toHaveProperty('fetch')
+      expect(azureOpenAIArgs()[0]).not.toHaveProperty('fetch')
     })
 
     it('preserves a custom deployment name through Chat Completions routing', async () => {

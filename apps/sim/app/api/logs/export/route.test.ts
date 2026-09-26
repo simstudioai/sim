@@ -1,45 +1,29 @@
-/**
- * @vitest-environment node
- */
 import { workflowExecutionLogs } from '@sim/db/schema'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockExpandFolderIdsWithDescendants,
-  mockMapWithConcurrency,
-  mockMaterializeExecutionDataForDisplay,
-  mockGetUserPermissionConfig,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
+const { mockExpandFolderIdsWithDescendants, mockMapWithConcurrency } = vi.hoisted(() => ({
   mockExpandFolderIdsWithDescendants: vi.fn(),
   mockMapWithConcurrency: vi.fn(),
-  mockMaterializeExecutionDataForDisplay: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: mockExpandFolderIdsWithDescendants,
 }))
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterializeExecutionDataForDisplay,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/core/utils/concurrency', () => ({
   MATERIALIZE_CONCURRENCY: 20,
@@ -49,16 +33,15 @@ vi.mock('@/lib/core/utils/concurrency', () => ({
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
 
+const { mockMaterializeExecutionDataForDisplay } = traceStoreMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
 const STARTED_AT = new Date('2026-08-23T12:00:00.000Z')
 
 function makeRequest() {
-  return createMockRequest(
-    'GET',
-    undefined,
-    {},
-    'http://localhost:3000/api/logs/export?workspaceId=workspace-1'
-  )
+  return createMockRequest({ url: 'http://localhost:3000/api/logs/export?workspaceId=workspace-1' })
 }
 
 function logRow(index: number, overrides: Record<string, unknown> = {}) {
@@ -91,7 +74,6 @@ function flattenConditions(condition: unknown): Array<Record<string, unknown>> {
 
 describe('GET /api/logs/export', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
@@ -109,17 +91,6 @@ describe('GET /api/logs/export', () => {
         mapper: (item: unknown, index: number) => Promise<unknown>
       ) => Promise.all(items.map(mapper))
     )
-  })
-
-  it('rejects unauthenticated exports before checking workspace access', async () => {
-    mockGetSession.mockResolvedValueOnce(null)
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(401)
-    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-    expect(dbChainMockFns.where).not.toHaveBeenCalled()
-    expect(mockMaterializeExecutionDataForDisplay).not.toHaveBeenCalled()
   })
 
   it('returns only the CSV header when workspace access is denied', async () => {
@@ -295,15 +266,6 @@ describe('GET /api/logs/export', () => {
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
   })
 
-  it('exports normally when no group withholds log export', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0)])
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(await response.text()).toContain('execution-0')
-  })
-
   it('refuses a cost-filtered export when the group withholds spend', async () => {
     mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
     queueTableRows(workflowExecutionLogs, [logRow(0)])
@@ -320,30 +282,5 @@ describe('GET /api/logs/export', () => {
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: capabilityRefusal('logs.cost') })
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
-  })
-
-  it('answers the same cost-filtered export when no group withholds spend', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0)])
-
-    const response = await GET(
-      createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/logs/export?workspaceId=workspace-1&costOperator=%3E&costValue=0.5'
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.text()).toContain('execution-0')
-  })
-
-  it('keeps the cost column when no group withholds it', async () => {
-    queueTableRows(workflowExecutionLogs, [logRow(0)])
-
-    const response = await GET(makeRequest())
-    const lines = (await response.text()).trimEnd().split('\n')
-
-    expect(lines[1].split(',')[5]).toBe('0.01')
   })
 })

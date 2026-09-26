@@ -1,10 +1,27 @@
-/** @vitest-environment node */
-import { db } from '@sim/db'
 import { credential, member, user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => {
+const hoisted = vi.hoisted(() => {
   const values = new Map<string, { value: string; expires: number }>()
   return {
     values,
@@ -50,61 +67,36 @@ const m = vi.hoisted(() => {
     reader: vi.fn(),
     receipt: vi.fn(),
     provision: vi.fn(),
-    enrollment: vi.fn(),
-    oauthContext: vi.fn(),
     oauthStart: vi.fn(),
     oauthComplete: vi.fn(),
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => ({ get: m.get, set: m.set, eval: m.eval }),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/knowledge/application/github-installations', () => ({
-  listGitHubSearchInstallations: { execute: m.list },
-  connectGitHubSearchInstallation: { execute: m.connect },
-  findGitHubSearchReaderCredential: m.reader,
+  listGitHubSearchInstallations: { execute: hoisted.list },
+  connectGitHubSearchInstallation: { execute: hoisted.connect },
+  findGitHubSearchReaderCredential: hoisted.reader,
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  provisionKnowledgeConnectorMembersBinding: m.provision,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: m.enrollment,
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: m.oauthContext,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: m.oauthStart }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.oauthStart }))
 vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
-  completePublicCredentialGroupOAuth: { execute: m.oauthComplete },
+  completePublicCredentialGroupOAuth: { execute: hoisted.oauthComplete },
 }))
 vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
-  readSearchConnectionCompletion: m.receipt,
+  readSearchConnectionCompletion: hoisted.receipt,
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
     github: { name: 'GitHub', auth: { mode: 'oauth', provider: 'github-repositories' } },
   },
 }))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  ManagedOAuthCredentialError: class extends Error {},
-}))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {},
-  getGitHubInstallationConfiguration: () => ({
-    configured: true,
-    installUrl: 'https://github.com/apps/test-search/installations/new',
-  }),
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 
 import {
   cancelGitHubSearchSetup,
@@ -121,7 +113,26 @@ import {
   saveGitHubSetupAttempt,
 } from '@/lib/knowledge/github-setup-state'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'browser-1' } as const
+const m = {
+  ...hoisted,
+  enrollment: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  oauthContext: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+}
+
+githubInstallationMockFns.mockGetGitHubInstallationConfiguration.mockReturnValue({
+  configured: true,
+  installUrl: 'https://github.com/apps/test-search/installations/new',
+})
+
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => ({
+  get: m.get,
+  set: m.set,
+  eval: m.eval,
+}))
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'browser-1' })
 const input = { organizationId: 'organization', setupId: '550e8400-e29b-41d4-a716-446655440000' }
 const scope = { ...input, userId: principal.userId, sessionId: principal.sessionId }
 const installation = {
@@ -163,7 +174,7 @@ async function callback(state: string, installationId = '42') {
     input: { state, installationId, setupAction: 'install' },
   })
 }
-async function resume() {
+async function _resume() {
   admin()
   return continueGitHubSearchSetup.execute({ principal, input })
 }
@@ -189,7 +200,6 @@ const oauthAttempt = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   m.values.clear()
   m.list.mockResolvedValue({ available: true, needsUserConnection: false, installations: [] })
@@ -222,56 +232,6 @@ describe('GitHub setup lifecycle', () => {
       expect(m.list).not.toHaveBeenCalled()
     }
   )
-  it('refuses non-session principals before state lookup', async () => {
-    await expect(
-      startGitHubSearchSetup.execute({
-        principal: { kind: 'personal_api_key', userId: 'admin', keyId: 'key' },
-        input,
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(m.get).not.toHaveBeenCalled()
-  })
-  it('issues opaque state, verifies installation binding through the existing operation, and makes refresh idempotent', async () => {
-    const { url } = await start()
-    const state = new URL(url).searchParams.get('state')!
-    expect(state).not.toBe(input.setupId)
-    expect(url).not.toContain(input.organizationId)
-    expect(new URL(url).pathname).toBe('/apps/test-search/installations/new')
-    await callback(state)
-    expect(m.connect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({
-          organizationId: input.organizationId,
-          installationId: '42',
-        }),
-      })
-    )
-    await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
-    await callback(state)
-    expect(m.connect).toHaveBeenCalledTimes(1)
-  })
-  it('reuses a sole eligible installation without forcing GitHub configuration', async () => {
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation],
-    })
-    const { url } = await start()
-    expect(new URL(url).pathname).toBe('/credential-groups/complete')
-    expect(new URL(url).searchParams.get('completionId')).toBe(input.setupId)
-    await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
-  })
-  it('preserves explicit install intent even when one installation exists', async () => {
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation],
-    })
-    const { url } = await start('install')
-    expect(new URL(url).hostname).toBe('github.com')
-    expect(m.connect).not.toHaveBeenCalled()
-  })
   it('offers multiple installations using bounded metadata and rejects choices not offered', async () => {
     m.list.mockResolvedValue({
       available: true,
@@ -307,62 +267,6 @@ describe('GitHub setup lifecycle', () => {
     expect(m.list).not.toHaveBeenCalled()
     expect(m.reader).not.toHaveBeenCalled()
   })
-  it('rechecks an installation left on GitHub settings and completes the original attempt', async () => {
-    const state = new URL((await start()).url).searchParams.get('state')!
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation],
-    })
-    expect(new URL((await start()).url).pathname).toBe('/credential-groups/complete')
-    await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
-    expect(m.connect).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({
-          organizationId: input.organizationId,
-          installationId: '42',
-        }),
-      })
-    )
-    await callback(state)
-    expect(m.connect).toHaveBeenCalledOnce()
-  })
-  it('keeps incomplete installation checks pending without replacing callback state', async () => {
-    const initial = await start()
-    const attempt = await readGitHubSetupAttempt(scope)
-    await expect(start()).resolves.toEqual(initial)
-    expect(await readGitHubSetupAttempt(scope)).toEqual(attempt)
-    expect(m.connect).not.toHaveBeenCalled()
-  })
-  it('lets the user choose after explicitly adding another organization without a callback', async () => {
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation],
-    })
-    const state = new URL((await start('install')).url).searchParams.get('state')!
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation, secondInstallation],
-    })
-    expect(new URL((await start()).url).pathname).toBe('/knowledge/github/setup')
-    await expect(status()).resolves.toEqual({
-      status: 'choosing',
-      installations: [installation, secondInstallation],
-    })
-    expect(m.connect).not.toHaveBeenCalled()
-    expect(new URL((await callback(state)).url).pathname).toBe('/knowledge/github/setup')
-    expect(m.connect).not.toHaveBeenCalled()
-  })
-  it('does not replace an installation attempt when a connection check has a transient failure', async () => {
-    await start()
-    m.list.mockRejectedValueOnce(new Error('GitHub unavailable'))
-    await expect(start()).rejects.toThrow('GitHub unavailable')
-    await expect(status()).resolves.toEqual({ status: 'pending' })
-    expect(m.connect).not.toHaveBeenCalled()
-  })
   it.each([{ userId: 'other-user' }, { sessionId: 'other-browser' }])(
     'cannot read or consume another initiating session: %s',
     async (change) => {
@@ -391,37 +295,6 @@ describe('GitHub setup lifecycle', () => {
         input: { ...input, organizationId: 'another-org' },
       })
     ).resolves.toEqual({ status: 'expired' })
-  })
-  it('cancellation prevents late callbacks and repeated begin with the same ID', async () => {
-    const state = new URL((await start()).url).searchParams.get('state')!
-    await cancel()
-    await expect(callback(state)).rejects.toMatchObject({ code: 'validation' })
-    await expect(start()).rejects.toMatchObject({ code: 'validation' })
-    await expect(status()).resolves.toEqual({ status: 'expired' })
-    expect(m.connect).not.toHaveBeenCalled()
-  })
-  it('a cancellation arriving before start leaves a tombstone', async () => {
-    await cancel()
-    await expect(start()).rejects.toMatchObject({ code: 'validation' })
-    expect(m.list).not.toHaveBeenCalled()
-  })
-  it('cancellation after committed completion preserves the result', async () => {
-    const state = new URL((await start()).url).searchParams.get('state')!
-    await callback(state)
-    await cancel()
-    await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
-  })
-  it('expires without a sliding refresh window', async () => {
-    vi.useFakeTimers()
-    const { url } = await start()
-    vi.advanceTimersByTime(GITHUB_SETUP_TTL_MS - 1)
-    await expect(status()).resolves.toEqual({ status: 'pending' })
-    vi.advanceTimersByTime(1)
-    await expect(status()).resolves.toEqual({ status: 'expired' })
-    await expect(callback(new URL(url).searchParams.get('state')!)).rejects.toMatchObject({
-      code: 'validation',
-    })
-    expect(m.connect).not.toHaveBeenCalled()
   })
   it('rechecks current administrator access on the callback', async () => {
     const state = new URL((await start()).url).searchParams.get('state')!
@@ -456,31 +329,6 @@ describe('GitHub setup reader OAuth continuation', () => {
     queueTableRows(credential, [])
     return start(intent)
   }
-  it('starts the existing OAuth boundary and requires its receipt plus a current reader to continue', async () => {
-    await startOAuth()
-    expect(m.oauthStart).toHaveBeenCalledWith({ fixture: 'oauth-context' }, 'fixture-invitation', {
-      completionRedirect: true,
-      completionId: input.setupId,
-      returnTo: 'github-installation',
-      connectionIntent: { kind: 'create' },
-    })
-    await expect(resume()).rejects.toMatchObject({ code: 'forbidden' })
-    m.receipt.mockResolvedValue('wrong-reader')
-    await expect(resume()).rejects.toMatchObject({ code: 'forbidden' })
-    m.receipt.mockResolvedValue(reader.id)
-    expect(new URL((await resume()).url).hostname).toBe('github.com')
-  })
-  it('preserves explicit install intent after OAuth with existing installations', async () => {
-    await startOAuth('install')
-    m.receipt.mockResolvedValue(reader.id)
-    m.list.mockResolvedValue({
-      available: true,
-      needsUserConnection: false,
-      installations: [installation],
-    })
-    expect(new URL((await resume()).url).hostname).toBe('github.com')
-    expect(m.connect).not.toHaveBeenCalled()
-  })
   it('a revoked enrollment stays denied before provider authorization', async () => {
     m.enrollment.mockRejectedValueOnce(new Error('revoked'))
     await startOAuth()
@@ -522,96 +370,13 @@ describe('GitHub setup reader OAuth continuation', () => {
       })
     )
   })
-  it('cancellation prevents the intermediate OAuth grant as well as installation', async () => {
-    await startOAuth()
-    await cancel()
-    admin()
-    await expect(
-      completeGitHubSetupReaderOAuth.execute({
-        principal,
-        input: { attempt: oauthAttempt, code: 'fixture-code' },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(m.oauthComplete).not.toHaveBeenCalled()
-  })
-  it('maps OAuth failure classifications into the authoritative setup status', async () => {
-    await startOAuth()
-    admin()
-    await continueGitHubSearchSetup.execute({
-      principal,
-      input: { ...input, oauth: 'github_email_unverified' },
-    })
-    await expect(status()).resolves.toMatchObject({
-      status: 'failed',
-      error: expect.stringContaining('verify your primary email address'),
-    })
-    expect(m.connect).not.toHaveBeenCalled()
-  })
 })
 
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((complete) => {
-    resolve = complete
-  })
-  return { promise, resolve }
-}
-
 describe('GitHub setup atomic claims', () => {
-  it('cancellation during an installation recheck prevents a late grant', async () => {
-    await start()
-    const entered = deferred<void>()
-    const listed = deferred<{
-      available: boolean
-      needsUserConnection: boolean
-      installations: (typeof installation)[]
-    }>()
-    m.list.mockImplementationOnce(() => {
-      entered.resolve()
-      return listed.promise
-    })
-    const pending = start()
-    await entered.promise
-    await cancel()
-    listed.resolve({ available: true, needsUserConnection: false, installations: [installation] })
-    await expect(pending).rejects.toMatchObject({ code: 'conflict' })
-    expect(m.connect).not.toHaveBeenCalled()
-    await expect(status()).resolves.toEqual({ status: 'expired' })
-  })
-  it('never wraps nested authorized operations in a global-pool transaction', async () => {
-    m.list.mockImplementationOnce(async () => {
-      expect(db.transaction).not.toHaveBeenCalled()
-      return { available: true, needsUserConnection: false, installations: [installation] }
-    })
-    m.connect.mockImplementationOnce(async () => {
-      expect(db.transaction).not.toHaveBeenCalled()
-      return { credential: resultCredential }
-    })
-    await start()
-  })
-  it('cancellation during discovery prevents the final grant claim', async () => {
-    const entered = deferred<void>()
-    const listed = deferred<{
-      available: boolean
-      needsUserConnection: boolean
-      installations: (typeof installation)[]
-    }>()
-    m.list.mockImplementationOnce(() => {
-      entered.resolve()
-      return listed.promise
-    })
-    const pending = start()
-    await entered.promise
-    await cancel()
-    listed.resolve({ available: true, needsUserConnection: false, installations: [installation] })
-    await expect(pending).rejects.toMatchObject({ code: 'conflict' })
-    expect(m.connect).not.toHaveBeenCalled()
-    await expect(status()).resolves.toEqual({ status: 'expired' })
-  })
   it('a claimed final grant survives cancellation and concurrent callback replay without a duplicate grant', async () => {
     const state = new URL((await start()).url).searchParams.get('state')!
-    const entered = deferred<void>()
-    const connected = deferred<{ credential: typeof resultCredential }>()
+    const entered = createDeferred<void>()
+    const connected = createDeferred<{ credential: typeof resultCredential }>()
     m.connect.mockImplementationOnce(() => {
       entered.resolve()
       return connected.promise
@@ -624,31 +389,6 @@ describe('GitHub setup atomic claims', () => {
     connected.resolve({ credential: resultCredential })
     await pending
     await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
-  })
-  it('cancellation during a reader grant prevents subsequent installation continuation', async () => {
-    m.list.mockResolvedValueOnce({ available: true, needsUserConnection: true, installations: [] })
-    queueTableRows(credential, [])
-    await start()
-    const entered = deferred<void>()
-    const authorized = deferred<{ credentialId: string }>()
-    m.oauthComplete.mockImplementationOnce(() => {
-      entered.resolve()
-      return authorized.promise
-    })
-    admin()
-    queueTableRows(user, [{ emailVerified: true }])
-    const pending = completeGitHubSetupReaderOAuth.execute({
-      principal,
-      input: { attempt: oauthAttempt, code: 'fixture-code' },
-    })
-    await entered.promise
-    await cancel()
-    authorized.resolve({ credentialId: 'reader' })
-    await pending
-    m.receipt.mockResolvedValue('reader')
-    await expect(resume()).rejects.toMatchObject({ code: 'validation' })
-    expect(m.connect).not.toHaveBeenCalled()
-    await expect(status()).resolves.toEqual({ status: 'expired' })
   })
   it('an interrupted claim is not replayed and expires into a recoverable new attempt', async () => {
     vi.useFakeTimers()

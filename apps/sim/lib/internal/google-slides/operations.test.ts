@@ -1,38 +1,35 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-  uploadCopilotFile: vi.fn(),
-  uploadExecutionFile: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mocks.uploadCopilotFile,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { exportGoogleSlidesPresentation } from '@/lib/internal/google-slides/operations'
 
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
 describe('exportGoogleSlidesPresentation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), { status: 200 })
     )
-    mocks.uploadExecutionFile.mockResolvedValue({
+    mockUploadExecutionFile.mockResolvedValue({
       id: 'file-1',
       name: 'presentation-1.pdf',
       url: '/api/files/serve/file-1',
@@ -52,12 +49,12 @@ describe('exportGoogleSlidesPresentation', () => {
       }
     )
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/drive/v3/files/presentation-1/export?'),
       '203.0.113.1',
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',

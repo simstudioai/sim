@@ -1,20 +1,19 @@
 /**
- * @vitest-environment node
- *
  * `updateColumnOptions` is the one column mutator whose lock gating depends on
  * the payload: every call is a schema change, and a call that drops options also
  * rewrites cells. Both halves are asserted here because an options-only payload
  * is the shape that reaches this mutator from `PATCH .../columns`, and it used
  * to be the single column write with no lock assert at all.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableLocks } from '@/lib/table/types'
 
-const { mockWithLockedTable } = vi.hoisted(() => ({ mockWithLockedTable: vi.fn() }))
-
-vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import { updateColumnOptions } from '@/lib/table/columns/service'
+
+const mockWithLockedTable = tableServiceMockFns.mockWithLockedTable
 
 const UNLOCKED: TableLocks = {
   schemaLocked: false,
@@ -70,10 +69,6 @@ function runWith(table: TableDefinition, options: Array<{ id: string; name: stri
 }
 
 describe('updateColumnOptions lock gating', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('refuses an options-only edit on a schema-locked table', async () => {
     await expect(
       runWith(makeTable({ schemaLocked: true }), [

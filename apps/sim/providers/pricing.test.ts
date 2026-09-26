@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { resolveModelTokenPricing } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'

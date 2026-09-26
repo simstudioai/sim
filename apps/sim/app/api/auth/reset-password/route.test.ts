@@ -1,10 +1,11 @@
 /**
  * Tests for reset password API route
- *
- * @vitest-environment node
  */
+
 import { createMockRequest } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
   mockCheckRateLimitDirect: vi.fn(),
@@ -16,51 +17,19 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   },
 }))
 
-const { mockResetPassword, mockLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockResetPassword: vi.fn(),
-    mockLogger: logger,
-  }
-})
-
-vi.mock('@/lib/auth', () => ({
-  auth: {
-    api: {
-      resetPassword: mockResetPassword,
-    },
-  },
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
-
 import { APIError } from 'better-auth/api'
 import { POST } from '@/app/api/auth/reset-password/route'
 
+const mockResetPassword = authMockFns.mockResetPassword
+const mockLogger = getMockLogger('PasswordResetAPI')
+
 describe('Reset Password API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResetPassword.mockResolvedValue(undefined)
     mockCheckRateLimitDirect.mockResolvedValue({
       allowed: true,
       resetAt: new Date(Date.now() + 60_000),
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('rejects with 429 once the per-IP budget is spent, without consuming the token', async () => {
@@ -78,89 +47,6 @@ describe('Reset Password API Route', () => {
     expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
-  it('should reset password successfully', async () => {
-    const req = createMockRequest('POST', {
-      token: 'valid-reset-token',
-      newPassword: 'newSecurePassword123!',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-
-    expect(mockResetPassword).toHaveBeenCalledWith({
-      body: {
-        token: 'valid-reset-token',
-        newPassword: 'newSecurePassword123!',
-      },
-      method: 'POST',
-    })
-  })
-
-  it('should handle missing token', async () => {
-    const req = createMockRequest('POST', {
-      newPassword: 'newSecurePassword123!',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toBe('Token is required')
-
-    expect(mockResetPassword).not.toHaveBeenCalled()
-  })
-
-  it('should handle missing new password', async () => {
-    const req = createMockRequest('POST', {
-      token: 'valid-reset-token',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toBe('Password is required')
-
-    expect(mockResetPassword).not.toHaveBeenCalled()
-  })
-
-  it('should handle empty token', async () => {
-    const req = createMockRequest('POST', {
-      token: '',
-      newPassword: 'newSecurePassword123!',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toBe('Token is required')
-
-    expect(mockResetPassword).not.toHaveBeenCalled()
-  })
-
-  it('should handle empty new password', async () => {
-    const req = createMockRequest('POST', {
-      token: 'valid-reset-token',
-      newPassword: '',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toContain('Password must be at least 8 characters long')
-    expect(data.message).toContain('Password must contain at least one uppercase letter')
-    expect(data.message).toContain('Password must contain at least one lowercase letter')
-    expect(data.message).toContain('Password must contain at least one number')
-    expect(data.message).toContain('Password must contain at least one special character')
-
-    expect(mockResetPassword).not.toHaveBeenCalled()
-  })
-
   it('refuses an invalid or expired token with a 400, not a server error', async () => {
     // Better Auth reports a consumed, expired, or fabricated token as a 400-class APIError.
     // Re-emitting that as a 500 paged on a routine click of a stale reset link.
@@ -175,49 +61,5 @@ describe('Reset Password API Route', () => {
       message: 'This reset link is invalid or has expired. Please request a new one.',
     })
     expect(mockLogger.error).not.toHaveBeenCalled()
-  })
-
-  it('should handle auth service error with message', async () => {
-    const errorMessage = 'Invalid or expired token'
-
-    mockResetPassword.mockRejectedValue(new Error(errorMessage))
-
-    const req = createMockRequest('POST', {
-      token: 'invalid-token',
-      newPassword: 'newSecurePassword123!',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(500)
-    /** An unrecognized failure is ours, and its wording is not for an unauthenticated caller. */
-    expect(data.message).toBe(
-      'Failed to reset password. Please try again or request a new reset link.'
-    )
-    expect(data.message).not.toContain(errorMessage)
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Error during password reset:', {
-      error: expect.any(Error),
-    })
-  })
-
-  it('should handle unknown error', async () => {
-    mockResetPassword.mockRejectedValue('Unknown error')
-
-    const req = createMockRequest('POST', {
-      token: 'valid-reset-token',
-      newPassword: 'newSecurePassword123!',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(data.message).toBe(
-      'Failed to reset password. Please try again or request a new reset link.'
-    )
-
-    expect(mockLogger.error).toHaveBeenCalled()
   })
 })

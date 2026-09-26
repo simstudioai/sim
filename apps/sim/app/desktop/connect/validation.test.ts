@@ -1,12 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import {
-  buildConnectCompletePath,
   buildConnectLoopbackUrl,
-  buildDesktopConnectPath,
   isValidOAuthProviderId,
   sanitizeOAuthErrorSlug,
 } from '@/app/desktop/connect/validation'
@@ -36,26 +30,6 @@ describe('sanitizeOAuthErrorSlug', () => {
 })
 
 describe('URL builders', () => {
-  it('buildDesktopConnectPath round-trips provider, state, and port', () => {
-    const path = buildDesktopConnectPath('google-email', STATE, 49152, {
-      draftId: 'draft-1',
-    })
-    const url = new URL(path, 'https://sim.ai')
-    expect(url.pathname).toBe('/desktop/connect')
-    expect(url.searchParams.get('provider')).toBe('google-email')
-    expect(url.searchParams.get('state')).toBe(STATE)
-    expect(url.searchParams.get('port')).toBe('49152')
-    expect(url.searchParams.get('draftId')).toBe('draft-1')
-  })
-
-  it('buildConnectCompletePath carries state, port, and the exact credential draft', () => {
-    const url = new URL(buildConnectCompletePath(STATE, 49152, 'draft-1'), 'https://sim.ai')
-    expect(url.pathname).toBe('/desktop/connect/complete')
-    expect(url.searchParams.get('state')).toBe(STATE)
-    expect(url.searchParams.get('port')).toBe('49152')
-    expect(url.searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM)).toBe('draft-1')
-  })
-
   it('buildConnectLoopbackUrl targets the 127.0.0.1 connect callback, error optional', () => {
     expect(buildConnectLoopbackUrl(STATE, 49152)).toBe(
       `http://127.0.0.1:49152/connect/callback?state=${STATE}`

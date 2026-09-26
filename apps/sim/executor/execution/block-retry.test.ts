@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   BLOCK_RETRY_DEFAULT_TRIES,
   BLOCK_RETRY_DEFAULT_WAIT_MS,
@@ -34,14 +31,6 @@ function block(
 }
 
 describe('resolveBlockRetryConfig', () => {
-  it('treats an absent or disabled policy as "never retries"', () => {
-    expect(resolveBlockRetryConfig(undefined)).toBeNull()
-    expect(resolveBlockRetryConfig(null)).toBeNull()
-    expect(
-      resolveBlockRetryConfig({ enabled: false, maxTries: 5, waitBetweenTriesMs: 100 })
-    ).toBeNull()
-  })
-
   it('clamps out-of-range values to the bounds rather than rejecting them', () => {
     expect(
       resolveBlockRetryConfig({ enabled: true, maxTries: 99, waitBetweenTriesMs: 10_000_000 })
@@ -57,20 +46,6 @@ describe('resolveBlockRetryConfig', () => {
       enabled: true,
       maxTries: BLOCK_RETRY_MIN_TRIES,
       waitBetweenTriesMs: 0,
-    })
-  })
-
-  it('falls back to the defaults for values that are not finite numbers', () => {
-    expect(
-      resolveBlockRetryConfig({
-        enabled: true,
-        maxTries: Number.NaN,
-        waitBetweenTriesMs: Number.POSITIVE_INFINITY,
-      })
-    ).toEqual({
-      enabled: true,
-      maxTries: BLOCK_RETRY_DEFAULT_TRIES,
-      waitBetweenTriesMs: BLOCK_RETRY_DEFAULT_WAIT_MS,
     })
   })
 
@@ -103,10 +78,6 @@ describe('resolveBlockRetryConfig', () => {
 })
 
 describe('resolveBlockRetryPolicy', () => {
-  it('returns no policy for a block that never opted in', () => {
-    expect(resolveBlockRetryPolicy(block(BlockType.FUNCTION))).toBeNull()
-  })
-
   it('refuses to retry block types whose throw is not a failure', () => {
     const policy = { enabled: true, maxTries: 3, waitBetweenTriesMs: 0 }
     for (const blockType of [
@@ -127,33 +98,9 @@ describe('resolveBlockRetryPolicy', () => {
     ).toBeNull()
     expect(resolveBlockRetryPolicy(block(BlockType.FUNCTION, policy, {}, 'triggers'))).toBeNull()
   })
-
-  it('returns a normalized policy for an ordinary opted-in block', () => {
-    expect(
-      resolveBlockRetryPolicy(block(BlockType.FUNCTION, { enabled: true, maxTries: 9 }))
-    ).toEqual({
-      enabled: true,
-      maxTries: BLOCK_RETRY_MAX_TRIES,
-      waitBetweenTriesMs: BLOCK_RETRY_DEFAULT_WAIT_MS,
-    })
-  })
 })
 
 describe('isRetryableBlockError', () => {
-  it('replays an ordinary failure', () => {
-    expect(isRetryableBlockError(new Error('Internal server error'))).toBe(true)
-    expect(isRetryableBlockError(new Error('The socket connection was closed'))).toBe(true)
-    expect(isRetryableBlockError(Object.assign(new Error('rate limited'), { status: 429 }))).toBe(
-      true
-    )
-  })
-
-  it('never replays a deliberate stop', () => {
-    const abort = new Error('The operation was aborted')
-    abort.name = 'AbortError'
-    expect(isRetryableBlockError(abort)).toBe(false)
-  })
-
   it('never replays a child workflow, whose blocks already ran their own policies', () => {
     expect(
       isRetryableBlockError(

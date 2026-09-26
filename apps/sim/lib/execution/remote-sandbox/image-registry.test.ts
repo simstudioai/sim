@@ -1,42 +1,34 @@
 /**
- * @vitest-environment node
- *
  * Builds are addressed by content and shared across workspaces, so releasing one
  * eagerly is only safe while nothing else references it. These cases pin that
  * guard down, plus the failure modes that must leave the retention sweep a job to
  * finish rather than losing the image silently.
  */
-import { createMockSql } from '@sim/testing'
+import { createMockSql, dbChainMockFns } from '@sim/testing'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDelete,
-  mockInsert,
-  mockSelect,
-  mockUpdate,
   mockDeleteImage,
   mockStartBuild,
   mockGetBuildStatus,
   mockProviderStrategy,
   mockRecordSandboxCliBuildFailure,
   mockRecordSandboxImageCleanupFailure,
-  mockRunDetached,
-  mockSleep,
   mockMaterialization,
   mockRendererRevision,
 } = vi.hoisted(() => ({
-  mockDelete: vi.fn(),
-  mockInsert: vi.fn(),
-  mockSelect: vi.fn(),
-  mockUpdate: vi.fn(),
   mockDeleteImage: vi.fn(),
   mockStartBuild: vi.fn(),
   mockGetBuildStatus: vi.fn(),
   mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
   mockRecordSandboxCliBuildFailure: vi.fn(),
   mockRecordSandboxImageCleanupFailure: vi.fn(),
-  mockRunDetached: vi.fn(),
-  mockSleep: vi.fn().mockResolvedValue(undefined),
   mockMaterialization: {
     current: {
       rendererRevision: 1,
@@ -46,40 +38,6 @@ const {
     },
   },
   mockRendererRevision: { current: 1 },
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { delete: mockDelete, insert: mockInsert, select: mockSelect, update: mockUpdate },
-}))
-
-vi.mock('@/lib/core/execution-limits/metrics', () => ({
-  recordSandboxCliBuildFailure: mockRecordSandboxCliBuildFailure,
-  recordSandboxImageCleanupFailure: mockRecordSandboxImageCleanupFailure,
-}))
-
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: mockRunDetached }))
-
-vi.mock('@sim/utils/helpers', () => ({ sleep: mockSleep }))
-
-vi.mock('@sim/db/schema', () => ({
-  sandboxImage: {
-    id: 'id',
-    provider: 'provider',
-    specHash: 'spec_hash',
-    status: 'status',
-    imageRef: 'image_ref',
-    buildId: 'build_id',
-    providerImageId: 'provider_image_id',
-    materializationGeneration: 'materialization_generation',
-    errorCode: 'error_code',
-    errorMessage: 'error_message',
-    errorDetail: 'error_detail',
-    spec: 'spec',
-    lastUsedAt: 'last_used_at',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-  workspaceSandbox: { id: 'id', specHash: 'spec_hash' },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -92,28 +50,16 @@ vi.mock('drizzle-orm', () => ({
   sql: createMockSql(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    get dependencyStrategy() {
-      return mockProviderStrategy.current
-    },
-    get images() {
-      return mockProviderStrategy.current === 'prebuilt'
-        ? {
-            get rendererRevision() {
-              return mockRendererRevision.current
-            },
-            deleteImage: mockDeleteImage,
-            startBuild: mockStartBuild,
-            getBuildStatus: mockGetBuildStatus,
-            materialization: () => ({ ...mockMaterialization.current }),
-            imageRefGeneration: vi.fn(),
-          }
-        : undefined
-    },
-  }),
+vi.mock('@/lib/core/execution-limits/metrics', () => ({
+  recordSandboxCliBuildFailure: mockRecordSandboxCliBuildFailure,
+  recordSandboxImageCleanupFailure: mockRecordSandboxImageCleanupFailure,
 }))
+
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
+
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 import {
   cleanupSandboxImages,
@@ -121,9 +67,38 @@ import {
   FAILED_BUILD_RETRY_COOLDOWN_MS,
   releaseSandboxImage,
   runSandboxImageBuild,
-  SANDBOX_IMAGE_BUILD_TASK_ID,
   sandboxBuildIdempotencyKey,
 } from '@/lib/execution/remote-sandbox/image-registry'
+
+const {
+  delete: mockDelete,
+  insert: mockInsert,
+  select: mockSelect,
+  update: mockUpdate,
+} = dbChainMockFns
+const mockRunDetached = backgroundTaskMockFns.mockRunDetached
+const mockSleep = utilsHelpersMockFns.mockSleep
+
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(() => ({
+  id: 'e2b',
+  get dependencyStrategy() {
+    return mockProviderStrategy.current
+  },
+  get images() {
+    return mockProviderStrategy.current === 'prebuilt'
+      ? {
+          get rendererRevision() {
+            return mockRendererRevision.current
+          },
+          deleteImage: mockDeleteImage,
+          startBuild: mockStartBuild,
+          getBuildStatus: mockGetBuildStatus,
+          materialization: () => ({ ...mockMaterialization.current }),
+          imageRefGeneration: vi.fn(),
+        }
+      : undefined
+  },
+}))
 
 const READY_IMAGE = {
   id: 'img-1',
@@ -149,7 +124,6 @@ const CURRENT_MATERIALIZATION = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockProviderStrategy.current = 'prebuilt'
   mockRendererRevision.current = 1
   mockMaterialization.current = {
@@ -515,10 +489,6 @@ describe('runSandboxImageBuild attempt ownership', () => {
     cliTools: [],
     systemPackages: [],
   }
-
-  it('uses one stable Trigger.dev task ID', () => {
-    expect(SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build')
-  })
 
   it('refuses an app-new/task-old renderer mismatch before claiming the row', async () => {
     await runSandboxImageBuild({
@@ -1094,7 +1064,7 @@ describe('ensureSandboxImage failed-build cooldown', () => {
     const branch = predicateText(rebuildBranches[0])
     expect(branch).toContain('ready')
     expect(branch).toContain('is null')
-    expect(branch).toContain('image_ref')
+    expect(branch).toContain('sandboxImage.imageRef')
   })
 })
 

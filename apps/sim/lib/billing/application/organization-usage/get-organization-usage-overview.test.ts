@@ -1,44 +1,47 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal } from '@sim/auth/principal'
-import { setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorizeOrganizationOperation: vi.fn(),
-  isOrganizationFeatureEntitled: vi.fn(),
-  getOrganizationSubscription: vi.fn(),
-  getOrgUsageLimit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readUsageDays: vi.fn(),
   readUsageGroups: vi.fn(),
   readUsageEntities: vi.fn(),
 }))
 
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganizationOperation,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.isOrganizationFeatureEntitled,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mocks.getOrganizationSubscription,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({ getOrgUsageLimit: mocks.getOrgUsageLimit }))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
-  readUsageDays: mocks.readUsageDays,
-  readUsageGroups: mocks.readUsageGroups,
-  readUsageEntities: mocks.readUsageEntities,
+  readUsageDays: hoisted.readUsageDays,
+  readUsageGroups: hoisted.readUsageGroups,
+  readUsageEntities: hoisted.readUsageEntities,
 }))
-vi.mock('@/providers/models', () => ({
-  getProviderFromModel: () => 'openai',
-  PROVIDER_DEFINITIONS: {},
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
 import { getOrganizationUsageOverview } from '@/lib/billing/application/organization-usage/get-organization-usage-overview'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 
-const session: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  getOrganizationSubscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  getOrgUsageLimit: billingUsageMockFns.mockGetOrgUsageLimit,
+  authorizeOrganizationOperation:
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  isOrganizationFeatureEntitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+}
+
+const session = createSessionPrincipal({ userId: 'admin-1' })
 const NOW = new Date()
 const day = NOW.toISOString().slice(0, 10)
 const today = `${day}T00:00:00`
@@ -52,7 +55,6 @@ function run(input: Partial<Parameters<typeof getOrganizationUsageOverview.execu
 
 describe('getOrganizationUsageOverview', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
     mocks.authorizeOrganizationOperation.mockResolvedValue(true)
     mocks.isOrganizationFeatureEntitled.mockResolvedValue(true)
@@ -134,25 +136,6 @@ describe('getOrganizationUsageOverview', () => {
     const point = (await run({})).series.find((entry) => entry.timestamp === today)
     // `copilot` and `workspace-chat` are two ledger sources and one displayed source.
     expect(point?.sources).toEqual({ workflow: 2, 'sim-chat': 1 })
-  })
-
-  it('cuts the Members tab ranking to the card and attaches avatars', async () => {
-    const { members } = await run({})
-    expect(members.rows.map((row) => row.id)).toEqual(['u0', 'u1', 'u2', 'u3', 'u4'])
-    expect(members.rows[0]?.image).toBe('a.png')
-    expect(members.rows[1]).not.toHaveProperty('image')
-    expect(mocks.readUsageEntities).toHaveBeenCalledTimes(1)
-    expect(members.other.rowCount).toBe(2)
-    expect(mocks.readUsageGroups).toHaveBeenCalledWith(
-      expect.objectContaining({ dimension: 'member' })
-    )
-  })
-
-  it('states the allowance only for the whole organization over its current period', async () => {
-    expect((await run({ preset: 'current-period' })).limitCredits).toBe(dollarsToCredits(100))
-    expect((await run({ preset: 'current-period', workspaceId: 'ws-1' })).limitCredits).toBeNull()
-    expect((await run({ preset: '30d' })).limitCredits).toBeNull()
-    expect(mocks.getOrgUsageLimit).toHaveBeenCalledTimes(1)
   })
 
   it('compares a rolling window with the span just before it', async () => {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { once } from 'node:events'
@@ -9,6 +5,10 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,15 +27,7 @@ const { mockCreate, mockFindSessionSandbox, mockResolveWorkspaceSandbox } = vi.h
   mockResolveWorkspaceSandbox: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: (): SandboxProvider => ({
-    id: 'e2b',
-    dependencyStrategy: 'prebuilt',
-    resolveLifetimeMs: (ms: number) => ms,
-    create: mockCreate,
-    findSessionSandbox: mockFindSessionSandbox,
-  }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
   resolveWorkspaceSandbox: mockResolveWorkspaceSandbox,
@@ -63,6 +55,16 @@ import {
   recordSessionFileInput,
 } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { writeSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
+
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(
+  (): SandboxProvider => ({
+    id: 'e2b',
+    dependencyStrategy: 'prebuilt',
+    resolveLifetimeMs: (ms: number) => ms,
+    create: mockCreate,
+    findSessionSandbox: mockFindSessionSandbox,
+  })
+)
 
 interface FakeSandboxCalls {
   runCode: Array<{ code: string; envs?: Record<string, string> }>
@@ -165,7 +167,6 @@ const CODE_REQUEST = {
 
 describe('session sandbox lease', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveWorkspaceSandbox.mockResolvedValue(null)
   })
 

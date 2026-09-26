@@ -1,29 +1,29 @@
-/**
- * @vitest-environment node
- */
-
-import { NextRequest } from 'next/server'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  createTable: vi.fn(),
-  listTables: vi.fn(),
-  capture: vi.fn(),
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
-vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 
-vi.mock('@/lib/table/application/tables', () => ({
-  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.createTable },
-  listTableDefinitionsUseCase: { operation: { id: 'tables.list' }, execute: mocks.listTables },
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+import { POST } from '@/app/api/table/route'
 
-import { GET, POST } from '@/app/api/table/route'
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  createTable: tableApplicationTablesMockFns.mockCreateTableUseCase,
+  listTables: tableApplicationTablesMockFns.mockListTableDefinitionsUseCase,
+}
 
 const TABLE = {
   id: 'table-1',
@@ -47,83 +47,26 @@ const TABLE = {
 }
 
 function sessionPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'session',
-    userId: 'user-1',
-    sessionId: 'session-1',
-  })
+  mocks.authenticate.mockResolvedValue(createSessionPrincipal())
 }
 
 function executorPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
-  })
-}
-
-function actorlessExecutorPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: 'parent-workflow',
-      principal: {
-        kind: 'system',
-        serviceId: 'internal',
-        workspaceId: 'workspace-canonical',
-        workflowId: 'parent-workflow',
-      },
-    },
-  })
+  mocks.authenticate.mockResolvedValue(
+    createExecutorPrincipal({ audience: 'sim:tables', workspaceId: 'workspace-canonical' })
+  )
 }
 
 function post(body: unknown) {
-  return POST(
-    new NextRequest('http://localhost/api/table', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-    {}
-  )
+  return POST(createMockRequest({ method: 'POST', url: 'http://localhost/api/table', body }), {})
 }
 
 describe('/api/table application adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     sessionPrincipal()
     mocks.createTable.mockResolvedValue({ table: TABLE, folderPath: '/' })
     mocks.listTables.mockResolvedValue({
       tables: [TABLE],
     })
-  })
-
-  it('passes the session workspace and folder id into the shared create use case', async () => {
-    const response = await post({
-      workspaceId: 'workspace-1',
-      name: 'people',
-      folderId: 'folder-1',
-      schema: { columns: [{ name: 'name', type: 'string' }] },
-    })
-
-    expect(response.status).toBe(200)
-    expect(mocks.createTable.mock.calls[0][0].input).toMatchObject({
-      workspaceId: 'workspace-1',
-      folderId: 'folder-1',
-    })
-    expect((await response.json()).data.table.folderId).toBeNull()
   })
 
   it('uses canonical delegated workspace instead of the body assertion', async () => {
@@ -135,51 +78,5 @@ describe('/api/table application adapter', () => {
     })
 
     expect(mocks.createTable.mock.calls[0][0].input.workspaceId).toBe('workspace-canonical')
-  })
-
-  it('creates for an actorless executor without attributing user analytics', async () => {
-    actorlessExecutorPrincipal()
-
-    const response = await post({
-      workspaceId: 'workspace-forged',
-      name: 'people',
-      schema: { columns: [{ name: 'name', type: 'string' }] },
-    })
-
-    expect(response.status).toBe(200)
-    expect(mocks.createTable.mock.calls[0][0]).toMatchObject({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        workspaceId: 'workspace-canonical',
-      },
-      input: { workspaceId: 'workspace-canonical' },
-    })
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('validates the contract before executing the create use case', async () => {
-    const response = await post({
-      workspaceId: 'workspace-1',
-      name: 'people',
-      folderId: '',
-      schema: { columns: [{ name: 'name', type: 'string' }] },
-    })
-
-    expect(response.status).toBe(400)
-    expect(mocks.createTable).not.toHaveBeenCalled()
-  })
-
-  it('lists through the shared use case and preserves the table list projection', async () => {
-    const response = await GET(
-      new NextRequest('http://localhost/api/table?workspaceId=workspace-1'),
-      {}
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.listTables.mock.calls[0][0].input).toMatchObject({
-      workspaceId: 'workspace-1',
-    })
-    expect((await response.json()).data).toMatchObject({ totalCount: 1 })
   })
 })

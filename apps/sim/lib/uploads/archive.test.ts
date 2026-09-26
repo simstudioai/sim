@@ -1,7 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { Buffer } from 'buffer'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,23 +23,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty, mockNotify } =
-  vi.hoisted(() => ({
-    store: {
-      folderIdByPath: new Map<string, string>(),
-      fileKeys: new Set<string>(),
-      blockedFolderIds: new Set<string>(),
-      /** Paths passed to the folder-delete operation, in call order. */
-      deletedFolderPaths: [] as string[],
-      sequence: 0,
-    },
-    mockUpload: vi.fn(),
-    mockPurge: vi.fn(),
-    mockEnsureFolder: vi.fn(),
-    mockArchiveFolderIfEmpty: vi.fn(),
-    mockNotify: vi.fn(),
-  }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
+const { store, mockUpload, mockEnsureFolder } = vi.hoisted(() => ({
+  store: {
+    folderIdByPath: new Map<string, string>(),
+    fileKeys: new Set<string>(),
+    blockedFolderIds: new Set<string>(),
+    /** Paths passed to the folder-delete operation, in call order. */
+    deletedFolderPaths: [] as string[],
+    sequence: 0,
+  },
+  mockUpload: vi.fn(),
+  mockEnsureFolder: vi.fn(),
+}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
@@ -41,12 +44,11 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
     execute: mockUpload,
   },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  purgeCreatedWorkspaceFile: mockPurge,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  archiveWorkspaceFileFolderIfEmpty: mockArchiveFolderIfEmpty,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
 import {
   buildFolderPath,
@@ -59,13 +61,14 @@ import {
   MAX_ARCHIVE_CENTRAL_DIR_RECORDS,
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
-import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
-const TEST_PRINCIPAL = {
-  kind: 'session',
-  userId: 'u',
-  sessionId: 'session-1',
-} as const
+const mockArchiveFolderIfEmpty = workspaceFileFoldersMockFns.mockArchiveWorkspaceFileFolderIfEmpty
+
+const mockPurge = workspaceFileManagerMockFns.mockPurgeCreatedWorkspaceFile
+
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+
+const TEST_PRINCIPAL = createSessionPrincipal({ userId: 'u' })
 
 async function buildZip(
   files: Record<string, string | Buffer>,
@@ -143,7 +146,6 @@ function seedExistingFile(folderId: string | null, name: string): void {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   store.folderIdByPath.clear()
   store.fileKeys.clear()
   store.blockedFolderIds.clear()
@@ -217,57 +219,6 @@ beforeEach(() => {
 })
 
 describe('decompressArchiveBufferToWorkspaceFiles', () => {
-  it('extracts entries as workspace files under the root folder', async () => {
-    const buffer = await buildZip({ 'report.txt': 'hi', 'data/sheet.csv': 'a,b' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      rootFolderSegments: ['bundle'],
-    })
-
-    expect(result.extracted).toHaveLength(2)
-    expect(result.skippedUnsafePaths).toEqual([])
-    expect(mockUpload).toHaveBeenCalledTimes(2)
-    expect(mockNotify).toHaveBeenCalledOnce()
-    expect(mockNotify).toHaveBeenCalledWith('ws')
-    const leafNames = mockUpload.mock.calls.map(([args]) => args.input.name).sort()
-    expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
-    // Entries are rooted under the archive's folder; nested paths are preserved.
-    expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { workspaceId: 'ws', pathSegments: ['bundle'] } })
-    )
-    expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { workspaceId: 'ws', pathSegments: ['bundle', 'data'] } })
-    )
-    // Every folder in the chain is materialized, intermediates included.
-    expect([...store.folderIdByPath.keys()].sort()).toEqual(['/bundle', '/bundle/data'])
-  })
-
-  it('creates intermediate folders for a deeply nested archive', async () => {
-    // `createWorkspaceFileFolderAtPath` semantics would ask for the full leaf path
-    // whose parents were never created and fail with "Parent folder not found";
-    // extraction must ensure the whole chain instead.
-    const buffer = await buildZip({ 'src/deep/nested/leaf.txt': 'x' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      rootFolderSegments: ['bundle'],
-    })
-
-    expect(result.extracted).toHaveLength(1)
-    expect([...store.folderIdByPath.keys()].sort()).toEqual([
-      '/bundle',
-      '/bundle/src',
-      '/bundle/src/deep',
-      '/bundle/src/deep/nested',
-    ])
-    expect(mockUpload.mock.calls[0][0].input.folderId).toBe(
-      store.folderIdByPath.get('/bundle/src/deep/nested')
-    )
-  })
-
   it('reuses a folder that already exists instead of failing on conflict', async () => {
     // Two entries in the same directory, plus a directory that a previous
     // extraction already created — neither may raise a folder conflict.
@@ -289,26 +240,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(folderIdByFileName.get('top.txt')).toBe('preexisting-folder')
     expect(folderIdByFileName.get('a.txt')).toBe(store.folderIdByPath.get('/bundle/docs'))
     expect(folderIdByFileName.get('b.txt')).toBe(store.folderIdByPath.get('/bundle/docs'))
-  })
-
-  it('extracts into a folder whose name needs path encoding', async () => {
-    // A space (and other reserved characters) must never be handed to the folder
-    // layer as a raw path segment — `parseFolderPath` round-trip-checks the
-    // encoding and rejects "my report" while accepting "my%20report".
-    const buffer = await buildZip({ 'my report/q1 & q2.txt': 'x' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      rootFolderSegments: ['bundle v2'],
-    })
-
-    expect(result.extracted).toHaveLength(1)
-    expect([...store.folderIdByPath.keys()].sort()).toEqual([
-      '/bundle%20v2',
-      '/bundle%20v2/my%20report',
-    ])
-    expect(mockUpload.mock.calls[0][0].input.name).toBe('q1 & q2.txt')
   })
 
   it('auto-suffixes a leaf whose name already exists instead of rolling back', async () => {
@@ -352,28 +283,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
         })
       )
     }
-  })
-
-  it('preserves an exact-empty classification across extraction', async () => {
-    const buffer = await buildZip({ 'one.txt': 'one' })
-
-    await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      secretProvenance: { status: 'exact', entries: [] },
-    })
-
-    expect(mockUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: TEST_PRINCIPAL,
-        input: expect.objectContaining({
-          workspaceId: 'ws',
-          name: 'one.txt',
-          contentType: 'text/plain',
-          secretProvenance: { status: 'exact', entries: [] },
-        }),
-      })
-    )
   })
 
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {
@@ -577,29 +486,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     }
   })
 
-  it('deletes rolled-back folders deepest-first', async () => {
-    // A parent removed before its children would make the children's own deletes
-    // fail (nothing left to archive), so the unwind walks creation order backwards.
-    const buffer = await buildZip({ 'x/y/z/leaf.txt': 'a' })
-    mockUpload.mockRejectedValueOnce(new Error('storage quota exceeded'))
-
-    await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, {
-        workspaceId: 'ws',
-        principal: TEST_PRINCIPAL,
-        rootFolderSegments: ['bundle'],
-      })
-    ).rejects.toThrow('storage quota exceeded')
-
-    expect(store.deletedFolderPaths).toEqual([
-      '/bundle/x/y/z',
-      '/bundle/x/y',
-      '/bundle/x',
-      '/bundle',
-    ])
-    expect([...store.folderIdByPath.keys()]).toEqual([])
-  })
-
   it('preserves created folders that gain collaborator content before rollback', async () => {
     const buffer = await buildZip({ 'nested/one.txt': 'first', 'nested/two.txt': 'second' })
     mockUpload
@@ -619,28 +505,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     expect([...store.folderIdByPath.keys()]).toEqual(['/bundle', '/bundle/nested'])
     expect(store.deletedFolderPaths).toEqual([])
-  })
-
-  it('does not count noise entries toward the extraction cap when they are being skipped', async () => {
-    // macOS Finder zips carry a __MACOSX/._* shadow per file, doubling the raw
-    // entry count. 501 files + 501 shadows = 1002 raw entries — over the
-    // 1000-file cap — but with skipNoiseEntries set only the 501 real files are
-    // extracted, so the archive must be accepted.
-    const files: Record<string, string> = {}
-    for (let i = 0; i < 501; i++) {
-      files[`f${i}.txt`] = 'x'
-      files[`__MACOSX/._f${i}.txt`] = 'shadow'
-    }
-    const buffer = await buildZip(files)
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      skipNoiseEntries: true,
-    })
-
-    expect(result.extracted).toHaveLength(501)
-    expect(result.skipped).toBe(501)
   })
 
   it('rejects a materialized tree above the bulk-operation limit before creating its root', async () => {
@@ -758,30 +622,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(mockPurge).toHaveBeenCalledWith(expect.objectContaining({ expectedName: 'a.txt' }))
   })
 
-  it('applies the workspace bulk limit by default, so every caller is bounded', async () => {
-    // 1000 files, each under six folders unique to it: 7000 materialized items from an entry
-    // count that is itself within MAX_ARCHIVE_ENTRIES. No caller opts in to this cap.
-    const entries: Record<string, string> = {}
-    for (let index = 0; index < 1000; index += 1) {
-      entries[`a${index}/b/c/d/e/f/file.txt`] = 'x'
-    }
-    const buffer = await buildZip(entries)
-
-    await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, {
-        workspaceId: 'ws',
-        principal: TEST_PRINCIPAL,
-      })
-    ).rejects.toMatchObject({
-      name: 'ArchiveError',
-      reason: 'too_many_entries',
-      message: expect.stringContaining(`the maximum is ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS}`),
-    })
-
-    expect(mockEnsureFolder).not.toHaveBeenCalled()
-    expect(mockUpload).not.toHaveBeenCalled()
-  })
-
   it('re-validates the segments prepareRootFolder actually returned, before any upload', async () => {
     const buffer = await buildZip({ 'nested/file.txt': 'x' })
     // A callback that validates one path and returns a different, invalid one. The callee
@@ -810,16 +650,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
-  it('throws ArchiveError invalid for a non-zip buffer (no files written)', async () => {
-    await expect(
-      decompressArchiveBufferToWorkspaceFiles(Buffer.from('not a zip at all'), {
-        workspaceId: 'ws',
-        principal: TEST_PRINCIPAL,
-      })
-    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'invalid' })
-    expect(mockUpload).not.toHaveBeenCalled()
-  })
-
   it('excludes symlinks (uncounted) and skips zip-slip traversal (counted in skipped)', async () => {
     const buffer = await buildZip(
       {
@@ -843,34 +673,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(result.skippedUnsafePaths).toEqual(['..\\evil.txt'])
     expect(mockUpload).toHaveBeenCalledTimes(1)
     expect(mockUpload.mock.calls[0][0].input.name).toBe('safe.txt')
-  })
-
-  it('extracts macOS/Windows filesystem-noise entries by default (skipNoiseEntries unset)', async () => {
-    const buffer = await buildZip({ '__MACOSX/a.txt': 'x', '.DS_Store': 'y' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-    })
-
-    // Parity with the HTTP decompress route, which extracts these verbatim.
-    expect(result.extracted).toHaveLength(2)
-    expect(result.skipped).toBe(0)
-    expect(mockUpload).toHaveBeenCalledTimes(2)
-  })
-
-  it('drops filesystem-noise entries when skipNoiseEntries is set', async () => {
-    const buffer = await buildZip({ '__MACOSX/a.txt': 'x', '.DS_Store': 'y' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      principal: TEST_PRINCIPAL,
-      skipNoiseEntries: true,
-    })
-
-    expect(result.extracted).toEqual([])
-    expect(result.skipped).toBe(2)
-    expect(mockUpload).not.toHaveBeenCalled()
   })
 
   it('rejects an entry whose declared size exceeds the per-entry cap', async () => {

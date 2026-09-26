@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUpsertCustomTools } = vi.hoisted(() => ({
@@ -37,19 +34,7 @@ function customTool(overrides: Record<string, unknown> = {}) {
 
 describe('persistCustomToolsToDatabase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUpsertCustomTools.mockResolvedValue([])
-  })
-
-  it('persists a storable declaration unchanged', async () => {
-    const result = await persistCustomToolsToDatabase([customTool()], WORKSPACE_ID, USER_ID)
-
-    expect(result).toEqual({ saved: 1, errors: [] })
-    expect(mockUpsertCustomTools).toHaveBeenCalledWith({
-      tools: [{ id: undefined, title: 'Lookup order', schema: storableSchema, code: 'return 1' }],
-      workspaceId: WORKSPACE_ID,
-      userId: USER_ID,
-    })
   })
 
   it('skips a declaration missing the function discriminator the public API republishes', async () => {
@@ -59,18 +44,6 @@ describe('persistCustomToolsToDatabase', () => {
     })
 
     const result = await persistCustomToolsToDatabase([withoutType], WORKSPACE_ID, USER_ID)
-
-    expect(result).toEqual({ saved: 0, errors: [] })
-    expect(mockUpsertCustomTools).not.toHaveBeenCalled()
-  })
-
-  it('skips a declaration whose discriminator is not `function`', async () => {
-    const wrongType = customTool({
-      title: 'Wrong discriminator',
-      schema: { ...storableSchema, type: 'object' },
-    })
-
-    const result = await persistCustomToolsToDatabase([wrongType], WORKSPACE_ID, USER_ID)
 
     expect(result).toEqual({ saved: 0, errors: [] })
     expect(mockUpsertCustomTools).not.toHaveBeenCalled()

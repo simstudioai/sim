@@ -1,46 +1,48 @@
-/**
- * @vitest-environment node
- */
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getAccountBillingSnapshot: vi.fn(),
   getWorkspaceHostContextForViewer: vi.fn(),
-  resolveVerifiedUserAccessControlContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 vi.mock('@/lib/billing/core/account-billing-snapshot', () => ({
-  getAccountBillingSnapshot: mocks.getAccountBillingSnapshot,
+  getAccountBillingSnapshot: hoisted.getAccountBillingSnapshot,
 }))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
-  getWorkspaceHostContextForViewer: mocks.getWorkspaceHostContextForViewer,
+  getWorkspaceHostContextForViewer: hoisted.getWorkspaceHostContextForViewer,
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  resolveVerifiedUserAccessControlContext: mocks.resolveVerifiedUserAccessControlContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { readAccountBilling } from '@/lib/platform-context/application/read-account-billing'
 import { readEnterpriseContext } from '@/lib/platform-context/application/read-enterprise-context'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  resolveVerifiedUserAccessControlContext:
+    permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -49,22 +51,12 @@ const workspace = {
   billedAccountUserId: 'owner-1',
 }
 
-function copilotPrincipal(): DelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:platform-context',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-  }
+function copilotPrincipal() {
+  return createDelegatedPrincipal({ audience: 'sim:platform-context' })
 }
 
 describe('platform context application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
   })
@@ -99,11 +91,7 @@ describe('platform context application use cases', () => {
   it.each([
     {
       name: 'workspace API key',
-      principal: {
-        kind: 'workspace_api_key' as const,
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal(),
     },
     {
       name: 'executor delegation',

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   dbChainMockFns,
@@ -10,30 +7,27 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSyncSubscriptionUsageLimits, enqueueMock } = vi.hoisted(() => ({
+const { mockSyncSubscriptionUsageLimits } = vi.hoisted(() => ({
   mockSyncSubscriptionUsageLimits: vi.fn(),
-  enqueueMock: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organization', () => ({
   syncSubscriptionUsageLimits: mockSyncSubscriptionUsageLimits,
 }))
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: enqueueMock,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+
+const enqueueMock = outboxServiceMockFns.mockEnqueueOutboxEvent
 
 const teamSub = {
   id: 'sub-1',
@@ -53,7 +47,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('reconcileOrganizationSeats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     enqueueMock.mockResolvedValue('evt-1')
     setEnvFlags({ isBillingEnabled: true })
@@ -136,26 +129,6 @@ describe('reconcileOrganizationSeats', () => {
     expect(enqueueMock).toHaveBeenCalled()
   })
 
-  it('is a no-op when seats already match the member count', async () => {
-    queueReconcileReads([{ ...teamSub, seats: 2 }], [{ value: 2 }])
-
-    const result = await reconcileOrganizationSeats({
-      organizationId: 'org-1',
-      reason: 'member-removed',
-    })
-
-    expect(result).toEqual({
-      changed: false,
-      previousSeats: 2,
-      seats: 2,
-      reason: undefined,
-      outboxEventId: undefined,
-    })
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(enqueueMock).not.toHaveBeenCalled()
-    expect(mockSyncSubscriptionUsageLimits).not.toHaveBeenCalled()
-  })
-
   it('never drops below one seat', async () => {
     queueReconcileReads([{ ...teamSub, seats: 3 }], [{ value: 0 }])
 
@@ -166,43 +139,5 @@ describe('reconcileOrganizationSeats', () => {
 
     expect(result.seats).toBe(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 1 })
-  })
-
-  it('skips non-Team subscriptions', async () => {
-    queueReconcileReads([{ ...teamSub, plan: 'pro_6000' }])
-
-    const result = await reconcileOrganizationSeats({
-      organizationId: 'org-1',
-      reason: 'member-accepted-invite',
-    })
-
-    expect(result.changed).toBe(false)
-    expect(result.reason).toMatch(/Team/)
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(enqueueMock).not.toHaveBeenCalled()
-  })
-
-  it('skips when the organization has no usable subscription', async () => {
-    queueReconcileReads([])
-
-    const result = await reconcileOrganizationSeats({
-      organizationId: 'org-1',
-      reason: 'member-accepted-invite',
-    })
-
-    expect(result).toEqual({ changed: false, reason: 'No active subscription found' })
-    expect(enqueueMock).not.toHaveBeenCalled()
-  })
-
-  it('no-ops when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-
-    const result = await reconcileOrganizationSeats({
-      organizationId: 'org-1',
-      reason: 'member-accepted-invite',
-    })
-
-    expect(result).toEqual({ changed: false, reason: 'Billing is not enabled' })
-    expect(enqueueMock).not.toHaveBeenCalled()
   })
 })

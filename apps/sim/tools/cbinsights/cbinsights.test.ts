@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeCbinsightsChatOperation } from '@/lib/internal/cbinsights/operations/chat'
 import { executeCbinsightsGetCommercialMaturityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-commercial-maturity-history'
 import { executeCbinsightsGetExitProbabilityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-exit-probability-history'
@@ -47,10 +44,6 @@ const AUTH_OK = { body: { token: 'jwt-1' } }
 beforeEach(() => {
   calls = []
   resetCbInsightsTokenCache()
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('cbinsights authorization', () => {

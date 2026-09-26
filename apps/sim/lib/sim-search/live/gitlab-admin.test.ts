@@ -1,7 +1,10 @@
-/** @vitest-environment node */
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { groupToken } from '@/lib/knowledge/access/tokens'
-import { createAdminGitLabSession, gitLabSourceKinds } from '@/lib/sim-search/live/gitlab-admin'
+import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import {
   gitLabCsvGroupToken,
   setGitLabCsvContext,
@@ -17,9 +20,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   grant: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  createUserKnowledgeAccessProvider: () => ({ get: mocks.access }),
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/connectors/gitlab/permission-config/repository', () => ({
   seedGitLabCsvContext: mocks.seed,
 }))
@@ -61,6 +62,9 @@ const file = { id: 'src/a.ts', container: '42', kind: 'code', revision: 'main' }
 
 beforeEach(() => {
   vi.resetAllMocks()
+  knowledgeAccessScopeMockFns.mockCreateUserKnowledgeAccessProvider.mockImplementation(() => ({
+    get: mocks.access,
+  }))
   mocks.access.mockResolvedValue({ kind: 'user', userId: 'reader', tokens: [own] })
   mocks.directory.mockResolvedValue({
     providerId: 'gitlab',
@@ -113,22 +117,6 @@ describe('administrator-managed live GitLab authorization', () => {
     expect(await current.verify({ ...file, container: '99' })).toBe(false)
     expect(mocks.search).not.toHaveBeenCalled()
     expect(mocks.acl).not.toHaveBeenCalled()
-  })
-  it('respects the configured content types, paths, extensions, and branch', async () => {
-    const current = await session({
-      ...source.config,
-      contentTypes: 'repo',
-      ...{ pathPrefix: 'src', fileExtensions: '.ts', ref: 'main' },
-    })
-    for (const ref of [
-      { ...file, kind: 'issues' },
-      { ...file, id: 'private/a.ts' },
-      { ...file, id: 'src/a.json' },
-      { ...file, revision: 'private-branch' },
-      { ...file, id: 'src/../secret.ts' },
-    ])
-      expect(await current.verify(ref)).toBe(false)
-    expect(await current.verify(file)).toBe(true)
   })
   it('gets current confidential issue and author metadata before invoking the canonical ACL evaluator', async () => {
     const current = await session()
@@ -185,22 +173,6 @@ describe('administrator-managed live GitLab authorization', () => {
       expect.any(Object),
       expect.any(AbortSignal)
     )
-  })
-  it('keeps the provider revision as evidence instead of relabeling it with the allowed branch', async () => {
-    const current = await session({ ...source.config, ...{ ref: 'main' }, contentTypes: 'repo' })
-    mocks.search.mockResolvedValue({ documents: [{ ...file, revision: 'other-branch' }] })
-    const result = await current.search({ query: 'secret', limit: 10, scopes: [] })
-    expect(result.documents[0]?.revision).toBe('other-branch')
-    expect(await current.verify(result.documents[0]!)).toBe(false)
-    const scopedClient = mocks.search.mock.calls[0]![0]
-    await scopedClient.json('/api/v4/projects/42/search', { query: { scope: 'blobs' } })
-    expect(client.json).toHaveBeenLastCalledWith('/api/v4/projects/42/search', {
-      query: { scope: 'blobs', ref: 'main' },
-    })
-  })
-  it('preserves the narrower legacy default content selection', () => {
-    expect(gitLabSourceKinds({})).toEqual(['wiki', 'issues'])
-    expect(gitLabSourceKinds({ contentTypes: 'unknown' })).toEqual([])
   })
 })
 

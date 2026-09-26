@@ -29,7 +29,3 @@ export async function findSearchIndex(
     .limit(1)
   return index ? toActiveKnowledgeBaseReference(index) : null
 }
-
-export function findWorkspaceSearchIndex(workspaceId: string) {
-  return findSearchIndex({ kind: 'workspace', workspaceId })
-}

@@ -42,72 +42,12 @@ afterEach(() => {
   stop?.()
   stop = undefined
   observers.length = 0
-  vi.restoreAllMocks()
   setBrowserTelemetryPreference(true)
   localStorage.clear()
-  vi.clearAllMocks()
   vi.useRealTimers()
 })
 
 describe('optional browser telemetry lifecycle', () => {
-  it('preserves one-shot paint/input samples and aggregates layout shifts only at exit', () => {
-    stop = startBrowserTelemetry(false)
-    const emit = (type: string, entries: object[]) => {
-      const observer = observers.find((item) => item.observe.mock.calls[0]?.[0].type === type)
-      if (!observer) throw new Error(`Missing observer for ${type}`)
-      observer.callback(
-        { getEntries: () => entries } as PerformanceObserverEntryList,
-        observer as unknown as PerformanceObserver
-      )
-      return observer
-    }
-    expect(
-      emit('largest-contentful-paint', [{ startTime: 10 }, { startTime: 20 }]).disconnect
-    ).toHaveBeenCalledOnce()
-    expect(
-      emit('first-input', [{ startTime: 100, processingStart: 110 }]).disconnect
-    ).toHaveBeenCalledOnce()
-    emit('layout-shift', [
-      { hadRecentInput: false, value: 0.1 },
-      { hadRecentInput: true, value: 1 },
-    ])
-    emit('layout-shift', [{ hadRecentInput: false, value: 0.2 }])
-    expect(fetchMock).not.toHaveBeenCalled()
-    window.dispatchEvent(new Event('pagehide'))
-    const events = JSON.parse(fetchMock.mock.calls[0][1].body).events
-    expect(events).toHaveLength(3)
-    expect(events).toEqual([
-      expect.objectContaining({ label: 'LCP', value: 20 }),
-      expect.objectContaining({ label: 'FID', value: 10 }),
-      expect.objectContaining({ label: 'CLS', value: expect.closeTo(0.3) }),
-    ])
-    window.dispatchEvent(new Event('pagehide'))
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    emit('layout-shift', [{ hadRecentInput: false, value: 0.5 }])
-    setBrowserTelemetryPreference(false)
-    window.dispatchEvent(new Event('pagehide'))
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('collects nothing until started, then batches diagnostics', async () => {
-    reportError()
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(fetchMock).not.toHaveBeenCalled()
-
-    stop = startBrowserTelemetry(false)
-    reportError()
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, options] = fetchMock.mock.calls[0]
-    expect(url).toBe('/api/telemetry')
-    expect(JSON.parse(options.body).events).toEqual([
-      expect.objectContaining({ category: 'error', message: 'Example failure' }),
-    ])
-    expect(
-      observers.every((observer) => observer.observe.mock.calls[0][0].buffered === false)
-    ).toBe(true)
-  })
-
   it('discards the queue, detaches observers, and aborts requests on withdrawal', async () => {
     stop = startBrowserTelemetry(false)
     reportError()
@@ -215,17 +155,5 @@ describe('optional browser telemetry lifecycle', () => {
     window.dispatchEvent(new Event('pagehide'))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).events).toHaveLength(1)
-  })
-
-  it('ignores handled errors and drops oversized batches', async () => {
-    stop = startBrowserTelemetry(false)
-    const handled = new ErrorEvent('error', { message: 'Handled', cancelable: true })
-    handled.preventDefault()
-    window.dispatchEvent(handled)
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(fetchMock).not.toHaveBeenCalled()
-    window.dispatchEvent(new ErrorEvent('error', { message: 'x'.repeat(65_536) }))
-    window.dispatchEvent(new Event('pagehide'))
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -1,19 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  defineRoute: vi.fn((definition) => definition),
   update: vi.fn(),
   remove: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes', () => ({
-  defineInternalJsonRoute: mocks.defineRoute,
-  internalRateLimits: { none: vi.fn(({ reason }) => ({ kind: 'none', reason })) },
-  internalSessionAuth: { kind: 'session-auth' },
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 vi.mock('@/app/api/workspaces/[id]/sandboxes/error-policy', () => ({
   internalSandboxErrorPolicy: { kind: 'sandbox-policy' },
   internalSandboxResourceErrorPolicy: { kind: 'sandbox-resource-policy' },
@@ -31,7 +24,7 @@ describe('/api/workspaces/[id]/sandboxes/[sandboxId] application adapters', () =
   it('updates through the concealing policy with both ids taken from the path', () => {
     expect(PATCH).toMatchObject({
       contract: { method: 'PATCH', path: '/api/workspaces/[id]/sandboxes/[sandboxId]' },
-      auth: { kind: 'session-auth' },
+      auth: apiServerRoutesMock.internalSessionAuth,
       operation: { id: 'sandboxes.update' },
       useCase: { operation: { id: 'sandboxes.update' } },
       rateLimit: { kind: 'none' },
@@ -53,7 +46,7 @@ describe('/api/workspaces/[id]/sandboxes/[sandboxId] application adapters', () =
   it('deletes through the concealing policy and keeps the legacy acknowledgement', () => {
     expect(DELETE).toMatchObject({
       contract: { method: 'DELETE' },
-      auth: { kind: 'session-auth' },
+      auth: apiServerRoutesMock.internalSessionAuth,
       operation: { id: 'sandboxes.delete' },
       useCase: { operation: { id: 'sandboxes.delete' } },
       errorPolicy: { kind: 'sandbox-resource-policy' },

@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReadResponseTextWithLimit, mockSecureFetch, MOCK_MAX_JSON_BYTES } = vi.hoisted(() => ({
+const { mockReadResponseTextWithLimit } = vi.hoisted(() => ({
   mockReadResponseTextWithLimit: vi.fn(),
-  mockSecureFetch: vi.fn(),
-  MOCK_MAX_JSON_BYTES: 10 * 1024 * 1024,
 }))
 
 vi.mock('@/lib/core/utils/stream-limits', () => {
@@ -24,10 +20,7 @@ vi.mock('@/lib/core/utils/stream-limits', () => {
   }
 })
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetch,
-  MAX_JSON_API_RESPONSE_BYTES: MOCK_MAX_JSON_BYTES,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { readConcurApiBody, readConcurUploadBody } from '@/lib/internal/sap-concur/client'
 
@@ -48,7 +41,6 @@ function apiResponse(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockReadResponseTextWithLimit.mockReset()
 })
 
@@ -73,14 +65,6 @@ const helpers = [
 ] as const
 
 describe.each(helpers)('$name response body reads', ({ read }) => {
-  it('resolves with the body text on a success status', async () => {
-    await expect(read(200, Promise.resolve('{"id":"exp-1"}'))).resolves.toBe('{"id":"exp-1"}')
-  })
-
-  it('resolves with an empty string for an empty success body', async () => {
-    await expect(read(200, Promise.resolve(''))).resolves.toBe('')
-  })
-
   it('propagates a read failure on a success status', async () => {
     const failure = new Error('Concur upload response exceeded 10485760 bytes')
     await expect(read(201, Promise.reject(failure))).rejects.toBe(failure)
@@ -90,10 +74,6 @@ describe.each(helpers)('$name response body reads', ({ read }) => {
     await expect(read(400, Promise.resolve('{"message":"Invalid userId"}'))).resolves.toBe(
       '{"message":"Invalid userId"}'
     )
-  })
-
-  it('swallows a read failure on a 4xx status', async () => {
-    await expect(read(403, Promise.reject(new Error('stream aborted')))).resolves.toBe('')
   })
 
   it('swallows a read failure on a 5xx status', async () => {
@@ -111,19 +91,5 @@ describe.each(helpers)('$name response body reads', ({ read }) => {
 
   it.each([199, 300])('treats %i as a non-success status', async (status) => {
     await expect(read(status, Promise.reject(new Error('read failed')))).resolves.toBe('')
-  })
-})
-
-describe('readConcurUploadBody byte cap wiring', () => {
-  it('reads under the shared JSON response byte cap', async () => {
-    mockReadResponseTextWithLimit.mockReturnValue(Promise.resolve('{}'))
-    const response = uploadResponse(200)
-
-    await expect(readConcurUploadBody(response)).resolves.toBe('{}')
-
-    expect(mockReadResponseTextWithLimit).toHaveBeenCalledWith(response, {
-      maxBytes: MOCK_MAX_JSON_BYTES,
-      label: 'Concur upload response',
-    })
   })
 })

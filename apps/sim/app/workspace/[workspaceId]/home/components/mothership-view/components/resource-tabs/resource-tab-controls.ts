@@ -21,9 +21,8 @@ export const RESOURCE_HEADER_CLASSES = {
    * where the toggle and the action buttons are bare glyphs whose box only shows
    * on hover.
    *
-   * The tab width cap is chosen per strip from the tab count (see
-   * {@link resourceTabWidthClass}), so a title can breathe while the strip is
-   * roomy and only tightens once the tabs start competing for the width.
+   * The strip sizes tabs from the available width, including the space taken
+   * by header actions, and scrolls once every tab reaches its minimum width.
    */
   stripGeometry:
     '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-band:26px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
@@ -42,16 +41,3 @@ export const RESOURCE_HEADER_CLASSES = {
     'right-[calc(var(--resource-header-end-inset)_+_var(--resource-header-toggle-hit-size)_+_1px)]',
   emptyAddOffset: '-translate-x-1.5',
 } as const
-
-/**
- * Width cap for the strip's tabs, from the tab count. A couple of tabs have
- * the room to show more of their titles; each added tab tightens the cap by a
- * step small enough to pass unnoticed, down to the floor a full strip needs so
- * every tab stays visible for longer before the strip scrolls. Only the
- * ellipsis point moves — a title that already fits never changes width.
- */
-export function resourceTabWidthClass(tabCount: number): string {
-  if (tabCount <= 2) return '[--tab-strip-max-tab-width:200px]'
-  if (tabCount === 3) return '[--tab-strip-max-tab-width:180px]'
-  return '[--tab-strip-max-tab-width:160px]'
-}

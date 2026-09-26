@@ -1,22 +1,34 @@
-/** @vitest-environment node */
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), execute: vi.fn(), sleep: vi.fn() }))
-vi.mock('@/lib/mothership/request/go/fetch', () => ({ fetchGo: mocks.fetch }))
+const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-key' }),
 }))
-vi.mock('@/lib/mothership/transport/control', () => ({ executeSimControl: mocks.execute }))
+vi.mock('@/lib/mothership/transport/control', () => ({ executeSimControl: execute }))
 vi.mock('@/lib/mothership/transport/connection', () => ({
   getSimConnection: () => ({ mode: 'checkpoint', channelId: 'a'.repeat(64) }),
 }))
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: async () => 'https://worker.test',
-}))
-vi.mock('@sim/utils/helpers', () => ({ sleep: mocks.sleep }))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { receiveSimControls } from '@/lib/mothership/transport/receiver'
+
+const mocks = {
+  fetch: mothershipGoFetchMockFns.mockFetchGo,
+  execute,
+  sleep: utilsHelpersMockFns.mockSleep,
+}
 
 function request() {
   const chatId = generateId()
@@ -31,6 +43,7 @@ function request() {
 describe('outbound receiver lifecycle', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://worker.test')
     mocks.sleep.mockResolvedValue(undefined)
     mocks.execute.mockResolvedValue({ status: 200, body: '{"stopped":false}' })
   })

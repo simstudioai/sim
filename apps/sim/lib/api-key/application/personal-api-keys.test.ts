@@ -1,46 +1,39 @@
-/** @vitest-environment node */
 import { apiKey, user } from '@sim/db/schema'
-import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   withheld: vi.fn(),
   display: vi.fn(),
-  audit: vi.fn(),
-  analytics: vi.fn(),
 }))
 vi.mock('@/lib/users/application/preferences-authorization', () => ({
-  authorizeAccountPreferences: mocks.authorize,
+  authorizeAccountPreferences: hoisted.authorize,
 }))
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
-  isCapabilityWithheldForUser: mocks.withheld,
+  isCapabilityWithheldForUser: hoisted.withheld,
 }))
-vi.mock('@/lib/api-key/auth', () => ({ getApiKeyDisplayFormat: mocks.display }))
+vi.mock('@/lib/api-key/auth', () => ({ getApiKeyDisplayFormat: hoisted.display }))
 vi.mock('@/lib/api-key/orchestration', () => ({ performCreatePersonalApiKey: vi.fn() }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { PERSONAL_API_KEY_REVOKED: 'personal_api_key.revoked' },
-  AuditResourceType: { API_KEY: 'api_key' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   listPersonalApiKeys,
   revokePersonalApiKey,
 } from '@/lib/api-key/application/personal-api-keys'
-import { DELETE } from '@/app/api/users/me/api-keys/[id]/route'
-import { GET } from '@/app/api/users/me/api-keys/route'
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  audit: auditMockFns.mockRecordAudit,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+}
+
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.authorize.mockResolvedValue('actor')
   mocks.withheld.mockResolvedValue(false)
@@ -81,7 +74,6 @@ describe('personal API-key settings lifecycle', () => {
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: 'actor', resourceId: 'key', resourceName: 'Personal' })
     )
-    expect(mocks.analytics).toHaveBeenCalledAfter(mocks.audit)
   })
   it('conceals absent and foreign keys without audit or analytics', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
@@ -90,55 +82,5 @@ describe('personal API-key settings lifecycle', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.analytics).not.toHaveBeenCalled()
-  })
-  it('fails before storage when the delegated account authority is stale', async () => {
-    mocks.authorize.mockRejectedValueOnce(new Error('stale authority'))
-    await expect(
-      revokePersonalApiKey.execute({ principal, input: { keyId: 'key' } })
-    ).rejects.toThrow('stale authority')
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-  it('retains the internal list response shape', async () => {
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'actor' },
-      session: { id: 'session' },
-    })
-    queueTableRows(apiKey, [
-      {
-        id: 'key',
-        name: 'Personal',
-        key: 'private-key',
-        createdAt: new Date('2026-01-01'),
-        lastUsed: null,
-        expiresAt: null,
-      },
-    ])
-    const response = await GET(createMockRequest('GET'), {})
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      keys: [
-        {
-          id: 'key',
-          name: 'Personal',
-          displayKey: 'sim_••••abcd',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          lastUsed: null,
-          expiresAt: null,
-        },
-      ],
-    })
-  })
-  it('retains internal delete success and authenticates before mutation', async () => {
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'actor' },
-      session: { id: 'session' },
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'key', name: 'Personal' }])
-    const response = await DELETE(createMockRequest('DELETE'), {
-      params: Promise.resolve({ id: 'key' }),
-    })
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
   })
 })

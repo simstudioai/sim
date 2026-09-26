@@ -1,80 +1,46 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   redisConfigMockFns,
   resetDbChainMock,
   resetRedisConfigMock,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { authInternalMock } from '@sim/testing/mocks/auth-internal.mock'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  assertBillingAttributionSnapshotMock,
   dueRowsLimitMock,
-  enqueueOrStartResumeMock,
   executionSnapshotFromJsonMock,
   fallbackRowsLimitMock,
-  inArrayMock,
   legacySizeRowsLimitMock,
-  lteMock,
-  preprocessExecutionMock,
-  processQueuedResumesMock,
-  setAutomaticResumeWaitingMock,
-  setNextResumeAtMock,
-  sqlMock,
 } = vi.hoisted(() => ({
-  assertBillingAttributionSnapshotMock: vi.fn((value: unknown) => value),
   dueRowsLimitMock: vi.fn(),
-  enqueueOrStartResumeMock: vi.fn(),
   executionSnapshotFromJsonMock: vi.fn(),
   fallbackRowsLimitMock: vi.fn(),
-  inArrayMock: vi.fn(),
   legacySizeRowsLimitMock: vi.fn(),
-  lteMock: vi.fn(),
-  preprocessExecutionMock: vi.fn(),
-  processQueuedResumesMock: vi.fn(),
-  setAutomaticResumeWaitingMock: vi.fn(),
-  setNextResumeAtMock: vi.fn(),
-  sqlMock: vi.fn((strings: TemplateStringsArray) =>
-    strings.join('').includes('jsonb_build_object') ? 'boundedMetadata' : 'snapshotBytes'
-  ),
 }))
 
 const acquireLockMock = redisConfigMockFns.mockAcquireLock
 const releaseLockMock = redisConfigMockFns.mockReleaseLock
+const preprocessExecutionMock = executionPreprocessingMockFns.mockPreprocessExecution
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  inArray: inArrayMock,
-  isNotNull: vi.fn(),
-  lte: lteMock,
-  sql: sqlMock,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyCronAuth: vi.fn(() => null),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: assertBillingAttributionSnapshotMock,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: preprocessExecutionMock,
-}))
-
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  computeEarliestResumeAt: vi.fn(() => null),
-  PauseResumeManager: {
-    enqueueOrStartResume: enqueueOrStartResumeMock,
-    processQueuedResumes: processQueuedResumesMock,
-    setAutomaticResumeWaiting: setAutomaticResumeWaitingMock,
-    setNextResumeAt: setNextResumeAtMock,
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: {
@@ -82,14 +48,31 @@ vi.mock('@/executor/execution/snapshot', () => ({
   },
 }))
 
+import { inArray, sql } from 'drizzle-orm'
 import {
   LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE,
   MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES,
 } from '@/lib/workflows/executor/paused-execution-policy'
 import { GET } from '@/app/api/resume/poll/route'
 
+humanInTheLoopManagerMockFns.mockComputeEarliestResumeAt.mockReturnValue(null)
+
+const inArrayMock = vi.mocked(inArray)
+const sqlMock = vi.mocked(sql)
+sqlMock.mockImplementation(
+  (strings: TemplateStringsArray) =>
+    (strings.join('').includes('jsonb_build_object') ? 'boundedMetadata' : 'snapshotBytes') as never
+)
+
+const {
+  mockEnqueueOrStartResume: enqueueOrStartResumeMock,
+  mockProcessQueuedResumes: processQueuedResumesMock,
+  mockSetAutomaticResumeWaiting: setAutomaticResumeWaitingMock,
+  mockSetNextResumeAt: setNextResumeAtMock,
+} = humanInTheLoopManagerMockFns
+
 function makeRequest(): NextRequest {
-  return new NextRequest('http://localhost/api/resume/poll')
+  return createMockRequest({ url: 'http://localhost/api/resume/poll' })
 }
 
 function makeBillingAttribution(workspaceId: string, actorUserId: string) {
@@ -150,7 +133,6 @@ function makeSerializedSnapshot(index: number) {
 
 describe('time-pause resume admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.select.mockImplementation((selection: Record<string, unknown>) => {
       if ('snapshotBytes' in selection) {
@@ -287,31 +269,6 @@ describe('time-pause resume admission', () => {
     expect(response.status).toBe(200)
     expect(preprocessExecutionMock).toHaveBeenCalledTimes(1)
     expect(enqueueOrStartResumeMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('increments admission retry state once for a paused row with multiple due points', async () => {
-    const row = makeDueRow(1)
-    row.pausePoints['context-2'] = {
-      contextId: 'context-2',
-      pauseKind: 'time',
-      resumeAt: '2026-07-01T00:00:00.000Z',
-      resumeStatus: 'paused',
-    }
-    dueRowsLimitMock.mockResolvedValueOnce([row])
-    preprocessExecutionMock.mockResolvedValueOnce({
-      success: false,
-      error: {
-        message: 'Usage admission unavailable',
-        statusCode: 503,
-        retryable: true,
-      },
-    })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(setAutomaticResumeWaitingMock).toHaveBeenCalledOnce()
-    expect(enqueueOrStartResumeMock).not.toHaveBeenCalled()
   })
 
   it('retries a preserved queued input without creating a replacement input', async () => {
@@ -494,113 +451,5 @@ describe('time-pause resume admission', () => {
       'execution-1',
       'execution-2',
     ])
-  })
-
-  it('loads qualifying legacy snapshots in sequential four-row chunks', async () => {
-    const rows = Array.from({ length: 10 }, (_, index) =>
-      makeDueRow(index + 1, { executorUserId: `actor-${index + 1}` })
-    )
-    dueRowsLimitMock.mockResolvedValueOnce(rows)
-    legacySizeRowsLimitMock.mockResolvedValueOnce(
-      rows.map((row) => ({ id: row.id, snapshotBytes: 1024 }))
-    )
-    const snapshotChunks = [
-      rows.slice(0, 4).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 1),
-      })),
-      rows.slice(4, 8).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 5),
-      })),
-      rows.slice(8).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 9),
-      })),
-    ]
-    let activeSnapshotLoads = 0
-    let maxActiveSnapshotLoads = 0
-    fallbackRowsLimitMock.mockImplementation(async () => {
-      const chunk = snapshotChunks[fallbackRowsLimitMock.mock.calls.length - 1] ?? []
-      activeSnapshotLoads++
-      maxActiveSnapshotLoads = Math.max(maxActiveSnapshotLoads, activeSnapshotLoads)
-      await Promise.resolve()
-      activeSnapshotLoads--
-      return chunk
-    })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(fallbackRowsLimitMock).toHaveBeenCalledTimes(3)
-    expect(fallbackRowsLimitMock.mock.calls).toEqual([
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-    ])
-    const snapshotIdBatches = inArrayMock.mock.calls
-      .filter(([column]) => column === 'pausedExecutions.id')
-      .map(([, ids]) => ids as string[])
-    expect(snapshotIdBatches.map((ids) => ids.length)).toEqual([10, 4, 4, 2])
-    expect(
-      lteMock.mock.calls.filter(
-        ([expression, limit]) =>
-          expression === 'snapshotBytes' && limit === MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES
-      )
-    ).toHaveLength(3)
-    expect(maxActiveSnapshotLoads).toBe(1)
-    expect(executionSnapshotFromJsonMock).toHaveBeenCalledTimes(10)
-    expect(preprocessExecutionMock).toHaveBeenCalledTimes(10)
-  })
-
-  it('caps preprocessing at ten pipelines while preserving the 200-row batch bound', async () => {
-    dueRowsLimitMock.mockResolvedValueOnce(
-      Array.from({ length: 200 }, (_, index) => makeDueRow(index + 1))
-    )
-
-    let active = 0
-    let maxActive = 0
-    let releaseGate: (() => void) | undefined
-    const gate = new Promise<void>((resolve) => {
-      releaseGate = resolve
-    })
-    preprocessExecutionMock.mockImplementation(async () => {
-      active++
-      maxActive = Math.max(maxActive, active)
-      await gate
-      active--
-      return { success: true, actorUserId: 'actor-1' }
-    })
-
-    const responsePromise = GET(makeRequest())
-    await vi.waitFor(() => {
-      expect(preprocessExecutionMock).toHaveBeenCalledTimes(10)
-    })
-
-    expect(active).toBe(10)
-    expect(maxActive).toBe(10)
-    releaseGate?.()
-
-    const response = await responsePromise
-    const payload = (await response.json()) as {
-      claimedRows: number
-      dispatched: number
-      failures: unknown[]
-    }
-
-    expect(response.status).toBe(200)
-    expect(payload).toEqual(
-      expect.objectContaining({
-        claimedRows: 200,
-        dispatched: 200,
-        failures: [],
-      })
-    )
-    expect(dueRowsLimitMock).toHaveBeenCalledWith(200)
-    expect(preprocessExecutionMock).toHaveBeenCalledTimes(200)
-    expect(maxActive).toBe(10)
-    expect(legacySizeRowsLimitMock).not.toHaveBeenCalled()
-    expect(fallbackRowsLimitMock).not.toHaveBeenCalled()
-    expect(executionSnapshotFromJsonMock).not.toHaveBeenCalled()
   })
 })

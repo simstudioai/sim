@@ -1,59 +1,23 @@
-/**
- * @vitest-environment node
- */
-
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { foldersOrchestrationMock } from '@sim/testing/mocks/folders-orchestration.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  listRows: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    FOLDER_CREATED: 'folder.created',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-    FOLDER_RESTORED: 'folder.restored',
-  },
-  AuditResourceType: { FOLDER: 'folder' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 
-vi.mock('@/lib/folders/orchestration', () => ({
-  createFolderAtPathTransition: vi.fn(),
-  deleteFolderByPathTransition: vi.fn(),
-  relocateFolderByPathTransition: vi.fn(),
-  restoreFolder: vi.fn(),
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  findArchivedFolderIdByPath: vi.fn(),
-  listActiveFolderRows: mocks.listRows,
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
-    if (path === undefined) return { kind: 'unfiltered' }
-    if (path === '/') return { kind: 'folder', folderId: null }
-    const folderId = index.idByPath.get(path)
-    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
-  },
-}))
-
-vi.mock('@/lib/table/application/context', () => ({
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 import { relocateFolderByPathTransition, restoreFolder } from '@/lib/folders/orchestration'
 import { findArchivedFolderIdByPath } from '@/lib/folders/queries'
@@ -63,11 +27,17 @@ import {
   updateTableFolderUseCase,
 } from '@/lib/table/application/folders'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  listRows: folderQueriesMockFns.mockListActiveFolderRows,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 
 describe('listTableFoldersUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',
@@ -122,7 +92,6 @@ describe('restoreTableFolderUseCase', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',
@@ -182,7 +151,6 @@ describe('restoreTableFolderUseCase', () => {
 
 describe('updateTableFolderUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',

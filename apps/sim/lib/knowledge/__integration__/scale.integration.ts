@@ -21,7 +21,8 @@ import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { loadPageCorpus } from '@/lib/knowledge/connectors/sync-primitives'
-import { executeKnowledgeSearch, getStructuredTagFilters } from '@/lib/knowledge/search/queries'
+import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
+import { getStructuredTagFilters } from '@/lib/knowledge/search/tag-filters'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { embeddingDistance } from '@/lib/knowledge/vector-columns'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -38,6 +39,13 @@ const distribution = z
   .parse(process.env.KNOWLEDGE_SCALE_DISTRIBUTION ?? 'periodic-stress')
 const rows = Number(process.env.KNOWLEDGE_SCALE_DOCUMENTS ?? 250_000)
 const SEED_BATCH_SIZE = 2_000
+
+/** Every leg must finish inside its deadline: a partial answer is not a result to measure. */
+async function completeSearch(params: Parameters<typeof retrieveKnowledgeSearch>[0]) {
+  const { rows, retrieval } = await retrieveKnowledgeSearch(params)
+  expect(retrieval.status).toBe('complete')
+  return rows
+}
 const PAGE_SIZE = 500
 const DIMENSIONS = 1536
 /**
@@ -446,7 +454,7 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
       )
       const vector = z.string().parse(queryChunk.vector)
       const workspaceResults = await measure('search.workspace.denied', () =>
-        executeKnowledgeSearch({
+        completeSearch({
           knowledgeBaseIds: [ids.knowledgeBaseId],
           topK: 10,
           access: { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS },
@@ -478,7 +486,7 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
               const queryLabel = `search.${label}.${filtered ? 'tag' : 'all'}.${mode}`
               for (let sample = 0; sample < 3; sample++) {
                 const result = await measure(`${queryLabel}.${sample}`, () =>
-                  executeKnowledgeSearch({
+                  completeSearch({
                     knowledgeBaseIds: [ids.knowledgeBaseId],
                     topK: 10,
                     access,

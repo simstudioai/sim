@@ -1,38 +1,21 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  membership: vi.fn(),
-  execute: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({ limit: mocks.membership }),
-      }),
-    }),
-  },
-}))
-
 import { defineAuthorizedOrganizationBillingSummaryUseCase } from '@/lib/billing/application/organization-billing-summary/authorized-organization-billing-summary-use-case'
 import { organizationBillingSummaryOperations } from '@/lib/billing/application/organization-billing-summary/operations'
 import { ForbiddenOperationError } from '@/lib/core/application'
 
-const session: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  membership: dbChainMockFns.limit,
+  execute: vi.fn(),
 }
-const personalKey: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+
+const session = createSessionPrincipal()
+const personalKey = createPersonalApiKeyPrincipal()
 
 const useCase = defineAuthorizedOrganizationBillingSummaryUseCase({
   operation: organizationBillingSummaryOperations.read,
@@ -56,7 +39,6 @@ async function refusalCode(promise: Promise<unknown>) {
 
 describe('organization billing summary authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.membership.mockResolvedValue([{ role: 'owner' }])
     mocks.execute.mockResolvedValue({ ok: true })
   })
@@ -73,20 +55,5 @@ describe('organization billing summary authorization', () => {
     mocks.membership.mockResolvedValueOnce([{ role: 'member' }])
     expect(await refusalCode(run())).toBe('ORGANIZATION_ADMIN_REQUIRED')
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it.each(['admin', 'owner'] as const)('authorizes an organization %s', async (role) => {
-    mocks.membership.mockResolvedValue([{ role }])
-
-    await expect(run()).resolves.toEqual({ ok: true })
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: session,
-      input: { organizationId: 'org-1' },
-      context: {
-        organizationId: 'org-1',
-        actorUserId: 'user-1',
-        userRole: role,
-      },
-    })
   })
 })

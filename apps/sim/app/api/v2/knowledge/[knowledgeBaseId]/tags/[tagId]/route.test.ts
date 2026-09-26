@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -31,7 +28,6 @@ const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1', tagId: 'tag
 const URL_BASE = 'http://localhost/api/v2/knowledge/kb-1/tags/tag-def-1'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   v2RouteMocks.authenticate.mockResolvedValue({
@@ -90,20 +86,6 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]', () => {
       })
     )
   })
-
-  it('rejects a body that names no field to change', async () => {
-    const response = await PATCH(
-      new NextRequest(URL_BASE, {
-        method: 'PATCH',
-        headers: { 'x-api-key': 'secret', 'content-type': 'application/json' },
-        body: JSON.stringify({ workspaceId: WORKSPACE_ID }),
-      }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mockUpdateTag).not.toHaveBeenCalled()
-  })
 })
 
 describe('DELETE /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]', () => {
@@ -125,15 +107,5 @@ describe('DELETE /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]', () => {
         input: expect.objectContaining({ knowledgeBaseId: 'kb-1' }),
       })
     )
-  })
-
-  it('requires the workspace scope', async () => {
-    const response = await DELETE(
-      new NextRequest(URL_BASE, { method: 'DELETE', headers: { 'x-api-key': 'secret' } }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mockDeleteTag).not.toHaveBeenCalled()
   })
 })

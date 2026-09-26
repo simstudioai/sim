@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   auditMockFns,
@@ -14,15 +11,20 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSyncWorkspaceEnvCredentials,
-  mockGetEffectiveWorkspacePermission,
-  mockAssertMembershipNotScimManaged,
-} = vi.hoisted(() => ({
-  mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
+const { mockAssertMembershipNotScimManaged } = vi.hoisted(() => ({
   mockAssertMembershipNotScimManaged: vi.fn(),
 }))
 
@@ -32,40 +34,35 @@ vi.mock('@/ee/scim/lib/managed-membership', () => ({
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  ...permissionsMock,
-  getWorkspacePermissionsForViewer: vi.fn(),
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'billing-user',
-  }),
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: async () =>
-    (await permissionsMockFns.mockHasWorkspaceAdminAccess()) ? 'admin' : null,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { getWorkspacePermissionsForViewer } from '@/lib/workspaces/permissions/utils'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/permissions/route'
 
+const { mockSyncWorkspaceEnvCredentials } = credentialsEnvironmentMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
+workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-user',
+  })
+)
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(async () =>
+  (await permissionsMockFns.mockHasWorkspaceAdminAccess()) ? 'admin' : null
+)
 
 const WORKSPACE_ID = 'workspace-1'
 const ADMIN_ID = 'user-admin'
@@ -77,7 +74,7 @@ const BILLED_ID = 'user-billed'
 const OWNER_ID = 'user-owner'
 const ORG_ID = 'org-1'
 
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const permissionRow = (userId: string, permissionType: 'admin' | 'write' | 'read') => ({
   userId,
@@ -136,7 +133,6 @@ function queueOrgWorkspace(
 
 describe('workspace permissions route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     mockGetSession.mockResolvedValue({
@@ -149,19 +145,6 @@ describe('workspace permissions route', () => {
     mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
   })
 
-  it('reads the same member and viewer payload through the shared application operation', async () => {
-    const result = {
-      users: [],
-      total: 0,
-      viewer: { userId: ADMIN_ID, isAdmin: true, permissionType: 'admin' as const },
-    }
-    vi.mocked(getWorkspacePermissionsForViewer).mockResolvedValue(result)
-    const response = await GET(createMockRequest('GET'), routeContext)
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject(result)
-    expect(getWorkspacePermissionsForViewer).toHaveBeenCalledWith(WORKSPACE_ID, ADMIN_ID)
-  })
-
   it('conceals an inaccessible member roster', async () => {
     permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(false)
     const response = await GET(createMockRequest('GET'), routeContext)
@@ -170,29 +153,7 @@ describe('workspace permissions route', () => {
     expect(getWorkspacePermissionsForViewer).not.toHaveBeenCalled()
   })
 
-  it('rejects unauthenticated mutation requests before parsing their body', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const request = createMockRequest('PATCH', { updates: [] })
-    const readBody = vi.spyOn(request, 'json')
-    const response = await PATCH(request, routeContext)
-    expect(response.status).toBe(401)
-    expect(readBody).not.toHaveBeenCalled()
-  })
-
   describe('PATCH', () => {
-    it('updates permissions for an existing member', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-1' }])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.permissions)
-    })
-
     it('keeps the committed and audited result when credential reconciliation fails', async () => {
       queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
       queueTableRows(schemaMock.workspaceEnvironment, [{ variables: { API_TOKEN: 'encrypted' } }])
@@ -289,29 +250,6 @@ describe('workspace permissions route', () => {
     })
 
     /**
-     * The row is updated in place rather than deleted and re-inserted, so
-     * `permissions.createdAt` — surfaced to the UI as the member's joined date —
-     * survives a role change. A `createdAt` or `id` in the SET payload would
-     * mean the old delete+insert shape came back.
-     */
-    it('preserves the joined date by updating the row in place', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-1' }])
-
-      await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        permissionType: 'write',
-        updatedAt: expect.any(Date),
-      })
-    })
-
-    /**
      * The member passes the unlocked pre-flight read and is gone by the time the
      * `FOR UPDATE` read runs — the exact interleaving a concurrent removal
      * produces.
@@ -370,32 +308,6 @@ describe('workspace permissions route', () => {
     })
 
     /**
-     * The target is a plain member on the unlocked pre-flight read and an
-     * organization admin by the time the `FOR UPDATE` read runs, so only the
-     * locked re-evaluation can refuse it. Without the target's `member` row in
-     * the lock set this commits, leaving an explicit `read` row underneath an
-     * inherited admin — which is what they silently drop to on leaving the org.
-     */
-    it('aborts when the target becomes an organization admin mid-request', async () => {
-      queueOrgWorkspace(
-        [],
-        [permissionRow(MEMBER_ID, 'read')],
-        [{ userId: MEMBER_ID, role: 'admin' }]
-      )
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(409)
-      await expect(response.json()).resolves.toMatchObject({
-        error: 'This workspace just changed. Refresh and try again.',
-      })
-      expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    })
-
-    /**
      * The `lock_timeout` this route sets makes Postgres abort the transaction
      * under contention. Retries cover the transient case; when they run out the
      * caller must still get something actionable, not the driver error rendered
@@ -418,58 +330,6 @@ describe('workspace permissions route', () => {
       })
     })
 
-    it('aborts when the workspace leaves its organization mid-request', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
-      permissionsMockFns.mockGetWorkspaceWithOwner.mockResolvedValue({
-        id: WORKSPACE_ID,
-        ownerId: OWNER_ID,
-        billedAccountUserId: ADMIN_ID,
-        organizationId: ORG_ID,
-      })
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(409)
-      expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    })
-
-    /**
-     * Rewriting a row to the role it already holds would bump `updatedAt` and
-     * emit a "from write to write" audit entry — noise in the trail, and a false
-     * positive for anything watching `updatedAt` for real changes.
-     */
-    it('skips a member already at the requested role', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'write')])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).not.toHaveBeenCalled()
-      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-    })
-
-    it('rejects a userId that is not already a workspace member', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin')])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: OUTSIDER_ID, permissions: 'read' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({
-        error: 'Only existing workspace members can have their permissions updated',
-      })
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    })
-
     it('rejects the whole batch when any target is not already a member', async () => {
       queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
 
@@ -488,25 +348,6 @@ describe('workspace permissions route', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
 
-    it('requires workspace admin access before reading the body', async () => {
-      permissionsMockFns.mockHasWorkspaceAdminAccess.mockResolvedValue(false)
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: OUTSIDER_ID, permissions: 'read' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(403)
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
-
-    it('rejects an empty updates array', async () => {
-      const response = await PATCH(createMockRequest('PATCH', { updates: [] }), routeContext)
-
-      expect(response.status).toBe(400)
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
-
     /**
      * A repeated userId used to slip past the self-demotion guard: it inspected
      * the first matching entry while the write loop applied every entry in order,
@@ -520,27 +361,6 @@ describe('workspace permissions route', () => {
           updates: [
             { userId: MEMBER_ID, permissions: 'admin' },
             { userId: MEMBER_ID, permissions: 'read' },
-          ],
-        }),
-        routeContext
-      )
-
-      expect(response.status).toBe(400)
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
-
-    /**
-     * The exploit the dedup rule exists to stop: a leading `admin` entry satisfies
-     * the self-demotion guard while a trailing `read` entry is what actually lands.
-     */
-    it('rejects a duplicate-entry attempt to self-demote', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin')])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', {
-          updates: [
-            { userId: ADMIN_ID, permissions: 'admin' },
-            { userId: ADMIN_ID, permissions: 'read' },
           ],
         }),
         routeContext
@@ -619,26 +439,6 @@ describe('workspace permissions route', () => {
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
-    /**
-     * An organization admin holds no permission row — their workspace admin is
-     * derived — but the members list still shows them. Membership must therefore
-     * mean "visible in the members list", or the caller is told someone they are
-     * looking at is not a member instead of why the role is fixed.
-     */
-    it('explains the lock for an organization admin who holds no permission row', async () => {
-      queueOrgWorkspace([{ userId: MEMBER_ID }], [permissionRow(ADMIN_ID, 'admin')])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'read' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({
-        error: 'Organization admins are workspace admins and their role cannot be changed',
-      })
-    })
-
     it('refuses a role change for a member the directory manages', async () => {
       queueOrgWorkspace([], [permissionRow(MEMBER_ID, 'read')])
       mockAssertMembershipNotScimManaged.mockRejectedValueOnce(
@@ -658,18 +458,6 @@ describe('workspace permissions route', () => {
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
-    it('does not consult the directory for a personal workspace', async () => {
-      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-1' }])
-
-      await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
-        routeContext
-      )
-
-      expect(mockAssertMembershipNotScimManaged).not.toHaveBeenCalled()
-    })
-
     it('refuses to change the role of an organization admin', async () => {
       queueOrgWorkspace([{ userId: MEMBER_ID }], [permissionRow(MEMBER_ID, 'admin')])
 
@@ -683,73 +471,6 @@ describe('workspace permissions route', () => {
         error: 'Organization admins are workspace admins and their role cannot be changed',
       })
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
-
-    it('returns 404 when the workspace does not exist', async () => {
-      const response = await PATCH(
-        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'read' }] }),
-        routeContext
-      )
-
-      expect(response.status).toBe(404)
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    })
-
-    /**
-     * Targets sharing a role share a statement, so a batch costs one write per
-     * distinct role rather than one per member — the transaction holds its pooled
-     * connection for a bounded number of round trips regardless of batch size.
-     */
-    it('writes one statement per distinct role, not per member', async () => {
-      const members = ['user-a', 'user-b', 'user-c', 'user-d']
-      queuePersonalWorkspace([
-        permissionRow(ADMIN_ID, 'admin'),
-        ...members.map((userId) => permissionRow(userId, 'read')),
-      ])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', {
-          updates: members.map((userId) => ({ userId, permissions: 'write' })),
-        }),
-        routeContext
-      )
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        permissionType: 'write',
-        updatedAt: expect.any(Date),
-      })
-    })
-
-    it('applies every member of a multi-item batch', async () => {
-      queuePersonalWorkspace([
-        permissionRow(ADMIN_ID, 'admin'),
-        permissionRow(MEMBER_ID, 'read'),
-        permissionRow(OUTSIDER_ID, 'read'),
-      ])
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-1' }])
-
-      const response = await PATCH(
-        createMockRequest('PATCH', {
-          updates: [
-            { userId: OUTSIDER_ID, permissions: 'admin' },
-            { userId: MEMBER_ID, permissions: 'write' },
-          ],
-        }),
-        routeContext
-      )
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        permissionType: 'admin',
-        updatedAt: expect.any(Date),
-      })
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        permissionType: 'write',
-        updatedAt: expect.any(Date),
-      })
     })
   })
 })

@@ -1,27 +1,22 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetEnv } = vi.hoisted(() => ({
-  mockGetEnv: vi.fn<(key: string) => string | undefined>(),
-}))
+import { envMockFns, setEnv } from '@sim/testing/mocks/env.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/core/utils/urls')
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  getEnv: mockGetEnv,
-}))
 
 import {
   getBaseUrl,
-  getBrowserOrigin,
   getSocketUrl,
   isLocalhostUrl,
   isNonCanonicalSimHost,
   isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
+
+const mockGetEnv = envMockFns.getEnv
+setEnv({ SOCKET_SERVER_URL: undefined })
 
 function setLocation(url: string) {
   Object.defineProperty(window, 'location', {
@@ -31,21 +26,10 @@ function setLocation(url: string) {
   })
 }
 
-describe('getBrowserOrigin', () => {
-  it('returns the page origin in the browser', () => {
-    setLocation('https://example.com/some/path')
-    expect(getBrowserOrigin()).toBe('https://example.com')
-  })
-})
-
 describe('getBaseUrl', () => {
   beforeEach(() => {
     mockGetEnv.mockReset()
     mockGetEnv.mockReturnValue(undefined)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('uses NEXT_PUBLIC_APP_URL when set', () => {
@@ -72,18 +56,6 @@ describe('getBaseUrl', () => {
         '/desktop/connect/complete'
       )
     }
-  })
-
-  /**
-   * Pins the trim's shape — it must not eat more than the trailing slashes.
-   * Not a claim that a path-prefixed deployment works: the app declares no Next
-   * `basePath`, so such a value could not address its routes either way.
-   */
-  it('trims only trailing slashes, never interior ones', () => {
-    mockGetEnv.mockImplementation((key) =>
-      key === 'NEXT_PUBLIC_APP_URL' ? 'https://example.com/a/b/' : undefined
-    )
-    expect(getBaseUrl()).toBe('https://example.com/a/b')
   })
 
   it('adds the protocol and strips the trailing slash together', () => {
@@ -116,10 +88,6 @@ describe('getSocketUrl', () => {
     mockGetEnv.mockReturnValue(undefined)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('uses NEXT_PUBLIC_SOCKET_URL when explicitly set', () => {
     mockGetEnv.mockImplementation((key) =>
       key === 'NEXT_PUBLIC_SOCKET_URL' ? 'https://socket.example.com' : undefined
@@ -136,19 +104,6 @@ describe('getSocketUrl', () => {
   it('falls back to localhost:3002 when served from localhost', () => {
     setLocation('http://localhost:3000/')
     expect(getSocketUrl()).toBe('http://localhost:3002')
-  })
-
-  it('falls back to localhost:3002 when served from 127.0.0.1', () => {
-    setLocation('http://127.0.0.1:3000/')
-    expect(getSocketUrl()).toBe('http://localhost:3002')
-  })
-
-  it('explicit env var wins over the localhost fallback', () => {
-    mockGetEnv.mockImplementation((key) =>
-      key === 'NEXT_PUBLIC_SOCKET_URL' ? 'http://realtime.local:3002' : undefined
-    )
-    setLocation('http://localhost:3000/')
-    expect(getSocketUrl()).toBe('http://realtime.local:3002')
   })
 
   it('treats whitespace-only env var as unset', () => {

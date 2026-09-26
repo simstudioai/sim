@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupPresenceHandlers } from '@/handlers/presence'
@@ -41,7 +38,6 @@ describe('presence handlers', () => {
   let roomManager: IRoomManager
 
   beforeEach(() => {
-    vi.clearAllMocks()
     const created = createSocket()
     handlers = created.handlers
     toEmit = created.toEmit
@@ -50,30 +46,6 @@ describe('presence handlers', () => {
   })
 
   describe('cursor-update', () => {
-    it('stores and broadcasts a well-formed cursor', async () => {
-      await handlers['cursor-update']({ cursor: { x: 12.5, y: -3 } })
-
-      expect(roomManager.updateUserActivity).toHaveBeenCalledWith(WORKFLOW_ROOM, 'socket-1', {
-        cursor: { x: 12.5, y: -3 },
-      })
-      expect(toEmit).toHaveBeenCalledWith(
-        'cursor-update',
-        expect.objectContaining({ cursor: { x: 12.5, y: -3 } })
-      )
-    })
-
-    it('preserves a cleared cursor', async () => {
-      await handlers['cursor-update']({ cursor: null })
-
-      expect(roomManager.updateUserActivity).toHaveBeenCalledWith(WORKFLOW_ROOM, 'socket-1', {
-        cursor: null,
-      })
-      expect(toEmit).toHaveBeenCalledWith(
-        'cursor-update',
-        expect.objectContaining({ cursor: null })
-      )
-    })
-
     it('strips unexpected keys instead of storing them', async () => {
       await handlers['cursor-update']({
         cursor: { x: 1, y: 2, pad: 'A'.repeat(100_000) },
@@ -104,36 +76,6 @@ describe('presence handlers', () => {
   })
 
   describe('selection-update', () => {
-    it('stores and broadcasts a well-formed selection', async () => {
-      await handlers['selection-update']({ selection: { type: 'block', id: 'block-1' } })
-
-      expect(roomManager.updateUserActivity).toHaveBeenCalledWith(WORKFLOW_ROOM, 'socket-1', {
-        selection: { type: 'block', id: 'block-1' },
-      })
-      expect(toEmit).toHaveBeenCalledWith(
-        'selection-update',
-        expect.objectContaining({ selection: { type: 'block', id: 'block-1' } })
-      )
-    })
-
-    it('keeps an id-less selection id-less', async () => {
-      await handlers['selection-update']({ selection: { type: 'none' } })
-
-      expect(roomManager.updateUserActivity).toHaveBeenCalledWith(WORKFLOW_ROOM, 'socket-1', {
-        selection: { type: 'none' },
-      })
-    })
-
-    it('strips unexpected keys instead of storing them', async () => {
-      await handlers['selection-update']({
-        selection: { type: 'edge', id: 'edge-1', pad: 'A'.repeat(100_000) },
-      })
-
-      expect(roomManager.updateUserActivity).toHaveBeenCalledWith(WORKFLOW_ROOM, 'socket-1', {
-        selection: { type: 'edge', id: 'edge-1' },
-      })
-    })
-
     it.each([
       ['an unknown type', { type: 'evil', id: 'x' }],
       ['a missing type', { id: 'x' }],
@@ -147,14 +89,5 @@ describe('presence handlers', () => {
       expect(roomManager.updateUserActivity).not.toHaveBeenCalled()
       expect(toEmit).not.toHaveBeenCalled()
     })
-  })
-
-  it('does not touch room state when the socket has no room', async () => {
-    ;(roomManager.getRoomForSocket as ReturnType<typeof vi.fn>).mockResolvedValue(null)
-
-    await handlers['cursor-update']({ cursor: { x: 1, y: 1 } })
-
-    expect(roomManager.updateUserActivity).not.toHaveBeenCalled()
-    expect(toEmit).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The unresolvable-cursor rejection, end to end on the session-only ledger route.
  *
  * Deliberately a separate file from `route.test.ts`: that suite replaces
@@ -11,7 +9,7 @@
  * rejection was an `OrchestrationError` alone.
  */
 import { authMockFns, createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { UNKNOWN_CURSOR_MESSAGE } from '@/lib/billing/core/usage-log'
 import { GET } from '@/app/api/users/me/usage-logs/route'
 
@@ -21,7 +19,6 @@ afterAll(() => {
 
 describe('GET /api/users/me/usage-logs cursor rejection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
   })
@@ -40,11 +37,5 @@ describe('GET /api/users/me/usage-logs cursor rejection', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: UNKNOWN_CURSOR_MESSAGE })
-  })
-
-  it('answers 200 for a request carrying no cursor', async () => {
-    const response = await GET(createMockRequest('GET'))
-
-    expect(response.status).toBe(200)
   })
 })

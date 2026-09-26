@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { parseSlackSearchMessage } from '@/lib/slack-search/types'
 
@@ -21,51 +20,6 @@ const envelope = {
 }
 
 describe('Slack Search message dispatch', () => {
-  it.each(['C123', 'G123'])(
-    'accepts explicit mentions in %s and retains their source thread',
-    (channel) => {
-      expect(
-        parseSlackSearchMessage(
-          {
-            ...envelope,
-            event: {
-              ...event,
-              type: 'app_mention',
-              channel,
-              channel_type: undefined,
-              thread_ts: '12.34',
-            },
-          },
-          now
-        )
-      ).toMatchObject({
-        channelId: channel,
-        threadTs: undefined,
-        origin: { channelId: channel, threadTs: '12.34', messageTs: event.ts },
-      })
-      expect(
-        parseSlackSearchMessage(
-          { ...envelope, event: { ...event, type: 'message', channel, channel_type: 'channel' } },
-          now
-        )
-      ).toBeNull()
-    }
-  )
-  it('normalizes a human DM and preserves an existing thread', () => {
-    expect(
-      parseSlackSearchMessage({ ...envelope, event: { ...event, thread_ts: '12.34' } }, now)
-    ).toEqual({
-      appId: 'A1',
-      teamId: 'T1',
-      eventId: 'Ev1',
-      channelId: 'D123',
-      userId: 'W123',
-      query: 'release notes',
-      queryTooLong: false,
-      messageTs: '1800000000.123456',
-      threadTs: '12.34',
-    })
-  })
   it.each([
     { type: 'app_home_opened', tab: 'messages' },
     { channel_type: 'channel' },

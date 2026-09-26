@@ -1,59 +1,51 @@
 /**
- * @vitest-environment node
- *
  * Pins the non-streaming status/error gate, and pins its `incomplete` policy to the one
  * `streamResponsesTurn` applies so the two paths cannot silently diverge.
  */
+
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+providersMock.MAX_TOOL_ITERATIONS = 5
+const mockCaptureStep = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordToolError =
+  providersConversationHistoryMockFns.mockRecordProviderConversationToolError
+const mockConversationContext =
+  providersConversationHistoryMockFns.mockGetConversationRequestContext
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: () => false,
+providersUtilsMockFns.mockIsFunctionToolCall.mockReturnValue(false)
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
 
-const { mockExecuteProviderTool, mockCaptureStep, mockRecordToolError, mockConversationContext } =
-  vi.hoisted(() => ({
-    mockExecuteProviderTool: vi.fn(),
-    mockCaptureStep: vi.fn(),
-    mockRecordToolError: vi.fn(),
-    mockConversationContext: vi.fn(),
-  }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/conversation-history', () => ({
-  bindConversationRequestContext: vi.fn(),
-  getConversationRequestContext: mockConversationContext,
-  isProviderConversationCaptureEnabled: vi.fn().mockReturnValue(false),
-  captureProviderConversationStep: mockCaptureStep,
-  recordProviderConversationToolError: mockRecordToolError,
+vi.mock('@/providers/utils', () => providersUtilsMock)
+
+const { mockExecuteProviderTool } = vi.hoisted(() => ({
+  mockExecuteProviderTool: vi.fn(),
 }))
+
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
 vi.mock('@/providers/runtime-context', () => ({
   executeProviderTool: mockExecuteProviderTool,
 }))
-
-function jsonResponse(body: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    headers: new Headers(),
-    json: () => Promise.resolve(body),
-  }
-}
 
 const USAGE = { input_tokens: 1, output_tokens: 1, total_tokens: 2 }
 
@@ -82,7 +74,6 @@ describe('OpenAI non-streaming response status handling', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCaptureStep.mockReset()
     mockRecordToolError.mockReset()
     mockConversationContext.mockReset()

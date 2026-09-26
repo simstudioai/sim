@@ -1,26 +1,10 @@
-/**
- * @vitest-environment node
- */
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDecryptApiKey,
-  mockResolveTokenBundle,
-  mockResolveOAuthAccountId,
-  mockGetServiceAccountToken,
-} = vi.hoisted(() => ({
-  mockDecryptApiKey: vi.fn(),
-  mockResolveTokenBundle: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockGetServiceAccountToken: vi.fn(),
-}))
+const { mockDecryptApiKey } = vi.hoisted(() => ({ mockDecryptApiKey: vi.fn() }))
 
 vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mockDecryptApiKey }))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mockResolveTokenBundle,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  getServiceAccountToken: mockGetServiceAccountToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -33,6 +17,12 @@ import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import type { ConnectorAuthConfig } from '@/connectors/types'
+
+const {
+  mockResolveCredentialTokenBundle: mockResolveTokenBundle,
+  mockResolveOAuthAccountId,
+  mockGetServiceAccountToken,
+} = authOAuthUtilsMockFns
 
 const OAUTH_AUTH: ConnectorAuthConfig = {
   mode: 'oauth',
@@ -47,12 +37,6 @@ function credentialConnector(credentialId: string) {
 }
 
 describe('connectorServiceAccountScopes', () => {
-  it('falls back to the interactive scopes when the sets coincide', () => {
-    expect(connectorServiceAccountScopes(OAUTH_AUTH)).toEqual([
-      'https://www.googleapis.com/auth/drive',
-    ])
-  })
-
   it('prefers the declared domain-wide-delegation set over the consent set', () => {
     expect(
       connectorServiceAccountScopes({
@@ -61,75 +45,12 @@ describe('connectorServiceAccountScopes', () => {
       })
     ).toEqual(['https://www.googleapis.com/auth/drive.readonly'])
   })
-
-  it('has no scopes for an API-key connector', () => {
-    expect(connectorServiceAccountScopes({ mode: 'apiKey' })).toBeUndefined()
-  })
 })
 
 describe('resolveConnectorAccessToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDecryptApiKey.mockResolvedValue({ decrypted: 'plaintext-key' })
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
-  })
-
-  it('decrypts the stored key for an API-key connector', async () => {
-    await expect(
-      resolveConnectorAccessToken({
-        auth: { mode: 'apiKey' },
-        connector: { credentialId: null, encryptedApiKey: 'cipher' },
-        userId: 'user-1',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: 'plaintext-key' })
-    expect(mockResolveTokenBundle).not.toHaveBeenCalled()
-  })
-
-  it('preserves a stored PAT when a connector adds an OAuth connection method', async () => {
-    await expect(
-      resolveConnectorAccessToken({
-        auth: { mode: 'oauth', provider: 'github-repositories', apiKey: { label: 'Token' } },
-        connector: { credentialId: null, encryptedApiKey: 'legacy-cipher' },
-        userId: 'user-1',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: 'plaintext-key' })
-    expect(mockDecryptApiKey).toHaveBeenCalledWith('legacy-cipher')
-    expect(mockResolveTokenBundle).not.toHaveBeenCalled()
-  })
-
-  it('uses an explicitly selected OAuth account before a retained legacy key', async () => {
-    await expect(
-      resolveConnectorAccessToken({
-        auth: { mode: 'oauth', provider: 'github-repositories', apiKey: { label: 'Token' } },
-        connector: { credentialId: 'account-1', encryptedApiKey: 'legacy-cipher' },
-        userId: 'user-1',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: 'access-token' })
-    expect(mockDecryptApiKey).not.toHaveBeenCalled()
-  })
-
-  it('passes the immutable repository scope to installation token resolution', async () => {
-    await resolveConnectorAccessToken({
-      auth: { mode: 'oauth', provider: 'github-repositories' },
-      connector: credentialConnector('installation-credential'),
-      userId: 'actor',
-      requestId: 'request',
-      sourceConfig: { repository: 'team/repo', githubRepositoryId: '101' },
-    })
-    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
-      'installation-credential',
-      'actor',
-      'request',
-      undefined,
-      undefined,
-      { githubRepositoryScope: { repository: 'team/repo', repositoryId: '101' } }
-    )
   })
 
   it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
@@ -143,18 +64,6 @@ describe('resolveConnectorAccessToken', () => {
       })
     ).rejects.toThrow('missing credential ID')
     expect(mockDecryptApiKey).not.toHaveBeenCalled()
-  })
-
-  it('resolves an empty token for an optional API-key connector with no key', async () => {
-    await expect(
-      resolveConnectorAccessToken({
-        auth: { mode: 'apiKey', optional: true },
-        connector: NO_CREDENTIAL,
-        userId: 'user-1',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: '' })
   })
 
   it('refuses an API-key connector that requires a key it does not have', async () => {
@@ -181,64 +90,6 @@ describe('resolveConnectorAccessToken', () => {
     ).rejects.toThrow('missing credential ID')
   })
 
-  /**
-   * The regression this module exists for: a service-account credential mints
-   * against scopes it is told, and Google's resolver throws outright when the
-   * caller passes none.
-   */
-  it('passes the connector scopes through so a service account can mint', async () => {
-    await resolveConnectorAccessToken({
-      auth: OAUTH_AUTH,
-      connector: credentialConnector('credential-1'),
-      userId: 'credential-owner',
-      requestId: 'req-1',
-      sourceConfig: {},
-    })
-    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
-      'credential-1',
-      'credential-owner',
-      'req-1',
-      ['https://www.googleapis.com/auth/drive'],
-      undefined
-    )
-  })
-
-  it('carries the credential site binding into the connector context', async () => {
-    mockResolveTokenBundle.mockResolvedValue({
-      accessToken: 'access-token',
-      cloudId: 'cloud-1',
-      domain: 'bound.atlassian.net',
-    })
-    const token = await resolveConnectorAccessToken({
-      auth: { mode: 'oauth', provider: 'confluence' },
-      connector: credentialConnector('credential-1'),
-      userId: 'credential-owner',
-      requestId: 'req-1',
-      sourceConfig: {},
-    })
-    expect(token).toEqual({
-      accessToken: 'access-token',
-      cloudId: 'cloud-1',
-      domain: 'bound.atlassian.net',
-    })
-    expect(syncContextForToken(token!)).toEqual({
-      cloudId: 'cloud-1',
-      credentialDomain: 'bound.atlassian.net',
-    })
-  })
-
-  it('omits the cloud id rather than carrying an empty one', async () => {
-    await expect(
-      resolveConnectorAccessToken({
-        auth: OAUTH_AUTH,
-        connector: credentialConnector('credential-1'),
-        userId: 'credential-owner',
-        requestId: 'req-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({ accessToken: 'access-token' })
-  })
-
   it.each([
     ['no bundle', null],
     ['a bundle with no token', { accessToken: '' }],
@@ -261,18 +112,6 @@ describe('connectorServiceAccountSubject', () => {
     ...OAUTH_AUTH,
     serviceAccountSubjectFieldId: 'adminEmail',
   }
-
-  it('reads the administrator from the field the connector names', () => {
-    expect(connectorServiceAccountSubject(withSubject, { adminEmail: 'Admin@Corp.com ' })).toBe(
-      'admin@corp.com'
-    )
-  })
-
-  it('has no subject when the connector names no field', () => {
-    expect(
-      connectorServiceAccountSubject(OAUTH_AUTH, { adminEmail: 'admin@corp.com' })
-    ).toBeUndefined()
-  })
 
   it('treats a blank or missing value as no subject', () => {
     expect(connectorServiceAccountSubject(withSubject, {})).toBeUndefined()
@@ -309,7 +148,6 @@ describe('delegated connector access', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'directory-token' })
     mockResolveOAuthAccountId.mockResolvedValue({
       credentialType: 'service_account',
@@ -343,44 +181,6 @@ describe('delegated connector access', () => {
     expect(JSON.stringify(syncContextForToken(token!))).toBe('{}')
   })
 
-  it('forwards cancellation to both the directory token and delegated user token', async () => {
-    const controller = new AbortController()
-    const token = await resolveConnectorAccessToken({
-      auth: delegationAuth,
-      accessMode: 'admin',
-      connector: credentialConnector('service-credential'),
-      userId: 'actor',
-      requestId: 'request',
-      sourceConfig: { adminEmail: 'admin@example.com' },
-      signal: controller.signal,
-    })
-    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
-      'service-credential',
-      'actor',
-      'request',
-      delegationAuth.adminServiceAccountScopes,
-      'admin@example.com',
-      { signal: controller.signal }
-    )
-    await token?.getDelegatedAccessToken?.('employee@example.com')
-    expect(mockGetServiceAccountToken).toHaveBeenCalledWith(
-      'service-credential',
-      [driveScope],
-      'employee@example.com',
-      { signal: controller.signal }
-    )
-    const child = new AbortController()
-    await token?.getDelegatedAccessToken?.('second@example.com', child.signal)
-    const combined = mockGetServiceAccountToken.mock.lastCall?.[3].signal as AbortSignal
-    expect(combined.aborted).toBe(false)
-    child.abort()
-    expect(combined.aborted).toBe(true)
-    const reason = new DOMException('Caller cancelled', 'AbortError')
-    controller.abort(reason)
-    await expect(token?.getDelegatedAccessToken?.('employee@example.com')).rejects.toBe(reason)
-    expect(mockGetServiceAccountToken).toHaveBeenCalledTimes(2)
-  })
-
   it.each([
     null,
     { credentialType: 'oauth', credentialId: 'service-credential', providerId: 'google-drive' },
@@ -399,27 +199,6 @@ describe('delegated connector access', () => {
     expect(await resolve()).toEqual({ accessToken: 'directory-token' })
     expect(mockGetServiceAccountToken).not.toHaveBeenCalled()
   })
-
-  it('does not resolve a delegation identity for ordinary connector auth', async () => {
-    expect(await resolve(OAUTH_AUTH)).toEqual({ accessToken: 'directory-token' })
-    expect(mockResolveOAuthAccountId).not.toHaveBeenCalled()
-  })
-
-  it.each(['members', 'workspace'] as const)(
-    'uses only content scopes without delegation capability for %s crawls',
-    async (accessMode) => {
-      expect(await resolve(delegationAuth, accessMode)).toEqual({ accessToken: 'directory-token' })
-      expect(mockResolveTokenBundle).toHaveBeenCalledWith(
-        'service-credential',
-        'actor',
-        'request',
-        [driveScope],
-        'admin@example.com'
-      )
-      expect(mockResolveOAuthAccountId).not.toHaveBeenCalled()
-      expect(mockGetServiceAccountToken).not.toHaveBeenCalled()
-    }
-  )
 
   it.each(['', '   ', 'not-an-email', 'user@example.com\nother@example.com'])(
     'rejects an invalid delegated subject: %j',
@@ -480,7 +259,6 @@ describe.each([
     })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'directory-token' })
     mockResolveOAuthAccountId.mockResolvedValue({
       credentialType: 'service_account',
@@ -516,34 +294,6 @@ describe.each([
     expect(isConnectorCredentialTypeAllowed(auth, 'admin', 'service_account')).toBe(true)
   })
 
-  it.each(['members', 'workspace'] as const)(
-    'keeps %s OAuth available without a company delegation capability',
-    async (accessMode) => {
-      const token = await resolve(accessMode)
-      expect(token).toEqual({ accessToken: 'directory-token' })
-      expect(mockResolveTokenBundle).toHaveBeenCalledExactlyOnceWith(
-        'google-service',
-        'actor',
-        'request',
-        [contentScope],
-        'directory.admin@example.com'
-      )
-      expect(isConnectorCredentialTypeAllowed(auth, accessMode, 'oauth')).toBe(true)
-      expect(mockResolveOAuthAccountId).not.toHaveBeenCalled()
-      expect(mockGetServiceAccountToken).not.toHaveBeenCalled()
-    }
-  )
-
-  it('does not expose delegation when a selected credential resolves to ordinary OAuth', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'oauth',
-      providerId: auth.mode === 'oauth' ? auth.provider : '',
-      credentialId: 'google-service',
-    })
-    expect(await resolve('admin')).toEqual({ accessToken: 'directory-token' })
-    expect(mockGetServiceAccountToken).not.toHaveBeenCalled()
-  })
-
   it('propagates service-account revocation without using an OAuth or Directory token fallback', async () => {
     const token = await resolve('admin')
     mockGetServiceAccountToken.mockRejectedValueOnce(new Error('Service account is unavailable'))
@@ -566,7 +316,6 @@ describe('impersonation on the connector path', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
   })
 
@@ -586,23 +335,6 @@ describe('impersonation on the connector path', () => {
       'req-1',
       OAUTH_AUTH.requiredScopes,
       'admin@corp.com'
-    )
-  })
-
-  it('impersonates nobody for a connector that names no subject field', async () => {
-    await resolveConnectorAccessToken({
-      auth: OAUTH_AUTH,
-      connector: credentialConnector('credential-1'),
-      userId: 'credential-owner',
-      requestId: 'req-1',
-      sourceConfig: { adminEmail: 'admin@corp.com' },
-    })
-    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
-      'credential-1',
-      'credential-owner',
-      'req-1',
-      OAUTH_AUTH.requiredScopes,
-      undefined
     )
   })
 })

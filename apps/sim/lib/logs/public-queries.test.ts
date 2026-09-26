@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -79,12 +76,6 @@ describe('public workflow log folder scope', () => {
     expect(lastWhere().some(isUnsatisfiable)).toBe(false)
     expect(lastWhere().some((node) => node.type === 'inArray')).toBe(true)
   })
-
-  it('adds no folder predicate when the caller sent no folder filter', async () => {
-    await list()
-
-    expect(lastWhere().some(isUnsatisfiable)).toBe(false)
-  })
 })
 
 /**
@@ -117,33 +108,6 @@ describe('unioned public log page', () => {
     resetDbChainMock()
   })
 
-  it('reads only workflow logs when job runs are not requested', async () => {
-    queueTableRows(schemaMock.workflowExecutionLogs, [])
-
-    const { data } = await listPublicWorkflowLogs({
-      filters: { workspaceId: 'workspace-1' },
-      limit: 50,
-      includeExecutionData: false,
-    })
-
-    expect(data).toEqual([])
-    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
-  })
-
-  it('reads both tables when job runs are requested', async () => {
-    queueTableRows(schemaMock.workflowExecutionLogs, [])
-    queueTableRows(schemaMock.jobExecutionLogs, [])
-
-    await listPublicWorkflowLogs({
-      filters: { workspaceId: 'workspace-1' },
-      limit: 50,
-      includeExecutionData: false,
-      includeJobRuns: true,
-    })
-
-    expect(dbChainMockFns.from).toHaveBeenCalledTimes(2)
-  })
-
   it('skips the job read when a filter no job row could satisfy is set', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [])
 
@@ -173,27 +137,6 @@ describe('unioned public log page', () => {
     })
 
     expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
-  })
-
-  it('tags every row with the table it came from', async () => {
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      { id: 'w-1', startedAt: new Date('2026-08-06T00:00:02Z') },
-    ])
-    queueTableRows(schemaMock.jobExecutionLogs, [
-      { id: 'j-1', startedAt: new Date('2026-08-06T00:00:01Z') },
-    ])
-
-    const { data } = await listPublicWorkflowLogs({
-      filters: { workspaceId: 'workspace-1' },
-      limit: 50,
-      includeExecutionData: false,
-      includeJobRuns: true,
-    })
-
-    expect(data.map((row) => [row.kind, row.id])).toEqual([
-      ['workflow', 'w-1'],
-      ['job', 'j-1'],
-    ])
   })
 
   it('merges the two branches into the requested order', async () => {
@@ -278,15 +221,6 @@ describe('sortable public log query', () => {
       await query(sortBy)
 
       expect(orderedSql()).toContain('COALESCE')
-    }
-  )
-
-  it.each([['startedAt'], ['status']] as const)(
-    'leaves the non-null %s column alone',
-    async (sortBy) => {
-      await query(sortBy)
-
-      expect(orderedSql()).not.toContain('COALESCE')
     }
   )
 

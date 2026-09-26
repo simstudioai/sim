@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { ResourceAddress } from '@/lib/mothership/generated/resources'

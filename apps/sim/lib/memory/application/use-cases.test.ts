@@ -1,51 +1,43 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readBoundProvenance: vi.fn(),
   readPlainMemoryTail: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
 vi.mock('@/lib/memory/conversation-store', () => ({
-  readPlainMemoryTail: mocks.readPlainMemoryTail,
+  readPlainMemoryTail: hoisted.readPlainMemoryTail,
   appendMemoryMessages: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/secret-provenance', () => ({
-  readBoundMemorySecretProvenance: mocks.readBoundProvenance,
+  readBoundMemorySecretProvenance: hoisted.readBoundProvenance,
   replaceMemorySecretProvenanceInTx: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import { listMemoriesUseCase } from '@/lib/memory/application/use-cases'
 import type { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const WORKSPACE_ID = 'workspace-canonical'
 const BILLING_OWNER_ID = 'billing-owner'
@@ -90,7 +82,6 @@ const ACTORLESS_DEPLOYED_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
 
 describe('Memory application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: WORKSPACE_ID,

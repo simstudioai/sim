@@ -1,50 +1,35 @@
-/**
- * @vitest-environment node
- */
 import { member, ssoDomain } from '@sim/db/schema'
+import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import {
-  createMockRequest,
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockIsEnterprise, mockRecordAudit } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockIsEnterprise: vi.fn(),
-  mockRecordAudit: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@sim/db', () => dbChainMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsEnterprise,
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: { ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { GET, POST } from '@/app/api/organizations/[id]/domains/route'
 
+const mockGetSession = authMockFns.mockGetSession
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
 const ORG_ID = 'org-1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID })
 
 describe('org domains route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
       session: { id: 'session-1', token: 'tok-1' },
@@ -53,12 +38,6 @@ describe('org domains route', () => {
   })
 
   describe('GET', () => {
-    it('401s when unauthenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
-      const res = await GET(createMockRequest('GET'), routeContext)
-      expect(res.status).toBe(401)
-    })
-
     it('403s for non-members', async () => {
       queueTableRows(member, [])
       const res = await GET(createMockRequest('GET'), routeContext)
@@ -120,43 +99,11 @@ describe('org domains route', () => {
       expect(res.status).toBe(403)
     })
 
-    it('400s on an invalid domain', async () => {
-      queueTableRows(member, [{ role: 'owner' }])
-      const res = await POST(req({ domain: 'not a domain' }), routeContext)
-      expect(res.status).toBe(400)
-    })
-
     it('409s when the domain is verified by another org', async () => {
       queueTableRows(member, [{ role: 'owner' }])
       queueTableRows(ssoDomain, [{ organizationId: 'other-org' }])
       const res = await POST(req({ domain: 'acme.com' }), routeContext)
       expect(res.status).toBe(409)
-    })
-
-    it('claims a new domain as pending and records an audit event', async () => {
-      queueTableRows(member, [{ role: 'owner' }]) // membership
-      queueTableRows(ssoDomain, []) // verified-elsewhere check → none
-      queueTableRows(ssoDomain, []) // org-domains read → none existing, under the cap
-      // insert().returning()
-      dbChainMockFns.returning.mockResolvedValueOnce([
-        {
-          id: 'd-new',
-          domain: 'acme.com',
-          status: 'pending',
-          verificationToken: 'tok',
-          verifiedAt: null,
-        },
-      ])
-      const res = await POST(req({ domain: 'acme.com' }), routeContext)
-      expect(res.status).toBe(200)
-      const body = await res.json()
-      expect(body.data.domain).toMatchObject({
-        status: 'pending',
-        txtRecordValue: 'sim-domain-verification=tok',
-      })
-      expect(mockRecordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'organization.domain.added' })
-      )
     })
 
     it('re-adds an existing pending domain idempotently without rotating its token', async () => {

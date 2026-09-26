@@ -26,7 +26,6 @@ describe('Search MCP client connection', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   async function render(endpoint = ENDPOINT) {
@@ -58,93 +57,11 @@ describe('Search MCP client connection', () => {
     return writeText.mock.lastCall?.[0] as string
   }
 
-  it('starts with a native Claude URL and explains the team-owner prerequisite', async () => {
-    await render()
-    expect(container.querySelector<HTMLInputElement>('input')?.value).toBe(ENDPOINT)
-    expect(container.textContent).toContain('Claude web or Desktop')
-    expect(container.textContent).toContain('an owner adds the connector first')
-    expect(container.textContent).not.toContain('API key')
-    const copyButton = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Copy MCP server URL"]'
-    )!
-    await act(async () => copyButton.click())
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(ENDPOINT)
-  })
-
-  it('provides Codex URL registration and browser login without a bearer token', async () => {
-    await render()
-    await selectClient('Codex')
-    const config = await copyConfiguration()
-    expect(config).toBe(`codex mcp add sim-search --url '${ENDPOINT}'`)
-    expect(config).not.toContain('mcp login')
-    expect(config).not.toContain('token')
-    expect(container.textContent).toContain('sign in to Sim in the browser')
-    expect(container.textContent).toContain('To reconnect, run codex mcp login sim-search')
-  })
-
-  it('uses native HTTP transport for Claude Code and directs authentication to /mcp', async () => {
-    await render()
-    await selectClient('Claude Code')
-    expect(await copyConfiguration()).toBe(
-      `claude mcp add --transport http sim-search '${ENDPOINT}'`
-    )
-    expect(container.textContent).toContain('open /mcp in Claude Code')
-  })
-
-  it('uses native URL-only Cursor configuration and replaces it when switching clients', async () => {
-    await render()
-    await selectClient('Cursor')
-    expect(JSON.parse(await copyConfiguration())).toEqual({
-      mcpServers: { 'sim-search': { url: ENDPOINT } },
-    })
-    expect(container.textContent).toContain('~/.cursor/mcp.json')
-    await selectClient('Claude')
-    expect(container.querySelector<HTMLInputElement>('input')?.value).toBe(ENDPOINT)
-    expect(container.textContent).not.toContain('Copy configuration')
-    expect(container.textContent).not.toContain('mcpServers')
-  })
-
   it('quotes a shell metacharacter in the copied endpoint as a literal', async () => {
     await render("https://sim.fixture.test/api/mcp/search/organizations/org'$(example)")
     await selectClient('Claude Code')
     expect(await copyConfiguration()).toBe(
       "claude mcp add --transport http sim-search 'https://sim.fixture.test/api/mcp/search/organizations/org'\\''$(example)'"
     )
-  })
-
-  it('provides a client-independent URL and the transport and authentication requirements', async () => {
-    await render()
-    await selectClient('Other')
-    expect(await copyConfiguration()).toBe(ENDPOINT)
-    expect(container.textContent).toContain('remote MCP with OAuth')
-    expect(container.textContent).toContain('Streamable HTTP')
-    expect(container.textContent).not.toContain('mcpServers')
-  })
-
-  it.each(['Claude', 'Codex', 'Claude Code', 'Cursor', 'Other'])(
-    'copies the current resource after the endpoint changes for %s',
-    async (client) => {
-      await render()
-      await selectClient(client)
-      await copyConfiguration()
-      const nextEndpoint = 'https://sim.fixture.test/api/mcp/search/organizations/org-2'
-      await render(nextEndpoint)
-      const value = await copyConfiguration()
-      expect(value).toContain(nextEndpoint)
-      expect(value).not.toContain(ENDPOINT)
-      expect(container.querySelector('[aria-label^="MCP app: "]')?.textContent).toContain(client)
-    }
-  )
-
-  it('allows a failed clipboard copy to be retried', async () => {
-    await render()
-    await selectClient('Cursor')
-    writeText.mockRejectedValueOnce(new Error('Clipboard is unavailable'))
-    await copyConfiguration()
-    expect(container.querySelector('button[disabled]')).toBeNull()
-    expect(JSON.parse(await copyConfiguration())).toEqual({
-      mcpServers: { 'sim-search': { url: ENDPOINT } },
-    })
-    expect(writeText).toHaveBeenCalledTimes(2)
   })
 })

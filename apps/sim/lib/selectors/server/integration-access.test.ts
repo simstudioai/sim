@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { selectorManifest } from '@/lib/selectors/manifest'
 import { selectorIntegrationBlockTypes } from '@/lib/selectors/server/integration-access'

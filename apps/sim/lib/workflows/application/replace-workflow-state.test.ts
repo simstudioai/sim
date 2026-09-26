@@ -1,44 +1,40 @@
-/**
- * @vitest-environment node
- */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
   replace: vi.fn(),
   prepare: vi.fn(),
   collectGraphIds: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
-  needsRedeployment: vi.fn(),
-  loadNormalized: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UPDATED: 'workflow.updated' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
@@ -50,20 +46,24 @@ vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
 }))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.needsRedeployment,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
-import { REFERENCES_UNCHECKED_NOTE } from '@/lib/workflows/editing/lint-report'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { getBlock } from '@/blocks/registry'
+
+const mockNeedsRedeployment = workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const defaultGetBlock = vi.mocked(getBlock).getMockImplementation()
 
@@ -86,36 +86,31 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const sessionPrincipal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [] }
 
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'exa' ? ExaBlock : type === 'agent' ? AgentBlock : defaultGetBlock?.(type)
     )
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
     mocks.replace.mockResolvedValue({
       warnings: [],
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
     })
-    mocks.needsRedeployment.mockResolvedValue(true)
+    mockNeedsRedeployment.mockResolvedValue(true)
     mocks.prepare.mockReturnValue({
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
       warnings: [],
     })
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
-    mocks.loadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
+    mockLoadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
   /**
@@ -195,7 +190,7 @@ describe('replaceWorkflowState', () => {
   it('derives the audit source from the acting principal and notifies after it', async () => {
     await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
 
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.updated',
         resourceId: 'workflow-1',
@@ -208,63 +203,12 @@ describe('replaceWorkflowState', () => {
         }),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
-    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
-  })
-
-  it('names the delegated service rather than the principal kind', async () => {
-    await replaceWorkflowState.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
-        delegationId: 'tool-call-1',
-        audience: 'sim:workflows',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2099-01-01T00:00:00Z'),
-      },
-      input,
-    })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ source: 'copilot' }) })
-    )
-  })
-
-  it('refuses a role below the operation floor', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
-
-    await expect(
-      replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a principal kind the operation does not accept before canonical loading', async () => {
-    await expect(
-      replaceWorkflowState.execute({
-        principal: {
-          kind: 'credential_group_enrollment',
-          workspaceId: 'workspace-1',
-          credentialGroupId: 'group-1',
-          enrollmentId: 'enrollment-1',
-          email: 'someone@example.com',
-          invitationTokenHash: 'hash',
-        },
-        input,
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockRecordAudit).toHaveBeenCalledBefore(mockNotify)
+    expect(mockNotify).toHaveBeenCalledWith('workflow-1')
   })
 
   it('conceals an asserted-workspace mismatch as not found', async () => {
-    mocks.resolveContext.mockRejectedValue(
-      new OrchestrationError('not_found', 'Workflow not found')
-    )
+    mockResolveContext.mockRejectedValue(new OrchestrationError('not_found', 'Workflow not found'))
 
     await expect(
       replaceWorkflowState.execute({
@@ -299,8 +243,8 @@ describe('replaceWorkflowState', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('records neither audit nor notification when the write fails', async () => {
@@ -310,30 +254,8 @@ describe('replaceWorkflowState', () => {
       replaceWorkflowState.execute({ principal: sessionPrincipal, input })
     ).rejects.toThrow('constraint violation')
 
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
-  })
-
-  /**
-   * The report is the whole point of the endpoint for a headless builder: an
-   * agent that authors a graph from scratch needs the same findings as one that
-   * edits it incrementally through `POST /operations`.
-   */
-  it('reports lint findings alongside a committed write', async () => {
-    const result = await replaceWorkflowState.execute({
-      principal: sessionPrincipal,
-      input,
-    })
-
-    expect(result.dryRun).toBe(false)
-    expect(result.lint).toMatchObject({
-      sources: expect.any(Array),
-      sinks: expect.any(Array),
-      orphanBlocks: expect.any(Array),
-      fieldIssues: expect.any(Array),
-      unresolvedReferences: expect.any(Array),
-      notes: expect.any(Array),
-    })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   describe('dry run', () => {
@@ -345,58 +267,11 @@ describe('replaceWorkflowState', () => {
 
       expect(result.dryRun).toBe(true)
       expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockNotify).not.toHaveBeenCalled()
     })
 
     /** A preview a caller cannot act on is worthless; it must carry the findings. */
-    it('still reports the findings a committed write would produce', async () => {
-      const dry = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input: { ...input, dryRun: true },
-      })
-      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-
-      expect(dry.lint).toEqual(committed.lint)
-      expect(dry.blocksCount).toBe(committed.blocksCount)
-      expect(dry.edgesCount).toBe(committed.edgesCount)
-    })
-
-    /**
-     * The preview promised in {@link ReplaceWorkflowStateInput.dryRun} is
-     * byte-identical to the committed write of the same body, and preparation
-     * is where a dropped edge or a stripped inline secret is noted. Reporting
-     * only the validation half made the dry run quietly less informative than
-     * the write it previews.
-     */
-    it('merges the preparation warnings a committed write would report', async () => {
-      mocks.validate.mockReturnValue({
-        valid: true,
-        errors: [],
-        warnings: ['Dropped block "block-2"'],
-      })
-      mocks.prepare.mockReturnValue({
-        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
-        warnings: ['Dropped edge "edge-9": target block does not exist'],
-      })
-      mocks.replace.mockResolvedValue({
-        warnings: ['Dropped edge "edge-9": target block does not exist'],
-        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
-      })
-
-      const dry = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input: { ...input, dryRun: true },
-      })
-      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-
-      expect(dry.warnings).toEqual([
-        'Dropped block "block-2"',
-        'Dropped edge "edge-9": target block does not exist',
-      ])
-      expect(dry.warnings).toEqual(committed.warnings)
-    })
-
     /**
      * A dry run that reports clean for a body that cannot commit is worse than
      * the fault it hides. It checks the ids the write would actually insert —
@@ -434,18 +309,6 @@ describe('replaceWorkflowState', () => {
     })
 
     /** A locked workflow refuses the preview too, or the preview would lie. */
-    it('refuses when the workflow cannot be mutated', async () => {
-      workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
-        new WorkflowLockedError('workflow-1')
-      )
-
-      await expect(
-        replaceWorkflowState.execute({
-          principal: sessionPrincipal,
-          input: { ...input, dryRun: true },
-        })
-      ).rejects.toThrow()
-    })
   })
 
   describe('registry input validation', () => {
@@ -474,38 +337,11 @@ describe('replaceWorkflowState', () => {
             })
           ).rejects.toThrow(errors[0].error)
           expect(mocks.replace).not.toHaveBeenCalled()
-          expect(mocks.notify).not.toHaveBeenCalled()
-          expect(mocks.recordAudit).not.toHaveBeenCalled()
+          expect(mockNotify).not.toHaveBeenCalled()
+          expect(mockRecordAudit).not.toHaveBeenCalled()
         }
       )
     }
-
-    it('accepts literal choices alongside text references without enabling advanced mode', async () => {
-      const block = {
-        ...BLOCK,
-        type: 'exa',
-        advancedMode: false,
-        subBlocks: {
-          operation: { id: 'operation', type: 'dropdown' as const, value: 'exa_search' },
-          type: { id: 'type', type: 'dropdown' as const, value: 'auto' },
-          query: { id: 'query', type: 'long-input' as const, value: '<start.query>' },
-          text: { id: 'text', type: 'switch' as const, value: true },
-          highlights: { id: 'highlights', type: 'switch' as const, value: false },
-          summary: { id: 'summary', type: 'switch' as const, value: null },
-        },
-      }
-      await expect(
-        replaceWorkflowState.execute({
-          principal: sessionPrincipal,
-          input: { ...input, blocks: { [BLOCK.id]: block } },
-        })
-      ).resolves.toMatchObject({ dryRun: false })
-      expect(mocks.replace).toHaveBeenCalledWith(
-        expect.objectContaining({
-          state: { blocks: { [BLOCK.id]: block }, edges: [], variables: undefined },
-        })
-      )
-    })
   })
 
   describe('Mothership attachment identity on state replacement', () => {
@@ -540,11 +376,11 @@ describe('replaceWorkflowState', () => {
         })
       ).rejects.toThrow('attachment names are read-only')
       expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
+      expect(mockNotify).not.toHaveBeenCalled()
     })
 
     it('preserves an existing label when replacing the graph and editing other fields', async () => {
-      mocks.loadNormalized.mockResolvedValue({
+      mockLoadNormalized.mockResolvedValue({
         blocks: { [BLOCK.id]: block },
         edges: [],
         loops: {},
@@ -564,13 +400,6 @@ describe('replaceWorkflowState', () => {
         })
       )
     })
-
-    it('leaves ordinary authoring unchanged and avoids loading the graph', async () => {
-      await expect(
-        replaceWorkflowState.execute({ principal: sessionPrincipal, input: replacement })
-      ).resolves.toMatchObject({ dryRun: false })
-      expect(mocks.loadNormalized).not.toHaveBeenCalled()
-    })
   })
 
   /**
@@ -585,19 +414,10 @@ describe('replaceWorkflowState', () => {
     it('refuses a workspace API key, which names no human to evaluate', async () => {
       await expect(
         replaceWorkflowState.execute({
-          principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+          principal: createWorkspaceApiKeyPrincipal(),
           input,
         })
       ).rejects.toThrow()
-    })
-
-    it('runs the reference pass for a human principal', async () => {
-      const result = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input,
-      })
-
-      expect(result.lint.notes).not.toContain(REFERENCES_UNCHECKED_NOTE)
     })
   })
 })

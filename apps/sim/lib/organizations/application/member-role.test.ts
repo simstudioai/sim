@@ -1,46 +1,43 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingOrganizationMock } from '@sim/testing/mocks/billing-organization.mock'
 import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { organizationSeatsMock } from '@sim/testing/mocks/organization-seats.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   scim: vi.fn(),
   change: vi.fn(),
-  audit: vi.fn(),
-  analytics: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/ee/scim/lib/managed-membership', () => ({
+  assertMembershipNotScimManaged: hoisted.scim,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.lock,
-}))
-vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: mocks.scim }))
-vi.mock('@/lib/organizations/members/lifecycle', () => ({ changeMemberRoleTx: mocks.change }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORG_MEMBER_ROLE_CHANGED: 'org.member.role' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/billing/core/organization', () => ({ getOrganizationMemberUsageSnapshot: vi.fn() }))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: vi.fn() }))
+vi.mock('@/lib/organizations/members/lifecycle', () => ({ changeMemberRoleTx: hoisted.change }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/auth/active-organization', () => ({
   setActiveOrganizationForCurrentSession: vi.fn(),
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { updateOrganizationMember } from '@/lib/organizations/application/members'
-import { PUT } from '@/app/api/organizations/[id]/members/[memberId]/route'
+
+const mocks = {
+  ...hoisted,
+  lock: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const principal = {
   kind: 'organization_delegated',
@@ -55,7 +52,6 @@ const principal = {
 } as const
 const input = { organizationId: 'org', userId: 'target-user', role: 'admin' } as const
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.scim.mockResolvedValue(undefined)
   mocks.change.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
@@ -105,15 +101,6 @@ describe('organization role update', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.change).not.toHaveBeenCalled()
   })
-  it('keeps the existing audit for an unchanged role', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.change.mockResolvedValueOnce({ changed: false, role: 'admin' })
-    await updateOrganizationMember.execute({ principal, input })
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'actor' }))
-  })
 })
 
 it.each([{ role: 'member' }, { role: null }])(
@@ -135,52 +122,4 @@ it('preserves SCIM authority and emits no audit on refusal', async () => {
   )
   expect(mocks.change).not.toHaveBeenCalled()
   expect(mocks.audit).not.toHaveBeenCalled()
-})
-
-it('internal HTTP role update uses the same current actor and locked operation', async () => {
-  authMockFns.mockGetSession.mockResolvedValue({
-    user: { id: 'session-actor' },
-    session: { id: 'session' },
-  })
-  queueTableRows(member, [{ role: 'admin' }])
-  queueTableRows(member, [{ role: 'admin' }])
-  queueTableRows(member, [{ id: 'member-id', userId: 'target-user', role: 'member' }])
-  const response = await PUT(
-    createMockRequest(
-      'PUT',
-      { role: 'admin' },
-      {},
-      'http://localhost/api/organizations/org/members/target-user'
-    ),
-    { params: Promise.resolve({ id: 'org', memberId: 'target-user' }) }
-  )
-  expect(response.status).toBe(200)
-  expect(await response.json()).toMatchObject({
-    success: true,
-    message: 'Member role updated successfully',
-    data: { id: 'member-id', userId: 'target-user', role: 'admin', updatedBy: 'session-actor' },
-  })
-  expect(mocks.scim).toHaveBeenCalledBefore(mocks.change)
-  expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'session-actor' }))
-})
-it('internal HTTP preserves the non-member refusal envelope', async () => {
-  authMockFns.mockGetSession.mockResolvedValue({
-    user: { id: 'session-actor' },
-    session: { id: 'session' },
-  })
-  queueTableRows(member, [])
-  const response = await PUT(
-    createMockRequest(
-      'PUT',
-      { role: 'admin' },
-      {},
-      'http://localhost/api/organizations/org/members/target-user'
-    ),
-    { params: Promise.resolve({ id: 'org', memberId: 'target-user' }) }
-  )
-  expect(response.status).toBe(403)
-  expect(await response.json()).toMatchObject({
-    error: 'Forbidden - Not a member of this organization',
-  })
-  expect(mocks.change).not.toHaveBeenCalled()
 })

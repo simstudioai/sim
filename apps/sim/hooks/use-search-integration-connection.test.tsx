@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { organizationAccountsQueriesMock } from '@sim/testing/mocks/organization-accounts-queries.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
   mutate: vi.fn(),
-  invalidate: vi.fn(),
   refetch: vi.fn(),
   connected: vi.fn(),
   receipts: new Map<string, string>(),
@@ -33,8 +34,7 @@ const target = {
   connectorType: 'gmail',
   connectorId: 'source',
 } as const
-const client = { invalidateQueries: m.invalidate }
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => client }))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/hooks/queries/personal-search-integrations', () => ({
   personalSearchIntegrationKeys: { lists: () => ['personal-integrations', 'list'] },
   useConnectPersonalSearchIntegration: () => ({ mutateAsync: m.mutate, isPending: false }),
@@ -52,9 +52,7 @@ vi.mock('@/hooks/queries/personal-search-integrations', () => ({
     refetch: m.refetch,
   }),
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  organizationAccountsKeys: { detail: (id: string) => ['accounts', id] },
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
@@ -98,7 +96,6 @@ function connection(id = 'one') {
   return value
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.useFakeTimers()
   m.accounts = []
   m.receipts.clear()
@@ -138,8 +135,6 @@ afterEach(() => {
   container.remove()
   latest.clear()
   vi.useRealTimers()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('Search connection card lifecycle', () => {

@@ -24,7 +24,7 @@ import {
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
-import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 const SOURCE_ROW_CLASSES = cn(
@@ -114,6 +114,7 @@ interface SourceCardProps {
 
 /** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
+  const navigate = useSourceNavigation(source)
   const updatedAt = parseUpdatedAt(source.updatedAt)
   const meta = [
     sourceSiteName(source),
@@ -132,7 +133,8 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
           target='_blank'
           rel='noopener noreferrer'
           data-source-link=''
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
+          onClick={navigate}
+          onAuxClick={navigate}
           className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
         >
           <OverflowText
@@ -161,7 +163,8 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             target='_blank'
             rel='noopener noreferrer'
             data-source-link=''
-            onClick={(event) => handleExternalLinkClick(event, source.url)}
+            onClick={navigate}
+            onAuxClick={navigate}
             className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline [overflow-wrap:anywhere] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
           >
             {sourceLabel(source)}
@@ -176,7 +179,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             className='text-[var(--text-tertiary)] text-caption'
           />
           {source.snippet && (
-            <p className='text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
+            <p className='line-clamp-3 text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
               {highlightTerms(source.snippet, query)}
             </p>
           )}

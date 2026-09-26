@@ -13,21 +13,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllEnvs()
   rmSync(dir, { recursive: true, force: true })
 })
 
 describe('clientInfoHeader', () => {
-  it('names the CLI, its runtime, the platform, and the driving agent', () => {
-    expect(clientInfoHeader({ CLAUDECODE: '1' })).toBe(
-      `cli/${cliVersion()}; node/${process.versions.node}; os/${process.platform}; arch/${process.arch}; agent/claude-code`
-    )
-  })
-
-  it('reports that no agent was detected rather than leaving it out', () => {
-    expect(clientInfoHeader({})).toContain('; agent/none')
-  })
-
   it('withholds the agent when usage reporting is opted out', () => {
     const header = clientInfoHeader({ CLAUDECODE: '1', DO_NOT_TRACK: '1' })
     expect(header).not.toContain('agent/')

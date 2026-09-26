@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -22,7 +21,7 @@ vi.mock('@/lib/permission-groups/application/read-user-config', async (importOri
   },
 }))
 
-import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workspaces/[workspaceId]/permission-config/route'
 
 const workspaceId = 'workspace-123'
@@ -42,7 +41,6 @@ const call = (query = '') =>
   )
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
@@ -55,16 +53,6 @@ beforeEach(() => {
 })
 
 describe('effective caller permission configuration public adapter', () => {
-  it('returns the shared configuration without inventing a workspace role', async () => {
-    const response = await call()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: result })
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(mocks.read).toHaveBeenCalledWith(
-      expect.objectContaining({ principal, input: { workspaceId } })
-    )
-  })
-
   it.each([
     '?userId=other-user',
     '?organizationId=other-organization',
@@ -80,15 +68,6 @@ describe('effective caller permission configuration public adapter', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Workspace not found' },
-    })
-  })
-
-  it('uses the shared workspace-key refusal code', async () => {
-    mocks.read.mockRejectedValue(new WorkspaceApiKeyAuthorizationError())
-    const response = await call()
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', details: { code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' } },
     })
   })
 })

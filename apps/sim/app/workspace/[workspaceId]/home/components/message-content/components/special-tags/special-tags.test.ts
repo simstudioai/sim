@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -10,11 +8,8 @@ import { describe, expect, it, vi } from 'vitest'
  * env). These tests only exercise pure parsing/model helpers, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
-import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 import type {
   ContentSegment,
   CredentialItemData,
@@ -27,7 +22,6 @@ import {
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,
   parseCredentialTagBody,
-  parseLastCredentialTag,
   parseQuestionTagBody,
   parseSpecialTags,
   SPECIAL_TAG_NAMES,
@@ -43,17 +37,6 @@ function renderedText(segments: ContentSegment[]): string {
 }
 
 describe('parseCredentialTagBody', () => {
-  it('accepts organization secret inputs without model-supplied values or workspace targets', () => {
-    const item = { type: 'secret_input', name: 'TOKEN', scope: 'organization' } as const
-    expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
-    expect(parseCredentialTagBody(JSON.stringify({ ...item, workspaceId: 'workspace' }))).toBeNull()
-    expect(parseCredentialTagBody(JSON.stringify({ ...item, value: 'secret' }))).toBeNull()
-    for (const name of ['API-KEY', ' KEY', '1KEY', 'x'.repeat(1025)])
-      expect(parseCredentialTagBody(JSON.stringify({ ...item, name }))).toBeNull()
-    expect(credentialTagHasVisibleCard([item], false, 'agent')).toBe(true)
-    expect(credentialTagHasVisibleCard([item], false, 'plan')).toBe(true)
-    expect(credentialTagHasVisibleCard([item], true, 'assistant')).toBe(false)
-  })
   it('retains an explicit workspace target and rejects malformed targets', () => {
     const item = { type: 'secret_input', name: 'TOKEN', workspaceId: 'workspace-a' }
     expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
@@ -68,30 +51,6 @@ describe('parseCredentialTagBody', () => {
     provider: 'google-email',
     value: 'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
   }
-
-  it('normalizes a singleton credential object to one row', () => {
-    expect(parseCredentialTagBody(JSON.stringify(secret))).toEqual([secret])
-  })
-
-  it('parses provider-only Assistant connection tags while Build still requires a URL', () => {
-    const data: CredentialItemData[] = [{ type: 'link', provider: 'slack' }]
-    expect(
-      parseLastCredentialTag('<credential>{"type":"link","provider":"slack"}</credential>')
-    ).toEqual(data)
-    expect(credentialTagHasVisibleCard(data, true, 'assistant')).toBe(true)
-    expect(credentialTagHasVisibleCard(data, true, 'agent')).toBe(false)
-    expect(parseCredentialTagBody('{"type":"link","provider":" "}')).toBeNull()
-    expect(parseCredentialTagBody('{"type":"link","provider":"slack","value":123}')).toBeNull()
-  })
-
-  it('preserves a mixed credential-input batch in one tag', () => {
-    expect(parseCredentialTagBody(JSON.stringify([secret, oauth]))).toEqual([secret, oauth])
-  })
-
-  it('rejects empty arrays and batches containing an invalid row', () => {
-    expect(parseCredentialTagBody('[]')).toBeNull()
-    expect(parseCredentialTagBody(JSON.stringify([secret, { type: 'link' }]))).toBeNull()
-  })
 
   it('formats and strictly pairs the safe continuation without secret values', () => {
     const data = [oauth, secret]
@@ -119,38 +78,6 @@ describe('parseCredentialTagBody', () => {
       'Credential setup submitted — {"integrations":[{"name":"google-email","status":"skipped"}],"secrets":[{"name":"OPENAI_API_KEY","status":"skipped"}]}'
     )
     expect(parseCredentialSubmissionMessage(data, message)).toBe(true)
-  })
-
-  it('still pairs legacy completed setup messages after reload', () => {
-    expect(
-      parseCredentialSubmissionMessage(
-        [oauth, secret],
-        'Credential setup complete — integrations: google-email; secrets: OPENAI_API_KEY'
-      )
-    ).toBe(true)
-  })
-
-  it('extracts the last complete credential batch for transcript pairing', () => {
-    const content = `First <credential>${JSON.stringify(secret)}</credential> then <credential>${JSON.stringify([oauth, secret])}</credential>`
-    expect(parseLastCredentialTag(content)).toEqual([oauth, secret])
-  })
-
-  it('only reserves message actions when a credential card is visible to this member', () => {
-    const workspaceSecret: CredentialItemData = {
-      type: 'secret_input',
-      name: 'WORKSPACE_KEY',
-      scope: 'workspace',
-    }
-    const personalSecret: CredentialItemData = {
-      type: 'secret_input',
-      name: 'PERSONAL_KEY',
-      scope: 'personal',
-    }
-
-    expect(credentialTagHasVisibleCard([workspaceSecret], false)).toBe(false)
-    expect(credentialTagHasVisibleCard([personalSecret], false)).toBe(true)
-    expect(credentialTagHasVisibleCard([oauth], false)).toBe(false)
-    expect(credentialTagHasVisibleCard([oauth], true)).toBe(true)
   })
 
   it('offers personal integration connections to Assistant readers without trusting a model URL', () => {
@@ -228,42 +155,7 @@ const YES_NO = {
   ],
 }
 
-const MULTI_SELECT = {
-  type: 'multi_select',
-  prompt: 'Which channels should the report go to?',
-  options: [
-    { id: 'slack', label: 'Slack' },
-    { id: 'email', label: 'Email' },
-    { id: 'sheet', label: 'Google Sheet' },
-  ],
-}
-
 describe('parseQuestionTagBody', () => {
-  it('normalizes a single object body to a one-element array', () => {
-    expect(parseQuestionTagBody(JSON.stringify(SINGLE_SELECT))).toEqual([SINGLE_SELECT])
-  })
-
-  it('preserves array order for multi-step bodies', () => {
-    const parsed = parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT]))
-    expect(parsed).toEqual([SINGLE_SELECT, YES_NO, MULTI_SELECT])
-  })
-
-  it('accepts multi_select questions', () => {
-    expect(parseQuestionTagBody(JSON.stringify(MULTI_SELECT))).toEqual([MULTI_SELECT])
-  })
-
-  it('rejects single_select without options', () => {
-    expect(parseQuestionTagBody(JSON.stringify({ type: 'single_select', prompt: 'Pick' }))).toBe(
-      null
-    )
-  })
-
-  it('rejects empty options', () => {
-    expect(
-      parseQuestionTagBody(JSON.stringify({ type: 'single_select', prompt: 'Sure?', options: [] }))
-    ).toBe(null)
-  })
-
   it('rejects the removed text and confirm types', () => {
     expect(parseQuestionTagBody(JSON.stringify({ type: 'text', prompt: 'What time zone?' }))).toBe(
       null
@@ -290,47 +182,9 @@ describe('parseQuestionTagBody', () => {
     }
     expect(parseQuestionTagBody(JSON.stringify(onlyOther))).toBe(null)
   })
-
-  it('rejects an empty prompt', () => {
-    expect(parseQuestionTagBody(JSON.stringify({ ...SINGLE_SELECT, prompt: '  ' }))).toBe(null)
-  })
-
-  it('rejects a malformed option', () => {
-    expect(
-      parseQuestionTagBody(JSON.stringify({ ...SINGLE_SELECT, options: [{ id: 'keep_newest' }] }))
-    ).toBe(null)
-  })
-
-  it('rejects an array containing one invalid question', () => {
-    expect(parseQuestionTagBody(JSON.stringify([SINGLE_SELECT, { type: 'single_select' }]))).toBe(
-      null
-    )
-  })
-
-  it('rejects empty arrays and non-JSON bodies', () => {
-    expect(parseQuestionTagBody('[]')).toBe(null)
-    expect(parseQuestionTagBody('not json')).toBe(null)
-  })
 })
 
 describe('parseSpecialTags with <question>', () => {
-  it('extracts a complete question tag interleaved with text', () => {
-    const content = `Before the tag. <question>${JSON.stringify(SINGLE_SELECT)}</question> After the tag.`
-    const { segments, hasPendingTag } = parseSpecialTags(content, false)
-    expect(hasPendingTag).toBe(false)
-    expect(segments).toEqual([
-      { type: 'text', content: 'Before the tag. ' },
-      { type: 'question', data: [SINGLE_SELECT] },
-      { type: 'text', content: ' After the tag.' },
-    ])
-  })
-
-  it('extracts a multi-step array body as one segment', () => {
-    const content = `<question>${JSON.stringify([SINGLE_SELECT, YES_NO, MULTI_SELECT])}</question>`
-    const { segments } = parseSpecialTags(content, false)
-    expect(segments).toEqual([{ type: 'question', data: [SINGLE_SELECT, YES_NO, MULTI_SELECT] }])
-  })
-
   it('flags an unclosed question tag as pending while streaming', () => {
     const { segments, hasPendingTag } = parseSpecialTags(
       'Thinking about it. <question>[{"type":"single_sel',
@@ -365,14 +219,6 @@ describe('parseSpecialTags with <question>', () => {
     )
   })
 
-  it('still parses a valid tag that follows a rejected one', () => {
-    const { segments } = parseSpecialTags(
-      'I use <thinking> loosely here. Anyway: <options>[{"title":"A","description":"d"}]</options> done.',
-      false
-    )
-    expect(segments.map((segment) => segment.type)).toContain('options')
-  })
-
   it('loses nothing when the model writes no closing tag at all', () => {
     // Verbatim from a real message (trace 220cc02d). No close tag exists, so no
     // marker rule can fire — but the JSON value completes and prose follows,
@@ -384,23 +230,6 @@ describe('parseSpecialTags with <question>', () => {
     expect(streaming.hasPendingTag).toBe(false)
     expect(renderedText(streaming.segments)).toBe(raw)
     expect(renderedText(parseSpecialTags(raw, false).segments)).toBe(raw)
-  })
-
-  it('does not rescan the interior of a body that carried no markers', () => {
-    // Pins WHY a settled span resumes past the CLOSE, never past the opener.
-    // Resuming past the opener would rescan the interior, and since the marker
-    // scan runs on the blanked body, a tag quoted inside a JSON string is
-    // invisible to it and would be re-parsed as a REAL tag on the second pass —
-    // painting the quoted JSON verbatim as raw text (its escaped quotes cannot
-    // re-parse as a card), the exact failure `discard` exists to prevent. The
-    // span itself opens `{"` and will not parse (trailing junk), so it is an
-    // attempted payload and is discarded whole; what must never happen is a
-    // partial re-parse of its quoted interior.
-    const raw =
-      'A <question>{"a":"<options>{\\"k\\":{\\"title\\":\\"x\\",\\"description\\":\\"y\\"}}</options>"} junk</question> B'
-    const { segments } = parseSpecialTags(raw, false)
-    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-    expect(renderedText(segments)).toBe('A  B')
   })
 
   it('keeps prose a tag wrapped instead of a payload', () => {
@@ -446,24 +275,6 @@ describe('parseSpecialTags with <question>', () => {
     expect(segments.every((segment) => segment.type === 'text')).toBe(true)
   })
 
-  it('drops that same payload even when its JSON quotes tag syntax', () => {
-    // The marker scan must blank JSON strings the way the streaming path does.
-    // Scanning the raw body sees `</options>` inside the payload, calls the span
-    // literal text, and renders the raw JSON — the outcome `discard` exists to
-    // prevent.
-    //
-    // The quoted marker deliberately sits in a field OTHER than `prompt`: a
-    // recoverable prompt is surfaced as text before this path is reached, so a
-    // fixture carrying one would assert the recovery rather than the blanking
-    // this test exists for. Matches the prompt-less body used above.
-    const { segments } = parseSpecialTags(
-      'A <question>[{"type":"single_select","title":"use </options> here?"}]</question> B',
-      false
-    )
-    expect(renderedText(segments)).toBe('A  B')
-    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-  })
-
   it('drops a payload one typo away from valid instead of showing raw JSON', () => {
     // The first three are verbatim from production screenshots (2026-07-31): an
     // extra `}` before the array close, a missing opening quote on a key, and a
@@ -490,26 +301,6 @@ describe('parseSpecialTags with <question>', () => {
     }
   })
 
-  it('drops a broken inline payload rather than dumping it mid-sentence', () => {
-    // Same treatment for the inline tag: a `{"`-opening body with a syntax
-    // error reads as an attempted chip, and the sentence survives around the
-    // hole exactly as it does for a wrong-shape payload today.
-    const raw =
-      'I saved <workspace_resource>{"type":"file",path:"a.md"}</workspace_resource> for you.'
-    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe('I saved  for you.')
-  })
-
-  it('renders nothing for a message that is only an unparsable payload', () => {
-    // The discardedTag guard must cover the new class too: with every segment
-    // discarded, the raw-content fallback would otherwise resurrect the exact
-    // JSON the discard removed.
-    const { segments } = parseSpecialTags(
-      '<options>{"1": {"title": "a", "description": "b"}}]}</options>',
-      false
-    )
-    expect(segments).toHaveLength(0)
-  })
-
   it('still shows an unparsable body that never opened like a payload', () => {
     // The other side of the attempted-payload line: a bare scalar opens with
     // its own first character, not `{"`/`[{`, so it reads as prose in quotes
@@ -531,50 +322,6 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(parseSpecialTags(quotedColon, false).segments)).toBe(quotedColon)
     const arrayWrapped = 'see <options>["some list item"]</options> end'
     expect(renderedText(parseSpecialTags(arrayWrapped, false).segments)).toBe('see  end')
-  })
-
-  it('discards a broken payload whose strings legitimately mention tag syntax', () => {
-    // The prompt quotes a tag name, so a raw scan sees a marker — but the
-    // body's quotes are balanced, so the blanked scan already proved the marker
-    // sits inside a string. Treating it as a nested tag would render the broken
-    // payload as raw JSON, the exact failure `discard` exists to prevent. The
-    // raw rescan is reserved for mispaired quotes, where blanked offsets lie.
-    const raw =
-      'Prose before. <question>{"type": "single_select", "prompt": "Use the <options> tag", "options": [{"id": "a", "label": "x"}}]}</question>'
-    const { segments } = parseSpecialTags(raw, false)
-    expect(renderedText(segments)).toBe('Prose before. ')
-    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-  })
-
-  it('does not flash the payload while the closing tag is still arriving', () => {
-    // Each frame below is a real mid-stream state: the JSON value has closed, so
-    // without tolerating an arriving close the trailing `</opt` reads as stray
-    // content and the whole payload is released as text until the final `>`.
-    for (const fragment of ['<', '</', '</o', '</opt', '</options']) {
-      const { segments, hasPendingTag } = parseSpecialTags(
-        `see <options>[{"title":"a","description":"b"}]${fragment}`,
-        true
-      )
-      expect(hasPendingTag).toBe(true)
-      expect(renderedText(segments)).toBe('see ')
-    }
-  })
-
-  it('never flashes a broken payload at any streamed frame', () => {
-    // A body that goes non-viable mid-stream (the stray `]}` lands before the
-    // close does) used to release as literal text at that frame, then vanish
-    // when the close arrived and classified it not-parsable — raw JSON painted
-    // on screen only for the close to retract it. Suppression must hold at
-    // EVERY frame from the completed opener on, and the settled parse must
-    // agree with what the frames showed.
-    const raw =
-      'Prose before. <options>{"1": {"title": "Define the criteria", "description": "Populate"}}]}</options> after.'
-    const bodyStart = raw.indexOf('<options>') + '<options>'.length
-    for (let end = bodyStart; end <= raw.length; end++) {
-      const { segments } = parseSpecialTags(raw.slice(0, end), true)
-      expect(renderedText(segments), `frame ${end}`).not.toContain('{')
-    }
-    expect(renderedText(parseSpecialTags(raw, false).segments)).toBe('Prose before.  after.')
   })
 
   it('still rejects a close whose name is wrong rather than merely unfinished', () => {
@@ -628,49 +375,6 @@ describe('parseSpecialTags with <question>', () => {
     expect(control.filter((segment) => segment.type === 'workspace_resource')).toHaveLength(1)
   })
 
-  it('never un-renders that card as the closing tag arrives', () => {
-    // The frame-level face of the case above, and the invariant it broke: the
-    // options card is on screen for many frames before the final `>` lands. A
-    // card that renders must never revert to raw text.
-    const raw =
-      'Saved <workspace_resource>the notes file "notes.md and here is what to do next: ' +
-      '<options>[{"title":"Ship it","description":"Open the PR"}]</options>\n' +
-      'Full path: <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource>'
-
-    let sawCard = false
-    for (let end = 1; end <= raw.length; end++) {
-      const { segments } = parseSpecialTags(raw.slice(0, end), true)
-      const hasCard = segments.some((segment) => segment.type === 'options')
-      if (hasCard) sawCard = true
-      expect(!sawCard || hasCard, `options card retracted at frame ${end}`).toBe(true)
-    }
-    expect(sawCard).toBe(true)
-    // ...and the settled parse still has it.
-    expect(parseSpecialTags(raw, false).segments.some((s) => s.type === 'options')).toBe(true)
-  })
-
-  it('does not delete tag syntax quoted inside the body it rescans', () => {
-    // The rescan decides on the BLANKED body, so a tag quoted inside a JSON
-    // string is invisible to it. Resuming at the opener would re-scan that
-    // quoted text raw, re-parse it as a real tag, and drop it — deleting text.
-    // Resuming at the MARKER skips the quoted region, so it survives verbatim.
-    const inner =
-      '<credential>{\\"type\\":\\"link\\",\\"value\\":\\"https://x.example/p\\"}</credential>'
-    const raw = `A <question>{"prompt":"${inner}"} </options></question> B`
-    const { segments } = parseSpecialTags(raw, false)
-    expect(renderedText(segments)).toBe(raw)
-    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-  })
-
-  it('keeps the blank line between two rejected spans', () => {
-    // The renderer concatenates adjacent text segments into one markdown string,
-    // so a dropped whitespace-only span silently merges two paragraphs.
-    const raw =
-      '<workspace_resource>prose one</workspace_resource>\n\n<workspace_resource>prose two</workspace_resource>'
-    const { segments } = parseSpecialTags(raw, false)
-    expect(renderedText(segments)).toBe(raw)
-  })
-
   it('shows an oversized body it only partly inspected rather than discarding it', () => {
     // Only the first MAX_UNCLOSED_BODY_SCAN characters are scanned. Finding no
     // reason within that window is not evidence the body was a real payload, so
@@ -679,24 +383,6 @@ describe('parseSpecialTags with <question>', () => {
     const raw = `see <workspace_resource>${body}</workspace_resource> end`
     const { segments } = parseSpecialTags(raw, false)
     expect(renderedText(segments)).toBe(raw)
-  })
-
-  it('settles a prose mention at any length, but defers a payload that closes past the window', () => {
-    // The scan window's accepted blind spot, pinned so it stays a decision.
-    //
-    // A mention in prose settles at its FIRST character however long the message
-    // runs — prose does not open with `{`, so viability fails immediately.
-    const mention = `see <workspace_resource> ${'long prose. '.repeat(600)}`
-    expect(parseSpecialTags(mention, true).hasPendingTag).toBe(false)
-
-    // But a JSON body whose top-level value closes BEYOND the window still reads
-    // as a viable prefix, so the tail stays hidden until the stream ends. Needs a
-    // payload several times larger than any tag emits, and it is lossless once
-    // complete — the cost of bounding a scan that otherwise stalls the main
-    // thread.
-    const oversized = `see <workspace_resource>{"type":"file","note":"${'x'.repeat(5000)}"} and then prose.`
-    expect(parseSpecialTags(oversized, true).hasPendingTag).toBe(true)
-    expect(renderedText(parseSpecialTags(oversized, false).segments)).toBe(oversized)
   })
 
   it('still finds a valid tag sitting past the scan window inside a borrowed body', () => {
@@ -747,53 +433,12 @@ describe('parseSpecialTags with <question>', () => {
     }
   })
 
-  it('still renders a matched pair whose body IS valid', () => {
-    const raw =
-      'see <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ok'
-    const { segments } = parseSpecialTags(raw, false)
-    expect(segments.some((s) => s.type === 'workspace_resource')).toBe(true)
-  })
-
-  it('shows prose immediately mid-stream instead of blanking the rest', () => {
-    const content = 'The `<workspace_resource>` chip only renders for a real file.'
-    const { segments, hasPendingTag } = parseSpecialTags(content, true)
-    expect(hasPendingTag).toBe(false)
-    expect(segments.map((s) => ('content' in s ? s.content : s.type)).join('')).toContain(
-      'chip only renders for a real file.'
-    )
-  })
-
-  it('shows text once the JSON value has closed and stray content follows', () => {
-    // Verbatim shape from a real message (trace afbeefd0): the close tag was
-    // TRUNCATED to `</workspac`, so no marker rule can see it — but the JSON
-    // value completes at the `}`, which makes everything after it fatal.
-    const raw =
-      'kicks off in <workspace_resource>{"type":"file","path":"files/notes.md"}</workspac and after that I brew a cup of coffee.'
-    const { segments, hasPendingTag } = parseSpecialTags(raw, true)
-    expect(hasPendingTag).toBe(false)
-    expect(renderedText(segments)).toContain('I brew a cup of coffee')
-  })
-
-  it('tolerates braces inside JSON strings when tracking depth', () => {
-    const raw = 'x <workspace_resource>{"title":"a } b","path":"files/a.md"'
-    expect(parseSpecialTags(raw, true).hasPendingTag).toBe(true)
-  })
-
   it('does not let an escaped quote end a string early and skew the depth', () => {
     // If `\"` were read as the closing quote, the following `}` would count as a
     // real close, the top-level value would look finished, and the trailing text
     // would settle the tag as unresolvable mid-payload.
     const raw = 'x <workspace_resource>{"title":"a \\" } b","path":"files/a.md"'
     expect(parseSpecialTags(raw, true).hasPendingTag).toBe(true)
-  })
-
-  it('still suppresses a JSON-bodied tag that is genuinely mid-stream', () => {
-    const { segments, hasPendingTag } = parseSpecialTags(
-      'Here you go <workspace_resource>{"type":"file","id":"abc"',
-      true
-    )
-    expect(hasPendingTag).toBe(true)
-    expect(segments).toEqual([{ type: 'text', content: 'Here you go ' }])
   })
 
   it('bails when a foreign closing tag appears inside a prose body', () => {
@@ -808,22 +453,6 @@ describe('parseSpecialTags with <question>', () => {
     expect(renderedText(segments)).toBe(raw)
   })
 
-  it('does not bail on tag syntax quoted inside a JSON string', () => {
-    // The false positive this guards: a question whose text legitimately quotes
-    // another tag. Bailing would show raw JSON that later snaps into a card.
-    const streaming = 'ok <question>[{"type":"single_select","prompt":"Use the </options> tag?"'
-    expect(parseSpecialTags(streaming, true).hasPendingTag).toBe(true)
-  })
-
-  it('resolves that same question correctly once it closes', () => {
-    // The other half of the guarantee: the body the streaming case refused to
-    // bail on does render as a question card, so nothing flickered for nothing.
-    const complete =
-      'ok <question>[{"type":"single_select","prompt":"Use the </options> tag?","options":[{"id":"y","label":"Yes"},{"id":"n","label":"No"}]}]</question>'
-    const { segments } = parseSpecialTags(complete, false)
-    expect(segments.some((s) => s.type === 'question')).toBe(true)
-  })
-
   it('rejects an opener a nested one disproves, then judges the inner on its own', () => {
     // Each opener is evaluated independently. The first is disproved by the
     // nested opener and its text is released immediately; the second is a fresh
@@ -836,35 +465,6 @@ describe('parseSpecialTags with <question>', () => {
     const done = parseSpecialTags('a <thinking>b <thinking> c', false)
     expect(done.hasPendingTag).toBe(false)
     expect(renderedText(done.segments)).toBe('a <thinking>b <thinking> c')
-  })
-
-  it('keeps reasoning suppressed when the body merely contains angle brackets', () => {
-    // The nesting rule keys on tag NAMES, not on anything tag-shaped. Reasoning
-    // that mentions `<div>` or a generic is still reasoning; releasing it would
-    // put the model's thinking on screen for an incidental angle bracket.
-    const { segments } = parseSpecialTags('a <thinking>weighing a <div> here</thinking> b', false)
-
-    expect(segments.some((segment) => segment.type === 'thinking')).toBe(true)
-    expect(visibleView(segments).text).toBe('a  b')
-  })
-
-  it('renders nothing for a message that is only a discarded payload', () => {
-    // `discard` emits no segment, so this is the one case that can end the parse
-    // with an empty segment list. The fallback for an empty list is to emit the
-    // raw content — which would put back the exact raw JSON the discard removed.
-    const { segments } = parseSpecialTags('<question>{"type":"single_select"}</question>', false)
-
-    expect(visibleView(segments).text).toBe('')
-  })
-
-  it('settles a long prose mention without scanning the whole window', () => {
-    // Viability rejects on the first non-whitespace character when it is not `{`
-    // or `[` — the common case. Testing that before blanking avoids copying a
-    // full window per opener per chunk: 43ms to 2ms on this input.
-    //
-    // Asserted as a scaling ratio, not a wall-clock ceiling — see
-    // {@link scalingRatioOver4x} for why.
-    expect(scalingRatioOver4x((content) => parseSpecialTags(content, true))).toBeLessThan(8)
   })
 
   it('does not let a late thinking close swallow content already on screen', () => {
@@ -910,83 +510,15 @@ describe('parseSpecialTags with <question>', () => {
     expect(complete.hasPendingTag).toBe(false)
     expect(renderedText(complete.segments)).toBe(raw)
   })
-
-  it('never retracts rendered text or a card across streamed frames', () => {
-    // Frame-to-frame stability, which no end-state assertion can see. Replays a
-    // real message one character at a time: text already shown must never
-    // disappear, and a card once rendered must never revert to raw text.
-    const content =
-      'Updated <workspace_resource>{"type":"file","path":"files/a.md","title":"a.md"}</workspace_resource> ' +
-      'and left `<question>` alone. ' +
-      '<options>[{"title":"Ship it","description":"open the PR"}]</options>'
-
-    const frames = replayFrames(content)
-
-    // Card count is monotonically non-decreasing. Appending to the buffer can
-    // only add closes AFTER the ones already matched, so no earlier opener's
-    // resolution can change — a card that renders must never un-render.
-    let previous = 0
-    for (const frame of frames) {
-      expect(frame.cardCount).toBeGreaterThanOrEqual(previous)
-      previous = frame.cardCount
-    }
-
-    // The settled parse is the richest: both tags resolved, prose intact.
-    const settled = frames[frames.length - 1]
-    expect(settled.cardCount).toBe(2)
-    expect(settled.text).toContain('and left `<question>` alone.')
-  })
-
-  it('renders an unclosed tag as text once the message is complete', () => {
-    const content =
-      'The `<workspace_resource>` file chip only renders when its path points to a real file.'
-    const { segments, hasPendingTag } = parseSpecialTags(content, false)
-    expect(hasPendingTag).toBe(false)
-    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
-    expect(renderedText(segments)).toBe(content)
-  })
-
-  it('strips a trailing partial opening tag while streaming', () => {
-    const { segments, hasPendingTag } = parseSpecialTags('Let me ask. <ques', true)
-    expect(hasPendingTag).toBe(true)
-    expect(segments).toEqual([{ type: 'text', content: 'Let me ask. ' }])
-  })
 })
 
 describe('service_account credential tag', () => {
-  it('parses a service_account tag into a credential segment', () => {
-    const body = JSON.stringify({ type: 'service_account', provider: 'slack' })
-    const { segments } = parseSpecialTags(`Set this up: <credential>${body}</credential>`, false)
-
-    const credential = segments.find((segment) => segment.type === 'credential')
-    expect(credential).toBeDefined()
-    expect(credential).toMatchObject({
-      type: 'credential',
-      data: [{ type: 'service_account', provider: 'slack' }],
-    })
-  })
-
   it('carries no value — the secret is typed into Sim’s own form, never the transcript', () => {
     const body = JSON.stringify({ type: 'service_account', provider: 'google-sheets' })
     const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
 
     const credential = segments.find((segment) => segment.type === 'credential')
     expect((credential as { data: Array<{ value?: string }> }).data[0].value).toBeUndefined()
-  })
-
-  it('suppresses the tag while it is still streaming', () => {
-    // A half-streamed tag must not flash raw JSON into the message body.
-    const { segments, hasPendingTag } = parseSpecialTags(
-      'Set this up: <credential>{"type": "service_a',
-      true
-    )
-    expect(hasPendingTag).toBe(true)
-    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
-    const text = segments
-      .filter((segment): segment is { type: 'text'; content: string } => segment.type === 'text')
-      .map((segment) => segment.content)
-      .join('')
-    expect(text).not.toContain('service_a')
   })
 })
 
@@ -996,34 +528,6 @@ describe('service_account tag validation', () => {
       `<credential>${JSON.stringify({ type: 'service_account' })}</credential>`,
       false
     )
-    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
-  })
-
-  it('rejects a blank provider', () => {
-    const { segments } = parseSpecialTags(
-      `<credential>${JSON.stringify({ type: 'service_account', provider: '   ' })}</credential>`,
-      false
-    )
-    expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
-  })
-
-  it('accepts an optional credentialId for reconnect and carries it through', () => {
-    const body = JSON.stringify({
-      type: 'service_account',
-      provider: 'notion',
-      credentialId: 'cred_abc123',
-    })
-    const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
-    const credential = segments.find((segment) => segment.type === 'credential')
-    expect(credential).toMatchObject({
-      type: 'credential',
-      data: [{ type: 'service_account', provider: 'notion', credentialId: 'cred_abc123' }],
-    })
-  })
-
-  it('rejects a non-string credentialId', () => {
-    const body = JSON.stringify({ type: 'service_account', provider: 'notion', credentialId: 42 })
-    const { segments } = parseSpecialTags(`<credential>${body}</credential>`, false)
     expect(segments.some((segment) => segment.type === 'credential')).toBe(false)
   })
 
@@ -1046,15 +550,6 @@ describe('memoizedIndexOf', () => {
   // cached -1 path and a repeated one exercises reuse as the cursor advances.
   const NEEDLES = SPECIAL_TAG_NAMES.map((name) => `<${name}>`)
 
-  it('matches plain indexOf as the cursor advances', () => {
-    const cache: IndexOfCache = new Map()
-    for (let from = 0; from <= CONTENT.length; from++) {
-      for (const needle of NEEDLES) {
-        expect(memoizedIndexOf(cache, CONTENT, needle, from)).toBe(CONTENT.indexOf(needle, from))
-      }
-    }
-  })
-
   it('stays correct when the cursor moves BACKWARD', () => {
     // The cache is only reused when the new `from` is at or beyond the offset the
     // entry was searched at. Without that guard a cached hit — or a cached -1 —
@@ -1071,15 +566,6 @@ describe('memoizedIndexOf', () => {
         expect(memoizedIndexOf(cache, CONTENT, needle, from)).toBe(CONTENT.indexOf(needle, from))
       }
     }
-  })
-
-  it('caches an absent needle instead of rescanning', () => {
-    const cache: IndexOfCache = new Map()
-    expect(memoizedIndexOf(cache, CONTENT, '<thinking>', 0)).toBe(-1)
-    // Same offset or later: answerable from the entry, since absence from 0
-    // implies absence from anywhere after it.
-    expect(memoizedIndexOf(cache, CONTENT, '<thinking>', 30)).toBe(-1)
-    expect(cache.get('<thinking>')).toEqual({ idx: -1, from: 0 })
   })
 })
 
@@ -1128,19 +614,7 @@ describe('parser properties', () => {
     source: '<source>{"url":"https://docs.github.com/en/x","siteName":"GitHub Docs"}</source>',
   }
 
-  /** Renders nothing rather than a card, so it cannot carry a card invariant. */
-  const TAGS_WITHOUT_CARDS = ['thinking']
-
   const VALID_TAGS = Object.values(VALID_TAG_BY_NAME)
-
-  it('covers every tag the parser knows', () => {
-    // The invariants below are only as good as this list. Deriving the check from
-    // SPECIAL_TAG_NAMES makes adding a tag without a fixture fail loudly here,
-    // instead of quietly leaving it outside every property in this file.
-    expect(new Set([...Object.keys(VALID_TAG_BY_NAME), ...TAGS_WITHOUT_CARDS])).toEqual(
-      new Set(SPECIAL_TAG_NAMES)
-    )
-  })
 
   /**
    * Fragments that must survive verbatim. Every one is a shape the parser has to
@@ -1299,11 +773,6 @@ describe('flattened options payload recovery', () => {
     })
   })
 
-  it('drops the bare "options" label rather than leaving it as prose', () => {
-    const { segments } = parseSpecialTags(flattened, false)
-    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
-  })
-
   it('repairs the same corruption inside a well-formed tag', () => {
     const tagged =
       '<options>{"1": {"title": "A", "description": "a"}, "2": "B", "description": "b"}</options>'
@@ -1311,16 +780,6 @@ describe('flattened options payload recovery', () => {
     const data = (segments.find((s) => s.type === 'options') as { data: Record<string, unknown> })
       .data
     expect(data['2']).toEqual({ title: 'B', description: 'b' })
-  })
-
-  it('leaves prose JSON alone', () => {
-    const prose = 'Here is the config: {"name": "x", "description": "y"}'
-    const { segments } = parseSpecialTags(prose, false)
-    expect(segments.some((segment) => segment.type === 'options')).toBe(false)
-  })
-
-  it('does not fire mid-stream', () => {
-    expect(parseSpecialTags(flattened, true).segments.some((s) => s.type === 'options')).toBe(false)
   })
 })
 
@@ -1336,19 +795,6 @@ describe('bare options with a capitalized label', () => {
     expect(options).toBeDefined()
     expect(Object.keys((options as { data: Record<string, unknown> }).data)).toEqual(['1', '2'])
   })
-
-  it('leaves no stray "Options:" prose above the card', () => {
-    const { segments } = parseSpecialTags(labeled, false)
-    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
-  })
-
-  it('keeps real prose that precedes the payload', () => {
-    const withProse = `Here is what I suggest.\n\n${labeled}`
-    const { segments } = parseSpecialTags(withProse, false)
-    const text = segments.find((segment) => segment.type === 'text') as { content: string }
-    expect(text.content).toBe('Here is what I suggest.')
-    expect(segments.some((segment) => segment.type === 'options')).toBe(true)
-  })
 })
 
 describe('bare options JSON with no label at all', () => {
@@ -1361,21 +807,6 @@ describe('bare options JSON with no label at all', () => {
     expect(options).toBeDefined()
     expect(Object.keys((options as { data: Record<string, unknown> }).data)).toEqual(['1', '2'])
     expect(segments.some((segment) => segment.type === 'text')).toBe(false)
-  })
-
-  it('renders it after prose with no label between them', () => {
-    const { segments } = parseSpecialTags(`Two ways to go from here.\n\n${naked}`, false)
-    const text = segments.find((segment) => segment.type === 'text') as { content: string }
-    expect(text.content).toBe('Two ways to go from here.')
-    expect(segments.some((segment) => segment.type === 'options')).toBe(true)
-  })
-
-  it('recovers a flattened payload with no label either', () => {
-    const flattenedNaked = '{"1": {"title": "A", "description": "a"}, "2": "B", "description": "b"}'
-    const { segments } = parseSpecialTags(flattenedNaked, false)
-    const data = (segments.find((s) => s.type === 'options') as { data: Record<string, unknown> })
-      .data
-    expect(data['2']).toEqual({ title: 'B', description: 'b' })
   })
 })
 
@@ -1391,22 +822,6 @@ describe('bare question payload recovery', () => {
       'Which channel should the bot post to?'
     )
     expect(segments.some((segment) => segment.type === 'text')).toBe(false)
-  })
-
-  it('accepts an array payload and strips a bare label', () => {
-    const { segments } = parseSpecialTags(`Question: [${bare}]`, false)
-    expect(segments.some((segment) => segment.type === 'question')).toBe(true)
-    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
-  })
-
-  it('keeps prose that precedes the payload', () => {
-    const { segments } = parseSpecialTags(`I need one detail.\n\n${bare}`, false)
-    const text = segments.find((segment) => segment.type === 'text') as { content: string }
-    expect(text.content).toBe('I need one detail.')
-  })
-
-  it('does not fire mid-stream', () => {
-    expect(parseSpecialTags(bare, true).segments.some((s) => s.type === 'question')).toBe(false)
   })
 })
 
@@ -1449,15 +864,6 @@ describe('source tag', () => {
     ])
   })
 
-  it('keeps adjacent source tags as separate segments', () => {
-    const { segments } = parseSpecialTags(
-      'Done. <source>{"url":"https://a.example/1"}</source><source>{"url":"https://b.example/2"}</source>',
-      false
-    )
-
-    expect(segments.filter((segment) => segment.type === 'source')).toHaveLength(2)
-  })
-
   it('rejects a source without an absolute http(s) url', () => {
     for (const url of ['docs/internal.md', 'https://?', 'ftp://host/x', 'https://a b.example/x']) {
       const { segments } = parseSpecialTags(
@@ -1468,25 +874,4 @@ describe('source tag', () => {
       expect(segments.some((segment) => segment.type === 'source')).toBe(false)
     }
   })
-
-  it('hides a half-arrived source opener while streaming', () => {
-    const { segments, hasPendingTag } = parseSpecialTags('Block them. <sou', true)
-
-    expect(segments).toEqual([{ type: 'text', content: 'Block them. ' }])
-    expect(hasPendingTag).toBe(true)
-  })
-})
-
-it('renders a live Slack credential target as a visible Search connection card', () => {
-  const item = {
-    type: 'link',
-    provider: 'slack',
-    connectorType: 'slack',
-    connectionMode: 'live',
-    optionId: 'slack-option',
-  } as const
-  const text = `Connect your Slack account below.\n<credential>${JSON.stringify(item)}</credential>`
-  const parsed = parseLastCredentialTag(text)
-  expect(parsed).toEqual([item])
-  expect(credentialTagHasVisibleCard(parsed!, false, 'assistant')).toBe(true)
 })

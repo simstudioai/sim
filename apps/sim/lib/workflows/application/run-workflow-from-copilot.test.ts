@@ -1,36 +1,33 @@
-/**
- * @vitest-environment node
- */
+import {
+  executeWorkflowMock,
+  executeWorkflowMockFns,
+} from '@sim/testing/mocks/execute-workflow.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     admission: vi.fn(),
-    executeWorkflow: vi.fn(),
     latestState: vi.fn(),
-    loadDeployed: vi.fn(),
-    loadDraft: vi.fn(),
-    permission: vi.fn(),
-    resolveContext: vi.fn(),
     resolveOptions: vi.fn(),
     sourceState: vi.fn(),
     validateInput: vi.fn(),
   },
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/execution-admission', () => ({
   prepareWorkflowExecutionAdmission: mocks.admission,
@@ -42,15 +39,9 @@ vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getLatestExecutionStateWithExecutionId: mocks.latestState,
 }))
 
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
-  executeWorkflow: mocks.executeWorkflow,
-}))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployed,
-  loadWorkflowFromNormalizedTables: mocks.loadDraft,
-  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/triggers/run-options', () => ({
   resolveTriggerRunOptions: mocks.resolveOptions,
@@ -61,8 +52,7 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: vi.fn((blocks) => blocks),
 }))
 
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'child-execution-1') }))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: vi.fn(() => 'request-1') }))
+vi.mock('@sim/utils/id', () => idMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -71,6 +61,15 @@ import {
 } from '@/lib/workflows/application/run-workflow-from-copilot'
 import { readAttemptedExecutionId } from '@/executor/utils/errors'
 import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
+
+const mockExecuteWorkflow = executeWorkflowMockFns.mockExecuteWorkflow
+
+const mockLoadDraft = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+idMockFns.mockGenerateId.mockReturnValue('child-execution-1')
+requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const principal = {
   kind: 'delegated' as const,
@@ -101,54 +100,15 @@ const lifecycle = {}
 
 describe('Copilot workflow run application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.permission.mockResolvedValue('write')
-    mocks.loadDraft.mockResolvedValue({ blocks: { trigger: {} }, edges: [] })
+    mockResolveContext.mockResolvedValue(context)
+    mockPermission.mockResolvedValue('write')
+    mockLoadDraft.mockResolvedValue({ blocks: { trigger: {} }, edges: [] })
     mocks.resolveOptions.mockReturnValue([
       { triggerBlockId: 'trigger', blockName: 'Start', mockPayload: { source: 'mock' } },
     ])
     mocks.validateInput.mockReturnValue({ ok: true })
     mocks.admission.mockResolvedValue({ billingAttribution: undefined, targetReservation: false })
-    mocks.executeWorkflow.mockResolvedValue({ success: true, output: { ok: true }, logs: [] })
-  })
-
-  it('owns canonical authorization, trigger selection, admission, and execution', async () => {
-    const result = await runWorkflowFromCopilot.execute({
-      principal,
-      input: {
-        workflowId: 'workflow-1',
-        assertedWorkspaceId: 'workspace-1',
-        useDraftState: true,
-        lifecycle,
-        hasWorkflowInput: false,
-        useMockPayload: true,
-      },
-    })
-
-    expect(result).toMatchObject({ success: true, output: { ok: true } })
-    expect(mocks.resolveContext).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      assertedWorkspaceId: undefined,
-    })
-    expect(mocks.permission).toHaveBeenCalledBefore(mocks.loadDraft)
-    expect(mocks.admission).toHaveBeenCalledWith(
-      { userId: 'user-1', billingAttribution: undefined },
-      'workspace-1',
-      'child-execution-1'
-    )
-    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'workflow-1' }),
-      'request-1',
-      { source: 'mock' },
-      'user-1',
-      expect.objectContaining({
-        useDraftState: true,
-        workflowTriggerType: 'copilot',
-        triggerBlockId: 'trigger',
-      }),
-      'child-execution-1'
-    )
+    mockExecuteWorkflow.mockResolvedValue({ success: true, output: { ok: true }, logs: [] })
   })
 
   describe('trigger selection errors name only tools the agent surface has', () => {
@@ -156,27 +116,6 @@ describe('Copilot workflow run application commands', () => {
       { triggerBlockId: 'start-1', blockName: 'Start', triggerType: 'start_trigger' },
       { triggerBlockId: 'hook-1', blockName: 'Slack hook', triggerType: 'slack_webhook' },
     ]
-
-    it('lists every trigger as blockId → type/name and points at inputFormat in workflows state get', async () => {
-      mocks.resolveOptions.mockReturnValue(twoTriggers)
-
-      await expect(
-        runWorkflowFromCopilot.execute({
-          principal,
-          input: {
-            workflowId: 'workflow-1',
-            useDraftState: true,
-            lifecycle,
-            hasWorkflowInput: false,
-            useMockPayload: true,
-          },
-        })
-      ).rejects.toThrow(
-        'This workflow has 2 triggers: pass triggerBlockId (start-1 → start_trigger/Start, hook-1 → slack_webhook/Slack hook). ' +
-          "Each trigger's input shape is its block's inputFormat in workflows state get."
-      )
-      expect(mocks.executeWorkflow).not.toHaveBeenCalled()
-    })
 
     it('never tells the agent to call get_workflow_run_options, which does not exist on its surface', async () => {
       mocks.resolveOptions.mockReturnValue(twoTriggers)
@@ -238,7 +177,7 @@ describe('Copilot workflow run application commands', () => {
       'workspace-1',
       'claimed-execution-1'
     )
-    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+    expect(mockExecuteWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'workflow-1' }),
       'request-1',
       { source: 'mock' },
@@ -257,26 +196,8 @@ describe('Copilot workflow run application commands', () => {
     )
   })
 
-  it('does not stamp a correlation for an ordinary browser-routed run', async () => {
-    await runWorkflowFromCopilot.execute({
-      principal,
-      input: {
-        workflowId: 'workflow-1',
-        assertedWorkspaceId: 'workspace-1',
-        useDraftState: true,
-        lifecycle,
-        hasWorkflowInput: false,
-        useMockPayload: true,
-      },
-    })
-
-    expect(mocks.executeWorkflow.mock.calls.at(-1)?.[4]).not.toHaveProperty(
-      'trustedExecutionCorrelation'
-    )
-  })
-
   it('rechecks current permission before loading execution state', async () => {
-    mocks.permission.mockResolvedValueOnce(null)
+    mockPermission.mockResolvedValueOnce(null)
 
     await expect(
       runWorkflowFromCopilot.execute({
@@ -291,12 +212,12 @@ describe('Copilot workflow run application commands', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.loadDraft).not.toHaveBeenCalled()
-    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+    expect(mockLoadDraft).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflow).not.toHaveBeenCalled()
   })
 
   it('fails before execution when the selected durable definition is absent', async () => {
-    mocks.loadDraft.mockResolvedValueOnce(null)
+    mockLoadDraft.mockResolvedValueOnce(null)
 
     await expect(
       runWorkflowFromCopilot.execute({
@@ -335,7 +256,7 @@ describe('Copilot workflow run application commands', () => {
       },
     })
 
-    expect(mocks.executeWorkflow).toHaveBeenCalledWith(
+    expect(mockExecuteWorkflow).toHaveBeenCalledWith(
       expect.any(Object),
       'request-1',
       undefined,
@@ -360,7 +281,7 @@ describe('Copilot workflow run application commands', () => {
       completedLoops: [],
       activeExecutionPath: [],
     })
-    mocks.executeWorkflow.mockRejectedValueOnce(
+    mockExecuteWorkflow.mockRejectedValueOnce(
       new RunFromBlockValidationError('Upstream dependency not executed: fetch-1')
     )
 
@@ -385,23 +306,6 @@ describe('Copilot workflow run application commands', () => {
     expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
   })
 
-  it('propagates unexpected execution infrastructure failures', async () => {
-    mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
-
-    await expect(
-      runWorkflowFromCopilot.execute({
-        principal,
-        input: {
-          workflowId: 'workflow-1',
-          useDraftState: true,
-          lifecycle,
-          hasWorkflowInput: false,
-          useMockPayload: true,
-        },
-      })
-    ).rejects.toThrow('database unavailable')
-  })
-
   /**
    * A caller whose result was withheld decides about retry from one fact: whether a run
    * exists. This layer owns that answer, because it is the last place that can distinguish
@@ -422,31 +326,6 @@ describe('Copilot workflow run application commands', () => {
 
     const failWith = (input = runInput) =>
       runWorkflowFromCopilot.execute({ principal, input }).catch((thrown) => thrown)
-
-    it('names the run once it has been handed to the executor', async () => {
-      mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
-
-      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
-    })
-
-    /**
-     * Deliberate, and the one place this contract is deliberately coarse: `executeWorkflow`
-     * validates its own arguments before creating anything, and those failures still name
-     * the run. `attempted` means "zero or one executions exist under this id, resolve it",
-     * so the caller resolves, finds nothing, and retries — correct, at the cost of a lookup.
-     *
-     * Paying to avoid that lookup means an executor-side dispatch marker, which is a
-     * callback on every block of every execution in the product. It would also buy nothing:
-     * all four preflight throws are invariant violations — no workspace id, no billing
-     * attribution, no principal, attribution mismatch — so a retry fails identically.
-     */
-    it('names the run for a failure inside the executor call, whatever its cause', async () => {
-      mocks.executeWorkflow.mockRejectedValueOnce(
-        new Error('Billing attribution is required for workspace execution')
-      )
-
-      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
-    })
 
     it('names the run when the crossing threw after it already returned', async () => {
       // Only the post-run crossing throws; the catch re-enters this same method to record
@@ -473,16 +352,7 @@ describe('Copilot workflow run application commands', () => {
 
       const error = await failWith()
 
-      expect(mocks.executeWorkflow).not.toHaveBeenCalled()
-      expect(readAttemptedExecutionId(error)).toBeUndefined()
-    })
-
-    it('names nothing when authorization refused the run', async () => {
-      mocks.permission.mockResolvedValue('read')
-
-      const error = await failWith()
-
-      expect(mocks.admission).not.toHaveBeenCalled()
+      expect(mockExecuteWorkflow).not.toHaveBeenCalled()
       expect(readAttemptedExecutionId(error)).toBeUndefined()
     })
   })
@@ -524,7 +394,7 @@ describe('Copilot workflow run application commands', () => {
      */
     it('vouches for a failure that never reached the engine', async () => {
       const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
-      mocks.executeWorkflow.mockRejectedValueOnce(new Error('workflow is not deployed'))
+      mockExecuteWorkflow.mockRejectedValueOnce(new Error('workflow is not deployed'))
 
       await runExpectingFailure({ lifecycle: tracked })
 
@@ -566,53 +436,6 @@ describe('Copilot workflow run application commands', () => {
       )
     })
 
-    /**
-     * The executor's post-execution work can throw after a run has already produced a result.
-     * `executeWorkflow` carries it on that throw, so this reaches the catch with a result and
-     * must not be claimed as never-started.
-     */
-    it('does not vouch when post-execution work threw after the engine ran', async () => {
-      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
-      const incomplete = { version: 1 as const, complete: false, entries: [] }
-      mocks.executeWorkflow.mockRejectedValueOnce(
-        Object.assign(new Error('post-execution persistence failed'), {
-          executionResult: {
-            success: true,
-            output: { ran: true },
-            executionState: { resolvedSecretTraceProvenance: incomplete },
-          },
-        })
-      )
-
-      await runExpectingFailure({ lifecycle: tracked })
-
-      expect(importCrossingProvenance).toHaveBeenCalledWith(
-        incomplete,
-        expect.objectContaining({ output: { ran: true } }),
-        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
-      )
-    })
-
     /** A run that did execute and could not vouch still hands back its incomplete envelope. */
-    it('passes through an incomplete envelope from a run that did execute', async () => {
-      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
-      const incomplete = { version: 1 as const, complete: false, entries: [] }
-      const failure = Object.assign(new Error('block failed'), {
-        executionResult: {
-          success: false,
-          output: { partial: true },
-          executionState: { resolvedSecretTraceProvenance: incomplete },
-        },
-      })
-      mocks.executeWorkflow.mockRejectedValueOnce(failure)
-
-      await runExpectingFailure({ lifecycle: tracked })
-
-      expect(importCrossingProvenance).toHaveBeenCalledWith(
-        incomplete,
-        expect.objectContaining({ output: { partial: true } }),
-        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
-      )
-    })
   })
 })

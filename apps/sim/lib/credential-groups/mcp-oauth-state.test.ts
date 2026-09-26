@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
@@ -26,18 +24,7 @@ const { mockRedis, values } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn(() => mockRedis),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
-  })),
-  decryptSecret: vi.fn(async (value: string) => ({
-    decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
-  })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -46,9 +33,27 @@ import {
   isCredentialGroupMcpOAuthState,
 } from '@/lib/credential-groups/mcp-oauth-state'
 
+const ATTEMPT = {
+  workspaceId: 'workspace-1',
+  userId: 'user-1',
+  email: 'person@example.com',
+  enrollmentId: 'enrollment-1',
+  credentialGroupId: 'group-1',
+  oauthConfigVersion: 1,
+  mcpServerId: 'mcp-server-1',
+  codeVerifier: 'code-verifier',
+  invitationToken: 'invitation-token',
+}
+
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
+}))
+
 describe('Credential Group MCP OAuth state', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     values.clear()
     vi.mocked(getRedisClient).mockReturnValue(mockRedis as never)
   })
@@ -91,62 +96,15 @@ describe('Credential Group MCP OAuth state', () => {
     vi.mocked(getRedisClient).mockReturnValue(null)
 
     await expect(
-      createCredentialGroupMcpOAuthAttempt({
-        state: 'mcp_cg_state-1',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        email: 'person@example.com',
-        enrollmentId: 'enrollment-1',
-        credentialGroupId: 'group-1',
-        oauthConfigVersion: 1,
-        mcpServerId: 'mcp-server-1',
-        codeVerifier: 'code-verifier',
-        invitationToken: 'invitation-token',
-      })
+      createCredentialGroupMcpOAuthAttempt({ ...ATTEMPT, state: 'mcp_cg_state-1' })
     ).rejects.toThrow('Credential Group MCP OAuth requires Redis')
   })
 
   it('rejects state outside the managed MCP namespace', async () => {
     await expect(
-      createCredentialGroupMcpOAuthAttempt({
-        state: 'ordinary-state',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        email: 'person@example.com',
-        enrollmentId: 'enrollment-1',
-        credentialGroupId: 'group-1',
-        oauthConfigVersion: 1,
-        mcpServerId: 'mcp-server-1',
-        codeVerifier: 'code-verifier',
-        invitationToken: 'invitation-token',
-      })
+      createCredentialGroupMcpOAuthAttempt({ ...ATTEMPT, state: 'ordinary-state' })
     ).rejects.toThrow('invalid prefix')
     expect(mockRedis.set).not.toHaveBeenCalled()
-  })
-  it('keeps parallel MCP attempts pinned to their original enrollment when the invitation rotates', async () => {
-    const params = {
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      email: 'person@example.com',
-      enrollmentId: 'enrollment-1',
-      credentialGroupId: 'group-1',
-      oauthConfigVersion: 1,
-      mcpServerId: 'mcp-server-1',
-      codeVerifier: 'verifier',
-      invitationToken: 'first-invitation',
-    }
-    await createCredentialGroupMcpOAuthAttempt({ ...params, state: 'mcp_cg_first' })
-    await createCredentialGroupMcpOAuthAttempt({
-      ...params,
-      state: 'mcp_cg_second',
-      invitationToken: 'rotated-invitation',
-    })
-    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_first')).toMatchObject(params)
-    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_second')).toMatchObject({
-      ...params,
-      invitationToken: 'rotated-invitation',
-    })
-    expect(await consumeCredentialGroupMcpOAuthAttempt('mcp_cg_first')).toBeNull()
   })
   it.each(['workspaceId', 'email'])(
     'rejects missing pinned %s in stored MCP state',

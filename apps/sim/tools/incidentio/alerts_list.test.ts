@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { alertsListTool } from '@/tools/incidentio/alerts_list'

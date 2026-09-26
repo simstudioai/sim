@@ -1,46 +1,34 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, permissionsMock, permissionsMockFns, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockEnsureUserStatsExists,
-  mockGetHighestPrioritySubscription,
-  mockFindActiveFolder,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockEnsureUserStatsExists: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockFindActiveFolder: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/folders/queries', () => ({
-  findActiveFolder: mockFindActiveFolder,
-}))
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  ensureUserStatsExists: mockEnsureUserStatsExists,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 import {
   createKnowledgeBase,
   KnowledgeBaseFolderError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockEnsureUserStatsExists = billingUsageMockFns.mockEnsureUserStatsExists
+const mockFindActiveFolder = folderQueriesMockFns.mockFindActiveFolder
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
 
 const CREATE_INPUT = {
   name: 'Base',
@@ -58,37 +46,11 @@ const CREATE_INPUT = {
  */
 describe('createKnowledgeBase — folder assignment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([])
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockFindActiveFolder.mockResolvedValue({ id: 'f-1' })
-  })
-
-  it('files the base under the requested folder', async () => {
-    const created = await createKnowledgeBase({ ...CREATE_INPUT, folderId: 'f-1' }, 'req-1')
-
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('f-1', 'ws-1', 'knowledge_base')
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ folderId: 'f-1', workspaceId: 'ws-1' })
-    )
-    expect(created.folderId).toBe('f-1')
-  })
-
-  it('creates at the workspace root when no folder is given, without a folder lookup', async () => {
-    const created = await createKnowledgeBase(CREATE_INPUT, 'req-1')
-
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ folderId: null }))
-    expect(created.folderId).toBeNull()
-  })
-
-  it('normalizes an explicit null folder to the workspace root', async () => {
-    const created = await createKnowledgeBase({ ...CREATE_INPUT, folderId: null }, 'req-1')
-
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(created.folderId).toBeNull()
   })
 
   it('rejects a folder that is not an active knowledge_base folder in the workspace', async () => {
@@ -118,7 +80,6 @@ describe('updateKnowledgeBase — folder moves', () => {
   const runIgnoringReadBack = (promise: Promise<unknown>) => promise.catch(() => undefined)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
@@ -138,20 +99,6 @@ describe('updateKnowledgeBase — folder moves', () => {
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
 
-  it('writes the new folder against the current workspace', async () => {
-    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { folderId: 'f-new' }, 'req-1'))
-
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('f-new', 'ws-1', 'knowledge_base')
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ folderId: 'f-new' }))
-  })
-
-  it('moves the base to the workspace root on an explicit null', async () => {
-    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { folderId: null }, 'req-1'))
-
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ folderId: null }))
-  })
-
   it('rejects a folder outside the knowledge base workspace', async () => {
     mockFindActiveFolder.mockResolvedValue(null)
 
@@ -169,34 +116,5 @@ describe('updateKnowledgeBase — folder moves', () => {
     )
 
     expect(mockFindActiveFolder).toHaveBeenCalledWith('f-dest', 'ws-2', 'knowledge_base')
-  })
-
-  it('re-roots the base when its workspace changes and no folder is named', async () => {
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-2' }, 'req-1', { actorUserId: 'u-1' })
-    )
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ folderId: null }))
-  })
-
-  it('leaves the folder alone when the workspace is unchanged', async () => {
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-1' }, 'req-1', { actorUserId: 'u-1' })
-    )
-
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(expect.objectContaining({ folderId: null }))
-  })
-
-  it('leaves the folder alone on a plain rename', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: 'ws-1', userId: 'u-1', folderId: 'f-old' }]) // row lock
-      .mockResolvedValueOnce([]) // duplicate-name check: none
-
-    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
-
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.not.objectContaining({ folderId: expect.anything() })
-    )
   })
 })

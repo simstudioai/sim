@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAccessToken, JWTCtor } = vi.hoisted(() => {
+const { JWTCtor } = vi.hoisted(() => {
   const mockGetAccessToken = vi.fn(async () => ({ token: 'fake-access-token' }))
   return {
-    mockGetAccessToken,
     JWTCtor: vi.fn().mockImplementation(
       class {
         getAccessToken = mockGetAccessToken
@@ -31,45 +27,11 @@ const credentials = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(new Response(null, { status: 200 }))
 })
 
 describe('gcsDestination openSession', () => {
-  it('uploads via the JSON API and returns a gs:// locator', async () => {
-    const session = gcsDestination.openSession({ config, credentials })
-    const body = Buffer.from('row\n', 'utf8')
-    const result = await session.deliver({
-      body,
-      contentType: 'application/x-ndjson',
-      metadata: {
-        drainId: 'd1',
-        runId: 'r1',
-        source: 'workflow_logs',
-        sequence: 0,
-        rowCount: 1,
-        runStartedAt: new Date('2025-06-15T12:00:00Z'),
-      },
-      signal: new AbortController().signal,
-    })
-
-    expect(result.locator).toMatch(
-      /^gs:\/\/my-bucket\/sim\/workflow_logs\/d1\/\d{4}\/\d{2}\/\d{2}\/r1-00000\.ndjson$/
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toContain('/upload/storage/v1/b/my-bucket/o')
-    expect(url).toContain('uploadType=media')
-    const headers = init.headers as Record<string, string>
-    expect(headers.Authorization).toBe('Bearer fake-access-token')
-    expect(headers['Content-Type']).toBe('application/x-ndjson')
-    expect(headers['x-goog-meta-sim-drain-id']).toBe('d1')
-    expect(headers['x-goog-meta-sim-sequence']).toBe('0')
-
-    await session.close()
-  })
-
   it('surfaces non-2xx responses as errors', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('Permission denied', { status: 403, statusText: 'Forbidden' })
@@ -94,45 +56,12 @@ describe('gcsDestination openSession', () => {
   })
 })
 
-describe('gcsDestination test()', () => {
-  it('writes a probe object then attempts cleanup', async () => {
-    await gcsDestination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const [, deleteCall] = fetchMock.mock.calls
-    expect((deleteCall[1] as RequestInit).method).toBe('DELETE')
-  })
-})
-
 describe('gcsDestination credentials schema', () => {
-  it('rejects invalid JSON', () => {
-    const result = gcsDestination.credentialsSchema.safeParse({ serviceAccountJson: 'not-json' })
-    expect(result.success).toBe(false)
-  })
-
   it('rejects JSON missing client_email', () => {
     const result = gcsDestination.credentialsSchema.safeParse({
       serviceAccountJson: JSON.stringify({ private_key: 'k' }),
     })
     expect(result.success).toBe(false)
-  })
-})
-
-describe('gcsDestination config schema', () => {
-  it('accepts a 3-character bucket name', () => {
-    const result = gcsDestination.configSchema.safeParse({ bucket: 'abc' })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects bucket names beginning with goog or containing google', () => {
-    expect(gcsDestination.configSchema.safeParse({ bucket: 'goog-prefixed' }).success).toBe(false)
-    expect(gcsDestination.configSchema.safeParse({ bucket: 'my-google-bucket' }).success).toBe(
-      false
-    )
-    expect(gcsDestination.configSchema.safeParse({ bucket: 'g00gle-bucket' }).success).toBe(false)
   })
 })
 

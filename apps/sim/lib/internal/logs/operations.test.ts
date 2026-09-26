@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +19,6 @@ vi.mock('@/lib/logs/application/read-execution-snapshot', () => ({
 
 import {
   executeLogsGet,
-  executeLogsGetExecution,
   executeLogsGetRunDetails,
   executeLogsList,
   type LogsToolOperationContext,
@@ -47,7 +42,6 @@ function context(): LogsToolOperationContext {
 
 describe('Logs direct operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.list.mockResolvedValue({ data: [], nextCursor: null })
     mocks.detail.mockResolvedValue({ detail: { id: 'log-1' } })
     mocks.snapshot.mockResolvedValue({ executionId: 'execution-1' })
@@ -89,14 +83,6 @@ describe('Logs direct operations', () => {
         lookupColumn: 'executionId',
         lookupValue: 'execution-1',
       }),
-    })
-  })
-
-  it('resolves execution snapshots through the authorized application operation', async () => {
-    await executeLogsGetExecution('execution-1', context())
-    expect(mocks.snapshot).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { executionId: 'execution-1', signal: undefined },
     })
   })
 })

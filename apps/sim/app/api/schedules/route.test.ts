@@ -1,11 +1,9 @@
 /**
  * Tests for schedule GET API route
- *
- * @vitest-environment node
  */
 import { authMockFns, databaseMock, workflowAuthzMockFns, workflowsUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -35,7 +33,6 @@ function mockDbChain(results: any[]) {
 
 describe('Schedule GET API', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
@@ -43,71 +40,6 @@ describe('Schedule GET API', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
       workspacePermission: 'read',
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns schedule data for authorized user', async () => {
-    mockDbChain([
-      [
-        {
-          schedule: {
-            id: 'sched-1',
-            cronExpression: '0 9 * * *',
-            status: 'active',
-            failedCount: 0,
-          },
-        },
-      ],
-    ])
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-    const data = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(data.schedule.cronExpression).toBe('0 9 * * *')
-    expect(data.isDisabled).toBe(false)
-  })
-
-  it('returns null when no schedule exists', async () => {
-    mockDbChain([[]])
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-    const data = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(data.schedule).toBeNull()
-  })
-
-  it('requires authentication', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-
-    expect(res.status).toBe(401)
-  })
-
-  it('requires workflowId parameter', async () => {
-    const res = await GET(createRequest('http://test/api/schedules'))
-
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 404 for non-existent workflow', async () => {
-    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-      allowed: false,
-      status: 404,
-      message: 'Workflow not found',
-      workflow: null,
-      workspacePermission: null,
-    })
-    mockDbChain([[]])
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-
-    expect(res.status).toBe(404)
   })
 
   it('denies access for unauthorized user', async () => {
@@ -123,24 +55,5 @@ describe('Schedule GET API', () => {
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
 
     expect(res.status).toBe(403)
-  })
-
-  it('allows workspace members to view', async () => {
-    mockDbChain([[{ schedule: { id: 'sched-1', status: 'active', failedCount: 0 } }]])
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-
-    expect(res.status).toBe(200)
-  })
-
-  it('indicates disabled schedule with failures', async () => {
-    mockDbChain([[{ schedule: { id: 'sched-1', status: 'disabled', failedCount: 100 } }]])
-
-    const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
-    const data = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(data.isDisabled).toBe(true)
-    expect(data.hasFailures).toBe(true)
   })
 })

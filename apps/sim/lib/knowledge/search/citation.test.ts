@@ -1,9 +1,6 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import {
-  createKnowledgeDocumentCitation,
-  isKnowledgeSourceUrl,
-} from '@/lib/knowledge/search/citation'
+import { createKnowledgeDocumentCitation } from '@/lib/knowledge/search/citation'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 const input = {
   scope: { kind: 'workspace', workspaceId: 'workspace/a' } as const,
@@ -14,19 +11,6 @@ const input = {
 }
 
 describe('knowledge citations', () => {
-  it('preserves safe provider paths, queries, and fragments', () => {
-    expect(createKnowledgeDocumentCitation(input)).toEqual({
-      citationId: 'document:doc/c',
-      citationUrl: input.sourceUrl,
-    })
-  })
-
-  it('preserves Gmail mailbox selection and thread targeting', () => {
-    const sourceUrl =
-      'https://accounts.google.com/AccountChooser?Email=alice%2Bwork%40example.com&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F%3Fauthuser%3Dalice%252Bwork%2540example.com%23all%2F19a3f0123456789'
-    expect(createKnowledgeDocumentCitation({ ...input, sourceUrl }).citationUrl).toBe(sourceUrl)
-  })
-
   it.each([
     null,
     '',

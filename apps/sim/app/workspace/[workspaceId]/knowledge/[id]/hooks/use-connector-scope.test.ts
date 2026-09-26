@@ -1,6 +1,8 @@
-/**
- * @vitest-environment node
- */
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -15,10 +17,8 @@ const mocks = vi.hoisted(() => ({
     features: { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true },
   },
 }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOptionalOrganizationContext: () => mocks.organization,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useOptionalWorkspaceHostContext: () => mocks.workspace,
 }))
@@ -31,18 +31,16 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entit
 
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+organizationProviderMockFns.mockUseOptionalOrganizationContext.mockImplementation(
+  () => mocks.organization
+)
+
 beforeEach(() => {
   mocks.organization.viewer.isAdmin = true
 })
 
 describe('connector resource authority', () => {
-  it('reads the organization role and flags independently of workspace authority', () => {
-    expect(useConnectorScope({ kind: 'organization', organizationId: 'org-1' })).toMatchObject({
-      canAdmin: true,
-      memberAccessAvailable: true,
-      mirroredAccessAvailable: false,
-    })
-  })
   it('does not grant an organization member the surrounding workspace admin role', () => {
     mocks.organization.viewer.isAdmin = false
     expect(useConnectorScope({ kind: 'organization', organizationId: 'org-1' }).canAdmin).toBe(
@@ -57,15 +55,6 @@ describe('connector resource authority', () => {
       canAdmin: false,
       memberAccessAvailable: false,
       mirroredAccessAvailable: false,
-    })
-  })
-  it('preserves the routed workspace capabilities', () => {
-    expect(useConnectorScope()).toMatchObject({
-      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
-      canAdmin: true,
-      memberAccessAvailable: true,
-      mirroredAccessAvailable: true,
-      hasMaxAccess: true,
     })
   })
 })

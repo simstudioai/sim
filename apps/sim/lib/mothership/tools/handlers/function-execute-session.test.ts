@@ -1,18 +1,18 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
-const { mockExecuteTool, mockMaterializeSecrets } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn().mockResolvedValue({ success: true, output: {} }),
+const { mockMaterializeSecrets } = vi.hoisted(() => ({
   mockMaterializeSecrets: vi
     .fn()
     .mockResolvedValue({ envVars: { API_KEY: 'test-value' }, catalogEntries: [] }),
 }))
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/mothership/tools/secret-mount-materializer.server', () => ({
   materializeCopilotCodeSecrets: mockMaterializeSecrets,
   CopilotCodeSecretAccessError: class extends Error {},
@@ -34,9 +34,7 @@ vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   },
 }))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceSandboxAccess: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import {
   clearHandlers,
@@ -46,6 +44,10 @@ import {
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+mockExecuteTool.mockResolvedValue({ success: true, output: {} })
+billingSubscriptionMockFns.mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
 
 const BASE_CONTEXT: ToolExecutionContext = {
   userId: 'user-1',

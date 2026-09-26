@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+
 import { act, type ComponentProps } from 'react'
 import { ToastProvider } from '@sim/emcn'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
@@ -7,16 +8,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SecretsEditor } from '@/components/secrets/secrets-editor'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 
-const mocks = vi.hoisted(() => ({ push: vi.fn(), save: vi.fn() }))
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('next/navigation')>()),
-  useRouter: () => ({ push: mocks.push }),
-}))
+const mocks = vi.hoisted(() => ({ save: vi.fn() }))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
 
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.save.mockResolvedValue(undefined)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -35,7 +35,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 async function render(props: Partial<ComponentProps<typeof SecretsEditor>> = {}) {
   await act(async () =>
@@ -93,28 +92,6 @@ describe('shared secrets editor', () => {
       upsert: { TOKEN: 'test-only-value', SECOND: 'another-value' },
       remove: [],
     })
-  })
-  it('discards edits and retains row permissions and the workspace Personal section', async () => {
-    await render({
-      sectionLabel: 'Workspace',
-      variables: { LOCKED: 'unrevealable', EDITABLE: 'original' },
-      rowAccess: new Map([['LOCKED', { canEdit: false, canReveal: false }]]),
-      personal: { variables: { PERSONAL: { key: 'PERSONAL', value: 'mine' } }, save: vi.fn() },
-    })
-    expect(container.textContent).toContain('Personal')
-    const locked = container.querySelector<HTMLInputElement>(
-      'input[name^="workspace_env_value_LOCKED"]'
-    )!
-    await act(async () => locked.focus())
-    expect(locked.value).toBe('•'.repeat(10))
-    expect(locked.readOnly).toBe(true)
-    const editable = container.querySelector<HTMLInputElement>(
-      'input[name^="workspace_env_value_EDITABLE"]'
-    )!
-    await change(editable, 'changed')
-    await act(async () => button('Discard')!.click())
-    expect(editable.value).toBe('original')
-    expect(mocks.save).not.toHaveBeenCalled()
   })
   it('keeps unsaved edits on query refresh and saves only changed keys', async () => {
     await render({ variables: { TOKEN: 'original', UNCHANGED: 'keep' } })

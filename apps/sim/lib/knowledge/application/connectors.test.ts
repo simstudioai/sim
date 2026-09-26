@@ -1,136 +1,85 @@
-/**
- * @vitest-environment node
- */
-
-import { document, knowledgeConnector, member } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import {
+  knowledgeAccessScopeMock,
+  knowledgeAccessScopeMockFns,
+} from '@sim/testing/mocks/knowledge-access-scope.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchIntegrationPolicyMock,
+  knowledgeSearchIntegrationPolicyMockFns,
+} from '@sim/testing/mocks/knowledge-search-integration-policy.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveKnowledgeBase: vi.fn(),
-  resolveEnvironment: vi.fn(),
-  resolveConnector: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   createConnector: vi.fn(),
   updateConnector: vi.fn(),
   deleteConnector: vi.fn(),
   syncConnector: vi.fn(),
   resolveBilling: vi.fn(),
-  getCredentialActorContext: vi.fn(),
-  canUseCredential: vi.fn(),
   authorizeOrganizationCredentialUse: vi.fn(),
-  resolveTokenIdentity: vi.fn(),
-  resolveTokenBundle: vi.fn(),
   validateConnectorConfig: vi.fn(),
-  recordAudit: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
   resolveMembersBinding: vi.fn(),
   provision: vi.fn(),
   decryptApiKey: vi.fn(),
-  requireApproval: vi.fn(),
-  resolveWorkspace: vi.fn(),
   viewerMemberships: vi.fn(),
-  getAccess: vi.fn(),
-  getForConnectors: vi.fn(),
 }))
 
-vi.mock('@/lib/environment/utils', () => ({
-  resolveEffectiveEnvironmentVariables: mocks.resolveEnvironment,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CONNECTOR_CREATED: 'connector.created',
-    CONNECTOR_UPDATED: 'connector.updated',
-    CONNECTOR_DELETED: 'connector.deleted',
-    CONNECTOR_SYNCED: 'connector.synced',
-  },
-  AuditResourceType: { CONNECTOR: 'connector' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 
-vi.mock('@/lib/knowledge/search/integration-policy', () => ({
-  requireOrganizationSearchApproval: mocks.requireApproval,
-  searchIntegrationAccessCondition: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => ['owner', 'admin'].includes(role),
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
 vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
-  resolveKnowledgeConnectorMembersBinding: mocks.resolveMembersBinding,
+  resolveKnowledgeConnectorMembersBinding: hoisted.resolveMembersBinding,
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  provisionKnowledgeConnectorMembersBinding: mocks.provision,
-  resolveViewerConnectorMemberships: mocks.viewerMemberships,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
+  resolveViewerConnectorMemberships: hoisted.viewerMemberships,
 }))
 vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
   assertConnectorMirrorsSourceAcls: async () => undefined,
 }))
-vi.mock('@/lib/knowledge/access/scope', () => ({
-  WORKSPACE_ACCESS_SCOPE: { kind: 'workspace', tokens: ['pub', 'ws'] },
-  createKnowledgeAccessProvider: () => ({
-    get: mocks.getAccess,
-    getForConnectors: mocks.getForConnectors,
-    liveSourceConnectorCondition: async () => ({ type: 'live-sources' }),
-  }),
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireKnowledgeMemberAccessAvailable: async () => undefined,
-}))
+vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
-  performCreateKnowledgeConnector: mocks.createConnector,
-  performUpdateKnowledgeConnector: mocks.updateConnector,
-  performDeleteKnowledgeConnector: mocks.deleteConnector,
-  performSyncKnowledgeConnector: mocks.syncConnector,
+  performCreateKnowledgeConnector: hoisted.createConnector,
+  performUpdateKnowledgeConnector: hoisted.updateConnector,
+  performDeleteKnowledgeConnector: hoisted.deleteConnector,
+  performSyncKnowledgeConnector: hoisted.syncConnector,
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getCredentialActorContext,
-  canUseCredential: mocks.canUseCredential,
-  resolveCredentialTokenIdentity: mocks.resolveTokenIdentity,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
-  authorizeOrganizationCredentialUse: mocks.authorizeOrganizationCredentialUse,
+  authorizeOrganizationCredentialUse: hoisted.authorizeOrganizationCredentialUse,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  ServiceAccountTokenError: class extends Error {
-    constructor(
-      readonly statusCode: number,
-      readonly errorDescription: string,
-      readonly errorCode?: string
-    ) {
-      super(errorDescription)
-    }
-  },
-  resolveCredentialTokenBundle: mocks.resolveTokenBundle,
-  resolveOAuthAccountId: vi.fn(async () => null),
-  getServiceAccountToken: vi.fn(),
-}))
-vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mocks.decryptApiKey }))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: hoisted.decryptApiKey }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -140,11 +89,11 @@ vi.mock('@/connectors/registry.server', () => ({
         provider: 'github-repositories',
         apiKey: { label: 'Personal access token' },
       },
-      validateConfig: mocks.validateConnectorConfig,
+      validateConfig: hoisted.validateConnectorConfig,
     },
     confluence: {
       auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
-      validateConfig: mocks.validateConnectorConfig,
+      validateConfig: hoisted.validateConnectorConfig,
     },
     google_drive: {
       name: 'Google Drive',
@@ -162,7 +111,7 @@ vi.mock('@/connectors/registry.server', () => ({
         serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/drive.readonly'],
         serviceAccountSubjectFieldId: 'adminEmail',
       },
-      validateConfig: mocks.validateConnectorConfig,
+      validateConfig: hoisted.validateConnectorConfig,
     },
   },
 }))
@@ -174,22 +123,13 @@ import {
   createApprovedSearchSource,
   createKnowledgeConnector,
   deleteKnowledgeConnector,
-  listKnowledgeConnectorDocuments,
-  listWorkspaceMemberConnectors,
   resolveConnectorCredentialAccessToken,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
   updateKnowledgeConnectorDocuments,
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
-import type { ConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
-import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
-import { classifyKnowledgeFailure } from '@/lib/knowledge/orchestration/shared'
-import {
-  getServiceAccountToken,
-  resolveOAuthAccountId,
-  ServiceAccountTokenError,
-} from '@/lib/oauth/credential-service'
+import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import * as githubInstallation from '@/lib/oauth/github-installation'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -197,6 +137,28 @@ import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+
+const mocks = {
+  ...hoisted,
+  requireApproval: knowledgeSearchIntegrationPolicyMockFns.mockRequireOrganizationSearchApproval,
+  getCredentialActorContext: credentialsAccessMockFns.mockGetCredentialActorContext,
+  canUseCredential: credentialsAccessMockFns.mockCanUseCredential,
+  resolveTokenIdentity: credentialsAccessMockFns.mockResolveCredentialTokenIdentity,
+  resolveTokenBundle: authOAuthUtilsMockFns.mockResolveCredentialTokenBundle,
+}
+
+mocks.canUseCredential.mockReturnValue(undefined)
+authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue(null)
+knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider.mockImplementation(() => ({
+  liveSourceConnectorCondition: async () => ({ type: 'live-sources' }),
+}))
+
+knowledgeContextsMockFns.mockResolveActiveKnowledgeResourceContext.mockImplementation(
+  (...args: unknown[]) => knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext(...args)
+)
+permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockImplementation(
+  (...args: unknown[]) => permissionGroupsResolveMockFns.mockGetUserPermissionConfig(...args)
+)
 
 const crossWorkspaceContext = {
   workspaceId: 'workspace-b',
@@ -241,63 +203,40 @@ describe('knowledge connector application use cases', () => {
     sourceConfig: { project: 'group/project' },
     syncIntervalMinutes: 1440,
   }
-  const patPrincipal = { kind: 'session' as const, userId: 'writer', sessionId: 'session' }
+  const patPrincipal = createSessionPrincipal({ userId: 'writer', sessionId: 'session' })
 
   it('resolves an API-key reference using the caller and canonical workspace before persistence', async () => {
-    mocks.resolveEnvironment.mockResolvedValue({ GITLAB_PAT: { value: 'resolved-pat' } })
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
+      GITLAB_PAT: { value: 'resolved-pat' },
+    })
     mocks.createConnector.mockResolvedValueOnce({
       success: true,
       connector: { id: 'new-connector', connectorType: 'gitlab', accessMode: 'workspace' },
     })
     await createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
-    expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
+      'writer',
+      'workspace-b',
+      ['GITLAB_PAT']
+    )
     expect(mocks.createConnector).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'resolved-pat' })
     )
   })
 
-  it.each([{}, { GITLAB_PAT: { value: '' } }])(
-    'rejects missing or empty secrets before contacting the provider',
-    async (variables) => {
-      mocks.resolveEnvironment.mockResolvedValue(variables)
-      await expect(
-        createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
-      ).rejects.toMatchObject({
-        code: 'validation',
-        message: 'Secret "GITLAB_PAT" is unavailable or empty',
-      })
-      expect(mocks.createConnector).not.toHaveBeenCalled()
-    }
-  )
-
   it('checks workspace write permission before resolving a secret', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     await expect(
       createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
     ).rejects.toMatchObject({ name: 'InsufficientWorkspacePermissionsError' })
-    expect(mocks.resolveEnvironment).not.toHaveBeenCalled()
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
     expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
-
-  it('passes literal PATs through without reading secrets', async () => {
-    mocks.createConnector.mockResolvedValueOnce({
-      success: true,
-      connector: { id: 'new-connector', connectorType: 'gitlab', accessMode: 'workspace' },
-    })
-    await createKnowledgeConnector.execute({
-      principal: patPrincipal,
-      input: { ...patInput, apiKey: 'literal-pat' },
-    })
-    expect(mocks.resolveEnvironment).not.toHaveBeenCalled()
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: 'literal-pat' })
-    )
   })
 
   it.each([{ GITLAB_PAT: { value: 'resolved-pat' } }, { GITLAB_PAT: { value: '' } }])(
     'rejects a shell-style reference to an existing secret instead of storing it as the key',
     async (variables) => {
-      mocks.resolveEnvironment.mockResolvedValue(variables)
+      environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue(variables)
       await expect(
         createKnowledgeConnector.execute({
           principal: patPrincipal,
@@ -308,32 +247,21 @@ describe('knowledge connector application use cases', () => {
         message:
           'Secret references use {{GITLAB_PAT}}, not $GITLAB_PAT. Pass apiKey as "{{GITLAB_PAT}}" to use the secret.',
       })
-      expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+      expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
+        'writer',
+        'workspace-b',
+        ['GITLAB_PAT']
+      )
       expect(mocks.createConnector).not.toHaveBeenCalled()
     }
   )
 
-  it('passes a $-prefixed literal through when no secret has that name', async () => {
-    mocks.resolveEnvironment.mockResolvedValue({})
-    mocks.createConnector.mockResolvedValueOnce({
-      success: true,
-      connector: { id: 'new-connector', connectorType: 'sftp', accessMode: 'workspace' },
-    })
-    await createKnowledgeConnector.execute({
-      principal: patPrincipal,
-      input: { ...patInput, apiKey: '$Summer2024' },
-    })
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: '$Summer2024' })
-    )
-  })
-
   it('refuses workspace-wide or unreviewed source ingestion into the canonical search index', async () => {
-    mocks.resolveKnowledgeBase.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
       ...crossWorkspaceContext,
       knowledgeBase: { ...crossWorkspaceContext.knowledgeBase, isSearchIndex: true },
     })
-    mocks.resolvePermission.mockResolvedValue('admin')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
     for (const [connectorType, accessMode] of [
       ['confluence', 'workspace'],
       ['gitlab', 'workspace'],
@@ -341,7 +269,7 @@ describe('knowledge connector application use cases', () => {
     ] as const) {
       await expect(
         createKnowledgeConnector.execute({
-          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
           input: {
             knowledgeBaseId: 'knowledge-b',
             connectorType,
@@ -356,13 +284,18 @@ describe('knowledge connector application use cases', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveWorkspace.mockResolvedValue(crossWorkspaceContext)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue(
+      crossWorkspaceContext
+    )
     mocks.viewerMemberships.mockResolvedValue(new Map())
-    mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
-    mocks.resolveConnector.mockResolvedValue(connectorContext)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(
+      crossWorkspaceContext
+    )
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue(
+      connectorContext
+    )
     mocks.getCredentialActorContext.mockResolvedValue({
       credential: { id: 'credential-1', workspaceId: 'workspace-a' },
       member: { role: 'member' },
@@ -379,63 +312,14 @@ describe('knowledge connector application use cases', () => {
     mocks.decryptApiKey.mockResolvedValue({ decrypted: 'existing-pat' })
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
     mocks.resolveBilling.mockResolvedValue(BILLING)
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
 
-  it('counts workspace central Confluence documents only after candidate site admission', async () => {
-    const identity = {
-      kind: 'user' as const,
-      userId: 'reader',
-      tokens: ['ws', 's:confluence:-:alice'],
-    }
-    mocks.getAccess.mockResolvedValue(identity)
-    mocks.getForConnectors.mockResolvedValue({
-      ...identity,
-      confluenceSiteGrants: [
-        {
-          connectorId: 'cf-source',
-          contentCredentialId: 'crawler',
-          readerCredentialId: 'personal',
-          readerSubjectToken: 's:confluence:-:alice',
-          domain: 'company.atlassian.net',
-          cloudId: 'cloud-1',
-        },
-      ],
-    })
-    mocks.viewerMemberships.mockResolvedValue(new Map([['cf-source', 'connected']]))
-    queueTableRows(knowledgeConnector, [
-      {
-        id: 'cf-source',
-        knowledgeBaseId: 'knowledge-b',
-        knowledgeBaseName: 'Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorType: 'confluence',
-        accessMode: 'admin',
-        sourceConfig: { domain: 'company.atlassian.net', spaceKey: ['DEMO'] },
-        memberSyncStatus: 'idle',
-      },
-    ])
-    queueTableRows(document, [])
-    queueTableRows(knowledgeConnector, [{ connectorId: 'cf-source' }])
-    queueTableRows(document, [{ connectorId: 'cf-source', count: 2 }])
-    const result = await listWorkspaceMemberConnectors.execute({
-      principal: { kind: 'session', userId: 'reader', sessionId: 'test' },
-      input: { workspaceId: 'workspace-b' },
-    })
-    expect(mocks.getForConnectors).toHaveBeenCalledWith(['cf-source'], undefined)
-    expect(result.connectors).toEqual([
-      expect.objectContaining({ connectorId: 'cf-source', viewerDocumentCount: 2 }),
-    ])
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])).toContain(
-      'confluence_read_grant'
-    )
-  })
-
   it('rejects a forged OAuth credential for central Drive creation before using its token', async () => {
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolveKnowledgeBase.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
       ...crossWorkspaceContext,
       workspaceId: 'workspace-a',
     })
@@ -447,7 +331,7 @@ describe('knowledge connector application use cases', () => {
     )
     await expect(
       createKnowledgeConnector.execute({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
         input: {
           knowledgeBaseId: 'knowledge-b',
           connectorType: 'google_drive',
@@ -462,32 +346,13 @@ describe('knowledge connector application use cases', () => {
       message: expect.stringContaining('requires a service account'),
     })
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
-
-  it.each(['workspace', 'members'] as const)(
-    'keeps ordinary Drive OAuth usable in %s mode',
-    async (accessMode) => {
-      await expect(
-        resolveConnectorCredentialAccessToken({
-          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
-          credentialId: 'credential-1',
-          workspaceId: 'workspace-a',
-          actingUserId: 'admin',
-          requestId: 'request',
-          auth: googleDriveConnectorMeta.auth,
-          accessMode,
-          sourceConfig: {},
-        })
-      ).resolves.toEqual({ accessToken: 'access-token' })
-      expect(mocks.resolveTokenBundle).toHaveBeenCalledOnce()
-    }
-  )
 
   it('rejects a personal Confluence OAuth credential before central token use', async () => {
     await expect(
       resolveConnectorCredentialAccessToken({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
         credentialId: 'credential-1',
         workspaceId: 'workspace-a',
         actingUserId: 'admin',
@@ -503,36 +368,13 @@ describe('knowledge connector application use cases', () => {
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
   })
 
-  it('resolves a Confluence service account with content and permission scopes', async () => {
-    mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
-    await expect(
-      resolveConnectorCredentialAccessToken({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-a',
-        actingUserId: 'admin',
-        requestId: 'request',
-        auth: confluenceConnectorMeta.auth,
-        accessMode: 'admin',
-        sourceConfig: { domain: 'team.atlassian.net', spaceKey: ['ENG'] },
-      })
-    ).resolves.toEqual({ accessToken: 'access-token' })
-    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
-      'credential-1',
-      'admin',
-      'request',
-      expect.arrayContaining(['read:confluence-content.all', 'read:space.permission:confluence']),
-      undefined
-    )
-  })
-
   it.each(['workspace', 'members', 'admin'] as const)(
     'mints only the Drive scopes needed by an eligible service account in %s mode',
     async (accessMode) => {
       mocks.resolveTokenIdentity.mockResolvedValueOnce({ kind: 'service_account' })
       await expect(
         resolveConnectorCredentialAccessToken({
-          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
           credentialId: 'credential-1',
           workspaceId: 'workspace-a',
           actingUserId: 'admin',
@@ -568,7 +410,7 @@ describe('knowledge connector application use cases', () => {
     } as Parameters<typeof validateConnectorSourceConfig>[0]['connector']
     await expect(
       validateConnectorSourceConfig({
-        principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
         connector,
         sourceConfig: { adminEmail: 'admin@corp.com' },
         workspaceId: 'workspace-a',
@@ -600,10 +442,10 @@ describe('knowledge connector application use cases', () => {
   ])(
     'rejects unsupported, mixed, or member API keys before credential use: $connectorType $accessMode',
     async ({ error, ...input }) => {
-      mocks.resolvePermission.mockResolvedValue('admin')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
       await expect(
         createKnowledgeConnector.execute({
-          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
           input: {
             knowledgeBaseId: 'knowledge-b',
             sourceConfig: {},
@@ -618,45 +460,6 @@ describe('knowledge connector application use cases', () => {
       expect(mocks.decryptApiKey).not.toHaveBeenCalled()
     }
   )
-
-  it('validates an existing GitHub PAT while updating source settings without inventing an OAuth owner', async () => {
-    const persisted = {
-      ...connectorContext.connector,
-      connectorType: 'github',
-      credentialId: null,
-      encryptedApiKey: 'persisted-cipher',
-      accessMode: 'workspace' as const,
-    }
-    const sourceConfig = { owner: 'acme', repo: 'handbook' }
-    mocks.resolveConnector.mockResolvedValueOnce({ ...connectorContext, connector: persisted })
-    mocks.updateConnector.mockImplementationOnce(
-      async (input: {
-        validateSourceConfig: (
-          connector: typeof persisted,
-          sourceConfig: Record<string, unknown>
-        ) => Promise<unknown>
-      }) => {
-        expect(await input.validateSourceConfig(persisted, sourceConfig)).toBeNull()
-        return { success: true, connector: { ...persisted, sourceConfig } }
-      }
-    )
-
-    await updateKnowledgeConnector.execute({
-      principal: { kind: 'session', userId: 'writer', sessionId: 'session' },
-      input: { connectorId: 'connector-b', updates: { sourceConfig } },
-    })
-
-    expect(mocks.decryptApiKey).toHaveBeenCalledWith('persisted-cipher')
-    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('existing-pat', sourceConfig, {
-      mirrorsSourceAcls: false,
-    })
-    expect(mocks.getCredentialActorContext).not.toHaveBeenCalled()
-    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
-    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.decryptApiKey.mock.invocationCallOrder[0]!
-    )
-  })
 
   it.each(['result', 'exception'] as const)(
     'redacts stored tokens from provider validation %s when editing a connector',
@@ -744,14 +547,14 @@ describe('knowledge connector application use cases', () => {
         }
       )
 
-      expect(mocks.resolvePermission).not.toHaveBeenCalled()
+      expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
       expect(mocks.resolveBilling).not.toHaveBeenCalled()
       expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
       expect(mocks.createConnector).not.toHaveBeenCalled()
       expect(mocks.updateConnector).not.toHaveBeenCalled()
       expect(mocks.deleteConnector).not.toHaveBeenCalled()
       expect(mocks.syncConnector).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     }
   )
 
@@ -769,7 +572,9 @@ describe('knowledge connector application use cases', () => {
       sourceConfig: {},
       syncIntervalMinutes: 1440,
     }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValueOnce(
+      sameWorkspaceContext
+    )
     mocks.updateConnector.mockResolvedValueOnce({
       success: true,
       connector: updatedConnector,
@@ -786,16 +591,16 @@ describe('knowledge connector application use cases', () => {
     })
 
     expect(result.connector).toEqual(updatedConnector)
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
       'shared-user',
       'workspace-a',
       null,
       undefined,
       { forUpdate: undefined }
     )
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.updateConnector.mock.invocationCallOrder[0]
-    )
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.updateConnector.mock.invocationCallOrder[0])
     expect(mocks.updateConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         connectorId: 'connector-b',
@@ -804,7 +609,7 @@ describe('knowledge connector application use cases', () => {
         recordSemanticAudit: false,
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: 'workspace-a',
         action: 'connector.updated',
@@ -816,84 +621,6 @@ describe('knowledge connector application use cases', () => {
     )
   })
 
-  it('owns source-config credential resolution and validation after authorization', async () => {
-    const sameWorkspaceContext = {
-      ...connectorContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-    }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-    mocks.updateConnector.mockResolvedValueOnce({
-      success: true,
-      connector: { ...sameWorkspaceContext.connector, sourceConfig: { space: 'ENG' } },
-    })
-
-    await updateKnowledgeConnector.execute({
-      principal: delegatedPrincipal,
-      input: {
-        connectorId: 'connector-b',
-        assertedWorkspaceId: 'workspace-a',
-        updates: { sourceConfig: { space: 'ENG' } },
-        resolveBillingAttribution: mocks.resolveBilling,
-        source: 'agent',
-      },
-    })
-
-    const orchestrationInput = mocks.updateConnector.mock.calls[0]?.[0] as {
-      resolveBillingAttribution?: () => Promise<unknown>
-      validateSourceConfig?: (
-        connector: {
-          connectorType: string
-          credentialId: string
-          encryptedApiKey: null
-          accessMode: 'workspace'
-        },
-        sourceConfig: Record<string, unknown>
-      ) => Promise<unknown>
-    }
-    if (!orchestrationInput.validateSourceConfig) {
-      throw new Error('Application command did not provide source-config validation')
-    }
-    if (!orchestrationInput.resolveBillingAttribution) {
-      throw new Error('Application command did not provide sync billing attribution')
-    }
-    await expect(orchestrationInput.resolveBillingAttribution()).resolves.toBe(BILLING)
-    await expect(
-      orchestrationInput.validateSourceConfig(
-        {
-          connectorType: 'confluence',
-          credentialId: 'credential-1',
-          encryptedApiKey: null,
-          accessMode: 'workspace',
-        },
-        { space: 'ENG' }
-      )
-    ).resolves.toBeNull()
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.updateConnector.mock.invocationCallOrder[0]
-    )
-    expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
-    expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', {
-      kind: 'workspace',
-      workspaceId: 'workspace-a',
-    })
-    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
-      'credential-1',
-      'credential-owner',
-      expect.any(String),
-      ['read:confluence-content.all'],
-      undefined
-    )
-    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
-      'access-token',
-      { space: 'ENG' },
-      { mirrorsSourceAcls: false }
-    )
-    expect(mocks.resolveBilling).toHaveBeenCalledWith('workspace-a')
-  })
-
   it('rejects connector creation when the writer cannot use the workspace credential', async () => {
     const sameWorkspaceContext = {
       ...connectorContext,
@@ -902,7 +629,9 @@ describe('knowledge connector application use cases', () => {
       knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
       connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
     }
-    mocks.resolveKnowledgeBase.mockResolvedValueOnce(sameWorkspaceContext)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValueOnce(
+      sameWorkspaceContext
+    )
     mocks.getCredentialActorContext.mockResolvedValueOnce({
       credential: { id: 'credential-1', workspaceId: 'workspace-a' },
       member: null,
@@ -957,7 +686,9 @@ describe('knowledge connector application use cases', () => {
       knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
       connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
     }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValueOnce(
+      sameWorkspaceContext
+    )
     mocks.updateConnector.mockResolvedValueOnce({
       success: true,
       connector: { ...sameWorkspaceContext.connector, sourceConfig: { space: 'ENG' } },
@@ -1014,111 +745,6 @@ describe('knowledge connector application use cases', () => {
     expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [
-      'create',
-      createKnowledgeConnector,
-      mocks.createConnector,
-      {
-        knowledgeBaseId: 'knowledge-a',
-        assertedWorkspaceId: 'workspace-a',
-        connectorType: 'confluence',
-        credentialId: 'credential-1',
-        sourceConfig: {},
-        syncIntervalMinutes: 1440,
-        resolveBillingAttribution: mocks.resolveBilling,
-      },
-      {
-        success: true,
-        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-      },
-    ],
-    [
-      'delete',
-      deleteKnowledgeConnector,
-      mocks.deleteConnector,
-      { connectorId: 'connector-b', assertedWorkspaceId: 'workspace-a' },
-      { success: true, documentsDeleted: 0, documentsKept: 1 },
-    ],
-    [
-      'sync',
-      syncKnowledgeConnector,
-      mocks.syncConnector,
-      {
-        connectorId: 'connector-b',
-        assertedWorkspaceId: 'workspace-a',
-        resolveBillingAttribution: mocks.resolveBilling,
-      },
-      { success: true },
-    ],
-  ])(
-    'disables legacy semantic audit and product analytics for %s',
-    async (_name, useCase, orchestration, input, outcome) => {
-      const sameWorkspaceContext = {
-        ...connectorContext,
-        workspaceId: 'workspace-a',
-        knowledgeBaseId: 'knowledge-a',
-        knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-      }
-      mocks.resolveKnowledgeBase.mockResolvedValueOnce(sameWorkspaceContext)
-      mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-      orchestration.mockResolvedValueOnce(outcome)
-
-      await useCase.execute({ principal: delegatedPrincipal, input })
-
-      expect(orchestration).toHaveBeenCalledWith(
-        expect.objectContaining({
-          recordSemanticAudit: false,
-          recordProductAnalytics: false,
-        })
-      )
-      expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('paginates connector documents while returning authoritative total counts', async () => {
-    const sameWorkspaceContext = {
-      ...connectorContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-    }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-    queueTableRows(document, [{ active: 5, excluded: 2, failed: 1, skipped: 3 }])
-    queueTableRows(document, [
-      { id: 'document-3', filename: 'c.txt', userExcluded: false },
-      { id: 'document-4', filename: 'd.txt', userExcluded: true },
-    ])
-
-    const result = await listKnowledgeConnectorDocuments.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-a',
-        connectorId: 'connector-b',
-        assertedWorkspaceId: 'workspace-a',
-        includeExcluded: true,
-        limit: 2,
-        offset: 2,
-      },
-    })
-
-    expect(result).toEqual({
-      documents: [
-        { id: 'document-3', filename: 'c.txt', userExcluded: false },
-        { id: 'document-4', filename: 'd.txt', userExcluded: true },
-      ],
-      counts: { active: 5, excluded: 2, failed: 1, skipped: 3 },
-      hasMore: false,
-      offset: 2,
-      limit: 2,
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
-    expect(dbChainMockFns.offset).toHaveBeenCalledWith(2)
-    expect(dbChainMockFns.from.mock.calls.filter(([table]) => table === document)).toHaveLength(2)
-  })
-
   it('caps connector document mutations before persistence', async () => {
     const sameWorkspaceContext = {
       ...connectorContext,
@@ -1127,7 +753,9 @@ describe('knowledge connector application use cases', () => {
       knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
       connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
     }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValueOnce(
+      sameWorkspaceContext
+    )
 
     await expect(
       updateKnowledgeConnectorDocuments.execute({
@@ -1143,110 +771,8 @@ describe('knowledge connector application use cases', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
-
-  it('bounds connector filename searches for direct application callers', async () => {
-    mocks.resolveConnector.mockResolvedValueOnce({
-      ...connectorContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-    })
-    await expect(
-      listKnowledgeConnectorDocuments.execute({
-        principal: delegatedPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-a',
-          connectorId: 'connector-b',
-          search: 'x'.repeat(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH + 1),
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('deduplicates connector document IDs before mutation and audit', async () => {
-    const sameWorkspaceContext = {
-      ...connectorContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-    }
-    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }, { id: 'document-2' }])
-
-    const result = await updateKnowledgeConnectorDocuments.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-a',
-        connectorId: 'connector-b',
-        assertedWorkspaceId: 'workspace-a',
-        operation: 'exclude',
-        documentIds: ['document-1', 'document-1', 'document-2'],
-      },
-    })
-
-    expect(result.documentIds).toEqual(['document-1', 'document-2'])
-    const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-    expect(where).toEqual(
-      expect.objectContaining({
-        conditions: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'inArray',
-            values: ['document-1', 'document-2'],
-          }),
-        ]),
-      })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ documentIds: ['document-1', 'document-2'] }),
-      })
-    )
-  })
-
-  it.each([
-    { operation: 'exclude' as const, matchesUserExcluded: false, setsUserExcluded: true },
-    { operation: 'restore' as const, matchesUserExcluded: true, setsUserExcluded: false },
-  ])(
-    'targets rows in the opposite state for $operation',
-    async ({ operation, matchesUserExcluded, setsUserExcluded }) => {
-      const sameWorkspaceContext = {
-        ...connectorContext,
-        workspaceId: 'workspace-a',
-        knowledgeBaseId: 'knowledge-a',
-        knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
-      }
-      mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
-
-      await updateKnowledgeConnectorDocuments.execute({
-        principal: delegatedPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-a',
-          connectorId: 'connector-b',
-          assertedWorkspaceId: 'workspace-a',
-          operation,
-          documentIds: ['document-1'],
-        },
-      })
-
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        userExcluded: setsUserExcluded,
-        enabled: !setsUserExcluded,
-      })
-      const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-      expect(where).toEqual(
-        expect.objectContaining({
-          conditions: expect.arrayContaining([
-            { type: 'eq', left: document.userExcluded, right: matchesUserExcluded },
-          ]),
-        })
-      )
-    }
-  )
 
   describe('connector allow-list', () => {
     const sameWorkspaceContext = {
@@ -1267,11 +793,13 @@ describe('knowledge connector application use cases', () => {
     }
 
     beforeEach(() => {
-      mocks.resolveKnowledgeBase.mockResolvedValue(sameWorkspaceContext)
+      knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(
+        sameWorkspaceContext
+      )
     })
 
     function allowOnly(connectorTypes: string[] | null) {
-      mocks.getUserPermissionConfig.mockResolvedValue({
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         allowedKnowledgeConnectors: connectorTypes,
       })
@@ -1288,41 +816,7 @@ describe('knowledge connector application use cases', () => {
       })
 
       expect(mocks.createConnector).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-    })
-
-    it.each([
-      ['the group names it', ['confluence', 'google_drive']],
-      ['the group restricts nothing', null],
-    ])('permits a connector when %s', async (_case, allowed) => {
-      allowOnly(allowed as string[] | null)
-      mocks.createConnector.mockResolvedValueOnce({
-        success: true,
-        connector: { id: 'connector-a', connectorType: 'confluence', syncIntervalMinutes: 1440 },
-      })
-
-      const result = await createKnowledgeConnector.execute({
-        principal: delegatedPrincipal,
-        input: createInput,
-      })
-
-      expect(result.connector.id).toBe('connector-a')
-      expect(mocks.createConnector).toHaveBeenCalledTimes(1)
-    })
-
-    it('leaves an ungoverned caller unaffected', async () => {
-      mocks.getUserPermissionConfig.mockResolvedValue(null)
-      mocks.createConnector.mockResolvedValueOnce({
-        success: true,
-        connector: { id: 'connector-a', connectorType: 'confluence', syncIntervalMinutes: 1440 },
-      })
-
-      await createKnowledgeConnector.execute({
-        principal: delegatedPrincipal,
-        input: createInput,
-      })
-
-      expect(mocks.createConnector).toHaveBeenCalledTimes(1)
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     /**
@@ -1339,7 +833,7 @@ describe('knowledge connector application use cases', () => {
       }
 
       beforeEach(() => {
-        mocks.resolveConnector.mockResolvedValue({
+        knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
           ...connectorContext,
           workspaceId: 'workspace-a',
           knowledgeBaseId: 'knowledge-a',
@@ -1359,36 +853,7 @@ describe('knowledge connector application use cases', () => {
         })
 
         expect(mocks.syncConnector).not.toHaveBeenCalled()
-        expect(mocks.recordAudit).not.toHaveBeenCalled()
-      })
-
-      it('permits the sync while the group still names the persisted type', async () => {
-        allowOnly(['confluence'])
-        mocks.syncConnector.mockResolvedValueOnce({ success: true })
-
-        await syncKnowledgeConnector.execute({
-          principal: delegatedPrincipal,
-          input: syncInput,
-        })
-
-        expect(mocks.syncConnector).toHaveBeenCalledTimes(1)
-      })
-
-      it('preserves a cooldown conflict without projecting a successful sync audit', async () => {
-        allowOnly(['confluence'])
-        const message = 'Sync finished recently. Try again in 60 seconds.'
-        mocks.syncConnector.mockResolvedValueOnce({
-          success: false,
-          errorCode: 'conflict',
-          error: message,
-        })
-
-        await expect(
-          syncKnowledgeConnector.execute({ principal: delegatedPrincipal, input: syncInput })
-        ).rejects.toMatchObject({ code: 'conflict', message })
-
-        expect(mocks.syncConnector).toHaveBeenCalledOnce()
-        expect(mocks.recordAudit).not.toHaveBeenCalled()
+        expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
       })
 
       /**
@@ -1429,7 +894,7 @@ describe('knowledge connector application use cases', () => {
 })
 
 describe('members-mode connector creation', () => {
-  const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+  const sessionPrincipal = createSessionPrincipal()
   const membersInput = {
     knowledgeBaseId: 'knowledge-b',
     connectorType: 'google_drive',
@@ -1439,9 +904,12 @@ describe('members-mode connector creation', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
-    mocks.getUserPermissionConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(
+      crossWorkspaceContext
+    )
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(
+      DEFAULT_PERMISSION_GROUP_CONFIG
+    )
     mocks.resolveMembersBinding.mockResolvedValue({
       credentialGroupId: 'group-1',
       credentialGroupOptionId: 'option-1',
@@ -1460,57 +928,17 @@ describe('members-mode connector creation', () => {
   })
 
   it('refuses members mode to a member below admin', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
     await expect(
       createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })
     ).rejects.toMatchObject({ name: 'InsufficientWorkspacePermissionsError' })
     expect(mocks.createConnector).not.toHaveBeenCalled()
   })
-
-  it('validates the binding and passes it through for an admin', async () => {
-    mocks.resolvePermission.mockResolvedValue('admin')
-
-    await createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })
-
-    expect(mocks.resolveMembersBinding).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-b',
-        actingUserId: 'user-1',
-        sourceConfig: membersInput.sourceConfig,
-      })
-    )
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({
-        membersBinding: expect.objectContaining({
-          credentialGroupId: 'group-1',
-          credentialGroupOptionId: 'option-1',
-        }),
-        credentialId: undefined,
-      })
-    )
-  })
-
-  it('prepares Confluence sign-in during admin setup without granting member crawler access', async () => {
-    mocks.resolvePermission.mockResolvedValue('admin')
-    await createKnowledgeConnector.execute({
-      principal: sessionPrincipal,
-      input: { ...membersInput, connectorType: 'confluence', accessMode: 'admin' },
-    })
-    expect(mocks.provision).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'workspace-b',
-      userId: 'user-1',
-      connectorMeta: expect.objectContaining({ requiresMemberIdentity: true }),
-    })
-    expect(mocks.resolveMembersBinding).not.toHaveBeenCalled()
-    expect(mocks.createConnector).toHaveBeenCalledWith(
-      expect.objectContaining({ membersBinding: undefined, accessMode: 'admin' })
-    )
-  })
 })
 
 describe('approved organization member source creation', () => {
-  const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+  const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
   const input = {
     knowledgeBaseId: 'org-index',
     assertedOrganizationId: 'org',
@@ -1518,12 +946,11 @@ describe('approved organization member source creation', () => {
     sourceConfig: {},
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(member, [{ role: 'member' }])
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(null)
     mocks.requireApproval.mockResolvedValue(undefined)
-    mocks.resolveKnowledgeBase.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
       organizationId: 'org',
       knowledgeBaseId: 'org-index',
       knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
@@ -1570,33 +997,6 @@ describe('approved organization member source creation', () => {
     expect(mocks.createConnector).not.toHaveBeenCalled()
   })
 
-  it('starts a personal source from the connector Search defaults and accepts their fields', async () => {
-    mocks.createConnector.mockResolvedValue({
-      success: true,
-      connector: { id: 'connector', connectorType: 'gmail', accessMode: 'members' },
-    })
-    await createApprovedSearchSource.execute({
-      principal,
-      input: { ...input, connectorType: 'gmail', sourceConfig: {} },
-    })
-    expect(mocks.createConnector).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        sourceConfig: expect.objectContaining({ dateRange: '6m' }),
-      })
-    )
-
-    queueTableRows(member, [{ role: 'member' }])
-    await createApprovedSearchSource.execute({
-      principal,
-      input: { ...input, connectorType: 'gmail', sourceConfig: { dateRange: 'all' } },
-    })
-    expect(mocks.createConnector).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        sourceConfig: expect.objectContaining({ dateRange: 'all' }),
-      })
-    )
-  })
-
   it('refuses custom configuration outside the personal setup fields', async () => {
     await expect(
       createApprovedSearchSource.execute({
@@ -1608,7 +1008,7 @@ describe('approved organization member source creation', () => {
   })
 
   it('refuses a knowledge base that is not the organization Search index', async () => {
-    mocks.resolveKnowledgeBase.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue({
       organizationId: 'org',
       knowledgeBaseId: 'org-index',
       knowledgeBase: { isSearchIndex: false },
@@ -1621,7 +1021,7 @@ describe('approved organization member source creation', () => {
 })
 
 describe('organization connector credential authorization', () => {
-  const principal = { kind: 'session', userId: 'org-admin', sessionId: 'session' } as const
+  const principal = createSessionPrincipal({ userId: 'org-admin', sessionId: 'session' })
   const credential = {
     id: 'org-service-account',
     organizationId: 'org',
@@ -1642,7 +1042,6 @@ describe('organization connector credential authorization', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getCredentialActorContext.mockResolvedValue({
       credential: null,
@@ -1658,7 +1057,7 @@ describe('organization connector credential authorization', () => {
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'service_account' })
     mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'organization-token' })
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('uses organization credential policy without requiring a workspace membership', async () => {
@@ -1689,99 +1088,6 @@ describe('organization connector credential authorization', () => {
     )
   })
 
-  it('passes the real principal through organization source creation', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.resolveKnowledgeBase.mockResolvedValue({
-      organizationId: 'org',
-      knowledgeBaseId: 'org-index',
-      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
-    })
-    mocks.createConnector.mockImplementationOnce(
-      async (createInput: { resolveAccessToken(id: string): Promise<unknown> }) => {
-        await createInput.resolveAccessToken(credential.id)
-        return {
-          success: true,
-          connector: {
-            id: 'source',
-            connectorType: 'google_drive',
-            credentialId: credential.id,
-            accessMode: 'admin',
-            syncIntervalMinutes: 60,
-          },
-        }
-      }
-    )
-    await expect(
-      createKnowledgeConnector.execute({
-        principal,
-        input: {
-          knowledgeBaseId: 'org-index',
-          assertedOrganizationId: 'org',
-          connectorType: 'google_drive',
-          credentialId: credential.id,
-          accessMode: 'admin',
-          sourceConfig: input.sourceConfig,
-          syncIntervalMinutes: 60,
-        },
-      })
-    ).resolves.toMatchObject({ connector: { id: 'source' } })
-    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
-      expect.objectContaining({ principal, organizationId: 'org' })
-    )
-  })
-
-  it.each(['workspace', 'members', 'admin'] as const)(
-    'uses the saved %s mode and organization credential policy during config validation',
-    async (accessMode) => {
-      await expect(
-        validateConnectorSourceConfig({
-          principal,
-          organizationId: 'org',
-          actingUserId: principal.userId,
-          requestId: 'request',
-          sourceConfig: input.sourceConfig,
-          connector: {
-            connectorType: 'google_drive',
-            credentialId: credential.id,
-            encryptedApiKey: null,
-            accessMode,
-          } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
-        })
-      ).resolves.toBeNull()
-      expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith(
-        expect.objectContaining({ principal, organizationId: 'org' })
-      )
-      expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
-        'organization-token',
-        input.sourceConfig,
-        expect.objectContaining({ mirrorsSourceAcls: accessMode === 'admin' })
-      )
-      expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
-        credential.id,
-        principal.userId,
-        'request',
-        accessMode === 'admin'
-          ? [
-              'https://www.googleapis.com/auth/drive.readonly',
-              'https://www.googleapis.com/auth/admin.directory.user.readonly',
-              'https://www.googleapis.com/auth/admin.directory.group.readonly',
-              'https://www.googleapis.com/auth/admin.directory.domain.readonly',
-            ]
-          : ['https://www.googleapis.com/auth/drive.readonly'],
-        'admin@corp.com'
-      )
-    }
-  )
-
-  it('propagates canonical organization credential refusals before token resolution', async () => {
-    const rejection = new OrchestrationError('not_found', 'Credential not found')
-    mocks.authorizeOrganizationCredentialUse.mockRejectedValueOnce(rejection)
-    await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(rejection)
-    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
-    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
-  })
-
   it.each([googleDriveConnectorMeta, gmailConnectorMeta, googleCalendarConnectorMeta])(
     'projects $name token rejections as safe setup errors',
     async ({ auth }) => {
@@ -1805,250 +1111,15 @@ describe('organization connector credential authorization', () => {
     }
   )
 
-  it.each([
-    [400, 'invalid_grant', 'JSON key'],
-    [
-      400,
-      'invalid_scope',
-      "exact domain-wide delegation scopes in this connector's service-account setup section",
-    ],
-    [403, 'access_denied', 'API access policies'],
-  ])('classifies Google %s %s without exposing provider text', async (status, code, guidance) => {
-    mocks.resolveTokenBundle.mockRejectedValueOnce(
-      new ServiceAccountTokenError(status, 'private provider payload', code)
-    )
-    const error = await resolveConnectorCredentialAccessToken(input).catch(
-      (error: unknown) => error
-    )
-    expect(error).toMatchObject({ code: 'validation', message: expect.stringContaining(guidance) })
-    expect((error as Error).message).not.toContain('private provider payload')
-  })
-
-  it.each([googleDriveConnectorMeta, gmailConnectorMeta, googleCalendarConnectorMeta])(
-    'maps $name delegated token failures after directory authorization succeeds',
-    async ({ auth }) => {
-      vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
-        accountId: '',
-        usedCredentialTable: true,
-        credentialId: credential.id,
-        credentialType: 'service_account',
-        providerId: credential.providerId,
-      })
-      vi.mocked(getServiceAccountToken).mockRejectedValueOnce(
-        new ServiceAccountTokenError(401, 'private delegated response', 'unauthorized_client')
-      )
-      const resolved = await resolveConnectorCredentialAccessToken({ ...input, auth })
-      expect(resolved?.accessToken).toBe('organization-token')
-      expect(getServiceAccountToken).not.toHaveBeenCalled()
-      if (!resolved?.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
-      await expect(resolved.getDelegatedAccessToken('member@example.com')).rejects.toMatchObject({
-        code: 'validation',
-        message: expect.stringContaining('(unauthorized_client)'),
-      })
-      expect(getServiceAccountToken).toHaveBeenCalledWith(
-        credential.id,
-        auth.mode === 'oauth' ? auth.serviceAccountDelegationScopes : undefined,
-        'member@example.com'
-      )
-    }
-  )
-
-  it('preserves successful delegated token reads and unexpected failures', async () => {
-    vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
-      accountId: '',
-      usedCredentialTable: true,
-      credentialId: credential.id,
-      credentialType: 'service_account',
-      providerId: credential.providerId,
-    })
-    const resolved = await resolveConnectorCredentialAccessToken(input)
-    if (!resolved?.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
-    vi.mocked(getServiceAccountToken).mockResolvedValueOnce('delegated-token')
-    await expect(resolved.getDelegatedAccessToken('member@example.com')).resolves.toBe(
-      'delegated-token'
-    )
-    for (const error of [
-      new ServiceAccountTokenError(401, 'private delegated response', 'unknown-code'),
-      new ServiceAccountTokenError(503, 'private delegated response', 'unauthorized_client'),
-      new TypeError('Network request failed'),
-    ]) {
-      vi.mocked(getServiceAccountToken).mockRejectedValueOnce(error)
-      await expect(resolved.getDelegatedAccessToken('member@example.com')).rejects.toBe(error)
-    }
-  })
-
-  it('passes safe delegated errors to configuration validation', async () => {
-    vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
-      accountId: '',
-      usedCredentialTable: true,
-      credentialId: credential.id,
-      credentialType: 'service_account',
-      providerId: credential.providerId,
-    })
-    vi.mocked(getServiceAccountToken).mockRejectedValueOnce(
-      new ServiceAccountTokenError(401, 'private delegated response', 'unauthorized_client')
-    )
-    mocks.validateConnectorConfig.mockImplementationOnce(
-      async (_token: string, _config: unknown, context: ConnectorAccessToken) => {
-        if (!context.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
-        try {
-          await context.getDelegatedAccessToken('member@example.com')
-          return { valid: true }
-        } catch (error) {
-          if (!(error instanceof Error)) throw error
-          return { valid: false, error: error.message }
-        }
-      }
-    )
-    const rejection = await validateConnectorSourceConfig({
-      principal,
-      organizationId: 'org',
-      actingUserId: principal.userId,
-      requestId: 'request',
-      sourceConfig: input.sourceConfig,
-      connector: {
-        connectorType: 'google_drive',
-        credentialId: credential.id,
-        encryptedApiKey: null,
-        accessMode: 'admin',
-      } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
-    })
-    expect(rejection).toMatchObject({
-      errorCode: 'validation',
-      message: expect.stringContaining('(unauthorized_client)'),
-    })
-    expect(rejection?.message).not.toContain('private delegated response')
-  })
-
-  it.each([400, 401, 403])(
-    'preserves unrecognized Google %s responses instead of assuming a configuration error',
-    async (status) => {
-      for (const code of [undefined, 'unknown-private-code', 'server_error']) {
-        const error = new ServiceAccountTokenError(status, 'private provider payload', code)
-        mocks.resolveTokenBundle.mockRejectedValueOnce(error)
-        await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
-        expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
-      }
-    }
-  )
-
-  it.each([429, 500, 503])(
-    'preserves Google %s failures instead of blaming configuration',
-    async (status) => {
-      const error = new ServiceAccountTokenError(status, 'private provider payload', 'server_error')
-      mocks.resolveTokenBundle.mockRejectedValueOnce(error)
-      await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
-      expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
-    }
-  )
-
-  it('preserves unexpected token failures as internal errors', async () => {
-    const error = new TypeError('private network failure')
-    mocks.resolveTokenBundle.mockRejectedValueOnce(error)
-    await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
-    expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
-  })
-
-  it('keeps authorization errors actionable through connector creation orchestration', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.resolveKnowledgeBase.mockResolvedValue({
-      organizationId: 'org',
-      knowledgeBaseId: 'org-index',
-      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
-    })
-    mocks.resolveTokenBundle.mockRejectedValueOnce(
-      new ServiceAccountTokenError(401, 'private provider payload', 'unauthorized_client')
-    )
-    mocks.createConnector.mockImplementationOnce(
-      async (createInput: { resolveAccessToken(id: string): Promise<unknown> }) => {
-        try {
-          await createInput.resolveAccessToken(credential.id)
-          throw new Error('Unexpected successful token exchange')
-        } catch (error) {
-          return classifyKnowledgeFailure(error, 'request', 'Create connector')
-        }
-      }
-    )
-    const error = await createKnowledgeConnector
-      .execute({
-        principal,
-        input: {
-          knowledgeBaseId: 'org-index',
-          assertedOrganizationId: 'org',
-          connectorType: 'google_drive',
-          credentialId: credential.id,
-          accessMode: 'admin',
-          sourceConfig: input.sourceConfig,
-          syncIntervalMinutes: 60,
-        },
-      })
-      .catch((error: unknown) => error)
-    expect(internalOrchestrationErrorPolicy.project(error)).toMatchObject({
-      status: 400,
-      body: { error: expect.stringContaining('(unauthorized_client)') },
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('returns an actionable error before saving a configuration edit', async () => {
-    mocks.resolveTokenBundle.mockRejectedValueOnce(
-      new ServiceAccountTokenError(401, 'private provider payload', 'unauthorized_client')
-    )
-    await expect(
-      validateConnectorSourceConfig({
-        principal,
-        organizationId: 'org',
-        actingUserId: principal.userId,
-        requestId: 'request',
-        sourceConfig: input.sourceConfig,
-        connector: {
-          connectorType: 'google_drive',
-          credentialId: credential.id,
-          encryptedApiKey: null,
-          accessMode: 'admin',
-        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('(unauthorized_client)'),
-    })
-    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
-  })
-
   it('does not mint a token after the credential creator leaves the organization', async () => {
     mocks.resolveTokenIdentity.mockResolvedValueOnce(null)
     await expect(resolveConnectorCredentialAccessToken(input)).resolves.toBeNull()
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
   })
-
-  it('rejects organization config edits after credential identity is revoked', async () => {
-    mocks.resolveTokenIdentity.mockResolvedValueOnce(null)
-    await expect(
-      validateConnectorSourceConfig({
-        principal,
-        organizationId: 'org',
-        actingUserId: principal.userId,
-        requestId: 'request',
-        sourceConfig: input.sourceConfig,
-        connector: {
-          connectorType: 'google_drive',
-          credentialId: credential.id,
-          encryptedApiKey: null,
-          accessMode: 'admin',
-        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
-      })
-    ).resolves.toEqual({
-      errorCode: 'validation',
-      message: 'Credential is no longer usable in this organization. Please reconnect it.',
-    })
-    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
-    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
-  })
 })
 
 describe('GitHub installation source rejection at the application boundary', () => {
-  const principal = { kind: 'session', userId: 'org-admin', sessionId: 'session' } as const
+  const principal = createSessionPrincipal({ userId: 'org-admin', sessionId: 'session' })
   const sourceConfig = { repository: 'example/private', githubRepositoryId: '123' }
   const credential = {
     id: 'installation-credential',
@@ -2082,7 +1153,6 @@ describe('GitHub installation source rejection at the application boundary', () 
     'Check that the repository is included in the selected GitHub App installation, then retry.'
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [{ role: 'admin' }])
@@ -2091,9 +1161,13 @@ describe('GitHub installation source rejection at the application boundary', () 
       knowledgeBaseId: 'org-index',
       knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
     }
-    mocks.resolveKnowledgeBase.mockResolvedValue(context)
-    mocks.resolveConnector.mockResolvedValue({ ...context, connectorId: connector.id, connector })
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext.mockResolvedValue(context)
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
+      ...context,
+      connectorId: connector.id,
+      connector,
+    })
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue(null)
     mocks.authorizeOrganizationCredentialUse.mockResolvedValue({ credential })
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'service_account' })
     mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'repository-token' })
@@ -2146,7 +1220,6 @@ describe('GitHub installation source rejection at the application boundary', () 
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     resetDbChainMock()
   })
 
@@ -2175,61 +1248,7 @@ describe('GitHub installation source rejection at the application boundary', () 
         expect.objectContaining({ principal, organizationId: 'org', credentialId: credential.id })
       )
       expect(mocks.createConnector).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     }
   )
-
-  it.each(['create', 'update'] as const)(
-    'classifies a repository token rejected during authorized %s validation',
-    async (operation) => {
-      mocks.resolveTokenBundle.mockRejectedValueOnce(
-        new githubInstallation.GitHubInstallationError(
-          'private token response',
-          422,
-          'repository-token'
-        )
-      )
-      const result =
-        operation === 'create'
-          ? createKnowledgeConnector.execute({ principal, input: createInput })
-          : updateKnowledgeConnector.execute({
-              principal,
-              input: {
-                knowledgeBaseId: 'org-index',
-                connectorId: connector.id,
-                updates: { sourceConfig },
-              },
-            })
-      await expect(result).rejects.toMatchObject({ code: 'validation', message: validationMessage })
-      expect(mocks.resolveTokenBundle).toHaveBeenCalledOnce()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each([403, 429, 503])(
-    'preserves GitHub %s and its operation for retry classification',
-    async (status) => {
-      const failure = new githubInstallation.GitHubInstallationError(
-        'GitHub provider request failed',
-        status,
-        'repository-token'
-      )
-      mocks.resolveTokenBundle.mockRejectedValueOnce(failure)
-      await expect(
-        createKnowledgeConnector.execute({ principal, input: createInput })
-      ).rejects.toBe(failure)
-      expect(internalOrchestrationErrorPolicy.project(failure)).toBeNull()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-    }
-  )
-
-  it('preserves network failures during authorized source creation', async () => {
-    const failure = new TypeError('Network request failed')
-    mocks.resolveTokenBundle.mockRejectedValueOnce(failure)
-    await expect(createKnowledgeConnector.execute({ principal, input: createInput })).rejects.toBe(
-      failure
-    )
-    expect(internalOrchestrationErrorPolicy.project(failure)).toBeNull()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
 })

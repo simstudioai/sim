@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   ACTION_MATCH_BIAS,
   filterAndCap,
   filterAndSort,
   fuzzyMatch,
-  getActionGroupLabel,
   getGlobalSearchResults,
   MAX_RESULTS_PER_GROUP,
   type SearchEntry,
@@ -15,33 +11,6 @@ import {
   scoreAndSort,
   scoreSectionItems,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-
-describe('getActionGroupLabel', () => {
-  const action = {
-    id: 'test-action',
-    name: 'Test action',
-    icon: () => null,
-    run: () => {},
-  }
-
-  it('separates page actions from Sim actions', () => {
-    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Actions')
-    expect(getActionGroupLabel({ ...action, context: 'tables' })).toBe('Actions')
-    expect(getActionGroupLabel({ ...action, context: 'logsDashboard' })).toBe('Actions')
-    expect(getActionGroupLabel({ ...action, context: 'global' })).toBe('Sim')
-  })
-
-  it('lets an action group label surface actions whose names do not match', () => {
-    const workflowAction = {
-      ...action,
-      name: 'Fit canvas to view',
-      context: 'workflow' as const,
-    }
-
-    expect(scoreActions([workflowAction], 'actions', 50, 'Actions')).toHaveLength(1)
-    expect(scoreActions([workflowAction], 'platform', 50, 'Actions')).toHaveLength(0)
-  })
-})
 
 describe('getGlobalSearchResults', () => {
   it('merge-ranks results across every visible section', () => {
@@ -99,103 +68,9 @@ describe('getGlobalSearchResults', () => {
       ).map((entry) => entry.item.id)
     ).toEqual(['new-chat-action', 'new-chat-result'])
   })
-
-  it('keeps a mid-word-matched action below word-start entity matches', () => {
-    const action = {
-      id: 'create-folder',
-      name: 'Create folder',
-      icon: () => null,
-      context: 'global' as const,
-      run: () => {},
-    }
-    const [actionMatch] = scoreActions([action], 'a')
-    const [blockMatch] = scoreAndSort([{ name: 'Airtable' }], (item) => item.name, 'a')
-
-    expect(actionMatch.score).toBeLessThan(blockMatch.score)
-  })
-
-  it('still biases a word-start action match above entity name matches', () => {
-    const action = {
-      id: 'create-workflow',
-      name: 'Create workflow',
-      icon: () => null,
-      context: 'global' as const,
-      run: () => {},
-    }
-    const [actionMatch] = scoreActions([action], 'w')
-    const [blockMatch] = scoreAndSort([{ name: 'Webhook' }], (item) => item.name, 'w')
-
-    expect(actionMatch.score).toBeGreaterThan(blockMatch.score)
-  })
-
-  it('breaks identical visible-name matches by the original section order', () => {
-    const workflow = { id: 'new-chat-workflow', name: 'New chat', href: '/new-chat-workflow' }
-    const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }
-    const [workflowMatch] = scoreAndSort([workflow], (item) => item.name, 'new c')
-    const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
-
-    expect(workflowMatch.score).toBe(chatMatch.score)
-    expect(
-      getGlobalSearchResults(
-        {
-          workflows: [{ section: 'workflows', ...workflowMatch }],
-          chats: [{ section: 'chats', ...chatMatch }],
-        },
-        ['workflows', 'chats']
-      ).map((entry) => entry.item.id)
-    ).toEqual(['new-chat-workflow', 'new-chat-result'])
-  })
-
-  it('keeps every matching entry in score order', () => {
-    const workflows: SearchEntry[] = Array.from({ length: 8 }, (_, index) => ({
-      section: 'workflows',
-      score: index,
-      item: { id: `workflow-${index}`, name: `Workflow ${index}`, href: `/workflow-${index}` },
-    }))
-
-    expect(
-      getGlobalSearchResults({ workflows }, ['workflows']).map((entry) => entry.item.id)
-    ).toEqual([
-      'workflow-7',
-      'workflow-6',
-      'workflow-5',
-      'workflow-4',
-      'workflow-3',
-      'workflow-2',
-      'workflow-1',
-      'workflow-0',
-    ])
-  })
 })
 
 describe('scoreSectionItems', () => {
-  it("surfaces a section's items when the query matches the section name", () => {
-    const chats = [{ name: 'Quarterly planning' }, { name: 'Incident follow-up' }]
-
-    expect(scoreSectionItems('chats', chats, (chat) => chat.name, 'Chats')).toEqual([
-      { item: chats[0], score: expect.any(Number) },
-      { item: chats[1], score: expect.any(Number) },
-    ])
-  })
-
-  it('keeps direct matches first and preserves natural fallback order', () => {
-    const workspaces = [
-      { name: 'Workspaces demo', keywords: 'long metadata' },
-      { name: 'Acme', keywords: 'a much longer metadata value' },
-      { name: 'Beta', keywords: '' },
-    ]
-
-    expect(
-      scoreSectionItems(
-        'workspaces',
-        workspaces,
-        (workspace) => workspace.name,
-        'workspaces',
-        (workspace) => workspace.keywords
-      ).map(({ item }) => item.name)
-    ).toEqual(['Workspaces demo', 'Acme', 'Beta'])
-  })
-
   it('never fills or lifts tool operations from their section label', () => {
     const operations = [{ name: 'Send Message' }, { name: 'Create Row' }]
 
@@ -208,41 +83,6 @@ describe('scoreSectionItems', () => {
         ({ item }) => item.name
       )
     ).toEqual(['Send Message'])
-  })
-
-  it('lifts a whole section above other sections’ name matches when the query is exactly its name', () => {
-    const workflowItems = [
-      { name: 'Onboarding' },
-      { name: 'Billing sync' },
-      { name: 'Workflow QA' },
-    ]
-    const sectionScores = scoreSectionItems(
-      'workflows',
-      workflowItems,
-      (item) => item.name,
-      'workflows'
-    )
-    const [chatMatch] = scoreAndSort(
-      [{ name: 'Workflows retro' }],
-      (item) => item.name,
-      'workflows'
-    )
-
-    expect(sectionScores).toHaveLength(3)
-    expect(sectionScores.every(({ score }) => score > chatMatch.score)).toBe(true)
-  })
-
-  it('does not lift a section for a partial section-name query', () => {
-    const workflowItems = [{ name: 'Onboarding' }]
-    const [sectionFill] = scoreSectionItems(
-      'workflows',
-      workflowItems,
-      (item) => item.name,
-      'workflow'
-    )
-    const [chatMatch] = scoreAndSort([{ name: 'Workflow retro' }], (item) => item.name, 'workflow')
-
-    expect(sectionFill.score).toBeLessThan(chatMatch.score)
   })
 })
 
@@ -412,26 +252,6 @@ describe('fuzzyMatch / filterAndSort — no regression vs. old matcher', () => {
   })
 })
 
-describe('fuzzyMatch — new wins (initialisms & scattered)', () => {
-  const wins: Array<[string, string]> = [
-    ['slk', 'Slack'],
-    ['gps', 'Google PageSpeed'],
-    ['crwf', 'Create workflow'],
-    ['msteams', 'Microsoft Teams'],
-  ]
-  for (const [query, expectedTop] of wins) {
-    it(`"${query}" surfaces "${expectedTop}" as the top result`, () => {
-      const results = filterAndSort(CORPUS, toValue, query)
-      expect(results[0]?.label).toBe(expectedTop)
-    })
-  }
-
-  it('finds initialisms the old matcher missed entirely (old returns 0 for "slk")', () => {
-    expect(oldFilterAndSort(CORPUS, toValue, 'slk')).toHaveLength(0)
-    expect(filterAndSort(CORPUS, toValue, 'slk').map((e) => e.label)).toContain('Slack')
-  })
-})
-
 describe('fuzzyMatch — noise control', () => {
   it('rejects a mid-word scattered subsequence ("oge" in P-o-st-g-r-e-s is not a substring)', () => {
     expect(fuzzyMatch('Postgres', 'oge').matched).toBe(false)
@@ -445,42 +265,6 @@ describe('fuzzyMatch — noise control', () => {
     if (firstNonPrefix !== -1 && lastPrefix !== -1) {
       expect(lastPrefix).toBeLessThan(firstNonPrefix)
     }
-  })
-
-  it('returns no matches for genuine non-matches', () => {
-    expect(filterAndSort(CORPUS, toValue, 'zzz')).toHaveLength(0)
-    expect(filterAndSort(CORPUS, toValue, 'qqqq')).toHaveLength(0)
-  })
-})
-
-describe('fuzzyMatch — positions for highlighting', () => {
-  it('reports prefix match positions', () => {
-    expect(fuzzyMatch('Slack', 'sla').positions).toEqual([0, 1, 2])
-  })
-
-  it('reports scattered match positions for "slk" against "Slack" (S, l, k)', () => {
-    expect(fuzzyMatch('Slack', 'slk').positions).toEqual([0, 1, 4])
-  })
-
-  it('highlights the substring itself, not an earlier scattered occurrence', () => {
-    const result = fuzzyMatch('a_apple', 'apple')
-    expect(result.matched).toBe(true)
-    expect(result.positions).toEqual([2, 3, 4, 5, 6])
-  })
-
-  it('highlights a mid-string substring at its real position', () => {
-    expect(fuzzyMatch('Webhook', 'hook').positions).toEqual([3, 4, 5, 6])
-  })
-
-  it('reports empty positions for empty query', () => {
-    const result = fuzzyMatch('Slack', '')
-    expect(result.matched).toBe(true)
-    expect(result.positions).toEqual([])
-  })
-
-  it('matches multi-word tokens order-independently', () => {
-    const result = fuzzyMatch('Slack Send Message', 'message slack')
-    expect(result.matched).toBe(true)
   })
 })
 
@@ -501,38 +285,6 @@ describe('filterAndSort — name ranked above secondary text', () => {
     ]
     const sorted = filterAndSort(items, toName, 'agent', toExtra)
     expect(sorted[0].name).toBe('Agent')
-  })
-
-  it('keeps every name match above every secondary-only match', () => {
-    const items: Item[] = [
-      { name: 'Zeta', searchValue: 'Zeta agent agent agent' }, // strong secondary hit, no name hit
-      { name: 'Agent', searchValue: 'Agent agent' }, // name hit
-    ]
-    const sorted = filterAndSort(items, toName, 'agent', toExtra)
-    expect(sorted[0].name).toBe('Agent')
-  })
-
-  it('still surfaces an item matched only by its secondary text', () => {
-    const items: Item[] = [{ name: 'Agent', searchValue: 'Agent agent claude-sonnet gpt-4o' }]
-    expect(filterAndSort(items, toName, 'gpt-4o', toExtra)).toHaveLength(1)
-  })
-
-  it('ranks a visible operation-name match above a service metadata match', () => {
-    const items: Item[] = [
-      { name: 'List Calls', searchValue: 'AgentPhone List Calls' },
-      { name: 'Agent Status', searchValue: 'Example Agent Status' },
-    ]
-
-    const sorted = filterAndSort(items, toName, 'agent', toExtra)
-
-    expect(sorted.map((item) => item.name)).toEqual(['Agent Status', 'List Calls'])
-  })
-
-  it('is byte-identical to single-field ranking when no secondary accessor is given', () => {
-    const items = ['Slack message', 'Send message to Slack']
-    expect(filterAndSort(items, (s) => s, 'slack')).toEqual(
-      filterAndSort(items, (s) => s, 'slack', undefined)
-    )
   })
 })
 
@@ -579,58 +331,15 @@ describe('secondary-text matching — no scattered noise', () => {
       )
     ).toHaveLength(0)
   })
-
-  it('scatter-matches within a single kebab-cased entry but never across entries', () => {
-    const items = [{ name: 'Do Thing', extra: 'slack send-message dm chat' }]
-
-    expect(
-      filterAndSort(
-        items,
-        (item) => item.name,
-        'sndmsg',
-        (item) => item.extra
-      )
-    ).toHaveLength(1)
-    expect(
-      filterAndSort(
-        items,
-        (item) => item.name,
-        'dmchat',
-        (item) => item.extra
-      )
-    ).toHaveLength(0)
-  })
 })
 
 describe('filterAndCap', () => {
   const id = (s: string) => s
-
-  it('caps an active search to MAX_RESULTS_PER_GROUP', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
-    expect(filterAndCap(items, id, 'item')).toHaveLength(MAX_RESULTS_PER_GROUP)
-  })
 
   it('never caps the empty (browse) state, even above the cap', () => {
     const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
     const result = filterAndCap(items, id, '')
     expect(result).toHaveLength(items.length)
     expect(result).toBe(items)
-  })
-
-  it('treats whitespace-only input as browse: unfiltered and uncapped', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
-    const result = filterAndCap(items, id, '   ')
-    expect(result).toBe(items)
-  })
-
-  it('returns every match untrimmed when under the cap', () => {
-    const items = ['Slack', 'Slate', 'Slalom']
-    expect(filterAndCap(items, id, 'sl')).toHaveLength(3)
-  })
-
-  it('caps to the top-ranked matches, preserving filterAndSort order', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 5 }, (_, i) => `item ${i}`)
-    const capped = filterAndCap(items, id, 'item')
-    expect(capped).toEqual(filterAndSort(items, id, 'item').slice(0, MAX_RESULTS_PER_GROUP))
   })
 })

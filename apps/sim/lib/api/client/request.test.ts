@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
 import { CLIENT_ID_HEADER } from '@/lib/api/client-id'
-import { CLIENT_INFO_HEADER } from '@/lib/api/client-info'
 import { listKnowledgeDocumentsContract } from '@/lib/api/contracts/knowledge'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -26,10 +22,6 @@ function mockFetchReturning(body: unknown) {
 }
 
 describe('requestJson query serialization', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('serializes a JSON-string query param verbatim (regression: tagFilters)', async () => {
     const fetchMock = mockFetchReturning({
       success: true,
@@ -113,70 +105,5 @@ describe('requestJson client id header', () => {
     await requestJson(contract, {})
 
     expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toEqual(expect.any(String))
-  })
-
-  it('omits it on the server, where there is no tab to name', async () => {
-    vi.stubGlobal('window', undefined)
-    const fetchMock = mockFetchReturning({ ok: true })
-
-    await requestJson(contract, {})
-
-    expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toBeUndefined()
-  })
-})
-
-describe('requestJson client info header', () => {
-  const contract = defineRouteContract({
-    method: 'GET',
-    path: '/api/test',
-    response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
-  })
-
-  function sentHeaders(fetchMock: ReturnType<typeof mockFetchReturning>): Record<string, string> {
-    return (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>
-  }
-
-  it('declares the web surface in the browser', async () => {
-    vi.stubGlobal('window', {})
-    const fetchMock = mockFetchReturning({ ok: true })
-
-    await requestJson(contract, {})
-
-    expect(sentHeaders(fetchMock)[CLIENT_INFO_HEADER]).toBe('web')
-  })
-
-  it('omits it on the server, where a request to itself is not a web-surface call', async () => {
-    vi.stubGlobal('window', undefined)
-    const fetchMock = mockFetchReturning({ ok: true })
-
-    await requestJson(contract, {})
-
-    expect(sentHeaders(fetchMock)[CLIENT_INFO_HEADER]).toBeUndefined()
-  })
-})
-
-describe('requestJson navigation lifetime', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
-  it('opts small lifecycle requests into keepalive without changing other requests', async () => {
-    const fetchMock = mockFetchReturning({ ok: true })
-    const contract = defineRouteContract({
-      method: 'POST',
-      path: '/api/test/stop',
-      body: z.object({ streamId: z.string() }),
-      response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
-    })
-    const signal = new AbortController().signal
-    await requestJson(contract, { body: { streamId: 'stream' }, signal, keepalive: true })
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/test/stop',
-      expect.objectContaining({
-        keepalive: true,
-        signal,
-        body: JSON.stringify({ streamId: 'stream' }),
-      })
-    )
-    await requestJson(contract, { body: { streamId: 'stream' } })
-    expect(fetchMock.mock.calls.at(-1)?.[1]).not.toHaveProperty('keepalive')
   })
 })

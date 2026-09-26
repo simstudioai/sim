@@ -1,12 +1,11 @@
 /**
- * @vitest-environment node
- *
  * Provider conformance: the same input must produce the same
  * `SandboxExecutionResult` on E2B and on Daytona. A divergence here is exactly
  * what would surface as a broken failover mid-incident, so every scenario runs
  * twice — once per provider — from a single table.
  */
 import { Readable } from 'node:stream'
+import { envMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
@@ -14,7 +13,6 @@ import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sand
 const {
   mockResolveSandbox,
   mockProvisionRuntime,
-  mockEnv,
   mockE2BCreate,
   mockE2BRunCode,
   mockE2BCommandsRun,
@@ -49,24 +47,6 @@ const {
 } = vi.hoisted(() => ({
   mockResolveSandbox: vi.fn(),
   mockProvisionRuntime: vi.fn(),
-  mockEnv: {
-    SANDBOX_PROVIDER: 'e2b' as string | undefined,
-    PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
-    E2B_ENABLED: 'true',
-    E2B_API_KEY: 'test-key',
-    E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479' as
-      | string
-      | undefined,
-    E2B_FUNCTION_TEMPLATE_GENERATION: '1785792000000' as string | undefined,
-    MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
-    MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
-    E2B_PI_TEMPLATE_ID: 'sim-pi',
-    DAYTONA_API_KEY: 'test-key',
-    DAYTONA_FUNCTION_SNAPSHOT_ID: '7d9d12d6-5f2a-44df-9cc2-a20203f3813b' as string | undefined,
-    DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1' as string | undefined,
-    DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1' as string | undefined,
-    DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1' as string | undefined,
-  },
   mockE2BCreate: vi.fn(),
   mockE2BRunCode: vi.fn(),
   mockE2BCommandsRun: vi.fn(),
@@ -106,7 +86,6 @@ vi.mock('@daytona/sdk', () => ({
     create = mockDaytonaCreate
   },
 }))
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordSandboxProviderLimit: mockRecordSandboxProviderLimit,
   recordSandboxTeardownFailure: mockRecordSandboxTeardownFailure,
@@ -170,6 +149,24 @@ describe('provider-effective sandbox lifetimes', () => {
     )
   })
 })
+
+setEnv({
+  SANDBOX_PROVIDER: 'e2b',
+  PI_SANDBOX_LIFETIME_MS: undefined,
+  E2B_ENABLED: 'true',
+  E2B_API_KEY: 'test-key',
+  E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  E2B_FUNCTION_TEMPLATE_GENERATION: '1785792000000',
+  MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
+  MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
+  E2B_PI_TEMPLATE_ID: 'sim-pi',
+  DAYTONA_API_KEY: 'test-key',
+  DAYTONA_FUNCTION_SNAPSHOT_ID: '7d9d12d6-5f2a-44df-9cc2-a20203f3813b',
+  DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
+  DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1',
+  DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1',
+})
+const mockEnv = envMock.env
 
 /** Points the shared layer at one provider via the SANDBOX_PROVIDER env var. */
 function useProvider(provider: Provider) {
@@ -2413,13 +2410,6 @@ describe('custom dependency sets', () => {
     } else {
       expect(mockExecuteSessionCommand.mock.calls.at(-1)?.[2]).toBe(1)
     }
-  })
-
-  it('declares one strategy per provider, and only the prebuilt one can build', () => {
-    expect(e2bProvider.dependencyStrategy).toBe('prebuilt')
-    expect(e2bProvider.images).toBeDefined()
-    expect(daytonaProvider.dependencyStrategy).toBe('runtime')
-    expect(daytonaProvider.images).toBeUndefined()
   })
 })
 

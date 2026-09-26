@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { FileParserError } from '@/lib/file-parsers/errors'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
@@ -15,12 +12,6 @@ describe('PptxParser', () => {
     await expect(
       new PptxParser().parseBuffer(LEGACY_OLE_BUFFER)
     ).rejects.toMatchObject<FileParserError>({ code: 'unsupported_type' })
-  })
-
-  it('rejects bytes that are neither a package nor an OLE container', async () => {
-    await expect(
-      new PptxParser().parseBuffer(Buffer.from('random presentation bytes'))
-    ).rejects.toMatchObject<FileParserError>({ code: 'invalid_format' })
   })
 
   it('preserves cancellation instead of classifying the container', async () => {

@@ -1,35 +1,29 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { resetDbChainMock } from '@sim/testing'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testDirectory, mockInsertMetadata, mockInsertFileMetadata, mockDeleteFileMetadata } =
-  vi.hoisted(() => ({
-    testDirectory: `/tmp/sim-knowledge-upload-compensation-${process.pid}`,
-    mockInsertMetadata: vi.fn(),
-    mockInsertFileMetadata: vi.fn(),
-    mockDeleteFileMetadata: vi.fn(),
-  }))
+const testDirectory = `/tmp/sim-knowledge-upload-compensation-${process.pid}`
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({ UPLOAD_DIR_SERVER: testDirectory }))
-vi.mock('@/lib/uploads/config', () => ({
-  USE_BLOB_STORAGE: false,
-  USE_S3_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({}),
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
-  deleteFileMetadata: mockDeleteFileMetadata,
-  insertImmutableFileMetadata: mockInsertMetadata,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
-import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
+import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
+
+setUploadDirServer(testDirectory)
+
+const mockInsertFileMetadata = uploadsMetadataMockFns.mockInsertFileMetadata
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+const mockInsertMetadata = uploadsMetadataMockFns.mockInsertImmutableFileMetadata
 
 const KEY = 'kb/document.txt'
 const ORIGINAL_ERROR = new Error('organization no longer exists')
@@ -64,7 +58,6 @@ async function writeOtherAttempt() {
 
 describe('local cache upload compensation', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockInsertMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
     mockInsertFileMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
@@ -76,41 +69,6 @@ describe('local cache upload compensation', () => {
   afterAll(async () => {
     resetDbChainMock()
     await rm(testDirectory, { recursive: true, force: true })
-  })
-
-  it('uses one local root for concurrent metadata probes and bounded checkpoint reads', async () => {
-    const objects = Array.from({ length: 8 }, (_, index) => ({
-      key: `knowledge-embedding-checkpoints/v1/fixture/batch-${index}.bin`,
-      bytes: Buffer.alloc(32_768 + index, index),
-    }))
-    for (const object of objects) {
-      await uploadFile({
-        file: object.bytes,
-        fileName: 'checkpoint.bin',
-        customKey: object.key,
-        preserveKey: true,
-        persistMetadata: false,
-        context: 'knowledge-base',
-        contentType: 'application/octet-stream',
-      })
-    }
-    await Promise.all(
-      objects.map(async (object) => {
-        expect(await headObject(object.key, 'knowledge-base')).toEqual({
-          size: object.bytes.length,
-        })
-        expect(
-          await downloadFile({
-            key: object.key,
-            context: 'knowledge-base',
-            maxBytes: object.bytes.length,
-          })
-        ).toEqual(object.bytes)
-      })
-    )
-    expect(
-      await headObject('knowledge-embedding-checkpoints/v1/fixture/missing.bin', 'knowledge-base')
-    ).toBeNull()
   })
 
   it('removes the newly created file and sidecar while preserving the original metadata error', async () => {

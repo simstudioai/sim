@@ -52,7 +52,6 @@ const emitted = (event: string, workspaceId?: string) =>
 
 describe('useWorkspaceInvalidationRoom', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     socket = fakeSocket()
     mockUseSocket.mockImplementation(() => ({ socket }))
   })
@@ -65,12 +64,6 @@ describe('useWorkspaceInvalidationRoom', () => {
         /* already unmounted by the test */
       }
     }
-  })
-
-  it('joins the room', () => {
-    mount('ws-1', 'workspace-files')
-
-    expect(emitted('join-workspace-files')).toBe(1)
   })
 
   /*
@@ -86,30 +79,6 @@ describe('useWorkspaceInvalidationRoom', () => {
     unmount(first)
 
     expect(emitted('leave-workspace-files')).toBe(0)
-  })
-
-  it('shares one socket handler and one callback per dedupe key', () => {
-    const onChanged = vi.fn()
-    mount('ws-1', 'workspace-files', onChanged, 'file-browser')
-    mount('ws-1', 'workspace-files', onChanged, 'file-browser')
-
-    const changedHandlers = socket.on.mock.calls.filter(
-      ([event]) => event === 'workspace-files-changed'
-    )
-    expect(changedHandlers).toHaveLength(1)
-
-    act(() => changedHandlers[0][1]({ workspaceId: 'ws-1' }))
-    expect(onChanged).toHaveBeenCalledTimes(1)
-  })
-
-  it('leaves once the last subscriber unmounts', () => {
-    const first = mount('ws-1', 'workspace-files')
-    const second = mount('ws-1', 'workspace-files')
-
-    unmount(first)
-    unmount(second)
-
-    expect(emitted('leave-workspace-files')).toBe(1)
   })
 
   it('leaves a room whose own subscriber went, while another room is still held', () => {

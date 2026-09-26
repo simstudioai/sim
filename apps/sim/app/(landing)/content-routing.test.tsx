@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { describe, expect, it, vi } from 'vitest'
 import type { ContentPost } from '@/lib/content/schema'
 
 const { getPostBySlug } = vi.hoisted(() => ({
@@ -28,13 +27,14 @@ vi.mock('@/lib/library/seo', () => ({
   buildPostMetadata: () => ({ title: 'Published article' }),
   buildPostGraphJsonLd: () => ({}),
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://example.com' }))
 vi.mock('@/app/(landing)/components', () => ({ ContentPostPage: () => null }))
 
 import BlogPage, { generateMetadata as blogMetadata } from '@/app/(landing)/blog/[slug]/page'
 import LibraryPage, {
   generateMetadata as libraryMetadata,
 } from '@/app/(landing)/library/[slug]/page'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://example.com')
 
 const POST: ContentPost = {
   slug: 'test-article',
@@ -52,13 +52,11 @@ const POST: ContentPost = {
   Content: () => null,
 }
 
-beforeEach(() => vi.clearAllMocks())
-
 describe.each([
   ['blog', BlogPage, blogMetadata],
   ['library', LibraryPage, libraryMetadata],
 ] as const)('%s public content routing', (_section, Page, metadata) => {
-  const props = { params: Promise.resolve({ slug: POST.slug }) }
+  const props = createRouteContext({ slug: POST.slug })
 
   it.each([
     ['missing', null],

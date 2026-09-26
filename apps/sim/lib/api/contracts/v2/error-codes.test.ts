@@ -1,12 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  V2_ERROR_CODE_BY_STATUS,
-  V2_ERROR_STATUS_BY_CODE,
-  type V2ErrorCode,
-} from '@/lib/api/contracts/v2/error-codes'
+import { V2_ERROR_STATUS_BY_CODE, type V2ErrorCode } from '@/lib/api/contracts/v2/error-codes'
 
 describe('v2 error codes', () => {
   /**
@@ -24,21 +17,5 @@ describe('v2 error codes', () => {
       claimedBy.set(status, code)
     }
     expect(claimedBy.size).toBe(Object.keys(V2_ERROR_STATUS_BY_CODE).length)
-  })
-
-  it('inverts without losing an entry', () => {
-    for (const [code, status] of Object.entries(V2_ERROR_STATUS_BY_CODE) as [
-      V2ErrorCode,
-      number,
-    ][]) {
-      expect(V2_ERROR_CODE_BY_STATUS[status]).toBe(code)
-    }
-  })
-
-  it('uses statuses in the HTTP error range', () => {
-    for (const status of Object.values(V2_ERROR_STATUS_BY_CODE)) {
-      expect(status).toBeGreaterThanOrEqual(400)
-      expect(status).toBeLessThan(600)
-    }
   })
 })

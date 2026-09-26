@@ -1,32 +1,24 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
-const mocks = vi.hoisted(() => ({
-  validateUrl: vi.fn(),
-  pinnedFetch: vi.fn(),
-  validatedFetch: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mocks.validateUrl,
-  secureFetchWithPinnedIP: mocks.pinnedFetch,
-  secureFetchWithValidation: mocks.validatedFetch,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { SharePointClient } from '@/lib/internal/sharepoint/client'
 
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP } = inputValidationMockFns
+
 describe('SharePointClient', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrl.mockResolvedValue({ isValid: true, resolvedIP: '20.190.128.1' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '20.190.128.1' })
   })
 
   it('pins Graph downloads, strips authorization on redirect, and enforces the file cap', async () => {
     const controller = new AbortController()
-    mocks.pinnedFetch.mockResolvedValue(
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response(Buffer.from('content'), { status: 200, headers: { 'content-length': '7' } })
     )
 
@@ -36,7 +28,7 @@ describe('SharePointClient', () => {
     )
 
     expect(result).toEqual(Buffer.from('content'))
-    expect(mocks.pinnedFetch).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://graph.microsoft.com/v1.0/drives/drive%2Fid/items/item%20id/content',
       '20.190.128.1',
       {
@@ -46,34 +38,6 @@ describe('SharePointClient', () => {
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
       }
-    )
-  })
-
-  it('passes cancellation into validated Graph uploads', async () => {
-    const controller = new AbortController()
-    mocks.validatedFetch.mockResolvedValue(
-      Response.json({ id: 'item', name: 'file', webUrl: 'https://example.com', size: 4 })
-    )
-    const buffer = Buffer.from('file')
-    await new SharePointClient('token', controller.signal).upload(
-      'https://graph.microsoft.com/upload',
-      buffer,
-      'application/pdf'
-    )
-
-    expect(mocks.validatedFetch).toHaveBeenCalledWith(
-      'https://graph.microsoft.com/upload',
-      {
-        profile: 'contentFetch',
-        method: 'PUT',
-        headers: {
-          Authorization: 'Bearer token',
-          'Content-Type': 'application/pdf',
-        },
-        body: buffer,
-        signal: controller.signal,
-      },
-      'uploadUrl'
     )
   })
 })

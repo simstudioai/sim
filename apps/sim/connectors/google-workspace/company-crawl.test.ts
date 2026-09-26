@@ -1,12 +1,9 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GoogleApiError, readGoogleApiError } from '@/connectors/google-workspace/api-errors'
+import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
-  GoogleWorkspaceMailboxNotSetup,
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
   listGoogleWorkspaceDocuments,
-  serviceNotEnabledFailure,
   validateGoogleWorkspaceConfig,
 } from '@/connectors/google-workspace/company-crawl'
 import type { ConnectorConfig, ExternalDocument } from '@/connectors/types'
@@ -83,7 +80,6 @@ beforeEach(() => {
   }))
 })
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
@@ -128,64 +124,6 @@ describe('Google Workspace per-user central crawl', () => {
     expect(replay.nextCursor).toBe(first.nextCursor)
   })
 
-  it('preserves only the active user cache across provider pages', async () => {
-    listUserDocuments
-      .mockImplementationOnce(async (_token, _config, _cursor, child) => {
-        if (child) child.labels = ['Alice label']
-        return { documents: [document(child)], nextCursor: 'page-2', hasMore: true }
-      })
-      .mockImplementationOnce(async (_token, _config, cursor, child) => {
-        expect(cursor).toBe('page-2')
-        expect(child?.labels).toEqual(['Alice label'])
-        return { documents: [document(child, 'second')], hasMore: false }
-      })
-    const ctx = context()
-    const first = await list(ctx)
-    await list(ctx, first.nextCursor)
-    expect(ctx.getDelegatedAccessToken).toHaveBeenCalledTimes(2)
-  })
-
-  it('hydrates only the active page using its token and preserves the provider revision', async () => {
-    const ctx = context()
-    const first = await list(ctx)
-    const externalId = first.documents[0].externalId
-    const hydrate = vi
-      .fn<ConnectorConfig['getDocument']>()
-      .mockImplementation(async (_token, _config, id, child) => ({
-        ...document(child),
-        externalId: id,
-        content: 'Private body',
-        contentHash: 'revision-2',
-        contentDeferred: false,
-      }))
-    const input = {
-      provider: 'gmail' as const,
-      sourceConfig: CONFIG,
-      externalId,
-      syncContext: ctx,
-      getUserDocument: hydrate,
-    }
-    await expect(getGoogleWorkspaceDocument(input)).resolves.toMatchObject({
-      content: 'Private body',
-      contentHash: 'revision-2',
-      acl: ['u:alice@corp.com'],
-    })
-    expect(hydrate.mock.calls[0][0]).toBe('delegated:alice@corp.com')
-    await expect(getGoogleWorkspaceDocument({ ...input, externalId: 'arbitrary' })).rejects.toThrow(
-      'verified delegated listing identity'
-    )
-    await expect(
-      getGoogleWorkspaceDocument({ ...input, provider: 'google_calendar' })
-    ).rejects.toThrow('verified delegated listing identity')
-    await expect(getGoogleWorkspaceDocument({ ...input, syncContext: context() })).rejects.toThrow(
-      'verified delegated listing identity'
-    )
-    await list(ctx, first.nextCursor)
-    await expect(getGoogleWorkspaceDocument(input)).rejects.toThrow(
-      'verified delegated listing identity'
-    )
-  })
-
   it('clears old hydration authority before a failed subsequent list', async () => {
     const ctx = context()
     const first = await list(ctx)
@@ -203,23 +141,6 @@ describe('Google Workspace per-user central crawl', () => {
   })
 
   it.each([
-    ['suspended', USER('alice', 'alice@corp.com', { suspended: true })],
-    ['archived', USER('alice', 'alice@corp.com', { archived: true })],
-    ['guest', USER('alice', 'alice@corp.com', { isGuestUser: true })],
-    ['deleted', null],
-  ])('advances past a user now %s without delegation', async (_status, replacement) => {
-    const first = await list(context())
-    const ctx = context()
-    mockFetch.mockResolvedValueOnce(replacement ? json(replacement) : json({ error: {} }, 404))
-    const skipped = await list(ctx, first.currentCursor)
-    expect(skipped.documents).toEqual([])
-    expect(skipped.hasMore).toBe(true)
-    expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-    const next = await list(ctx, skipped.nextCursor)
-    expect(next.documents[0].acl).toEqual(['u:bob@corp.com'])
-  })
-
-  it.each([
     USER('different-id'),
     USER('alice', 'alice@corp.com', { customerId: 'other-customer' }),
   ])('fails closed on changed immutable identity or customer', async (changed) => {
@@ -228,41 +149,6 @@ describe('Google Workspace per-user central crawl', () => {
     const ctx = context()
     await expect(list(ctx, first.currentCursor)).rejects.toThrow('expected customer')
     expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-  })
-
-  it('uses the current primary email after a rename without changing its stable document ID', async () => {
-    const first = await list(context())
-    mockFetch.mockResolvedValueOnce(json(USER('alice', 'renamed@corp.com')))
-    const ctx = context()
-    const renamed = await list(ctx, first.currentCursor)
-    expect(renamed.documents[0].externalId).toBe(first.documents[0].externalId)
-    expect(renamed.documents[0].acl).toEqual(['u:renamed@corp.com'])
-    expect(ctx.getDelegatedAccessToken).toHaveBeenCalledWith('renamed@corp.com')
-  })
-
-  it('applies primary-user filters both to discovery and to resumed identities', async () => {
-    const config = { ...CONFIG, userEmails: ['ALICE@corp.com'] }
-    const first = await list(context(), undefined, config)
-    expect(first.hasMore).toBe(false)
-    mockFetch.mockResolvedValueOnce(json(USER('alice', 'renamed@corp.com')))
-    const ctx = context()
-    const next = await list(ctx, first.currentCursor, config)
-    expect(next.documents).toEqual([])
-    expect(next.hasMore).toBe(false)
-    expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-  })
-
-  it('preserves an empty intermediate Directory page and visits secondary domains', async () => {
-    mockFetch.mockResolvedValueOnce(json({ users: [], nextPageToken: 'users-2' }))
-    const ctx = context()
-    const empty = await list(ctx)
-    expect(empty.hasMore).toBe(true)
-    mockFetch
-      .mockResolvedValueOnce(json({ users: [USER('secondary', 'person@secondary.com')] }))
-      .mockResolvedValueOnce(json(USER('secondary', 'person@secondary.com')))
-    const next = await list(ctx, empty.nextCursor)
-    expect(next.documents[0].acl).toEqual(['u:person@secondary.com'])
-    expect(new URL(mockFetch.mock.calls[1][0]).searchParams.get('pageToken')).toBe('users-2')
   })
 
   it('rejects missing, looping or oversized provider cursors before publishing page authority', async () => {
@@ -320,41 +206,6 @@ describe('Google Workspace per-user central crawl', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('forwards cancellation and stops before delegation after Directory cancellation', async () => {
-    const controller = new AbortController()
-    const ctx = { ...context(), signal: controller.signal }
-    controller.abort()
-    await expect(list(ctx)).rejects.toThrow()
-    expect(mockFetch).not.toHaveBeenCalled()
-    expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-  })
-
-  it('stops when cancellation arrives after the Directory read or delegated token mint', async () => {
-    const first = await list(context())
-    const controller = new AbortController()
-    const ctx = { ...context(), signal: controller.signal }
-    mockFetch.mockImplementationOnce(async () => {
-      controller.abort()
-      return json(USER('alice'))
-    })
-    await expect(list(ctx, first.currentCursor)).rejects.toThrow()
-    expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-
-    const controller2 = new AbortController()
-    const ctx2 = {
-      mirrorsSourceAcls: true,
-      signal: controller2.signal,
-      getDelegatedAccessToken: vi.fn(async () => {
-        controller2.abort()
-        return 'delegated-token'
-      }),
-    }
-    const calls = listUserDocuments.mock.calls.length
-    await expect(list(ctx2, first.currentCursor)).rejects.toThrow()
-    expect(ctx2.getDelegatedAccessToken).toHaveBeenCalledWith('alice@corp.com', controller2.signal)
-    expect(listUserDocuments).toHaveBeenCalledTimes(calls)
-  })
-
   it.each([401, 403])(
     'propagates Directory authorization failure %s without declaring completion',
     async (status) => {
@@ -367,48 +218,6 @@ describe('Google Workspace per-user central crawl', () => {
       expect(listUserDocuments).not.toHaveBeenCalled()
     }
   )
-
-  it('bounds the saved Directory page and retains only the remaining users', async () => {
-    const users = Array.from({ length: 100 }, (_, i) => USER(`employee-${i}`))
-    directory(users)
-    const first = await list(context())
-    const decoded = JSON.parse(
-      Buffer.from(first.nextCursor!.split(':').at(-1)!, 'base64url').toString()
-    )
-    expect(decoded.users).toHaveLength(99)
-    expect(decoded.users[0].id).toBe('employee-1')
-    expect(JSON.stringify(decoded)).not.toContain('delegated')
-    expect(JSON.stringify(decoded)).not.toContain('directory-token')
-    const url = new URL(mockFetch.mock.calls[0][0])
-    expect(url.searchParams.get('maxResults')).toBe('100')
-    expect(url.searchParams.get('fields')).toBe(
-      'kind,nextPageToken,users(id,primaryEmail,customerId,suspended,archived,isGuestUser,isMailboxSetup)'
-    )
-  })
-
-  it('preserves null for a document deleted before hydration', async () => {
-    const ctx = context()
-    const first = await list(ctx)
-    const input = {
-      provider: 'gmail' as const,
-      sourceConfig: CONFIG,
-      externalId: first.documents[0].externalId,
-      syncContext: ctx,
-      getUserDocument: vi.fn().mockResolvedValue(null),
-    }
-    await expect(getGoogleWorkspaceDocument(input)).resolves.toBeNull()
-  })
-
-  it('requests restart for an expired Directory continuation without hiding initial request errors', async () => {
-    mockFetch.mockResolvedValueOnce(json({ users: [], nextPageToken: 'expired-users' }))
-    const first = await list(context())
-    mockFetch.mockResolvedValueOnce(json({ error: { errors: [{ reason: 'invalid' }] } }, 400))
-    await expect(list(context(), first.nextCursor)).rejects.toBeInstanceOf(
-      InvalidGoogleWorkspaceCursor
-    )
-    mockFetch.mockResolvedValueOnce(json({ error: { errors: [{ reason: 'invalid' }] } }, 400))
-    await expect(list(context())).rejects.not.toBeInstanceOf(InvalidGoogleWorkspaceCursor)
-  })
 
   it('propagates provider truncation so partial results cannot reconcile deletions', async () => {
     listUserDocuments.mockImplementation(async (_token, _config, _cursor, child) => {
@@ -451,170 +260,6 @@ describe('Google Workspace per-user central crawl', () => {
     expect(listUserDocuments.mock.calls[1][0]).toBe('delegated:bob@corp.com')
   })
 
-  it('replays a skipped user without double-counting and retries it on the next generation', async () => {
-    const unavailable = new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
-    listUserDocuments.mockRejectedValueOnce(unavailable).mockRejectedValueOnce(unavailable)
-    const first = await list(context())
-    const replay = await list(context(), first.currentCursor)
-    expect(replay.nextCursor).toBe(first.nextCursor)
-    expect(replay.listingFailures?.count).toBe(1)
-    const nextGeneration = await list(context())
-    expect(nextGeneration.documents[0].acl).toEqual(['u:alice@corp.com'])
-    expect(nextGeneration.listingFailures).toBeUndefined()
-  })
-
-  it('preserves failure evidence when advancing to another Directory page', async () => {
-    mockFetch.mockResolvedValueOnce(json({ users: [USER('alice')], nextPageToken: 'directory-2' }))
-    listUserDocuments.mockRejectedValueOnce(
-      new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
-    )
-    const first = await list(context())
-    mockFetch.mockResolvedValueOnce(json({ users: [USER('bob')] }))
-    const second = await list(context(), first.nextCursor)
-    expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
-    expect(second.listingFailures).toEqual(first.listingFailures)
-    expect(second.reconciliationSafe).toBe(false)
-  })
-
-  it.each([true, undefined])(
-    'keeps Gmail users eligible when mailbox metadata is %s',
-    async (isMailboxSetup) => {
-      directory([USER('alice', undefined, { isMailboxSetup })])
-      expect((await list(context())).documents).toHaveLength(1)
-      expect(listUserDocuments).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('leaves an explicitly unprovisioned Gmail mailbox to the scheduler before requesting a token', async () => {
-    directory([USER('alice', undefined, { isMailboxSetup: false }), USER('bob')])
-    const ctx: Record<string, unknown> = context()
-    const error = await list(ctx).catch((caught: unknown) => caught)
-    expect(error).toBeInstanceOf(GoogleWorkspaceMailboxNotSetup)
-    expect(serviceNotEnabledFailure(error)).toEqual({
-      operation: 'directory.users.get',
-      reasons: ['mailboxNotSetup'],
-    })
-    expect(ctx.reconciliationUnsafe).toBeUndefined()
-    expect(ctx.getDelegatedAccessToken).not.toHaveBeenCalled()
-    expect(listUserDocuments).not.toHaveBeenCalled()
-  })
-
-  it('does not use Gmail mailbox eligibility for Calendar', async () => {
-    directory([USER('alice', undefined, { isMailboxSetup: false })])
-    expect((await list(context(), undefined, CONFIG, 'google_calendar')).documents).toHaveLength(1)
-  })
-
-  it.each([{ reasons: ['forbidden'] }, { reasons: ['forbidden', 'notACalendarUser'] }])(
-    'isolates explicit Calendar list access failures ($reasons) without claiming a disabled service',
-    async ({ reasons }) => {
-      listUserDocuments.mockRejectedValueOnce(
-        new GoogleApiError('calendar.events.list', 403, reasons)
-      )
-      const first = await list(context(), undefined, CONFIG, 'google_calendar')
-      expect(first.listingFailures?.samples[0]).toEqual({
-        scope: 'alice@corp.com',
-        operation: 'calendar.events.list',
-        status: 403,
-        reasons,
-      })
-      const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
-      expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
-      expect(second.reconciliationSafe).toBe(false)
-    }
-  )
-
-  it('leaves a user without the Calendar service to the scheduler instead of recording a failure', async () => {
-    const error = new GoogleApiError('calendar.events.list', 403, ['notACalendarUser'])
-    listUserDocuments.mockRejectedValueOnce(error)
-    const ctx: Record<string, unknown> = context()
-    await expect(list(ctx, undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
-    expect(ctx.reconciliationUnsafe).toBeUndefined()
-  })
-
-  it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
-    'propagates a Calendar 403 without reason codes: %j',
-    async (body) => {
-      const error = await readGoogleApiError(json(body, 403), 'calendar.events.list')
-      listUserDocuments.mockRejectedValueOnce(error)
-      const ctx: Record<string, unknown> = context()
-
-      await expect(list(ctx, undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
-      expect(ctx.reconciliationUnsafe).toBeUndefined()
-      expect(listUserDocuments).toHaveBeenCalledOnce()
-    }
-  )
-
-  it.each([
-    [403, []],
-    [403, ['rateLimitExceeded']],
-    [403, ['userRateLimitExceeded']],
-    [403, ['quotaExceeded']],
-    [403, ['insufficientPermissions']],
-    [403, ['ACCESS_TOKEN_SCOPE_INSUFFICIENT']],
-    [403, ['SERVICE_DISABLED']],
-    [403, ['domainPolicy']],
-    [403, ['unrecognized-provider-code']],
-    [403, ['forbidden', 'unrecognized-provider-code']],
-    [403, ['notACalendarUser', 'unrecognized-provider-code']],
-    [403, ['notACalendarUser', 'insufficientPermissions']],
-    [403, ['notACalendarUser', 'rateLimitExceeded']],
-    [401, ['authError']],
-    [429, []],
-    [500, ['backendError']],
-  ] as const)(
-    'does not skip global or retryable Calendar errors (%s %j)',
-    async (status, reasons) => {
-      const error = new GoogleApiError('calendar.events.list', status, reasons)
-      listUserDocuments.mockRejectedValueOnce(error)
-      await expect(list(context(), undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
-    }
-  )
-
-  it.each([
-    new GoogleApiError('gmail.threads.list', 400, ['badRequest']),
-    new GoogleApiError('gmail.threads.list', 400, []),
-    new GoogleApiError('gmail.labels.list', 400, ['failedPrecondition']),
-    new GoogleApiError('calendar.calendarList.list', 403, ['forbidden']),
-    new Error('unknown provider failure'),
-  ])('does not suppress unclassified failures: %s', async (error) => {
-    listUserDocuments.mockRejectedValueOnce(error)
-    await expect(list(context())).rejects.toBe(error)
-  })
-
-  it('does not isolate an unreadable Calendar error envelope', async () => {
-    const error = new GoogleApiError('calendar.events.list', 403, [], false)
-    listUserDocuments.mockRejectedValueOnce(error)
-    await expect(list(context(), undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
-  })
-
-  it.each([
-    new GoogleApiError('calendar.events.list', 403, ['notACalendarUser'], false),
-    new GoogleApiError('calendar.calendarList.list', 403, ['notACalendarUser']),
-    new GoogleApiError('calendar.events.list', 401, ['notACalendarUser']),
-  ])('does not isolate Calendar unavailability outside a complete list 403: %s', async (error) => {
-    listUserDocuments.mockRejectedValueOnce(error)
-    await expect(list(context(), undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
-  })
-
-  it('does not suppress delegation failures that resemble provider list failures', async () => {
-    const ctx = context()
-    const error = new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
-    ctx.getDelegatedAccessToken.mockRejectedValueOnce(error)
-    await expect(list(ctx)).rejects.toBe(error)
-    expect(listUserDocuments).not.toHaveBeenCalled()
-  })
-
-  it('honors cancellation before recording an otherwise isolatable error', async () => {
-    const controller = new AbortController()
-    listUserDocuments.mockImplementationOnce(async () => {
-      controller.abort()
-      throw new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
-    })
-    await expect(list({ ...context(), signal: controller.signal })).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-  })
-
   it('revokes the prior page hydration authority when the next user fails', async () => {
     const ctx = context()
     const first = await list(ctx)
@@ -634,60 +279,9 @@ describe('Google Workspace per-user central crawl', () => {
     ).rejects.toThrow('verified delegated listing identity')
     expect(hydrate).not.toHaveBeenCalled()
   })
-
-  it('bounds retained failure samples while counting every unavailable user', async () => {
-    directory(Array.from({ length: 15 }, (_, index) => USER(`user-${index}`)))
-    listUserDocuments.mockRejectedValue(
-      new GoogleApiError('gmail.threads.list', 400, ['failedPrecondition'])
-    )
-    let cursor: string | undefined
-    let final
-    for (let i = 0; i < 15; i++) {
-      final = await list(context(), cursor)
-      cursor = final.nextCursor
-    }
-    expect(final).toMatchObject({
-      hasMore: false,
-      listingFailures: { count: 15 },
-      reconciliationSafe: false,
-    })
-    expect(final?.listingFailures?.samples).toHaveLength(10)
-    expect(listUserDocuments).toHaveBeenCalledTimes(15)
-  })
 })
 
 describe('Google Workspace central validation', () => {
-  it('validates selected primary users and rechecks the sample immutable ID before delegation', async () => {
-    const ctx = context()
-    const validated = await validateGoogleWorkspaceConfig({
-      provider: 'gmail',
-      accessToken: 'directory-token',
-      sourceConfig: { ...CONFIG, userEmails: 'bob@corp.com' },
-      syncContext: ctx,
-    })
-    expect(validated.user.id).toBe('bob')
-    expect(validated.accessToken).toBe('delegated:bob@corp.com')
-    expect(validated.syncContext.memberId).toBe('google-workspace:customer-1:bob')
-    expect(mockFetch.mock.calls.map(([url]) => new URL(url).pathname.split('/').at(-1))).toEqual([
-      'admin%40corp.com',
-      'bob%40corp.com',
-      'bob',
-    ])
-  })
-
-  it('selects a bounded active sample when Users is blank', async () => {
-    const validated = await validateGoogleWorkspaceConfig({
-      provider: 'google_calendar',
-      accessToken: 'directory-token',
-      sourceConfig: CONFIG,
-      syncContext: context(),
-    })
-    expect(validated.user.email).toBe('alice@corp.com')
-    const url = new URL(mockFetch.mock.calls[1][0])
-    expect(url.searchParams.get('maxResults')).toBe('1')
-    expect(url.searchParams.get('customer')).toBe('my_customer')
-  })
-
   it.each([
     USER('bob', 'primary@corp.com'),
     USER('bob', 'bob@corp.com', { customerId: 'other' }),

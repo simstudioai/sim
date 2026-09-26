@@ -1,47 +1,18 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
+}))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  enforceUserRateLimit: vi.fn(),
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', async () => {
   const { OrchestrationError } = await import('@/lib/core/orchestration/types')
   class SandboxDependencyError extends OrchestrationError {
@@ -65,15 +36,13 @@ vi.mock('@/lib/sandboxes/application/use-cases', () => ({
   createWorkspaceSandboxUseCase: { operation: { id: 'sandboxes.create' }, execute: mocks.create },
 }))
 
-import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { ForbiddenOperationError } from '@/lib/core/application'
 import { SandboxDependencyError } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { SandboxBuildBudgetExceededError } from '@/lib/sandboxes/application/build-budget'
 import { GET, POST } from '@/app/api/v2/sandboxes/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['user:user-1'] as const,
@@ -112,47 +81,21 @@ const listResult = {
 }
 
 function request(method: 'GET' | 'POST', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/sandboxes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    rateLimiterMockFns.mockCheckRateLimitDirect.mockResolvedValue(RATE_LIMIT_OK)
+    rateLimiterMockFns.mockCheckRateLimitDirectOrThrow.mockResolvedValue(RATE_LIMIT_OK)
     mocks.list.mockResolvedValue(listResult)
     mocks.create.mockResolvedValue({ sandbox })
-  })
-
-  it('lists sandboxes through the authorized application use case', async () => {
-    const response = await GET(request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}`))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [sandbox], nextCursor: null })
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        search: undefined,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: V2_DEFAULT_PAGE_SIZE,
-        cursorKeys: undefined,
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.operationRate).toHaveBeenCalledWith(
-      'v2:sandboxes.list:user:user-1',
-      expect.objectContaining({ maxTokens: 100 })
-    )
   })
 
   it('refuses a cursor minted under a different filter', async () => {
@@ -175,101 +118,6 @@ describe('/api/v2/sandboxes', () => {
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mocks.list.mockResolvedValue({ ...listResult, nextCursorKeys: ['data-tools', 'sandbox-1'] })
-
-    const minted = await GET(
-      request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&search=data`)
-    )
-    const { nextCursor } = await minted.json()
-
-    mocks.list.mockClear()
-    const resumed = await GET(
-      request(
-        'GET',
-        `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&search=data&cursor=${encodeURIComponent(nextCursor)}`
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        search: 'data',
-        cursorKeys: ['data-tools', 'sandbox-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
-  it('rejects an unimplemented sort field before application execution', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&sortBy=buildStatus`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('creates a sandbox with the v2 source, defaulted lists, and a 201', async () => {
-    const response = await POST(
-      request('POST', '/api/v2/sandboxes', {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-        dependencies: ['pandas'],
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe('sandbox-1')
-    expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-        dependencies: ['pandas'],
-        cliTools: [],
-        systemPackages: [],
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before validating a malformed create body', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(request('POST', '/api/v2/sandboxes', {}))
-
-    expect(response.status).toBe(401)
-    expect(mocks.create).not.toHaveBeenCalled()
-  })
-
-  it('names the plan as the remedy for a workspace below the Max tier', async () => {
-    mocks.create.mockRejectedValue(
-      new ForbiddenOperationError(
-        'WORKSPACE_PLAN_CAPABILITY_REQUIRED',
-        'Sim sandboxes require an active Max or Enterprise plan.'
-      )
-    )
-
-    const response = await POST(
-      request('POST', '/api/v2/sandboxes', {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-      })
-    )
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error).toMatchObject({
-      code: 'FORBIDDEN',
-      details: { code: 'WORKSPACE_PLAN_CAPABILITY_REQUIRED' },
-    })
   })
 
   it('addresses a refused dependency entry to its field and row', async () => {

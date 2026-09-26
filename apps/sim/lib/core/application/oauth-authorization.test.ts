@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { describe, expect, it, vi } from 'vitest'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'

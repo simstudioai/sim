@@ -1,8 +1,12 @@
-/** @vitest-environment node */
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 
-const { values, lists, seen, activeOwner, persist, redis } = vi.hoisted(() => {
+const { values, lists, seen, persist, redis } = vi.hoisted(() => {
   const values = new Map<string, string>()
   const lists = new Map<string, string[]>()
   const seen = new Map<string, Set<string>>()
@@ -10,7 +14,6 @@ const { values, lists, seen, activeOwner, persist, redis } = vi.hoisted(() => {
     values,
     lists,
     seen,
-    activeOwner: vi.fn(async () => true),
     persist: vi.fn(async () => {}),
     redis: {
       set: vi.fn(async (key: string, value: string) => {
@@ -51,10 +54,7 @@ const { values, lists, seen, activeOwner, persist, redis } = vi.hoisted(() => {
     },
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  isActiveSandboxResourceOwner: activeOwner,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/resources/persist-effect', () => ({ persistResourceEffect: persist }))
 
 import {
@@ -64,6 +64,10 @@ import {
   withSandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+
+const activeOwner = mothershipAsyncRunsMockFns.mockIsActiveSandboxResourceOwner
+
+redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
 
 const identity = {
   runId: 'run',
@@ -81,7 +85,6 @@ const effect = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   values.clear()
   lists.clear()
   seen.clear()

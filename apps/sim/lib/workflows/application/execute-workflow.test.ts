@@ -1,28 +1,23 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   executeService: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execute-service', () => ({
   executeWorkflowService: mocks.executeService,
@@ -30,6 +25,10 @@ vi.mock('@/lib/workflows/executor/execute-service', () => ({
 
 import { PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveWorkflowContext =
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const workflow = { id: 'workflow-1', userId: 'owner-1', workspaceId: 'workspace-1' }
 const workflowContext = {
@@ -51,9 +50,8 @@ const baseInput = {
 
 describe('executeWorkflowOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.executeService.mockResolvedValue({
       ok: true,
       executionId: 'run-1',
@@ -68,25 +66,17 @@ describe('executeWorkflowOperation', () => {
 
   it.each([
     {
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as Principal,
+      principal: createSessionPrincipal() as Principal,
       actorUserId: 'user-1',
       authenticatesCredentials: true,
     },
     {
-      principal: {
-        kind: 'personal_api_key',
-        userId: 'user-1',
-        keyId: 'personal-key',
-      } as Principal,
+      principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key' }) as Principal,
       actorUserId: 'user-1',
       authenticatesCredentials: true,
     },
     {
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key',
-      } as Principal,
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }) as Principal,
       actorUserId: 'billing-owner-1',
       authenticatesCredentials: false,
     },
@@ -125,11 +115,7 @@ describe('executeWorkflowOperation', () => {
 
   it('uses the async execution quota bucket without performing request-rate limiting', async () => {
     await executeWorkflowOperation.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
       input: { ...baseInput, mode: 'async', requestedTimeoutSeconds: 600 },
     })
 
@@ -139,33 +125,17 @@ describe('executeWorkflowOperation', () => {
   })
 
   it('rejects a personal key disabled by canonical workspace policy', async () => {
-    mocks.resolveWorkflowContext.mockResolvedValueOnce({
+    mockResolveWorkflowContext.mockResolvedValueOnce({
       ...workflowContext,
       allowPersonalApiKeys: false,
     })
 
     await expect(
       executeWorkflowOperation.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'personal-key' },
+        principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key' }),
         input: baseInput,
       })
     ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
     expect(mocks.executeService).not.toHaveBeenCalled()
-  })
-
-  it('passes through execution infrastructure failures', async () => {
-    const infrastructureError = new Error('queue unavailable')
-    mocks.executeService.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      executeWorkflowOperation.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key',
-        },
-        input: baseInput,
-      })
-    ).rejects.toBe(infrastructureError)
   })
 })

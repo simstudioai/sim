@@ -1,27 +1,18 @@
-/** @vitest-environment node */
 import { copilotChats } from '@sim/db/schema'
-import { databaseMock, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import { remoteSandboxMock } from '@sim/testing/mocks/remote-sandbox.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import sharp from 'sharp'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ upload: vi.fn(), snapshot: vi.fn(), dispose: vi.fn() }))
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('read'),
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: vi.fn().mockResolvedValue([]) }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: vi.fn(async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mocks.upload,
-  downloadFile: vi.fn().mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' })),
-}))
+const hoisted = vi.hoisted(() => ({ snapshot: vi.fn(), dispose: vi.fn() }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: vi.fn() },
 }))
@@ -29,7 +20,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   isSessionFileProvenanceClean: vi.fn().mockResolvedValue(true),
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
-  openSessionFileSnapshot: mocks.snapshot,
+  openSessionFileSnapshot: hoisted.snapshot,
 }))
 vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
   createWorkbenchFileProvenance: () => ({
@@ -37,13 +28,18 @@ vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
     uploadProvenance: () => ({ status: 'exact', entries: [] }),
   }),
 }))
-vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: vi.fn() }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 import { materializeStreamImage } from '@/lib/mothership/chat/application/inline-images'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 
+const mocks = { ...hoisted, upload: storageServiceMockFns.mockUploadFile }
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+storageServiceMockFns.mockDownloadFile.mockRejectedValue(
+  Object.assign(new Error('missing'), { code: 'ENOENT' })
+)
+
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 it('runs the real nested scratch authorization, limit validation, snapshot read and image publication', async () => {

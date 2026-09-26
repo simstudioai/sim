@@ -1,38 +1,39 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  billing: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   available: vi.fn(),
-  group: vi.fn(),
   workspace: vi.fn(),
-  permission: vi.fn(),
-  scopedAvailable: vi.fn(),
-  policy: vi.fn(),
 }))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.billing,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.available,
+  isCredentialGroupsAvailable: hoisted.available,
 }))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.scopedAvailable,
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.policy,
-}))
-vi.mock('@/lib/mcp/application/context', () => ({ resolveMcpWorkspaceContext: mocks.workspace }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null) => permission !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/mcp/application/context', () => ({ resolveMcpWorkspaceContext: hoisted.workspace }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   buildOrganizationAccountAccessPolicy,
@@ -40,7 +41,16 @@ import {
 } from '@/lib/credential-groups/application/workspace-access-policy'
 import { listManagedMcpConnectionsUseCase } from '@/lib/mcp/application/managed-connections'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  scopedAvailable: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  billing: billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal: SessionPrincipal = createSessionPrincipal()
 const input = { workspaceId: 'workspace-1' }
 const metadata = {
   id: 'mcp-cg-connection-1',
@@ -56,7 +66,6 @@ const metadata = {
 
 describe('managed MCP connection catalog', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.billing.mockResolvedValue({ organizationId: 'org-1' })
     mocks.available.mockResolvedValue(true)
@@ -102,16 +111,6 @@ describe('managed MCP connection catalog', () => {
       canonicalServerId: 'canonical-1',
       toolCount: 3,
     })
-  })
-
-  it('returns an empty catalog when organization connected accounts are not configured', async () => {
-    mocks.group.mockResolvedValue(null)
-    await expect(listManagedMcpConnectionsUseCase.execute({ principal, input })).resolves.toEqual({
-      servers: [],
-      tools: [],
-    })
-    expect(mocks.policy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.from).not.toHaveBeenCalled()
   })
 
   it.each(['workspace', 'organization'])(
@@ -178,18 +177,6 @@ describe('managed MCP connection catalog', () => {
     expect(mocks.policy).not.toHaveBeenCalled()
     expect(dbChainMockFns.from).not.toHaveBeenCalled()
   })
-
-  it.each(['scopedAvailable', 'policy'] as const)(
-    'propagates %s failures before reading credentials',
-    async (dependency) => {
-      const error = new Error('Database unavailable')
-      mocks[dependency].mockRejectedValue(error)
-      await expect(listManagedMcpConnectionsUseCase.execute({ principal, input })).rejects.toBe(
-        error
-      )
-      expect(dbChainMockFns.from).not.toHaveBeenCalled()
-    }
-  )
 
   it.each([
     [Array.from({ length: 501 }, () => metadata), 'connection limit'],

@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
@@ -98,11 +96,6 @@ function makeIntent(overrides: {
   }
 }
 
-const flushMicrotasks = async () => {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-
 /**
  * The copilot preview adapter no longer merges the growing content into the file's live collaborative
  * Y.Doc server-side — that is done client-side by the open editor as minimal CRDT diffs (see
@@ -121,7 +114,6 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
   const events: Array<{ payload: Record<string, unknown> }> = []
 
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     // An append base is available (a non-empty file) at durable version BASE_VERSION_MS, so the preview
     // text is composed as base + streamed content.
@@ -160,9 +152,9 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
     const intent = makeIntent({ operation: 'append', fileId: 'file-grow', fileName: 'notes.md' })
 
     await drive(editContentDelta('{"content":"Hello'), intent)
-    await flushMicrotasks()
+    await flushMicrotasks(2)
     await drive(editContentDelta(' world'), intent)
-    await flushMicrotasks()
+    await flushMicrotasks(2)
 
     const combined = previewContent()
     expect(combined).toContain('Base.')
@@ -190,7 +182,6 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     executeCopilotFileUseCaseMock.mockResolvedValue({
       files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
     })

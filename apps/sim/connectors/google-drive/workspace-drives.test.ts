@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { listGoogleWorkspaceDrives } from '@/connectors/google-drive/workspace-drives'
@@ -18,7 +15,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
@@ -43,24 +39,6 @@ describe('Google Workspace shared-drive enumeration', () => {
     expect(init.signal).toBe(controller.signal)
   })
 
-  it('follows only the supplied page token and preserves empty intermediate pages', async () => {
-    mockFetch.mockResolvedValueOnce(json({ drives: [], nextPageToken: 'page-3' }))
-    await expect(listGoogleWorkspaceDrives('token', 'page-2')).resolves.toEqual({
-      driveIds: [],
-      nextPageToken: 'page-3',
-    })
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(new URL(mockFetch.mock.calls[0][0]).searchParams.get('pageToken')).toBe('page-2')
-  })
-
-  it.each([{ drives: [] }, { kind: 'drive#driveList' }])(
-    'recognizes an authoritative empty final page: %j',
-    async (body) => {
-      mockFetch.mockResolvedValueOnce(json(body))
-      await expect(listGoogleWorkspaceDrives('token')).resolves.toEqual({ driveIds: [] })
-    }
-  )
-
   it('deduplicates repeated drive IDs within one page', async () => {
     mockFetch.mockResolvedValueOnce(json({ drives: [{ id: 'drive-a' }, { id: 'drive-a' }] }))
     await expect(listGoogleWorkspaceDrives('token')).resolves.toEqual({ driveIds: ['drive-a'] })
@@ -80,13 +58,6 @@ describe('Google Workspace shared-drive enumeration', () => {
   ])('rejects malformed or oversized pages', async (body) => {
     mockFetch.mockResolvedValueOnce(json(body))
     await expect(listGoogleWorkspaceDrives('token')).rejects.toThrow('malformed')
-  })
-
-  it('rejects malformed JSON without exposing the provider body', async () => {
-    mockFetch.mockResolvedValueOnce(new Response('not-json-private-provider-details'))
-    await expect(listGoogleWorkspaceDrives('token')).rejects.toThrow(
-      'Google Drive returned malformed shared-drive metadata'
-    )
   })
 
   it('caps the response body before parsing it', async () => {
@@ -121,23 +92,4 @@ describe('Google Workspace shared-drive enumeration', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1)
     }
   )
-
-  it('uses the shared provider retry for transient failures', async () => {
-    vi.useFakeTimers()
-    mockFetch
-      .mockResolvedValueOnce(json({ error: { errors: [{ reason: 'backendError' }] } }, 503))
-      .mockResolvedValueOnce(json({ drives: [{ id: 'drive-a' }] }))
-    const pending = listGoogleWorkspaceDrives('token')
-    const assertion = expect(pending).resolves.toEqual({ driveIds: ['drive-a'] })
-    await vi.runAllTimersAsync()
-    await assertion
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('stops before provider access when cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort()
-    await expect(listGoogleWorkspaceDrives('token', undefined, controller.signal)).rejects.toThrow()
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
 })

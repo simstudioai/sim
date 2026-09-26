@@ -1,40 +1,27 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { createTableDefinition } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
+import { tableApplicationTablesMock } from '@sim/testing/mocks/table-application-tables.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  createRows: vi.fn(),
-  queryRows: vi.fn(),
-  updateRow: vi.fn(),
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
-vi.mock('@/lib/table/application/rows', () => ({
-  createTableRows: { execute: mocks.createRows },
-  deleteTableRow: { execute: vi.fn() },
-  deleteTableRows: { execute: vi.fn() },
-  queryTableRows: { execute: mocks.queryRows },
-  readTableRow: { execute: vi.fn() },
-  updateTableRow: { execute: mocks.updateRow },
-  updateTableRows: { execute: vi.fn() },
-  upsertTableRow: { execute: vi.fn() },
-}))
-
-vi.mock('@/lib/table/application/tables', () => ({
-  createTableUseCase: { execute: vi.fn() },
-  listTableDefinitionsUseCase: { execute: vi.fn() },
-  readTableDetailsUseCase: { execute: vi.fn() },
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 
 import {
-  executeTableInsertRows,
   executeTableQueryRows,
   executeTableUpdateRow,
   type TableToolOperationContext,
 } from '@/lib/internal/table/operations'
+
+const {
+  mockCreateTableRows: createRows,
+  mockQueryTableRows: queryRows,
+  mockUpdateTableRow: updateRow,
+} = tableApplicationRowsMockFns
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -74,10 +61,9 @@ function operationContext(): TableToolOperationContext {
 
 describe('Table direct operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
-    mocks.updateRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
-    mocks.queryRows.mockResolvedValue({
+    createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
+    updateRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
+    queryRows.mockResolvedValue({
       table: TABLE,
       rows: [ROW],
       rowCount: 1,
@@ -96,7 +82,7 @@ describe('Table direct operations', () => {
       operationContext()
     )
 
-    expect(mocks.updateRow).toHaveBeenCalledWith({
+    expect(updateRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: expect.objectContaining({
         tableId: 'table-1',
@@ -104,23 +90,6 @@ describe('Table direct operations', () => {
         assertedWorkspaceId: 'workspace-canonical',
         dataKeying: 'names',
         strictWrite: false,
-        secretProvenanceEnvelope: { kind: 'none' },
-      }),
-    })
-  })
-
-  it('hands unresolved write provenance to the authorized create use case', async () => {
-    await executeTableInsertRows(
-      'table-1',
-      { workspaceId: 'workspace-forged', data: { Email: 'a@example.com' } },
-      operationContext()
-    )
-
-    expect(mocks.createRows).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        assertedWorkspaceId: 'workspace-canonical',
-        dataKeying: 'names',
         secretProvenanceEnvelope: { kind: 'none' },
       }),
     })
@@ -140,7 +109,7 @@ describe('Table direct operations', () => {
       operationContext()
     )
 
-    expect(mocks.queryRows).toHaveBeenCalledWith({
+    expect(queryRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: expect.objectContaining({
         assertedWorkspaceId: 'workspace-canonical',

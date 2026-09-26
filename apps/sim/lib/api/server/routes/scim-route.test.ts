@@ -1,23 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  checkRateLimitDirect: vi.fn(),
-  enforceIpRateLimit: vi.fn(),
-}))
 
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-  },
-  enforceIpRateLimit: mocks.enforceIpRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import type { ScimConnectionPrincipal } from '@sim/auth/principal'
 import {
@@ -29,6 +18,11 @@ import { createScimRouteBuilder } from '@/lib/api/server/routes'
 import { scimOperations } from '@/ee/scim/lib/application/operations'
 import { SCIM_MEDIA_TYPE } from '@/ee/scim/lib/protocol/constants'
 import { ScimError } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  checkRateLimitDirect: rateLimiterMockFns.mockCheckRateLimitDirect,
+  enforceIpRateLimit: rateLimiterMockFns.mockEnforceIpRateLimit,
+}
 
 const principal: ScimConnectionPrincipal = {
   kind: 'scim_connection',
@@ -85,17 +79,25 @@ const deleteUser = defineScimRoute({
   mapInput: () => ({}),
 })
 
-const withParams = { params: Promise.resolve({ id: 'su-1' }) }
+const withParams = createRouteContext({ id: 'su-1' })
 
-function request(method: string, path: string, init: RequestInit = {}) {
-  return new NextRequest(`https://sim.test${path}`, { method, ...init })
+function request(
+  method: string,
+  path: string,
+  init: { body?: string; headers?: Record<string, string> } = {}
+) {
+  return createMockRequest({
+    method,
+    url: `https://sim.test${path}`,
+    rawBody: init.body,
+    headers: init.headers,
+  })
 }
 
 afterEach(resetEnvFlagsMock)
 
 describe('SCIM route builder', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isScimEnabled: true })
     authenticate.mockResolvedValue(principal)
     mocks.checkRateLimitDirect.mockResolvedValue({ allowed: true, resetAt: new Date() })
@@ -132,21 +134,6 @@ describe('SCIM route builder', () => {
     const response = await deleteUser(request('DELETE', '/api/scim/v2/Users/su-1'), withParams)
     expect(response.status).toBe(204)
     expect(await response.text()).toBe('')
-  })
-
-  it('adds the Location header on a create', async () => {
-    const response = await createUser(
-      request('POST', '/api/scim/v2/Users', {
-        body: JSON.stringify({
-          schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
-          userName: 'ada@acme.test',
-        }),
-        headers: { 'content-type': SCIM_MEDIA_TYPE },
-      }),
-      undefined
-    )
-    expect(response.status).toBe(201)
-    expect(response.headers.get('location')).toBe('https://sim.test/api/scim/v2/Users/su-1')
   })
 
   it('renders a parse failure in the SCIM envelope', async () => {

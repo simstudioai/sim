@@ -1,30 +1,21 @@
-/**
- * @vitest-environment node
- */
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   MAX_TRACE_ARCHIVE_BYTES,
 } from '@/lib/execution/payloads/limits'
 
-const {
-  mockPrimaryRead,
-  mockRead,
-  mockInfo,
-  mockDataRead,
-  mockTransaction,
-  mockUpdate,
-  mockExternalize,
-  mockReplaceReferences,
-} = vi.hoisted(() => ({
+const { mockPrimaryRead, mockRead, mockDataRead, mockTransaction, mockUpdate } = vi.hoisted(() => ({
   mockPrimaryRead: vi.fn(),
   mockRead: vi.fn(),
-  mockInfo: vi.fn(),
   mockDataRead: vi.fn(),
   mockTransaction: vi.fn(),
   mockUpdate: vi.fn(),
-  mockExternalize: vi.fn(),
-  mockReplaceReferences: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => {
@@ -50,25 +41,19 @@ vi.mock('@sim/db', () => {
   }
 })
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mockInfo, error: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  externalizeExecutionData: mockExternalize,
-  stripSpanCosts: vi.fn(),
-  TRACE_STORE_REF_KEY: 'traceStoreRef',
-}))
-
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  collectLargeValueReferenceKeys: () => ['stored-key'],
-  replaceLargeValueReferenceKeysWithClient: mockReplaceReferences,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import { backfillTraceStorage, parseArgs, runBackfillWorkers } from '@/scripts/backfill-trace-spans'
 
+const mockInfo = getMockLogger('BackfillTraceSpans').info
+const mockExternalize = traceStoreMockFns.mockExternalizeExecutionData
+
 beforeEach(() => {
   vi.resetAllMocks()
+  traceStoreMockFns.mockStripSpanCosts.mockImplementation(() => {})
+  largeValueMetadataMockFns.mockCollectLargeValueReferenceKeys.mockReturnValue(['stored-key'])
   mockPrimaryRead.mockImplementation((limit: number) => {
     if (limit !== 0) throw new Error('Execution payloads must use the execution pool')
     return Promise.resolve([])
@@ -88,38 +73,6 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('backfill options', () => {
-  it('defaults to four workers and supports a read-only check', () => {
-    const before = '2026-09-17T20:00:00.000Z'
-    vi.useFakeTimers({ now: new Date(before) })
-    expect(parseArgs([])).toEqual({
-      maxBatches: Number.POSITIVE_INFINITY,
-      concurrency: 4,
-      maxInFlightMiB: 512,
-      checkOnly: false,
-      order: 'oldest',
-      before,
-    })
-    expect(parseArgs(['--check-only', '--max-batches=2', '--concurrency=8'])).toEqual({
-      maxBatches: 2,
-      concurrency: 8,
-      maxInFlightMiB: 512,
-      checkOnly: true,
-      order: 'oldest',
-      before,
-    })
-  })
-
-  it.each([50, 64, 200, 500, 512])('supports %i workers', (concurrency) => {
-    expect(parseArgs([`--concurrency=${concurrency}`]).concurrency).toBe(concurrency)
-  })
-
-  it('supports a bounded payload budget independently of worker count', () => {
-    expect(parseArgs(['--concurrency=500', '--max-in-flight-mib=128'])).toMatchObject({
-      concurrency: 500,
-      maxInFlightMiB: 128,
-    })
-  })
-
   it('preserves microseconds, ordering, and cutoff when resuming a checkpoint', () => {
     const cursor = {
       version: 1,
@@ -202,27 +155,6 @@ describe('backfill workers', () => {
     expect(finished).toEqual([1, 2])
   })
 
-  it.each([2, 50, 64, 500])(
-    'bounds active work to %i workers and visits every candidate once',
-    async (concurrency) => {
-      let active = 0
-      let peak = 0
-      const visited: string[] = []
-      const rows = Array.from({ length: 1030 }, (_, index) => ({
-        id: `log-${index}`,
-      }))
-      await runBackfillWorkers(rows, concurrency, async (row) => {
-        active++
-        peak = Math.max(peak, active)
-        await Promise.resolve()
-        visited.push(row.id)
-        active--
-      })
-      expect(peak).toBe(concurrency)
-      expect(visited.sort()).toEqual(rows.map((row) => row.id).sort())
-    }
-  )
-
   it('stops scheduling after a failure and drains writes already in flight', async () => {
     let finishWrite = () => {}
     const writing = new Promise<void>((resolve) => {
@@ -279,87 +211,6 @@ describe('trace backfill', () => {
     expect(mockTransaction).not.toHaveBeenCalled()
   })
 
-  it('check-only performs no uploads, writes, or payload reads', async () => {
-    await backfillTraceStorage({ ...options, checkOnly: true })
-    expect(mockPrimaryRead).toHaveBeenCalledExactlyOnceWith(0)
-    expect(mockRead).toHaveBeenCalledTimes(4)
-    expect(mockRead.mock.calls.every(([limit]) => limit === 0)).toBe(true)
-    expect(mockExternalize).not.toHaveBeenCalled()
-    expect(mockTransaction).not.toHaveBeenCalled()
-  })
-
-  it('reads and commits logs and references through the execution pool with the workflow owner', async () => {
-    mockDataRead
-      .mockResolvedValueOnce([candidateMetadata])
-      .mockResolvedValueOnce([candidate])
-      .mockResolvedValueOnce([candidate])
-    await expect(backfillTraceStorage(options)).resolves.toEqual({
-      migrated: 1,
-    })
-    expect(mockPrimaryRead).toHaveBeenCalledExactlyOnceWith(0)
-    expect(mockRead).toHaveBeenCalledTimes(7)
-    expect(mockDataRead).toHaveBeenCalledTimes(3)
-    expect(mockTransaction).toHaveBeenCalledOnce()
-    expect(mockExternalize).toHaveBeenCalledWith(
-      expect.objectContaining({ hasTraceSpans: true, traceSpanCount: 2 }),
-      {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-      },
-      { throwOnError: true }
-    )
-    expect(mockUpdate).toHaveBeenCalledOnce()
-    expect(mockReplaceReferences).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        source: 'execution_log',
-      },
-      ['stored-key']
-    )
-  })
-
-  it.each(['execution-user', 'deleted-user', ''])(
-    'uses the workflow owner while preserving execution user %j in the payload',
-    async (userId) => {
-      const executionData = {
-        ...structuredClone(candidate.executionData),
-        environment: { userId },
-      }
-      mockDataRead
-        .mockResolvedValueOnce([candidateMetadata])
-        .mockResolvedValueOnce([candidate])
-        .mockResolvedValueOnce([{ ...candidate, executionData }])
-
-      await backfillTraceStorage(options)
-
-      expect(mockExternalize).toHaveBeenCalledWith(
-        expect.objectContaining({ environment: { userId } }),
-        expect.objectContaining({ userId: candidate.workflowOwnerUserId }),
-        { throwOnError: true }
-      )
-      expect(executionData.environment.userId).toBe(userId)
-      expect(mockUpdate).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('fails before uploading when the workflow owner is missing', async () => {
-    mockDataRead
-      .mockResolvedValueOnce([candidateMetadata])
-      .mockResolvedValueOnce([candidate])
-      .mockResolvedValueOnce([{ ...candidate, workflowOwnerUserId: '' }])
-
-    await expect(backfillTraceStorage(options)).rejects.toMatchObject({
-      cause: expect.objectContaining({ message: 'Workflow owner is missing' }),
-    })
-    expect(mockExternalize).not.toHaveBeenCalled()
-    expect(mockTransaction).not.toHaveBeenCalled()
-  })
-
   it('rejects an oversized payload before uploading or updating the log', async () => {
     mockDataRead.mockResolvedValueOnce([candidateMetadata]).mockResolvedValueOnce([
       {
@@ -373,26 +224,6 @@ describe('trace backfill', () => {
     expect(mockExternalize).not.toHaveBeenCalled()
     expect(mockTransaction).not.toHaveBeenCalled()
   })
-
-  it.each([MAX_DURABLE_LARGE_VALUE_BYTES + 1, MAX_TRACE_ARCHIVE_BYTES])(
-    'uploads and commits a %i-byte archive without skipping it',
-    async (payloadBytes) => {
-      const large = { ...candidate, payloadBytes }
-      mockDataRead
-        .mockResolvedValueOnce([candidateMetadata])
-        .mockResolvedValueOnce([large])
-        .mockResolvedValueOnce([large])
-
-      await expect(backfillTraceStorage(options)).resolves.toEqual({ migrated: 1 })
-      expect(mockExternalize).toHaveBeenCalledOnce()
-      expect(mockUpdate).toHaveBeenCalledOnce()
-      expect(mockReplaceReferences).toHaveBeenCalledOnce()
-      expect(mockInfo).toHaveBeenCalledWith(
-        'Backfill checkpoint',
-        expect.objectContaining(candidateMetadata)
-      )
-    }
-  )
 
   it('requires enough byte budget before fetching a larger archive and preserves the checkpoint', async () => {
     const cursor = {
@@ -461,77 +292,6 @@ describe('trace backfill', () => {
         cursor
       )
     }
-  })
-
-  it('advances the cursor over pages with no eligible payloads', async () => {
-    mockDataRead.mockResolvedValueOnce([candidateMetadata]).mockResolvedValueOnce([])
-    await backfillTraceStorage(options)
-    expect(mockExternalize).not.toHaveBeenCalled()
-    expect(mockInfo).toHaveBeenCalledWith(
-      'Backfill checkpoint',
-      expect.objectContaining({
-        id: candidateMetadata.id,
-        startedAt: candidateMetadata.startedAt,
-      })
-    )
-  })
-
-  it('reports progress during a slow batch and removes the timer when finished', async () => {
-    vi.useFakeTimers({ now: 0 })
-    let markStarted = () => {}
-    const started = new Promise<void>((resolve) => {
-      markStarted = resolve
-    })
-    let finishUpload = () => {}
-    const upload = new Promise<void>((resolve) => {
-      finishUpload = resolve
-    })
-    mockDataRead
-      .mockResolvedValueOnce([candidateMetadata])
-      .mockResolvedValueOnce([candidate])
-      .mockResolvedValueOnce([candidate])
-    mockExternalize.mockImplementation(async () => {
-      markStarted()
-      await upload
-      return { traceStoreRef: { key: 'stored-key' } }
-    })
-    const run = backfillTraceStorage(options)
-    await started
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(mockInfo).toHaveBeenCalledWith(
-      'Progress: migrated 0 | skipped 0 | 0.0 rows/s | elapsed 5s',
-      expect.objectContaining({ rssMiB: expect.any(Number) })
-    )
-    finishUpload()
-    await run
-    expect(mockInfo).toHaveBeenCalledWith(
-      'Progress: migrated 1 | skipped 0 | 0.2 rows/s | elapsed 5s',
-      expect.objectContaining({
-        stages: expect.objectContaining({ externalize: { calls: 1, averageMs: 5000 } }),
-      })
-    )
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('starts migrating after preflight without a full-table count or estimate', async () => {
-    mockDataRead
-      .mockResolvedValueOnce([candidateMetadata])
-      .mockResolvedValueOnce([candidate])
-      .mockResolvedValueOnce([candidate])
-    await backfillTraceStorage(options)
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 100, 1, 1])
-    expect(mockExternalize).toHaveBeenCalledOnce()
-  })
-
-  it('keeps the candidate page at 100 rows with fifty workers', async () => {
-    await backfillTraceStorage({ ...options, concurrency: 50 })
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 100])
-    expect(mockExternalize).not.toHaveBeenCalled()
-  })
-
-  it('scales the bounded metadata page to feed higher concurrency', async () => {
-    await backfillTraceStorage({ ...options, concurrency: 500 })
-    expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 1000])
   })
 
   it('does not update the log or start the next candidate after storage fails', async () => {

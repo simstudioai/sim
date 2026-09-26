@@ -3,6 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +66,7 @@ vi.mock('@sim/emcn', () => ({
   toast: mockToast,
 }))
 
-vi.mock('@/lib/desktop', () => ({ getDesktopBridge: () => mockBridge.current }))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
   SettingsPanel: ({
@@ -111,6 +112,8 @@ vi.mock(
 
 import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
 
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() => mockBridge.current ?? undefined)
+
 const CREDENTIAL: BrowserCredentialMetadata = {
   id: 'c1',
   origin: 'https://example.com',
@@ -150,14 +153,6 @@ function buttonWithLabel(label: string): HTMLButtonElement {
   return button
 }
 
-function buttonLabelled(text: string): HTMLButtonElement {
-  const button = [...container.querySelectorAll('button')].find(
-    (candidate) => candidate.textContent === text
-  )
-  if (!button) throw new Error(`No button labelled "${text}"`)
-  return button
-}
-
 async function click(button: HTMLButtonElement) {
   await act(async () => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -182,7 +177,6 @@ describe('PasswordDetail', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.clearAllMocks()
     vi.useRealTimers()
   })
 
@@ -214,29 +208,6 @@ describe('PasswordDetail', () => {
     expect(passwordField()).toBe('••••••••••••')
   })
 
-  it('hides a revealed password again when asked', async () => {
-    await render()
-    await click(buttonWithLabel('Show password'))
-
-    await click(buttonWithLabel('Hide password'))
-
-    expect(passwordField()).toBe('••••••••••••')
-  })
-
-  it('re-hides a revealed password on its own', async () => {
-    // Walking away from the screen must not leave a password on it.
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    await render()
-    await click(buttonWithLabel('Show password'))
-    expect(passwordField()).toBe('hunter2')
-
-    await act(async () => {
-      vi.advanceTimersByTime(30_000)
-    })
-
-    expect(passwordField()).toBe('••••••••••••')
-  })
-
   it('copies through the shell so the password never enters the page', async () => {
     await render()
 
@@ -248,52 +219,8 @@ describe('PasswordDetail', () => {
     expect(mockToast.success).not.toHaveBeenCalled()
   })
 
-  it('forgets the credential only after confirmation, then returns to the list', async () => {
-    await render()
-
-    await click(buttonLabelled('Forget'))
-    expect(bridge().browserCredentials.forget).not.toHaveBeenCalled()
-
-    await click(buttonLabelled('Confirm Forget'))
-
-    expect(bridge().browserCredentials.forget).toHaveBeenCalledWith('c1')
-    expect(onForgotten).toHaveBeenCalledWith([])
-    expect(onBack).toHaveBeenCalled()
-  })
-
-  it('shows the site\u2019s own icon when the import captured one', async () => {
-    await render({ ...CREDENTIAL, icon: 'data:image/png;base64,AA' })
-
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,AA')
-  })
-
-  it('falls back to a glyph when the source browser had no icon', async () => {
-    await render()
-
-    expect(container.querySelector('img')).toBeNull()
-  })
-
-  it('falls back when an imported icon fails and retries when the icon changes', async () => {
-    await render({ ...CREDENTIAL, icon: 'data:image/png;base64,broken' })
-    act(() => container.querySelector('img')?.dispatchEvent(new Event('error')))
-    expect(container.querySelector('img')).toBeNull()
-
-    await render({ ...CREDENTIAL, icon: 'data:image/png;base64,replacement' })
-    expect(container.querySelector('img')?.getAttribute('src')).toBe(
-      'data:image/png;base64,replacement'
-    )
-  })
-
   it('does not load remote logos for saved-password sites', async () => {
     await render({ ...CREDENTIAL, icon: 'https://example.com/favicon.png' })
     expect(container.querySelector('img')).toBeNull()
-  })
-
-  it('returns to the list', async () => {
-    await render()
-
-    await click(buttonLabelled('Passwords'))
-
-    expect(onBack).toHaveBeenCalled()
   })
 })

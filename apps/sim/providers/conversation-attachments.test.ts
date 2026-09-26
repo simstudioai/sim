@@ -1,4 +1,4 @@
-/** @vitest-environment node */
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import type { UserFile } from '@/executor/types'
@@ -7,9 +7,7 @@ import {
   conversationAttachmentTokensByReference,
 } from '@/providers/conversation-attachments'
 
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (value: string) => value.length,
-}))
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
 
 const file: UserFile = {
   id: 'file',

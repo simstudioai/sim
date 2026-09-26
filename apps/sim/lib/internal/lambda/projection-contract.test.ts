@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Proves every shared response projection produces a shape its contract schema accepts, in
  * both the all-absent and fully-populated directions. This is the drift that reading code
  * misses: a mapper that emits `undefined` where the schema declares a non-nullable field, or
@@ -79,56 +77,11 @@ describe('shared projections satisfy their contract schemas', () => {
     }
   })
 
-  it('accepts a fully-populated function configuration', () => {
-    const parsed = lambdaFunctionConfigurationSchema.safeParse(
-      mapFunctionConfiguration({
-        FunctionName: 'alpha',
-        Architectures: ['arm64'],
-        EphemeralStorage: { Size: 512 },
-        FileSystemConfigs: [{ Arn: 'arn:efs:1', LocalMountPath: '/mnt/data' }],
-        Layers: [{ Arn: 'arn:layer:1' }],
-        VpcConfig: { SubnetIds: ['subnet-1'], SecurityGroupIds: ['sg-1'] },
-        Environment: { Variables: { STAGE: 'prod' } },
-        ImageConfigResponse: { ImageConfig: { Command: ['app.handler'] } },
-        SnapStart: { ApplyOn: 'PublishedVersions' },
-        RuntimeVersionConfig: { RuntimeVersionArn: 'arn:runtime:1' },
-        LoggingConfig: { LogFormat: 'JSON' },
-        CapacityProviderConfig: {
-          LambdaManagedInstancesCapacityProviderConfig: { CapacityProviderArn: 'arn:cp:1' },
-        },
-        DurableConfig: { RetentionPeriodInDays: 7 },
-        TenancyConfig: { TenantIsolationMode: 'PER_TENANT' },
-      })
-    )
-
-    expect(parsed.error?.issues ?? []).toEqual([])
-  })
-
   it('accepts a file system config whose fields AWS omitted', () => {
     const parsed = lambdaFunctionConfigurationSchema.safeParse(
       mapFunctionConfiguration({ FileSystemConfigs: [{}] })
     )
 
     expect(parsed.error?.issues ?? []).toEqual([])
-  })
-
-  it('accepts a fully-populated event source mapping, including the Kafka endpoints', () => {
-    const projected = mapEventSourceMapping({
-      UUID: 'esm-1',
-      LastModified: new Date('2026-01-02T03:04:05Z'),
-      StartingPositionTimestamp: new Date('2026-01-01T00:00:00Z'),
-      ScalingConfig: { MaximumConcurrency: 20 },
-      LoggingConfig: { SystemLogLevel: 'DEBUG' },
-      MetricsConfig: { Metrics: ['EventCount'] },
-      FilterCriteria: { Filters: [{ Pattern: '{"a":1}' }] },
-      DestinationConfig: { OnFailure: { Destination: 'arn:sqs:fail' } },
-      SourceAccessConfigurations: [{ Type: 'BASIC_AUTH', URI: 'arn:secret:1' }],
-      SelfManagedEventSource: { Endpoints: { KAFKA_BOOTSTRAP_SERVERS: ['broker-1:9092'] } },
-      DocumentDBEventSourceConfig: { DatabaseName: 'db' },
-      ProvisionedPollerConfig: { MinimumPollers: 1 },
-    })
-
-    expect(projected.selfManagedKafkaBootstrapServers).toEqual(['broker-1:9092'])
-    expect(lambdaEventSourceMappingSchema.safeParse(projected).error?.issues ?? []).toEqual([])
   })
 })

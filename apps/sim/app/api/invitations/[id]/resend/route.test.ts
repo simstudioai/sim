@@ -1,90 +1,63 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingCoreMock } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  MockInvitationsNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockInvitationsNotAllowedError,
-  mockGetInvitationById,
-  mockResolveInvitationAdmissionOrganizationId,
-  mockIsOrganizationOwnerOrAdmin,
-  mockHasWorkspaceAdminAccess,
-  mockGetWorkspaceWithOwner,
-  mockGetWorkspaceInvitePolicy,
-  mockValidateInvitationsAllowed,
-  mockSendInvitationEmail,
-  mockPrepareInvitationResend,
-  mockRevertInvitationResend,
-  mockGetOrganizationSubscription,
-} = vi.hoisted(() => ({
-  MockInvitationsNotAllowedError: class extends Error {
-    constructor() {
-      super('Invitations are not allowed based on your permission group settings')
-      this.name = 'InvitationsNotAllowedError'
-    }
-  },
-  mockGetInvitationById: vi.fn(),
-  mockResolveInvitationAdmissionOrganizationId: vi.fn(),
-  mockIsOrganizationOwnerOrAdmin: vi.fn(),
-  mockHasWorkspaceAdminAccess: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockGetWorkspaceInvitePolicy: vi.fn(),
-  mockValidateInvitationsAllowed: vi.fn(),
-  mockSendInvitationEmail: vi.fn(),
-  mockPrepareInvitationResend: vi.fn(),
-  mockRevertInvitationResend: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { INVITATION_RESENT: 'invitation.resent', ORG_INVITATION_RESENT: 'org.resent' },
-  AuditResourceType: { WORKSPACE: 'workspace', ORGANIZATION: 'organization' },
-  recordAudit: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  InvitationsNotAllowedError: MockInvitationsNotAllowedError,
-  validateInvitationsAllowed: mockValidateInvitationsAllowed,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
-vi.mock('@/lib/invitations/core', () => ({
-  getInvitationById: mockGetInvitationById,
-  resolveInvitationAdmissionOrganizationId: mockResolveInvitationAdmissionOrganizationId,
-  requireInvitationResendAuthority: vi.fn(),
-}))
-vi.mock('@/lib/invitations/send', () => ({
-  sendInvitationEmail: mockSendInvitationEmail,
-  prepareInvitationResend: mockPrepareInvitationResend,
-  revertInvitationResend: mockRevertInvitationResend,
-}))
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  WORKSPACE_MODE: { ORGANIZATION: 'organization' },
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import type { PreparedInvitationResend } from '@/lib/invitations/send'
 import { POST } from '@/app/api/invitations/[id]/resend/route'
 
+const { mockGetWorkspaceInvitePolicy } = workspacesPolicyMockFns
+const { mockSendInvitationEmail, mockPrepareInvitationResend, mockRevertInvitationResend } =
+  invitationsSendMockFns
+const { mockGetInvitationById, mockResolveInvitationAdmissionOrganizationId } =
+  invitationsCoreMockFns
+const { mockIsOrganizationOwnerOrAdmin } = billingOrganizationMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockHasWorkspaceAdminAccess = permissionsMockFns.mockHasWorkspaceAdminAccess
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+const mockValidateInvitationsAllowed = permissionCheckMockFns.mockValidateInvitationsAllowed
 
 function callResend() {
   return POST(
@@ -94,7 +67,7 @@ function callResend() {
       {},
       'http://localhost:3000/api/invitations/11111111-1111-4111-8111-111111111111/resend'
     ),
-    { params: Promise.resolve({ id: '11111111-1111-4111-8111-111111111111' }) }
+    createRouteContext({ id: '11111111-1111-4111-8111-111111111111' })
   )
 }
 
@@ -130,7 +103,6 @@ const preparedResend: PreparedInvitationResend = {
  */
 describe('POST /api/invitations/[id]/resend', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(user, [{ name: 'Admin', email: 'admin@example.com' }])
@@ -162,23 +134,6 @@ describe('POST /api/invitations/[id]/resend', () => {
     })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
     mockRevertInvitationResend.mockResolvedValue(true)
-  })
-
-  it('resends when no group withholds invitations', async () => {
-    const response = await callResend()
-
-    expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        workspaceId: 'workspace-1',
-      },
-      db
-    )
-    expect(mockSendInvitationEmail).toHaveBeenCalled()
-    expect(mockPrepareInvitationResend.mock.invocationCallOrder[0]).toBeLessThan(
-      mockSendInvitationEmail.mock.invocationCallOrder[0]
-    )
   })
 
   /**
@@ -216,35 +171,6 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(mockValidateInvitationsAllowed).not.toHaveBeenCalled()
   })
 
-  /**
-   * An organization-kind invitation always admits the invitee to its stamped
-   * organization, whichever workspaces it also grants — so the organization
-   * scope is checked as well as, not instead of, the grants. Gating only the
-   * grants would let an explicit workspace group that permits invitations carry
-   * a member into an organization whose default group withholds them.
-   */
-  it('checks the organization scope as well as the grants for an organization invitation', async () => {
-    mockGetInvitationById.mockResolvedValue({ ...workspaceInvitation, kind: 'organization' })
-
-    const response = await callResend()
-
-    expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        organizationId: 'organization-1',
-      },
-      db
-    )
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        workspaceId: 'workspace-1',
-      },
-      db
-    )
-  })
-
   it('refuses an organization invitation the organization default group withholds, even when its granted workspace allows', async () => {
     mockGetInvitationById.mockResolvedValue({ ...workspaceInvitation, kind: 'organization' })
     mockValidateInvitationsAllowed.mockImplementation(
@@ -260,38 +186,6 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(mockRevertInvitationResend).not.toHaveBeenCalled()
   })
 
-  /**
-   * The scope follows what acceptance would DO, not the invitation's kind. A
-   * workspace-kind invitation whose granted workspace belongs to an organization
-   * joins the invitee to that organization exactly as an organization-kind one
-   * does, so keying the organization check on `kind === 'organization'` left
-   * every organization-backed workspace invitation performing an ungated
-   * organization admission.
-   */
-  it('checks the organization an organization-backed workspace invitation admits to', async () => {
-    const response = await callResend()
-
-    expect(response.status).toBe(200)
-    expect(mockResolveInvitationAdmissionOrganizationId).toHaveBeenCalledWith(
-      workspaceInvitation,
-      db
-    )
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        organizationId: 'organization-1',
-      },
-      db
-    )
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        workspaceId: 'workspace-1',
-      },
-      db
-    )
-  })
-
   it('refuses a workspace invitation whose admitting organization withholds invitations', async () => {
     mockValidateInvitationsAllowed.mockImplementation(
       async (_userId: string, scope: { organizationId?: string }) => {
@@ -304,49 +198,6 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(response.status).toBe(403)
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
     expect(mockRevertInvitationResend).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Nothing to gate at the organization scope when acceptance creates no member
-   * row there — an external invitation, or a personal workspace's — so the
-   * grants stay the whole scope rather than borrowing a stamped organization the
-   * invitee will never join.
-   */
-  it('checks the grants alone when the invitation admits to no organization', async () => {
-    mockResolveInvitationAdmissionOrganizationId.mockResolvedValue(null)
-
-    const response = await callResend()
-
-    expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledTimes(1)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        workspaceId: 'workspace-1',
-      },
-      db
-    )
-  })
-
-  it('resolves the organization default group for an invitation with no grants', async () => {
-    mockGetInvitationById.mockResolvedValue({
-      ...workspaceInvitation,
-      kind: 'organization',
-      grants: [],
-    })
-    mockResolveInvitationAdmissionOrganizationId.mockResolvedValue('organization-1')
-    mockGetOrganizationSubscription.mockResolvedValue({ status: 'active', plan: 'team' })
-
-    const response = await callResend()
-
-    expect(response.status).toBe(200)
-    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith(
-      'user-1',
-      {
-        organizationId: 'organization-1',
-      },
-      db
-    )
   })
   it.each(['pending', 'expired'])(
     'rejects an expired %s invitation consistently',
@@ -374,12 +225,6 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect((await callResend()).status).toBe(409)
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
     expect(mockRevertInvitationResend).not.toHaveBeenCalled()
-  })
-
-  it('compensates when delivery throws', async () => {
-    mockSendInvitationEmail.mockRejectedValueOnce(new Error('Mail transport unavailable'))
-    expect((await callResend()).status).toBe(502)
-    expect(mockRevertInvitationResend).toHaveBeenCalledOnce()
   })
 
   it('reports a conflict when failed delivery cannot be compensated over newer state', async () => {

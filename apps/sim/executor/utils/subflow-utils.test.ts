@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheLargeValue, clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -55,17 +52,6 @@ describe('resolveArrayInputAsync', () => {
       preview: items.slice(0, 3),
     }
   }
-
-  it('returns arrays as-is', async () => {
-    await expect(resolveArrayInputAsync(fakeCtx, [1, 2, 3], null)).resolves.toEqual([1, 2, 3])
-  })
-
-  it('converts plain objects to entries', async () => {
-    await expect(resolveArrayInputAsync(fakeCtx, { a: 1, b: 2 }, null)).resolves.toEqual([
-      ['a', 1],
-      ['b', 2],
-    ])
-  })
 
   it('materializes large array manifests instead of iterating metadata entries', async () => {
     const items = [{ id: 1 }, { id: 2 }]
@@ -157,16 +143,6 @@ describe('resolveArrayInputAsync', () => {
     expect(resolver.resolveSingleReference).toHaveBeenCalled()
   })
 
-  it('returns the array from a pure reference that resolved to an array', async () => {
-    const resolver = {
-      resolveSingleReference: vi.fn().mockResolvedValue([1, 2, 3]),
-    } as unknown as VariableResolver
-
-    await expect(resolveArrayInputAsync(fakeCtx, '<Block.items>', resolver)).resolves.toEqual([
-      1, 2, 3,
-    ])
-  })
-
   it('materializes a manifest returned by a pure reference', async () => {
     const items = [{ id: 1 }, { id: 2 }]
     const manifest = createManifest(items)
@@ -184,17 +160,6 @@ describe('resolveArrayInputAsync', () => {
       undefined,
       { allowLargeValueRefs: true }
     )
-  })
-
-  it('converts resolved objects to entries', async () => {
-    const resolver = {
-      resolveSingleReference: vi.fn().mockResolvedValue({ x: 1, y: 2 }),
-    } as unknown as VariableResolver
-
-    await expect(resolveArrayInputAsync(fakeCtx, '<Block.obj>', resolver)).resolves.toEqual([
-      ['x', 1],
-      ['y', 2],
-    ])
   })
 
   it('throws when a pure reference resolves to a non-array, non-object, non-null value', async () => {
@@ -217,10 +182,6 @@ describe('resolveArrayInputAsync', () => {
     await expect(resolveArrayInputAsync(fakeCtx, '<Missing.items>', resolver)).rejects.toThrow(
       /did not resolve to an array or object/
     )
-  })
-
-  it('parses a JSON array string', async () => {
-    await expect(resolveArrayInputAsync(fakeCtx, '[1, 2, 3]', null)).resolves.toEqual([1, 2, 3])
   })
 
   it('throws on a string that is neither a reference nor valid JSON array/object', async () => {

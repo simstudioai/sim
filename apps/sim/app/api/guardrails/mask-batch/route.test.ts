@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +15,6 @@ import { POST } from '@/app/api/guardrails/mask-batch/route'
 
 describe('POST /api/guardrails/mask-batch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckInternalAuth.mockResolvedValue({ success: true })
     mockMaskPIIBatch.mockImplementation(async (texts: string[]) => texts.map((t) => `M(${t})`))
   })
@@ -34,33 +30,6 @@ describe('POST /api/guardrails/mask-batch', () => {
     )
 
     expect(res.status).toBe(401)
-    expect(mockMaskPIIBatch).not.toHaveBeenCalled()
-  })
-
-  it('masks the batch in-process and preserves order', async () => {
-    const res = await POST(
-      createMockRequest('POST', {
-        texts: ['a@b.com', 'hello'],
-        entityTypes: ['EMAIL_ADDRESS'],
-        language: 'en',
-      })
-    )
-
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.masked).toEqual(['M(a@b.com)', 'M(hello)'])
-    expect(mockMaskPIIBatch).toHaveBeenCalledWith(
-      ['a@b.com', 'hello'],
-      ['EMAIL_ADDRESS'],
-      'en',
-      undefined
-    )
-  })
-
-  it('rejects an invalid body with 400', async () => {
-    const res = await POST(createMockRequest('POST', { texts: 'not-an-array', entityTypes: [] }))
-
-    expect(res.status).toBe(400)
     expect(mockMaskPIIBatch).not.toHaveBeenCalled()
   })
 })

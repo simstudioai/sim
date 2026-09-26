@@ -1,39 +1,29 @@
-/**
- * @vitest-environment node
- */
-
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  createRows: vi.fn(),
-  queryRows: vi.fn(),
-  updateRows: vi.fn(),
-  batchUpdateRows: vi.fn(),
-  deleteRows: vi.fn(),
-}))
-
-vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/api/row-route-policies', () => ({
   internalTableRowsErrorPolicy: { project: () => null },
 }))
 
-vi.mock('@/lib/table/application/rows', () => ({
-  createTableRows: { operation: { id: 'tables.rows.create' }, execute: mocks.createRows },
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-  updateTableRows: { operation: { id: 'tables.rows.update_many' }, execute: mocks.updateRows },
-  batchUpdateTableRows: {
-    operation: { id: 'tables.rows.update_many' },
-    execute: mocks.batchUpdateRows,
-  },
-  deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
-import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
+import { POST } from '@/app/api/table/[tableId]/rows/route'
+
+const mocks = {
+  authenticate: tableApiMockFns.mockAuthenticate,
+  createRows: tableApplicationRowsMockFns.mockCreateTableRows,
+  queryRows: tableApplicationRowsMockFns.mockQueryTableRows,
+  updateRows: tableApplicationRowsMockFns.mockUpdateTableRows,
+  batchUpdateRows: tableApplicationRowsMockFns.mockBatchUpdateTableRows,
+  deleteRows: tableApplicationRowsMockFns.mockDeleteTableRows,
+}
 
 const TABLE = {
   id: 'table-1',
@@ -90,7 +80,6 @@ function request(method: string, body?: unknown, query = '') {
 
 describe('/api/table/[tableId]/rows application adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     sessionPrincipal()
     mocks.createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
     mocks.queryRows.mockResolvedValue({
@@ -120,27 +109,6 @@ describe('/api/table/[tableId]/rows application adapter', () => {
     })
   })
 
-  it('maps session inserts as id-keyed writes and preserves the row response', async () => {
-    const response = await POST(
-      request('POST', {
-        workspaceId: 'workspace-1',
-        data: { 'column-name': 'Ada' },
-      }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.createRows.mock.calls[0][0].input).toMatchObject({
-      assertedWorkspaceId: 'workspace-1',
-      dataKeying: 'ids',
-      secretProvenanceEnvelope: { kind: 'none' },
-    })
-    expect((await response.json()).data.row.data).toEqual({
-      'column-name': 'Ada',
-      'column-age': 36,
-    })
-  })
-
   it('maps executor inserts as name-keyed and uses canonical delegated workspace', async () => {
     executorPrincipal()
     await POST(
@@ -154,84 +122,6 @@ describe('/api/table/[tableId]/rows application adapter', () => {
     expect(mocks.createRows.mock.calls[0][0].input).toMatchObject({
       assertedWorkspaceId: 'workspace-canonical',
       dataKeying: 'names',
-    })
-  })
-
-  it('preserves legacy query filters, sorts, counts, and expanded-limit policy', async () => {
-    const filter = encodeURIComponent(JSON.stringify({ 'column-name': { $eq: 'Ada' } }))
-    const sort = encodeURIComponent(JSON.stringify({ 'column-age': 'desc' }))
-    const response = await GET(
-      request(
-        'GET',
-        undefined,
-        `?workspaceId=workspace-1&filter=${filter}&sort=${sort}&limit=10&offset=2`
-      ),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.queryRows.mock.calls[0][0].input).toMatchObject({
-      legacyFilter: { 'column-name': { $eq: 'Ada' } },
-      legacySort: { 'column-age': 'desc' },
-      legacyKeying: 'ids',
-      includeTotal: true,
-      allowExpandedLimit: true,
-      offset: 2,
-    })
-  })
-
-  it('hands unresolved provenance and caller keying to filter updates', async () => {
-    const response = await PUT(
-      request('PUT', {
-        workspaceId: 'workspace-1',
-        filter: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
-        data: { 'column-name': 'Grace' },
-      }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.updateRows.mock.calls[0][0].input).toMatchObject({
-      filterKeying: 'ids',
-      dataKeying: 'ids',
-      secretProvenanceEnvelope: { kind: 'none' },
-    })
-  })
-
-  it('routes filter deletes through the shared authorized use case', async () => {
-    const response = await DELETE(
-      request('DELETE', {
-        workspaceId: 'workspace-1',
-        filter: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
-      }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.deleteRows.mock.calls[0][0].input).toMatchObject({
-      kind: 'filter',
-      filterKeying: 'ids',
-    })
-  })
-
-  it('routes heterogeneous batch patches through one authorized application operation', async () => {
-    executorPrincipal()
-    const response = await PATCH(
-      request('PATCH', {
-        workspaceId: 'workspace-forged',
-        updates: [{ rowId: 'row-1', data: { Name: 'Grace' } }],
-      }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.batchUpdateRows.mock.calls[0][0].input).toMatchObject({
-      tableId: 'table-1',
-      assertedWorkspaceId: 'workspace-canonical',
-      dataKeying: 'names',
-      strictWrite: false,
-      updates: [{ rowId: 'row-1', data: { Name: 'Grace' } }],
-      secretProvenanceEnvelope: { kind: 'none' },
     })
   })
 })

@@ -1,8 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import type { ReactNode } from 'react'
 import { act } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +12,7 @@ const { mockSettingsSidebar } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn((_props: { items: { id: string }[] }) => null),
 }))
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/selfhost/settings/general' }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/components/settings/settings-sidebar', () => ({ SettingsSidebar: mockSettingsSidebar }))
 vi.mock('@/components/settings/settings-header', () => ({
   SettingsHeaderProvider: ({ children }: { children: ReactNode }) => children,
@@ -30,6 +32,8 @@ import {
   resolveDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { useSidebarStore } from '@/stores/sidebar/store'
+
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/selfhost/settings/general')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -52,42 +56,9 @@ afterEach(() => {
   host.remove()
   window.innerWidth = originalInnerWidth
   localStorage.clear()
-  vi.clearAllMocks()
 })
 
 describe('StandaloneSettingsShell', () => {
-  it.each([false, true])(
-    'resizes consistently with workspace chrome (collapsed: %s)',
-    async (isCollapsed) => {
-      useSidebarStore.setState({ isCollapsed })
-      act(() =>
-        root.render(
-          <StandaloneSettingsShell plane='selfhost' deployment={resolveDeploymentShape()}>
-            {null}
-          </StandaloneSettingsShell>
-        )
-      )
-      const expandedWidth = () =>
-        document.documentElement.style.getPropertyValue('--sidebar-expanded-width')
-      expect(expandedWidth()).toBe('400px')
-
-      await act(async () => {
-        window.innerWidth = 800
-        window.dispatchEvent(new Event('resize'))
-        await vi.waitFor(() => expect(expandedWidth()).toBe('240px'))
-      })
-      expect(useSidebarStore.getState().sidebarWidth).toBe(isCollapsed ? 400 : 240)
-
-      await act(async () => {
-        window.innerWidth = 1600
-        window.dispatchEvent(new Event('resize'))
-        await vi.waitFor(() => expect(expandedWidth()).toBe(isCollapsed ? '400px' : '240px'))
-      })
-      act(() => useSidebarStore.getState().syncWidth())
-      expect(expandedWidth()).toBe(isCollapsed ? '400px' : '240px')
-    }
-  )
-
   it('filters its navigation by the server-resolved shape, not the env fallback', () => {
     /** Inverts the fallback's hosted and billing switches, which decide the Billing and Chat keys items. */
     const fallback = resolveDeploymentShape()

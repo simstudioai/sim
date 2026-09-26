@@ -1,9 +1,8 @@
 /**
- * @vitest-environment node
- *
  * Anthropic adapter emits AgentStreamEvent objects (thinking + text)
  * from Messages stream fixtures; tool_use deltas are handled by the tool loop.
  */
+import { collectStream } from '@sim/testing/helpers/async'
 import { describe, expect, it, vi } from 'vitest'
 import {
   anthropicRedactedThinkingAssembledContent,
@@ -16,20 +15,6 @@ import {
   anthropicThinkingTextToolStreamEvents,
 } from '@/providers/__fixtures__/anthropic'
 import { createReadableStreamFromAnthropicStream } from '@/providers/anthropic/utils'
-import type { AgentStreamEvent } from '@/providers/stream-events'
-
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
 
 describe('createReadableStreamFromAnthropicStream', () => {
   it('keeps citation deltas in the native text block', async () => {
@@ -42,7 +27,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       start_char_index: 0,
       end_char_index: 4,
     }
-    await collectEvents(
+    await collectStream(
       createReadableStreamFromAnthropicStream(
         (async function* () {
           yield {
@@ -78,7 +63,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
 
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'I should check the weather before answering. ',
@@ -138,7 +123,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    await collectEvents(stream)
+    await collectStream(stream)
 
     expect(onComplete.mock.calls[0][0].usage).toEqual({
       input: 10,
@@ -158,7 +143,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'Visible follow-up reasoning after redaction.',
     ])
@@ -187,6 +172,6 @@ describe('createReadableStreamFromAnthropicStream', () => {
       })() as AsyncIterable<any>
     )
 
-    await expect(collectEvents(stream)).rejects.toThrow('provider reset')
+    await expect(collectStream(stream)).rejects.toThrow('provider reset')
   })
 })

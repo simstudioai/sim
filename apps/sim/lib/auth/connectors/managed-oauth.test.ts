@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   createAtlassianManagedOAuthConnector,
   getManagedOAuthConnectorPolicy,
@@ -11,10 +8,6 @@ import {
 const ATLASSIAN_SCOPES = ['read:me', 'read:jira-work', 'offline_access']
 
 describe('Atlassian managed OAuth connector', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('uses the existing connector callback contract and verifies the current account', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -130,10 +123,6 @@ describe('Atlassian managed OAuth connector', () => {
 })
 
 describe('userinfo-backed managed OAuth connectors', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   function stubProfile(profile: unknown): ReturnType<typeof vi.fn> {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(profile), {
@@ -428,10 +417,6 @@ describe('Microsoft managed OAuth connector', () => {
     jwks = {
       keys: [{ ...(await exportJWK(pair.publicKey)), kid: 'kid-1', use: 'sig', alg: 'RS256' }],
     }
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   function json(body: unknown): Response {

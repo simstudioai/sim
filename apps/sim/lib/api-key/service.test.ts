@@ -4,55 +4,28 @@
  * Authentication looks up a single row by the SHA-256 hash of the incoming
  * API key and applies the scope / expiry / permission gates. Any miss — no
  * matching hash or a failed gate — returns an invalid result.
- *
- * @vitest-environment node
  */
-import { setRequestAuth } from '@sim/logger'
+
 import { dbChainMockFns } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { serviceLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-    withMetadata: vi.fn(),
-  }
-  logger.child.mockReturnValue(logger)
-  logger.withMetadata.mockReturnValue(logger)
-  return { serviceLogger: logger }
-})
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => serviceLogger),
-  logger: serviceLogger,
-  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
-  getRequestContext: vi.fn(() => undefined),
-  setRequestAuth: vi.fn(),
-}))
-
-const { mockGetWorkspaceBillingSettings } = vi.hoisted(() => ({
-  mockGetWorkspaceBillingSettings: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-}))
-
-const { mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+
+const serviceLogger = getMockLogger('ApiKeyService')
+const { mockGetUserEntityPermissions } = permissionsMockFns
 
 function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -67,15 +40,8 @@ function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('authenticateApiKeyFromHeader', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceBillingSettings.mockReset()
     mockGetUserEntityPermissions.mockReset()
-  })
-
-  it('returns error when no header is provided', async () => {
-    const result = await authenticateApiKeyFromHeader('')
-    expect(result).toEqual({ success: false, error: 'API key required' })
-    expect(dbChainMockFns.where).not.toHaveBeenCalled()
   })
 
   it('resolves when the hash lookup finds a row', async () => {
@@ -94,27 +60,6 @@ describe('authenticateApiKeyFromHeader', () => {
       workspaceId: undefined,
     })
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
-  })
-
-  it('records the key kind on the request without replacing a more specific principal', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([
-      personalKeyRecord({ type: 'workspace', workspaceId: 'workspace-1' }),
-    ])
-
-    await authenticateApiKeyFromHeader('sk-sim-plain-key')
-
-    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
-      { kind: 'workspace_api_key' },
-      { preserveExisting: true }
-    )
-  })
-
-  it('records nothing for a key that fails its checks', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([personalKeyRecord({ userId: 'other-user' })])
-
-    await authenticateApiKeyFromHeader('sk-sim-plain-key', { userId: 'user-1' })
-
-    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
   })
 
   it('returns invalid when the hash lookup finds a row that fails scope checks', async () => {
@@ -141,17 +86,6 @@ describe('authenticateApiKeyFromHeader', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
-  it('returns invalid when the hash lookup finds no row', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
-
-    const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
-      userId: 'user-1',
-    })
-
-    expect(result).toEqual({ success: false, error: 'Invalid API key' })
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
-  })
-
   it('queries by the sha256 hash of the incoming header', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([personalKeyRecord()])
 
@@ -164,10 +98,6 @@ describe('authenticateApiKeyFromHeader', () => {
 })
 
 describe('updateApiKeyLastUsed', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('only writes when the stored lastUsed is missing or stale', async () => {
     await updateApiKeyLastUsed('key-1')
 

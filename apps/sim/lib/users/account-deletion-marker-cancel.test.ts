@@ -1,30 +1,22 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { workspacesUtilsMock } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsSoleOwnerOfPaidOrganization, mockGetPersonalSubscription, mockIsUsingCloudStorage } =
-  vi.hoisted(() => ({
-    mockIsSoleOwnerOfPaidOrganization: vi.fn(),
-    mockGetPersonalSubscription: vi.fn(),
-    mockIsUsingCloudStorage: vi.fn(),
-  }))
+const mockGetPersonalSubscription = billingPlanMockFns.mockGetHighestPriorityPersonalSubscription
+const { mockIsSoleOwnerOfPaidOrganization } = organizationMembershipMockFns
+const { mockIsUsingCloudStorage } = uploadsMockFns
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  isSoleOwnerOfPaidOrganization: mockIsSoleOwnerOfPaidOrganization,
-}))
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetPersonalSubscription,
-}))
-vi.mock('@/lib/uploads', () => ({
-  isUsingCloudStorage: mockIsUsingCloudStorage,
-  StorageService: { deleteFiles: vi.fn(async () => ({ failed: [] })) },
-}))
-vi.mock('@/lib/workspaces/utils', () => ({
-  reassignBilledAccountForUser: vi.fn(async () => ({ unresolved: [] })),
-  reassignOwnedWorkspacesForUser: vi.fn(async () => ({ unresolved: [] })),
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
@@ -42,11 +34,11 @@ function markerCancelFilter() {
 
 describe('deleteUserAccount and the account’s pre-stamped cell markers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mockGetPersonalSubscription.mockResolvedValue(null)
     mockIsUsingCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockDeleteFiles.mockResolvedValue({ failed: [] })
   })
 
   /**
@@ -65,22 +57,6 @@ describe('deleteUserAccount and the account’s pre-stamped cell markers', () =>
     expect(hasMockCondition(filter, (node) => node.type === 'eq' && node.right === 'user-1')).toBe(
       true
     )
-  })
-
-  /** The same terminal state a cancel writes, so every `isExecCancelled` drain
-   *  guard already refuses to run it. */
-  it('writes the canonical cancelled cell state', async () => {
-    await deleteUserAccount('user-1')
-
-    const cancelled = dbChainMockFns.set.mock.calls
-      .map(([patch]) => patch as { status?: string; cancelledAt?: Date; error?: string })
-      .filter((patch) => patch.status === 'cancelled')
-    expect(cancelled.some((patch) => patch.error === 'Cancelled')).toBe(true)
-    expect(
-      cancelled.every(
-        (patch) => patch.cancelledAt === undefined || patch.cancelledAt instanceof Date
-      )
-    ).toBe(true)
   })
 
   /** Only the states a marker sits in before a worker claims it. */

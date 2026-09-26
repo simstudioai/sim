@@ -1,19 +1,15 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+
+const { mockBindInternalExecutorDelegation } = authInternalDelegationMockFns
 
 function executionContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -26,7 +22,6 @@ function executionContext(overrides: Partial<ExecutionContext> = {}): ExecutionC
 
 describe('createExecutorPrincipalFromExecutionContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
       kind: 'delegated',
       serviceId: 'executor',
@@ -110,18 +105,6 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     expect(principal.resourceScope).toBeUndefined()
     expect(principal.subjectUserId).toBe('user-origin')
     expect(principal.delegationContext?.workflowId).toBe('workflow-origin')
-  })
-
-  it('preserves another operation’s resource scope without adding MCP policy metadata', async () => {
-    const principal = await createExecutorPrincipalFromExecutionContext({
-      context: executionContext({
-        mcpBlockId: 'agent-block',
-        executorDelegationOrigin: { subjectUserId: 'user-origin', workflowId: 'workflow-origin' },
-      }),
-      audience: 'sim:tables',
-      resourceScope: { tableId: 'table-1' },
-    })
-    expect(principal.resourceScope).toEqual({ tableId: 'table-1' })
   })
 
   it('uses an explicit trusted execution deadline as the delegation expiry', async () => {

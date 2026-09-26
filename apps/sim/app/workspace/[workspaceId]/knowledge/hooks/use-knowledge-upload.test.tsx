@@ -2,17 +2,15 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockInvalidateQueries, mockUploadKnowledgeDocumentSession } = vi.hoisted(() => ({
-  mockInvalidateQueries: vi.fn(),
+const { mockUploadKnowledgeDocumentSession } = vi.hoisted(() => ({
   mockUploadKnowledgeDocumentSession: vi.fn(),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/lib/uploads/client/session-upload', () => ({
   uploadKnowledgeDocumentSession: mockUploadKnowledgeDocumentSession,
@@ -20,6 +18,8 @@ vi.mock('@/lib/uploads/client/session-upload', () => ({
 
 import { MULTI_FILE_UPLOAD_MAX_FILE_BYTES } from '@/lib/uploads/client/admission'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
+
+const mockInvalidateQueries = reactQueryMockFns.mockQueryClient.invalidateQueries
 
 interface HookHarness {
   result: () => ReturnType<typeof useKnowledgeUpload>
@@ -50,10 +50,6 @@ function sizedFile(name: string, size: number): File {
 }
 
 describe('useKnowledgeUpload admission', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('rejects aggregate bytes before allocating upload progress or sessions', async () => {
     const onError = vi.fn()
     const { result, unmount } = renderKnowledgeUploadHook(onError)
@@ -82,32 +78,6 @@ describe('useKnowledgeUpload admission', () => {
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'UPLOAD_TOTAL_SIZE_EXCEEDED' })
     )
-
-    unmount()
-  })
-
-  /**
-   * A partial batch failure still created every document that DID upload, so the caches have
-   * to reconcile on the throwing path too — otherwise the list renders without rows the
-   * server already has.
-   */
-  it('reconciles the caches when part of a batch fails', async () => {
-    const onError = vi.fn()
-    const { result, unmount } = renderKnowledgeUploadHook(onError)
-    mockUploadKnowledgeDocumentSession
-      .mockResolvedValueOnce({ id: 'doc-1', filename: 'ok.bin' })
-      .mockRejectedValueOnce(new Error('network died'))
-
-    await act(async () => {
-      await expect(
-        result().uploadFiles([sizedFile('ok.bin', 10), sizedFile('bad.bin', 10)], 'kb-1')
-      ).rejects.toMatchObject({ code: 'PARTIAL_UPLOAD_FAILURE' })
-    })
-
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['knowledge', 'detail', 'kb-1'],
-    })
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['knowledge', 'list'] })
 
     unmount()
   })

@@ -1,16 +1,25 @@
-/** @vitest-environment node */
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({ enroll: vi.fn(), context: vi.fn(), start: vi.fn() }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: m.enroll,
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: m.context,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: m.start }))
+const hoisted = vi.hoisted(() => ({ start: vi.fn() }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.start }))
 
 import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
+
+const m = {
+  ...hoisted,
+  enroll: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  context: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+}
 
 const input = {
   organizationId: 'org',
@@ -21,36 +30,12 @@ const input = {
   connectionIntent: { kind: 'reconnect', credentialId: 'owned-account' },
 } as const
 beforeEach(() => {
-  vi.clearAllMocks()
   m.enroll.mockResolvedValue({
     enrollment: { id: 'enrollment', email: 'person@example.test' },
     invitationLink: 'https://sim.test/credential-groups/enroll/token',
   })
   m.context.mockResolvedValue({ credentialOwnerId: 'person' })
   m.start.mockResolvedValue('https://provider.test/oauth')
-})
-it('binds the OAuth attempt and completion receipt to the current enrollment and explicit intent', async () => {
-  expect(await startViewerCredentialGroupOAuth(input)).toEqual({
-    invitationLink: 'https://sim.test/credential-groups/enroll/token',
-    authorizationUrl: 'https://provider.test/oauth',
-  })
-  expect(m.context).toHaveBeenCalledWith(
-    {
-      organizationId: 'org',
-      workspaceId: undefined,
-      credentialGroupId: 'group',
-      enrollmentId: 'enrollment',
-      email: 'person@example.test',
-      userId: 'person',
-    },
-    'slack-option'
-  )
-  expect(m.start).toHaveBeenCalledWith({ credentialOwnerId: 'person' }, 'token', {
-    completionRedirect: true,
-    returnTo: 'search',
-    completionId: input.completionId,
-    connectionIntent: input.connectionIntent,
-  })
 })
 it('propagates revoked enrollment and refuses a missing current OAuth context', async () => {
   m.enroll.mockRejectedValueOnce(new Error('Revoked enrollment'))

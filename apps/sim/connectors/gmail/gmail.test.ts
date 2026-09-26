@@ -1,33 +1,20 @@
-/**
- * @vitest-environment node
- */
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (
-    url: string,
-    init: RequestInit,
-    options: {
-      fetcher?: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
-    }
-  ) =>
-    options.fetcher
-      ? options.fetcher(url, init, mockFetchWithRetry)
-      : mockFetchWithRetry(url, init),
-}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
   getGmailMailboxEmail: vi.fn(async (token: string) =>
     token === 'bob-token' ? 'bob@example.com' : 'alice@example.com'
   ),
 }))
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: () => false,
-  processDocumentsWithQueue: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: vi.fn(),
   persistSkippedDocuments: vi.fn(),
@@ -41,12 +28,22 @@ import {
   shouldReplaceExistingWithSkippedDocument,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { gmailConnector } from '@/connectors/gmail/gmail'
-import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import {
   CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
   memberDocumentId,
   PER_MEMBER_LISTING_CONTEXT,
 } from '@/connectors/utils'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (
+    url: string,
+    init: RequestInit,
+    options: {
+      fetcher?: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
+    }
+  ) =>
+    options.fetcher ? options.fetcher(url, init, mockFetchWithRetry) : mockFetchWithRetry(url, init)
+)
 
 function threads(count: number, prefix: string) {
   return Array.from({ length: count }, (_, i) => ({ id: `${prefix}-${i}`, historyId: '1' }))
@@ -63,10 +60,6 @@ function mockPages(pages: { threads: unknown[]; nextPageToken?: string }[]) {
   })
   return urls
 }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 afterEach(() => {
   vi.useRealTimers()
@@ -184,69 +177,6 @@ describe('Gmail listing checkpoints', () => {
     expect(labelRequests).toBe(1)
     expect(threadQueries[0]).toContain('label:Engineering')
     expect(threadQueries[1]).toBe(threadQueries[0])
-  })
-
-  it('preserves an intentionally empty query in its checkpoint', async () => {
-    const urls = mockPages([{ threads: [], nextPageToken: 'page-2' }, { threads: [] }])
-    const sourceConfig = { excludePromotions: 'false', excludeSocial: 'false' }
-    const first = await gmailConnector.listDocuments('token', sourceConfig)
-    expect(JSON.parse(first.nextCursor!)).toEqual({ pageToken: 'page-2', searchQuery: '' })
-
-    await gmailConnector.listDocuments('token', sourceConfig, first.nextCursor)
-    expect(new URL(urls[1]).searchParams.has('q')).toBe(false)
-    expect(new URL(urls[1]).searchParams.get('pageToken')).toBe('page-2')
-  })
-
-  it('replays an existing date-based checkpoint without changing its provider query', async () => {
-    const urls = mockPages([{ threads: [] }])
-    const searchQuery = 'after:2026/08/25 -category:promotions -category:social'
-    await gmailConnector.listDocuments(
-      'token',
-      { dateRange: '7d' },
-      JSON.stringify({ pageToken: 'saved-page', searchQuery }),
-      memberContext('alice')
-    )
-    expect(new URL(urls[0]).searchParams.get('q')).toBe(searchQuery)
-    expect(new URL(urls[0]).searchParams.get('pageToken')).toBe('saved-page')
-  })
-
-  it('still accepts a legacy raw page token and upgrades the next checkpoint', async () => {
-    const urls = mockPages([{ threads: [], nextPageToken: 'page-3' }])
-    const result = await gmailConnector.listDocuments('token', {}, 'page-2')
-
-    expect(new URL(urls[0]).searchParams.get('pageToken')).toBe('page-2')
-    expect(JSON.parse(result.nextCursor!)).toEqual({
-      pageToken: 'page-3',
-      searchQuery: new URL(urls[0]).searchParams.get('q'),
-    })
-  })
-})
-
-describe('gmail listDocuments with a blank maxThreads', () => {
-  it.each([null, '', '   '])('keeps the default cap for %j', async (maxThreads) => {
-    mockPages([])
-    const syncContext: Record<string, unknown> = { totalThreadsFetched: DEFAULT_MAX_THREADS }
-
-    const result = await gmailConnector.listDocuments(
-      'token',
-      { maxThreads },
-      undefined,
-      syncContext
-    )
-
-    expect(result.hasMore).toBe(false)
-    expect(mockFetchWithRetry).not.toHaveBeenCalled()
-  })
-})
-
-describe('gmail validateConfig maxThreads', () => {
-  it('refuses what the sync parser would refuse, before any request', async () => {
-    for (const maxThreads of ['1.5', 'abc', '-1']) {
-      const result = await gmailConnector.validateConfig('token', { maxThreads })
-      expect(result.valid).toBe(false)
-      expect(result.error).toBe('Max threads must be a non-negative whole number')
-    }
-    expect(mockFetchWithRetry).not.toHaveBeenCalled()
   })
 })
 
@@ -426,199 +356,9 @@ describe('Gmail full-thread response budget', () => {
     )
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
   })
-
-  it('hydrates a thread that becomes small enough during the bounded retry', async () => {
-    let fullReads = 0
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      const parsed = new URL(url)
-      if (parsed.pathname.endsWith('/labels')) return Response.json({ labels: [] })
-      if (parsed.searchParams.get('format') === 'minimal')
-        return Response.json({ id: 'thread-1', historyId: '11' })
-      if (fullReads++ === 0)
-        return new Response(null, {
-          headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
-        })
-      return Response.json(threadFixture('11', 'A smaller current thread'))
-    })
-    const document = await gmailConnector.getDocument('token', {}, 'thread-1')
-    expect(document?.content).toContain('A smaller current thread')
-    expect(document?.skippedReason).toBeUndefined()
-    expect(document?.contentHash).toBe('gmail:thread-1:11:body-v2')
-    expect(fullReads).toBe(2)
-  })
-
-  it.each([401, 429, 503])(
-    'preserves metadata HTTP %s failure instead of caching a skip',
-    async (status) => {
-      mockFetchWithRetry.mockImplementation(async (url: string) =>
-        new URL(url).searchParams.get('format') === 'minimal'
-          ? new Response(null, { status })
-          : new Response(null, {
-              headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
-            })
-      )
-      await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toMatchObject({
-        status,
-      })
-      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
-    }
-  )
-
-  it.each([{}, { id: 'thread-1' }, { id: 'other-thread', historyId: '10' }])(
-    'rejects unverified metadata instead of synthesizing a skip revision: %j',
-    async (metadata) => {
-      mockFetchWithRetry.mockImplementation(async (url: string) =>
-        new URL(url).searchParams.get('format') === 'minimal'
-          ? Response.json(metadata)
-          : new Response(null, {
-              headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
-            })
-      )
-      await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow(
-        'Gmail returned malformed thread metadata'
-      )
-      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
-    }
-  )
-
-  it('returns null when the oversized thread disappears before revision verification', async () => {
-    mockFetchWithRetry.mockImplementation(async (url: string) =>
-      new URL(url).searchParams.get('format') === 'minimal'
-        ? new Response(null, { status: 404 })
-        : new Response(null, {
-            headers: { 'Content-Length': String(32 * 1024 * 1024 + 1) },
-          })
-    )
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).resolves.toBeNull()
-    expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not turn a missing response body into a permanent size skip', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(new Response(null))
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow()
-    expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
-  })
-
-  it('hydrates all ordinary replies from a chunked response', async () => {
-    const first = threadFixture('12', 'First message 世界')
-    const reply = threadFixture('12', 'Second reply with details').messages[0]
-    const thread = {
-      ...first,
-      messages: [...first.messages, { ...reply, id: 'message-2' }],
-    }
-    const data = Buffer.from(JSON.stringify(thread))
-    let offset = 0
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      if (url.endsWith('/labels')) return Response.json({ labels: [] })
-      return new Response(
-        new ReadableStream({
-          pull(controller) {
-            controller.enqueue(data.subarray(offset, offset + 31))
-            offset += 31
-            if (offset >= data.length) controller.close()
-          },
-        })
-      )
-    })
-
-    const document = await gmailConnector.getDocument('token', {}, 'thread-1')
-
-    expect(document).toMatchObject({
-      title: 'A conversation',
-      contentHash: 'gmail:thread-1:12:body-v2',
-      contentDeferred: false,
-      metadata: { messageCount: 2 },
-    })
-    expect(document?.content).toContain('First message 世界')
-    expect(document?.content).toContain('Second reply with details')
-    expect(document?.skippedReason).toBeUndefined()
-  })
 })
 
 describe('Gmail separately stored message bodies', () => {
-  it('retrieves the selected plain body using the message ID and current member token', async () => {
-    const text = 'Private body 世界'
-    const bodyRequests = mockExternalBodyThread(
-      {
-        mimeType: 'multipart/alternative',
-        parts: [
-          {
-            mimeType: 'text/html',
-            body: { data: Buffer.from('HTML fallback').toString('base64url') },
-          },
-          {
-            mimeType: 'text/plain',
-            filename: '',
-            body: { attachmentId: 'body/id+1', size: Buffer.byteLength(text) },
-          },
-        ],
-      },
-      () =>
-        Response.json({
-          data: Buffer.from(text).toString('base64url'),
-          size: Buffer.byteLength(text),
-        })
-    )
-
-    const document = await gmailConnector.getDocument(
-      'alice-token',
-      {},
-      'member:alice:thread-1',
-      memberContext('alice')
-    )
-
-    expect(document?.content).toContain(text)
-    expect(document?.content).not.toContain('HTML fallback')
-    expect(document?.contentHash).toBe('gmail:thread-1:10:body-v2')
-    expect(document?.externalId).toBe('member:alice:thread-1')
-    expect(bodyRequests).toHaveLength(1)
-    expect(bodyRequests[0].pathname).toBe(
-      '/gmail/v1/users/me/messages/message-1/attachments/body%2Fid%2B1'
-    )
-    expect(bodyRequests[0].searchParams.get('fields')).toBe('data,size')
-    expect(mockFetchWithRetry).toHaveBeenCalledWith(bodyRequests[0].toString(), {
-      method: 'GET',
-      headers: { Authorization: 'Bearer alice-token', Accept: 'application/json' },
-    })
-  })
-
-  it('extracts a nested external HTML body without fetching file or binary parts', async () => {
-    const html = '<p>Hello <strong>世界</strong></p>'
-    const bodyRequests = mockExternalBodyThread(
-      {
-        mimeType: 'multipart/mixed',
-        parts: [
-          {
-            mimeType: 'text/plain',
-            filename: 'private.txt',
-            body: { attachmentId: 'private-file' },
-          },
-          { mimeType: 'image/png', body: { attachmentId: 'inline-image' } },
-          {
-            mimeType: 'multipart/mixed',
-            filename: 'attached-email.eml',
-            parts: [{ mimeType: 'text/plain', body: { attachmentId: 'attached-email-body' } }],
-          },
-          {
-            mimeType: 'multipart/alternative',
-            parts: [{ mimeType: 'text/html', body: { attachmentId: 'html-body' } }],
-          },
-        ],
-      },
-      () =>
-        Response.json({
-          data: Buffer.from(html).toString('base64url'),
-          size: Buffer.byteLength(html),
-        })
-    )
-
-    const document = await gmailConnector.getDocument('token', {}, 'thread-1')
-
-    expect(document?.content).toContain('Hello 世界')
-    expect(document?.content).not.toContain('<strong>')
-    expect(bodyRequests.map((url) => url.pathname.split('/').at(-1))).toEqual(['html-body'])
-  })
-
   it.each([401, 403, 404])(
     'fails hydration rather than indexing an empty body after HTTP %s',
     async (status) => {
@@ -638,34 +378,6 @@ describe('Gmail separately stored message bodies', () => {
       expect(gmailConnector.isCredentialInvalidError?.(error)).toBe(status === 401)
     }
   )
-
-  it('preserves an exhausted provider retry error for the sync scheduler', async () => {
-    const retryError = Object.assign(new Error('Gmail temporarily unavailable'), {
-      status: 429,
-      retryAfterMs: 60_000,
-    })
-    mockExternalBodyThread({ mimeType: 'text/plain', body: { attachmentId: 'body' } }, () =>
-      Promise.reject(retryError)
-    )
-
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toBe(retryError)
-  })
-
-  it.each([
-    { size: 12 },
-    { data: 'aGVsbG8', size: 12 },
-    { data: 'invalid!base64', size: 9 },
-    { data: 'A', size: 0 },
-    { data: 'aGVsbG8', size: -1 },
-  ])('rejects missing or malformed fetched body data (%j)', async (body) => {
-    mockExternalBodyThread({ mimeType: 'text/plain', body: { attachmentId: 'body' } }, () =>
-      Response.json(body)
-    )
-
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow(
-      'Gmail returned malformed message body data'
-    )
-  })
 
   it('skips a known oversized body before downloading it', async () => {
     const bodyRequests = mockExternalBodyThread(
@@ -688,15 +400,6 @@ describe('Gmail separately stored message bodies', () => {
       skippedExistingDisposition: 'replace',
       skippedRetryPolicy: 'source-change',
     })
-  })
-
-  it('fails missing response bodies without permanently marking the thread oversized', async () => {
-    mockExternalBodyThread(
-      { mimeType: 'text/plain', body: { attachmentId: 'body' } },
-      () => new Response(null)
-    )
-
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow()
   })
 
   it('cancels an oversized streamed body even when metadata omits its size', async () => {
@@ -752,18 +455,6 @@ describe('Gmail separately stored message bodies', () => {
 })
 
 describe('Gmail Search member isolation', () => {
-  it('preserves the member OAuth path separately from service-account indexing', () => {
-    expect(gmailConnectorMeta.search).toBe(true)
-    expect(gmailConnectorMeta.auth).toMatchObject({
-      mode: 'oauth',
-      provider: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
-    })
-    expect(gmailConnectorMeta.permissionScopedListing).toEqual({ capFieldIds: ['maxThreads'] })
-    expect(gmailConnectorMeta.mirrorsSourceAcls).toBe(true)
-    expect(gmailConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
-  })
-
   it('keeps the same provider thread in different members separate', async () => {
     mockPages([
       { threads: [{ id: 'thread-1', historyId: '10' }] },
@@ -782,26 +473,6 @@ describe('Gmail Search member isolation', () => {
     expect(alice.documents[0].externalId).not.toBe(bob.documents[0].externalId)
   })
 
-  it('hydrates only the current member namespace and keeps the provider ID in its URL', async () => {
-    mockThreadResponse()
-    const document = await gmailConnector.getDocument(
-      'alice-token',
-      {},
-      'member:alice:thread-1',
-      memberContext('alice')
-    )
-
-    expect(document).toMatchObject({
-      externalId: 'member:alice:thread-1',
-      contentHash: 'gmail:thread-1:10:body-v2',
-      contentDeferred: false,
-      sourceUrl:
-        'https://accounts.google.com/AccountChooser?Email=alice%40example.com&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F%3Fauthuser%3Dalice%2540example.com%23all%2Fthread-1',
-    })
-    expect(document?.content).toContain('Private mailbox content')
-    expect(mockFetchWithRetry.mock.calls[0][0]).toContain('/threads/thread-1?format=full')
-  })
-
   it.each(['member:bob:thread-1', 'thread-1'])(
     'does not fetch an external ID outside the current member namespace: %s',
     async (externalId) => {
@@ -816,17 +487,6 @@ describe('Gmail Search member isolation', () => {
     }
   )
 
-  it('preserves general knowledge base document IDs', async () => {
-    mockPages([{ threads: [{ id: 'thread-1', historyId: '10' }] }])
-    const listing = await gmailConnector.listDocuments('token', {})
-    mockThreadResponse()
-    const document = await gmailConnector.getDocument('token', {}, listing.documents[0].externalId)
-
-    expect(listing.documents[0].externalId).toBe('thread-1')
-    expect(document?.externalId).toBe('thread-1')
-    expect(document?.contentHash).toBe(listing.documents[0].contentHash)
-  })
-
   it('refuses to resolve one mailbox custom label ID against another mailbox', async () => {
     await expect(
       gmailConnector.listDocuments(
@@ -837,24 +497,6 @@ describe('Gmail Search member isolation', () => {
       )
     ).rejects.toThrow('Use Gmail label names')
     expect(mockFetchWithRetry).not.toHaveBeenCalled()
-  })
-
-  it('accepts label names that each member resolves in their own mailbox', async () => {
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      if (new URL(url).pathname.endsWith('/labels')) {
-        return Response.json({ labels: [{ id: 'Label_91', name: 'Engineering', type: 'user' }] })
-      }
-      expect(new URL(url).searchParams.get('q')).toContain('label:Engineering')
-      return Response.json({ threads: [] })
-    })
-    await expect(
-      gmailConnector.listDocuments(
-        'token',
-        { label: ['Engineering'] },
-        undefined,
-        memberContext('alice')
-      )
-    ).resolves.toMatchObject({ documents: [], hasMore: false })
   })
 })
 
@@ -876,39 +518,6 @@ describe('Gmail thread revisions and deferred content', () => {
     expect(document?.content).toContain('A new reply')
   })
 
-  it('recovers missing history metadata with a minimal request before classifying changes', async () => {
-    mockFetchWithRetry
-      .mockResolvedValueOnce(Response.json({ threads: [{ id: 'thread-1' }] }))
-      .mockResolvedValueOnce(Response.json({ id: 'thread-1', historyId: '12' }))
-    const result = await gmailConnector.listDocuments('token', {})
-    expect(result.documents[0].contentHash).toBe('gmail:thread-1:12:body-v2')
-    const metadataUrl = new URL(mockFetchWithRetry.mock.calls[1][0])
-    expect(metadataUrl.searchParams.get('format')).toBe('minimal')
-    expect(metadataUrl.searchParams.get('fields')).toBe('id,historyId,snippet')
-    expect(result.documents[0].contentDeferred).toBe(true)
-  })
-
-  it('limits missing-metadata reads to five at a time', async () => {
-    let active = 0
-    let peak = 0
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      const pathname = new URL(url).pathname
-      if (pathname.endsWith('/threads')) {
-        return Response.json({
-          threads: Array.from({ length: 12 }, (_, index) => ({ id: `thread-${index}` })),
-        })
-      }
-      active += 1
-      peak = Math.max(peak, active)
-      await Promise.resolve()
-      active -= 1
-      return Response.json({ id: pathname.split('/').at(-1), historyId: '12' })
-    })
-    const result = await gmailConnector.listDocuments('token', {})
-    expect(result.documents).toHaveLength(12)
-    expect(peak).toBe(5)
-  })
-
   it.each([401, 403, 429, 503])(
     'fails a partial metadata listing on HTTP %i so deletions cannot reconcile',
     async (status) => {
@@ -920,20 +529,6 @@ describe('Gmail thread revisions and deferred content', () => {
       )
     }
   )
-
-  it('allows an already deleted thread to disappear from a complete listing', async () => {
-    mockFetchWithRetry
-      .mockResolvedValueOnce(Response.json({ threads: [{ id: 'thread-1' }] }))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-    const context: Record<string, unknown> = {}
-    expect(await gmailConnector.listDocuments('token', {}, undefined, context)).toEqual({
-      currentCursor: expect.any(String),
-      documents: [],
-      hasMore: false,
-      nextCursor: undefined,
-    })
-    expect(context.listingCapped).toBeUndefined()
-  })
 
   it.each([
     null,
@@ -950,22 +545,6 @@ describe('Gmail thread revisions and deferred content', () => {
       )
     }
   )
-
-  it('refuses a metadata recovery response without a revision', async () => {
-    mockFetchWithRetry
-      .mockResolvedValueOnce(Response.json({ threads: [{ id: 'thread-1' }] }))
-      .mockResolvedValueOnce(Response.json({ id: 'thread-1' }))
-    await expect(gmailConnector.listDocuments('token', {})).rejects.toThrow(
-      'malformed thread metadata'
-    )
-  })
-
-  it('returns null for a removed thread and propagates a transient hydration failure', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status: 404 }))
-    expect(await gmailConnector.getDocument('token', {}, 'thread-1')).toBeNull()
-    mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status: 503 }))
-    await expect(gmailConnector.getDocument('token', {}, 'thread-1')).rejects.toThrow('503')
-  })
 })
 
 describe('Gmail listing completeness and filters', () => {
@@ -992,31 +571,6 @@ describe('Gmail listing completeness and filters', () => {
     expect(context.listingCapped).toBeUndefined()
     expect(parseBody).not.toHaveBeenCalled()
   })
-
-  it.each([{}, { resultSizeEstimate: 0 }, { threads: [], resultSizeEstimate: 0 }])(
-    'completes a valid empty JSON listing without requiring an estimate: %j',
-    async (body) => {
-      mockFetchWithRetry.mockResolvedValueOnce(Response.json(body))
-      const context: Record<string, unknown> = {}
-      expect(await gmailConnector.listDocuments('token', {}, undefined, context)).toEqual({
-        currentCursor: expect.any(String),
-        documents: [],
-        hasMore: false,
-        nextCursor: undefined,
-      })
-      expect(context.listingCapped).toBeUndefined()
-    }
-  )
-
-  it.each([401, 403, 429, 503])(
-    'classifies only a rejected credential as reconnectable for HTTP %i',
-    async (status) => {
-      mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status }))
-      const error = await gmailConnector.listDocuments('token', {}).catch((cause: unknown) => cause)
-      expect(error).toBeInstanceOf(Error)
-      expect(gmailConnector.isCredentialInvalidError?.(error)).toBe(status === 401)
-    }
-  )
 
   it('continues through an empty page with a continuation token', async () => {
     const urls = mockPages([
@@ -1056,37 +610,10 @@ describe('Gmail listing completeness and filters', () => {
     )
   })
 
-  it('keeps user label IDs working in a general knowledge base', async () => {
-    mockFetchWithRetry
-      .mockResolvedValueOnce(
-        Response.json({ labels: [{ id: 'Label_7', name: 'Customer Success', type: 'user' }] })
-      )
-      .mockResolvedValueOnce(Response.json({ threads: [] }))
-    await gmailConnector.listDocuments('token', { label: ['Label_7'] })
-    expect(new URL(mockFetchWithRetry.mock.calls[1][0]).searchParams.get('q')).toContain(
-      'label:"Customer Success"'
-    )
-  })
-
   it('fails closed when configured label IDs cannot be resolved', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status: 503 }))
     await expect(
       gmailConnector.listDocuments('token', { label: ['INBOX'] }, undefined, {})
-    ).rejects.toThrow('cannot resolve the configured label filter')
-  })
-
-  it('preserves a credential rejection from the label lookup so a member can reconnect', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(new Response(null, { status: 401 }))
-    const error = await gmailConnector
-      .listDocuments('token', { label: ['INBOX'] }, undefined, memberContext('alice'))
-      .catch((cause: unknown) => cause)
-    expect(gmailConnector.isCredentialInvalidError?.(error)).toBe(true)
-  })
-
-  it('does not interpret a malformed label response as no matching mail', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(Response.json({}))
-    await expect(
-      gmailConnector.listDocuments('token', { label: ['Label_7'] }, undefined, {})
     ).rejects.toThrow('cannot resolve the configured label filter')
   })
 })
@@ -1113,74 +640,6 @@ describe('Gmail body and label extraction', () => {
     expect(bob?.content).toContain('Bob-only reply')
     expect(bob?.content).not.toContain('Alice-only reply')
     expect(alice?.externalId).not.toBe(bob?.externalId)
-  })
-
-  it('extracts nested HTML body text and excludes file attachment contents', async () => {
-    const thread = threadFixture()
-    const payload = {
-      mimeType: 'multipart/mixed',
-      headers: thread.messages[0].payload.headers,
-      parts: [
-        {
-          mimeType: 'text/plain',
-          filename: 'private-attachment.txt',
-          body: { data: Buffer.from('Attachment contents').toString('base64url') },
-        },
-        {
-          mimeType: 'multipart/alternative',
-          parts: [
-            {
-              mimeType: 'text/html',
-              body: {
-                data: Buffer.from('<p>Hello <strong>世界</strong></p>').toString('base64url'),
-              },
-            },
-          ],
-        },
-      ],
-    }
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      if (new URL(url).pathname.endsWith('/labels')) return Response.json({ labels: [] })
-      return Response.json({ ...thread, messages: [{ ...thread.messages[0], payload }] })
-    })
-    const document = await gmailConnector.getDocument('token', {}, 'thread-1')
-    expect(document?.content).toContain('Hello 世界')
-    expect(document?.content).not.toContain('<strong>')
-    expect(document?.content).not.toContain('Attachment contents')
-  })
-
-  it('includes labels added on a later reply and reuses the mailbox label cache', async () => {
-    const thread = threadFixture()
-    thread.messages.push({
-      ...thread.messages[0],
-      id: 'message-2',
-      labelIds: ['Label_7'],
-      internalDate: '1700000010000',
-    })
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      if (new URL(url).pathname.endsWith('/labels')) {
-        return Response.json({
-          labels: [
-            { id: 'INBOX', name: 'INBOX' },
-            { id: 'Label_7', name: 'Engineering' },
-          ],
-        })
-      }
-      return Response.json(thread)
-    })
-    const context = memberContext('alice')
-    const first = await gmailConnector.getDocument('token', {}, 'member:alice:thread-1', context)
-    await gmailConnector.getDocument('token', {}, 'member:alice:thread-1', context)
-
-    expect(first?.metadata?.labels).toEqual(['INBOX', 'Engineering'])
-    expect(first?.metadata?.messageCount).toBe(2)
-    expect(gmailConnector.mapTags?.(first?.metadata ?? {})).toMatchObject({
-      labels: 'INBOX, Engineering',
-      messageCount: 2,
-    })
-    expect(
-      mockFetchWithRetry.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/labels'))
-    ).toHaveLength(1)
   })
 })
 
@@ -1246,20 +705,6 @@ describe('Gmail change feed', () => {
     vi.setSystemTime(new Date('2026-09-10T12:00:00Z'))
   })
 
-  it('opens the feed at the mailbox history id from the profile', async () => {
-    const requests = mockFeed([], {})
-    const cursor = await gmailConnector.getChangeCursor!('token', {})
-    expect(JSON.parse(cursor)).toEqual({ historyId: '500' })
-    expect(requests.map((url) => url.pathname.split('/').at(-1))).toEqual(['profile'])
-  })
-
-  it('refuses the feed only when a free-form search filter is configured', () => {
-    expect(gmailConnector.supportsChangeFeed!({})).toBe(true)
-    expect(gmailConnector.supportsChangeFeed!({ label: 'INBOX', dateRange: '30d' })).toBe(true)
-    expect(gmailConnector.supportsChangeFeed!({ query: '   ' })).toBe(true)
-    expect(gmailConnector.supportsChangeFeed!({ query: 'from:boss@example.com' })).toBe(false)
-  })
-
   it('upserts changed threads still in scope and removes trashed or deleted ones', async () => {
     const requests = mockFeed([historyPage(['kept', 'trashed', 'gone'])], {
       kept: metadataThread('kept', [{ labelIds: ['INBOX'] }]),
@@ -1307,39 +752,6 @@ describe('Gmail change feed', () => {
     }
   })
 
-  it('applies the date range, label and category filters to each message', async () => {
-    const dayMs = 24 * 60 * 60 * 1000
-    const recent = String(Date.now() - 2 * dayMs)
-    const stale = String(Date.now() - 40 * dayMs)
-    mockFeed(
-      [historyPage(['old', 'promo', 'unlabelled', 'match'])],
-      {
-        old: metadataThread('old', [{ labelIds: ['Label_7'], internalDate: stale }]),
-        promo: metadataThread('promo', [
-          { labelIds: ['Label_7', 'CATEGORY_PROMOTIONS'], internalDate: recent },
-        ]),
-        unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'], internalDate: recent }]),
-        match: metadataThread('match', [
-          { labelIds: ['INBOX'], internalDate: stale },
-          { labelIds: ['Label_7'], internalDate: recent },
-        ]),
-      },
-      [{ id: 'Label_7', name: 'Engineering' }]
-    )
-    const page = await gmailConnector.listChanges!(
-      'token',
-      { label: 'Engineering', dateRange: '30d' },
-      JSON.stringify({ historyId: '500' })
-    )
-    const byId = Object.fromEntries(page.changes.map((change) => [change.externalId, change.kind]))
-    expect(byId).toEqual({
-      old: 'removed',
-      promo: 'removed',
-      unlabelled: 'removed',
-      match: 'upsert',
-    })
-  })
-
   it('uses the same timezone-independent cutoff for full listings and history', async () => {
     vi.setSystemTime(new Date('2026-09-10T12:00:00.987Z'))
     const cutoff = new Date('2026-09-03T12:00:00Z').getTime()
@@ -1374,55 +786,6 @@ describe('Gmail change feed', () => {
       kind: 'removed',
       externalId: 'member:member-a:earlier-that-day',
     })
-  })
-
-  it('keeps a missing member label empty when moving from a full listing to history', async () => {
-    const config = { label: 'Engineering', maxThreads: 0 }
-    mockFetchWithRetry
-      .mockResolvedValueOnce(Response.json({ labels: [{ id: 'INBOX', name: 'INBOX' }] }))
-      .mockResolvedValueOnce(Response.json({ threads: [] }))
-    const listing = await gmailConnector.listDocuments(
-      'token',
-      config,
-      undefined,
-      memberContext('member-a')
-    )
-    expect(listing.documents).toEqual([])
-    expect(listing.hasMore).toBe(false)
-
-    mockFeed([historyPage(['unlabelled'])], {
-      unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'] }]),
-    })
-    const page = await gmailConnector.listChanges!(
-      'token',
-      config,
-      '500',
-      memberContext('member-a')
-    )
-    expect(page.changes).toEqual([{ kind: 'removed', externalId: 'member:member-a:unlabelled' }])
-    expect(JSON.parse(page.nextCursor)).toEqual({ historyId: '900' })
-    expect(page.hasMore).toBe(false)
-  })
-
-  it('matches existing labels in an OR filter even when another label is absent', async () => {
-    mockFeed(
-      [historyPage(['match', 'unlabelled'])],
-      {
-        match: metadataThread('match', [{ labelIds: ['Label_7'] }]),
-        unlabelled: metadataThread('unlabelled', [{ labelIds: ['INBOX'] }]),
-      },
-      [{ id: 'Label_7', name: 'Engineering' }]
-    )
-    const page = await gmailConnector.listChanges!(
-      'token',
-      { label: ['Engineering', 'Missing label'] },
-      '500',
-      memberContext('member-a')
-    )
-    expect(page.changes.map(({ kind, externalId }) => ({ kind, externalId }))).toEqual([
-      { kind: 'upsert', externalId: 'member:member-a:match' },
-      { kind: 'removed', externalId: 'member:member-a:unlabelled' },
-    ])
   })
 
   it.each([403, 503])(

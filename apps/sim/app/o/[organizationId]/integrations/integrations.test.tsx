@@ -1,6 +1,23 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode } from 'react'
 import { toast } from '@sim/emcn'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,9 +27,6 @@ import type { SearchConnector } from '@/lib/sim-search/connectors'
 
 const mocks = vi.hoisted(() => ({
   live: false,
-  context: vi.fn(),
-  sources: vi.fn(),
-  overview: vi.fn(),
   integrations: vi.fn(),
   slackInventory: vi.fn(),
   filters: vi.fn(),
@@ -26,29 +40,15 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   updateUrl: vi.fn(),
   setupConnector: null as SearchConnector | null,
-  organizationAccounts: vi.fn(),
   connectOrganizationAccount: vi.fn(),
   reconnectOrganizationAccount: vi.fn(),
   refetchAccounts: vi.fn(),
 }))
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/organization-secrets', () => ({
   useOrganizationSecretSource: () => ({ data: { source: null } }),
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  organizationAccountsKeys: { detail: (id: string) => ['organization-accounts', 'detail', id] },
-  useOrganizationAccounts: mocks.organizationAccounts,
-  useConnectOrganizationAccount: () => ({
-    mutate: mocks.connectOrganizationAccount,
-    isPending: false,
-  }),
-  useReconnectPersonalOrganizationAccount: () => ({
-    mutate: mocks.reconnectOrganizationAccount,
-    isPending: false,
-  }),
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/app/o/[organizationId]/integrations/slack-search-actions', () => ({
   SlackSearchActions: () => <span>Return to Slack</span>,
 }))
@@ -80,9 +80,7 @@ vi.mock(
   '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters',
   () => ({ useOrganizationPageFilters: mocks.filters })
 )
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: mocks.context,
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-showcase', () => ({
   IntegrationTile: () => null,
 }))
@@ -105,11 +103,8 @@ vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => (
     ) : null
   },
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useSearchSources: mocks.sources,
-  useSearchSourceOverview: mocks.overview,
-}))
-vi.mock('@/hooks/use-member-enrollment', () => ({
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
+vi.mock('@/app/o/[organizationId]/integrations/indexed/use-member-enrollment', () => ({
   enrollmentActionLabel: (membership: string, waiting: boolean) =>
     waiting ? 'Open again' : membership === 'needs_reauth' ? 'Reconnect' : 'Connect',
   CONNECTABLE_MEMBERSHIPS: new Set(['invited', 'not_enrolled', 'needs_reauth']),
@@ -131,13 +126,22 @@ vi.mock('@/hooks/use-oauth-return', () => ({
   useOAuthReturnRouter: () => undefined,
 }))
 
+import { MemberIntegrationsList } from '@/app/o/[organizationId]/integrations/indexed'
 import { OrganizationIntegrations } from '@/app/o/[organizationId]/integrations/integrations'
-import { MemberIntegrationsList } from '@/app/o/[organizationId]/integrations/member-integrations-list'
 import {
   type RowAction,
   RowActionsMenu,
 } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(() =>
+  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
+)
+
+const mockUseOrganizationContext = organizationProviderMockFns.mockUseOrganizationContext
+const mockUseOrganizationAccounts = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
+const mockUseSearchSources = kbConnectorsQueriesMockFns.mockUseSearchSources
+const mockUseSearchSourceOverview = kbConnectorsQueriesMockFns.mockUseSearchSourceOverview
 
 const scope = { kind: 'organization', organizationId: 'organization-a' } as const
 const account = {
@@ -179,12 +183,19 @@ let container: HTMLDivElement
 let rows: SearchSourceSummary[]
 let queryOverrides: Record<string, unknown>
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.live = false
   vi.spyOn(toast, 'error').mockReturnValue('toast')
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.setupConnector = null
-  mocks.organizationAccounts.mockReturnValue({
+  organizationAccountsQueriesMockFns.mockUseConnectOrganizationAccount.mockReturnValue({
+    mutate: mocks.connectOrganizationAccount,
+    isPending: false,
+  })
+  organizationAccountsQueriesMockFns.mockUseReconnectPersonalOrganizationAccount.mockReturnValue({
+    mutate: mocks.reconnectOrganizationAccount,
+    isPending: false,
+  })
+  mockUseOrganizationAccounts.mockReturnValue({
     data: { credentialGroup: null, viewerAccounts: [] },
     isPending: false,
     isError: false,
@@ -192,7 +203,7 @@ beforeEach(() => {
   })
   rows = [memberSource]
   queryOverrides = {}
-  mocks.context.mockReturnValue({
+  mockUseOrganizationContext.mockReturnValue({
     organization: { id: scope.organizationId },
     viewer: { isAdmin: false },
     searchAccess: { memberScoped: true, sourceMirrored: true },
@@ -207,7 +218,7 @@ beforeEach(() => {
     data: [{ connectorType: 'gmail', approved: true }],
     isPending: false,
   })
-  mocks.overview.mockReturnValue({
+  mockUseSearchSourceOverview.mockReturnValue({
     data: {
       providers: [{ connectorType: 'gmail', isSyncing: false }],
       hasSearchableDocuments: false,
@@ -224,7 +235,7 @@ beforeEach(() => {
     isIntegrationAvailabilityReady: true,
     integrationAvailabilityError: null,
   })
-  mocks.sources.mockImplementation(
+  mockUseSearchSources.mockImplementation(
     (_scope: unknown, options: { enabled: boolean; connectorType?: string }) => ({
       data: options.enabled
         ? rows.filter((row) => row.connectorType === options.connectorType)
@@ -246,8 +257,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 async function render(searchParams = '', element: ReactNode = <MemberIntegrationsList />) {
   await act(async () =>
@@ -316,7 +325,7 @@ describe('GitHub member account inventory', () => {
       connectorType: 'github',
       sourceDescription: connectorId,
     }))
-    mocks.overview.mockReturnValue({
+    mockUseSearchSourceOverview.mockReturnValue({
       data: { providers: [{ connectorType: 'github' }] },
       isPending: false,
     })
@@ -329,7 +338,7 @@ describe('GitHub member account inventory', () => {
       oauthServiceAvailability: new Map([['github-repositories', true]]),
       isIntegrationAvailabilityReady: true,
     })
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: { credentialGroup: githubGroup, viewerAccounts: [] },
       isPending: false,
       isError: false,
@@ -350,7 +359,7 @@ describe('GitHub member account inventory', () => {
       expect.any(Object)
     )
     expectConnectionRedirect(mocks.connectOrganizationAccount.mock.calls[0][1].onSuccess, url)
-    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(mockUseSearchSources).not.toHaveBeenCalled()
     expect(mocks.connect).not.toHaveBeenCalled()
     expect(mocks.connectSearchSource).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
@@ -358,7 +367,7 @@ describe('GitHub member account inventory', () => {
   })
 
   it('keeps one account row when an admin adds another repository', async () => {
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: { credentialGroup: githubGroup, viewerAccounts: [githubAccount] },
       isPending: false,
     })
@@ -375,21 +384,21 @@ describe('GitHub member account inventory', () => {
     )
     expect(buttons('Connect')).toHaveLength(0)
     expect(buttons('Reconnect')).toHaveLength(0)
-    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(mockUseSearchSources).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain('future-repository')
   })
 
   it('keeps an owned account visible before any repository source exists', async () => {
-    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mockUseSearchSourceOverview.mockReturnValue({ data: { providers: [] }, isPending: false })
     mocks.integrations.mockReturnValue({ data: [], isPending: false })
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: { credentialGroup: githubGroup, viewerAccounts: [githubAccount] },
       isPending: false,
     })
     await render('', <OrganizationIntegrations />)
     expect(container.textContent).toContain('My GitHub · Connected')
     expect(document.querySelectorAll('[aria-label="GitHub integration actions"]')).toHaveLength(1)
-    expect(mocks.sources).not.toHaveBeenCalled()
+    expect(mockUseSearchSources).not.toHaveBeenCalled()
     expect(buttons('Connect')).toHaveLength(0)
     expect(container.textContent).not.toContain('No integrations are available')
   })
@@ -398,7 +407,7 @@ describe('GitHub member account inventory', () => {
     'keeps Disconnect but hides Reconnect when the canonical %s is disabled',
     async (disabled) => {
       const expired = { ...githubAccount, status: 'needs_reauth' }
-      mocks.organizationAccounts.mockReturnValue({
+      mockUseOrganizationAccounts.mockReturnValue({
         data: {
           credentialGroup: {
             ...githubGroup,
@@ -425,16 +434,16 @@ describe('GitHub member account inventory', () => {
     undefined,
     'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/github-option?returnTo=accounts',
   ])('allows personal reauthorization while Search is disabled with redirect %s', async (url) => {
-    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mockUseSearchSourceOverview.mockReturnValue({ data: { providers: [] }, isPending: false })
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'github', approved: false }],
       isPending: false,
     })
-    mocks.context.mockReturnValue({
+    mockUseOrganizationContext.mockReturnValue({
       organization: { id: scope.organizationId },
       searchAccess: { memberScoped: false, sourceMirrored: false },
     })
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: {
         credentialGroup: githubGroup,
         viewerAccounts: [{ ...githubAccount, status: 'needs_reauth' }],
@@ -453,7 +462,7 @@ describe('GitHub member account inventory', () => {
   })
 
   it('does not reconnect an account through a different active option', async () => {
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: {
         credentialGroup: githubGroup,
         viewerAccounts: [{ ...githubAccount, optionId: 'other-option', status: 'needs_reauth' }],
@@ -468,7 +477,7 @@ describe('GitHub member account inventory', () => {
   it.each(['pending', 'error'] as const)(
     'does not fall through to repository setup when the inventory is %s',
     async (state) => {
-      mocks.organizationAccounts.mockReturnValue({
+      mockUseOrganizationAccounts.mockReturnValue({
         data: undefined,
         isPending: state === 'pending',
         isError: state === 'error',
@@ -478,7 +487,7 @@ describe('GitHub member account inventory', () => {
       })
       await render()
       expect(container.textContent).toContain('GitHub')
-      expect(mocks.sources).not.toHaveBeenCalled()
+      expect(mockUseSearchSources).not.toHaveBeenCalled()
       expect(buttons('Connect')).toHaveLength(0)
       expect(mocks.connectSearchSource).not.toHaveBeenCalled()
       if (state === 'error') {
@@ -489,7 +498,7 @@ describe('GitHub member account inventory', () => {
   )
 
   it('retains legacy account management only after a successful response omits the inventory', async () => {
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: { credentialGroup: githubGroup },
       isPending: false,
       isError: false,
@@ -500,7 +509,10 @@ describe('GitHub member account inventory', () => {
       viewerAccounts: [githubAccount],
     }))
     await render()
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { connectorType: 'github', enabled: true })
+    expect(mockUseSearchSources).toHaveBeenCalledWith(scope, {
+      connectorType: 'github',
+      enabled: true,
+    })
     expect(document.querySelectorAll('[aria-label="GitHub integration actions"]')).toHaveLength(1)
     expect(mocks.accountMenu).toHaveBeenLastCalledWith(
       expect.objectContaining({ accounts: [githubAccount] })
@@ -511,7 +523,7 @@ describe('GitHub member account inventory', () => {
 
 describe('grouped member integrations', () => {
   it('renders one provider row and loads bounded pages per configured provider', async () => {
-    mocks.overview.mockReturnValue({
+    mockUseSearchSourceOverview.mockReturnValue({
       data: { providers: [{ connectorType: 'gmail' }, { connectorType: 'google_drive' }] },
       isPending: false,
     })
@@ -523,8 +535,11 @@ describe('grouped member integrations', () => {
     expect(buttons('Connect')).toHaveLength(1)
     expect(container.textContent).toContain('Google Drive')
     expect(container.textContent).not.toContain('Inbox')
-    expect(mocks.sources).toHaveBeenCalledWith(scope, { connectorType: 'gmail', enabled: true })
-    expect(mocks.sources).toHaveBeenCalledWith(scope, {
+    expect(mockUseSearchSources).toHaveBeenCalledWith(scope, {
+      connectorType: 'gmail',
+      enabled: true,
+    })
+    expect(mockUseSearchSources).toHaveBeenCalledWith(scope, {
       connectorType: 'google_drive',
       enabled: true,
     })
@@ -645,7 +660,7 @@ describe('grouped member integrations', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('search-index', 'expired-source')
   })
   it('explains central connections without asking for a personal account', async () => {
-    mocks.overview.mockReturnValue({
+    mockUseSearchSourceOverview.mockReturnValue({
       data: { providers: [{ connectorType: 'google_drive', isSyncing: false }] },
       isPending: false,
     })
@@ -679,7 +694,7 @@ describe('grouped member integrations', () => {
   it.each(['members', 'admin'] as const)(
     'does not claim connected when multi-scope %s access is disabled',
     async (accessMode) => {
-      mocks.context.mockReturnValue({
+      mockUseOrganizationContext.mockReturnValue({
         organization: { id: scope.organizationId },
         searchAccess: { memberScoped: false, sourceMirrored: false },
       })
@@ -751,7 +766,7 @@ describe('grouped member integrations', () => {
       expect(mocks.nextPage).toHaveBeenCalledOnce()
       queryOverrides = { hasNextPage: true, isFetchingNextPage: true, isFetching: true }
       await render()
-      expect(buttons('Checking…')[0]).toBeDisabled()
+      expect(buttons('Checking')[0]).toBeDisabled()
       rows = [
         ...rows,
         { ...memberSource, connectorId: 'older-source', viewerMembership: membership },
@@ -782,14 +797,13 @@ describe('grouped member integrations', () => {
     expect(document.querySelector('[role="region"]')).toBeNull()
   })
   it('offers direct Connect only for a new eligible provider, with no duplicate scope row', async () => {
-    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mockUseSearchSourceOverview.mockReturnValue({ data: { providers: [] }, isPending: false })
     await render()
     expect(buttons('Connect')).toHaveLength(1)
     await act(async () => buttons('Connect')[0].click())
     expect(mocks.connectSearchSource).toHaveBeenCalledWith(
       scope,
-      expect.objectContaining({ type: 'gmail' }),
-      undefined
+      expect.objectContaining({ type: 'gmail' })
     )
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
@@ -810,7 +824,7 @@ describe('grouped member integrations', () => {
   it.each([false, true])(
     'preserves shared Slack onboarding without a duplicate row (configured: %s)',
     async (configured) => {
-      mocks.overview.mockReturnValue({
+      mockUseSearchSourceOverview.mockReturnValue({
         data: { providers: configured ? [{ connectorType: 'slack' }] : [] },
         isPending: false,
       })
@@ -842,8 +856,7 @@ describe('grouped member integrations', () => {
       } else {
         expect(mocks.connectSearchSource).toHaveBeenCalledExactlyOnceWith(
           scope,
-          expect.objectContaining({ type: 'slack' }),
-          undefined
+          expect.objectContaining({ type: 'slack' })
         )
         expect(mocks.connect).not.toHaveBeenCalled()
       }
@@ -881,7 +894,7 @@ describe('grouped member integrations', () => {
     { data: undefined, isPending: true, isError: false },
     { data: undefined, isPending: false, isError: true, error: new Error('Could not load Slack') },
   ])('withholds new Slack setup without a ready shared-app target: %o', async (inventory) => {
-    mocks.overview.mockReturnValue({ data: { providers: [] }, isPending: false })
+    mockUseSearchSourceOverview.mockReturnValue({ data: { providers: [] }, isPending: false })
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'slack', approved: true }],
       isPending: false,
@@ -897,7 +910,7 @@ describe('grouped member integrations', () => {
     expect(mocks.connectSearchSource).not.toHaveBeenCalled()
   })
   it('withholds new setup on failed/incomplete provider data', async () => {
-    mocks.overview.mockReturnValue({
+    mockUseSearchSourceOverview.mockReturnValue({
       data: { providers: [{ connectorType: 'confluence', isSyncing: false }] },
       isPending: false,
     })
@@ -918,7 +931,7 @@ describe('grouped member integrations', () => {
     ).toEqual([])
   })
   it('keeps the integration menu open during background indexing refreshes', async () => {
-    mocks.overview.mockReturnValue({
+    mockUseSearchSourceOverview.mockReturnValue({
       data: { providers: [{ connectorType: 'confluence', isSyncing: true }] },
       isPending: false,
     })
@@ -983,7 +996,7 @@ describe('live integrations backend selection', () => {
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'google_drive', approved: true }],
     })
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: {
         credentialGroup: {
           status: 'active',
@@ -1008,15 +1021,15 @@ describe('live integrations backend selection', () => {
       { organizationId: scope.organizationId, optionId: 'drive' },
       expect.any(Object)
     )
-    expect(mocks.sources).not.toHaveBeenCalled()
-    expect(mocks.overview).not.toHaveBeenCalled()
+    expect(mockUseSearchSources).not.toHaveBeenCalled()
+    expect(mockUseSearchSourceOverview).not.toHaveBeenCalled()
     expect(mocks.integrations).toHaveBeenCalledWith(scope.organizationId)
     expect(mocks.connectSearchSource).not.toHaveBeenCalled()
   })
   it('offers reconnect for an existing personal grant', async () => {
     mocks.live = true
     mocks.integrations.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
-    mocks.organizationAccounts.mockReturnValue({
+    mockUseOrganizationAccounts.mockReturnValue({
       data: {
         credentialGroup: {
           status: 'active',

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createServer, type Server as HttpServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Server } from 'socket.io'
@@ -39,7 +36,6 @@ describe('server shutdown connection drain', () => {
     await io.close()
     await waitForConnectionCleanup()
     await manager.shutdown()
-    vi.restoreAllMocks()
   })
 
   it('keeps automatic reconnection active after transport shutdown', async () => {

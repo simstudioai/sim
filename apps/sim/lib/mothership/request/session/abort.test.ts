@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import { redisConfigMockFns } from '@sim/testing'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHasAbortMarker, mockClearAbortMarker, mockWriteAbortMarker } = vi.hoisted(() => ({
@@ -16,10 +13,7 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   clearAbortMarker: mockClearAbortMarker,
   writeAbortMarker: mockWriteAbortMarker,
 }))
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (_span: unknown, _attrs: unknown, fn: (span: unknown) => unknown) =>
-    fn({ setAttribute: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import {
   acquirePendingChatStream,
@@ -30,7 +24,6 @@ import {
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     mockHasAbortMarker.mockResolvedValue(false)
     redisConfigMockFns.mockExtendLock.mockResolvedValue(true)
@@ -177,7 +170,6 @@ describe('startAbortPoller heartbeat', () => {
 
 describe('getChatStreamLockOwners', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
   })
 

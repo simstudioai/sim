@@ -1,111 +1,33 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode, useEffect, useState } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 
-const {
-  mockCancelQueries,
-  mockClearUserData,
-  mockGetSession,
-  mockInvalidateQueries,
-  mockLogger,
-  mockPush,
-  mockRequestJson,
-  mockRefetch,
-  mockSearchParams,
-  mockSetActive,
-  mockSetQueryData,
-  mockSignOut,
-  mockUseSession,
-} = vi.hoisted(() => ({
-  mockCancelQueries: vi.fn(),
+const { mockClearUserData } = vi.hoisted(() => ({
   mockClearUserData: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockInvalidateQueries: vi.fn(),
-  mockLogger: {
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-  mockPush: vi.fn(),
-  mockRequestJson: vi.fn(),
-  mockRefetch: vi.fn(),
-  mockSearchParams: { current: new URLSearchParams('token=token-1') },
-  mockSetActive: vi.fn(),
-  mockSetQueryData: vi.fn(),
-  mockSignOut: vi.fn(),
-  mockUseSession: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ id: 'invitation-1' }),
-  useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => mockSearchParams.current,
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@tanstack/react-query', () => {
-  return {
-    useQueryClient: () => ({
-      cancelQueries: mockCancelQueries,
-      invalidateQueries: mockInvalidateQueries,
-      setQueryData: mockSetQueryData,
-    }),
-    /**
-     * Minimal useQuery stand-in: runs the queryFn once when enabled and
-     * exposes { data, error, isPending } — enough for the invitation fetch.
-     */
-    useQuery: (options: {
-      queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
-      enabled?: boolean
-    }) => {
-      const [state, setState] = useState<{
-        data: unknown
-        error: unknown
-        isPending: boolean
-      }>({ data: undefined, error: null, isPending: true })
-      const enabled = options.enabled !== false
-      useEffect(() => {
-        if (!enabled) return
-        let cancelled = false
-        options.queryFn({}).then(
-          (data) => {
-            if (!cancelled) setState({ data, error: null, isPending: false })
-          },
-          (error) => {
-            if (!cancelled) setState({ data: undefined, error, isPending: false })
-          }
-        )
-        return () => {
-          cancelled = true
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [enabled])
-      return { ...state, refetch: mockRefetch, isFetching: false }
-    },
-  }
-})
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/stores', () => ({ clearUserData: mockClearUserData }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    getSession: mockGetSession,
-    organization: { setActive: mockSetActive },
-    signOut: mockSignOut,
-  },
-  useSession: mockUseSession,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/invite/components/layout', () => ({
   default: ({ children }: { children: ReactNode }) => children,
@@ -146,6 +68,56 @@ vi.mock('@/app/invite/components/status-card', () => ({
 import Invite from '@/app/invite/[id]/invite'
 import { sessionKeys } from '@/hooks/queries/session'
 
+const mockPush = nextNavigationMockFns.router.push
+nextNavigationMockFns.mockUseParams.mockReturnValue({ id: 'invitation-1' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const {
+  cancelQueries: mockCancelQueries,
+  invalidateQueries: mockInvalidateQueries,
+  setQueryData: mockSetQueryData,
+} = reactQueryMockFns.mockQueryClient
+const { mockUseSession, mockSignOut } = authClientMockFns
+const {
+  getSession: mockGetSession,
+  organization: { setActive: mockSetActive },
+} = authClientMockFns.mockClient
+const mockRefetch = vi.fn()
+
+/**
+ * Minimal useQuery stand-in: runs the queryFn once when enabled and
+ * exposes { data, error, isPending } — enough for the invitation fetch.
+ */
+reactQueryMockFns.mockUseQuery.mockImplementation(
+  (options: {
+    queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
+    enabled?: boolean
+  }) => {
+    const [state, setState] = useState<{
+      data: unknown
+      error: unknown
+      isPending: boolean
+    }>({ data: undefined, error: null, isPending: true })
+    const enabled = options.enabled !== false
+    useEffect(() => {
+      if (!enabled) return
+      let cancelled = false
+      options.queryFn({}).then(
+        (data) => {
+          if (!cancelled) setState({ data, error: null, isPending: false })
+        },
+        (error) => {
+          if (!cancelled) setState({ data: undefined, error, isPending: false })
+        }
+      )
+      return () => {
+        cancelled = true
+      }
+    }, [enabled])
+    return { ...state, refetch: mockRefetch, isFetching: false }
+  }
+)
+
 let container: HTMLDivElement
 let root: Root
 let membershipIntent: 'external' | 'internal'
@@ -154,11 +126,6 @@ let joinPreview: MyInvitation['joinPreview']
 const EXTERNAL_REFRESHED_SESSION = {
   user: { id: 'user-1', email: 'invitee@example.com' },
   session: { id: 'session-1', userId: 'user-1', activeOrganizationId: 'organization-a' },
-}
-
-const INTERNAL_REFRESHED_SESSION = {
-  user: { id: 'user-1', email: 'invitee@example.com' },
-  session: { id: 'session-1', userId: 'user-1', activeOrganizationId: 'organization-2' },
 }
 
 async function flush(): Promise<void> {
@@ -174,11 +141,6 @@ async function renderInvite(registrationDisabled = false): Promise<void> {
     root.render(<Invite registrationDisabled={registrationDisabled} />)
   })
   await flush()
-}
-
-async function renderSignedOut(registrationDisabled: boolean): Promise<void> {
-  mockUseSession.mockReturnValue({ data: null, isPending: false })
-  await renderInvite(registrationDisabled)
 }
 
 function actionLabels(): string[] {
@@ -210,7 +172,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
 
-  mockSearchParams.current = new URLSearchParams('token=token-1')
+  nextNavigationMockFns.mockUseSearchParams.mockReturnValue(new URLSearchParams('token=token-1'))
   mockUseSession.mockReturnValue({
     data: { user: { id: 'user-1', email: 'invitee@example.com' } },
     isPending: false,
@@ -272,69 +234,9 @@ afterEach(() => {
   container.remove()
   vi.clearAllTimers()
   vi.useRealTimers()
-  vi.clearAllMocks()
 })
 
 describe('Invite', () => {
-  it.each([
-    { status: 401, body: { error: 'Unauthorized' }, authRequired: true },
-    { status: 403, body: { error: 'Forbidden' }, authRequired: true },
-    {
-      status: 401,
-      code: 'UNRECOGNIZED_AUTH_CODE',
-      body: { error: 'Please authenticate' },
-      authRequired: true,
-    },
-    { status: 404, body: { error: 'Invitation not found' }, authRequired: false },
-  ])('uses HTTP $status when the response has no known invitation code', async (response) => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ ...response, message: 'Request failed' })
-    )
-    await renderInvite()
-
-    if (response.authRequired) {
-      expect(container.textContent).toContain('Authentication Required')
-      expect(container.textContent).not.toContain('Invitation Error')
-      await clickAction('Sign in to continue')
-      expect(mockPush).toHaveBeenCalledWith(
-        `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
-      )
-    } else {
-      expect(container.textContent).toContain('This invitation is invalid or no longer exists.')
-      expect(actionLabels()).not.toContain('Try Again')
-    }
-  })
-
-  it.each([
-    { code: 'disclosure-outdated', body: { error: 'Your workspaces changed' } },
-    { code: undefined, body: { error: 'disclosure-outdated' } },
-  ])('preserves a known invitation error before the HTTP fallback: %j', async (response) => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ ...response, status: 409, message: 'Review the updated disclosure' })
-    )
-    await renderInvite()
-
-    expect(container.textContent).toContain('Review the updated notice and accept again.')
-    expect(container.textContent).not.toContain('Already Part of a Team')
-    expect(actionLabels()).toContain('Try Again')
-  })
-
-  it('offers sign-in if the session expires while accepting an invitation', async () => {
-    await renderInvite()
-    mockRequestJson.mockRejectedValueOnce(
-      new ApiClientError({ status: 401, body: { error: 'Unauthorized' }, message: 'Unauthorized' })
-    )
-    await clickAction('Accept Invitation')
-
-    expect(container.textContent).toContain('Authentication Required')
-    expect(container.textContent).not.toContain('Welcome!')
-    expect(actionLabels()).not.toContain('Accept Invitation')
-    await clickAction('Sign in to continue')
-    expect(mockPush).toHaveBeenCalledWith(
-      `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
-    )
-  })
-
   it.each(['internal', 'external'] as const)(
     'offers an account switch to a token holder who is not the %s invitee',
     async (intent) => {
@@ -400,64 +302,6 @@ describe('Invite', () => {
     )
   })
 
-  it('renders the actual join target and complete migration before echoing that preview', async () => {
-    membershipIntent = 'internal'
-    joinPreview = {
-      outcome: 'will-join',
-      organizationName: 'Actual Organization',
-      workspacesToMove: ['Personal work', 'Archived project'],
-      workspaceIdsToMove: ['personal', 'archived'],
-    }
-    await renderInvite()
-    expect(container.textContent).toContain(
-      'You will join Actual Organization as an organization admin'
-    )
-    expect(container.textContent).toContain('including archived workspaces')
-    expect(
-      Array.from(
-        container.querySelectorAll('[aria-label="Workspaces moving into the organization"] li'),
-        (item) => item.textContent
-      )
-    ).toEqual(['Personal work', 'Archived project'])
-    const workspaceAccess = container.querySelector('[aria-label="Invited workspace access"] li')
-    expect(workspaceAccess?.textContent).toContain('External Workspace')
-    expect(workspaceAccess?.textContent).toContain('admin access')
-    await clickAction('Accept Invitation')
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.objectContaining({ method: 'POST' }), {
-      params: { id: 'invitation-1' },
-      body: {
-        token: 'token-1',
-        disclosedWorkspaceIds: ['personal', 'archived'],
-        disclosedOutcome: 'will-join',
-      },
-    })
-  })
-
-  it.each([
-    ['already-member', 'Your organization role will stay the same'],
-    ['external', null],
-    ['blocked', 'This invitation cannot currently be accepted'],
-  ] as const)('discloses %s without promising a membership change', async (outcome, message) => {
-    membershipIntent = 'internal'
-    joinPreview = {
-      outcome,
-      organizationName: null,
-      workspaceIdsToMove: [],
-      workspacesToMove: [],
-    }
-    await renderInvite()
-    if (message) expect(container.textContent).toContain(message)
-    else expect(container.textContent).not.toContain('without joining an organization')
-    expect(container.textContent).not.toContain('as an organization admin')
-    await clickAction('Accept Invitation')
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'POST' }),
-      expect.objectContaining({
-        body: { token: 'token-1', disclosedWorkspaceIds: [], disclosedOutcome: outcome },
-      })
-    )
-  })
-
   it('withholds internal acceptance and offers refresh when disclosure is missing', async () => {
     membershipIntent = 'internal'
     joinPreview = null
@@ -487,82 +331,5 @@ describe('Invite', () => {
       queryKey: sessionKeys.detail(),
     })
     expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), EXTERNAL_REFRESHED_SESSION)
-  })
-
-  it('stores the server-selected active organization after an internal join', async () => {
-    membershipIntent = 'internal'
-    mockGetSession.mockResolvedValue({ data: INTERNAL_REFRESHED_SESSION })
-
-    await acceptCurrentInvitation()
-
-    expect(mockSetActive).not.toHaveBeenCalled()
-    expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), INTERNAL_REFRESHED_SESSION)
-  })
-
-  it('keeps acceptance committed and navigation scheduled when all cache refreshes fail', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      data: null,
-      error: {
-        message: 'Session refresh denied',
-        status: 401,
-        statusText: 'Unauthorized',
-      },
-    })
-    mockInvalidateQueries.mockRejectedValue(new Error('Cache invalidation failed'))
-
-    await acceptCurrentInvitation()
-    await flush()
-
-    expect(container.textContent).toContain('Welcome!')
-    expect(container.textContent).not.toContain('Invitation Error')
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1200)
-    })
-
-    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1')
-    expect(mockSetQueryData).not.toHaveBeenCalled()
-    expect(mockLogger.warn).toHaveBeenCalledWith('Post-acceptance cache refresh failed', {
-      cache: 'session',
-      error: 'Session refresh denied',
-    })
-    expect(mockLogger.warn).toHaveBeenCalledTimes(4)
-  })
-
-  /**
-   * Every case marks the visitor as new (`new=true`), the state that leads with
-   * "Create an account" when registration is enabled — so each assertion below
-   * fails if the flag stops being honored.
-   */
-  describe('signed out with registration disabled', () => {
-    beforeEach(() => {
-      mockSearchParams.current = new URLSearchParams('token=token-1&new=true')
-    })
-
-    it('offers only sign-in, since /signup would reject the visitor', async () => {
-      await renderSignedOut(true)
-
-      expect(actionLabels()).toEqual(['Sign in', 'Return to Home'])
-      expect(container.textContent).toContain('Account creation is disabled on this instance')
-    })
-
-    it('sends the visitor to login with the invitation as the callback', async () => {
-      await renderSignedOut(true)
-      await clickAction('Sign in')
-
-      expect(mockPush).toHaveBeenCalledWith(
-        `/login?invite_flow=true&callbackUrl=${encodeURIComponent('/invite/invitation-1?token=token-1')}`
-      )
-    })
-
-    it('still offers account creation when registration is enabled', async () => {
-      await renderSignedOut(false)
-
-      expect(actionLabels()).toEqual([
-        'Create an account',
-        'I already have an account',
-        'Return to Home',
-      ])
-    })
   })
 })

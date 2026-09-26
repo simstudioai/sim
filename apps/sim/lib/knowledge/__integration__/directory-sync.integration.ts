@@ -56,7 +56,7 @@ import {
   seedKnowledgeAclFixture,
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { resolveUserKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
+import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
 import {
   persistExternalGroupMembership,
@@ -793,14 +793,14 @@ describe('directory failure visibility in PostgreSQL', () => {
       groupId: 'identity-only',
     })!
     await syncExternalDirectoryGroups({ workspaceId: ids.workspaceId, directory, force: true })
+    /** A fresh provider per read, so every check resolves the person's tokens again. */
+    const tokensOf = async (userId: string) =>
+      (await createUserKnowledgeAccessProvider(userId, { workspaceId: ids.workspaceId }).get())
+        .tokens
     const hasGroup = async () =>
-      (await resolveUserKnowledgeAccessScope(ids.aliceId, ids.workspaceId)).tokens.some(
-        (token) => token === expectedGroup
-      )
+      (await tokensOf(ids.aliceId)).some((token) => token === expectedGroup)
     expect(await hasGroup()).toBe(true)
-    expect(
-      (await resolveUserKnowledgeAccessScope(ids.bobId, ids.workspaceId)).tokens
-    ).not.toContain(expectedGroup)
+    expect(await tokensOf(ids.bobId)).not.toContain(expectedGroup)
 
     await db
       .update(credential)

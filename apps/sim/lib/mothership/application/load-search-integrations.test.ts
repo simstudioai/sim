@@ -1,11 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authorizeChat, listIntegrations, liveAccounts } = vi.hoisted(() => ({
-  authorizeChat: vi.fn(),
+const { listIntegrations, liveAccounts } = vi.hoisted(() => ({
   liveAccounts: vi.fn(),
   listIntegrations: vi.fn(),
 }))
@@ -14,15 +14,15 @@ vi.mock('@/lib/sim-search/live/application', () => ({
   listLiveSearchAccounts: { execute: liveAccounts },
 }))
 
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: authorizeChat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
   listPersonalSearchIntegrations: { execute: listIntegrations },
 }))
 
 import type { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+
+const authorizeChat = mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation
 
 type InventoryPage = Awaited<ReturnType<typeof listPersonalSearchIntegrations.execute>>
 
@@ -41,8 +41,9 @@ const emptyPage: InventoryPage = {
 
 describe('loadCopilotSearchIntegrations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
+    /** The paged inventory below is the indexed arm; the live test opts back in. */
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
     authorizeChat.mockResolvedValue(undefined)
     listIntegrations.mockResolvedValue(emptyPage)
   })
@@ -163,7 +164,7 @@ describe('loadCopilotSearchIntegrations', () => {
       ...emptyPage,
       nextCursor: `page-${listIntegrations.mock.calls.length + 1}`,
     }))
-    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('pagination limit')
+    await expect(loadCopilotSearchIntegrations(context)).rejects.toThrow('exceeded 100 pages')
     expect(listIntegrations).toHaveBeenCalledTimes(100)
   })
 

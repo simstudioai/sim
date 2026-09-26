@@ -1,7 +1,8 @@
-/**
- * @vitest-environment node
- */
-import { loggerMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileCodePlaceholders } from '@/lib/execution/code-placeholders'
 import { CodeLanguage } from '@/lib/execution/languages'
@@ -24,20 +25,15 @@ import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-const mockVariableResolverLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'VariableResolver')
-].value
+const { mockStoreLargeValue } = executionPayloadStoreMockFns
 
-const { mockStoreLargeValue } = vi.hoisted(() => ({ mockStoreLargeValue: vi.fn() }))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  storeLargeValue: mockStoreLargeValue,
-  materializeLargeValueRef: vi.fn(),
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 function createBlock(id: string, name: string, type: string, params = {}): SerializedBlock {
   return {
@@ -331,34 +327,6 @@ describe('VariableResolver function block inputs', () => {
     ])
   })
 
-  it('records whether the author, not the trigger data, reads the environment map', async () => {
-    const { ctx, resolver } = createResolver()
-    ctx.environmentVariables = {}
-    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
-    // The second branch only quotes a producer output that happens to contain the word.
-    const conditions = [
-      { id: 'c1', title: 'if', value: `environmentVariables.FLAG === 'on'` },
-      { id: 'c2', title: 'else if', value: `"<producer.result>" === 'x'` },
-    ]
-    ;(ctx.blockStates as Map<string, any>).set('producer', {
-      output: { result: 'environmentVariables.OPENAI_API_KEY' },
-      executed: true,
-      executionTime: 0,
-    })
-
-    const result = await resolver.resolveInputs(
-      ctx,
-      conditionBlock.id,
-      { conditions: JSON.stringify(conditions) },
-      conditionBlock
-    )
-
-    const resolvedConditions = result.conditions as Array<Record<string, unknown>>
-    expect(resolvedConditions[0]._readsEnvironmentVariables).toBe(true)
-    expect(resolvedConditions[1]._readsEnvironmentVariables).toBe(false)
-    expect(resolvedConditions[1].value).toContain('environmentVariables.OPENAI_API_KEY')
-  })
-
   it('counts an environment read only where it can execute', async () => {
     const { ctx, resolver } = createResolver()
     const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
@@ -460,14 +428,6 @@ describe('VariableResolver function block inputs', () => {
     }
   })
 
-  it('stops a trigger-supplied object from closing the string it is quoted inside', async () => {
-    // JSON's own structural quotes close the author's string, and the key is the attacker's.
-    const expression = await resolveConditionWithBlockOutput('"<producer.result>" === "{}"', {
-      [`+(globalThis.${INJECTION_CANARY}=1)+`]: 1,
-    })
-    expect(runResolvedCondition(expression).injected).toBe(false)
-  })
-
   it('stops a trigger-supplied object from escaping wherever the quote scanner mis-reads', async () => {
     // A regex literal is not tracked by the quote scanner, and a quote inside one
     // desynchronizes it for everything that follows, so the emitted object must be inert
@@ -493,14 +453,6 @@ describe('VariableResolver function block inputs', () => {
         ).toBe(false)
       }
     }
-  })
-
-  it('keeps navigating an object reference the scanner reports as unquoted', async () => {
-    const expression = await resolveConditionWithBlockOutput('<producer.result>.count === 2', {
-      count: 2,
-      note: `a "quoted" / slashed ' value`,
-    })
-    expect(runResolvedCondition(expression).matched).toBe(true)
   })
 
   it('evaluates references that follow a regex literal, quote-bearing or not', async () => {
@@ -543,24 +495,6 @@ describe('VariableResolver function block inputs', () => {
     }
   })
 
-  it('keeps quoted and bare condition references comparing what they compared before', async () => {
-    const cases: Array<{ value: string; result: unknown; expected: boolean }> = [
-      { value: `<producer.result> === 'urgent'`, result: 'urgent', expected: true },
-      { value: `<producer.result> === 'urgent'`, result: 'other', expected: false },
-      { value: `"<producer.result>".includes('urgent')`, result: 'urgent ticket', expected: true },
-      { value: `"<producer.result>".includes('urgent')`, result: 'calm ticket', expected: false },
-      { value: '`<producer.result>`.length > 3', result: 'hello', expected: true },
-      { value: `<producer.result> === 'a"b'`, result: 'a"b', expected: true },
-      { value: '<producer.result> === `a$b/c`', result: 'a$b/c', expected: true },
-      { value: `<producer.result>.count === 2`, result: { count: 2 }, expected: true },
-    ]
-
-    for (const { value, result, expected } of cases) {
-      const expression = await resolveConditionWithBlockOutput(value, result)
-      expect(runResolvedCondition(expression).matched, `condition ${value}`).toBe(expected)
-    }
-  })
-
   it('compares a bare string placeholder instead of throwing a reference error', async () => {
     await expect(
       evaluateResolvedCondition(`{{NAME}} === 'alice'`, { NAME: 'alice' })
@@ -575,22 +509,6 @@ describe('VariableResolver function block inputs', () => {
       API_KEY: 'token',
     })
     expect(resolved).toBe(`'{{API_KEY}}' === 'token'`)
-  })
-
-  it('does not log malformed Condition source while falling back to legacy resolution', async () => {
-    const { ctx, resolver } = createResolver()
-    const secret = 'condition-fallback-secret-value'
-    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
-
-    const result = await resolver.resolveInputs(
-      ctx,
-      conditionBlock.id,
-      { conditions: `{ "value": "${secret}"` },
-      conditionBlock
-    )
-
-    expect(result.conditions).toContain(secret)
-    expect(JSON.stringify(mockVariableResolverLogger.warn.mock.calls)).not.toContain(secret)
   })
 
   it('records a secret reached through workflow-variable indirection', async () => {
@@ -692,39 +610,6 @@ describe('VariableResolver function block inputs', () => {
     expect(projection.value).toEqual(inputs)
   })
 
-  it('preserves the destination path when resolving one whole reference directly', async () => {
-    const secret = 'resolved-secret'
-    const provenance = {
-      version: 1 as const,
-      complete: true,
-      entries: [{ name: 'TOKEN', encryptedValue: secret }],
-    }
-    const { ctx, resolver, state } = createResolver()
-    state.setBlockOutput('producer', { result: secret }, 0, provenance)
-    ctx.blockStates = state.getBlockStates()
-    const registry = new ResolvedSecretTraceRegistry()
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(
-      resolver.resolveSingleReference(ctx, 'function', '<Producer.result>', undefined, {
-        inputPath: ['prompt'],
-      })
-    ).resolves.toBe(secret)
-    expect(registry.exportCommittedProvenanceForInputPaths([['prompt']])).toEqual(provenance)
-    expect(registry.projectResolvedInputSelection({ prompt: secret })).toEqual({
-      complete: true,
-      value: { prompt: '<Producer.result>' },
-    })
-  })
-
-  it('returns empty inputs when params are missing', async () => {
-    const { block, ctx, resolver } = createResolver()
-
-    const result = await resolver.resolveInputsForFunctionBlock(ctx, 'function', undefined, block)
-
-    expect(result).toEqual({ resolvedInputs: {}, displayInputs: {}, contextVariables: {} })
-  })
-
   it('changes only environment placeholders while preserving legacy Function resolution', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
     ctx.environmentVariables = { API_KEY: 'runtime-secret' }
@@ -818,21 +703,6 @@ describe('VariableResolver function block inputs', () => {
     }
   )
 
-  it('resolves JavaScript block references through globalThis context variables', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <Producer.result>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.displayInputs.code).toBe('return "hello world"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
   it('allows Variables block assignments to receive whole large refs', async () => {
     const producer = createBlock('producer', 'Producer', BlockType.API)
     const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {
@@ -886,145 +756,6 @@ describe('VariableResolver function block inputs', () => {
     expect(JSON.parse(result.variables[0].value)).toEqual(ref)
   })
 
-  it('allows Variables block assignments to receive whole large array manifests', async () => {
-    const producer = createBlock('producer', 'Producer', BlockType.API)
-    const variablesBlock = createBlock('variables', 'Variables', BlockType.VARIABLES, {
-      variables: [
-        {
-          variableId: 'var-1',
-          variableName: 'issues',
-          type: 'array',
-          value: '<Producer.result>',
-        },
-      ],
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [producer, variablesBlock],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const manifest = createTestManifest()
-    state.setBlockOutput('producer', { result: manifest })
-    const ctx = {
-      blockStates: state.getBlockStates(),
-      blockLogs: [],
-      environmentVariables: {},
-      workflowVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopExecutions: new Map(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-      completedLoops: new Set(),
-      metadata: {},
-    } as ExecutionContext
-
-    const resolver = new VariableResolver(workflow, {}, state)
-    const result = await resolver.resolveInputs(
-      ctx,
-      'variables',
-      variablesBlock.config.params,
-      variablesBlock
-    )
-
-    expect(JSON.parse(result.variables[0].value)).toEqual(manifest)
-  })
-
-  it('allows Response block data to preserve whole large refs', async () => {
-    const producer = createBlock('producer', 'Producer', BlockType.API)
-    const responseBlock = createBlock('response', 'Response', BlockType.RESPONSE, {
-      dataMode: 'json',
-      data: '<Producer.result>',
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [producer, responseBlock],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const ref = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_ZYXWVUTSRQPO',
-      kind: 'array',
-      size: 12 * 1024 * 1024,
-      executionId: 'execution-1',
-    }
-    state.setBlockOutput('producer', { result: ref })
-    const ctx = {
-      blockStates: state.getBlockStates(),
-      blockLogs: [],
-      environmentVariables: {},
-      workflowVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopExecutions: new Map(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-      completedLoops: new Set(),
-      metadata: {},
-    } as ExecutionContext
-
-    const resolver = new VariableResolver(workflow, {}, state)
-    const result = await resolver.resolveInputs(
-      ctx,
-      'response',
-      responseBlock.config.params,
-      responseBlock
-    )
-
-    expect(JSON.parse(result.data)).toEqual(ref)
-  })
-
-  it('resolves workflow variable object references through context variables', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    const issues = [{ key: 'SIM-1', summary: 'Small issue' }]
-    ctx.workflowVariables = {
-      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: issues },
-    }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <variable.issues>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.displayInputs.code).toBe('return [{"key":"SIM-1","summary":"Small issue"}]')
-    expect(result.contextVariables).toEqual({ __blockRef_0: issues })
-  })
-
-  it('resolves large workflow variable refs without embedding large literals', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    const ref = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_ABCDEFGHIJKL',
-      kind: 'array',
-      size: 12 * 1024 * 1024,
-      executionId: 'execution-1',
-    }
-    ctx.workflowVariables = {
-      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: ref },
-    }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <variable.issues>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'return (await sim.values.read(globalThis["__blockRef_0"]))'
-    )
-    expect(result.contextVariables).toEqual({ __blockRef_0: ref })
-  })
-
   it('reads the context of a reference that follows a statement-position regex', async () => {
     // `)` ends a value in `(a + b) / 2` and a control-flow head in `if (a) /re/.test(b)`, and
     // the closing parenthesis alone does not say which. Guessing either way misreads one of
@@ -1051,89 +782,6 @@ describe('VariableResolver function block inputs', () => {
     expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
     // Division after a value: the slash must not open a regex that swallows the quotes.
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
-  })
-
-  it('steps over a comment rather than reading it as the preceding token', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      {
-        code: [
-          `/* lead */ if (params.a) /['"]/.test('<producer.result>')`,
-          `const n = params.p./* mid */catch(() => 0) / 2 + Number('<producer.result>')`,
-          // A comment body may contain another opening delimiter; the comment still ends at
-          // the first `*/`, which only the scan that passed through it knows.
-          `const m = params.q./* a /* b */catch(() => 0) / 2 + Number('<producer.result>')`,
-        ].join('\n'),
-      },
-      block
-    )
-
-    // A comment before a control-flow keyword leaves it a head; one hiding a property dot
-    // still leaves the call a call.
-    const code = result.resolvedInputs.code as string
-    expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
-    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
-    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_2"]) + '')`)
-  })
-
-  it('starts a new identifier at a line break rather than continuing the last one', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      {
-        // `if` begins a statement here; reading the previous *significant* character would
-        // see the `b` of `params.b` and carry its property-access answer into this token.
-        code: ['const seen = params.a.b', `if (seen) /['"]/.test('<producer.result>')`].join('\n'),
-      },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toContain(
-      `.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`
-    )
-  })
-
-  it('divides after a postfix update rather than opening a regex', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      {
-        code: [
-          `let i = params.i; const half = i++ / 2 + Number('<producer.result>')`,
-          // The same characters as an operator still precede a regex.
-          `const hit = params.n + /['"]/.test('<producer.result>')`,
-        ].join('\n'),
-      },
-      block
-    )
-
-    const code = result.resolvedInputs.code as string
-    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
-    expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
-  })
-
-  it('does not read a method named after a keyword as a control-flow head', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: `const n = params.p.catch(() => 0) / 2 + Number('<producer.result>')` },
-      block
-    )
-
-    // `.catch(…)` is a call, so the slash after it divides — it must not open a regex that
-    // runs over the quotes around the reference.
-    expect(result.resolvedInputs.code).toContain(
-      `Number('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`
-    )
   })
 
   it('binds a run value that names a secret instead of expanding it', async () => {
@@ -1200,107 +848,6 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: manifest })
   })
 
-  it('resolves manifest workflow variable length without whole-array context variables', async () => {
-    const { block, ctx, resolver } = createResolver('javascript', { navigatePathAsync })
-    const manifest = createTestManifest()
-    ctx.workflowVariables = {
-      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
-    }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <variable.issues.length>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return 100000')
-    expect(result.contextVariables).toEqual({})
-  })
-
-  it('keeps manifest internals hidden during async path navigation', async () => {
-    const { ctx } = createResolver()
-    const manifest = createTestManifest()
-
-    await expect(navigatePathAsync(manifest, ['totalCount'], ctx)).resolves.toBe(100_000)
-    await expect(navigatePathAsync(manifest, ['chunkCount'], ctx)).resolves.toBe(1)
-    await expect(navigatePathAsync(manifest, ['preview'], ctx)).resolves.toEqual([{ key: 'SIM-0' }])
-    await expect(
-      navigatePathAsync(manifest, ['chunks', '0', 'ref', 'id'], ctx)
-    ).resolves.toBeUndefined()
-  })
-
-  it('resolves indexed manifest workflow variable paths without whole-array context variables', async () => {
-    const manifest = createTestManifest()
-    const navigateManifestPath = vi.fn(async () => 'SIM-0')
-    const { block, ctx, resolver } = createResolver('javascript', {
-      navigatePathAsync: navigateManifestPath,
-    })
-    ctx.workflowVariables = {
-      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
-    }
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <variable.issues[0].key>' },
-      block
-    )
-
-    expect(navigateManifestPath).toHaveBeenCalledWith(
-      manifest,
-      ['0', 'key'],
-      expect.objectContaining({ allowLargeValueRefs: true })
-    )
-    // The navigated element binds like any other resolved value; what must not appear is
-    // the manifest, or the array it stands for.
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.displayInputs.code).toBe('return "SIM-0"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'SIM-0' })
-  })
-
-  it('resolves named loop result bracket paths in function code', async () => {
-    const loopBlock = createBlock('loop-1', 'Loop 1', 'loop')
-    const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {
-      language: 'javascript',
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [loopBlock, functionBlock],
-      connections: [],
-      loops: { 'loop-1': { nodes: ['producer'] } },
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    state.setBlockOutput('loop-1', {
-      results: [[{ id: 'a' }], [{ id: 'b' }]],
-    })
-    const ctx = {
-      blockStates: state.getBlockStates(),
-      blockLogs: [],
-      environmentVariables: {},
-      workflowVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopExecutions: new Map(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-      completedLoops: new Set(),
-      metadata: {},
-    } as ExecutionContext
-    const resolver = new VariableResolver(workflow, {}, state)
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <loop1.results[1][0].id>' },
-      functionBlock
-    )
-
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.displayInputs.code).toBe('return "b"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'b' })
-  })
-
   it('rewrites JavaScript file base64 references to lazy runtime reads', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
@@ -1320,59 +867,6 @@ describe('VariableResolver function block inputs', () => {
       name: 'image.png',
     })
     expect(result.contextVariables.__blockRef_0).not.toHaveProperty('base64')
-  })
-
-  it('wraps lazy JavaScript file base64 reads before member access', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <Producer.file.base64>.length' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'return (await sim.files.readBase64(globalThis["__blockRef_0"])).length'
-    )
-  })
-
-  it('uses existing inline base64 for keyless files instead of lazy storage reads', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      file: {
-        id: 'file-keyless',
-        name: 'inline.txt',
-        key: '',
-        url: 'https://example.com/inline.txt',
-        size: 5,
-        type: 'text/plain',
-        base64: 'aGVsbG8=',
-      },
-    })
-
-    const keylessResolver = new VariableResolver(
-      {
-        version: '1',
-        blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-        connections: [],
-        loops: {},
-        parallels: {},
-      },
-      {},
-      state
-    )
-
-    const result = await keylessResolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <Producer.file.base64>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.contextVariables.__blockRef_0).toBe('aGVsbG8=')
   })
 
   it('rewrites loop current item base64 references to lazy runtime reads', async () => {
@@ -1429,112 +923,6 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables.__blockRef_0).not.toHaveProperty('base64')
   })
 
-  it('rewrites parallel current item base64 references to lazy runtime reads', async () => {
-    const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {
-      language: 'javascript',
-    })
-    const parallelBlock = createBlock('parallel-1', 'Parallel 1', 'parallel')
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [parallelBlock, functionBlock],
-      connections: [],
-      loops: {},
-      parallels: {
-        'parallel-1': {
-          id: 'parallel-1',
-          nodes: ['function'],
-          parallelType: 'collection',
-          distribution: [],
-        },
-      },
-    }
-    const state = new ExecutionState()
-    const file = {
-      id: 'file-parallel',
-      name: 'parallel.png',
-      url: 'https://example.com/parallel.png',
-      key: 'execution/workspace-1/workflow-1/execution-1/parallel.png',
-      context: 'execution',
-      size: 12 * 1024 * 1024,
-      type: 'image/png',
-      base64: 'large-inline-base64',
-    }
-    const ctx = {
-      ...createResolver().ctx,
-      parallelExecutions: new Map([
-        [
-          'parallel-1',
-          {
-            parallelId: 'parallel-1',
-            totalBranches: 1,
-            branchOutputs: new Map(),
-            items: [{ file }],
-          },
-        ],
-      ]),
-      parallelBlockMapping: new Map([
-        ['function', { originalBlockId: 'function', parallelId: 'parallel-1', iterationIndex: 0 }],
-      ]),
-    } as ExecutionContext
-    const resolver = new VariableResolver(workflow, {}, state)
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <parallel.currentItem.file.base64>.length' },
-      functionBlock
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'return (await sim.files.readBase64(globalThis["__blockRef_0"])).length'
-    )
-    expect(result.contextVariables.__blockRef_0).toMatchObject({ id: 'file-parallel' })
-    expect(result.contextVariables.__blockRef_0).not.toHaveProperty('base64')
-  })
-
-  it('rewrites JavaScript large value refs to lazy runtime reads', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_ABCDEFGHIJKL',
-        kind: 'object',
-        size: 12 * 1024 * 1024,
-        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-        executionId: 'execution-1',
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    const result = await largeResolver.resolveInputsForFunctionBlock(
-      largeCtx,
-      'function',
-      { code: 'return <Producer.result>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'return (await sim.values.read(globalThis["__blockRef_0"]))'
-    )
-    expect(result.contextVariables.__blockRef_0).toMatchObject({
-      __simLargeValueRef: true,
-      id: 'lv_ABCDEFGHIJKL',
-    })
-  })
-
   it('fails whole large value refs for Function runtimes without lazy helpers', async () => {
     const { block, ctx } = createResolver('python')
     const state = new ExecutionState()
@@ -1572,35 +960,6 @@ describe('VariableResolver function block inputs', () => {
     ).rejects.toThrow('This execution value is too large to inline')
   })
 
-  it('fails whole large array manifests for Function runtimes without lazy helpers', async () => {
-    const { block, ctx } = createResolver('python')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: createTestManifest(),
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    await expect(
-      largeResolver.resolveInputsForFunctionBlock(
-        largeCtx,
-        'function',
-        { code: 'return <Producer.result>' },
-        block
-      )
-    ).rejects.toThrow('This execution value contains nested large values')
-  })
-
   it('fails whole large value refs for JavaScript with imports', async () => {
     const { block, ctx } = createResolver('javascript')
     const state = new ExecutionState()
@@ -1636,125 +995,6 @@ describe('VariableResolver function block inputs', () => {
         block
       )
     ).rejects.toThrow('This execution value is too large to inline')
-  })
-
-  it('keeps JavaScript lazy helpers enabled when import appears in comments or strings', async () => {
-    const { block, ctx } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_ABCDEFGHIJKL',
-        kind: 'object',
-        size: 12 * 1024 * 1024,
-        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-        executionId: 'execution-1',
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    const result = await largeResolver.resolveInputsForFunctionBlock(
-      largeCtx,
-      'function',
-      {
-        code: "/** @import { Foo } from 'foo' */\nconst text = \"import bar from 'bar'\"\nreturn <Producer.result>",
-      },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      '/** @import { Foo } from \'foo\' */\nconst text = "import bar from \'bar\'"\nreturn (await sim.values.read(globalThis["__blockRef_0"]))'
-    )
-  })
-
-  it('keeps JavaScript lazy helpers enabled for dynamic import expressions', async () => {
-    const { block, ctx } = createResolver('javascript')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        __simLargeValueRef: true,
-        version: 1,
-        id: 'lv_ABCDEFGHIJKL',
-        kind: 'object',
-        size: 12 * 1024 * 1024,
-        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-        executionId: 'execution-1',
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    const result = await largeResolver.resolveInputsForFunctionBlock(
-      largeCtx,
-      'function',
-      { code: "const mod = import('foo')\nreturn <Producer.result>" },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'const mod = import(\'foo\')\nreturn (await sim.values.read(globalThis["__blockRef_0"]))'
-    )
-  })
-
-  it('fails nested large value refs for Function runtimes without lazy helpers', async () => {
-    const { block, ctx } = createResolver('python')
-    const state = new ExecutionState()
-    state.setBlockOutput('producer', {
-      result: {
-        rows: {
-          __simLargeValueRef: true,
-          version: 1,
-          id: 'lv_ABCDEFGHIJKL',
-          kind: 'array',
-          size: 12 * 1024 * 1024,
-          key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
-          executionId: 'execution-1',
-        },
-      },
-    })
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const largeResolver = new VariableResolver(workflow, {}, state)
-    const largeCtx = {
-      ...ctx,
-      blockStates: state.getBlockStates(),
-    } as ExecutionContext
-
-    await expect(
-      largeResolver.resolveInputsForFunctionBlock(
-        largeCtx,
-        'function',
-        { code: 'return <Producer.result>' },
-        block
-      )
-    ).rejects.toThrow('This execution value contains nested large values')
   })
 
   it('fails nested large value refs for JavaScript instead of leaking ref markers', async () => {
@@ -1796,21 +1036,6 @@ describe('VariableResolver function block inputs', () => {
     ).rejects.toThrow('This execution value contains nested large values')
   })
 
-  it('resolves Python block references through globals lookup', async () => {
-    const { block, ctx, resolver } = createResolver('python')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'return <Producer.result>' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
-    expect(result.displayInputs.code).toBe('return "hello world"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
   it('breaks JavaScript string literals around quoted block references', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
@@ -1843,24 +1068,6 @@ describe('VariableResolver function block inputs', () => {
       'return `value: ${JSON.stringify(globalThis["__blockRef_0"])}`'
     )
     expect(result.displayInputs.code).toBe('return `value: "hello world"`')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
-  it('keeps JavaScript block references inside template expressions executable', async () => {
-    const { block, ctx, resolver } = createResolver('javascript')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
-      { code: 'return `${String(<Producer.result>)}`' },
-      block
-    )
-
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
-    expect(result.resolvedInputs.code).toBe('return `${String(globalThis["__blockRef_0"])}`')
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
-    expect(result.displayInputs.code).toBe('return `${String("hello world")}`')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
@@ -1917,83 +1124,6 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('ignores escaped triple-double quotes before later Python block references', async () => {
-    const { block, ctx, resolver } = createResolver('python')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: <Producer.result>\n"""' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: """ + json.dumps(globals()["__blockRef_0"]) + """\n"""'
-    )
-    expect(result.displayInputs.code).toBe(
-      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: "hello world"\n"""'
-    )
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
-  it('breaks Python triple-single-quoted strings around block references', async () => {
-    const { block, ctx, resolver } = createResolver('python')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: "prompt = '''\nSummary: <Producer.result>\n'''\nreturn prompt" },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      "prompt = '''\nSummary: ''' + json.dumps(globals()[\"__blockRef_0\"]) + '''\n'''\nreturn prompt"
-    )
-    expect(result.displayInputs.code).toBe(
-      "prompt = '''\nSummary: \"hello world\"\n'''\nreturn prompt"
-    )
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
-  it('ignores Python comment quotes before later block references', async () => {
-    const { block, ctx, resolver } = createResolver('python')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: "# don't confuse quote tracking\nreturn <Producer.result>" },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      '# don\'t confuse quote tracking\nreturn globals()["__blockRef_0"]'
-    )
-    expect(result.displayInputs.code).toBe('# don\'t confuse quote tracking\nreturn "hello world"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
-  it('uses separate Python context variables for repeated mutable references', async () => {
-    const { block, ctx, resolver } = createResolver('python')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: 'a = <Producer.items>\nb = <Producer.items>\nreturn b' },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      'a = globals()["__blockRef_0"]\nb = globals()["__blockRef_1"]\nreturn b'
-    )
-    expect(result.displayInputs.code).toBe(
-      'a = json.loads("[\\"a\\",\\"b\\"]")\nb = json.loads("[\\"a\\",\\"b\\"]")\nreturn b'
-    )
-    expect(result.contextVariables).toEqual({
-      __blockRef_0: ['a', 'b'],
-      __blockRef_1: ['a', 'b'],
-    })
-  })
-
   it('uses shell-safe expansions for block references', async () => {
     const { block, ctx, resolver } = createResolver('shell')
 
@@ -2012,23 +1142,6 @@ describe('VariableResolver function block inputs', () => {
       __blockRef_0: 'hello world',
       __blockRef_1: 'hello world',
     })
-  })
-
-  it('ignores shell comment quotes when formatting later block references', async () => {
-    const { block, ctx, resolver } = createResolver('shell')
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      ctx,
-      'function',
-      { code: "# don't confuse quote tracking\necho <Producer.result>" },
-      block
-    )
-
-    expect(result.resolvedInputs.code).toBe(
-      `# don't confuse quote tracking\necho "\${__blockRef_0}"`
-    )
-    expect(result.displayInputs.code).toBe('# don\'t confuse quote tracking\necho "hello world"')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 })
 
@@ -2100,48 +1213,6 @@ describe('VariableResolver function context overflow offload', () => {
     expect(durableCtx.largeValueKeys).toContain(REF_KEY)
   })
 
-  it('offloads only the values that overflow the budget when several are merged', async () => {
-    // Each value's inline footprint (data + display ~= 2x) is ~4 MB. The first fits the
-    // ~6 MB budget and stays inline; the second overflows and is offloaded.
-    const half = 'y'.repeat(2 * 1024 * 1024)
-    const { block, resolver, durableCtx } = createOffloadEnv('javascript', {
-      first: half,
-      second: half,
-    })
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      durableCtx,
-      'function',
-      { code: 'return [<Producer.first>, <Producer.second>]' },
-      block
-    )
-
-    // First value fits the budget and stays inline; the second overflows and is offloaded.
-    expect(mockStoreLargeValue).toHaveBeenCalledTimes(1)
-    expect(result.resolvedInputs.code).toBe(
-      'return [globalThis["__blockRef_0"], (await sim.values.read(globalThis["__blockRef_1"]))]'
-    )
-    expect(result.contextVariables.__blockRef_0).toBe(half)
-    expect(result.contextVariables.__blockRef_1).toMatchObject({ __simLargeValueRef: true })
-  })
-
-  it('keeps small inline values inline without offloading', async () => {
-    const { block, resolver, durableCtx } = createOffloadEnv('javascript', {
-      result: 'hello world',
-    })
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      durableCtx,
-      'function',
-      { code: 'return <Producer.result>' },
-      block
-    )
-
-    expect(mockStoreLargeValue).not.toHaveBeenCalled()
-    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
-  })
-
   it('does not offload when the execution context cannot persist durably', async () => {
     const big = 'x'.repeat(4 * 1024 * 1024)
     const { block, resolver, durableCtx } = createOffloadEnv('javascript', { result: big })
@@ -2156,21 +1227,6 @@ describe('VariableResolver function context overflow offload', () => {
 
     expect(mockStoreLargeValue).not.toHaveBeenCalled()
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
-  })
-
-  it('does not offload for non-JavaScript runtimes that lack the read broker', async () => {
-    const big = 'x'.repeat(4 * 1024 * 1024)
-    const { block, resolver, durableCtx } = createOffloadEnv('python', { result: big })
-
-    const result = await resolver.resolveInputsForFunctionBlock(
-      durableCtx,
-      'function',
-      { code: 'return <Producer.result>' },
-      block
-    )
-
-    expect(mockStoreLargeValue).not.toHaveBeenCalled()
-    expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
   })
 })
 

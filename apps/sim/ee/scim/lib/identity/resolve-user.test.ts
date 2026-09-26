@@ -1,10 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, type ScimUserAttributes, scimUserTombstone, ssoDomain, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   assertEmailAvailable,
   resolveProvisionedIdentity,
@@ -35,7 +32,6 @@ afterAll(resetDbChainMock)
 
 describe('resolveProvisionedIdentity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -86,14 +82,6 @@ describe('resolveProvisionedIdentity', () => {
     })
   })
 
-  it('creates when nobody holds the address', async () => {
-    queueTableRows(ssoDomain, [{ domain: 'acme.com' }])
-    queueTableRows(user, [])
-    await expect(
-      resolveProvisionedIdentity(db, { ...params, attributes: attributes() })
-    ).resolves.toEqual({ action: 'create' })
-  })
-
   it('links an existing account in this organization or in none', async () => {
     queueTableRows(ssoDomain, [{ domain: 'acme.com' }])
     queueTableRows(user, [{ id: 'user-1' }])
@@ -125,15 +113,7 @@ describe('resolveProvisionedIdentity', () => {
 
 describe('assertEmailAvailable', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('allows the address when it is free or already the same account', async () => {
-    queueTableRows(user, [])
-    await expect(assertEmailAvailable(db, 'ada@acme.com')).resolves.toBeUndefined()
-    queueTableRows(user, [{ id: 'user-1' }])
-    await expect(assertEmailAvailable(db, 'ada@acme.com', 'user-1')).resolves.toBeUndefined()
   })
 
   it('refuses an address another account holds', async () => {

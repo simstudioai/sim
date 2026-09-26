@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { RunCode, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import {

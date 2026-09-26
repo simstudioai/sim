@@ -18,9 +18,10 @@ vi.mock('@sim/db', async () => {
   const { default: postgres } = await import('postgres')
   const { withUtcTimestamps } = await import('@sim/db/timestamps')
   const { generateId } = await import('@sim/utils/id')
+  const { readTestDatabaseUrl } = await import('@sim/db/testing/test-infrastructure')
   fixture.schema = `logo_test_${generateId().replaceAll('-', '')}`
   fixture.connection = postgres(
-    process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL!,
+    readTestDatabaseUrl(),
     withUtcTimestamps({
       max: 4,
       prepare: false,
@@ -91,7 +92,6 @@ describe('organization logo concurrency and retention', () => {
   })
 
   beforeEach(async () => {
-    vi.clearAllMocks()
     await db.delete(uploadSession)
     await db.update(organization).set({ logo: null }).where(eq(organization.id, organizationId))
   })

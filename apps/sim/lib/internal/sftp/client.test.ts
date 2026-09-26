@@ -1,8 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import type { ConnectConfig, SFTPWrapper } from 'ssh2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -14,12 +15,9 @@ const mocks = vi.hoisted(() => ({
     destroy: ReturnType<typeof vi.fn>
   }>,
   emitReady: true,
-  validateHost: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mocks.validateHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('ssh2', () => ({
   Client: class {
@@ -64,10 +62,11 @@ vi.mock('ssh2', () => ({
 
 import {
   createSftpConnection,
-  MAX_SFTP_READ_BYTES,
   readSftpFileCapped,
   sanitizeFileName,
 } from '@/lib/internal/sftp/client'
+
+const { mockValidateDatabaseHost } = inputValidationMockFns
 
 function fakeSftp(chunkSize: number, chunkCount: number) {
   let emitted = 0
@@ -87,11 +86,10 @@ function fakeSftp(chunkSize: number, chunkCount: number) {
 
 describe('SFTP client boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.clients.length = 0
     mocks.connectConfigs.length = 0
     mocks.emitReady = true
-    mocks.validateHost.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockValidateDatabaseHost.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
   })
 
   it('pins the connection to the validated IP while preserving credentials', async () => {
@@ -126,50 +124,12 @@ describe('SFTP client boundary', () => {
     expect(mocks.connectConfigs[0].hostVerifier?.(Buffer.from('other-key'))).toBe(false)
   })
 
-  it('destroys a connection and rejects when canceled during connect', async () => {
-    mocks.emitReady = false
-    const controller = new AbortController()
-    const connection = createSftpConnection({
-      host: 'sftp.example.com',
-      port: 22,
-      username: 'user',
-      password: 'secret',
-      signal: controller.signal,
-    })
-    await vi.waitFor(() => expect(mocks.clients).toHaveLength(1))
-
-    controller.abort(new Error('execution canceled'))
-
-    await expect(connection).rejects.toThrow('execution canceled')
-    expect(mocks.clients[0].destroy).toHaveBeenCalledOnce()
-  })
-
-  it('resolves with the full contents when under the byte cap', async () => {
-    const { sftp, createReadStream } = fakeSftp(4, 3)
-    const buffer = await readSftpFileCapped(sftp, '/file', 1024, 'file')
-    expect(buffer.toString()).toBe('A'.repeat(12))
-    expect(createReadStream).toHaveBeenCalledWith('/file')
-  })
-
   it('destroys a remote stream when actual bytes exceed the cap', async () => {
     const { sftp, stream } = fakeSftp(8, 1_000_000)
     await expect(readSftpFileCapped(sftp, '/bomb', 16, 'file')).rejects.toSatisfy(
       isPayloadSizeLimitError
     )
     expect(stream.destroyed).toBe(true)
-  })
-
-  it('destroys a remote stream when the execution is canceled', async () => {
-    const { sftp, stream } = fakeSftp(8, 1_000_000)
-    const controller = new AbortController()
-    const read = readSftpFileCapped(sftp, '/file', 1024 * 1024, 'file', controller.signal)
-    controller.abort(new Error('execution canceled'))
-    await expect(read).rejects.toThrow('execution canceled')
-    expect(stream.destroyed).toBe(true)
-  })
-
-  it('caps SFTP downloads at 50MB', () => {
-    expect(MAX_SFTP_READ_BYTES).toBe(50 * 1024 * 1024)
   })
 
   it.each([

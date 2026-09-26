@@ -1,21 +1,26 @@
-/** @vitest-environment node */
 import { setEnv } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn(), mount: vi.fn() }))
+const hoisted = vi.hoisted(() => ({ mount: vi.fn() }))
 vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
-  materializeOrganizationCodeSecrets: mocks.mount,
+  materializeOrganizationCodeSecrets: hoisted.mount,
 }))
-vi.mock('@/tools', () => ({ executeTool: mocks.execute }))
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceSandboxAccess: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { sandboxSessionInputsSafe } from '@/lib/execution/remote-sandbox/execution-observer'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = { ...hoisted, execute: toolsMockFns.mockExecuteTool }
+billingSubscriptionMockFns.mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
 
 beforeEach(() => {
   mocks.execute.mockReset()

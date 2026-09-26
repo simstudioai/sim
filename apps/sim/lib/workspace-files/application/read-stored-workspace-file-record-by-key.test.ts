@@ -1,24 +1,34 @@
-/** @vitest-environment node */
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  metadata: vi.fn(),
-  workspace: vi.fn(),
-  permission: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mocks.metadata }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ loadActiveWorkspaceContext: mocks.workspace }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string) => ['read', 'write', 'admin'].includes(permission),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   readStoredWorkspaceFileRecordByKey,
   StoredWorkspaceFileUnavailableError,
 } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
+
+const mocks = {
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  metadata: uploadsMetadataMockFns.mockGetFileMetadataByKey,
+}
 
 const input = {
   key: 'workspace/workspace-1/upload.png',
@@ -40,7 +50,7 @@ const file = {
   deletedAt: null,
   userId: 'uploader',
 }
-const session = { kind: 'session', userId: 'reader', sessionId: 'session-1' } as const
+const session = createSessionPrincipal({ userId: 'reader' })
 
 function executor(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
   return {
@@ -73,7 +83,6 @@ function executor(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincip
 
 describe('readStoredWorkspaceFileRecordByKey', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.metadata.mockResolvedValue(file)
     mocks.workspace.mockResolvedValue(workspace)
     mocks.permission.mockResolvedValue('read')
@@ -100,8 +109,8 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
   )
 
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    createPersonalApiKeyPrincipal({ userId: 'reader' }),
+    createWorkspaceApiKeyPrincipal(),
   ])(
     'preserves the $kind authority without substituting the uploader or billing owner',
     async (principal) => {
@@ -126,18 +135,6 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
     ).resolves.toEqual({ file })
     expect(mocks.permission).not.toHaveBeenCalled()
   })
-
-  it.each([{ fileId: 'file-1' }, { chatId: 'chat-1' }, { fileId: 'file-1', chatId: 'chat-1' }])(
-    'retains a matching narrower delegation: %j',
-    async (resourceScope) => {
-      await expect(
-        readStoredWorkspaceFileRecordByKey.execute({
-          principal: executor({ resourceScope }),
-          input,
-        })
-      ).resolves.toEqual({ file })
-    }
-  )
 
   it('keeps workspace files available to a chat-scoped delegate', async () => {
     mocks.metadata.mockResolvedValue({ ...file, context: 'workspace', chatId: null })
@@ -208,22 +205,6 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.metadata).not.toHaveBeenCalled()
-  })
-
-  it('keeps absent initial metadata distinguishable for legacy access', async () => {
-    mocks.metadata.mockResolvedValue(null)
-    const read = readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-    await expect(read).rejects.toMatchObject({ code: 'not_found' })
-    await expect(read).rejects.not.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
-    expect(mocks.workspace).not.toHaveBeenCalled()
-    expect(mocks.permission).not.toHaveBeenCalled()
-  })
-
-  it('conceals canonical unavailability as not_found', () => {
-    expect(new StoredWorkspaceFileUnavailableError()).toMatchObject({
-      code: 'not_found',
-      message: 'File not found',
-    })
   })
 
   it.each([

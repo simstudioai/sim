@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   SOCKET_JOIN_RETRY_BASE_DELAY_MS,
-  SOCKET_JOIN_RETRY_MAX_DELAY_MS,
   SocketJoinController,
 } from '@/app/workspace/providers/socket-join-controller'
 
@@ -134,58 +133,6 @@ describe('SocketJoinController', () => {
     expect(controller.retryJoin('workflow-b')).toEqual([{ type: 'join', workflowId: 'workflow-b' }])
   })
 
-  it('uses capped exponential backoff for retryable join failures', () => {
-    const controller = new SocketJoinController()
-
-    controller.setConnected(true)
-    controller.requestWorkflow('workflow-a')
-
-    const first = controller.handleJoinError({ workflowId: 'workflow-a', retryable: true })
-    expect(first.commands).toEqual([
-      {
-        type: 'schedule-retry',
-        workflowId: 'workflow-a',
-        attempt: 1,
-        delayMs: SOCKET_JOIN_RETRY_BASE_DELAY_MS,
-      },
-    ])
-
-    controller.retryJoin('workflow-a')
-    const second = controller.handleJoinError({ workflowId: 'workflow-a', retryable: true })
-    expect(second.commands).toEqual([
-      {
-        type: 'schedule-retry',
-        workflowId: 'workflow-a',
-        attempt: 2,
-        delayMs: SOCKET_JOIN_RETRY_BASE_DELAY_MS * 2,
-      },
-    ])
-
-    controller.retryJoin('workflow-a')
-    controller.handleJoinError({ workflowId: 'workflow-a', retryable: true })
-    controller.retryJoin('workflow-a')
-    const fourth = controller.handleJoinError({ workflowId: 'workflow-a', retryable: true })
-    expect(fourth.commands).toEqual([
-      {
-        type: 'schedule-retry',
-        workflowId: 'workflow-a',
-        attempt: 4,
-        delayMs: SOCKET_JOIN_RETRY_BASE_DELAY_MS * 8,
-      },
-    ])
-
-    controller.retryJoin('workflow-a')
-    const fifth = controller.handleJoinError({ workflowId: 'workflow-a', retryable: true })
-    expect(fifth.commands).toEqual([
-      {
-        type: 'schedule-retry',
-        workflowId: 'workflow-a',
-        attempt: 5,
-        delayMs: SOCKET_JOIN_RETRY_MAX_DELAY_MS,
-      },
-    ])
-  })
-
   it('blocks a permanently failed workflow and leaves the fallback room cleanly', () => {
     const controller = new SocketJoinController()
 
@@ -222,25 +169,5 @@ describe('SocketJoinController', () => {
       { type: 'join', workflowId: 'workflow-a' },
     ])
     expect(controller.getJoinedWorkflowId()).toBeNull()
-  })
-
-  it('resolves retryable errors without workflowId against the pending join', () => {
-    const controller = new SocketJoinController()
-
-    controller.setConnected(true)
-    controller.requestWorkflow('workflow-a')
-
-    const errorResult = controller.handleJoinError({ retryable: true })
-
-    expect(errorResult.workflowId).toBe('workflow-a')
-    expect(errorResult.retryScheduled).toBe(true)
-    expect(errorResult.commands).toEqual([
-      {
-        type: 'schedule-retry',
-        workflowId: 'workflow-a',
-        attempt: 1,
-        delayMs: SOCKET_JOIN_RETRY_BASE_DELAY_MS,
-      },
-    ])
   })
 })

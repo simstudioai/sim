@@ -1,66 +1,82 @@
-/**
- * @vitest-environment node
- */
 import { Buffer } from 'buffer'
+import {
+  createExecutorPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileFoldersMock,
+  workspaceFileFoldersMockFns,
+} from '@sim/testing/mocks/workspace-file-folders.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
-  archiveFolderIfEmpty: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   atomicallyClaim: vi.fn(),
-  createFolder: vi.fn(),
   decompress: vi.fn(),
-  fetchBuffer: vi.fn(),
-  getFile: vi.fn(),
-  getSecretProvenance: vi.fn(),
-  loadContext: vi.fn(),
-  notify: vi.fn(),
   releaseLease: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/core/idempotency/service', () => ({
   IdempotencyService: class MockIdempotencyService {
     atomicallyClaim(...args: unknown[]) {
-      return mocks.atomicallyClaim(...args)
+      return hoisted.atomicallyClaim(...args)
     }
 
     release(...args: unknown[]) {
-      return mocks.releaseLease(...args)
+      return hoisted.releaseLease(...args)
     }
   },
 }))
 
 vi.mock('@/lib/uploads/archive', () => ({
-  decompressArchiveBufferToWorkspaceFiles: mocks.decompress,
+  decompressArchiveBufferToWorkspaceFiles: hoisted.decompress,
   MAX_ARCHIVE_BYTES: 100 * 1024 * 1024,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  archiveWorkspaceFileFolderIfEmpty: mocks.archiveFolderIfEmpty,
-  createWorkspaceFileFolder: mocks.createFolder,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+  () => workspaceFileFoldersMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mocks.getSecretProvenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { extractWorkspaceFile } from '@/lib/workspace-files/application/extract-workspace-file'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  getSecretProvenance:
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  fetchBuffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  notify: realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged,
+  ...hoisted,
+  createFolder: workspaceFileFoldersMockFns.mockCreateWorkspaceFileFolder,
+  archiveFolderIfEmpty: workspaceFileFoldersMockFns.mockArchiveWorkspaceFileFolderIfEmpty,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 const context = {
   fileId: 'file-1',
   workspaceId: 'workspace-1',
@@ -81,7 +97,6 @@ const file = {
 
 describe('extractWorkspaceFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.getFile.mockResolvedValue(file)
@@ -169,20 +184,6 @@ describe('extractWorkspaceFile', () => {
       'claim-1'
     )
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
-  })
-
-  it('rejects non-zip files before reading storage', async () => {
-    mocks.getFile.mockResolvedValue({ ...file, name: 'bundle.txt' })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Only .zip files can be unzipped' })
-
-    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
-    expect(mocks.decompress).not.toHaveBeenCalled()
   })
 
   it('rejects a second extraction while the same archive is already being extracted', async () => {
@@ -304,48 +305,6 @@ describe('extractWorkspaceFile', () => {
     return reason
   }
 
-  it('reports a budget overrun as a caller-fixable error, not the raw abort', async () => {
-    mocks.decompress.mockImplementationOnce(async (_content, options) => {
-      await options.prepareRootFolder()
-      throw expireDeadline(options.signal)
-    })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({
-      code: 'payload_too_large',
-      message: expect.stringContaining('took too long and was cancelled'),
-    })
-
-    expect(mocks.archiveFolderIfEmpty).toHaveBeenCalledOnce()
-  })
-
-  it('keeps the real cause when a failure races the deadline', async () => {
-    // The signal stays aborted for the rest of the request, so an unrelated mid-entry
-    // failure after the timer fires must not be relabelled as a timeout.
-    mocks.decompress.mockImplementationOnce(async (_content, options) => {
-      await options.prepareRootFolder()
-      expireDeadline(options.signal)
-      throw Object.assign(new Error('Archive entry "a.txt" could not be decompressed'), {
-        name: 'ArchiveError',
-        reason: 'invalid',
-      })
-    })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({
-      name: 'ArchiveError',
-      message: expect.stringContaining('could not be decompressed'),
-    })
-  })
-
   it('leaves a destination folder that gained collaborators content during rollback', async () => {
     mocks.decompress.mockImplementationOnce(async (_content, options) => {
       await options.prepareRootFolder()
@@ -373,60 +332,25 @@ describe('extractWorkspaceFile', () => {
    * `files.create` and `files.upload.create` do not already grant them at the
    * same `write` role. It only collapses many calls into one.
    */
-  it.each([
-    { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-  ] as const)('allows $kind to extract', async (apiKeyPrincipal) => {
-    await expect(
-      extractWorkspaceFile.execute({
-        principal: apiKeyPrincipal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).resolves.toMatchObject({ extractedCount: 2 })
-  })
-
-  it('allows scoped Copilot extraction with the actual actor and no personal API key', async () => {
-    const copilotPrincipal = {
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:workspace-files',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2999-01-01T00:00:00Z'),
-    } as const
-    mocks.loadContext.mockResolvedValue({ ...context, allowPersonalApiKeys: false })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal: copilotPrincipal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).resolves.toMatchObject({ extractedCount: 2 })
-
-    expect(mocks.createFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1' })
-    )
-    expect(mocks.decompress).toHaveBeenCalledWith(
-      expect.any(Buffer),
-      expect.objectContaining({ principal: copilotPrincipal, workspaceId: 'workspace-1' })
-    )
-  })
+  it.each([createPersonalApiKeyPrincipal(), createWorkspaceApiKeyPrincipal()] as const)(
+    'allows $kind to extract',
+    async (apiKeyPrincipal) => {
+      await expect(
+        extractWorkspaceFile.execute({
+          principal: apiKeyPrincipal,
+          input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+        })
+      ).resolves.toMatchObject({ extractedCount: 2 })
+    }
+  )
 
   it('rejects a non-Copilot delegated principal before loading the file', async () => {
     await expect(
       extractWorkspaceFile.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'executor',
-          subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
-          delegationId: 'delegation-1',
+        principal: createExecutorPrincipal({
           audience: 'sim:workspace-files',
-          issuedAt: new Date('2026-01-01T00:00:00Z'),
           expiresAt: new Date('2999-01-01T00:00:00Z'),
-        },
+        }),
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

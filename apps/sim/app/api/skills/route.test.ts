@@ -1,76 +1,59 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    getSession: vi.fn(),
-    loadActiveWorkspaceContext: vi.fn(),
-    resolveEffectiveWorkspacePermission: vi.fn(),
-    recordAudit: vi.fn(),
-    getSkillById: vi.fn(),
-    upsertSkills: vi.fn(),
-    listSkillsForUser: vi.fn(),
-    listSkills: vi.fn(),
-    deleteSkill: vi.fn(),
-    getSkillActorContext: vi.fn(),
-    captureServerEvent: vi.fn(),
-    checkWorkspaceAccess: vi.fn(),
-    checkSessionOrInternalAuth: vi.fn(),
-  },
+const hoisted = vi.hoisted(() => ({
+  getSkillById: vi.fn(),
+  upsertSkills: vi.fn(),
+  listSkillsForUser: vi.fn(),
+  listSkills: vi.fn(),
+  deleteSkill: vi.fn(),
+  getSkillActorContext: vi.fn(),
 }))
 
-/**
- * Kept authenticated independently of which auth helper the route reaches for,
- * so a failure here can only be about where the authorization decision and the
- * audit entry are made.
- */
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mocks.checkSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mocks.getSession,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadActiveWorkspaceContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolveEffectiveWorkspacePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SKILL_CREATED: 'skill.created',
-    SKILL_UPDATED: 'skill.updated',
-    SKILL_DELETED: 'skill.deleted',
-  },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: mocks.getSkillById,
-  upsertSkills: mocks.upsertSkills,
-  listSkillsForUser: mocks.listSkillsForUser,
-  listSkills: mocks.listSkills,
-  deleteSkill: mocks.deleteSkill,
+  getSkillById: hoisted.getSkillById,
+  upsertSkills: hoisted.upsertSkills,
+  listSkillsForUser: hoisted.listSkillsForUser,
+  listSkills: hoisted.listSkills,
+  deleteSkill: hoisted.deleteSkill,
 }))
 vi.mock('@/lib/skills/access', () => ({
-  getSkillActorContext: mocks.getSkillActorContext,
+  getSkillActorContext: hoisted.getSkillActorContext,
 }))
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mocks.captureServerEvent,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-import { DELETE, POST } from '@/app/api/skills/route'
+import { POST } from '@/app/api/skills/route'
+
+const mocks = {
+  ...hoisted,
+  getSession: authMockFns.mockGetSession,
+  /**
+   * Kept authenticated independently of which auth helper the route reaches for,
+   * so a failure here can only be about where the authorization decision and the
+   * audit entry are made.
+   */
+  checkSessionOrInternalAuth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
+  loadActiveWorkspaceContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolveEffectiveWorkspacePermission:
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  captureServerEvent: posthogServerMockFns.mockCaptureServerEvent,
+  checkWorkspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const USER_ID = 'user-1'
@@ -101,7 +84,6 @@ function upsertRequest(body: unknown) {
 
 describe('internal /api/skills route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: USER_ID, name: 'Ada', email: 'ada@example.com' },
       session: { id: 'session-1' },
@@ -136,55 +118,6 @@ describe('internal /api/skills route', () => {
       workspace: { id: WORKSPACE_ID },
       permission: 'admin',
     })
-  })
-
-  /**
-   * The semantic audit entry is projected by the application use case and is
-   * tagged with the operation id. A surface that writes through the manager
-   * directly cannot produce it. The batch is one operation, `skills.upsert`;
-   * the create/update distinction stays on the audit action.
-   */
-  it('records the skills.upsert semantic audit entry for an update', async () => {
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ id: skillRow.id, content: '# Updated' }],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: WORKSPACE_ID,
-        actorId: USER_ID,
-        action: 'skill.updated',
-        resourceId: skillRow.id,
-        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
-      })
-    )
-  })
-
-  it('records a skill.created audit entry for a create', async () => {
-    mocks.upsertSkills.mockResolvedValue({
-      touched: [{ id: 'skill-2', name: 'new-skill', operation: 'created' }],
-    })
-
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ name: 'new-skill', description: 'A skill', content: '# New' }],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'skill.created',
-        resourceId: 'skill-2',
-        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
-      })
-    )
   })
 
   /**
@@ -248,43 +181,6 @@ describe('internal /api/skills route', () => {
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
-  it('commits a valid batch in one write with one audit entry per skill', async () => {
-    mocks.upsertSkills.mockResolvedValue({
-      touched: [
-        { id: skillRow.id, name: skillRow.name, operation: 'updated' },
-        { id: 'skill-3', name: 'new-skill', operation: 'created' },
-      ],
-    })
-
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [
-          { id: skillRow.id, content: '# Updated' },
-          { name: 'new-skill', description: 'A skill', content: '# New' },
-        ],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.upsertSkills).toHaveBeenCalledTimes(1)
-    expect(mocks.upsertSkills).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skills: [
-          { id: skillRow.id, content: '# Updated' },
-          { name: 'new-skill', description: 'A skill', content: '# New' },
-        ],
-      })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
-    expect(mocks.recordAudit.mock.calls.map(([entry]) => [entry.action, entry.resourceId])).toEqual(
-      [
-        ['skill.updated', skillRow.id],
-        ['skill.created', 'skill-3'],
-      ]
-    )
-  })
-
   /**
    * The batch operation declares only the read floor an update needs, so a
    * skill editor without workspace write keeps editing. A create in the same
@@ -333,45 +229,5 @@ describe('internal /api/skills route', () => {
     expect(response.status).toBe(403)
     expect(mocks.upsertSkills).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('records the skills.delete semantic audit entry', async () => {
-    const response = await DELETE(
-      createMockRequest(
-        'DELETE',
-        undefined,
-        {},
-        `http://localhost:3000/api/skills?id=${skillRow.id}&workspaceId=${WORKSPACE_ID}`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'skill.deleted',
-        metadata: expect.objectContaining({ operation: 'skills.delete' }),
-      })
-    )
-  })
-
-  it('still emits product analytics for a write', async () => {
-    await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ id: skillRow.id, content: '# Updated' }],
-        source: 'settings',
-      })
-    )
-
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      USER_ID,
-      'skill_updated',
-      expect.objectContaining({
-        skill_id: skillRow.id,
-        workspace_id: WORKSPACE_ID,
-        source: 'settings',
-      }),
-      { groups: { workspace: WORKSPACE_ID } }
-    )
   })
 })

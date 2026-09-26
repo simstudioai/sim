@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Coverage for {@link deleteOrphanedOAuthAccount}, the single predicate standing
  * between a workspace-scoped admin disconnect and a cross-workspace OAuth grant
  * wipe. `credential.accountId` is `ON DELETE CASCADE`, so a guard that stops
@@ -22,31 +20,26 @@
 import { drizzle } from 'drizzle-orm/pg-proxy'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { capturedQueries, driverRows, mockLogger } = vi.hoisted(() => ({
+const { capturedQueries, driverRows } = vi.hoisted(() => ({
   capturedQueries: [] as { sql: string; params: unknown[] }[],
-  driverRows: { value: [] as unknown[], error: null as Error | null },
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
+  driverRows: { value: [] as unknown[] },
 }))
 
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
 
-vi.mock('@sim/logger', () => ({ createLogger: () => mockLogger }))
-
 vi.mock('@sim/db', () => ({
   db: drizzle(async (sql: string, params: unknown[]) => {
     capturedQueries.push({ sql, params })
-    if (driverRows.error) throw driverRows.error
     return { rows: driverRows.value }
   }),
 }))
 
-import { clearCredentialRefs, deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
+import {
+  clearCredentialInValue,
+  clearCredentialRefs,
+  deleteOrphanedOAuthAccount,
+} from '@/lib/credentials/deletion'
 
 const ACCOUNT_ID = 'acct-bob-google'
 
@@ -71,8 +64,6 @@ function guardSubquery(sql: string): string {
 beforeEach(() => {
   capturedQueries.length = 0
   driverRows.value = []
-  driverRows.error = null
-  vi.clearAllMocks()
 })
 
 describe('deleteOrphanedOAuthAccount', () => {
@@ -91,34 +82,6 @@ describe('deleteOrphanedOAuthAccount', () => {
     expect(subquery).not.toContain('workspace_id')
 
     expect(params).toEqual([ACCOUNT_ID, ACCOUNT_ID])
-  })
-
-  it('keys the reference check on account_id alone and reports nothing when it matches no row', async () => {
-    /**
-     * The row matching itself is Postgres's, not this harness's — the driver
-     * replays the empty RETURNING that a surviving workspace-B `credential` row
-     * would produce, and the statement carries what makes that row visible: the
-     * subquery is keyed on `account_id` alone. A `workspace_id` filter would hide
-     * every other workspace's reference and turn an intra-workspace admin
-     * disconnect into a cross-workspace grant wipe.
-     */
-    driverRows.value = []
-
-    await deleteOrphanedOAuthAccount(ACCOUNT_ID)
-
-    expect(guardSubquery(onlyQuery().sql)).not.toContain('workspace_id')
-    expect(mockLogger.info).not.toHaveBeenCalled()
-  })
-
-  it('deletes a genuinely orphaned account', async () => {
-    driverRows.value = [{ id: ACCOUNT_ID }]
-
-    await deleteOrphanedOAuthAccount(ACCOUNT_ID)
-
-    expect(onlyQuery().sql).toContain('returning "id"')
-    expect(mockLogger.info).toHaveBeenCalledWith('Deleted orphaned OAuth account', {
-      accountId: ACCOUNT_ID,
-    })
   })
 
   it('does not scope the account delete by owner, so an admin can disconnect a teammate grant', async () => {
@@ -229,13 +192,122 @@ describe('clearCredentialRefs', () => {
     expect(rest).not.toContain('"last_sync_error"')
     expect(updates[1].params).toEqual(expect.arrayContaining([null, 'credential-target']))
   })
+})
 
-  it('propagates database failures', async () => {
-    driverRows.error = new Error('database unavailable')
-    await expect(
-      clearCredentialRefs('credential-target', 'workspace-target')
-    ).rejects.toMatchObject({
-      cause: driverRows.error,
-    })
+describe('clearCredentialInValue', () => {
+  const TARGET = 'cred_target123'
+  const OTHER = 'cred_other999'
+
+  it('clears matching subBlock value with id="credential"', () => {
+    const input = { id: 'credential', type: 'oauth-input', value: TARGET }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    expect(result.value).toEqual({ id: 'credential', type: 'oauth-input', value: '' })
+  })
+
+  it('leaves unrelated subBlock value untouched', () => {
+    const input = { id: 'someOtherField', value: TARGET }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(false)
+    expect(result.value).toBe(input)
+  })
+
+  it('leaves matching subBlock with non-matching value untouched', () => {
+    const input = { id: 'credential', value: OTHER }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(false)
+    expect(result.value).toBe(input)
+  })
+
+  it('clears nested tools[].params.credential', () => {
+    const input = {
+      id: 'tools',
+      value: [
+        { type: 'gmail_send', params: { credential: TARGET, to: 'a@b.com' } },
+        { type: 'slack_message', params: { credential: OTHER, channel: '#x' } },
+      ],
+    }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    const value = result.value as { value: Array<{ params: { credential: string } }> }
+    expect(value.value[0].params.credential).toBe('')
+    expect(value.value[1].params.credential).toBe(OTHER)
+  })
+
+  it('walks workflow_blocks-style keyed subBlocks structure', () => {
+    const input = {
+      credential: { id: 'credential', value: TARGET },
+      messages: { id: 'messages', value: 'hello' },
+      tools: {
+        id: 'tools',
+        value: [{ type: 'x', params: { credential: TARGET } }],
+      },
+    }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    const value = result.value as typeof input
+    expect(value.credential.value).toBe('')
+    expect(value.messages.value).toBe('hello')
+    expect(value.tools.value[0].params.credential).toBe('')
+  })
+
+  it('walks deployment-style nested blocks structure', () => {
+    const input = {
+      blocks: {
+        block1: {
+          subBlocks: {
+            credential: { id: 'credential', value: TARGET },
+          },
+        },
+        block2: {
+          subBlocks: {
+            other: { id: 'other', value: 'unrelated' },
+          },
+        },
+      },
+    }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    const value = result.value as typeof input
+    expect(value.blocks.block1.subBlocks.credential.value).toBe('')
+    expect(value.blocks.block2.subBlocks.other.value).toBe('unrelated')
+  })
+
+  it('clears params.credential string directly even when not nested in tools', () => {
+    const input = { params: { credential: TARGET, channel: '#x' } }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    expect((result.value as typeof input).params).toEqual({ credential: '', channel: '#x' })
+  })
+
+  it('does not match "credential" key when value is a different string', () => {
+    const input = { credential: 'cred_unrelated' }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(false)
+    expect(result.value).toBe(input)
+  })
+
+  it('clears multiple references in a single pass', () => {
+    const input = {
+      blocks: {
+        a: { subBlocks: { credential: { id: 'credential', value: TARGET } } },
+        b: { subBlocks: { triggerCredentials: { id: 'triggerCredentials', value: TARGET } } },
+        c: {
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              value: [{ params: { credential: TARGET } }, { params: { credential: TARGET } }],
+            },
+          },
+        },
+      },
+    }
+    const result = clearCredentialInValue(input, TARGET)
+    expect(result.changed).toBe(true)
+    const value = result.value as typeof input
+    expect(value.blocks.a.subBlocks.credential.value).toBe('')
+    expect(value.blocks.b.subBlocks.triggerCredentials.value).toBe('')
+    expect(value.blocks.c.subBlocks.tools.value[0].params.credential).toBe('')
+    expect(value.blocks.c.subBlocks.tools.value[1].params.credential).toBe('')
   })
 })

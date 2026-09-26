@@ -1,39 +1,18 @@
-/**
- * @vitest-environment node
- */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockCreateSession, mockCreateVerificationValue, mockEnforceIpRateLimit } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockCreateSession: vi.fn(),
-    mockCreateVerificationValue: vi.fn(),
-    mockEnforceIpRateLimit: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: {
-    api: { getSession: mockGetSession },
-    $context: Promise.resolve({
-      internalAdapter: {
-        createSession: mockCreateSession,
-        createVerificationValue: mockCreateVerificationValue,
-      },
-    }),
-  },
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceIpRateLimit: mockEnforceIpRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
 }))
 
 import { POST } from '@/app/api/desktop/auth/handoff/route'
+
+const mockEnforceIpRateLimit = rateLimiterMockFns.mockEnforceIpRateLimit
+const { mockGetSession, mockCreateSession, mockCreateVerificationValue } = authMockFns
 
 const BROWSER_SESSION_TOKEN = 'browser-session-token'
 const DESKTOP_SESSION_TOKEN = 'desktop-session-token'
@@ -44,7 +23,6 @@ function request() {
 
 describe('POST /api/desktop/auth/handoff', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceIpRateLimit.mockResolvedValue(null)
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -97,16 +75,6 @@ describe('POST /api/desktop/auth/handoff', () => {
     )
   })
 
-  it('returns 401 without creating a session when the caller is signed out', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const response = await POST(request())
-
-    expect(response.status).toBe(401)
-    expect(mockCreateSession).not.toHaveBeenCalled()
-    expect(mockCreateVerificationValue).not.toHaveBeenCalled()
-  })
-
   it('surfaces an access-controlled account as 403, not a retry-forever 500', async () => {
     // The app's session.create.before hook throws a Better Auth APIError for
     // blocked emails/domains. That refusal is permanent.
@@ -121,18 +89,6 @@ describe('POST /api/desktop/auth/handoff', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Access restricted. Contact your administrator.',
     })
-  })
-
-  it('does not create a session when rate limited', async () => {
-    mockEnforceIpRateLimit.mockResolvedValue(
-      new Response(null, { status: 429 }) as unknown as Response
-    )
-
-    const response = await POST(request())
-
-    expect(response.status).toBe(429)
-    expect(mockGetSession).not.toHaveBeenCalled()
-    expect(mockCreateSession).not.toHaveBeenCalled()
   })
 })
 

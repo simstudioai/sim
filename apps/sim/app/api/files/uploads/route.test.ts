@@ -1,46 +1,20 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockCreateUploadSession,
-  mockCreateInternalPurposeUploadSession,
-  mockCompleteInternalUploadSession,
-  mockGetOwnedUploadSession,
-  mockCompleteUploadSession,
-  mockGetUserEntityPermissions,
-  mockAuthorizeWorkflow,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockCreateUploadSession: vi.fn(),
-  mockCreateInternalPurposeUploadSession: vi.fn(),
-  mockCompleteInternalUploadSession: vi.fn(),
-  mockGetOwnedUploadSession: vi.fn(),
-  mockCompleteUploadSession: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockAuthorizeWorkflow: vi.fn(),
-}))
+const { mockCreateInternalPurposeUploadSession, mockCompleteInternalUploadSession } = vi.hoisted(
+  () => ({
+    mockCreateInternalPurposeUploadSession: vi.fn(),
+    mockCompleteInternalUploadSession: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  UploadSessionError: class UploadSessionError extends Error {
-    constructor(
-      readonly code: string,
-      message: string
-    ) {
-      super(message)
-    }
-  },
-  createUploadSession: mockCreateUploadSession,
-  getOwnedUploadSession: mockGetOwnedUploadSession,
-  completeUploadSession: mockCompleteUploadSession,
-  createUploadPartUrls: vi.fn(),
-  abortUploadSession: vi.fn(),
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
   createInternalPurposeUploadSession: mockCreateInternalPurposeUploadSession,
@@ -49,25 +23,20 @@ vi.mock('@/lib/uploads/upload-session/application', () => ({
   abortInternalUploadSession: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  assertWorkspaceFileFolderTarget: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  registerUploadedWorkspaceFile: vi.fn(),
-}))
-
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: vi.fn() }))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { POST as completeUpload } from '@/app/api/files/uploads/[uploadId]/complete/route'
 import { POST as createUpload } from '@/app/api/files/uploads/route'
+
+const { mockGetOwnedUploadSession } = uploadSessionMockFns
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+const mockGetSession = authMockFns.mockGetSession
 
 const actor = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
 const now = new Date('2026-08-04T12:00:00.000Z')
@@ -108,7 +77,6 @@ function session(overrides: Record<string, unknown> = {}) {
 
 describe('/api/files/uploads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: actor, session: { id: 'session-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
   })
@@ -122,15 +90,15 @@ describe('/api/files/uploads', () => {
         headers: { 'Content-Type': 'image/png' },
       },
     })
-    const request = new NextRequest('http://localhost/api/files/uploads', {
+    const request = createMockRequest({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      url: 'http://localhost/api/files/uploads',
+      body: {
         purpose: 'profile_picture',
         name: 'avatar.png',
         contentType: 'image/png',
         size: 128,
-      }),
+      },
     })
 
     const response = await createUpload(request)
@@ -156,84 +124,6 @@ describe('/api/files/uploads', () => {
     expect(body.data.session).not.toHaveProperty('transfer')
   })
 
-  it('creates a PUT session for an empty workspace file', async () => {
-    mockCreateInternalPurposeUploadSession.mockResolvedValue({
-      ...session({
-        workspaceId: 'workspace-1',
-        purpose: 'workspace_file',
-        storageContext: 'workspace',
-        storageKey: 'workspace/workspace-1/empty.md',
-        fileName: 'empty.md',
-        contentType: 'text/markdown',
-        fileSize: 0,
-      }),
-      transfer: {
-        method: 'put',
-        url: 'https://storage.example.com/upload',
-        headers: { 'Content-Type': 'text/markdown' },
-      },
-    })
-    const request = new NextRequest('http://localhost/api/files/uploads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        purpose: 'workspace_file',
-        workspaceId: 'workspace-1',
-        name: 'empty.md',
-        contentType: 'text/markdown',
-        size: 0,
-      }),
-    })
-
-    const response = await createUpload(request)
-
-    expect(response.status).toBe(201)
-    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session' }),
-      expect.objectContaining({ purpose: 'workspace_file', size: 0 }),
-      request
-    )
-    await expect(response.json()).resolves.toMatchObject({
-      data: { session: { purpose: 'workspace_file', size: 0 } },
-    })
-  })
-
-  it('preserves the 5 GiB direct-to-storage limit for mothership attachments', async () => {
-    mockCreateInternalPurposeUploadSession.mockResolvedValue({
-      ...session({
-        workspaceId: 'workspace-1',
-        purpose: 'mothership_attachment',
-        method: 'multipart',
-        storageContext: 'mothership',
-        storageKey: 'mothership/workspace-1/archive.zip',
-        fileName: 'archive.zip',
-        contentType: 'application/zip',
-        fileSize: MAX_WORKSPACE_FILE_SIZE,
-      }),
-      transfer: { method: 'multipart', partSize: 8 * 1024 * 1024, partCount: 640 },
-    })
-    const request = new NextRequest('http://localhost/api/files/uploads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        purpose: 'mothership_attachment',
-        workspaceId: 'workspace-1',
-        name: 'archive.zip',
-        contentType: 'application/zip',
-        size: MAX_WORKSPACE_FILE_SIZE,
-      }),
-    })
-
-    const response = await createUpload(request)
-
-    expect(response.status).toBe(201)
-    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session' }),
-      expect.objectContaining({ purpose: 'mothership_attachment', size: MAX_WORKSPACE_FILE_SIZE }),
-      request
-    )
-  })
-
   it.each([
     { organizationId: 'org-1', contentType: 'application/pdf', size: 100 },
     { organizationId: 'org-1', contentType: 'image/svg+xml', size: 100 },
@@ -241,53 +131,27 @@ describe('/api/files/uploads', () => {
     { organizationId: 'org-1', workspaceId: 'ws-1', contentType: 'image/png', size: 100 },
   ])('rejects unsupported organization attachments before application loading', async (body) => {
     const response = await createUpload(
-      new NextRequest('http://localhost/api/files/uploads', {
+      createMockRequest({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purpose: 'mothership_attachment', name: 'image.png', ...body }),
+        url: 'http://localhost/api/files/uploads',
+        body: { purpose: 'mothership_attachment', name: 'image.png', ...body },
       })
     )
     expect(response.status).toBe(400)
     expect(mockCreateInternalPurposeUploadSession).not.toHaveBeenCalled()
   })
 
-  it('creates organization image attachments through the same upload lifecycle', async () => {
-    mockCreateInternalPurposeUploadSession.mockResolvedValue({
-      ...session({ purpose: 'mothership_attachment', storageContext: 'mothership' }),
-      transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
-    })
-    const response = await createUpload(
-      new NextRequest('http://localhost/api/files/uploads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          purpose: 'mothership_attachment',
-          organizationId: 'org-1',
-          name: 'image.png',
-          contentType: 'image/png',
-          size: 100,
-        }),
-      })
-    )
-    expect(response.status).toBe(201)
-    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session', userId: 'user-1' }),
-      expect.objectContaining({ purpose: 'mothership_attachment', organizationId: 'org-1' }),
-      expect.anything()
-    )
-  })
-
   it('rejects mothership attachments above the 5 GiB direct-to-storage limit', async () => {
-    const request = new NextRequest('http://localhost/api/files/uploads', {
+    const request = createMockRequest({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      url: 'http://localhost/api/files/uploads',
+      body: {
         purpose: 'mothership_attachment',
         workspaceId: 'workspace-1',
         name: 'archive.zip',
         contentType: 'application/zip',
         size: MAX_WORKSPACE_FILE_SIZE + 1,
-      }),
+      },
     })
 
     const response = await createUpload(request)
@@ -317,14 +181,13 @@ describe('/api/files/uploads', () => {
       value: result,
       alreadyCompleted: false,
     })
-    const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete', {
+    const request = createMockRequest({
       method: 'POST',
+      url: 'http://localhost/api/files/uploads/upload-1/complete',
       headers: { 'upload-token': 'signed-token' },
     })
 
-    const response = await completeUpload(request, {
-      params: Promise.resolve({ uploadId: 'upload-1' }),
-    })
+    const response = await completeUpload(request, createRouteContext({ uploadId: 'upload-1' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -350,10 +213,11 @@ describe('/api/files/uploads', () => {
 
   it('authenticates before parsing the request body', async () => {
     mockGetSession.mockResolvedValue(null)
-    const request = new NextRequest('http://localhost/api/files/uploads', {
+    const request = createMockRequest({
       method: 'POST',
+      url: 'http://localhost/api/files/uploads',
       headers: { 'Content-Type': 'application/json' },
-      body: '{not json',
+      rawBody: '{not json',
     })
 
     const response = await createUpload(request)

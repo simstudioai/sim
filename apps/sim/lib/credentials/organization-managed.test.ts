@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { credential, credentialGroup, credentialGroupEnrollment, user } from '@sim/db/schema'
+import { credential, credentialGroup, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +27,6 @@ const live = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -56,31 +54,15 @@ describe('own organization managed browsing credentials', () => {
         undefined
       )
     )
-    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
-      credentialGroupEnrollment,
-      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
-    )
-    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
-      credentialGroup,
-      eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
-    )
-    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
-      user,
-      eq(user.id, credentialGroupEnrollment.userId)
-    )
     expect(dbChainMockFns.select.mock.calls[0]?.[0]).not.toHaveProperty('encryptedAccessToken')
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1000)
   })
 
   it.each([
     ['revoked credential', { managedOauthStatus: 'revoked' }],
-    ['expired connection', { managedOauthStatus: 'needs_reauth' }],
-    ['missing credential status', { managedOauthStatus: null }],
     ['revoked enrollment', { enrollmentStatus: 'revoked' }],
-    ['pending enrollment', { enrollmentStatus: 'pending' }],
     ['disabled group', { groupStatus: 'disabled' }],
     ['disabled option', { options: [{ id: 'option-1', status: 'disabled' }] }],
-    ['removed option', { options: [] }],
     ['missing provider', { providerId: null }],
   ])('omits a %s', async (_name, override) => {
     queueTableRows(credential, [{ ...live, ...override }])

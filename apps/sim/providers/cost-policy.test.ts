@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { NormalizedBlockOutput } from '@/executor/types'

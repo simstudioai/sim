@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,12 +32,6 @@ const { consent, mockCapture, mockInit, mockOptIn, mockOptOut, mockPostHog, mock
   })
 
 vi.mock('@/lib/consent/tracking-consent', () => ({ useTrackingConsent: () => consent }))
-vi.mock('@/lib/core/config/env', () => ({
-  getEnv: (name: string) =>
-    name === 'NEXT_PUBLIC_POSTHOG_ENABLED' ? 'true' : 'phc_test_project_key',
-  isTruthy: (value: string) => value === 'true',
-  publicEnvMissingAtModuleInit: false,
-}))
 vi.mock('@/lib/posthog/client', () => ({ setPostHogClient: mockSetPostHogClient }))
 vi.mock('@/lib/posthog/exception-filter', () => ({ preparePostHogEvent: vi.fn() }))
 vi.mock('posthog-js', () => ({
@@ -48,6 +44,8 @@ vi.mock('posthog-js/react', () => ({
 }))
 
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
+
+setEnv({ NEXT_PUBLIC_POSTHOG_ENABLED: 'true', NEXT_PUBLIC_POSTHOG_KEY: 'phc_test_project_key' })
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -76,7 +74,6 @@ afterEach(() => {
   mockPostHog.__loaded = false
   localStorage.clear()
   sessionStorage.clear()
-  vi.clearAllMocks()
 })
 
 describe('PostHogProvider consent gating', () => {

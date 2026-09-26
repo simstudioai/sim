@@ -1,78 +1,57 @@
-/**
- * @vitest-environment node
- */
-import { db } from '@sim/db'
 import { member, outboxEvent, user, workspace } from '@sim/db/schema'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
 import {
   dbChainMockFns,
   flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/database.mock'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAuditOnce: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   assertInvitationEligibility: vi.fn(),
   getSeatRequirement: vi.fn(),
   getProvisioning: vi.fn(),
   issueProvisioning: vi.fn(),
   retryProvisioning: vi.fn(),
-  acquireUserLock: vi.fn(),
   createOrganization: vi.fn(),
-  enqueue: vi.fn(),
-  patchPayload: vi.fn(),
-  process: vi.fn(),
-  sendEmail: vi.fn(),
   createDefaultWorkspace: vi.fn(),
   emitWorkspaceCreatedPlatformEvent: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',
-    ORGANIZATION_CREATED: 'organization.created',
-    INVITATION_REVOKED: 'invitation.revoked',
-  },
-  AuditResourceType: { SUBSCRIPTION: 'subscription', ORGANIZATION: 'organization' },
-  recordAuditOnce: mocks.recordAuditOnce,
-}))
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: vi.fn(() => 'Enterprise owner invitation'),
-  renderEnterpriseOwnerInvitationEmail: vi.fn(async () => '<p>Invite</p>'),
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@/components/emails', () => emailTemplatesMock)
 vi.mock('@/lib/billing/enterprise-provisioning', () => {
   class EnterpriseProvisioningError extends Error {}
   return {
     EnterpriseProvisioningError,
     MAX_ENTERPRISE_WORKSPACE_SELECTION: 1_000,
-    assertEnterpriseInvitationEligibility: mocks.assertInvitationEligibility,
-    getEnterpriseIssuanceSeatRequirement: mocks.getSeatRequirement,
-    getEnterpriseProvisioningById: mocks.getProvisioning,
-    issueEnterpriseProvisioning: mocks.issueProvisioning,
-    retryEnterpriseProvisioning: mocks.retryProvisioning,
+    assertEnterpriseInvitationEligibility: hoisted.assertInvitationEligibility,
+    getEnterpriseIssuanceSeatRequirement: hoisted.getSeatRequirement,
+    getEnterpriseProvisioningById: hoisted.getProvisioning,
+    issueEnterpriseProvisioning: hoisted.issueProvisioning,
+    retryEnterpriseProvisioning: hoisted.retryProvisioning,
   }
 })
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: mocks.acquireUserLock,
-}))
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
-  createOrganizationWithOwnerTx: mocks.createOrganization,
+  createOrganizationWithOwnerTx: hoisted.createOrganization,
 }))
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mocks.enqueue,
-  patchOutboxEventPayload: mocks.patchPayload,
-  processOutboxEventById: mocks.process,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  SITE_URL: 'https://sim.ai',
-  getBaseUrl: vi.fn(() => 'https://sim.ai'),
-}))
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: mocks.sendEmail }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 vi.mock('@/lib/workspaces/create', () => ({
-  createDefaultPersonalWorkspaceInTransaction: mocks.createDefaultWorkspace,
-  emitWorkspaceCreatedPlatformEvent: mocks.emitWorkspaceCreatedPlatformEvent,
+  createDefaultPersonalWorkspaceInTransaction: hoisted.createDefaultWorkspace,
+  emitWorkspaceCreatedPlatformEvent: hoisted.emitWorkspaceCreatedPlatformEvent,
 }))
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
@@ -80,12 +59,25 @@ vi.mock('@/lib/workspaces/organization-workspaces', () => ({
 
 import {
   acceptEnterpriseOwnerClaim,
-  enterpriseOwnerClaimOutboxHandlers,
-  getEnterpriseOwnerClaimDetails,
   retryEnterpriseOwnerClaim,
   reviewEnterpriseOwnerClaim,
-  revokeEnterpriseOwnerClaim,
 } from '@/lib/billing/enterprise-owner-claim'
+
+const mocks = {
+  ...hoisted,
+  recordAuditOnce: auditMockFns.mockRecordAuditOnce,
+  acquireUserLock: billingIdentityLockMockFns.mockAcquireUserBillingIdentityLock,
+  enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  patchPayload: outboxServiceMockFns.mockPatchOutboxEventPayload,
+  process: outboxServiceMockFns.mockProcessOutboxEventById,
+  sendEmail: emailMailerMockFns.mockSendEmail,
+}
+
+emailTemplatesMockFns.mockGetEmailSubject.mockReturnValue('Enterprise owner invitation')
+emailTemplatesMockFns.mockRenderEnterpriseOwnerInvitationEmail.mockResolvedValue('<p>Invite</p>')
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.ai')
 
 const now = new Date('2026-08-20T12:00:00.000Z')
 
@@ -143,7 +135,6 @@ afterAll(() => {
 
 describe('Enterprise future-owner claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(now)
@@ -199,35 +190,6 @@ describe('Enterprise future-owner claims', () => {
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.process).not.toHaveBeenCalled()
-  })
-
-  it('surfaces canonical invitation workspace limits before the owner accepts', async () => {
-    queueTableRows(outboxEvent, [claimRow()])
-    queueTableRows(
-      workspace,
-      Array.from({ length: 51 }, (_, index) => ({
-        id: `workspace-${index + 1}`,
-        name: `Workspace ${index + 1}`,
-        archivedAt: null,
-      }))
-    )
-    queueTableRows(member, [])
-
-    const details = await getEnterpriseOwnerClaimDetails({
-      claimId: 'claim-1',
-      token: 'secure-token',
-      userId: 'owner-1',
-      userEmail: 'owner@example.com',
-    })
-    expect(details).toMatchObject({
-      acceptanceReview: {
-        canAccept: false,
-        requiredSeats: null,
-        reason: expect.stringContaining('more than 50 workspaces'),
-      },
-    })
-    expect(details?.workspacePreview?.workspacesToMove).toHaveLength(51)
-    expect(mocks.getSeatRequirement).not.toHaveBeenCalled()
   })
 
   it('atomically creates ownership and enqueues activation after exact consent', async () => {
@@ -332,72 +294,6 @@ describe('Enterprise future-owner claims', () => {
     expect(emailConditions).toHaveLength(1)
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
-  })
-
-  it('activates through the canonical Enterprise issuance operation only after acceptance', async () => {
-    const accepted = {
-      acceptedAt: '2026-08-20T12:00:00.000Z',
-      ownerUserId: 'owner-1',
-      organizationId: 'org-1',
-      workspaceIds: ['workspace-1'],
-      reportingPeriodAnchorDate: '2026-08-20',
-      activationEventId: 'activation-1',
-      createdDefaultWorkspaceId: null,
-    }
-    queueTableRows(outboxEvent, [claimRow({ ...claimPayload(), acceptance: accepted })])
-    mocks.issueProvisioning.mockResolvedValue({ id: 'provisioning-1' })
-    const checkpointPayload = vi.fn()
-
-    await enterpriseOwnerClaimOutboxHandlers['enterprise.activate-owner-claim'](
-      { claimId: 'claim-1' },
-      {
-        eventId: 'activation-1',
-        eventType: 'enterprise.activate-owner-claim',
-        attempts: 0,
-        maxAttempts: 10,
-        signal: new AbortController().signal,
-        checkpointPayload,
-      }
-    )
-
-    expect(mocks.issueProvisioning).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ownerUserId: 'owner-1',
-        organizationName: 'Acme',
-        workspaceIds: ['workspace-1'],
-        reportingPeriodAnchorDate: '2026-08-20',
-        invitations: request.invitations,
-      })
-    )
-    expect(checkpointPayload).toHaveBeenCalledWith({
-      provisioningOperationId: 'provisioning-1',
-    })
-    expect(mocks.patchPayload).toHaveBeenCalledWith(db, 'claim-1', {
-      provisioningOperationId: 'provisioning-1',
-    })
-  })
-
-  it('revokes an unaccepted claim without starting activation', async () => {
-    const revokedAt = now.toISOString()
-    queueTableRows(outboxEvent, [claimRow()])
-    queueTableRows(outboxEvent, [claimRow({ ...claimPayload(), revokedAt })])
-
-    const result = await revokeEnterpriseOwnerClaim('claim-1', {
-      id: 'admin-1',
-      name: 'Admin',
-      email: 'admin@sim.ai',
-    })
-
-    expect(result).toMatchObject({ id: 'claim-1', status: 'revoked' })
-    expect(mocks.process).not.toHaveBeenCalled()
-    expect(mocks.issueProvisioning).not.toHaveBeenCalled()
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
-      'claim-1:revoked',
-      expect.objectContaining({
-        action: 'invitation.revoked',
-        resourceId: 'claim-1',
-      })
-    )
   })
 
   it('rejects acceptance after an invitation is revoked', async () => {

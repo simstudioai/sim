@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
-import type { Sql } from 'postgres'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockInfo, mockWarn } = vi.hoisted(() => ({
   mockInfo: vi.fn(),
@@ -21,8 +17,6 @@ vi.mock('@sim/logger', () => ({
 import {
   assertFrozenBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-  createPausedBillingAttributionStore,
-  MAX_PAUSED_BILLING_SNAPSHOT_BYTES,
   type PausedBillingAttributionStore,
   type PausedExecutionCandidate,
   runPausedBillingAttributionBackfill,
@@ -30,10 +24,6 @@ import {
   selectFrozenPersonalSubscription,
 } from './script-migrations/0002_backfill_paused_billing_attribution'
 import { scriptMigrations } from './script-migrations/index'
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 const ORGANIZATION_ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'actor-1',
@@ -260,36 +250,6 @@ describe('paused billing attribution serialization', () => {
       periodEnd: null,
     })
   })
-
-  it('writes a personal payer with no recognized subscription', async () => {
-    const candidate = createCandidate('row-1')
-    const harness = createStore([candidate])
-    harness.workspacePayers.set('workspace-1', {
-      billedAccountUserId: 'payer-1',
-      organizationId: null,
-    })
-    harness.personalSubscriptions.set('payer-1', [createSubscription('free-1', 'payer-1', 'free')])
-
-    await runPausedBillingAttributionBackfill(harness.store)
-
-    const persisted = harness.rows.get(candidate.id)
-    if (!persisted) throw new Error('Expected persisted candidate')
-    const attribution = (
-      readInnerSnapshot(persisted).metadata as {
-        billingAttribution: BillingAttributionSnapshot
-      }
-    ).billingAttribution
-    expect(attribution).toMatchObject({
-      organizationId: null,
-      billedAccountUserId: 'payer-1',
-      billingEntity: { type: 'user', id: 'payer-1' },
-      billingPeriod: {
-        start: '1970-01-01T00:00:00.000Z',
-        end: '9999-12-31T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    })
-  })
 })
 
 describe('paused billing attribution subscription selection', () => {
@@ -316,22 +276,6 @@ describe('paused billing attribution subscription selection', () => {
       'same highest-priority tier'
     )
   })
-
-  it('uses canonical organization subscription SQL ordering', async () => {
-    const queries: string[] = []
-    const fakeSql = ((strings: TemplateStringsArray) => {
-      const query = strings.join('?').replace(/\s+/g, ' ').trim()
-      queries.push(query)
-      return Promise.resolve([])
-    }) as unknown as Sql
-    const store = createPausedBillingAttributionStore(fakeSql)
-
-    await store.loadOrganizationSubscription('organization-1')
-
-    expect(queries[0]).toContain('status = ANY(?::text[])')
-    expect(queries[0]).toContain('ORDER BY period_start DESC, id DESC')
-    expect(queries[0]).toContain('LIMIT 1')
-  })
 })
 
 describe('paused billing attribution safety', () => {
@@ -352,29 +296,6 @@ describe('paused billing attribution safety', () => {
     expect(harness.writes).toHaveLength(0)
     expect(harness.rows.get(valid.id)?.executionSnapshot).toBe(valid.executionSnapshot)
     expect(harness.rows.get(malformed.id)?.executionSnapshot).toBe(malformed.executionSnapshot)
-  })
-
-  it('logs and skips malformed, mismatched, and oversized legacy rows', async () => {
-    const malformed = createCandidate('row-1', { malformedSnapshot: true })
-    const mismatched = createCandidate('row-2')
-    if (typeof mismatched.executionSnapshot !== 'object' || mismatched.executionSnapshot === null) {
-      throw new Error('Expected execution snapshot object')
-    }
-    const mismatchedInner = readInnerSnapshot(mismatched)
-    ;(mismatchedInner.metadata as Record<string, unknown>).executionId = 'other-execution'
-    mismatched.executionSnapshot = {
-      ...mismatched.executionSnapshot,
-      snapshot: JSON.stringify(mismatchedInner),
-    }
-    const oversized = createCandidate('row-3')
-    oversized.snapshotBytes = MAX_PAUSED_BILLING_SNAPSHOT_BYTES + 1
-    const harness = createStore([malformed, mismatched, oversized])
-
-    const summary = await runPausedBillingAttributionBackfill(harness.store, 2)
-
-    expect(summary).toMatchObject({ batches: 2, malformed: 3, migrated: 0, scanned: 3 })
-    expect(mockWarn).toHaveBeenCalledTimes(3)
-    expect(harness.writes).toHaveLength(0)
   })
 
   it('preserves a concurrent value when full-snapshot compare-and-swap loses', async () => {

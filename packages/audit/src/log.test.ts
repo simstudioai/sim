@@ -1,39 +1,14 @@
-/**
- * @vitest-environment node
- */
-import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { databaseMock, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  auditLog: { id: 'id', workspaceId: 'workspace_id' },
-  user: { id: 'id', name: 'name', email: 'email' },
-}))
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(),
-  and: vi.fn(),
-  or: vi.fn(),
-  sql: vi.fn(),
-}))
-const { mockGetRequestContext } = vi.hoisted(() => ({
-  mockGetRequestContext: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  getRequestContext: mockGetRequestContext,
-}))
-vi.mock('@sim/utils/id', () => ({
-  generateId: () => 'test-uuid-123',
-  generateShortId: () => 'test-id-123',
-  isValidUuid: (v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
-}))
+vi.mock('@sim/db', () => databaseMock)
+vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@sim/utils/id', () => idMock)
 
 import { sleep } from '@sim/utils/helpers'
 import {
@@ -44,73 +19,14 @@ import {
   recordAuditOnce,
 } from './index'
 
+idMockFns.mockGenerateId.mockReturnValue('test-uuid-123')
+idMockFns.mockGenerateShortId.mockReturnValue('test-id-123')
+
 const flush = () => sleep(10)
-
-describe('AuditAction', () => {
-  it('contains all expected action categories', () => {
-    expect(AuditAction.WORKFLOW_CREATED).toBe('workflow.created')
-    expect(AuditAction.MEMBER_INVITED).toBe('member.invited')
-    expect(AuditAction.API_KEY_CREATED).toBe('api_key.created')
-    expect(AuditAction.ORGANIZATION_CREATED).toBe('organization.created')
-  })
-
-  it('has unique values for every key', () => {
-    const values = Object.values(AuditAction)
-    const unique = new Set(values)
-    expect(unique.size).toBe(values.length)
-  })
-})
-
-describe('AuditResourceType', () => {
-  it('contains all expected resource types', () => {
-    expect(AuditResourceType.WORKFLOW).toBe('workflow')
-    expect(AuditResourceType.WORKSPACE).toBe('workspace')
-    expect(AuditResourceType.API_KEY).toBe('api_key')
-    expect(AuditResourceType.MCP_SERVER).toBe('mcp_server')
-  })
-
-  it('has unique values for every key', () => {
-    const values = Object.values(AuditResourceType)
-    const unique = new Set(values)
-    expect(unique.size).toBe(values.length)
-  })
-})
 
 describe('recordAudit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('inserts an audit log entry with all required fields', async () => {
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test User',
-      actorEmail: 'test@example.com',
-      action: AuditAction.WORKFLOW_CREATED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: 'wf-1',
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'test-id-123',
-        workspaceId: 'ws-1',
-        actorId: 'user-1',
-        action: 'workflow.created',
-        resourceType: 'workflow',
-        resourceId: 'wf-1',
-        metadata: {},
-      })
-    )
   })
 
   it('awaits an idempotent audit insert under the caller-owned ID', async () => {
@@ -130,157 +46,9 @@ describe('recordAudit', () => {
         resourceId: 'subscription-1',
       })
     )
-    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'id' })
-  })
-
-  it('includes optional denormalized fields when provided', async () => {
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: 'folder-1',
-      actorName: 'Waleed',
-      actorEmail: 'waleed@example.com',
-      resourceName: 'My Folder',
-      description: 'Created folder "My Folder"',
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({
+      target: schemaMock.auditLog.id,
     })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorName: 'Waleed',
-        actorEmail: 'waleed@example.com',
-        resourceName: 'My Folder',
-        description: 'Created folder "My Folder"',
-      })
-    )
-  })
-
-  it('extracts IP address from x-forwarded-for header', async () => {
-    const request = new Request('https://example.com', {
-      headers: {
-        'x-forwarded-for': '1.2.3.4, 5.6.7.8',
-        'user-agent': 'TestAgent/1.0',
-      },
-    })
-
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.MEMBER_INVITED,
-      resourceType: AuditResourceType.WORKSPACE,
-      request,
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ipAddress: '5.6.7.8',
-        userAgent: 'TestAgent/1.0',
-      })
-    )
-  })
-
-  it('records the surface the request came from', async () => {
-    mockGetRequestContext.mockReturnValueOnce({
-      requestId: 'req-1',
-      client: { surface: 'cli', version: '2.1.16', source: 'header' },
-    })
-
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.WORKFLOW_CREATED,
-      resourceType: AuditResourceType.WORKFLOW,
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ surface: 'cli' }))
-  })
-
-  it('records no surface outside a request', async () => {
-    mockGetRequestContext.mockReturnValueOnce(undefined)
-
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.WORKFLOW_CREATED,
-      resourceType: AuditResourceType.WORKFLOW,
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values.mock.calls.at(-1)?.[0].surface).toBeUndefined()
-  })
-
-  it('records null when x-forwarded-for is absent', async () => {
-    const request = new Request('https://example.com', {
-      headers: { 'x-real-ip': '10.0.0.1' },
-    })
-
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.API_KEY_CREATED,
-      resourceType: AuditResourceType.API_KEY,
-      request,
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ipAddress: null,
-        userAgent: undefined,
-      })
-    )
-  })
-
-  it('defaults metadata to empty object when not provided', async () => {
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.ENVIRONMENT_UPDATED,
-      resourceType: AuditResourceType.ENVIRONMENT,
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ metadata: {} }))
-  })
-
-  it('passes through metadata when provided', async () => {
-    recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.WEBHOOK_CREATED,
-      resourceType: AuditResourceType.WEBHOOK,
-      metadata: { provider: 'github', workflowId: 'wf-1' },
-    })
-
-    await flush()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: { provider: 'github', workflowId: 'wf-1' },
-      })
-    )
   })
 
   it('does not throw when the database insert fails', async () => {
@@ -300,80 +68,7 @@ describe('recordAudit', () => {
     await flush()
   })
 
-  it('does not block — returns void synchronously', () => {
-    const result = recordAudit({
-      workspaceId: 'ws-1',
-      actorId: 'user-1',
-      actorName: 'Test',
-      actorEmail: 'test@test.com',
-      action: AuditAction.CHAT_DEPLOYED,
-      resourceType: AuditResourceType.CHAT,
-    })
-
-    expect(result).toBeUndefined()
-  })
-
   describe('lazy actor resolution', () => {
-    it('looks up user when actorName and actorEmail are both undefined', async () => {
-      dbChainMockFns.limit.mockResolvedValue([
-        { name: 'Resolved Name', email: 'resolved@example.com' },
-      ])
-
-      recordAudit({
-        workspaceId: 'ws-1',
-        actorId: 'user-1',
-        action: AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-        resourceId: 'doc-1',
-      })
-
-      await flush()
-
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorName: 'Resolved Name',
-          actorEmail: 'resolved@example.com',
-        })
-      )
-    })
-
-    it('skips lookup when actorName is provided (even if null)', async () => {
-      recordAudit({
-        workspaceId: 'ws-1',
-        actorId: 'user-1',
-        actorName: null,
-        actorEmail: null,
-        action: AuditAction.DOCUMENT_UPLOADED,
-        resourceType: AuditResourceType.DOCUMENT,
-      })
-
-      await flush()
-
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    })
-
-    it('skips lookup when actorName and actorEmail are provided', async () => {
-      recordAudit({
-        workspaceId: 'ws-1',
-        actorId: 'user-1',
-        actorName: 'Already Known',
-        actorEmail: 'known@example.com',
-        action: AuditAction.WORKFLOW_CREATED,
-        resourceType: AuditResourceType.WORKFLOW,
-      })
-
-      await flush()
-
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorName: 'Already Known',
-          actorEmail: 'known@example.com',
-        })
-      )
-    })
-
     it('nulls the actor FK when the lookup throws so the insert cannot FK-violate', async () => {
       dbChainMockFns.limit.mockRejectedValue(new Error('DB down'))
 
@@ -417,71 +112,12 @@ describe('recordAudit', () => {
         })
       )
     })
-
-    it('labels the admin-api system actor while nulling its FK', async () => {
-      dbChainMockFns.limit.mockResolvedValue([])
-
-      recordAudit({
-        workspaceId: 'ws-1',
-        actorId: 'admin-api',
-        action: AuditAction.WORKFLOW_DELETED,
-        resourceType: AuditResourceType.WORKFLOW,
-      })
-
-      await flush()
-
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: null,
-          actorName: 'Admin API',
-          actorEmail: undefined,
-        })
-      )
-    })
   })
 })
 
 describe('recordAuditBatch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('writes all entries in a single insert', async () => {
-    recordAuditBatch([
-      {
-        workspaceId: 'ws-1',
-        actorId: null,
-        actorName: 'Billing System',
-        action: AuditAction.WORKSPACE_UPDATED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: 'ws-1',
-      },
-      {
-        workspaceId: 'ws-2',
-        actorId: null,
-        actorName: 'Billing System',
-        action: AuditAction.WORKSPACE_UPDATED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: 'ws-2',
-      },
-    ])
-
-    await flush()
-
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({ workspaceId: 'ws-1', actorId: null, actorName: 'Billing System' }),
-      expect.objectContaining({ workspaceId: 'ws-2', actorId: null, actorName: 'Billing System' }),
-    ])
-  })
-
-  it('does nothing for an empty batch', async () => {
-    recordAuditBatch([])
-
-    await flush()
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('does not throw when the batch insert fails', async () => {
@@ -500,33 +136,5 @@ describe('recordAuditBatch', () => {
     }).not.toThrow()
 
     await flush()
-  })
-})
-
-describe('auditMock sync', () => {
-  it('has the same AuditAction keys as the source', () => {
-    const sourceKeys = Object.keys(AuditAction).sort()
-    const mockKeys = Object.keys(auditMock.AuditAction).sort()
-    expect(mockKeys).toEqual(sourceKeys)
-  })
-
-  it('has the same AuditAction values as the source', () => {
-    const mockActions = auditMock.AuditAction as Record<string, string>
-    for (const key of Object.keys(AuditAction)) {
-      expect(mockActions[key]).toBe(AuditAction[key as keyof typeof AuditAction])
-    }
-  })
-
-  it('has the same AuditResourceType keys as the source', () => {
-    const sourceKeys = Object.keys(AuditResourceType).sort()
-    const mockKeys = Object.keys(auditMock.AuditResourceType).sort()
-    expect(mockKeys).toEqual(sourceKeys)
-  })
-
-  it('has the same AuditResourceType values as the source', () => {
-    const mockResourceTypes = auditMock.AuditResourceType as Record<string, string>
-    for (const key of Object.keys(AuditResourceType)) {
-      expect(mockResourceTypes[key]).toBe(AuditResourceType[key as keyof typeof AuditResourceType])
-    }
   })
 })

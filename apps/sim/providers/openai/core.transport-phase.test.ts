@@ -1,36 +1,34 @@
 /**
- * @vitest-environment node
- *
  * Covers the phase annotation that separates "never answered" from "answered, but the
  * body never arrived" — the runtime reports both as a bare `TimeoutError`.
  */
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockSupportsReasoningEffort } = vi.hoisted(() => ({
-  mockSupportsReasoningEffort: vi.fn(() => false),
+providersMock.MAX_TOOL_ITERATIONS = 5
+
+const mockSupportsReasoningEffort = providersUtilsMockFns.mockSupportsReasoningEffort
+providersUtilsMockFns.mockIsFunctionToolCall.mockReturnValue(false)
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: mockSupportsReasoningEffort,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/tools', () => toolsMock)
 
 /**
  * Exactly what the runtime raises when a fetch deadline fires: a `DOMException`, NOT a
@@ -53,7 +51,6 @@ describe('OpenAI transport phase annotation', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsReasoningEffort.mockReturnValue(false)
   })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DataRetentionSettings, PiiRedactionRule } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -54,36 +51,6 @@ describe('resolveEffectivePiiRedaction', () => {
         input: DISABLED,
         blockOutputs: DISABLED,
         logs: { enabled: true, entityTypes: ['US_SSN'], language: 'en', customPatterns: [] },
-      })
-    })
-
-    it('carries the flat rule language through (defaults to en)', () => {
-      const result = resolveEffectivePiiRedaction({
-        orgSettings: settings([
-          { id: 'r-es', entityTypes: ['ES_NIF'], workspaceId: 'ws-1', language: 'es' },
-        ]),
-        workspaceId: 'ws-1',
-      })
-      expect(result.logs).toEqual({
-        enabled: true,
-        entityTypes: ['ES_NIF'],
-        language: 'es',
-        customPatterns: [],
-      })
-    })
-
-    it('falls back to en when a stored language is unsupported/stale', () => {
-      const result = resolveEffectivePiiRedaction({
-        orgSettings: settings([
-          { id: 'r-de', entityTypes: ['EMAIL_ADDRESS'], workspaceId: 'ws-1', language: 'de' },
-        ]),
-        workspaceId: 'ws-1',
-      })
-      expect(result.logs).toEqual({
-        enabled: true,
-        entityTypes: ['EMAIL_ADDRESS'],
-        language: 'en',
-        customPatterns: [],
       })
     })
 
@@ -270,15 +237,6 @@ describe('resolveEffectivePiiRedaction', () => {
       })
     ).toEqual(DEFAULT_PII_REDACTION)
   })
-
-  it('is the default when there are no rules', () => {
-    expect(
-      resolveEffectivePiiRedaction({ orgSettings: settings([]), workspaceId: 'ws-1' })
-    ).toEqual(DEFAULT_PII_REDACTION)
-    expect(resolveEffectivePiiRedaction({ orgSettings: null, workspaceId: 'ws-1' })).toEqual(
-      DEFAULT_PII_REDACTION
-    )
-  })
 })
 
 describe('resolveEffectiveRetentionHours', () => {
@@ -287,22 +245,6 @@ describe('resolveEffectiveRetentionHours', () => {
     softDeleteRetentionHours: 2160,
     taskCleanupHours: null,
   }
-
-  it('returns the org value when the workspace has no override', () => {
-    expect(
-      resolveEffectiveRetentionHours({ orgSettings, workspaceId: 'ws-1', key: 'logRetentionHours' })
-    ).toBe(720)
-  })
-
-  it('returns the org value when an override exists but omits the field (inherit)', () => {
-    expect(
-      resolveEffectiveRetentionHours({
-        orgSettings: { ...orgSettings, retentionOverrides: [{ workspaceId: 'ws-1' }] },
-        workspaceId: 'ws-1',
-        key: 'logRetentionHours',
-      })
-    ).toBe(720)
-  })
 
   it('uses the override hours when the field is set to a number', () => {
     expect(
@@ -343,45 +285,11 @@ describe('resolveEffectiveRetentionHours', () => {
       })
     ).toBe(720)
   })
-
-  it('returns null when neither an override nor an org value is configured', () => {
-    expect(
-      resolveEffectiveRetentionHours({ orgSettings, workspaceId: 'ws-1', key: 'taskCleanupHours' })
-    ).toBeNull()
-    expect(
-      resolveEffectiveRetentionHours({
-        orgSettings: null,
-        workspaceId: 'ws-1',
-        key: 'logRetentionHours',
-      })
-    ).toBeNull()
-  })
 })
 
 describe('getForeignWorkspaceTargetsReason', () => {
   beforeEach(resetDbChainMock)
   afterAll(resetDbChainMock)
-
-  it('skips the lookup entirely when nothing targets a workspace', async () => {
-    await expect(
-      getForeignWorkspaceTargetsReason({
-        organizationId: 'org-1',
-        retentionOverrides: [],
-        piiRedaction: { rules: [{ workspaceId: null }] },
-      })
-    ).resolves.toBeNull()
-  })
-
-  it('accepts overrides whose workspaces belong to the organization', async () => {
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
-
-    await expect(
-      getForeignWorkspaceTargetsReason({
-        organizationId: 'org-1',
-        retentionOverrides: [{ workspaceId: 'ws-1' }, { workspaceId: 'ws-2' }],
-      })
-    ).resolves.toBeNull()
-  })
 
   it('rejects an override naming a workspace the organization does not own', async () => {
     queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])

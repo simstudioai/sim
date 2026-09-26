@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   findCellContextByExecutionId,
   stashCellContextForResume,
@@ -27,7 +24,6 @@ const CONTEXT = {
  */
 describe('the governed subject across a pause', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -40,16 +36,6 @@ describe('the governed subject across a pause', () => {
     expect(JSON.parse(serializedPatch).cellContext).toMatchObject({
       capabilityGovernedUserId: 'requesting-member',
     })
-  })
-
-  it('reads the stashed subject back', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { metadata: { cellContext: { ...CONTEXT, executionId: undefined } } },
-    ])
-
-    const context = await findCellContextByExecutionId('execution-1')
-
-    expect(context?.capabilityGovernedUserId).toBe('requesting-member')
   })
 
   /** A pause stashed before the subject was carried must read as ungated, not

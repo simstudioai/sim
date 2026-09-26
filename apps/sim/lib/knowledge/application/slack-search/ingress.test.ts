@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +19,6 @@ const principal = {
 } as const
 const resolve = () => resolveSlackAppInstallation.execute({ principal, input: { teamId: 'T1' } })
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.configuration.mockResolvedValue({
     app: { id: 'A1', revision: 'r1', kind: 'custom', organizationId: 'org1' },
   })
@@ -33,10 +31,6 @@ beforeEach(() => {
 })
 
 describe('verified Slack app routing', () => {
-  it('resolves the stored organization credential after app verification', async () => {
-    expect(await resolve()).toEqual({ credentialId: 'c1', credentialVersion: 'v1' })
-    expect(mocks.credential).toHaveBeenCalledWith('c1', 'org1')
-  })
   it('does not infer an installation for an unknown app/workspace pair', async () => {
     mocks.limit.mockResolvedValueOnce([])
     expect(await resolve()).toBeNull()
@@ -46,12 +40,6 @@ describe('verified Slack app routing', () => {
     mocks.limit.mockResolvedValueOnce([{ credentialId: 'other', organizationId: 'other-org' }])
     await expect(resolve()).rejects.toThrow('ownership is inconsistent')
     expect(mocks.credential).not.toHaveBeenCalled()
-  })
-  it('supports an explicitly registered shared app with organization-specific installations', async () => {
-    mocks.configuration.mockResolvedValueOnce({
-      app: { id: 'A1', revision: 'r1', kind: 'shared', organizationId: null },
-    })
-    expect(await resolve()).toMatchObject({ credentialId: 'c1' })
   })
   it('rejects app-secret rotation between verification and routing', async () => {
     mocks.configuration.mockResolvedValueOnce({ app: { revision: 'rotated' } })

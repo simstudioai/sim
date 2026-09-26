@@ -1,27 +1,18 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 
-const { mockExecuteTool } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
-}))
+providersMock.MAX_TOOL_ITERATIONS = 1
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
-vi.mock('@/providers', () => ({
-  MAX_TOOL_ITERATIONS: 1,
-}))
+vi.mock('@/tools', () => toolsMock)
+
+vi.mock('@/providers', () => providersMock)
 
 describe('executeGeminiRequest settled stream projection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps the required Gemini 2 schema extraction but does not regenerate for streaming', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
 

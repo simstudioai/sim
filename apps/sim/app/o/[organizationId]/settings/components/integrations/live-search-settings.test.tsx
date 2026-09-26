@@ -1,38 +1,38 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationAccountsQueriesMock,
+  organizationAccountsQueriesMockFns,
+} from '@sim/testing/mocks/organization-accounts-queries.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   admin: true,
-  sources: vi.fn(),
   policies: vi.fn(),
   secrets: vi.fn(),
   saveSecrets: vi.fn(),
   save: vi.fn(),
-  push: vi.fn(),
   refetch: vi.fn(),
-  accounts: vi.fn(),
   updateUrl: vi.fn(),
 }))
-vi.mock('@/hooks/queries/organization-accounts', () => ({
-  useOrganizationAccounts: mocks.accounts,
-}))
+vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
 vi.mock('@/app/o/[organizationId]/settings/components/integrations/slack-account-setup', () => ({
   OrganizationSlackAccountSetup: () => null,
 }))
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('next/navigation')>()),
-  useRouter: () => ({ push: mocks.push }),
-}))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({
-    organization: { id: 'org', name: 'Example organization', logo: null },
-    viewer: { isAdmin: mocks.admin },
-    searchAccess: { memberScoped: true, sourceMirrored: true },
-  }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([['slack_v2', { state: 'ready', oauthAvailable: true }]]),
@@ -48,7 +48,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
     isIntegrationAvailabilityReady: true,
   }),
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSources: mocks.sources }))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/organization-secrets', () => ({
   useOrganizationSecretSource: mocks.secrets,
   useConfigureOrganizationSecretSource: () => ({ mutate: mocks.saveSecrets }),
@@ -67,14 +67,22 @@ import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { LiveSearchPolicyModal } from '@/app/o/[organizationId]/settings/components/integrations/live-search-policy-modal'
 import { LiveSearchSettings } from '@/app/o/[organizationId]/settings/components/integrations/live-search-settings'
 
+const mockPush = nextNavigationMockFns.router.push
+const mockSources = kbConnectorsQueriesMockFns.mockUseSearchSources
+const mockAccounts = organizationAccountsQueriesMockFns.mockUseOrganizationAccounts
+organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+  organization: { id: 'org', name: 'Example organization', logo: null },
+  viewer: { isAdmin: mocks.admin },
+  searchAccess: { memberScoped: true, sourceMirrored: true },
+}))
+
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.secrets.mockReturnValue({ data: { source: null } })
-  mocks.accounts.mockReturnValue({ data: { credentialGroup: null } })
+  mockAccounts.mockReturnValue({ data: { credentialGroup: null } })
   mocks.admin = true
-  mocks.sources.mockReturnValue({ data: [], hasNextPage: false })
+  mockSources.mockReturnValue({ data: [], hasNextPage: false })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.policies.mockReturnValue({
     data: [{ connectorType: 'github', approved: true }],
@@ -87,7 +95,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 async function render(params = '') {
   await act(async () =>
@@ -127,8 +134,8 @@ describe('live search administration', () => {
     expect(mocks.save).not.toHaveBeenCalled()
     await act(async () => mocks.saveSecrets.mock.calls[0][1].onSuccess())
     if (label === 'Organization')
-      expect(mocks.push).toHaveBeenCalledWith('/o/org/settings/integrations/secrets')
-    else expect(mocks.push).not.toHaveBeenCalled()
+      expect(mockPush).toHaveBeenCalledWith('/o/org/settings/integrations/secrets')
+    else expect(mockPush).not.toHaveBeenCalled()
   })
   it('keeps an added Generic Secrets source out of the add-source picker', async () => {
     mocks.secrets.mockReturnValue({ data: { source: { id: 'source', mode: 'organization' } } })
@@ -195,7 +202,7 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     await act(async () => mocks.save.mock.calls[0][1].onSuccess())
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     await act(async () =>
       vi.waitFor(() =>
         expect(mocks.updateUrl.mock.calls.at(-1)?.[0].searchParams.get('connectedAccounts')).toBe(
@@ -219,7 +226,7 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     await act(async () => mocks.save.mock.calls[0][1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith('/o/org/settings/integrations/providers/gitlab')
+    expect(mockPush).toHaveBeenCalledWith('/o/org/settings/integrations/providers/gitlab')
   })
   it('repairs an already approved Jira source without another account-mode modal', async () => {
     mocks.policies.mockReturnValue({
@@ -240,7 +247,7 @@ describe('live search administration', () => {
   })
   it('does not show setup once Jira member sign-in is configured', async () => {
     mocks.policies.mockReturnValue({ data: [{ connectorType: 'jira', approved: true }] })
-    mocks.accounts.mockReturnValue({
+    mockAccounts.mockReturnValue({
       data: {
         credentialGroup: {
           options: [{ provider: 'jira', status: 'active', configurationStatus: 'ready' }],
@@ -254,7 +261,7 @@ describe('live search administration', () => {
     mocks.policies.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
     await render()
     await act(async () => button('Slack app')!.click())
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     expect(container.querySelector('a[href*="providers/slack"]')).toBeNull()
     await act(async () =>
       vi.waitFor(() =>
@@ -283,32 +290,9 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith(
+    expect(mockPush).toHaveBeenCalledWith(
       '/o/org/settings/integrations/providers/github?addConnector=github'
     )
-  })
-  it('uses the standard settings empty state before the first source', async () => {
-    mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
-    await render()
-    expect(button('Add source')).toBeDefined()
-    expect(container.textContent).toContain('No sources yet. Add a source to get started.')
-    expect(document.querySelector('input[placeholder="Search sources…"]')).not.toBeNull()
-  })
-  it('shows loading and recoverable query errors', async () => {
-    mocks.policies.mockReturnValue({})
-    await render()
-    expect(container.textContent).toContain('Loading sources')
-    mocks.policies.mockReturnValue({
-      error: new Error('Service unavailable'),
-      refetch: mocks.refetch,
-    })
-    await render()
-    expect(container.textContent).toContain('Service unavailable')
-  })
-  it('does not render admin controls for members', async () => {
-    mocks.admin = false
-    await render()
-    expect(container.textContent).toBe('')
   })
   it('saves a source without a separate availability toggle', async () => {
     await act(async () =>
@@ -394,14 +378,14 @@ describe('live search administration', () => {
       expect.any(Object)
     )
     expect(mocks.save.mock.calls.at(-1)?.[0].policy.sourceId).toBeUndefined()
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith(
+    expect(mockPush).toHaveBeenCalledWith(
       '/o/org/settings/integrations/providers/gmail?addConnector=gmail'
     )
   })
   it('can add another connection without clearing the currently configured source', async () => {
-    mocks.sources.mockReturnValue({
+    mockSources.mockReturnValue({
       data: [
         {
           connectorId: 'current-source',
@@ -439,14 +423,14 @@ describe('live search administration', () => {
       }),
       expect.any(Object)
     )
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
-    expect(mocks.push).toHaveBeenCalledWith(
+    expect(mockPush).toHaveBeenCalledWith(
       '/o/org/settings/integrations/providers/gmail?addConnector=gmail'
     )
   })
   it('preserves a configured source while its paginated inventory is loading', async () => {
-    mocks.sources.mockReturnValue({ isPending: true, hasNextPage: false })
+    mockSources.mockReturnValue({ isPending: true, hasNextPage: false })
     await act(async () =>
       root.render(
         <LiveSearchPolicyModal

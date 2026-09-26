@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,
@@ -12,7 +9,6 @@ import { falaiVideoTool } from '@/tools/video/falai'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('Fal.ai hosted key pricing', () => {

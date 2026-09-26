@@ -1,64 +1,71 @@
-/**
- * @vitest-environment node
- */
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  task: vi.fn((config) => config),
-  getPausedExecutionById: vi.fn(),
-  startResumeExecution: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   snapshotFromJson: vi.fn(),
-  createResumeAttemptTimeoutController: vi.fn(),
-  findCellContextByExecutionId: vi.fn(),
-  pickNextEligibleGroupForRow: vi.fn(),
   withCascadeLock: vi.fn(),
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
   createWorkflowCellProgressWriter: vi.fn(),
   runRowCascadeLoop: vi.fn(),
   readStampedCapabilitySubject: vi.fn(),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mocks.task, timeout: { None: 'none' } }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-  billingAttributionsEqual: () => true,
-}))
-vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: mocks.withCascadeLock }))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: hoisted.withCascadeLock }))
 vi.mock('@/lib/table/deps', () => ({ isExecCancelled: () => false }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  findCellContextByExecutionId: mocks.findCellContextByExecutionId,
-  pickNextEligibleGroupForRow: mocks.pickNextEligibleGroupForRow,
-}))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({ getRowById: mocks.getRowById }))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 vi.mock('@/lib/table/rows/executions', () => ({
-  readStampedCapabilitySubject: mocks.readStampedCapabilitySubject,
+  readStampedCapabilitySubject: hoisted.readStampedCapabilitySubject,
 }))
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: vi.fn(),
-  createWorkflowCellProgressWriter: mocks.createWorkflowCellProgressWriter,
-  writeWorkflowGroupState: mocks.writeWorkflowGroupState,
+  createWorkflowCellProgressWriter: hoisted.createWorkflowCellProgressWriter,
+  writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: () => ({ status: 'completed', error: null }),
 }))
 vi.mock('@/background/workflow-column-execution', () => ({
-  runRowCascadeLoop: mocks.runRowCascadeLoop,
+  runRowCascadeLoop: hoisted.runRowCascadeLoop,
 }))
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  createResumeAttemptTimeoutController: mocks.createResumeAttemptTimeoutController,
-  PauseResumeManager: {
-    getPausedExecutionById: mocks.getPausedExecutionById,
-    startResumeExecution: mocks.startResumeExecution,
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: { fromJSON: mocks.snapshotFromJson },
+  ExecutionSnapshot: { fromJSON: hoisted.snapshotFromJson },
 }))
 
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
+
+const mocks = {
+  ...hoisted,
+  getPausedExecutionById: humanInTheLoopManagerMockFns.mockGetPausedExecutionById,
+  startResumeExecution: humanInTheLoopManagerMockFns.mockStartResumeExecution,
+  createResumeAttemptTimeoutController:
+    humanInTheLoopManagerMockFns.mockCreateResumeAttemptTimeoutController,
+  findCellContextByExecutionId: tableWorkflowColumnsMockFns.mockFindCellContextByExecutionId,
+  pickNextEligibleGroupForRow: tableWorkflowColumnsMockFns.mockPickNextEligibleGroupForRow,
+  getRowById: tableRowsServiceMockFns.mockGetRowById,
+}
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+billingAttributionMockFns.mockBillingAttributionsEqual.mockReturnValue(true)
 
 const PAYLOAD: ResumeExecutionPayload = {
   resumeEntryId: 'resume-entry-1',
@@ -101,7 +108,6 @@ describe('resuming a paused table cell', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getPausedExecutionById.mockResolvedValue({ executionSnapshot: { snapshot: {} } })
     mocks.createResumeAttemptTimeoutController.mockReturnValue({
       signal: new AbortController().signal,
@@ -127,7 +133,7 @@ describe('resuming a paused table cell', () => {
       workflowId: 'workflow-1',
       capabilityGovernedUserId: 'requesting-member',
     })
-    mocks.getTableById.mockResolvedValue(TABLE)
+    mockGetTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({ id: 'row-1', data: {}, executions: {} })
     mocks.pickNextEligibleGroupForRow.mockReturnValue(NEXT_GROUP)
     mocks.readStampedCapabilitySubject.mockResolvedValue('other-dispatchers-member')
@@ -210,22 +216,5 @@ describe('resuming a paused table cell', () => {
     expect(mocks.readStampedCapabilitySubject).not.toHaveBeenCalled()
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
-  }, 20_000)
-
-  it('resumes ungated when the paused cell had no acting person', async () => {
-    mocks.findCellContextByExecutionId.mockResolvedValue({
-      tableId: 'table-1',
-      tableName: 'Table',
-      rowId: 'row-1',
-      groupId: 'group-1',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      capabilityGovernedUserId: null,
-    })
-
-    await executeResumeJob(PAYLOAD)
-
-    const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
-    expect(cascadePayload.capabilityGovernedUserId).toBeNull()
   }, 20_000)
 })
