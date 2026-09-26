@@ -355,7 +355,7 @@ describe('Slack tool progress', () => {
     expect(api.start).toHaveBeenCalledOnce()
   })
 
-  it('reports failed tools without exposing arguments, account labels, or backend errors', async () => {
+  it('completes recovered tool failures without exposing arguments, account labels, or backend errors', async () => {
     const { stream } = setup()
     await stream.start()
     const call = toolCall()
@@ -373,7 +373,7 @@ describe('Slack tool progress', () => {
       },
     })
     const chunks = deliveredChunks()
-    expect(chunks[1]).toEqual({ ...chunks[0], status: 'error' })
+    expect(chunks[1]).toEqual({ ...chunks[0], status: 'complete' })
     expect(JSON.stringify(chunks)).not.toContain('private')
   })
 
