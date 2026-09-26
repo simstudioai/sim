@@ -99,8 +99,27 @@ const internal: Record<string, string> = {
   '--tw-scale-x': 'scale',
   '--tw-scale-y': 'scale',
 }
-/** Split authored border geometry and style from its colour input. */
-export function borderDeclarations(property: string, value: string): Declaration[] | null {
+/** Separate paint from geometry in supported CSS shorthands. */
+export function paintDeclarations(property: string, value: string): Declaration[] | null {
+  if (property === 'text-decoration')
+    return valueParser(value)
+      .nodes.filter((node) => node.type !== 'space' && node.type !== 'comment')
+      .map((node) => {
+        const part = valueParser.stringify(node)
+        const suffix = /^(?:none|underline|overline|line-through|blink)$/.test(part)
+          ? 'line'
+          : /^(?:solid|double|dotted|dashed|wavy)$/.test(part)
+            ? 'style'
+            : /^(?:auto|from-font|0|[\d.]+(?:px|rem|em|ex|ch|lh|vw|vh|%))$/.test(part) ||
+                (node.type === 'function' && ['calc', 'min', 'max', 'clamp'].includes(node.value))
+              ? 'thickness'
+              : 'color'
+        return {
+          property: `text-decoration-${suffix}`,
+          value: part,
+          category: suffix === 'color' ? 'colours' : 'typography',
+        }
+      })
   if (!/^(?:border(?:-(?:top|bottom|left|right))?|outline)$/.test(property)) return null
   const prefix = property.startsWith('outline') ? 'outline' : 'border'
   return valueParser(value)
@@ -186,7 +205,7 @@ export function declarations(
       for (const part of parts.filter((x) => x !== '/'))
         found.push({ property: family(prop), value: part, category: cat })
     } else {
-      const border = borderDeclarations(prop, value)
+      const border = paintDeclarations(prop, value)
       if (border) found.push(...border)
       else found.push({ property: family(prop), value, category: cat })
     }

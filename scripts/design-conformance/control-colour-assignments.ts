@@ -13,7 +13,7 @@ import { productScope } from '#control-analysis/scope'
 import { type Expr, expression, type StaticInputs, unknown } from '#control-analysis/static-inputs'
 import { centralFile } from '#design-conformance/contracts'
 import { canonical, type Finding, hash, TOKEN_FILE } from '#design-conformance/model'
-import { borderDeclarations, rawColours, utility, variablesIn } from '#design-conformance/normalize'
+import { paintDeclarations, rawColours, utility, variablesIn } from '#design-conformance/normalize'
 
 interface Site {
   file: string
@@ -638,7 +638,7 @@ export class ColourAssignments {
         }
       const shadowSink = assignment.direct && /^(?:box|text)-shadow$/.test(assignment.name)
       const checks = assignment.values.map((value): Check => {
-        const border = assignment.direct ? borderDeclarations(assignment.name, value) : null
+        const border = assignment.direct ? paintDeclarations(assignment.name, value) : null
         if (border) {
           const paint = border.filter((declaration) => declaration.category === 'colours')
           if (!paint.length)

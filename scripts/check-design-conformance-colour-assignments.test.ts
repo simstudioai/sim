@@ -595,3 +595,20 @@ test('none is not approved as a colour or a context-free local colour alias', ()
   expect(result.variables.find((v) => v.name === '--paint')?.status).not.toBe('verified')
   expect(result.unchecked.length + result.findings.length).toBeGreaterThan(0)
 })
+
+test('text decoration inspects its paint without treating line/style/thickness as colours', () => {
+  for (const value of ['underline', 'underline dashed 2px', 'none', 'underline var(--text-body)'])
+    expect(
+      flagged({
+        [ui]: `export function update(node){node.style.textDecoration=${JSON.stringify(value)}}`,
+      })
+    ).toEqual([])
+  expect(
+    flagged({ [ui]: "export function update(node){node.style.textDecoration='underline #ff00ff'}" })
+      .length
+  ).toBeGreaterThan(0)
+  expect(
+    inspect({ [ui]: 'export function update(node,paint){node.style.textDecoration=paint}' })
+      .unchecked.length
+  ).toBeGreaterThan(0)
+})

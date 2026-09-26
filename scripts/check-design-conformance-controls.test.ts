@@ -291,3 +291,24 @@ test('finite image and text input branches still inspect the image action name',
     )
   ).toEqual([])
 })
+
+test('button inputs use their own value or ARIA name in every finite type branch', () => {
+  for (const body of ['<input type="button"/>', '<input type="button" value=""/>'])
+    expect(matching(run(body), 'control-accessible-name')).toHaveLength(1)
+  for (const body of [
+    '<input type="button" value="Save"/>',
+    '<input type="button" aria-label="Save"/>',
+    '<input type={condition ? "image" : "button"} alt="Submit" value="Submit"/>',
+  ])
+    expect(matching(run(body), 'control-accessible-name')).toEqual([])
+  expect(
+    run('<input type="button" value={actionName}/>').unchecked.some((n) =>
+      n.reason.includes('Accessible name unresolved')
+    )
+  ).toBe(true)
+  expect(
+    run('<input type={condition ? "image" : "button"} alt="Submit"/>').unchecked.some((n) =>
+      n.reason.includes('Accessible name unresolved')
+    )
+  ).toBe(true)
+})

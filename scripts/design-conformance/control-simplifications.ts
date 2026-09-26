@@ -776,14 +776,13 @@ export function inspectSimplifications(
   }
   for (const use of controls.records) {
     if (use.file.startsWith('packages/emcn/') || use.syntax !== 'jsx' || use.hidden) continue
-    const imageInput =
-      use.target === 'native:input' &&
-      !use.inputs.type?.unresolved &&
-      !!use.inputs.type?.values?.length &&
-      use.inputs.type.values.some((value) => value === 'image')
+    const inputTypes =
+      use.target === 'native:input' && !use.inputs.type?.unresolved && use.inputs.type?.values
+        ? use.inputs.type.values.filter((value) => value === 'image' || value === 'button')
+        : []
     const isButton =
       use.target === 'native:button' ||
-      imageInput ||
+      inputTypes.length > 0 ||
       (use.target.startsWith('native:') &&
         !use.inputs.role?.unresolved &&
         !!use.inputs.role?.values?.length &&
@@ -829,8 +828,11 @@ export function inspectSimplifications(
       )
     }
     if (state === 'empty') state = label
-    if (state === 'empty' && imageInput) state = texts(statics.property(props, 'alt'))
-    if (state === 'empty')
+    if (state === 'empty' && inputTypes.length)
+      state = allAlternatives(
+        inputTypes.map((type) => texts(statics.property(props, type === 'image' ? 'alt' : 'value')))
+      )
+    if (state === 'empty' && !inputTypes.length)
       state = siblings(detail.content.children.map((c) => contentName(c, detail)))
     if (state === 'empty') state = texts(statics.property(props, 'title'))
     if (state === 'unknown')
