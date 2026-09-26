@@ -22,6 +22,8 @@ Use the actual PR target for `--base`. Working-tree mode includes staged, unstag
 
 Regenerate when EMCN implementation, public API, recipes, ownership metadata or global styles change. Review and commit `contracts.generated.json` alongside the source. `check:design-generated` is read-only and runs through the existing audit runner: missing, tampered, malformed or stale output fails. During editing the diff check derives fresh facts and reports staleness with the regeneration command; it still shows the originating source change after regeneration.
 
+Generation writes a regular file within the canonical repository root. Symlinked output files and parents are rejected. Historical `--check --ref` reads only the committed artifact, independently of the checkout output.
+
 CI uses immutable event base/head revisions. It publishes file/line warnings, a summary and a JSON artifact. Findings do not fail the design step; inability to inspect the changed source does. Infrastructure freshness is a separate required audit. CI does not capture browser previews or commit generated files.
 
 ## Files and source facts
@@ -72,6 +74,8 @@ Scope is product browser UI, including browser `app/desktop` screens and workspa
 Monaco theme/syntax presentation, provider branding and every block/trigger catalogue identity palette are deliberately excluded. This does not exempt unrelated product controls in those files. Customer-selected branding and user content are distinguished from authored product colours; unresolved flows remain visible.
 
 Static analysis handles bounded immutable constants/imports, finite alternatives, supported helper returns, JSX/CSS/HTML strings and known runtime overrides. Arbitrary JS, dynamic cascade, unsupported parsers/forwarding and ambiguous data flow cannot be approved. Limits include 2 MiB per source, resolution depth 12 and bounded branch/summary caches. Generator diagnostics preserve unresolved token aliases, cycles and delegated implementation gaps. A token definition proves source provenance; it does not prove that the token exists under every runtime selector or theme. Context-dependent token availability and dynamic cascade still need visual review. CSS comparison tracks `@apply` changes but does not expand its runtime cascade position relative to ordinary declarations.
+
+Inline React styles preserve strings and custom variables. Only proven numeric values receive React's dimensional `px` conversion; unitless properties follow the pinned React serializer. A numeric-looking central reference without scalar type evidence remains explicitly unchecked.
 
 ## Debt and review records
 
