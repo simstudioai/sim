@@ -104,6 +104,7 @@ export function DashboardControls({
                 mode='range'
                 className='w-full'
                 showTime
+                today={zonedWallClock(new Date(), timeZone).slice(0, 10)}
                 startDate={fromLocal}
                 endDate={toLocal}
                 onRangeChange={(from, to) => {

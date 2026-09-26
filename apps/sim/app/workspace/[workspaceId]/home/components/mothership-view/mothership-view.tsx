@@ -215,7 +215,7 @@ export const MothershipView = memo(
         : RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))) &&
       // Markdown renders in the single-surface inline editor (streamed preview → editable in place),
       // so it has no raw/split/preview toggle to offer.
-      !isMarkdownFile({ type: '', name: active.title }) &&
+      !isMarkdownFile(activeFile ?? { type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.

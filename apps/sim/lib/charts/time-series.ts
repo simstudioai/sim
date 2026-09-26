@@ -160,10 +160,11 @@ export function bindTimeSeriesInteractions(
       const styles = getComputedStyle(chart.getDom())
       option.useUTC = true
       option.animationDurationUpdate ??= 0
+      /** The time axis always spans the queried range, so zoom and hover stay aligned with the data. */
       option.xAxis = {
+        ...axis,
         min: Math.min(Date.parse(range.from), config.firstTime ?? Number.POSITIVE_INFINITY),
         max: Date.parse(range.to),
-        ...axis,
         axisLabel: { formatter: dashboardAxisFormatter(range, timeZone), ...axisLabel },
       }
       option.tooltip = {

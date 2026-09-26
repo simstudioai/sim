@@ -45,6 +45,19 @@ describe('horizontal bar label layout', () => {
     expect(authored.yAxis[0]).not.toHaveProperty('axisLabel')
   })
 
+  it('keeps the ECharts label column for percentage bar widths it cannot size per row', () => {
+    const option = {
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category' },
+      series: [{ type: 'bar', barWidth: '60%' }],
+    }
+    const result = buildChartRenderOption({ option })
+    expect(result.yAxis).not.toHaveProperty('axisLabel')
+    expect(horizontalBarChartHeight(option, 10)).toBe(
+      horizontalBarChartHeight({ ...option, grid: { left: 0 } }, 10)
+    )
+  })
+
   it('preserves authored category label placement and leaves vertical bars alone', () => {
     const axisLabel = { inside: false, align: 'right', margin: 12, padding: 0 }
     const result = buildChartRenderOption({

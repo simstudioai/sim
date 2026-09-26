@@ -22,12 +22,18 @@ export function observeChartSummary(chart: EChartsType, listener: (model: ChartM
   }
 }
 
+/** Two decimals from 1 upward; smaller magnitudes keep three significant digits instead of rounding to 0. */
 export function formatChartValue(value: unknown, formatter?: string): string {
   if (value == null || value === '-' || (typeof value === 'number' && !Number.isFinite(value)))
     return '—'
   const text =
     typeof value === 'number'
-      ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      ? value.toLocaleString(
+          undefined,
+          Math.abs(value) >= 1 || value === 0
+            ? { maximumFractionDigits: 2 }
+            : { maximumSignificantDigits: 3 }
+        )
       : String(value)
   return formatter?.includes('{value}') ? formatter.replaceAll('{value}', text) : text
 }

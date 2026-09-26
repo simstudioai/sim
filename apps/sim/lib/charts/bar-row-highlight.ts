@@ -22,7 +22,12 @@ export function installBarRowHighlight(
   const barWidth = horizontalBarWidth(option)
   const rowHeight = barWidth + ABOVE_BAR_LABEL_SPACE
   const grid = toRecord(Array.isArray(option.grid) ? option.grid[0] : option.grid)
-  const inset = (value: unknown) => (typeof value === 'number' ? value : 0)
+  const inset = (value: unknown) => {
+    if (typeof value === 'number') return value
+    if (typeof value === 'string' && value.endsWith('%'))
+      return (chart.getWidth() * Number.parseFloat(value)) / 100
+    return typeof value === 'string' && Number.isFinite(Number(value)) ? Number(value) : 0
+  }
   const color = getComputedStyle(chart.getDom()).getPropertyValue('--text-body').trim()
   let current: number | null = null
 

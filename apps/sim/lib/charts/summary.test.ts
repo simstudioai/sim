@@ -1,7 +1,12 @@
 /** @vitest-environment jsdom */
 import * as echarts from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
-import { chartSummaryExtension, observeChartSummary, summarizeChart } from '@/lib/charts/summary'
+import {
+  chartSummaryExtension,
+  formatChartValue,
+  observeChartSummary,
+  summarizeChart,
+} from '@/lib/charts/summary'
 import { bindTimeSeriesInteractions, type ChartReadout } from '@/lib/charts/time-series'
 import { createDashboardCursorStore } from '@/stores/dashboards/cursor'
 
@@ -146,5 +151,13 @@ describe('resolved chart summaries', () => {
     expect(onReadout.mock.lastCall![0].values[0].value).toBe('10')
     controller.dispose()
     chart.dispose()
+  })
+})
+
+describe('chart value formatting', () => {
+  it('keeps small magnitudes visible while rounding ordinary values to two decimals', () => {
+    expect(formatChartValue(0.004)).toBe('0.004')
+    expect(formatChartValue(0.30000000000000004)).toBe('0.3')
+    expect(formatChartValue(66.666, '{value}%')).toBe('66.67%')
   })
 })

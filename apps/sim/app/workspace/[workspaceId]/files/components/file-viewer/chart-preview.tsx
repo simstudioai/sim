@@ -1,9 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
+import { cn } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { EChartsView } from '@/components/charts/echarts-view'
-import { buildChartRenderOption } from '@/lib/charts/option'
+import { buildChartRenderOption, horizontalBarChartHeight } from '@/lib/charts/option'
 import {
   CHART_ROWS_DEFAULT,
   CHART_ROWS_MAX,
@@ -13,6 +15,8 @@ import {
 } from '@/lib/charts/spec'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { useTable, useTableRowsSample } from '@/hooks/queries/tables'
+
+const CHART_HEADER_HEIGHT = 24
 
 interface ChartPreviewProps {
   content: string
@@ -62,13 +66,28 @@ export function ChartPreview({ content, workspaceId, isStreaming = false }: Char
     )
   if (!spec || (tableSource && rows === null))
     return <PreviewLoadingFrame className='h-full flex-1' />
+  const yAxis = toRecord(
+    Array.isArray(spec.option.yAxis) ? spec.option.yAxis[0] : spec.option.yAxis
+  )
+  const categories = Array.isArray(yAxis.data) ? yAxis.data.length : (rows?.length ?? 0)
+  const barHeight = horizontalBarChartHeight(spec.option, categories)
+  /** Title and legend share one chrome row inside this canvas, unlike dashboard panels. */
+  const chromeHeight = spec.title || spec.option.legend ? CHART_HEADER_HEIGHT : 0
   return (
     <div className='min-h-0 flex-1 overflow-auto p-6'>
-      <EChartsView
-        className='mx-auto aspect-[16/10] min-h-[280px] w-full max-w-[1024px]'
-        label={spec.title ?? 'Chart'}
-        option={buildChartRenderOption({ title: spec.title, option: spec.option, rows })}
-      />
+      <div
+        className={cn(
+          'mx-auto w-full max-w-[1024px]',
+          barHeight === null && 'aspect-[16/10] min-h-[280px]'
+        )}
+        style={barHeight === null ? undefined : { height: barHeight + chromeHeight }}
+      >
+        <EChartsView
+          className='h-full'
+          label={spec.title ?? 'Chart'}
+          option={buildChartRenderOption({ title: spec.title, option: spec.option, rows })}
+        />
+      </div>
     </div>
   )
 }

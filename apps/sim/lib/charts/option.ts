@@ -38,14 +38,22 @@ const CATEGORY_LABEL_LAYOUT_KEYS = ['inside', 'width', 'margin'] as const
 
 /**
  * Labels above the bars are a default layout, not a blend: an option that places its own
- * category labels or reserves a left inset keeps the standard ECharts left column intact.
+ * category labels or reserves a left inset keeps the standard ECharts left column intact. So
+ * does a percentage bar width, which scales with the plot and cannot be sized per row.
  */
 function authorsCategoryLabelColumn(option: Record<string, unknown>): boolean {
   const axis = toRecord(Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis)
   const axisLabel = toRecord(axis.axisLabel)
   const grids = Array.isArray(option.grid) ? option.grid : [option.grid]
+  const series = Array.isArray(option.series) ? option.series : [option.series]
   return (
     CATEGORY_LABEL_LAYOUT_KEYS.some((key) => axisLabel[key] !== undefined) ||
+    series.some((entry) => {
+      const bar = toRecord(entry)
+      return [bar.barWidth, bar.barMaxWidth].some(
+        (width) => width !== undefined && typeof width !== 'number'
+      )
+    }) ||
     grids.some((grid) => {
       const record = toRecord(grid)
       return record.left !== undefined || record.containLabel !== undefined
