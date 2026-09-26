@@ -136,6 +136,61 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  it.each([
+    { reason: 'text size', value: 'x'.repeat(1024 * 1024 + 1) },
+    { reason: 'reference count', value: '<fetchrows.result>'.repeat(10_001) },
+    { reason: 'nested value count', value: Array.from({ length: 10_001 }, () => '') },
+    {
+      reason: 'path depth',
+      value: `<fetchrows.${Array.from({ length: 129 }, () => 'nested').join('.')}>`,
+    },
+  ])(
+    'refuses excessive $reason instead of returning an incomplete dependency report',
+    async ({ value }) => {
+      const state = {
+        ...DEPS_STATE,
+        blocks: {
+          ...DEPS_STATE.blocks,
+          target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+        },
+      }
+      const result = await runEngine(
+        'workflows deps',
+        ['wf-1', 'target'],
+        runtimeWith({ [STATE_PATH]: { data: state } }),
+        {}
+      )
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toMatch(/exceeds|maximum/i)
+      expect(result.stdout).toBe('')
+    }
+  )
+
+  it('groups block aliases and duplicate paths without changing first-reference order', async () => {
+    const state = structuredClone(DEPS_STATE)
+    state.blocks.target.subBlocks.code.value =
+      '<missing.value> <fetchrows.result> <fetch.result> <fetchrows.result.id> <fetchrows.result.id> {{TOKEN}} {{TOKEN}}'
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.references).toEqual([
+      { token: 'missing.value', kind: 'unknown' },
+      {
+        token: 'fetchrows.result',
+        kind: 'block',
+        blockId: 'fetch',
+        blockName: 'Fetch rows',
+        paths: ['result', 'result.id'],
+      },
+    ])
+    expect(report.env).toEqual(['TOKEN'])
+    expect(report.mock['Fetch rows']).toEqual({ result: { id: null } })
+  })
+
   it('builds indexed mocks that round-trip through the actual reference navigator', async () => {
     const state = structuredClone(DEPS_STATE)
     state.blocks.target.subBlocks.code.value =

@@ -3157,6 +3157,45 @@ describe('Function execution request', () => {
   })
 
   describe('Template Variable Resolution', () => {
+    it.each([
+      { code: ' '.repeat(1024 * 1024 + 1), reason: 'source length' },
+      { code: `/* ${'< a.value>'.repeat(10_001)} */ return 1`, reason: 'block references' },
+      {
+        code: `/* ${'<variable.total>'.repeat(10_001)} */ return 1`,
+        reason: 'workflow references',
+      },
+    ])('rejects excessive $reason before execution', async ({ code }) => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code,
+          workflowVariables: { total: { name: 'total', type: 'number', value: 1 } },
+        })
+      )
+      expect(response.status).toBe(400)
+    })
+
+    it('preserves repeated values, normalized variable precedence, and skipped-block references', async () => {
+      mockExecuteInIsolatedVM.mockImplementationOnce(async (request) => ({
+        result: await runInNewContext(`(async () => { ${request.code} })()`, {
+          ...request.contextVariables,
+        }),
+        stdout: '',
+      }))
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return [<source.result>.total, <source.result>.total, <variable.totalamount>, <variable.totalamount>, typeof < skipped.value>]',
+          blockNameMapping: { source: 'source-id', skipped: 'skipped-id' },
+          blockData: { 'source-id': { result: '{"total":3}' } },
+          workflowVariables: {
+            first: { name: 'Total amount', type: 'number', value: '7' },
+            second: { name: 'totalamount', type: 'number', value: '99' },
+          },
+        })
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).output.result).toEqual([3, 3, 7, 7, 'undefined'])
+    })
+
     it('keeps an exact-name/exact-value JavaScript secret out of source and returns its raw runtime value with private provenance', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'Test', stdout: '' })
 

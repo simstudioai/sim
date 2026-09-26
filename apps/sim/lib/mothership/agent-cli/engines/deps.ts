@@ -1,12 +1,9 @@
+import { isRecordLike } from '@sim/utils/object'
 import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
-import {
-  collectStringLeaves,
-  createEnvVarPattern,
-  createReferencePattern,
-} from '@/executor/utils/reference-validation'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 
 /**
@@ -34,6 +31,10 @@ const CHILD_RETURNS_NOTE =
   "A child workflow's result is its actual final output. A Response block returns {data, status, headers}, with fields at result.data.<field>; otherwise use the final block's output shape."
 const MOCK_NOTE = 'variableInputs: fill placeholders with representative upstream outputs'
 const MAX_MOCK_ARRAY_LENGTH = 128
+const MAX_DEPENDENCY_INPUT_CHARACTERS = 1024 * 1024
+const MAX_DEPENDENCY_INPUT_NODES = 10_000
+const MAX_DEPENDENCY_REFERENCES = 10_000
+const MAX_DEPENDENCY_PATH_DEPTH = 128
 
 interface PathNode {
   children: Map<string, PathNode>
@@ -81,6 +82,9 @@ function skeletonFromPaths(paths: readonly string[]): MockShape {
         const { property, pathParts } = splitLeadingBracketPath(part)
         return [property, ...pathParts]
       })
+    if (segments.length > MAX_DEPENDENCY_PATH_DEPTH) {
+      throw new Error(`Dependency path exceeds the maximum depth of ${MAX_DEPENDENCY_PATH_DEPTH}`)
+    }
     let cursor = root
     for (const segment of segments) {
       const next = cursor.children.get(segment) ?? { children: new Map<string, PathNode>() }
@@ -172,47 +176,87 @@ export const workflowDepsCommand: AgentCliEngine = {
     }
 
     const leaves: string[] = []
-    collectStringLeaves(block.subBlocks ?? block, leaves)
+    const pending: unknown[] = [block.subBlocks ?? block]
+    let inputNodes = 0
+    let inputCharacters = 0
+    while (pending.length > 0) {
+      const value = pending.pop()
+      inputNodes++
+      if (typeof value === 'string') {
+        inputCharacters += value.length
+        if (inputCharacters > MAX_DEPENDENCY_INPUT_CHARACTERS) {
+          return agentCliFail(
+            `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_INPUT_CHARACTERS} characters`
+          )
+        }
+        leaves.push(value)
+      } else if (Array.isArray(value) || isRecordLike(value)) {
+        const children: unknown[] = Array.isArray(value) ? value : Object.values(value)
+        if (inputNodes + pending.length + children.length > MAX_DEPENDENCY_INPUT_NODES) {
+          return agentCliFail(
+            `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_INPUT_NODES} values`
+          )
+        }
+        for (let index = children.length - 1; index >= 0; index--) pending.push(children[index])
+      }
+    }
 
-    const byToken = new Map<string, DepView>()
+    const seenTokens = new Set<string>()
+    const deps: DepView[] = []
+    const byBlock = new Map<string, { dependency: DepView; paths: Set<string> }>()
     const envs = new Set<string>()
+    let referenceCount = 0
     for (const leaf of leaves) {
       for (const match of leaf.matchAll(TEMPLATE_REF)) {
+        if (++referenceCount > MAX_DEPENDENCY_REFERENCES) {
+          return agentCliFail(
+            `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_REFERENCES} references`
+          )
+        }
         const token = match[1]
-        if (!token || byToken.has(token)) continue
+        if (!token || seenTokens.has(token)) continue
+        seenTokens.add(token)
         const [head = '', ...pathParts] = token.split('.')
         const path = pathParts.join('.')
         const special = (SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)
         if (special) {
-          byToken.set(token, { token, kind: head as 'loop' | 'parallel' | 'variable' })
+          deps.push({ token, kind: head as 'loop' | 'parallel' | 'variable' })
           continue
         }
         const refBlockId = Object.hasOwn(blocks, head) ? head : nameToId.get(normalizeName(head))
         if (refBlockId && refBlockId !== blockId) {
-          const existing = [...byToken.values()].find((d) => d.blockId === refBlockId)
+          const existing = byBlock.get(refBlockId)
           if (existing) {
-            if (path && !existing.paths?.includes(path)) existing.paths?.push(path)
-            byToken.set(token, existing)
+            if (path && !existing.paths.has(path)) {
+              existing.paths.add(path)
+              existing.dependency.paths?.push(path)
+            }
           } else {
-            byToken.set(token, {
+            const dependency: DepView = {
               token,
               kind: 'block',
               blockId: refBlockId,
               blockName: idToName.get(refBlockId),
               paths: path ? [path] : [],
-            })
+            }
+            byBlock.set(refBlockId, { dependency, paths: new Set(dependency.paths) })
+            deps.push(dependency)
           }
         } else if (!refBlockId) {
-          byToken.set(token, { token, kind: 'unknown' })
+          deps.push({ token, kind: 'unknown' })
         }
       }
       for (const match of leaf.matchAll(ENV_REF)) {
+        if (++referenceCount > MAX_DEPENDENCY_REFERENCES) {
+          return agentCliFail(
+            `Dependency input exceeds the maximum of ${MAX_DEPENDENCY_REFERENCES} references`
+          )
+        }
         const key = match[1]?.trim()
         if (key) envs.add(key)
       }
     }
 
-    const deps = [...new Set(byToken.values())]
     const blockDeps = deps.filter((d) => d.kind === 'block')
     const predecessors = collectPredecessors(state, blocks, blockId, idToName)
 

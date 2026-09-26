@@ -10,6 +10,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_TEXT_CHARACTERS,
@@ -165,7 +166,7 @@ const functionOutputFileSchema = z
 
 export const functionExecuteBodySchema = z
   .object({
-    code: z.string().min(1, 'Code is required'),
+    code: z.string().min(1, 'Code is required').max(MAX_FUNCTION_CODE_LENGTH),
     sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),

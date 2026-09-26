@@ -32,6 +32,11 @@ import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
 import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
 import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
+import {
   isWorkspaceOwnedContext,
   type WorkspaceOwnedContext,
 } from '@/lib/mothership/chat/context-ownership'
@@ -140,6 +145,19 @@ export async function processContextsServer(
   organizationId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
+  if (contexts.length > MAX_CHAT_CONTEXTS) {
+    throw new Error(`Context count exceeds the maximum of ${MAX_CHAT_CONTEXTS}`)
+  }
+  if ((userMessage?.length ?? 0) > MAX_CHAT_MESSAGE_LENGTH) {
+    throw new Error(`Message exceeds the maximum of ${MAX_CHAT_MESSAGE_LENGTH} characters`)
+  }
+  if (contexts.some((context) => context.label.length > MAX_CHAT_CONTEXT_LABEL_LENGTH)) {
+    throw new Error(
+      `Context label exceeds the maximum of ${MAX_CHAT_CONTEXT_LABEL_LENGTH} characters`
+    )
+  }
+  const docsMessage = userMessage?.trim() ?? ''
+  const docsQueries = new Map<string, string>()
 
   /**
    * An organization chat has no workspace of its own, so each workspace-owned
@@ -342,8 +360,13 @@ export async function processContextsServer(
         const { searchDocsServerTool } = await import(
           '@/lib/mothership/tools/server/docs/search-docs'
         )
-        const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
-        const query = sanitizeMessageForDocs(rawQuery, contexts) || ctx.label || 'Sim documentation'
+        const rawQuery = docsMessage || ctx.label || 'Sim documentation'
+        let sanitizedQuery = docsQueries.get(rawQuery)
+        if (sanitizedQuery === undefined) {
+          sanitizedQuery = sanitizeMessageForDocs(rawQuery, contexts)
+          docsQueries.set(rawQuery, sanitizedQuery)
+        }
+        const query = sanitizedQuery || ctx.label || 'Sim documentation'
         const res = await searchDocsServerTool.execute(
           { query },
           {
@@ -469,22 +492,20 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 
   let result = rawMessage
 
-  // 1) Remove all non-block mentions entirely
-  for (const label of nonBlockLabels) {
-    const pattern = new RegExp(`(^|\\s)@${escapeRegExp(label)}(?!\\S)`, 'g')
+  if (nonBlockLabels.size > 0) {
+    const labels = [...nonBlockLabels].map(escapeRegExp).join('|')
+    const pattern = new RegExp(`(^|\\s)@(?:${labels})(?!\\S)`, 'g')
     result = result.replace(pattern, ' ')
   }
 
-  // 2) For block mentions, strip the '@' but keep the block name
-  for (const label of blockLabels) {
-    const pattern = new RegExp(`@${escapeRegExp(label)}(?!\\S)`, 'g')
-    result = result.replace(pattern, label)
+  if (blockLabels.size > 0) {
+    const labels = [...blockLabels].map(escapeRegExp).join('|')
+    const pattern = new RegExp(`@(${labels})(?!\\S)`, 'g')
+    result = result.replace(pattern, (_match, label: string) => label)
   }
 
-  // 3) Remove any remaining @mentions (unknown or not in contexts)
   result = result.replace(/(^|\s)@([^\s]+)/g, ' ')
 
-  // Normalize whitespace
   result = result.replace(/\s{2,}/g, ' ').trim()
   return result
 }

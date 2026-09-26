@@ -38,6 +38,11 @@ import {
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
+import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
@@ -218,7 +223,7 @@ const ChatContextSchema = z
       'terminal_tab',
       'workspace',
     ]),
-    label: z.string(),
+    label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     knowledgeId: z.string().optional(),
@@ -271,7 +276,7 @@ const ChatContextSchema = z
 
 const ChatMessageSchema = z
   .object({
-    message: z.string(),
+    message: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
     /* Bounded because it becomes part of a Postgres key in `chatSendIdempotency`;
      a client-supplied id longer than the btree entry limit would throw there.
      A generated id is 36 chars. */
@@ -294,7 +299,7 @@ const ChatMessageSchema = z
       .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
       .optional(),
     provider: z.string().optional(),
-    contexts: z.array(ChatContextSchema).optional(),
+    contexts: z.array(ChatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
