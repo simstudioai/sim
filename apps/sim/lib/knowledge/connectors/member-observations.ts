@@ -28,6 +28,7 @@ import {
 } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
+import { walkReconciliationWindows } from '@/lib/knowledge/connectors/reconciliation-window'
 import {
   ACL_CHANGE_BATCH_SIZE,
   ACL_WRITE_BATCH_SIZE,
@@ -754,9 +755,6 @@ function unobservedLiveDocument(connectorId: string) {
   )
 }
 
-/** The order of `doc_connector_reconciliation_idx`, which the resurrection pages walk. */
-const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
-
 type TombstoneCursor = NonNullable<
   (typeof knowledgeConnector.$inferSelect)['memberTombstoneCursor']
 >
@@ -914,46 +912,34 @@ export async function applyMemberDocumentLifecycle(
   if (!(await tombstoneUnobserved(input, unobserved, now, result))) return result
   if (input.allowRemoval && !(await reconcileUnobservedPages(input, now, result))) return result
 
-  let after: { id: string; seenAt: string } | undefined
-  for (;;) {
-    if (Date.now() >= input.deadlineAt) return result
-    await input.lease.beatIfDue()
-    const condition = resurrectableDocument(connectorId)
-    /** Materialize the limited IDs before UPDATE so its observation check stays batch-bound. */
-    const candidates = await db
-      .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
-      .from(document)
-      .where(
-        and(
-          condition,
-          after
-            ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
-            : undefined
-        )
-      )
-      .orderBy(seenOrder, asc(document.id))
-      .limit(LIFECYCLE_PAGE_SIZE)
-    if (candidates.length === 0) break
-    if (Date.now() >= input.deadlineAt) return result
-    const changed = await input.withLease(async (tx) => {
-      return tx
-        .update(document)
-        .set({ deletedAt: null })
-        .where(
-          and(
-            condition,
-            inArray(
-              document.id,
-              candidates.map(({ id }) => id)
+  const condition = resurrectableDocument(connectorId)
+  const resurrectionFinished = await walkReconciliationWindows({
+    connectorId,
+    condition,
+    pageSize: LIFECYCLE_PAGE_SIZE,
+    deadlineAt: input.deadlineAt,
+    beforePage: input.lease.beatIfDue,
+    /** The page's ids are materialized before the UPDATE so its observation check stays batch-bound. */
+    onPage: async (candidates) => {
+      const changed = await input.withLease((tx) =>
+        tx
+          .update(document)
+          .set({ deletedAt: null })
+          .where(
+            and(
+              condition,
+              inArray(
+                document.id,
+                candidates.map(({ id }) => id)
+              )
             )
           )
-        )
-        .returning({ id: document.id })
-    })
-    result.resurrected += changed.length
-    after = candidates.at(-1)
-    if (candidates.length < LIFECYCLE_PAGE_SIZE) break
-  }
+          .returning({ id: document.id })
+      )
+      result.resurrected += changed.length
+    },
+  })
+  if (!resurrectionFinished) return result
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)
   const purgeCandidates = input.allowRemoval

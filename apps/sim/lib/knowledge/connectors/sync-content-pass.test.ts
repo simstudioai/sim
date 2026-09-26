@@ -26,6 +26,11 @@ import {
   beginListingCheckpoint,
   type ListingCheckpoint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
+  routeWindowScans,
+  windowScan,
+  windowScans,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import {
   SOURCE_CONTENT_ERROR,
@@ -48,7 +53,7 @@ uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
 
 function resetDbChainMock() {
   resetDatabaseMock()
-  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  routeWindowScans()
 }
 
 const hoisted = vi.hoisted(() => ({
@@ -187,15 +192,10 @@ function _grantsSomeone(node: Record<string, unknown>): boolean {
 describe('completed listing removal counts', () => {
   interface AbsentDocument {
     id: string
-    seenAt: string
-    deletedAt: Date | null
+    tombstoned: boolean
   }
 
-  const absent = (id: string, deletedAt: Date | null = null): AbsentDocument => ({
-    id,
-    seenAt: '2026-09-07T12:00:00.000000',
-    deletedAt,
-  })
+  const absent = (id: string, tombstoned = false): AbsentDocument => ({ id, tombstoned })
 
   async function reconcile(options: {
     soft?: AbsentDocument[]
@@ -218,10 +218,17 @@ describe('completed listing removal counts', () => {
       listedCount: 8,
     }
     queueTableRows(schemaMock.document, [
-      { ownedCount: 10, listedCount: 8, softCount: soft.length, hardCount: hard.length },
+      {
+        ownedCount: 10,
+        listedCount: 8,
+        aclCount: options.revoked?.length ?? 0,
+        softCount: soft.length,
+        hardCount: hard.length,
+      },
     ])
-    queueTableRows(schemaMock.document, options.revoked ?? [])
+    /** A walk whose count is zero never scans. Each walk here fits in one partial window. */
     if (options.revoked?.length) {
+      windowScans.push(windowScan(options.revoked))
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
       const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
       queueTableRows(schemaMock.document, granting)
@@ -234,20 +241,17 @@ describe('completed listing removal counts', () => {
       const batches = 1 + Math.ceil(options.revoked.length / 25)
       for (let batch = 0; batch < batches; batch++)
         queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
-      queueTableRows(schemaMock.document, [])
     }
-    if (!options.fullSync) {
-      queueTableRows(schemaMock.document, soft)
-      if (soft.length) {
-        queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
-        dbChainMockFns.returning.mockResolvedValueOnce(
-          options.updated ?? soft.map(({ id }) => ({ id }))
-        )
-        queueTableRows(schemaMock.document, [])
-      }
+    if (!options.fullSync && soft.length) {
+      windowScans.push(windowScan(soft))
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+      dbChainMockFns.returning.mockResolvedValueOnce(
+        options.updated ?? soft.map(({ id }) => ({ id }))
+      )
     }
-    queueTableRows(schemaMock.document, hard)
-    if (hard.length) queueTableRows(schemaMock.document, [])
+    if (hard.length) {
+      windowScans.push(windowScan(hard))
+    }
     const result: SyncResult = {
       docsAdded: 0,
       docsUpdated: 0,
@@ -294,7 +298,7 @@ describe('completed listing removal counts', () => {
 
     mocks.hardDelete.mockResolvedValue(2)
     const cleanup = await reconcile({
-      hard: [absent('one', new Date(0)), absent('two', new Date(0))],
+      hard: [absent('one', true), absent('two', true)],
     })
     expect(cleanup.docsDeleted).toBe(0)
     expect(mocks.hardDelete).toHaveBeenCalledWith(['one', 'two'], 'run', 'connector', 'kb', {
