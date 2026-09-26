@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   recover: vi.fn(),
   reap: vi.fn(),
+  prune: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/core/outbox/retention', () => ({ pruneCompletedOutboxEvents: mocks.prune }))
 vi.mock('@/lib/knowledge/documents/processing-recovery', () => ({
   recoverKnowledgeDocumentProcessing: mocks.recover,
 }))
@@ -64,6 +66,7 @@ describe('outbox processor recovery', () => {
     mockProcessOutboxEvents.mockResolvedValue(result)
     mocks.recover.mockResolvedValue(2)
     mocks.reap.mockResolvedValue(3)
+    mocks.prune.mockResolvedValue(4)
   })
   afterEach(() => vi.useRealTimers())
 
@@ -73,6 +76,7 @@ describe('outbox processor recovery', () => {
       result,
       recoveredDocuments: 0,
       reapedBackgroundWork: 3,
+      prunedEvents: 4,
     })
   })
 
@@ -82,6 +86,17 @@ describe('outbox processor recovery', () => {
       result,
       recoveredDocuments: 2,
       reapedBackgroundWork: 0,
+      prunedEvents: 4,
+    })
+  })
+
+  it('retains delivery, recovery and reap results when completed-event pruning fails', async () => {
+    mocks.prune.mockRejectedValueOnce(new Error('statement timeout'))
+    await expect(runOutboxProcessor()).resolves.toEqual({
+      result,
+      recoveredDocuments: 2,
+      reapedBackgroundWork: 3,
+      prunedEvents: 0,
     })
   })
 
@@ -94,6 +109,7 @@ describe('outbox processor recovery', () => {
       result,
       recoveredDocuments: 0,
       reapedBackgroundWork: 3,
+      prunedEvents: 4,
     })
     expect(mocks.recover).not.toHaveBeenCalled()
   })

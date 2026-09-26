@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
+import type { DbOrTx } from '@/lib/db/types'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import {
@@ -42,6 +43,73 @@ const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 export async function recoverKnowledgeDocumentProcessing(now = new Date()): Promise<number> {
   const deadlineAt = Date.now() + RECOVERY_RUNTIME_MS
   return withinDeadline((signal) => recoverStoredDocuments(now, deadlineAt, signal), deadlineAt)
+}
+
+interface RecoveryCandidateScope {
+  limit: number
+  attemptedConnectors: ReadonlySet<string>
+  blockedKnowledgeBases: ReadonlySet<string>
+}
+
+/**
+ * Walks only admissible sources, each through its own oldest-first index page, so retained
+ * inputs of paused or federated sources cost nothing however many there are. Exclusions apply
+ * to the source rows, and the oldest candidates across sources still come first.
+ */
+export function recoveryCandidatesQuery(
+  executor: DbOrTx,
+  now: Date,
+  { limit, attemptedConnectors, blockedKnowledgeBases }: RecoveryCandidateScope
+) {
+  const candidate = executor
+    .select(processingSnapshotColumns)
+    .from(document)
+    .where(
+      and(
+        eq(document.connectorId, knowledgeConnector.id),
+        eq(document.knowledgeBaseId, knowledgeConnector.knowledgeBaseId),
+        documentProcessingRecoveryCondition(now)
+      )
+    )
+    .orderBy(asc(document.uploadedAt), asc(document.id))
+    .limit(limit)
+    .as('candidate')
+  return executor
+    .select({
+      id: candidate.id,
+      uploadedAt: candidate.uploadedAt,
+      processingStatus: candidate.processingStatus,
+      processingQueueToken: candidate.processingQueueToken,
+      processingQueuedAt: candidate.processingQueuedAt,
+      processingStartedAt: candidate.processingStartedAt,
+      processingDeferredUntil: candidate.processingDeferredUntil,
+      processingCompletedAt: candidate.processingCompletedAt,
+      processingRecoveryAfter: candidate.processingRecoveryAfter,
+      knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+      connectorId: knowledgeConnector.id,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+    })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+    .crossJoinLateral(candidate)
+    .where(
+      and(
+        blockedKnowledgeBases.size > 0
+          ? notInArray(knowledgeBase.id, [...blockedKnowledgeBases])
+          : undefined,
+        attemptedConnectors.size > 0
+          ? notInArray(knowledgeConnector.id, [...attemptedConnectors])
+          : undefined,
+        isNull(knowledgeBase.deletedAt),
+        connectorIndexingCondition(),
+        isNull(knowledgeConnector.deletedAt),
+        isNull(knowledgeConnector.archivedAt),
+        inArray(knowledgeConnector.status, RECOVERABLE_CONNECTOR_STATUSES)
+      )
+    )
+    .orderBy(asc(candidate.uploadedAt), asc(candidate.id))
+    .limit(limit)
 }
 
 async function recoverStoredDocuments(
@@ -83,35 +151,11 @@ async function recoverStoredDocumentBatch(
       sql`SELECT set_config('statement_timeout', '5000', true), set_config('lock_timeout', '1000', true)`
     )
     signal.throwIfAborted()
-    return tx
-      .select({
-        ...processingSnapshotColumns,
-        knowledgeBaseId: document.knowledgeBaseId,
-        connectorId: knowledgeConnector.id,
-        workspaceId: knowledgeBase.workspaceId,
-        organizationId: knowledgeBase.organizationId,
-      })
-      .from(document)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
-      .innerJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
-      .where(
-        and(
-          documentProcessingRecoveryCondition(now),
-          blockedKnowledgeBases.size > 0
-            ? notInArray(document.knowledgeBaseId, [...blockedKnowledgeBases])
-            : undefined,
-          attemptedConnectors.size > 0
-            ? notInArray(document.connectorId, [...attemptedConnectors])
-            : undefined,
-          isNull(knowledgeBase.deletedAt),
-          connectorIndexingCondition(),
-          isNull(knowledgeConnector.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          inArray(knowledgeConnector.status, RECOVERABLE_CONNECTOR_STATUSES)
-        )
-      )
-      .orderBy(asc(document.uploadedAt), asc(document.id))
-      .limit(Math.min(limit, DOCUMENT_LIVENESS_BATCH_SIZE))
+    return recoveryCandidatesQuery(tx, now, {
+      limit: Math.min(limit, DOCUMENT_LIVENESS_BATCH_SIZE),
+      attemptedConnectors,
+      blockedKnowledgeBases,
+    })
   })
   signal.throwIfAborted()
   for (const candidate of observedCandidates) attemptedConnectors.add(candidate.connectorId)
