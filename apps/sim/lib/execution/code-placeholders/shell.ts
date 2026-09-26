@@ -32,16 +32,17 @@ interface ShellScanFrame {
   bracketDepth?: number
   /** A bare name[index] is arithmetic only when its closing bracket is followed by assignment. */
   arrayAssignment?: boolean
+  arithmeticParent?: ShellScanFrame
   literalRoot: boolean
 }
 
 interface ShellOccurrenceContext {
   quote: ShellQuote
   /**
-   * Enclosing arithmetic also re-evaluates nested substitutions. Keep frame references so a
+   * Enclosing arithmetic also re-evaluates nested substitutions. Keep a frame reference so a
    * bare subscript can be classified when its closing bracket confirms an assignment.
    */
-  arithmeticFrames?: ShellScanFrame[]
+  arithmeticFrame?: ShellScanFrame
   unsupported?: 'escaped sequence'
 }
 
@@ -76,6 +77,12 @@ function shellArithmeticCommandStarts(code: string, index: number): boolean {
   if (code[index] !== '(' || code[index + 1] !== '(') return false
   const previous = code[index - 1]
   return previous === undefined || /\s|[;&|()<>]/.test(previous)
+}
+
+function pushShellFrame(frames: ShellScanFrame[], frame: ShellScanFrame): void {
+  const parent = frames.at(-1)
+  frame.arithmeticParent = parent?.kind === 'arithmetic' ? parent : parent?.arithmeticParent
+  frames.push(frame)
 }
 
 function readShellExpansionStart(
@@ -304,10 +311,10 @@ function parseHeredocHeaders(
       if (character === '\\') index += 1
       else if (character === '"') frame.quote = 'none'
       else if (expansion) {
-        frames.push(expansion.frame)
+        pushShellFrame(frames, expansion.frame)
         index += expansion.length - 1
       } else if (character === '`') {
-        frames.push({
+        pushShellFrame(frames, {
           kind: 'backtick',
           quote: 'none',
           parenthesisDepth: 0,
@@ -339,12 +346,12 @@ function parseHeredocHeaders(
       continue
     }
     if (expansion) {
-      frames.push(expansion.frame)
+      pushShellFrame(frames, expansion.frame)
       index += expansion.length - 1
       continue
     }
     if (character === '`') {
-      frames.push({
+      pushShellFrame(frames, {
         kind: 'backtick',
         quote: 'none',
         parenthesisDepth: 0,
@@ -483,8 +490,8 @@ function getUnsupportedShellPosition(
   occurrence: CodePlaceholderOccurrence,
   context: ShellOccurrenceContext
 ): string | undefined {
-  if (context.arithmeticFrames?.some((frame) => frame.arrayAssignment !== false)) {
-    return 'in a shell arithmetic expression'
+  for (let frame = context.arithmeticFrame; frame; frame = frame.arithmeticParent) {
+    if (frame.arrayAssignment !== false) return 'in a shell arithmetic expression'
   }
   if (code[occurrence.start - 1] === '$') return 'immediately after "$"'
   if (context.quote !== 'none') return undefined
@@ -533,7 +540,7 @@ function collectShellOccurrenceContexts(
     if (occurrence) {
       contexts.set(occurrence, {
         quote: frame.quote,
-        arithmeticFrames: frames.filter((candidate) => candidate.kind === 'arithmetic'),
+        arithmeticFrame: frame.kind === 'arithmetic' ? frame : frame.arithmeticParent,
       })
       index = occurrence.end
       continue
@@ -567,7 +574,7 @@ function collectShellOccurrenceContexts(
     )
     const array = readShellArrayStart(code, index, frame)
     if (array) {
-      frames.push(array)
+      pushShellFrame(frames, array)
       index += 1
       continue
     }
@@ -584,10 +591,10 @@ function collectShellOccurrenceContexts(
         frame.quote = 'none'
         index += 1
       } else if (expansion) {
-        frames.push(expansion.frame)
+        pushShellFrame(frames, expansion.frame)
         index += expansion.length
       } else if (character === '`') {
-        frames.push({
+        pushShellFrame(frames, {
           kind: 'backtick',
           quote: 'none',
           parenthesisDepth: 0,
@@ -636,12 +643,12 @@ function collectShellOccurrenceContexts(
       continue
     }
     if (expansion) {
-      frames.push(expansion.frame)
+      pushShellFrame(frames, expansion.frame)
       index += expansion.length
       continue
     }
     if (character === '`') {
-      frames.push({
+      pushShellFrame(frames, {
         kind: 'backtick',
         quote: 'none',
         parenthesisDepth: 0,
