@@ -136,9 +136,9 @@ export function AtlassianSourceSetupModal({
                 ]}
                 placeholder={
                   account.pending
-                    ? 'Waiting for authorization…'
+                    ? 'Waiting for authorization'
                     : account.accounts.isPending
-                      ? 'Loading accounts…'
+                      ? 'Loading accounts'
                       : 'Select your account'
                 }
                 disabled={pending || account.accounts.isPending}
@@ -244,7 +244,7 @@ export function AtlassianSourceSetupModal({
             : undefined
         }
         primaryAction={{
-          label: isPending ? 'Connecting…' : 'Connect & Sync',
+          label: isPending ? 'Connecting' : 'Connect & Sync',
           onClick: () => void submit(),
           disabled: !credentialId || !domain.trim() || !keys.length || pending,
         }}

@@ -59,7 +59,7 @@ export function DisconnectAccountMenu({
         text={`Disconnect ${selected ? accountLabel(selected) : integrationName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
         confirm={{
           label: 'Disconnect',
-          pendingLabel: 'Disconnecting…',
+          pendingLabel: 'Disconnecting',
           pending: disconnect.isPending,
           disabled: disconnect.isPending,
           onClick: () => {

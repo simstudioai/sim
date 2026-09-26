@@ -1325,7 +1325,7 @@ export function BrowserSession({
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Globe className='size-[18px] text-[var(--text-tertiary)]' />
             <p className='text-[var(--text-muted)] text-small'>
-              Waiting for the browser session to start…
+              Waiting for the browser session to start
             </p>
           </div>
         )}

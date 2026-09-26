@@ -1736,7 +1736,7 @@ export const organization = pgTable('organization', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-/** Private navigation history; provider access is still enforced when a saved link is opened. */
+/** Private visit identities; current source access and metadata are resolved on every read. */
 export const organizationSearchHistory = pgTable(
   'organization_search_history',
   {
@@ -1750,9 +1750,6 @@ export const organizationSearchHistory = pgTable(
       .$type<
         Array<{
           url: string
-          title?: string
-          siteName?: string
-          connectorType?: string
           viewedAt: string
         }>
       >()
@@ -3372,6 +3369,11 @@ export const document = pgTable(
   (table) => ({
     // Primary access pattern - filter by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    /** Hash lookup bounds long URL keys; readers retain exact URL equality to reject collisions. */
+    sourceUrlLookupIdx: index('doc_kb_source_url_hash_idx')
+      .on(table.knowledgeBaseId, sql`md5(${table.sourceUrl})`)
+      .where(sql`${table.deletedAt} IS NULL AND ${table.sourceUrl} IS NOT NULL`)
+      .concurrently(),
     /** Search's updated-after filter: the documents of a base changed since a time, without a base scan. */
     sourceModifiedLookupIdx: index('doc_kb_source_modified_idx')
       .on(table.knowledgeBaseId, table.sourceModifiedAt)

@@ -73,7 +73,7 @@ export default async function OrganizationProviderPage({
   }
   return (
     <Suspense
-      fallback={<SettingsEmptyState variant='inline'>Loading integration…</SettingsEmptyState>}
+      fallback={<SettingsEmptyState variant='inline'>Loading integration</SettingsEmptyState>}
     >
       <OrganizationProviderDetail connectorType={connectorType} />
     </Suspense>

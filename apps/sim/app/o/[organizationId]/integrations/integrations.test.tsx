@@ -766,7 +766,7 @@ describe('grouped member integrations', () => {
       expect(mocks.nextPage).toHaveBeenCalledOnce()
       queryOverrides = { hasNextPage: true, isFetchingNextPage: true, isFetching: true }
       await render()
-      expect(buttons('Checking…')[0]).toBeDisabled()
+      expect(buttons('Checking')[0]).toBeDisabled()
       rows = [
         ...rows,
         { ...memberSource, connectorId: 'older-source', viewerMembership: membership },

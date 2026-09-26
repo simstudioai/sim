@@ -628,6 +628,39 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    const history: MothershipChatHistory = {
+      id: 'chat-reconnecting-search',
+      title: 'Search',
+      activeStreamId: 'accepted-search',
+      messages: [{ id: 'accepted-search', role: 'user', content: 'Find the policy' }],
+      resources: [
+        {
+          type: 'search',
+          id: 'search:workspace:ws-1',
+          title: 'Search',
+          workspaceId: 'ws-1',
+          search: { query: 'policy', scope: { kind: 'workspace', workspaceId: 'ws-1' } },
+        },
+        {
+          type: 'sources',
+          id: 'cited-sources',
+          title: 'Sources',
+          sources: { messageId: 'previous-answer' },
+        },
+      ],
+    }
+    const selected = getChatResourceSelectionId(history.resources[0])
+    const { getResult } = renderUseChatInChat(history.id, history, undefined, selected, 'assistant')
+    expect(getResult().resources).toEqual(history.resources)
+    expect(getResult().activeResourceId).toBe(selected)
+    await act(async () => {})
+    expect(getResult().resources).toEqual(history.resources)
+    expect(getResult().activeResourceId).toBe(selected)
+  })
+
   it.each(['workspace', 'organization'] as const)(
     'preserves a %s send stopped during preparation and keeps the next send in that chat',
     async (scope) => {

@@ -116,7 +116,7 @@ export function MemberIntegrationRow({
   function description() {
     if (!configured) return waiting ? 'Finish connecting in the other tab' : 'Not connected'
     if (hasLoadError) return 'Could not load connection'
-    if (sources.isPending) return 'Loading connection…'
+    if (sources.isPending) return 'Loading connection'
     if (target) {
       if (waiting) return 'Finish connecting in the other tab'
       if (target.viewerMembership === 'needs_reauth') return 'Reconnect your account'
@@ -183,7 +183,7 @@ export function MemberIntegrationRow({
           )}
           {hasLoadError && (
             <Chip disabled={sources.isFetching} onClick={() => void sources.refetch()}>
-              {sources.isFetching ? 'Retrying…' : 'Retry'}
+              {sources.isFetching ? 'Retrying' : 'Retry'}
             </Chip>
           )}
           {canCheckConnections && (
@@ -193,7 +193,7 @@ export function MemberIntegrationRow({
               onClick={() => void sources.fetchNextPage({ cancelRefetch: false })}
             >
               {sources.isFetchingNextPage
-                ? 'Checking…'
+                ? 'Checking'
                 : sources.isFetchNextPageError
                   ? 'Retry'
                   : 'Check connections'}

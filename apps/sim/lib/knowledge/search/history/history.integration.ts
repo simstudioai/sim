@@ -1,5 +1,14 @@
 import { db } from '@sim/db'
-import { member, organization, organizationSearchHistory, user } from '@sim/db/schema'
+import {
+  document,
+  knowledgeBase,
+  knowledgeConnector,
+  member,
+  organization,
+  organizationSearchHistory,
+  organizationSearchIntegration,
+  user,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +21,16 @@ import { SEARCH_HISTORY_LIMIT } from '@/lib/knowledge/search/history/limits'
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireOrganizationSearchAvailable: vi.fn(),
+  resolveKnowledgeAccessAvailability: vi.fn(async () => ({
+    sourceMirrored: true,
+    memberScoped: true,
+  })),
 }))
 
 const userIds = [generateId(), generateId()]
 const orgIds = [generateId(), generateId()]
+const indexId = generateId()
+const connectorId = generateId()
 const principal = { kind: 'session', userId: userIds[0], sessionId: 'history-test' } as const
 const input = { organizationId: orgIds[0] }
 const scope = and(
@@ -25,7 +40,6 @@ const scope = and(
 const source = {
   url: 'https://docs.google.com/document/d/history-fixture',
   title: 'Launch review',
-  connectorType: 'google_drive',
 }
 
 beforeAll(async () => {
@@ -42,6 +56,20 @@ beforeAll(async () => {
   await db
     .insert(organization)
     .values(orgIds.map((id) => ({ id, name: 'History fixture', slug: id })))
+  await db.insert(knowledgeBase).values({
+    id: indexId,
+    organizationId: orgIds[0],
+    userId: userIds[0],
+    name: 'Search',
+    isSearchIndex: true,
+  })
+  await db.insert(knowledgeConnector).values({
+    id: connectorId,
+    knowledgeBaseId: indexId,
+    connectorType: 'google_drive',
+    sourceConfig: {},
+    accessMode: 'admin',
+  })
   await db.insert(member).values(
     userIds.map((userId) => ({
       id: generateId(),
@@ -52,6 +80,33 @@ beforeAll(async () => {
   )
 })
 beforeEach(async () => {
+  await db
+    .delete(organizationSearchIntegration)
+    .where(eq(organizationSearchIntegration.organizationId, orgIds[0]))
+  await db
+    .update(knowledgeConnector)
+    .set({ archivedAt: null })
+    .where(eq(knowledgeConnector.id, connectorId))
+  await db.delete(document).where(eq(document.knowledgeBaseId, indexId))
+  await db.insert(document).values(
+    [
+      source.url,
+      'https://example.com/other',
+      ...Array.from({ length: 24 }, (_, i) => `https://example.com/${i}`),
+    ].map((url) => ({
+      id: generateId(),
+      knowledgeBaseId: indexId,
+      filename: url === 'https://example.com/23' ? 'Updated title' : source.title,
+      fileUrl: url,
+      sourceUrl: url,
+      fileSize: 1,
+      mimeType: 'text/plain',
+      acl: ['pub'],
+      connectorId,
+      aclVerifiedAt: new Date(),
+      processingStatus: 'completed',
+    }))
+  )
   await db
     .delete(organizationSearchHistory)
     .where(inArray(organizationSearchHistory.organizationId, orgIds))
@@ -71,6 +126,21 @@ describe('private search navigation history', () => {
     expect(
       await listSearchHistory.execute({ principal: { ...principal, userId: userIds[1] }, input })
     ).toEqual({ sources: [], queries: [] })
+    const secondPrincipal = { ...principal, userId: userIds[1] }
+    await recordSearchHistory.execute({
+      principal: secondPrincipal,
+      input: {
+        ...input,
+        event: { kind: 'source', source: { ...source, url: 'https://example.com/other' } },
+      },
+    })
+    expect(
+      (await listSearchHistory.execute({ principal, input })).sources.map((item) => item.url)
+    ).toEqual([source.url])
+    await clearSearchHistory.execute({ principal: secondPrincipal, input })
+    expect(
+      (await listSearchHistory.execute({ principal, input })).sources.map((item) => item.url)
+    ).toEqual([source.url])
     await expect(
       listSearchHistory.execute({ principal, input: { organizationId: orgIds[1] } })
     ).rejects.toMatchObject({ code: 'not_found' })
@@ -103,6 +173,51 @@ describe('private search navigation history', () => {
     expect((await listSearchHistory.execute({ principal, input })).sources).toHaveLength(1)
   })
 
+  it('revalidates current document access and metadata instead of replaying saved titles', async () => {
+    await recordSearchHistory.execute({
+      principal,
+      input: { ...input, event: { kind: 'source', source } },
+    })
+    await db
+      .update(document)
+      .set({ filename: 'Current title' })
+      .where(eq(document.sourceUrl, source.url))
+    expect((await listSearchHistory.execute({ principal, input })).sources[0]?.title).toBe(
+      'Current title'
+    )
+    await db
+      .update(document)
+      .set({ acl: ['u:another@fixture.test'] })
+      .where(eq(document.sourceUrl, source.url))
+    expect((await listSearchHistory.execute({ principal, input })).sources).toEqual([])
+    await db
+      .update(document)
+      .set({ acl: ['pub'], userExcluded: true })
+      .where(eq(document.sourceUrl, source.url))
+    expect((await listSearchHistory.execute({ principal, input })).sources).toEqual([])
+    await db.update(document).set({ userExcluded: false }).where(eq(document.sourceUrl, source.url))
+    await db
+      .insert(organizationSearchIntegration)
+      .values({ organizationId: orgIds[0], connectorType: 'google_drive', approved: false })
+    expect((await listSearchHistory.execute({ principal, input })).sources).toEqual([])
+    await db
+      .delete(organizationSearchIntegration)
+      .where(eq(organizationSearchIntegration.organizationId, orgIds[0]))
+    await db
+      .update(knowledgeConnector)
+      .set({ archivedAt: new Date() })
+      .where(eq(knowledgeConnector.id, connectorId))
+    expect((await listSearchHistory.execute({ principal, input })).sources).toEqual([])
+    await recordSearchHistory.execute({
+      principal,
+      input: {
+        ...input,
+        event: { kind: 'source', source: { ...source, url: 'https://example.com/unverifiable' } },
+      },
+    })
+    expect((await listSearchHistory.execute({ principal, input })).sources).toEqual([])
+  })
+
   it('deduplicates and bounds concurrent visits without losing unrelated queries', async () => {
     await recordSearchHistory.execute({
       principal,
@@ -130,7 +245,7 @@ describe('private search navigation history', () => {
         ...input,
         event: {
           kind: 'source',
-          source: { ...source, url: 'https://example.com/23', title: 'Updated title' },
+          source: { ...source, url: 'https://example.com/23' },
         },
       },
     })

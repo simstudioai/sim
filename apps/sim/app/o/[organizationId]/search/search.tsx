@@ -64,9 +64,11 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const submit = (text = value) => {
     if (!text.trim() || (isSearching && text.trim() === initialValue.trim())) return
     const { clearDraft } = useMothershipDraftsStore.getState()
-    clearDraft(draftKey)
+    if (text.trim() === value.trim()) {
+      clearDraft(draftKey)
+      if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
+    }
     clearDraft(`${latestDraftKey}:query:${encodeURIComponent(text.trim())}`)
-    if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
     onSubmit(text)
   }
   const voice = useVoiceInput({

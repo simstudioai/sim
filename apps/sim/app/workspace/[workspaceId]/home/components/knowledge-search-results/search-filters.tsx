@@ -23,7 +23,7 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
       <ChipDropdown
         variant='ghost'
         shape='round'
-        aria-label='Filter by source'
+        aria-label={`Filter by source: ${filters.source ? (filters.source === 'upload' ? 'Uploads' : connectorDisplayName(filters.source)) : 'All sources'}`}
         matchTriggerWidth={false}
         value={filters.source ?? ''}
         options={[
@@ -38,7 +38,7 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
       <ChipDropdown
         variant='ghost'
         shape='round'
-        aria-label='Filter by date'
+        aria-label={`Filter by date: ${UPDATED_WINDOWS.find((window) => window.id === filters.updated)?.label ?? 'Any time'}`}
         matchTriggerWidth={false}
         value={filters.updated}
         options={UPDATED_WINDOWS.map((window) => ({ value: window.id, label: window.label }))}
@@ -62,7 +62,7 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
           onRangeChange={(start, end) =>
             void setFilters({ from: new Date(start), to: new Date(end) })
           }
-          onClear={() => void setFilters({ from: null, to: null })}
+          onClear={() => void setFilters({ updated: 'any', from: null, to: null })}
         />
       )}
     </div>

@@ -26,10 +26,10 @@ import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/avail
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 import {
   type LiveAccountSession,
   openLiveAccountSession,

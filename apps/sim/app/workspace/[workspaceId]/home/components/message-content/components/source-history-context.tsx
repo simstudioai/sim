@@ -9,9 +9,8 @@ import {
   useMemo,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
-import { truncate } from '@sim/utils/string'
 import type { ViewedSearchSource } from '@/lib/api/contracts/knowledge/search-history'
-import { isSearchHistoryUrl } from '@/lib/knowledge/search/history/limits'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useRecordSearchHistory } from '@/hooks/queries/search-history'
@@ -40,7 +39,12 @@ export function SourceHistoryProvider({
   const { mutate } = useRecordSearchHistory(organizationId, userId)
   const recordSource = useCallback(
     (source: ViewedSearchSource) => {
-      if (organizationId && userId && source.url.length <= 4096 && isSearchHistoryUrl(source.url)) {
+      if (
+        organizationId &&
+        userId &&
+        source.url.length <= 4096 &&
+        isKnowledgeSourceUrl(source.url)
+      ) {
         mutate({ kind: 'source', source })
       }
     },
@@ -67,16 +71,9 @@ export function useSourceNavigation(source: SourceTagData) {
   return useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
       if (event.defaultPrevented || (event.button !== 0 && event.button !== 1)) return
-      recordSource({
-        url: source.url,
-        title: source.title?.trim() ? truncate(source.title.trim(), 512, '') : undefined,
-        siteName: source.siteName?.trim() ? truncate(source.siteName.trim(), 128, '') : undefined,
-        connectorType: source.connectorType?.trim()
-          ? truncate(source.connectorType.trim(), 64, '')
-          : undefined,
-      })
+      recordSource({ url: source.url })
       handleExternalLinkClick(event, source.url)
     },
-    [source.url, source.title, source.siteName, source.connectorType, recordSource]
+    [source.url, recordSource]
   )
 }

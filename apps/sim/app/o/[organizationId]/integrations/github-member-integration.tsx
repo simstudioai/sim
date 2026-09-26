@@ -46,7 +46,7 @@ export function GitHubMemberIntegration({
   const description = account
     ? `${accounts.map((entry) => entry.displayName).join(', ')} · ${account.status === 'needs_reauth' ? 'Reconnect required' : 'Connected'}`
     : loading
-      ? 'Loading connection…'
+      ? 'Loading connection'
       : failed
         ? 'Could not load connection'
         : option
@@ -68,7 +68,7 @@ export function GitHubMemberIntegration({
           />
           {failed ? (
             <Chip disabled={inventory.isFetching} onClick={() => void inventory.refetch()}>
-              {inventory.isFetching ? 'Retrying…' : 'Retry'}
+              {inventory.isFetching ? 'Retrying' : 'Retry'}
             </Chip>
           ) : account?.status === 'needs_reauth' && option?.id === account.optionId ? (
             <Chip

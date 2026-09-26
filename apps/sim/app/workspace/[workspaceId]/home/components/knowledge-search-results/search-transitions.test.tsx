@@ -68,9 +68,12 @@ import {
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
+import { searchHistoryKeys } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')
 authClientMockFns.mockUseSession.mockImplementation(() => ({
@@ -120,6 +123,7 @@ beforeEach(() => {
     }
   )
   resetDeploymentShape()
+  useMothershipDraftsStore.setState({ drafts: {} })
   mocks.userId = 'reader'
   requests = []
   mockRequestJson.mockImplementation(
@@ -180,7 +184,7 @@ async function render({
 async function click(label: string) {
   await act(async () => {
     const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Filter by source"]'
+      'button[aria-label^="Filter by source:"]'
     )!
     trigger.focus()
     trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
@@ -303,4 +307,57 @@ describe('live search submission feedback', () => {
     expect(requests).toHaveLength(3)
     expect(requests[2].body.query).toBe('roadmap')
   })
+})
+
+it('removes cached private history when access is denied during revalidation', async () => {
+  client.setQueryData(searchHistoryKeys.list('organization', 'reader'), {
+    sources: [
+      {
+        url: 'https://example.com/private',
+        title: 'Private document',
+        viewedAt: new Date().toISOString(),
+      },
+    ],
+    queries: [{ query: 'private query', searchedAt: new Date().toISOString() }],
+  })
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={client}>
+        <SearchLandingHistory organizationId='organization' userId='reader' onSearch={() => {}}>
+          <input aria-label='Search' />
+        </SearchLandingHistory>
+      </QueryClientProvider>
+    )
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(container.querySelector('a[href="https://example.com/private"]')).not.toBeNull()
+  mockRequestJson.mockRejectedValue(new Error('Forbidden'))
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: searchHistoryKeys.list('organization', 'reader') })
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(container.querySelector('a[href="https://example.com/private"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Recent activity"]')).toBeNull()
+})
+
+it('keeps an unsent draft when a different recent search is opened', async () => {
+  const draftKey = 'reader:organization:organization:search'
+  useMothershipDraftsStore
+    .getState()
+    .setDraft(draftKey, { text: 'unfinished question', searchQuery: '' })
+  client.setQueryData(searchHistoryKeys.list('organization', 'reader'), {
+    sources: [],
+    queries: [{ query: 'launch', searchedAt: new Date().toISOString() }],
+  })
+  await render({ organizationPage: true })
+  const recent = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'launch'
+  )
+  expect(recent).not.toBeUndefined()
+  await act(async () => {
+    recent!.click()
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(useMothershipDraftsStore.getState().drafts[draftKey]?.text).toBe('unfinished question')
+  expect(requests.at(-1)?.body.query).toBe('launch')
 })

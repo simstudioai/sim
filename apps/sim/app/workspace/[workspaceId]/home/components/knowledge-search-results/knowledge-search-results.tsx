@@ -288,7 +288,7 @@ function SearchResults({
             disabled={fetching}
             onClick={() => void (basesFailed ? refetchIndex() : refetchSearch())}
           >
-            {fetching ? 'Retrying…' : 'Try again'}
+            {fetching ? 'Retrying' : 'Try again'}
           </Chip>
         )}
       </div>

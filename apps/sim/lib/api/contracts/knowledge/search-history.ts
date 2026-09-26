@@ -1,22 +1,24 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { isSearchHistoryUrl, SEARCH_HISTORY_LIMIT } from '@/lib/knowledge/search/history/limits'
+import { SEARCH_HISTORY_LIMIT } from '@/lib/knowledge/search/history/limits'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 export const searchHistoryParamsSchema = z.object({ id: organizationIdSchema })
 export const viewedSearchSourceSchema = z.object({
   url: z
     .string()
     .max(4096)
-    .refine(isSearchHistoryUrl, 'Source URL must be HTTP(S) without credentials'),
+    .refine(isKnowledgeSourceUrl, 'Source URL must be HTTP(S) without credentials'),
   title: z.string().trim().min(1).max(512).optional(),
   siteName: z.string().trim().min(1).max(128).optional(),
   connectorType: z.string().trim().min(1).max(64).optional(),
 })
-export type ViewedSearchSource = z.output<typeof viewedSearchSourceSchema>
+export const recordSearchSourceSchema = viewedSearchSourceSchema.pick({ url: true })
+export type ViewedSearchSource = z.output<typeof recordSearchSourceSchema>
 
 export const recordSearchHistoryBodySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('source'), source: viewedSearchSourceSchema }),
+  z.object({ kind: z.literal('source'), source: recordSearchSourceSchema }),
   z.object({
     kind: z.literal('query'),
     query: z.string().trim().min(1, 'Search query is required').max(4000),

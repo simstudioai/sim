@@ -100,7 +100,7 @@ export function OrganizationSourceStats({ organizationId, tabs }: OrganizationSo
           Couldn’t load Search stats. <Chip onClick={() => void stats.refetch()}>Try again</Chip>
         </SettingsEmptyState>
       ) : !data || !totals ? (
-        <SettingsEmptyState variant='inline'>Loading Search stats…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading Search stats</SettingsEmptyState>
       ) : (
         <>
           <dl className='grid grid-cols-3 gap-5'>

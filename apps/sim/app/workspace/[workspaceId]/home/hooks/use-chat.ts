@@ -1947,7 +1947,10 @@ export function useChat(
         const visible = resourcesRef.current.find(
           (item) => getChatResourceKey(item) === getChatResourceKey(resource)
         )
-        return visible ? [visible] : []
+        if (visible) return [visible]
+        return getChatResourceSelectionId(resource) === selectedResourceIdRef.current
+          ? [resource]
+          : []
       })
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a

@@ -65,7 +65,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
       />
     )
   if (!inventory.data || !policies.data || !secrets.data)
-    return <SettingsEmptyState variant='inline'>Loading your connections…</SettingsEmptyState>
+    return <SettingsEmptyState variant='inline'>Loading your connections</SettingsEmptyState>
   const data = inventory.data
   const approvals = new Map(policies.data.map((policy) => [policy.connectorType, policy]))
   const group = data.credentialGroup
@@ -210,7 +210,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                       connect.variables.optionId === option?.id) ||
                       ('mcpServerId' in connect.variables &&
                         connect.variables.mcpServerId === server?.id))
-                      ? 'Connecting…'
+                      ? 'Connecting'
                       : accounts.length
                         ? 'Add account'
                         : 'Connect'}

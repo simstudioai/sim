@@ -5,12 +5,15 @@ import {
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
-import { isSearchHistoryUrl } from '@/lib/knowledge/search/history/limits'
+import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import {
+  readAccessibleHistorySources,
   readSearchHistory,
   type SearchHistoryEvent,
   updateSearchHistory,
 } from '@/lib/knowledge/search/history/repository'
+import { findSearchIndex } from '@/lib/knowledge/search/search-index'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
 
 export const searchHistoryOperations = {
   list: defineOrganizationOperation({
@@ -44,14 +47,33 @@ interface RecordSearchHistoryInput extends SearchHistoryInput {
 export const listSearchHistory = defineAuthorizedOrganizationUseCase({
   operation: searchHistoryOperations.list,
   authorizeResource: ({ context }) => requireOrganizationSearchAvailable(context.organizationId),
-  execute: ({ context }: OrganizationUseCaseContext<SearchHistoryInput>) =>
-    readSearchHistory(context),
+  async execute({ context, request }: OrganizationUseCaseContext<SearchHistoryInput>) {
+    const history = await readSearchHistory(context)
+    if (!history.sources.length) return { ...history, sources: [] }
+    const index = await findSearchIndex({
+      kind: 'organization',
+      organizationId: context.organizationId,
+    })
+    if (!index) return { ...history, sources: [] }
+    const access = createUserKnowledgeAccessProvider(context.userId, {
+      organizationId: context.organizationId,
+      knowledgeBaseIds: [index.id],
+      signal: request?.signal,
+    })
+    const sources = await readAccessibleHistorySources(
+      index.id,
+      history.sources,
+      access,
+      request?.signal
+    )
+    return { ...history, sources }
+  },
 })
 export const recordSearchHistory = defineAuthorizedOrganizationUseCase({
   operation: searchHistoryOperations.record,
   authorizeResource: ({ context }) => requireOrganizationSearchAvailable(context.organizationId),
   async execute({ input, context }: OrganizationUseCaseContext<RecordSearchHistoryInput>) {
-    if (input.event.kind === 'source' && !isSearchHistoryUrl(input.event.source.url))
+    if (input.event.kind === 'source' && !isKnowledgeSourceUrl(input.event.source.url))
       throw new OrchestrationError('validation', 'Source URL must be HTTP(S) without credentials')
     await updateSearchHistory(context, input.event)
     return { success: true as const }

@@ -929,10 +929,10 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string {
   const last = blocks[blocks.length - 1]
   switch (last?.type) {
     case 'subagent_end':
-      return 'Returning…'
+      return 'Returning'
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
-        ? 'Dispatching…'
+        ? 'Dispatching'
         : 'Thinking'
     default:
       return 'Thinking'

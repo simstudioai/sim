@@ -24,8 +24,9 @@ export function SearchLandingHistory({
   const history = useSearchHistory(organizationId)
   const clear = useClearSearchHistory(organizationId, userId)
   const [selection, setSelection] = useState<'sources' | 'queries' | null>(null)
-  const sources = history.data?.sources.slice(0, 5) ?? []
-  const queries = history.data?.queries.slice(0, 5) ?? []
+  const data = history.isError ? undefined : history.data
+  const sources = data?.sources.slice(0, 5) ?? []
+  const queries = data?.queries.slice(0, 5) ?? []
   const selected = selection ?? (sources.length > 0 ? 'sources' : 'queries')
   return (
     <div className={cn('w-full min-w-0', inter.className)}>
@@ -58,27 +59,46 @@ export function SearchLandingHistory({
               Clear history
             </Chip>
           </div>
-          {selected === 'sources' ? (
-            sources.length > 0 ? (
-              sources.map((source) => <SourceCard key={source.url} source={source} dense />)
-            ) : (
-              <p className='px-2 py-2 text-[var(--text-tertiary)] text-small'>
-                Sources you open will appear here.
-              </p>
-            )
-          ) : queries.length > 0 ? (
-            <div className='flex flex-col gap-1'>
-              {queries.map(({ query }) => (
-                <Chip key={query} fullWidth leftIcon={Clock} onClick={() => onSearch(query)}>
-                  {query}
-                </Chip>
-              ))}
+          <div className='grid grid-cols-1'>
+            <div
+              className={cn(
+                'col-start-1 row-start-1 min-w-0',
+                selected !== 'sources' && 'invisible'
+              )}
+              inert={selected !== 'sources'}
+              aria-hidden={selected !== 'sources'}
+            >
+              {sources.length > 0 ? (
+                sources.map((source) => <SourceCard key={source.url} source={source} dense />)
+              ) : (
+                <p className='px-2 py-2 text-[var(--text-tertiary)] text-small'>
+                  Sources you open will appear here.
+                </p>
+              )}
             </div>
-          ) : (
-            <p className='px-2 py-2 text-[var(--text-tertiary)] text-small'>
-              Your recent searches will appear here.
-            </p>
-          )}
+            <div
+              className={cn(
+                'col-start-1 row-start-1 min-w-0',
+                selected !== 'queries' && 'invisible'
+              )}
+              inert={selected !== 'queries'}
+              aria-hidden={selected !== 'queries'}
+            >
+              {queries.length > 0 ? (
+                queries.map(({ query }) => (
+                  <div key={query} className='py-1'>
+                    <Chip fullWidth leftIcon={Clock} onClick={() => onSearch(query)}>
+                      {query}
+                    </Chip>
+                  </div>
+                ))
+              ) : (
+                <p className='px-2 py-2 text-[var(--text-tertiary)] text-small'>
+                  Your recent searches will appear here.
+                </p>
+              )}
+            </div>
+          </div>
         </section>
       )}
       {history.isError && (
