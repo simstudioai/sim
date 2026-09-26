@@ -885,7 +885,15 @@ export class ConformanceLinter {
             ['before', before],
             ['after', after],
           ] as const)
-            for (const note of facts.unchecked) report.unchecked.push({ ...note, file, side })
+            for (const note of facts.unchecked) {
+              const diagnostic = {
+                ...note,
+                file: side === 'before' ? (change.before?.path ?? file) : file,
+                side,
+              }
+              report.unchecked.push(diagnostic)
+              if (inspectionFailure(note.reason)) report.coverageFailures?.push(diagnostic)
+            }
           const converted = (f: Facts, system: DesignSystem): Facts => ({
             ...f,
             atoms: f.atoms.map((a) => compilationAtom(a, system)),

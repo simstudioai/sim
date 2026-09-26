@@ -672,6 +672,88 @@ test('working-tree mode includes a changed central contract registry', () => {
   expect(report.findings.some((finding) => finding.file === file)).toBe(true)
 })
 
+test.each(['before', 'after', 'rename', 'invalid-base', 'invalid-head', 'unresolved'])(
+  'central inspection coverage preserves the CLI failure boundary: %s',
+  (scenario) => {
+    const { repo } = fixture()
+    const file = 'packages/emcn/src/components/view.tsx'
+    const renamed = 'packages/emcn/src/components/moved-view.tsx'
+    const valid = 'const View=()=> <div/>'
+    const extractionFailure =
+      "import {constructor} from '../index';const View=()=> <div className={constructor}/>"
+    const malformed = 'const View=()=> <div className={'
+    const write = (name: string, source: string) => {
+      mkdirSync(path.dirname(path.join(repo, name)), { recursive: true })
+      writeFileSync(path.join(repo, name), source)
+    }
+    write(ui, valid)
+    write('packages/emcn/src/index.ts', 'export {}')
+    write(
+      file,
+      scenario === 'invalid-base'
+        ? malformed
+        : ['before', 'rename'].includes(scenario)
+          ? extractionFailure
+          : valid
+    )
+    const base = commit(repo)
+    if (scenario === 'rename') git(repo, ['mv', file, renamed])
+    else
+      write(
+        file,
+        scenario === 'invalid-head'
+          ? malformed
+          : scenario === 'after'
+            ? extractionFailure
+            : scenario === 'unresolved'
+              ? "import {missing} from '../index';const View=()=> <div className={missing}/>"
+              : valid
+      )
+    const head = commit(repo)
+    const child = run(['--repo', repo, '--base', base, '--head', head, '--format', 'json'])
+    const report = JSON.parse(child.stdout) as Report
+    expect(child.status, child.stdout).toBe(scenario === 'unresolved' ? 0 : 2)
+    expect(report.status).toBe(scenario === 'unresolved' ? 'completed' : 'failed')
+    expect(report.flagged).toBe(scenario === 'unresolved' ? false : null)
+    if (['before', 'after', 'rename'].includes(scenario)) {
+      const expected =
+        scenario === 'rename'
+          ? [
+              { file, side: 'before' },
+              { file: renamed, side: 'after' },
+            ]
+          : [{ file, side: scenario }]
+      expect(report.coverageFailures).toHaveLength(expected.length)
+      expect(report.coverageFailures).toEqual(
+        expect.arrayContaining(
+          expected.map((origin) =>
+            expect.objectContaining({
+              ...origin,
+              reason: expect.stringMatching(/^Extraction failure:/),
+            })
+          )
+        )
+      )
+      expect(report.unchecked).toEqual(
+        expect.arrayContaining(
+          expected.map((origin) =>
+            expect.objectContaining({
+              ...origin,
+              reason: expect.stringMatching(/^Extraction failure:/),
+            })
+          )
+        )
+      )
+    } else if (scenario === 'unresolved') {
+      expect(report.coverageFailures).toEqual([])
+      expect(
+        report.unchecked.some((note) => note.reason.includes('Imported styling input is unchecked'))
+      ).toBe(true)
+    } else expect(report.error).toMatch(/parser failure|Extraction failure/i)
+  },
+  30_000
+)
+
 test('text, JSON and output files preserve finding identity and normal command exit codes', () => {
   const { repo, base, head } = fixture()
   const args = ['--repo', repo, '--base', base]
