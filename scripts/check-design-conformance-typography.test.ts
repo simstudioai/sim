@@ -183,3 +183,12 @@ test('uninspected CSS cannot establish global weight token ownership', () => {
   expect(result.classifications).toEqual([])
   expect(result.unchecked.some((n) => n.file === 'apps/sim/components/gap.css')).toBe(true)
 })
+
+test('a runtime text-size writer revokes the loader fallback proof', () => {
+  const result = review({
+    [loader]: writer,
+    [loaderCss]: labels,
+    'apps/sim/components/writer.ts': "node.style.setProperty('--text-sm',runtime)",
+  })
+  expect(result.classifications.some((c) => c.file === loaderCss)).toBe(false)
+})

@@ -485,3 +485,21 @@ test.each([
 ])('inspection failures are not unresolved styling: %s', (reason) => {
   expect(inspectionFailure(reason)).toBe(true)
 })
+
+test.each(['button', 'input', 'textarea', 'select', 'section > button.action', 'button + input'])(
+  'bare native CSS controls are reviewable: %s',
+  (selector) => {
+    expect(
+      inspect({
+        'apps/sim/components/native.css': `${selector}{padding:3px}`,
+      }).review.findings.some((f) => f.rule === 'styled-native-control')
+    ).toBe(true)
+  }
+)
+test('similarly named CSS classes are not native-control selectors', () => {
+  expect(
+    inspect({ 'apps/sim/components/native.css': '.buttonish{padding:3px}' }).review.findings.some(
+      (f) => f.rule === 'styled-native-control'
+    )
+  ).toBe(false)
+})

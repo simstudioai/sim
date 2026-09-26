@@ -52,7 +52,7 @@ export interface ColourAssignmentReport {
   findings: InventoryFinding[]
   unchecked: Diagnostic[]
   assignments: (Assignment & Check)[]
-  variables: (Check & { name: string; global: boolean; writers: number })[]
+  variables: (Check & { name: string; global: boolean; writers: number; complete: boolean })[]
   uses: ColourUse[]
   verifiedUsages: VerifiedColourUsage[]
   coverage: { checked: number; verified: number; invalid: number; unresolved: number }
@@ -531,7 +531,7 @@ export class ColourAssignments {
     }
     const records: ColourAssignmentReport['assignments'] = []
     const findings: InventoryFinding[] = []
-    const checkVariable = (name: string, seen: Set<string>): Check => {
+    const checkVariable = (name: string, seen: Set<string>, channels = false): Check => {
       if (name.startsWith('--landing-'))
         return {
           status: 'invalid',
@@ -546,20 +546,22 @@ export class ColourAssignments {
         }
       const next = new Set(seen).add(name)
       if (this.globals.has(name)) {
-        if (!this.globalColour(name))
+        if (!this.globalColour(name, new Set(), channels))
           return {
             status: 'invalid',
             reason: `Global variable is not a resolved colour token: ${name}`,
             references: [name],
           }
         const overrides = byName.get(name) ?? []
-        const checks = overrides.map((writer) => checkAssignment(writer, next))
+        const checks = overrides.map((writer) => checkAssignment(writer, next, channels))
         const dependencies = (this.globals.get(name) ?? [])
           .filter((value) => value.trim() !== `var(${name})`)
-          .flatMap(variablesIn)
+          .flatMap((value) => colourReferences(value, channels))
         return combine([
           { status: 'verified', reason: 'Existing global colour', references: [name] },
-          ...dependencies.map((dependency) => checkVariable(dependency, next)),
+          ...dependencies.map((dependency) =>
+            checkVariable(dependency.name, next, dependency.channels)
+          ),
           ...checks,
         ])
       }
@@ -570,7 +572,7 @@ export class ColourAssignments {
           reason: `No definition in globals.css or checked local assignment: ${name}`,
           references: [],
         }
-      return combine(writers.map((writer) => checkAssignment(writer, next)))
+      return combine(writers.map((writer) => checkAssignment(writer, next, channels)))
     }
     const completeShadow = (value: string, seen = new Set<string>()): boolean => {
       const alias = /^var\(\s*(--[\w-]+)\s*\)$/.exec(value.trim())
@@ -613,7 +615,11 @@ export class ColourAssignments {
         })
       })
     }
-    const checkAssignment = (assignment: Assignment, seen: Set<string>): Check => {
+    const checkAssignment = (
+      assignment: Assignment,
+      seen: Set<string>,
+      channels = false
+    ): Check => {
       if (assignment.name === '*')
         return {
           status: 'unresolved',
@@ -651,7 +657,12 @@ export class ColourAssignments {
             reason: `Global colour ${plainVariable[1]} is not a complete shadow recipe`,
             references: [plainVariable[1]],
           }
-        return checkColourValue(value, (name) => checkVariable(name, seen), shadowSink)
+        return checkColourValue(
+          value,
+          (name, context) => checkVariable(name, seen, context),
+          shadowSink,
+          channels
+        )
       })
       if (assignment.unresolved)
         checks.push({
@@ -660,6 +671,24 @@ export class ColourAssignments {
           references: [],
         })
       return combine(checks)
+    }
+    for (const use of this.uses) {
+      if (!use.file.endsWith('.css') || centralFile(use.file)) continue
+      if (
+        use.variables.some(
+          (name) =>
+            checkVariable(name, new Set(), true).status === 'verified' &&
+            checkVariable(name, new Set()).status !== 'verified'
+        )
+      )
+        assignments.push({
+          ...use,
+          name: use.property,
+          values: [use.value],
+          unresolved: false,
+          input: use.value,
+          direct: true,
+        })
     }
     for (const assignment of assignments.sort(
       (a, b) =>
@@ -670,7 +699,7 @@ export class ColourAssignments {
         (!assignment.direct && assignment.name !== '*' && !this.colours.has(assignment.name))
       )
         continue
-      const check = checkAssignment(assignment, new Set([assignment.name]))
+      const check = checkAssignment(assignment, new Set([assignment.name]), !assignment.direct)
       records.push({ ...assignment, ...check })
       if (check.status === 'verified') continue
       if (check.status === 'unresolved') {
@@ -723,7 +752,8 @@ export class ColourAssignments {
           name,
           global: this.globals.has(name),
           writers: byName.get(name)?.length ?? 0,
-          ...checkVariable(name, new Set()),
+          ...checkVariable(name, new Set(), true),
+          complete: checkVariable(name, new Set()).status === 'verified',
         })),
       uses: [...new Map(this.uses.map((use) => [canonical(use), use])).values()].sort((a, b) =>
         compare(canonical(a), canonical(b))
@@ -738,7 +768,7 @@ export class ColourAssignments {
     }
   }
 
-  globalColour(name: string, seen = new Set<string>()): boolean {
+  globalColour(name: string, seen = new Set<string>(), allowChannels = true): boolean {
     if (seen.has(name) || seen.size >= 20) return false
     const values = this.globals.get(name)?.filter((value) => value.trim() !== `var(${name})`)
     if (!values?.length) return false
@@ -750,6 +780,7 @@ export class ColourAssignments {
       const channels = /^\d+(?:\.\d+)?(?:deg)?\s+\d+(?:\.\d+)?%\s+\d+(?:\.\d+)?%$/.test(
         value.trim()
       )
+      if (channels && !allowChannels) return false
       if (
         !channels &&
         (nodes.length !== 1 ||
@@ -771,9 +802,9 @@ export class ColourAssignments {
             ].includes(nodes[0].value)))
       )
         return false
-      const refs = variablesIn(value)
+      const refs = colourReferences(value, allowChannels)
       return refs.length
-        ? refs.every((ref) => this.globalColour(ref, next))
+        ? refs.every((ref) => this.globalColour(ref.name, next, ref.channels))
         : rawColours(value) ||
             /^(?:transparent|currentColor|\d+(?:\.\d+)?(?:deg)?\s+\d+(?:\.\d+)?%\s+\d+(?:\.\d+)?%)$/.test(
               value.trim()
@@ -782,10 +813,31 @@ export class ColourAssignments {
   }
 }
 
+/** Preserve the channel context of each variable rather than treating channels as complete paint. */
+function colourReferences(value: string, channels = false): { name: string; channels: boolean }[] {
+  const refs: { name: string; channels: boolean }[] = []
+  const visit = (nodes: valueParser.Node[], context: boolean) => {
+    for (const node of nodes) {
+      if (node.type !== 'function') continue
+      if (node.value === 'var') {
+        const comma = node.nodes.findIndex((part) => part.type === 'div' && part.value === ',')
+        const name = valueParser
+          .stringify(comma < 0 ? node.nodes : node.nodes.slice(0, comma))
+          .trim()
+        if (/^--[\w-]+$/.test(name)) refs.push({ name, channels: context })
+        if (comma >= 0) visit(node.nodes.slice(comma + 1), context)
+      } else visit(node.nodes, ['hsl', 'hsla', 'rgb', 'rgba'].includes(node.value) || context)
+    }
+  }
+  visit(valueParser(value).nodes, channels)
+  return refs
+}
+
 function checkColourValue(
   text: string,
-  variable: (name: string) => Check,
-  shadowGeometry = false
+  variable: (name: string, channels: boolean) => Check,
+  shadowGeometry = false,
+  channelContext = false
 ): Check {
   if (/^(?:currentColor|inherit|unset|revert|revert-layer)$/i.test(text.trim()))
     return {
@@ -794,7 +846,7 @@ function checkColourValue(
       references: [],
     }
   const checks: Check[] = []
-  const visit = (nodes: valueParser.Node[], insideMix = false) => {
+  const visit = (nodes: valueParser.Node[], insideMix = false, channels = channelContext) => {
     for (const node of nodes) {
       if (node.type === 'space' || node.type === 'comment' || node.type === 'div') continue
       if (node.type === 'function') {
@@ -809,14 +861,14 @@ function checkColourValue(
             .trim()
           checks.push(
             /^--[\w-]+$/.test(key)
-              ? variable(key)
+              ? variable(key, channels)
               : { status: 'invalid', reason: 'Invalid CSS variable reference', references: [] }
           )
           if (comma >= 0) {
             const fallback = node.nodes.slice(comma + 1)
             if (!valueParser.stringify(fallback).trim())
               checks.push({ status: 'invalid', reason: 'Empty colour fallback', references: [] })
-            else visit(fallback, insideMix)
+            else visit(fallback, insideMix, channels)
           }
         } else if (['rgb', 'rgba', 'hsl', 'hsla'].includes(node.value)) {
           if (
@@ -827,7 +879,7 @@ function checkColourValue(
               reason: 'Colour channels must come from a global token, not literal channel values',
               references: [],
             })
-          visit(node.nodes, true)
+          visit(node.nodes, true, true)
         } else if (
           [
             'color-mix',
@@ -838,7 +890,7 @@ function checkColourValue(
             'calc',
           ].includes(node.value)
         )
-          visit(node.nodes, true)
+          visit(node.nodes, true, channels)
         else
           checks.push({
             status: 'unresolved',
@@ -884,15 +936,22 @@ export function withoutVerifiedColourUsages<T extends Finding>(
     const names = variablesIn(finding.value)
     // Only resolve local alias provenance; do not broaden unrelated colour/style policy.
     if (!names.some((name) => variables.get(name)?.global === false)) return true
-    const result = checkColourValue(
-      finding.value,
-      (name) =>
-        variables.get(name) ?? {
+    const result = checkColourValue(finding.value, (name, channels) => {
+      const variable = variables.get(name)
+      if (variable?.status === 'verified' && !variable.complete && !channels)
+        return {
+          status: 'invalid',
+          reason: `Channel token ${name} requires a colour function`,
+          references: [name],
+        }
+      return (
+        variable ?? {
           status: 'unresolved',
           reason: `Uninspected colour variable: ${name}`,
           references: [],
         }
-    )
+      )
+    })
     if (result.status !== 'verified') return true
     report.verifiedUsages.push({
       file: finding.file,

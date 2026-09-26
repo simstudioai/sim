@@ -1004,3 +1004,33 @@ test('central inline artwork deletions retain an explicit artwork removal findin
   )
   expect(findings.some((f) => f.value === '(removed)')).toBe(true)
 })
+
+test('a sibling local variable cannot prove typography provenance', async () => {
+  const report = await diff(
+    '',
+    "const A=()=> <><span style={{'--type':'var(--text-small)'}}/><p style={{fontSize:'var(--type)'}}>Text</p></>"
+  )
+  expect(
+    report.findings.some((f) => f.rule === 'central-typography') ||
+      report.unchecked.some((n) => n.reason.includes('--type'))
+  ).toBe(true)
+})
+test('policy object key order is quiet but array order remains meaningful', async () => {
+  const before = JSON.stringify({
+    version: '2.0.0',
+    limits: { depth: 12, branches: 64 },
+    scopes: ['a', 'b'],
+  })
+  const reordered = JSON.stringify({
+    scopes: ['a', 'b'],
+    limits: { branches: 64, depth: 12 },
+    version: '2.0.0',
+  })
+  const file = 'scripts/design-conformance/contracts.json'
+  expect((await diff(before, reordered, file)).findings).toEqual([])
+  expect(
+    (await diff(before, reordered.replace('["a","b"]', '["b","a"]'), file)).findings.some(
+      (f) => f.context === 'contract-registry'
+    )
+  ).toBe(true)
+})

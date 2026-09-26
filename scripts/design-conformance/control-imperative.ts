@@ -209,8 +209,14 @@ export function inspectImperative(
             t.isStringLiteral(parent.node.arguments[0]) &&
             parent.node.arguments[1]
           ) {
-            const attribute = parent.node.arguments[0].value
-            e.inputs[attribute] = value(parent.node.arguments[1], parent)
+            const attribute = parent.node.arguments[0].value.toLowerCase()
+            e.inputs[
+              attribute === 'class'
+                ? 'className'
+                : attribute === 'tabindex'
+                  ? 'tabIndex'
+                  : attribute
+            ] = value(parent.node.arguments[1], parent)
             if (/^on/i.test(attribute)) e.handlers.push(attribute.toLowerCase())
           } else if (
             property === 'addEventListener' &&
@@ -255,7 +261,7 @@ export function inspectImperative(
     e.uncertain ||
     [...e.parents].some((p) => uncertainAncestry(p, new Set(seen).add(e)))
   const interactive = (e: Element) =>
-    ['button', 'a', 'select', 'summary', 'input', 'textarea'].includes(e.tag) ||
+    ['button', 'select', 'summary', 'input', 'textarea'].includes(e.tag) ||
     e.handlers.length > 0 ||
     Object.keys(e.inputs).some((k) =>
       ['role', 'tabIndex', 'tabindex', 'href', 'contenteditable'].includes(k)

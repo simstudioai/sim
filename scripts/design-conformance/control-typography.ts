@@ -178,6 +178,43 @@ export function inspectTypography(source: ControlSource): TypographyReview {
         })
       }
     }
+  const tokenWrites = new Set<string>()
+  for (const [file, text] of texts) {
+    if (file.endsWith('.css')) continue
+    const candidates = [...Object.keys(weights), '--text-sm'].filter((name) => text.includes(name))
+    if (!candidates.length) continue
+    try {
+      const program = parse(text, { sourceType: 'module', plugins: ['typescript', 'jsx'] })
+      t.traverseFast(program, (node) => {
+        const key = t.isObjectProperty(node)
+          ? node.key
+          : t.isAssignmentExpression(node) && t.isMemberExpression(node.left)
+            ? node.left.property
+            : undefined
+        if (key) {
+          const name = t.isStringLiteral(key) ? key.value : t.isIdentifier(key) ? key.name : ''
+          if (candidates.includes(name)) tokenWrites.add(name)
+        }
+        if (
+          t.isCallExpression(node) &&
+          t.isMemberExpression(node.callee) &&
+          t.isIdentifier(node.callee.property, { name: 'setProperty' }) &&
+          t.isStringLiteral(node.arguments[0]) &&
+          candidates.includes(node.arguments[0].value)
+        )
+          tokenWrites.add(node.arguments[0].value)
+        const css = t.isStringLiteral(node)
+          ? node.value
+          : t.isTemplateElement(node)
+            ? node.value.raw
+            : ''
+        for (const match of css.matchAll(/(--[\w-]+)\s*:/g))
+          if (candidates.includes(match[1])) tokenWrites.add(match[1])
+      })
+    } catch {
+      for (const name of candidates) tokenWrites.add(name)
+    }
+  }
   const completeCss = !report.unchecked.some((note) => note.file.endsWith('.css'))
   const globalTokens = new Set<string>()
   for (const [name, expected] of Object.entries({ ...weights, '--text-sm': '0.875rem' })) {
@@ -195,8 +232,7 @@ export function inspectTypography(source: ControlSource): TypographyReview {
       definitions[0].decl.parent?.type === 'atrule' &&
       definitions[0].decl.parent.name === 'theme' &&
       definitions[0].decl.parent.parent?.type === 'root' &&
-      (name === '--text-sm' ||
-        ![...texts].some(([file, text]) => !file.endsWith('.css') && text.includes(name)))
+      !tokenWrites.has(name)
     )
       globalTokens.add(name)
   }

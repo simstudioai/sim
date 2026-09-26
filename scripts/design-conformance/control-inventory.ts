@@ -202,7 +202,8 @@ const nativeRole = (tag: string, values: Record<string, ControlInput>) => {
   const role = values.role?.values?.filter((v) => typeof v === 'string' && roles.has(v)).join('|')
   if (role) return role
   if (tag === 'button' || tag === 'select' || tag === 'summary' || tag === 'textarea') return tag
-  if (tag === 'a') return 'navigation-link'
+  if (tag === 'a' && values.href?.values?.some((value) => typeof value === 'string'))
+    return 'navigation-link'
   if (
     tag === 'input' &&
     values.type?.values?.some((v) =>
@@ -646,7 +647,7 @@ export function inspectControls(
         if (target.startsWith('native:')) {
           const attrs: Record<string, ControlInput> = {}
           for (const a of p.node.openingElement.attributes) {
-            if (!t.isJSXAttribute(a) || !['role', 'type'].includes(key(a.name))) continue
+            if (!t.isJSXAttribute(a) || !['role', 'type', 'href'].includes(key(a.name))) continue
             attrs[key(a.name)] = value(
               t.isJSXExpressionContainer(a.value) ? a.value.expression : (a.value ?? undefined),
               p
@@ -655,7 +656,14 @@ export function inspectControls(
           const semantic = attrs.role?.values?.filter((v) => roles.has(String(v)))
           if (semantic?.length) return semantic.map((v) => `semantic:${v}`)
           const kind = nativeRole(target.slice(7), attrs)
-          if (kind) return [target === 'native:input' ? 'native:input-control' : target]
+          if (kind)
+            return [
+              target === 'native:input'
+                ? 'native:input-control'
+                : target === 'native:a'
+                  ? 'native:navigation-link'
+                  : target,
+            ]
           if (attrs.role?.unresolved) {
             const attribute = p.node.openingElement.attributes.find(
               (a) => t.isJSXAttribute(a) && key(a.name) === 'role'
@@ -677,7 +685,11 @@ export function inspectControls(
               }
             }
           }
-          if (attrs.role?.unresolved || (target === 'native:input' && attrs.type?.unresolved))
+          if (
+            attrs.role?.unresolved ||
+            (target === 'native:input' && attrs.type?.unresolved) ||
+            (target === 'native:a' && attrs.href?.unresolved)
+          )
             return [`unknown:dynamic native control semantics:${file}:${p.node.loc?.start.line}`]
           if (target === 'native:input') return ['noncontrol:text-input']
         }
@@ -1220,8 +1232,17 @@ export function inspectControls(
     } else if (ref.startsWith('unknown:') || ref.startsWith('?')) out.unknown.add(ref)
     else if (ref.startsWith('native:')) {
       const tag = ref.slice(7)
-      if (['button', 'a', 'input-control', 'select', 'summary', 'textarea'].includes(tag))
+      if (
+        ['button', 'input-control', 'select', 'summary', 'textarea', 'navigation-link'].includes(
+          tag
+        )
+      )
         out.controls.add(ref)
+      if (tag === 'a' && props) {
+        const href = staticInputs.evaluate(staticInputs.property(props, 'href'))
+        if (href.values.some((value) => typeof value === 'string')) out.controls.add(ref)
+        if (href.unknown) out.unknown.add('Anchor href remains unresolved')
+      }
     } else if (ref.startsWith('semantic:')) out.controls.add(ref)
     else if (ref.startsWith('!')) {
       const [module, name] = ref.slice(1).split('#')
@@ -1411,6 +1432,7 @@ export function inspectControls(
         /^on(?:click|doubleclick|pointerdown|mousedown|keydown|keyup)$/i.test(h)
       ) ||
       (native && use.tag === 'input' && !!use.inputs.type?.unresolved) ||
+      (native && use.tag === 'a' && !!use.inputs.href?.unresolved) ||
       !!use.inputs.role?.unresolved ||
       !!use.inputs.tabIndex?.unresolved ||
       !!use.inputs.tabIndex?.values?.some((v) => Number(v) >= 0)
@@ -1432,7 +1454,8 @@ export function inspectControls(
     const uncertain =
       (!native && proof.unknown.size > 0) ||
       !!use.inputs.role?.unresolved ||
-      (native && use.tag === 'input' && !!use.inputs.type?.unresolved)
+      (native && use.tag === 'input' && !!use.inputs.type?.unresolved) ||
+      (native && use.tag === 'a' && !!use.inputs.href?.unresolved)
     const origin: ControlRecord['origin'] = use.hidden
       ? 'nonvisual'
       : central

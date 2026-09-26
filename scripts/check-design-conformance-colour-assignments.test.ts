@@ -538,3 +538,13 @@ test('unresolved layout-only aliases are not colour findings', () => {
   expect(report.unchecked.some((n) => n.file === css && n.reason.includes('--layout'))).toBe(true)
   expect(flagged({ [css]: '.label{--ink:var(--missing);color:var(--ink)}' })).toHaveLength(1)
 })
+
+test('HSL channel tokens require a colour function at the visible sink', () => {
+  const global = { [tokens]: ':root{--background:0 0% 100%;--paint:hsl(var(--background))}' }
+  expect(flagged({ ...global, [css]: '.a{color:var(--background)}' })).toHaveLength(1)
+  expect(flagged({ ...global, [css]: '.a{color:hsl(var(--background))}' })).toEqual([])
+  expect(flagged({ ...global, [css]: '.a{color:var(--paint)}' })).toEqual([])
+  expect(
+    flagged({ ...global, [css]: '.a{--alias:var(--background);color:hsl(var(--alias))}' })
+  ).toEqual([])
+})

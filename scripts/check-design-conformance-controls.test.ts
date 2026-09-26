@@ -237,3 +237,25 @@ test('statically resolved ARIA buttons require a name', () => {
   ).toHaveLength(0)
   expect(matching(run('<div role={role}/>'), 'control-accessible-name')).toHaveLength(0)
 })
+
+test('directly referenced hidden text supplies an accessible name', () => {
+  expect(
+    matching(
+      run(
+        '<><span id="name" aria-hidden="true">Run</span><Button aria-labelledby="name"><X/></Button></>'
+      ),
+      'control-accessible-name'
+    )
+  ).toHaveLength(0)
+})
+test('undefined class alternatives cannot exempt visible unnamed buttons', () => {
+  expect(
+    matching(
+      run('<Button className={visible ? undefined : "hidden"}><X/></Button>'),
+      'control-accessible-name'
+    )
+  ).toHaveLength(1)
+  expect(
+    matching(run('<Button className="hidden"><X/></Button>'), 'control-accessible-name')
+  ).toHaveLength(0)
+})

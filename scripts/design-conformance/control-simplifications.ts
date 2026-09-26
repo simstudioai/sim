@@ -643,13 +643,18 @@ export function inspectSimplifications(
     detail: Pick<Detail, 'file' | 'owner'>,
     seen = new Set<string>(),
     depth = 0,
-    incoming?: Expr
+    incoming?: Expr,
+    referencedHidden = false
   ): NameState => {
     if (depth > 20) return 'unknown'
     if (content.kind === 'unknown') return 'unknown'
     if (content.kind === 'text') return texts(content.value)
     if (content.kind === 'choice')
-      return allAlternatives(content.children.map((c) => contentName(c, detail, seen, depth + 1)))
+      return allAlternatives(
+        content.children.map((c) =>
+          contentName(c, detail, seen, depth + 1, undefined, referencedHidden)
+        )
+      )
     let props = content.props
     if (incoming && content.forwarded && props.kind === 'object') {
       const keysToOmit = content.forwarded.omitted
@@ -672,8 +677,10 @@ export function inspectSimplifications(
       }
     }
     const hidden = choices(statics.property(props, 'aria-hidden'), statics)
-    if (hidden?.length && hidden.every((v) => v === true || v === 'true')) return 'empty'
-    if (!hidden || hidden.some((v) => v === true || v === 'true')) return 'unknown'
+    if (!referencedHidden && hidden?.length && hidden.every((v) => v === true || v === 'true'))
+      return 'empty'
+    if (!referencedHidden && (!hidden || hidden.some((v) => v === true || v === 'true')))
+      return 'unknown'
     const label = texts(statics.property(props, 'aria-label'))
     const title = texts(statics.property(props, 'title'))
     if (label !== 'empty' || title !== 'empty') {
@@ -735,7 +742,11 @@ export function inspectSimplifications(
     if (content.target.startsWith('native:')) {
       if (['native:img', 'native:input'].includes(content.target))
         return texts(statics.property(content.props, 'alt'))
-      return siblings(content.children.map((c) => contentName(c, detail, seen, depth + 1)))
+      return siblings(
+        content.children.map((c) =>
+          contentName(c, detail, seen, depth + 1, undefined, referencedHidden)
+        )
+      )
     }
     let refs = g.resolve(content.target)
     if (content.parameter) {
@@ -757,7 +768,8 @@ export function inspectSimplifications(
         roots[0],
         new Set([...seen, target]),
         depth + 1,
-        content.props
+        content.props,
+        referencedHidden
       )
     })
     return states.length ? allAlternatives(states) : 'unknown'
@@ -778,7 +790,9 @@ export function inspectSimplifications(
     const detail = details.get(use.id)
     if (!detail) continue
     if (
-      use.inputs.className?.values?.every((value) => value === 'hidden') &&
+      !!use.inputs.className?.values?.length &&
+      !use.inputs.className.mayBeUndefined &&
+      use.inputs.className.values.every((value) => value === 'hidden') &&
       !use.inputs.className.unresolved
     )
       continue
@@ -800,7 +814,9 @@ export function inspectSimplifications(
                   d.owner === use.owner &&
                   choices(statics.property(d.content.props, 'id'), statics)?.includes(id)
               )
-              return matches.length === 1 ? contentName(matches[0].content, matches[0]) : 'unknown'
+              return matches.length === 1
+                ? contentName(matches[0].content, matches[0], new Set(), 0, undefined, true)
+                : 'unknown'
             })
           )
         })

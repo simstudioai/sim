@@ -149,25 +149,23 @@ function expanded(ds: Declaration[], system: DesignSystem): Declaration[] {
 }
 function inspect(facts: Facts, file: string, system: DesignSystem): Checked {
   const out: Checked = { findings: [], unchecked: [...facts.unchecked], governed: 0, ungoverned: 0 }
-  const localVars = new Map(
-    (facts.surfaces ?? []).flatMap((s) =>
-      s.atoms
+  for (const surface of facts.surfaces ?? []) {
+    const localVars = new Map(
+      surface.atoms
         .filter((a) => a.kind === 'token' || a.property.startsWith('--'))
         .map((a) => [a.property, a.value] as const)
     )
-  )
-  const expand = (value: string, seen = new Set<string>()): string =>
-    value.replace(/var\(\s*(--[\w-]+)\s*\)/g, (all, key: string) => {
-      if (
-        system.variableFamilies.has(key) ||
-        !localVars.has(key) ||
-        seen.has(key) ||
-        seen.size >= 12
-      )
-        return all
-      return expand(localVars.get(key) as string, new Set(seen).add(key))
-    })
-  for (const surface of facts.surfaces ?? []) {
+    const expand = (value: string, seen = new Set<string>()): string =>
+      value.replace(/var\(\s*(--[\w-]+)\s*\)/g, (all, key: string) => {
+        if (
+          system.variableFamilies.has(key) ||
+          !localVars.has(key) ||
+          seen.has(key) ||
+          seen.size >= 12
+        )
+          return all
+        return expand(localVars.get(key) as string, new Set(seen).add(key))
+      })
     if (surface.kind === 'integration') continue
     const surfaceFindings = new Set<string>()
     const emit = (
@@ -684,15 +682,27 @@ export class ConformanceLinter {
         if (isRegistry(file)) {
           const b = change.before ? JSON.parse(read(change.before)) : null
           const a = change.after ? JSON.parse(read(change.after)) : null
-          if (canonical(b) !== canonical(a))
+          const stable = (value: unknown): unknown =>
+            Array.isArray(value)
+              ? value.map(stable)
+              : value && typeof value === 'object'
+                ? Object.fromEntries(
+                    Object.entries(value)
+                      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+                      .map(([key, value]) => [key, stable(value)])
+                  )
+                : value
+          const beforePolicy = canonical(stable(b))
+          const afterPolicy = canonical(stable(a))
+          if (beforePolicy !== afterPolicy)
             report.findings.push({
               kind: 'system-change',
               contract: 'central-definition',
               rule: 'central-definition',
               category: 'contracts',
               property: 'registry',
-              value: hash(canonical(a)),
-              before: hash(canonical(b)),
+              value: hash(afterPolicy),
+              before: hash(beforePolicy),
               reason: 'Design-system contract registry changed',
               file,
               line: 1,

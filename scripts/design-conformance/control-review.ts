@@ -242,7 +242,10 @@ export class ReviewCollector {
           )
         })
         css.walkRules((rule) => {
-          if (!/(?:input|button|select|textarea)\s*(?:\[|:)/.test(rule.selector)) return
+          if (
+            !/(?:^|[\s>+~,])(?:input|button|select|textarea)(?=$|[\s.#[:>+~,])/.test(rule.selector)
+          )
+            return
           this.add(
             'styled-native-control',
             entry.path,

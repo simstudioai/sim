@@ -544,3 +544,21 @@ test('central controls are discovered from rendering, not a component name regis
   expect(record.origin).toBe('emcn-component')
   expect(record.inputs.density.effectiveValues).toEqual(['compact'])
 })
+
+test('imperative anchors require href or an explicit interaction', () => {
+  const f = fixture({
+    [location]:
+      "export function widget(){const root=document.createElement('div');const text=document.createElement('a');text.textContent='Text';const link=document.createElement('a');link.setAttribute('href','/go');root.append(text,link);return root}",
+  })
+  expect(consumer(f.scan()).map((r) => r.inputs.href?.values)).toEqual([['/go']])
+})
+test('DOM class and uppercase attributes normalize before control review', () => {
+  const f = fixture({
+    [location]:
+      "export function widget(){const root=document.createElement('div');const button=document.createElement('div');button.setAttribute('ROLE','button');button.setAttribute('CLASS','rounded-lg');root.append(button);return root}",
+  })
+  const r = consumer(f.scan())[0]
+  expect(r.inputs.role.values).toEqual(['button'])
+  expect(r.inputs.className.values).toEqual(['rounded-lg'])
+  expect(r.appearance.localInputs).toBe(true)
+})
