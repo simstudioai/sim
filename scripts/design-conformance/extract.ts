@@ -7,6 +7,7 @@ import { type DefaultTreeAdapterMap, parse as parseHtml } from 'parse5'
 import postcss from 'postcss'
 import { immutable } from '#control-analysis/static-inputs'
 import { artworkSyntax } from '#design-conformance/artwork'
+import { classMapTruth } from '#design-conformance/class-map'
 import type { ComponentContract } from '#design-conformance/contracts'
 import type { Reference } from '#design-conformance/design-system'
 import { iconScope } from '#design-conformance/icon-scope'
@@ -743,7 +744,7 @@ export function extract(
           if (x.isObjectProperty() && !x.node.computed) {
             const k = x.get('key')
             const v = name(k)
-            if (v && !x.get('value').isBooleanLiteral({ value: false }))
+            if (v && classMapTruth(x.node.value) !== false)
               for (const c of v.split(/\s+/)) emit(k, 'class', 'class', c, `${context}/enabled`)
           } else note(x, 'Computed/spread class map is unchecked')
         }

@@ -22,6 +22,7 @@ import { snapshotHash } from '#design-conformance/system-snapshot'
 const temp = mkdtempSync(path.join(os.tmpdir(), 'design-command-'))
 afterAll(() => rmSync(temp, { recursive: true, force: true }))
 const cli = fileURLToPath(new URL('./check-design-conformance.ts', import.meta.url))
+const generatorCli = fileURLToPath(new URL('./generate-design-contracts.ts', import.meta.url))
 const ci = fileURLToPath(new URL('./design-conformance/ci.ts', import.meta.url))
 const ui = 'apps/sim/components/example.tsx'
 
@@ -235,6 +236,76 @@ test('anonymous layer precedence limits remain explicit through the real CLI', (
     )
   ).toBe(true)
 })
+
+test.each([
+  ['null', 'cn', 'null', false],
+  ['zero', 'clsx', '0', false],
+  ['empty string', 'cn', "''", false],
+  ['false', 'clsx', 'false', false],
+  ['signed zero', 'cn', '-0', false],
+  ['bigint zero', 'clsx', '0n', false],
+  ['typed null', 'cn', '(null as unknown)', false],
+  ['empty template', 'clsx', '``', false],
+  ['void expression', 'cn', 'void unknownInput()', false],
+  ['negated true', 'clsx', '!true', false],
+  ['true', 'cn', 'true', true],
+  ['nonzero number', 'clsx', '1', true],
+  ['nonempty string', 'cn', "'enabled'", true],
+  ['object', 'clsx', '{}', true],
+  ['dynamic', 'cn', 'active', true],
+] as const)(
+  'class map enablement follows clsx truthiness through the real CLI: %s',
+  (_name, helper, value, notify) => {
+    const { repo } = fixture()
+    writeFileSync(path.join(repo, ui), 'const A=()=> <p>Text</p>')
+    const base = commit(repo)
+    const imports = helper === 'cn' ? "import {cn} from '@sim/emcn'" : "import clsx from 'clsx'"
+    writeFileSync(
+      path.join(repo, ui),
+      `${imports};const A=()=> <p className={${helper}({'text-[#123456]':${value}})}>Text</p>`
+    )
+    const result = run(['--repo', repo, '--base', base, '--working-tree', '--format', 'json'])
+    expect([0, 1], result.stderr).toContain(result.status)
+    const report = JSON.parse(result.stdout) as Report
+    expect(report.status).toBe('completed')
+    expect(
+      report.findings.some((finding) => finding.file === ui),
+      result.stdout
+    ).toBe(notify)
+  }
+)
+
+test.each([
+  ['static falsy values', "{'p-2':null,'rounded-lg':0,'font-bold':'','border-2':false}", []],
+  ['truthy string value', "{'bg-red-500':'text-[37px]'}", ['background-color']],
+  ['dynamic value', "{'p-2':active}", ['padding']],
+] as const)(
+  'source metadata follows class map enablement through the generator CLI: %s',
+  (_name, map, protectedProperties) => {
+    const { repo } = fixture()
+    const write = (file: string, source: string) => {
+      mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+      writeFileSync(path.join(repo, file), source)
+    }
+    write('packages/emcn/src/index.ts', "export * from './components/example'")
+    write(
+      'packages/emcn/src/components/example.tsx',
+      `
+import type {HTMLAttributes} from 'react'
+declare function cn(...args:unknown[]):string
+declare const active:boolean
+export function Example({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn(${map},className)}/>}
+throw new Error('Product source must not execute')
+`
+    )
+    const result = run(['--repo', repo], generatorCli)
+    expect(result.status, result.stderr).toBe(0)
+    const metadata = JSON.parse(
+      readFileSync(path.join(repo, 'scripts/design-conformance/contracts.generated.json'), 'utf8')
+    )
+    expect(metadata.exports.Example.slots.className.protected).toEqual(protectedProperties)
+  }
+)
 
 test('working-tree mode includes a changed central contract registry', () => {
   const { repo } = fixture()

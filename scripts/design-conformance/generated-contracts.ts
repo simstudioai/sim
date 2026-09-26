@@ -7,6 +7,7 @@ import { compareStrings } from '@sim/utils/string'
 import ts from '@typescript/typescript6'
 import { LRUCache } from 'lru-cache'
 import postcss from 'postcss'
+import { classMapTruth } from '#design-conformance/class-map'
 import { centralCompiler, centralCompilerDiagnostics } from '#design-conformance/design-system'
 import { canonical, category, family, hash, TOKEN_FILE } from '#design-conformance/model'
 import {
@@ -493,14 +494,9 @@ async function generate(
     if (t.isObjectExpression(node))
       return node.properties.flatMap((p) =>
         t.isObjectProperty(p)
-          ? [
-              ...(!t.isBooleanLiteral(p.value, { value: false }) ? [key(p.key)] : []),
-              ...(t.isStringLiteral(p.value) ||
-              t.isObjectExpression(unwrap(p.value)) ||
-              t.isArrayExpression(unwrap(p.value))
-                ? strings(file, p.value, seen)
-                : []),
-            ]
+          ? classMapTruth(p.value) !== false
+            ? [key(p.key)].filter(Boolean)
+            : []
           : t.isSpreadElement(p)
             ? strings(file, p.argument, seen)
             : []
