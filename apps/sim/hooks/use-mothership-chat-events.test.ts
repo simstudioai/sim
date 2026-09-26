@@ -223,17 +223,22 @@ describe('chat detail refetches driven by status events', () => {
     unsubscribe()
   })
 
-  it('reloads the transcript when a stream this viewer is not rendering completes', async () => {
-    const { queryClient, fetchTranscript, unsubscribe } = mountDetail({
-      ...liveStream,
-      messages: [{ id: 'stream-1' }] as MothershipChatHistory['messages'],
-    })
+  it('reloads the saved transcript when a cached mid-stream detail is opened after completion', async () => {
+    const queryClient = new QueryClient()
+    const fetchTranscript = vi.fn(async () => ({ ...liveStream, activeStreamId: null }))
+    queryClient.setQueryData(mothershipChatKeys.detail('chat-1'), liveStream)
 
     handleMothershipChatStatusEvent(queryClient, 'ws-1', {
       chatId: 'chat-1',
       type: 'completed',
       streamId: 'stream-1',
     })
+    const unsubscribe = new QueryObserver(queryClient, {
+      queryKey: mothershipChatKeys.detail('chat-1'),
+      queryFn: fetchTranscript,
+      staleTime: Number.POSITIVE_INFINITY,
+    }).subscribe(() => {})
+
     await vi.waitFor(() => expect(fetchTranscript).toHaveBeenCalledTimes(1))
     unsubscribe()
   })

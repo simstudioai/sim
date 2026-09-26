@@ -59,22 +59,14 @@ function hasNewerKnownActiveStream(current: MothershipChatHistory | undefined, s
   return activeIndex > eventStreamIndex
 }
 
-/**
- * Returns true when refetching the chat detail for a stream event would only
- * reload the transcript this client already holds or is about to reload. A
- * completion of the viewer's own live stream is skipped because the server
- * persists the turn before closing that stream, and the client's own
- * finalization refetches the detail once it sees the close.
- */
 function shouldSkipDetailInvalidationForStreamEvent(
   current: MothershipChatHistory | undefined,
   payload: ChatStatusEventPayload
 ) {
   if (!current?.activeStreamId) return false
   if (!payload.streamId) return isLocalOptimisticActiveStream(current)
-  if (current.activeStreamId === payload.streamId) {
-    return payload.type === 'started' || isLocalOptimisticActiveStream(current)
-  }
+  if (payload.type === 'started' && current.activeStreamId === payload.streamId) return true
+  if (current.activeStreamId === payload.streamId) return false
   if (hasNewerKnownActiveStream(current, payload.streamId)) return true
   return (
     payload.type === 'completed' &&
@@ -145,7 +137,21 @@ export function handleMothershipChatStatusEvent(
     mothershipChatKeys.detail(payload.chatId)
   )
   if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) return
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
+  /**
+   * A completion of the cached live stream only marks the detail stale. The
+   * server persists the turn before closing the stream, so a surface rendering
+   * it refetches through its own finalization; the live message alone cannot
+   * tell this tab's stream from a server-loaded mid-stream snapshot, so any
+   * other cached copy reloads the saved transcript on its next mount.
+   */
+  const completesCachedLiveStream =
+    payload.type === 'completed' &&
+    current?.activeStreamId === payload.streamId &&
+    isLocalOptimisticActiveStream(current)
+  queryClient.invalidateQueries({
+    queryKey: mothershipChatKeys.detail(payload.chatId),
+    ...(completesCachedLiveStream ? { refetchType: 'none' as const } : {}),
+  })
 }
 
 /**
