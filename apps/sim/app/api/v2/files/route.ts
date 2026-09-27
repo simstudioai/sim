@@ -9,6 +9,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
@@ -94,6 +95,10 @@ export const POST = defineV2JsonRoute({
   }),
   useCase: createWorkspaceFile,
   present: async ({ file, diagnostics }) => ({
-    data: { ...(await toV2File(file)), ...(diagnostics ? { diagnostics } : {}) },
+    data: {
+      ...(await toV2File(file)),
+      ...workspaceFileRevisionField(file),
+      ...(diagnostics ? { diagnostics } : {}),
+    },
   }),
 })

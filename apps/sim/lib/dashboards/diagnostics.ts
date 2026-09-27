@@ -12,5 +12,5 @@ export function dashboardDiagnostics(
 ): string[] | undefined {
   if (contentType !== DASHBOARD_CONTENT_TYPE) return undefined
   const { error } = parseDashboardSpec(content.toString())
-  return error ? [error] : []
+  return error ? error.split('\n') : []
 }

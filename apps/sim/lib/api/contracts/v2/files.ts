@@ -767,11 +767,12 @@ const fileDiagnosticsSchema = z
   )
 
 export const v2CreatedFileSchema = v2FileSchema
-  .extend({ diagnostics: fileDiagnosticsSchema })
+  .extend({ revision: writtenFileRevisionSchema, diagnostics: fileDiagnosticsSchema })
   .meta({
     id: 'V2CreatedFile',
     title: 'Created file',
-    description: 'A newly created workspace file, with any dashboard parse errors.',
+    description:
+      'A newly created workspace file, with the revision it produced and any dashboard parse errors.',
   })
 
 export const v2CreateFileContract = defineRouteContract({

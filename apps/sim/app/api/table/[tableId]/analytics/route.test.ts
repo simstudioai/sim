@@ -1,6 +1,6 @@
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
-import { NextRequest } from 'next/server'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from '@/app/api/table/[tableId]/analytics/route'
 
@@ -24,11 +24,7 @@ const body = {
   },
 }
 const request = (value: unknown) =>
-  new NextRequest('http://localhost/api/table/tbl_test/analytics', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(value),
-  })
+  createMockRequest({ method: 'POST', url: '/api/table/tbl_test/analytics', body: value })
 beforeEach(() => {
   mocks.session.mockResolvedValue({ user: { id: 'viewer' }, session: { id: 'session' } })
   mocks.limit.mockResolvedValue(null)

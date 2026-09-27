@@ -4116,6 +4116,10 @@
             "format": "date-time",
             "examples": ["2026-01-16T09:00:00Z"]
           },
+          "revision": {
+            "description": "Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.",
+            "type": "string"
+          },
           "diagnostics": {
             "description": "For a dashboard file, the YAML parse errors in the written content. Empty when it parses; the file is saved either way. Absent for other file types.",
             "type": "array",
@@ -4139,7 +4143,7 @@
         ],
         "additionalProperties": false,
         "title": "Created file",
-        "description": "A newly created workspace file, with any dashboard parse errors."
+        "description": "A newly created workspace file, with the revision it produced and any dashboard parse errors."
       },
       "V2CreatedFileResponse": {
         "type": "object",
@@ -4152,7 +4156,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Created file response",
-        "description": "A newly created workspace file, with any dashboard parse errors.",
+        "description": "A newly created workspace file, with the revision it produced and any dashboard parse errors.",
         "examples": [
           {
             "data": {

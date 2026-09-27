@@ -111,6 +111,19 @@ describe('UTC ranges', () => {
   )
 })
 
+describe('panel query modes', () => {
+  it('lets a panel switch between detail columns and aggregates inherited from the dashboard', () => {
+    const detailDefault = parseDashboardSpec(
+      'title: T\nsource: {tableId: tbl_1, columns: [status]}\nblocks:\n  - stat: Total\n    source: {aggregate: {n: {op: count}}}\n'
+    )
+    expect(detailDefault.error).toBeUndefined()
+    const aggregateDefault = parseDashboardSpec(
+      'title: T\nsource: {tableId: tbl_1, groupBy: [status], aggregate: {n: {op: count}}}\nblocks:\n  - table: Rows\n    source: {columns: [status]}\n'
+    )
+    expect(aggregateDefault.error).toBeUndefined()
+  })
+})
+
 describe('dashboard parse errors', () => {
   it('names the block path, the allowed block kinds and any unknown key', () => {
     expect(parseDashboardSpec('title: Probe\nblocks:\n  - bogus: 1\n').error).toBe(

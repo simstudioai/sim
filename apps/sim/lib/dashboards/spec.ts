@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { z } from 'zod'
 import { parseChartSpec } from '@/lib/charts/spec'
@@ -88,11 +89,20 @@ const dashboardSchema: z.ZodType<DashboardSpec> = z
   })
   .strict()
 
+/**
+ * A panel's source shallowly overrides the dashboard's. Choosing a query mode (`aggregate` or
+ * `columns`) drops the other mode's inherited fields, so shared defaults serve both panel kinds.
+ */
 export function resolveDashboardSource(
   defaults: DashboardSource | undefined,
   source: DashboardSource | undefined
 ): ResolvedDashboardSource {
-  const merged = { ...defaults, ...source }
+  const inherited = source?.columns
+    ? omit(defaults ?? {}, ['aggregate', 'groupBy', 'bucket'])
+    : source?.aggregate
+      ? omit(defaults ?? {}, ['columns'])
+      : defaults
+  const merged = { ...inherited, ...source }
   if (!merged.tableId)
     throw new Error('A data panel requires source.tableId, on the dashboard or on the panel')
   return { ...merged, tableId: merged.tableId }
