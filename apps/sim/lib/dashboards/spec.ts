@@ -98,6 +98,56 @@ export function resolveDashboardSource(
   return { ...merged, tableId: merged.tableId }
 }
 
+const BLOCK_KINDS = ['text', 'stat', 'chart', 'table', 'row', 'tabs'] as const
+
+/**
+ * One line per issue, `path: message`. A block reports the errors of the kind it declares; a
+ * block that declares no kind says which kinds exist and which keys no kind accepts, instead of
+ * Zod's per-branch union dump.
+ */
+function describeSchemaIssues(
+  issues: readonly z.core.$ZodIssue[],
+  prefix: PropertyKey[] = []
+): string[] {
+  return issues.flatMap((issue) => {
+    const path = [...prefix, ...issue.path]
+    const at = path.length ? `${path.map(String).join('.')}: ` : ''
+    if (issue.code !== 'invalid_union' || issue.errors.length === 0)
+      return [`${at}${issue.message}`]
+    const declared = issue.errors.find(
+      (branch) =>
+        !branch.some(
+          (entry) =>
+            entry.code === 'invalid_type' &&
+            entry.path.length === 1 &&
+            BLOCK_KINDS.some((kind) => kind === entry.path[0])
+        )
+    )
+    const isBlock = issue.errors.some((branch) =>
+      branch.some((entry) => entry.path.length === 1 && entry.path[0] === 'text')
+    )
+    if (!isBlock || declared) {
+      const branch =
+        declared ??
+        issue.errors.reduce((fewest, next) => (next.length < fewest.length ? next : fewest))
+      return describeSchemaIssues(branch, path)
+    }
+    const rejected = issue.errors.map(
+      (branch) =>
+        new Set(
+          branch.flatMap((entry) =>
+            entry.code === 'unrecognized_keys' && entry.path.length === 0 ? entry.keys : []
+          )
+        )
+    )
+    const unknown = [...rejected[0]].filter((key) => rejected.every((keys) => keys.has(key)))
+    const keys = unknown.map((key) => `"${key}"`).join(', ')
+    return [
+      `${at}expected a block with one of ${BLOCK_KINDS.join(', ')}${keys ? `; unknown key ${keys}` : ''}`,
+    ]
+  })
+}
+
 /** Strict YAML validation, including expansion limits before recursive parsing. */
 export function parseDashboardSpec(
   content: string
@@ -112,7 +162,9 @@ export function parseDashboardSpec(
       maxSerializedBytes: 256 * 1024,
     })
     if (!measured.within) throw new Error(measured.reason)
-    const spec = dashboardSchema.parse(raw)
+    const parsed = dashboardSchema.safeParse(raw)
+    if (!parsed.success) throw new Error(describeSchemaIssues(parsed.error.issues).join('\n'))
+    const spec = parsed.data
     let count = 0
     const visit = (blocks: DashboardBlock[], depth: number): void => {
       if (depth > 4) throw new Error('Dashboard layout exceeds 4 levels')

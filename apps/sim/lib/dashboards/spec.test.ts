@@ -110,3 +110,25 @@ describe('UTC ranges', () => {
     expect(() => parseDashboardCustomRange(from, to)).toThrow()
   )
 })
+
+describe('dashboard parse errors', () => {
+  it('names the block path, the allowed block kinds and any unknown key', () => {
+    expect(parseDashboardSpec('title: Probe\nblocks:\n  - bogus: 1\n').error).toBe(
+      'blocks.0: expected a block with one of text, stat, chart, table, row, tabs; unknown key "bogus"'
+    )
+  })
+
+  it('does not describe a measure union as a block', () => {
+    const error = parseDashboardSpec(
+      'title: Probe\nsource: {tableId: tbl_1}\nblocks:\n  - stat: Total\n    source: {aggregate: {n: {op: nope}}}\n'
+    ).error
+    expect(error).toMatch(/^source\.aggregate\.n\.op: |^blocks\.0\.source\.aggregate\.n/)
+    expect(error).not.toContain('expected a block')
+  })
+
+  it('reports field errors at their path', () => {
+    expect(parseDashboardSpec('title: Probe\nblocks: []\n').error).toBe(
+      'blocks: Too small: expected array to have >=1 items'
+    )
+  })
+})

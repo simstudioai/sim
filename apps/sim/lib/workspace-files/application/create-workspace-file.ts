@@ -3,6 +3,7 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { dashboardDiagnostics } from '@/lib/dashboards/diagnostics'
 import {
   type ActiveWorkspaceContext,
   FileConflictError,
@@ -32,6 +33,8 @@ export interface CreateWorkspaceFileInput {
 
 export interface CreateWorkspaceFileResult {
   file: WorkspaceFileRecord
+  /** Dashboard parse errors for the written content; absent for other file types. */
+  diagnostics?: string[]
 }
 
 export interface CreateWorkspaceFileBufferInput
@@ -91,7 +94,8 @@ export async function createAuthorizedWorkspaceFile({
     size: file.size,
     principalKind: principal.kind,
   })
-  return { file }
+  const diagnostics = dashboardDiagnostics(file.type, content)
+  return diagnostics ? { file, diagnostics } : { file }
 }
 
 export function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {

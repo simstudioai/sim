@@ -4,7 +4,7 @@ A dashboard is a workspace file with MIME type `text/x-sim-dashboard`, handled l
 
 The implementation has three boundaries:
 
-- `spec.ts` validates a bounded YAML document and normalizes ECharts options through the existing `.chart` safety rules. It rejects unknown layout/source keys and reports errors in the viewer. Nothing validates the file on write.
+- `spec.ts` validates a bounded YAML document and normalizes ECharts options through the existing `.chart` safety rules. It rejects unknown layout/source keys and reports errors in the viewer. Writes are never blocked: the v2 file create, replace and edit responses carry `diagnostics` for a dashboard file (parse errors as `path: message` lines, or an empty list), like the page lint. Table columns and queries are only checked when panels render.
 - `table/analytics` computes exact aggregates over authorized table rows. The internal POST `/api/table/[tableId]/analytics` is a session-authenticated adapter for `tables.rows.analytics`, requiring the current viewer's workspace read role and `tables.use`. The operation is session-only because this release's sole query caller is the workspace renderer. Public/versioned query APIs, workflow/executor callers and log queries are deferred.
 - `components/dashboards` owns EMCN layout, controls and states. `components/charts/echarts-view.tsx` also renders existing `.chart` files, using the local EMCN tokens for its canvas theme. `.chart` retains its existing sampled source behavior; dashboard aggregation is performed on the server.
 

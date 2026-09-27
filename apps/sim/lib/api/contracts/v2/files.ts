@@ -758,6 +758,22 @@ export const v2ListFilesContract = defineRouteContract({
   },
 })
 
+/** Dashboard parse errors for the written content; only present for dashboard files. */
+const fileDiagnosticsSchema = z
+  .array(z.string())
+  .optional()
+  .describe(
+    'For a dashboard file, the YAML parse errors in the written content. Empty when it parses; the file is saved either way. Absent for other file types.'
+  )
+
+export const v2CreatedFileSchema = v2FileSchema
+  .extend({ diagnostics: fileDiagnosticsSchema })
+  .meta({
+    id: 'V2CreatedFile',
+    title: 'Created file',
+    description: 'A newly created workspace file, with any dashboard parse errors.',
+  })
+
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
@@ -765,7 +781,7 @@ export const v2CreateFileContract = defineRouteContract({
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2CreatedFileSchema),
     status: 201,
   },
 })
@@ -1265,6 +1281,7 @@ export const v2EditedFileSchema = z
     file: v2FileSchema.describe('The file after the edit.'),
     lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
     revision: writtenFileRevisionSchema,
+    diagnostics: fileDiagnosticsSchema,
   })
   .strict()
   .meta({
@@ -1496,7 +1513,7 @@ export const v2EditFileContentContract = defineRouteContract({
 })
 
 export const v2WrittenFileSchema = v2FileSchema
-  .extend({ revision: writtenFileRevisionSchema })
+  .extend({ revision: writtenFileRevisionSchema, diagnostics: fileDiagnosticsSchema })
   .meta({
     id: 'V2WrittenFile',
     title: 'Written file',
