@@ -11,6 +11,7 @@ import { truncate } from '@sim/utils/string'
 import JSZip from 'jszip'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { DocxParser } from '@/lib/file-parsers/docx-parser'
 import { PdfParser } from '@/lib/file-parsers/pdf-parser'
 import { readDrive, readGmail } from '@/lib/sim-search/live/google'
 import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
@@ -437,6 +438,106 @@ try {
     })
   }
 
+  const noteReference = (id: number) => `<w:r><w:footnoteReference w:id="${id}"/></w:r>`
+  const notesPart = (body: string) => ({
+    'word/footnotes.xml': Buffer.from(
+      `<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1">${body}</w:footnote></w:footnotes>`
+    ),
+  })
+  const repeatedNote = 'Synthetic footnote evidence survives each reference.'
+  fixtures.set('docx-repeated-note', {
+    mimeType: DOCX_MIME,
+    body: await docx(
+      `<w:p><w:r><w:t>Synthetic cited body.</w:t></w:r>${noteReference(1)}${noteReference(1)}</w:p>`,
+      notesPart(paragraph(repeatedNote))
+    ),
+  })
+  await check('DOCX reads retain each referenced note within the extraction budget', async () => {
+    const document = await read('docx-repeated-note')
+    assert.ok(document.content.includes('Synthetic cited body.'))
+    assert.equal(document.content.split(repeatedNote).length - 1, 2)
+  })
+
+  const paddedImage = Buffer.concat([
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=',
+      'base64'
+    ),
+    randomBytes(MIB),
+  ])
+  const imageReferences = Array.from(
+    { length: 25 },
+    (_, index) =>
+      `<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml" id="synthetic-image-${index}" style="width:1pt;height:1pt"><v:imagedata xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rIdImage"/></v:shape></w:pict></w:r></w:p>`
+  ).join('')
+  fixtures.set('docx-repeated-image', {
+    mimeType: DOCX_MIME,
+    body: await docx(
+      `<w:p><w:r><w:t>Synthetic body with image references.</w:t></w:r>${noteReference(1)}</w:p>${imageReferences}`,
+      {
+        ...notesPart(paragraph(repeatedNote)),
+        '[Content_Types].xml': Buffer.from(
+          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/></Types>'
+        ),
+        'word/_rels/document.xml.rels': Buffer.from(
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/synthetic.png"/><Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/></Relationships>'
+        ),
+        'word/media/synthetic.png': paddedImage,
+      }
+    ),
+  })
+  await check('DOCX image references cannot displace readable body and note evidence', async () => {
+    const document = await read('docx-repeated-image')
+    assert.ok(document.content.includes('Synthetic body with image references.'))
+    assert.ok(document.content.includes(repeatedNote))
+  })
+
+  const amplifiedNote = randomBytes(225_000).toString('base64')
+  fixtures.set('docx-amplified-note', {
+    mimeType: DOCX_MIME,
+    body: await docx(
+      `<w:p><w:r><w:t>Synthetic cited body.</w:t></w:r>${noteReference(1).repeat(32)}${noteReference(2)}</w:p>`,
+      notesPart(paragraph(amplifiedNote))
+    ),
+  })
+  fixtures.set('docx-structural-complexity', {
+    mimeType: DOCX_MIME,
+    body: await docx(
+      paragraph('Synthetic body before excessive structural elements.') +
+        `<w:p><w:r>${'<w:tab/>'.repeat(50_001)}</w:r></w:p>`
+    ),
+  })
+  for (const id of ['docx-amplified-note', 'docx-structural-complexity']) {
+    await check(`${id} rejects before a fallback can return incomplete text`, async () => {
+      await assert.rejects(
+        read(id),
+        (error: unknown) =>
+          error instanceof NativeSearchError && /live text extraction limits/.test(error.message)
+      )
+    })
+  }
+  await check(
+    'DOCX callers without complete mode retain their existing extraction behavior',
+    async () => {
+      const expected = '🙂'.repeat(17)
+      const bytes = await docx(paragraph(expected))
+      const result = await new DocxParser().parseBuffer(bytes, {
+        contentMode: 'complete',
+        maxTextBytes: 64,
+      })
+      assert.equal(result.content, expected)
+    }
+  )
+  await check('DOCX extraction honors a caller UTF-8 text budget', async () => {
+    const bytes = await docx(paragraph('🙂'.repeat(17)))
+    await assert.rejects(
+      new DocxParser().parseBuffer(bytes, { docxTextMode: 'complete', maxTextBytes: 64 }),
+      {
+        code: 'complexity_limit',
+      }
+    )
+  })
+
   for (const [id, metadata] of [
     ['download-denied', { capabilities: { canDownload: false } }],
     ['download-unknown', { capabilities: {} }],
@@ -546,10 +647,13 @@ try {
     mode: 'overflow',
     metadata: { size: undefined },
   })
-  await check('chunked media cannot exceed the binary response limit', async () => {
+  await check('chunked media overflow reports an actionable unavailable result', async () => {
     await assert.rejects(
       read('stream-overflow'),
-      (error: unknown) => error instanceof Error && /response|size|limit|large/i.test(error.message)
+      (error: unknown) =>
+        error instanceof NativeSearchError &&
+        error.status === 'unavailable' &&
+        /4 MiB/.test(error.message)
     )
     assert.equal(
       requests.filter((request) => request.id === 'stream-overflow' && request.resource === 'media')
@@ -592,6 +696,54 @@ try {
       }
     }
   )
+
+  for (const { name, pages, expected, budget } of [
+    {
+      name: 'ASCII text below its byte budget',
+      pages: ['A'.repeat(60)],
+      expected: 'A'.repeat(60),
+      budget: 64,
+    },
+    {
+      name: 'ASCII text exactly at its byte budget',
+      pages: ['B'.repeat(64)],
+      expected: 'B'.repeat(64),
+      budget: 64,
+    },
+    {
+      name: 'UTF-8 text below its byte budget',
+      pages: ['€'.repeat(20)],
+      expected: '€'.repeat(20),
+      budget: 64,
+    },
+    {
+      name: 'normalized text at its byte budget',
+      pages: ['   Text   '],
+      expected: 'Text',
+      budget: 4,
+    },
+    {
+      name: 'page separators at the byte budget',
+      pages: ['A'.repeat(30), 'B'.repeat(32)],
+      expected: `${'A'.repeat(30)}\n\n${'B'.repeat(32)}`,
+      budget: 64,
+    },
+  ]) {
+    await check(`PDF complete extraction accepts ${name}`, async () => {
+      const result = await new PdfParser().parseBuffer(await pdf(pages), {
+        pdfTextMode: 'complete',
+        maxTextBytes: budget,
+      })
+      assert.equal(result.content, expected)
+    })
+  }
+  await check('PDF output byte budget includes separators between rendered pages', async () => {
+    const pages = await pdf(['A'.repeat(30), 'B'.repeat(32)])
+    await assert.rejects(
+      new PdfParser().parseBuffer(pages, { pdfTextMode: 'complete', maxTextBytes: 63 }),
+      { code: 'complexity_limit' }
+    )
+  })
 
   await check('PDF complete extraction enforces the caller page budget', async () => {
     await assert.rejects(

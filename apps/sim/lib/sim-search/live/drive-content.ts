@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { FileParserError, getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import { sniffFileKind } from '@/lib/file-parsers/sniff'
 import type { FileParseResult } from '@/lib/file-parsers/types'
@@ -62,10 +63,21 @@ export async function readDriveFileContent(
       )
   }
 
-  const bytes = await client.bytes(`/drive/v3/files/${segment(id)}`, {
-    alt: 'media',
-    supportsAllDrives: 'true',
-  })
+  let bytes: Buffer
+  try {
+    bytes = await client.bytes(`/drive/v3/files/${segment(id)}`, {
+      alt: 'media',
+      supportsAllDrives: 'true',
+    })
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error))
+      throw new NativeSearchError(
+        'unavailable',
+        'This file exceeds the 4 MiB live-read limit. Split it into smaller files or open the source.'
+      )
+    throw error
+  }
   signal?.throwIfAborted()
   try {
     if (bytes.byteLength === 0) throw new FileParserError('empty_input', 'Empty file')
@@ -89,7 +101,11 @@ export async function readDriveFileContent(
     } else {
       assertOoxmlArchiveWithinLimits(bytes, DRIVE_DOCX_LIMITS)
       const { DocxParser } = await import('@/lib/file-parsers/docx-parser')
-      parsed = await new DocxParser().parseBuffer(bytes, { signal, contentMode: 'complete' })
+      parsed = await new DocxParser().parseBuffer(bytes, {
+        signal,
+        docxTextMode: 'complete',
+        maxTextBytes: MAX_DRIVE_TEXT_BYTES,
+      })
     }
     signal?.throwIfAborted()
     if (parsed.metadata?.degraded || parsed.metadata?.truncated)
