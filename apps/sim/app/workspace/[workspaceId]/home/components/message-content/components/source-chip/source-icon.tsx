@@ -57,7 +57,7 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   const hostBrandType =
     hostname === 'slack.com' || hostname?.endsWith('.slack.com')
       ? 'slack'
-      : BRAND_TYPE_BY_HOSTNAME.get(hostname ?? '')
+      : BRAND_TYPE_BY_HOSTNAME.get(hostname?.replace(/^www\./, '') ?? '')
   const HostIcon = hostBrandType ? BRAND_ICON_BY_BASE_TYPE.get(hostBrandType) : undefined
   const Icon = DocumentIcon ?? ConnectorIcon ?? HostIcon
   const className = cn('shrink-0', size === 'inline' ? 'size-[12px]' : 'size-[14px]')

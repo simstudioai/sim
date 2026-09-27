@@ -8,7 +8,10 @@ describe('source hostname branding', () => {
     'https://example.slack.com/archives/channel/message',
     'https://app.slack.com/client/team/channel',
     'https://SLACK.COM/help',
-  ])('renders a local brand instead of requesting a tenant favicon for %s', (url) => {
+    'https://www.github.com/example/project',
+    'https://www.gitlab.com/example/project',
+    'https://www.notion.so/example',
+  ])('renders a local brand instead of requesting a favicon for a recognized host: %s', (url) => {
     const container = document.createElement('div')
     container.innerHTML = renderToStaticMarkup(<SourceIcon source={{ url }} />)
     expect(container.querySelector('img')).toBeNull()
