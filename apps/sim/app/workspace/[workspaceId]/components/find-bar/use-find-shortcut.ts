@@ -14,6 +14,8 @@ interface UseFindShortcutOptions {
   enabled: boolean
   /** The find bar's input, focused and selected once the bar opens. */
   inputRef: React.RefObject<HTMLInputElement | null>
+  /** Limits a split-pane surface to shortcuts originating inside it. */
+  containerRef?: React.RefObject<HTMLElement | null>
   onOpen: () => void
 }
 
@@ -25,10 +27,16 @@ interface UseFindShortcutOptions {
  * A press another surface already consumed is left alone (`defaultPrevented`), and any chord with a
  * further modifier falls through to the browser, so Cmd+Shift+F and Cmd+Alt+F keep their meanings.
  */
-export function useFindShortcut({ enabled, inputRef, onOpen }: UseFindShortcutOptions): void {
+export function useFindShortcut({
+  enabled,
+  inputRef,
+  containerRef,
+  onOpen,
+}: UseFindShortcutOptions): void {
   useEffect(() => {
     if (!enabled) return
     const handleFindShortcut = (event: KeyboardEvent) => {
+      if (containerRef && !containerRef.current?.contains(event.target as Node)) return
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
       if (event.key.toLowerCase() !== 'f') return
       if (event.defaultPrevented) return
@@ -40,7 +48,7 @@ export function useFindShortcut({ enabled, inputRef, onOpen }: UseFindShortcutOp
         inputRef.current?.select()
       })
     }
-    document.addEventListener('keydown', handleFindShortcut)
-    return () => document.removeEventListener('keydown', handleFindShortcut)
-  }, [enabled, inputRef, onOpen])
+    document.addEventListener('keydown', handleFindShortcut, Boolean(containerRef))
+    return () => document.removeEventListener('keydown', handleFindShortcut, Boolean(containerRef))
+  }, [enabled, inputRef, containerRef, onOpen])
 }

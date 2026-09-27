@@ -18,6 +18,7 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/rea
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -41,6 +42,7 @@ import {
   toCopyableMarkdown,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
+import { useChatFind } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/use-chat-find'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -217,7 +219,7 @@ const UserMessageRow = memo(function UserMessageRow({
           className={attachmentWidthClassName}
         />
       )}
-      <div className={bubbleClassName}>
+      <div className={bubbleClassName} data-chat-find-content>
         <UserMessageContent content={content} contexts={contexts} />
       </div>
     </div>
@@ -386,8 +388,11 @@ export function MothershipChat({
    */
   const messages = useDeferredValue(messagesProp)
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
+  const { ref: autoScrollRef, detach: detachAutoScroll } = useAutoScroll(
+    isStreamActive || lastRowAnimating
+  )
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
@@ -802,6 +807,15 @@ export function MothershipChat({
   }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer])
 
   const virtualItems = virtualizer.getVirtualItems()
+  const find = useChatFind({
+    chatId,
+    messages,
+    hiddenUserByIndex: interactionPairing.hiddenUserByIndex,
+    containerRef,
+    scrollElementRef,
+    virtualizer,
+    detachAutoScroll,
+  })
 
   return (
     <ChatSurfaceProvider
@@ -813,7 +827,31 @@ export function MothershipChat({
       onViewSources={onViewSources}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
-      <div className={cn('flex h-full min-h-0 flex-col', inter.className, className)}>
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        className={cn(
+          'relative flex h-full min-h-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          inter.className,
+          className
+        )}
+      >
+        {find.isOpen && (
+          <FindBar
+            ariaLabel='Find in chat'
+            query={find.query}
+            onQueryChange={find.onQueryChange}
+            onNext={find.next}
+            onPrev={find.prev}
+            onClose={find.close}
+            count={find.count}
+            currentIndex={find.currentIndex}
+            truncated={find.truncated}
+            isLoading={find.isStale}
+            canNavigate={!find.isStale}
+            inputRef={find.inputRef}
+          />
+        )}
         <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />

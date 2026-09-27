@@ -251,5 +251,12 @@ export function useAutoScroll(isStreaming: boolean) {
     }
   }, [isStreaming])
 
-  return { ref: callbackRef }
+  const detach = useCallback(() => {
+    stickyRef.current = false
+    userDetachedRef.current = true
+    settleCleanupRef.current?.()
+    settleCleanupRef.current = null
+  }, [])
+
+  return { ref: callbackRef, detach }
 }
