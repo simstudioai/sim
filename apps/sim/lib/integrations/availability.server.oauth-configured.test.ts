@@ -1,5 +1,5 @@
-import { setEnv } from '@sim/testing/mocks/env.mock'
-import { describe, expect, it } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   getIntegrationAvailability,
   getOAuthServiceAvailability,
@@ -8,7 +8,10 @@ import {
 setEnv({
   GITHUB_APP_CLIENT_ID: 'repository-client',
   GITHUB_APP_CLIENT_SECRET: 'repository-secret',
+  GOOGLE_CLIENT_ID: undefined,
+  GOOGLE_CLIENT_SECRET: undefined,
 })
+afterAll(resetEnvMock)
 
 describe('OAuth service availability projection', () => {
   it('uses the repository App while the workflow block keeps its API-key path', () => {

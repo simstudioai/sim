@@ -36,7 +36,8 @@ export interface FileParseOptions {
   /** Indexing callers require complete extraction; preview row limits must not discard content. */
   contentMode?: 'preview' | 'complete'
   /**
-   * CSV/XLSX byte budget when contentMode is 'complete' (default 25 MiB).
+   * Complete text byte budget for CSV/XLSX (default 25 MiB) and PDF (default 20 MiB).
+   * PDF applies this when pdfTextMode is 'complete' and never exceeds its safe default.
    * Exceeding it throws complexity_limit instead of returning a truncated prefix.
    * Preview mode retains its own limits; other formats use their parser-specific budgets.
    */
@@ -45,6 +46,8 @@ export interface FileParseOptions {
   textMode?: 'literal'
   /** Complete PDF extraction rejects safety limits instead of returning preview text. */
   pdfTextMode?: 'preview' | 'complete'
+  /** Lower page ceiling for complete PDF extraction; defaults to the parser's safe limit. */
+  pdfMaxPages?: number
 }
 
 export interface FileParser {

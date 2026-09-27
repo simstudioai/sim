@@ -18,6 +18,9 @@ const input: NativeSearchInput = { query: 'rollout', limit: 10, scopes: [] }
 function client(json: NativeClient['json']): NativeClient {
   return {
     json,
+    bytes: async () => {
+      throw new Error('Unexpected binary request')
+    },
     text: async () => {
       throw new Error('Unexpected text request')
     },

@@ -30,7 +30,7 @@ vi.mock('@/lib/sim-search/live/service-session', () => ({
 }))
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
-  createNativeClient: () => ({ json: mocks.json, text: vi.fn() }),
+  createNativeClient: () => ({ json: mocks.json, text: vi.fn(), bytes: vi.fn() }),
 }))
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession: mocks.admin }))
 vi.mock('@/lib/sim-search/live/policy-store', () => ({
@@ -71,6 +71,7 @@ import {
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
@@ -102,6 +103,8 @@ const document = {
 describe('authorized live retrieval', () => {
   beforeEach(() => {
     resetDbChainMock()
+    vi.mocked(livePolicyFor).mockReset()
+    vi.mocked(livePolicyFor).mockReturnValue(defaultLiveSearchPolicy())
     mocks.service.mockResolvedValue(undefined)
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
       workspaceId: 'workspace',
@@ -365,6 +368,73 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow('outside your organization')
     expect(mocks.read).toHaveBeenCalledOnce()
   })
+  it('suppresses conversation content when a sibling leaves the current service source', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.read.mockResolvedValue({
+      ...document,
+      content: 'Anchor evidence. Restricted sibling evidence.',
+      accessDependencies: [{ id: 'sibling' }],
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async () => true,
+      partial: false,
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async ({ id }: { id: string }) => id !== 'sibling',
+      partial: false,
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
+  it('ignores stale message labels when rechecking member access after a read', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    vi.mocked(livePolicyFor).mockReturnValue({
+      ...defaultLiveSearchPolicy('gmail'),
+      mode: 'selected',
+      included: ['INBOX'],
+    })
+    let readCompleted = false
+    mocks.json.mockImplementation(async (path: string) => {
+      if (path === '/gmail/v1/users/me/labels') return { labels: [{ id: 'INBOX', name: 'INBOX' }] }
+      if (path === '/gmail/v1/users/me/messages/doc')
+        return { id: 'doc', labelIds: readCompleted ? ['SENT'] : ['INBOX'] }
+      throw new Error(`Unexpected Gmail resource: ${path}`)
+    })
+    mocks.read.mockImplementation(async () => {
+      readCompleted = true
+      return { ...document, accessMetadata: { id: 'doc', labelIds: ['INBOX'] } }
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
   it('rejects nonmembers before account discovery or provider calls', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(searchLiveKnowledge.execute({ principal, input })).rejects.toThrow(
@@ -434,7 +504,7 @@ describe('authorized live retrieval', () => {
       verify: createPolicyVerifier(
         'google_drive',
         policy,
-        { json: mocks.json, text: vi.fn() },
+        { json: mocks.json, text: vi.fn(), bytes: vi.fn() },
         'https://www.googleapis.com'
       ),
       partial: false,

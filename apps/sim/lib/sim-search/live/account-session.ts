@@ -172,7 +172,13 @@ export async function openLiveAccountSession(
     },
     read(reference, filters) {
       if (admin) return admin.read(reference)
-      if (client) return readNativeProvider(provider, client, reference, boundary.policy, filters)
+      if (client)
+        return readNativeProvider(provider, client, reference, {
+          policy: boundary.policy,
+          filters,
+          signal,
+          verify: boundary.verify,
+        })
       return readMcp(reference.id)
     },
     async verifyCurrent(document) {
@@ -180,7 +186,13 @@ export async function openLiveAccountSession(
         livePolicyFor(await loadLiveSearchPolicies(owner), provider),
         true
       )
-      return current.verify(document)
+      const { id, container, kind } = document
+      if (!(await current.verify({ id, container, kind }))) return false
+      for (const dependency of document.accessDependencies ?? []) {
+        signal.throwIfAborted()
+        if (!(await current.verify(dependency))) return false
+      }
+      return true
     },
   }
 }
