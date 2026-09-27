@@ -807,9 +807,9 @@ export function MothershipChat({
   const scrolledForUserMsgRef = useRef<string | undefined>(undefined)
   useLayoutEffect(() => {
     if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return
-    if (isSending && initialScrollBlocked) return
+    if (find.isOpen || (isSending && initialScrollBlocked)) return
     scrolledForUserMsgRef.current = lastUserMessageId
-    if (!isSending || find.isOpen) return
+    if (!isSending) return
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
   }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
 
