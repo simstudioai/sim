@@ -1,6 +1,6 @@
 # Table-backed dashboards
 
-A dashboard is a workspace file with MIME type `text/x-sim-dashboard`, handled like Sim pages. Creating or uploading `<Name>.dashboard` is the ingestion signal: the stored name drops the suffix and the content type alone marks the kind, which content updates never reset. It lives in Files and its folders, is created and edited with the ordinary file tools, and shows up in Chat as a file. The Files viewer renders it live. The built-in **create-dashboard** skill documents the syntax. A public share link shows a workspace-only notice and issues no table queries; live public dashboards are deferred.
+A dashboard is a workspace file with MIME type `text/x-sim-dashboard`, handled like Sim pages. Creating or uploading `<Name>.dashboard` is the ingestion signal: the stored name drops the suffix and the content type alone marks the kind, which content updates never reset. It lives in Files and its folders, is created and edited with the ordinary file tools, and shows up in Chat as a file. The Files viewer renders it live. Mothership learns the syntax from the `sim-dashboards` reference in its `research-and-deliverables` skill, the same way it learns Sim Pages. A public share link shows a workspace-only notice and issues no table queries; live public dashboards are deferred.
 
 The implementation has three boundaries:
 
@@ -20,7 +20,7 @@ The toolbar has side-by-side time-range and timezone dropdowns, followed by an i
 
 EMCN is an ECharts theme, so authored `option.color`, series styles, text, and axis styles override its defaults. Standard string axis formatters also override adaptive labels; omit them to get timezone-aware dates and intraday times automatically. Floating tooltips, hover readouts, cursor synchronization, and range selection belong to the framework. Tabs, controls, typography outside the plot, and responsive layout remain EMCN-owned.
 
-Authoring guidance defaults to the muted theme: single-measure panels share a neutral color, comparisons use the shared palette or line patterns, and explicit colors are reserved for user-requested meaning. It contains no example dashboards. Text blocks are optional brief annotations, not viewer instructions or implementation caveats. Chart grids use ECharts 6 outer bounds to fit axis names and end ticks inside the canvas, and horizontal category labels leave space above the configured bar thickness.
+The authoring reference defaults to the muted theme: panels rely on the renderer's colors, and explicit colors are reserved for user-requested meaning. Text blocks are optional brief annotations, not viewer instructions or implementation caveats. Chart grids use ECharts 6 outer bounds to fit axis names and end ticks inside the canvas, and horizontal category labels leave space above the configured bar thickness.
 
 ## Time and results
 
@@ -67,5 +67,5 @@ global switch. Local development uses `DASHBOARDS=true` in the app's ignored
 environment file.
 
 The server resolves the flag for the canonical workspace organization. It gates
-the `.dashboard` viewer, table analytics, and the built-in authoring skill. With
+the `.dashboard` viewer and table analytics. The Mothership authoring reference is not flag-gated, like Sim Pages; in an organization without the flag a `.dashboard` file still saves but does not render. With
 the flag off, the viewer shows a notice and the YAML stays editable.

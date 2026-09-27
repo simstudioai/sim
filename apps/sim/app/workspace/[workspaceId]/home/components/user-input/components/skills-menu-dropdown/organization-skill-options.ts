@@ -1,20 +1,16 @@
 import { BUILTIN_SKILLS, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 
-/**
- * Built-ins are global templates; only user-defined skills carry a workspace. Rollout-gated
- * built-ins (the dashboard skill) are excluded the same way the server skill lists exclude them.
- */
+/** Built-ins are global templates; only user-defined skills carry a workspace. */
 export function organizationSkillOptions(
   workspaces: ReadonlyArray<{
     id: string
     name: string
     skills: readonly SkillDefinition[]
-  }>,
-  excludedBuiltinIds: readonly string[] = []
+  }>
 ): (SkillDefinition & { workspaceName?: string })[] {
   return [
-    ...BUILTIN_SKILLS.filter((skill) => !excludedBuiltinIds.includes(skill.id)).map((skill) => ({
+    ...BUILTIN_SKILLS.map((skill) => ({
       ...skill,
       workspaceId: null,
       userId: null,

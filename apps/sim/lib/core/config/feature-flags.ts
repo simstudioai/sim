@@ -48,7 +48,7 @@ interface FeatureFlagDefinition {
 const FEATURE_FLAGS = {
   dashboards: {
     description:
-      'Enable .dashboard file rendering, table analytics, and the dashboard authoring skill. Supports global and organization rollout; disabled by default.',
+      'Enable .dashboard file rendering and table analytics. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
   'mothership-model-selector': {

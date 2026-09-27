@@ -64,17 +64,10 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): SkillRow {
  * built-in by sharing its name, and a name that matches the search on the
  * built-in matches it on the DB row too.
  */
-function visibleBuiltins(
-  dbNames: Set<string>,
-  search?: string,
-  excludedIds: readonly string[] = []
-): BuiltinSkill[] {
+function visibleBuiltins(dbNames: Set<string>, search?: string): BuiltinSkill[] {
   const term = search?.toLowerCase()
   return BUILTIN_SKILLS.filter(
-    (b) =>
-      !excludedIds.includes(b.id) &&
-      !dbNames.has(b.name.toLowerCase()) &&
-      (!term || b.name.toLowerCase().includes(term))
+    (b) => !dbNames.has(b.name.toLowerCase()) && (!term || b.name.toLowerCase().includes(term))
   )
 }
 export type SkillSortBy = 'name' | 'createdAt' | 'updatedAt'
@@ -186,7 +179,6 @@ export interface SkillSummaryPage {
  */
 export async function listSkillSummariesPage(params: {
   workspaceId: string
-  excludedBuiltinIds?: readonly string[]
   search?: string
   sortBy: SkillSortBy
   sortOrder: ListSortOrder
@@ -202,7 +194,7 @@ export async function listSkillSummariesPage(params: {
     .orderBy(...listOrderBy(SKILL_SORTS[sortBy], sortOrder))
 
   const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
-  const builtins = visibleBuiltins(dbNames, params.search, params.excludedBuiltinIds).map((b) =>
+  const builtins = visibleBuiltins(dbNames, params.search).map((b) =>
     builtinSkillSummaryRow(params.workspaceId, b)
   )
 
@@ -231,7 +223,6 @@ export type SkillWithAccess = typeof skill.$inferSelect & { canEdit: boolean }
  */
 export async function listSkillsForUser(params: {
   workspaceId: string
-  excludedBuiltinIds?: readonly string[]
   userId: string
   includeBuiltins?: boolean
   workspaceAccess?: WorkspaceAccess
@@ -252,10 +243,8 @@ export async function listSkillsForUser(params: {
 
   // A workspace skill that shares a built-in's name overrides it for everyone.
   const dbNames = new Set(tagged.map((r) => r.name.toLowerCase()))
-  const builtins: SkillWithAccess[] = visibleBuiltins(
-    dbNames,
-    undefined,
-    params.excludedBuiltinIds
+  const builtins: SkillWithAccess[] = BUILTIN_SKILLS.filter(
+    (b) => !dbNames.has(b.name.toLowerCase())
   ).map((b) => ({ ...builtinSkillRow(params.workspaceId, b), canEdit: false }))
   return [...builtins, ...tagged]
 }
