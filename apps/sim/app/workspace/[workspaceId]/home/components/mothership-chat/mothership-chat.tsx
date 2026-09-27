@@ -390,9 +390,6 @@ export function MothershipChat({
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef, detach: detachAutoScroll } = useAutoScroll(
-    isStreamActive || lastRowAnimating
-  )
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
@@ -530,13 +527,6 @@ export function MothershipChat({
     sizerFloorAppliedRef.current = floor
     sizer.style.minHeight = `${floor}px`
   })
-  const setScrollElement = useCallback(
-    (el: HTMLDivElement | null) => {
-      scrollElementRef.current = el
-      autoScrollRef(el)
-    },
-    [autoScrollRef]
-  )
 
   const hasMessages = messages.length > 0
 
@@ -700,6 +690,23 @@ export function MothershipChat({
     useAnimationFrameWithResizeObserver: true,
   })
 
+  const find = useChatFind({
+    chatId,
+    messages,
+    hiddenUserByIndex: interactionPairing.hiddenUserByIndex,
+    containerRef,
+    scrollElementRef,
+    virtualizer,
+  })
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating, find.isOpen)
+  const setScrollElement = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollElementRef.current = el
+      autoScrollRef(el)
+    },
+    [autoScrollRef]
+  )
+
   /**
    * Instance property — silently ignored if passed as a `useVirtualizer`
    * option. Skips scroll compensation for the streaming last row: it starts
@@ -789,7 +796,7 @@ export function MothershipChat({
   }, [chatId, hasMessages, initialScrollBlocked, lastIndex, virtualizer])
 
   /**
-   * The user's OWN send always snaps the viewport to their message: sending IS the intent
+   * With find closed, the user's own send snaps the viewport to their message: sending is the intent
    * to watch the reply, and the streaming sticky-scroll only engages when already pinned
    * to the bottom — from a scrolled-up position a fresh turn would stream out of view
    * (verified live, three-for-three, during the revamp browser pass).
@@ -802,20 +809,11 @@ export function MothershipChat({
     if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return
     if (isSending && initialScrollBlocked) return
     scrolledForUserMsgRef.current = lastUserMessageId
-    if (!isSending) return
+    if (!isSending || find.isOpen) return
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
-  }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer])
+  }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
 
   const virtualItems = virtualizer.getVirtualItems()
-  const find = useChatFind({
-    chatId,
-    messages,
-    hiddenUserByIndex: interactionPairing.hiddenUserByIndex,
-    containerRef,
-    scrollElementRef,
-    virtualizer,
-    detachAutoScroll,
-  })
 
   return (
     <ChatSurfaceProvider
@@ -829,6 +827,7 @@ export function MothershipChat({
     >
       <div
         ref={containerRef}
+        onKeyDown={find.onKeyDown}
         tabIndex={-1}
         className={cn(
           'relative flex h-full min-h-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',

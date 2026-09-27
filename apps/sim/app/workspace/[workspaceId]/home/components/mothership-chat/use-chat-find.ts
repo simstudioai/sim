@@ -5,12 +5,14 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import { forEachSearchOccurrence } from '@sim/utils/string'
 import type { Virtualizer } from '@tanstack/react-virtual'
+import { LRUCache } from 'lru-cache'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { getOrchestratorMessageTextSegments } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
@@ -31,21 +33,24 @@ interface UseChatFindProps {
   containerRef: RefObject<HTMLDivElement | null>
   scrollElementRef: RefObject<HTMLDivElement | null>
   virtualizer: Virtualizer<HTMLDivElement, Element>
-  detachAutoScroll: () => void
 }
 
-function getMessageSearchText(message: ChatMessage): string {
+function getMessageSearchText(message: ChatMessage, cache: LRUCache<string, string>): string {
   if (message.role === 'user') return getUserMessageText(message.content, message.contexts)
   return getOrchestratorMessageTextSegments(message.contentBlocks ?? [], message.content)
-    .map((content) =>
-      getChatFindText(
+    .map((content) => {
+      const cached = cache.get(content)
+      if (cached !== undefined) return cached
+      const text = getChatFindText(
         parseSpecialTags(sanitizeChatDisplayContent(content), false)
           .segments.map((segment) =>
             segment.type === 'text' ? segment.content : segment.type === 'thinking' ? '' : '\uffff'
           )
           .join('')
       )
-    )
+      cache.set(content, text)
+      return text
+    })
     .join('\uffff')
 }
 
@@ -105,10 +110,17 @@ export function useChatFind({
   containerRef,
   scrollElementRef,
   virtualizer,
-  detachAutoScroll,
 }: UseChatFindProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const [textCache] = useState(
+    () =>
+      new LRUCache<string, string>({
+        max: 10_000,
+        maxSize: 8 * 1024 * 1024,
+        sizeCalculation: (value, key) => Math.max(1, (value.length + key.length) * 2),
+      })
+  )
   const [scope, setScope] = useState(chatId)
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -127,7 +139,7 @@ export function useChatFind({
     if (term) {
       for (const [messageIndex, message] of messages.entries()) {
         if (hiddenUserByIndex[messageIndex] || message.origin === 'task') continue
-        const text = getMessageSearchText(message)
+        const text = getMessageSearchText(message, textCache)
         let occurrence = 0
         forEachSearchOccurrence(text, term, () => {
           if (matches.length < MATCH_LIMIT) matches.push({ messageIndex, occurrence: occurrence++ })
@@ -137,7 +149,7 @@ export function useChatFind({
       }
     }
     return { matches, truncated }
-  }, [messages, hiddenUserByIndex, term])
+  }, [messages, hiddenUserByIndex, term, textCache])
   const currentIndex = Math.min(index, Math.max(0, result.matches.length - 1))
   const active = result.matches[currentIndex]
   const messageIndex = active?.messageIndex
@@ -150,16 +162,24 @@ export function useChatFind({
     }
     setIsOpen(true)
   }, [])
-  useFindShortcut({ enabled: true, inputRef, containerRef, onOpen: open })
+  const onKeyDown = useFindShortcut({ enabled: true, inputRef, containerRef, onOpen: open })
 
+  const restoreFocus = useCallback(() => {
+    const target = restoreFocusRef.current
+    restoreFocusRef.current = null
+    if (target?.isConnected) target.focus({ preventScroll: true })
+    else containerRef.current?.focus({ preventScroll: true })
+  }, [containerRef])
   const close = useCallback(() => {
     setIsOpen(false)
     setQuery('')
     setIndex(0)
-    const target = restoreFocusRef.current
-    if (target?.isConnected) target.focus({ preventScroll: true })
-    else containerRef.current?.focus({ preventScroll: true })
-  }, [containerRef])
+    restoreFocus()
+  }, [restoreFocus])
+  useLayoutEffect(() => {
+    if (restoreFocusRef.current && document.activeElement === document.body) restoreFocus()
+    else restoreFocusRef.current = null
+  }, [chatId, restoreFocus])
   const onQueryChange = useCallback((value: string) => {
     setQuery(value)
     setIndex(0)
@@ -177,7 +197,6 @@ export function useChatFind({
   useEffect(() => {
     const scroller = scrollElementRef.current
     if (!scroller || !term || isStale || messageIndex === undefined) return
-    detachAutoScroll()
     virtualizer.scrollToIndex(messageIndex, { align: 'center' })
     let revealed = false
     let frame = 0
@@ -221,7 +240,7 @@ export function useChatFind({
       if (CSS.highlights?.get('chat-find-active') === selected)
         CSS.highlights.delete('chat-find-active')
     }
-  }, [term, isStale, messageIndex, occurrence, scrollElementRef, virtualizer, detachAutoScroll])
+  }, [term, isStale, messageIndex, occurrence, scrollElementRef, virtualizer])
 
   return {
     isOpen,
@@ -231,6 +250,7 @@ export function useChatFind({
     truncated: result.truncated,
     inputRef,
     onQueryChange,
+    onKeyDown,
     next,
     prev,
     close,

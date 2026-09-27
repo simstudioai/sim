@@ -1,15 +1,12 @@
 'use client'
 
 import type React from 'react'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 
 interface UseFindShortcutOptions {
   /**
-   * Whether this surface currently owns Cmd/Ctrl+F. Every find surface binds its own listener, so
-   * exactly one owner may be enabled at a time — the surfaces arbitrate by mounting (the Files list
-   * disables itself while a file is open, and the file editor enables itself only where the document
-   * is the page), by an embed flag (the table grid), or by DOM containment (the browser session).
-   * Two enabled owners mounted at once would race, and first-registered would win.
+   * Whether this surface owns Cmd/Ctrl+F. Full-page owners must be mutually exclusive;
+   * scoped owners arbitrate through containment and descendant event handling.
    */
   enabled: boolean
   /** The find bar's input, focused and selected once the bar opens. */
@@ -22,8 +19,8 @@ interface UseFindShortcutOptions {
 /**
  * Binds Cmd/Ctrl+F to open a find bar, overriding the browser's own find.
  *
- * Listens on the document rather than a container so the shortcut answers before anything inside the
- * surface has been focused — a file that has only been opened, never clicked into, still responds.
+ * Full-page surfaces listen on the document so an opened file responds before being focused.
+ * Scoped surfaces attach the returned React key handler so descendant controls can consume it first.
  * A press another surface already consumed is left alone (`defaultPrevented`), and any chord with a
  * further modifier falls through to the browser, so Cmd+Shift+F and Cmd+Alt+F keep their meanings.
  */
@@ -32,11 +29,15 @@ export function useFindShortcut({
   inputRef,
   containerRef,
   onOpen,
-}: UseFindShortcutOptions): void {
-  useEffect(() => {
-    if (!enabled) return
-    const handleFindShortcut = (event: KeyboardEvent) => {
-      if (containerRef && !containerRef.current?.contains(event.target as Node)) return
+}: UseFindShortcutOptions): React.KeyboardEventHandler<HTMLElement> {
+  const handleFindShortcut = useCallback(
+    (event: KeyboardEvent | React.KeyboardEvent<HTMLElement>) => {
+      if (!enabled) return
+      if (
+        containerRef &&
+        (!(event.target instanceof Node) || !containerRef.current?.contains(event.target))
+      )
+        return
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
       if (event.key.toLowerCase() !== 'f') return
       if (event.defaultPrevented) return
@@ -47,8 +48,13 @@ export function useFindShortcut({
         inputRef.current?.focus()
         inputRef.current?.select()
       })
-    }
-    document.addEventListener('keydown', handleFindShortcut, Boolean(containerRef))
-    return () => document.removeEventListener('keydown', handleFindShortcut, Boolean(containerRef))
-  }, [enabled, inputRef, containerRef, onOpen])
+    },
+    [enabled, inputRef, containerRef, onOpen]
+  )
+  useEffect(() => {
+    if (!enabled || containerRef) return
+    document.addEventListener('keydown', handleFindShortcut)
+    return () => document.removeEventListener('keydown', handleFindShortcut)
+  }, [enabled, containerRef, handleFindShortcut])
+  return handleFindShortcut
 }
