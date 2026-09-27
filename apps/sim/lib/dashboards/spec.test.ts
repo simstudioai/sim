@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseDashboardSpec } from '@/lib/dashboards/spec'
+import { parseDashboardSpec, resolveDashboardSource } from '@/lib/dashboards/spec'
 import {
   dashboardRangeFromCalendar,
   parseDashboardCustomRange,
@@ -121,6 +121,22 @@ describe('panel query modes', () => {
       'title: T\nsource: {tableId: tbl_1, groupBy: [status], aggregate: {n: {op: count}}}\nblocks:\n  - table: Rows\n    source: {columns: [status]}\n'
     )
     expect(aggregateDefault.error).toBeUndefined()
+  })
+})
+
+describe('inherited ordering across query modes', () => {
+  it('does not carry a sort or limit into a panel that switches query mode', () => {
+    const resolved = resolveDashboardSource(
+      {
+        tableId: 'tbl_1',
+        groupBy: ['status'],
+        aggregate: { n: { op: 'count' } },
+        sort: [{ field: 'n', direction: 'desc' }],
+        limit: 5,
+      },
+      { columns: ['status'] }
+    )
+    expect(resolved).toEqual({ tableId: 'tbl_1', columns: ['status'] })
   })
 })
 

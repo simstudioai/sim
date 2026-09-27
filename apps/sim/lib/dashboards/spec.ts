@@ -10,6 +10,10 @@ import {
   analyticsSelectionSchema,
 } from '@/lib/table/analytics/schema'
 
+/** Dashboard YAML is bounded before parsing; writes report the same limit without decoding. */
+export const MAX_DASHBOARD_SOURCE_BYTES = 128 * 1024
+export const DASHBOARD_SOURCE_TOO_LARGE = 'Dashboard source exceeds 128 KB'
+
 export const DASHBOARD_RANGES = ['1h', '24h', '7d', '30d', '90d'] as const
 export type DashboardRange = (typeof DASHBOARD_RANGES)[number]
 const rangeSchema = z.enum(DASHBOARD_RANGES)
@@ -89,19 +93,33 @@ const dashboardSchema: z.ZodType<DashboardSpec> = z
   })
   .strict()
 
+function queryMode(source: DashboardSource | undefined): 'columns' | 'aggregate' | undefined {
+  return source?.columns ? 'columns' : source?.aggregate ? 'aggregate' : undefined
+}
+
 /**
  * A panel's source shallowly overrides the dashboard's. Choosing a query mode (`aggregate` or
  * `columns`) drops the other mode's inherited fields, so shared defaults serve both panel kinds.
+ * Switching away from the dashboard's mode also drops its `sort` and `limit`, which name
+ * aggregate aliases or top-N groups in one mode and rows in the other.
  */
 export function resolveDashboardSource(
   defaults: DashboardSource | undefined,
   source: DashboardSource | undefined
 ): ResolvedDashboardSource {
-  const inherited = source?.columns
-    ? omit(defaults ?? {}, ['aggregate', 'groupBy', 'bucket'])
-    : source?.aggregate
-      ? omit(defaults ?? {}, ['columns'])
-      : defaults
+  const mode = queryMode(source)
+  const switched =
+    mode !== undefined && queryMode(defaults) !== undefined && mode !== queryMode(defaults)
+  const modeFields =
+    mode === 'columns'
+      ? (['aggregate', 'groupBy', 'bucket'] as const)
+      : mode === 'aggregate'
+        ? (['columns'] as const)
+        : []
+  const inherited = omit(defaults ?? {}, [
+    ...modeFields,
+    ...(switched ? (['sort', 'limit'] as const) : []),
+  ])
   const merged = { ...inherited, ...source }
   if (!merged.tableId)
     throw new Error('A data panel requires source.tableId, on the dashboard or on the panel')
@@ -163,8 +181,8 @@ export function parseDashboardSpec(
   content: string
 ): { spec: DashboardSpec; error?: never } | { error: string; spec?: never } {
   try {
-    if (new TextEncoder().encode(content).byteLength > 128 * 1024)
-      throw new Error('Dashboard source exceeds 128 KB')
+    if (new TextEncoder().encode(content).byteLength > MAX_DASHBOARD_SOURCE_BYTES)
+      throw new Error(DASHBOARD_SOURCE_TOO_LARGE)
     const raw: unknown = load(content, { schema: JSON_SCHEMA })
     const measured = measureYamlExpansion(raw, {
       maxNodes: 10000,
