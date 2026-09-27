@@ -2724,6 +2724,13 @@
       "when": 1790559081077,
       "tag": "0389_member_resurrection_cursor",
       "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1790562554468,
+      "tag": "0390_table_rows_version_at_commit",
+      "breakpoints": true
     }
   ]
 }
