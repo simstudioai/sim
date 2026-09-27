@@ -3443,9 +3443,22 @@ export const document = pgTable(
       table.connectorId,
       table.externalId
     ),
-    /** Ordered absence reconciliation includes tombstones and skips excluded or archived rows. */
+    /**
+     * Superseded by `doc_connector_reconciliation_v2_idx`; drop it concurrently once the id-keyset
+     * walks are fully deployed. Nothing orders by `source_seen_at` any more, and keying it makes
+     * every listing's seen stamp a non-HOT update.
+     */
     connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
       .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
+      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
+    /**
+     * Id-keyset absence reconciliation and resurrection walks, including tombstones and skipping
+     * excluded or archived rows. `source_seen_at` stays out of the key so the per-listing seen
+     * stamp can be a HOT update.
+     */
+    connectorReconciliationV2Idx: index('doc_connector_reconciliation_v2_idx')
+      .on(table.connectorId, table.id)
+      .concurrently()
       .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
     activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
       .on(table.knowledgeBaseId, table.tokenCount)
