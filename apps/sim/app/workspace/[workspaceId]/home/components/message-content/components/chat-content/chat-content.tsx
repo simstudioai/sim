@@ -182,7 +182,11 @@ interface SourceReferenceProps {
 function SourceReference({ index, children }: SourceReferenceProps) {
   const source = useContext(SourceRefsContext)[index]
   if (!source) return <>{children}</>
-  return <SourceChip source={source} />
+  return (
+    <span data-chat-find-boundary>
+      <SourceChip source={source} />
+    </span>
+  )
 }
 
 const WORKSPACE_LINK_PREFIX = '#sim-workspace-ref-'
@@ -196,7 +200,9 @@ function WorkspaceReference({ index, children }: SourceReferenceProps) {
   const { resources, onSelect } = useContext(WorkspaceRefsContext)
   const resource = resources[index]
   return resource ? (
-    <WorkspaceResourceDisplay data={resource} onSelect={onSelect} />
+    <span data-chat-find-boundary>
+      <WorkspaceResourceDisplay data={resource} onSelect={onSelect} />
+    </span>
   ) : (
     <>{children}</>
   )
@@ -342,7 +348,10 @@ const MARKDOWN_COMPONENTS = {
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--border)]'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+        <div
+          data-chat-find-ignore
+          className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'
+        >
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
@@ -762,6 +771,7 @@ function ChatContentInner({
                 return (
                   <div
                     key={`inline-${i}`}
+                    data-chat-find-content
                     className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
                   >
                     <Streamdown
