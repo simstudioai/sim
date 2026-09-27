@@ -3,7 +3,11 @@
 import type { ReactNode } from 'react'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
-export function DashboardFeatureGate({ children }: { children: ReactNode }) {
+interface DashboardFeatureGateProps {
+  children: ReactNode
+}
+
+export function DashboardFeatureGate({ children }: DashboardFeatureGateProps) {
   const enabled = useFeatureFlag('dashboards')
   return enabled ? (
     children
