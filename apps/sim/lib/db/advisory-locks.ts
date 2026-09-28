@@ -59,7 +59,7 @@ export interface AdvisoryXactLockRequest {
  * deadlock pass their locks in one global order. The locks release on commit or rollback.
  */
 export async function acquireAdvisoryXactLocks(
-  tx: DbOrTx,
+  tx: DbTransaction,
   tag: string,
   locks: readonly AdvisoryXactLockRequest[]
 ): Promise<void> {
