@@ -521,6 +521,7 @@ export function TabStrip({
   const autoScrollRafRef = useRef<number | null>(null)
   const autoScrollDirectionRef = useRef(0)
   const revealScrollRef = useRef<AnimationPlaybackControls | null>(null)
+  const revealScrollLeftRef = useRef(0)
   const focusedTabRef = useRef<{
     id: string
     element: HTMLButtonElement
@@ -607,6 +608,7 @@ export function TabStrip({
     revealScrollRef.current = animate(node.scrollLeft, nextLeft, {
       ...REVEAL_SCROLL_TRANSITION,
       onUpdate: (left) => {
+        revealScrollLeftRef.current = left
         node.scrollLeft = left
       },
     })
@@ -626,17 +628,25 @@ export function TabStrip({
       revealActiveTab()
     }
     updateLayout()
-    node.addEventListener('scroll', updateOverflow, { passive: true })
+    const handleScroll = () => {
+      updateOverflow()
+      // A position the reveal did not set means touch, the scrollbar, or the
+      // keyboard took over scrolling, so the reveal yields to it.
+      if (revealScrollRef.current && Math.abs(node.scrollLeft - revealScrollLeftRef.current) > 1) {
+        stopRevealScroll()
+      }
+    }
+    node.addEventListener('scroll', handleScroll, { passive: true })
     if (typeof ResizeObserver === 'undefined') {
-      return () => node.removeEventListener('scroll', updateOverflow)
+      return () => node.removeEventListener('scroll', handleScroll)
     }
     const observer = new ResizeObserver(updateLayout)
     observer.observe(node)
     return () => {
       observer.disconnect()
-      node.removeEventListener('scroll', updateOverflow)
+      node.removeEventListener('scroll', handleScroll)
     }
-  }, [regularTabs.length, revealActiveTab, updateOverflow])
+  }, [regularTabs.length, revealActiveTab, stopRevealScroll, updateOverflow])
 
   useEffect(() => {
     const strip = stripRef.current
@@ -658,12 +668,7 @@ export function TabStrip({
       event.preventDefault()
     }
     strip.addEventListener('wheel', handleWheel, { passive: false })
-    // Touch, pen, and scrollbar drags scroll natively without a wheel event.
-    strip.addEventListener('pointerdown', stopRevealScroll)
-    return () => {
-      strip.removeEventListener('wheel', handleWheel)
-      strip.removeEventListener('pointerdown', stopRevealScroll)
-    }
+    return () => strip.removeEventListener('wheel', handleWheel)
   }, [stopRevealScroll, updateOverflow])
 
   const handleDragStart = useCallback(
