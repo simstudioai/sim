@@ -877,6 +877,11 @@ export async function executeWorkflowService(
       } finally {
         abortSignal?.removeEventListener('abort', abortFromRequest)
         timeoutController.cleanup()
+        // The sync response doubles as the run's terminal receipt: callers read
+        // the log (status, endedAt) and cost ledger as soon as it lands. The
+        // core defers that finalization into the session's post-execution
+        // promise, so hold the response until the log is final.
+        await loggingSession.waitForPostExecution()
       }
     }
 
