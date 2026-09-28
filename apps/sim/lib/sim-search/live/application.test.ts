@@ -30,7 +30,11 @@ vi.mock('@/lib/sim-search/live/service-session', () => ({
 }))
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
-  createNativeClient: () => ({ json: mocks.json, text: vi.fn(), bytes: vi.fn() }),
+  createNativeClient: () => ({
+    json: mocks.json,
+    text: vi.fn(async () => 'Original document text'),
+    bytes: vi.fn(),
+  }),
 }))
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession: mocks.admin }))
 vi.mock('@/lib/sim-search/live/policy-store', () => ({
@@ -518,7 +522,7 @@ describe('authorized live retrieval', () => {
           return {
             id: 'doc',
             name: 'Launch',
-            mimeType: 'application/zip',
+            mimeType: 'application/vnd.google-apps.document',
             webViewLink: document.url,
           }
         controller.abort(reason)
