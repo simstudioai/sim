@@ -18,19 +18,23 @@ function toHttpStatus(code: number): number {
 }
 
 /**
- * Wraps `fetch` so Kie errors surface as HTTP errors.
+ * Wraps `fetch` so Kie responses read like the APIs they proxy.
  *
  * Most Kie chat routes answer failures (bad key, no credits, rate limit) with
  * HTTP 200 and a `{ code, msg }` body. The Anthropic SDK and the Responses core
  * would read that as a successful, empty completion, so this rewrites it into a
- * real error response carrying Kie's code and message. Streams are never
- * buffered: a failed streaming request comes back as JSON, not `text/event-stream`.
+ * real error response carrying Kie's code and message. Kie also sends some JSON
+ * bodies with no content type, which the Anthropic SDK would parse as text; those
+ * are labeled as JSON. Streams are never buffered: they are typed
+ * `text/event-stream`, and a failed streaming request comes back as JSON.
  */
 export function createKieFetch(baseFetch?: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const response = await (baseFetch ?? fetch)(input, init)
-    const contentType = response.headers.get('content-type') ?? ''
-    if (response.status !== 200 || !contentType.includes('application/json')) return response
+    const contentType = response.headers.get('content-type')?.toLowerCase()
+    if (response.status !== 200 || (contentType && !contentType.includes('application/json'))) {
+      return response
+    }
 
     const text = await response.text()
     let body: unknown
@@ -41,6 +45,7 @@ export function createKieFetch(baseFetch?: typeof fetch): typeof fetch {
     }
 
     const headers = rebodiedHeaders(response.headers)
+    if (body !== undefined && !contentType) headers.set('content-type', 'application/json')
     if (!isRecordLike(body) || typeof body.code !== 'number' || body.code === 200) {
       return new Response(text, {
         status: response.status,

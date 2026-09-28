@@ -48,6 +48,35 @@ describe('createKieFetch', () => {
     expect(response.headers.get('content-length')).toBeNull()
   })
 
+  it('matches the JSON content type case-insensitively', async () => {
+    const response = await kieFetchReturning(
+      createMockResponse({
+        json: KIE_UNAUTHORIZED,
+        headers: { 'content-type': 'Application/JSON; charset=UTF-8' },
+      })
+    )('https://api.kie.ai')
+
+    expect(response.status).toBe(401)
+  })
+
+  it('treats an untyped JSON body as JSON and labels it', async () => {
+    const message = { id: 'msg_1', type: 'message', content: [{ type: 'text', text: 'hi' }] }
+    const response = await kieFetchReturning(
+      new Response(new TextEncoder().encode(JSON.stringify(message)))
+    )('https://api.kie.ai')
+
+    expect(response.headers.get('content-type')).toBe('application/json')
+    expect(await response.json()).toEqual(message)
+  })
+
+  it('detects an error envelope in an untyped body', async () => {
+    const response = await kieFetchReturning(
+      new Response(new TextEncoder().encode(JSON.stringify(KIE_UNAUTHORIZED)))
+    )('https://api.kie.ai')
+
+    expect(response.status).toBe(401)
+  })
+
   it.each([
     [429, 429],
     [455, 503],

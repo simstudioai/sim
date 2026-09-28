@@ -65,6 +65,21 @@ describe('kieProvider', () => {
     expect(result).toMatchObject({ content: 'pong' })
   })
 
+  it('parses a Claude message Kie returns without a content type', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(new TextEncoder().encode(JSON.stringify(CLAUDE_MESSAGE)))
+    )
+
+    const result = await kieProvider.executeRequest({
+      model: 'kie/claude-opus-5-5',
+      apiKey: 'kie-key',
+      maxTokens: 1024,
+      messages: [{ role: 'user', content: 'ping' }],
+    })
+
+    expect(result).toMatchObject({ content: 'pong' })
+  })
+
   it('surfaces an HTTP 200 error envelope on the Claude route as an error', async () => {
     fetchMock.mockResolvedValue(Response.json({ code: 402, msg: 'Insufficient credits' }))
 
