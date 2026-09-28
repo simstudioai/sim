@@ -88,6 +88,38 @@ describe('fetchWithProviderRetry', () => {
     expect(await response.text()).toContain('No credit')
   })
 
+  it('retries a rate limit whose body is too large to classify', async () => {
+    const send = vi
+      .fn()
+      .mockImplementationOnce(reply(429, 'x'.repeat(256 * 1024)))
+      .mockImplementation(reply(200))
+
+    const response = await settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))
+
+    expect(response.status).toBe(200)
+  })
+
+  it('stops reading a rate-limit body that never finishes once the caller aborts', async () => {
+    const controller = new AbortController()
+    const endless = new ReadableStream<Uint8Array>({
+      start(stream) {
+        stream.enqueue(new TextEncoder().encode('{"error":'))
+      },
+    })
+    const send = vi.fn().mockResolvedValue(new Response(endless, { status: 429 }))
+
+    const outcome = fetchWithProviderRetry(send, {
+      logger,
+      label: 'OpenAI',
+      abortSignal: controller.signal,
+    }).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort()
+
+    expect(await outcome).toMatchObject({ name: 'AbortError' })
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
   it('obeys the server when it says a 5xx must not be retried', async () => {
     const send = vi.fn().mockImplementation(reply(500, '', { 'x-should-retry': 'false' }))
 
@@ -215,5 +247,20 @@ describe('withProviderRetry', () => {
       'status: 400'
     )
     expect(operation).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits the delay the caller reads off the SDK error before replaying', async () => {
+    const operation = vi.fn().mockRejectedValueOnce(sdkError(429)).mockResolvedValue('answer')
+
+    const pending = withProviderRetry(operation, {
+      logger,
+      label: 'Gemini',
+      retryAfterMs: () => 7000,
+    })
+    await vi.advanceTimersByTimeAsync(6900)
+    expect(operation).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(200)
+    await expect(pending).resolves.toBe('answer')
   })
 })

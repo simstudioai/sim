@@ -37,6 +37,7 @@ import {
   cleanSchemaForGemini,
   convertUsageMetadata,
   ensureStructResponse,
+  geminiRetryDelayMs,
 } from '@/providers/google/utils'
 import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -320,7 +321,12 @@ export function createGeminiStreamingToolLoopStream(
             })
             const streamGenerator = await withProviderRetry(
               () => ai.models.generateContentStream(turnPayload),
-              { logger, label: 'Gemini', abortSignal: loopAbortController.signal }
+              {
+                logger,
+                label: 'Gemini',
+                abortSignal: loopAbortController.signal,
+                retryAfterMs: geminiRetryDelayMs,
+              }
             )
 
             const drained = await drainGeminiTurn(

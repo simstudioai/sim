@@ -30,24 +30,38 @@ function preparedPayload(node: ts.Node): boolean {
 }
 
 /**
- * A `const` in an enclosing block bound to a prepared payload. Retried sends prepare once
- * and replay the binding, since preparing can itself call a model to compact history.
+ * Whether the nearest declaration of `identifier` is a `const` bound to a prepared payload.
+ * Retried sends prepare once and replay the binding, since preparing can itself call a model
+ * to compact history. The nearest declaration decides, so an inner shadow must be prepared too.
  */
 function preparedBinding(identifier: ts.Identifier): boolean {
+  const declares = (name: ts.BindingName) => name.getText() === identifier.text
   for (let scope = identifier.parent; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some((parameter) => declares(parameter.name)))
+      return false
+    if (
+      ts.isCatchClause(scope) &&
+      scope.variableDeclaration &&
+      declares(scope.variableDeclaration.name)
+    )
+      return false
+    if (
+      (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) &&
+      scope.initializer &&
+      ts.isVariableDeclarationList(scope.initializer) &&
+      scope.initializer.declarations.some((declaration) => declares(declaration.name))
+    )
+      return false
     if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue
     for (const statement of scope.statements) {
       if (!ts.isVariableStatement(statement)) continue
-      if (!(statement.declarationList.flags & ts.NodeFlags.Const)) continue
-      for (const declaration of statement.declarationList.declarations) {
-        if (
-          declaration.name.getText() === identifier.text &&
-          declaration.initializer &&
-          preparedPayload(declaration.initializer)
-        ) {
-          return true
-        }
-      }
+      const declaration = statement.declarationList.declarations.find((d) => declares(d.name))
+      if (!declaration) continue
+      return (
+        Boolean(statement.declarationList.flags & ts.NodeFlags.Const) &&
+        declaration.initializer !== undefined &&
+        preparedPayload(declaration.initializer)
+      )
     }
   }
   return false

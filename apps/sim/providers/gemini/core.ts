@@ -32,6 +32,7 @@ import {
   ensureStructResponse,
   extractAllFunctionCallParts,
   extractTextContent,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
@@ -967,6 +968,7 @@ export async function executeGeminiRequest(
     logger,
     label: providerType === 'google' ? 'Gemini' : 'Vertex AI',
     abortSignal: request.abortSignal,
+    retryAfterMs: geminiRetryDelayMs,
   }
 
   logger.info(`Preparing ${providerType} Gemini request`, {

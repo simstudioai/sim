@@ -31,6 +31,8 @@ export interface ProviderRetryOptions {
   /** Provider name for the retry log line. */
   label: string
   abortSignal?: AbortSignal
+  /** The delay an SDK error asks for, for SDKs that carry it in the error rather than headers. */
+  retryAfterMs?: (error: unknown) => number | null
 }
 
 /** Statuses every vendor SDK treats as transient: timeout, lock conflict, rate limit, server fault. */
@@ -53,21 +55,41 @@ function isRetryableTransportFailure(error: unknown): boolean {
   return error instanceof TypeError || isRetryableInfrastructureError(error)
 }
 
-/** Reads a clone, so the caller can still read the body of a response that is not retried. */
-async function isQuotaExhaustedResponse(response: Response): Promise<boolean> {
-  const body = await readResponseTextWithLimit(response.clone(), {
-    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-    label: 'provider error response',
-  }).catch(() => '')
-  return isQuotaExhaustionBody(body)
-}
-
-async function shouldRetryResponse(response: Response): Promise<boolean> {
+/**
+ * The response to hand back when a failed one must not be replayed, or `null` to replay it.
+ *
+ * Telling a spent balance from a rate limit means reading a 429's body. It is read
+ * directly, bounded and under the caller's signal, and a 429 that is not replayed comes
+ * back rebuilt from that text. A `clone()` would tee the stream, and cancelling one branch
+ * of a tee settles only once the other is cancelled too — an oversized body would hang.
+ */
+async function finalResponse(
+  response: Response,
+  abortSignal: AbortSignal | undefined
+): Promise<Response | null> {
   const directive = response.headers.get('x-should-retry')
-  if (directive === 'true') return true
-  if (directive === 'false') return false
-  if (!isRetryableProviderStatus(response.status)) return false
-  return response.status !== 429 || !(await isQuotaExhaustedResponse(response))
+  if (directive === 'true') return null
+  if (directive === 'false' || !isRetryableProviderStatus(response.status)) return response
+  if (response.status !== 429) return null
+
+  let body: string
+  try {
+    body = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'provider error response',
+      signal: abortSignal,
+    })
+  } catch {
+    abortSignal?.throwIfAborted()
+    /** An unreadable or oversized body cannot be a quota error, so it stays a rate limit. */
+    return null
+  }
+  if (!isQuotaExhaustionBody(body)) return null
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
 }
 
 async function waitBeforeRetry(
@@ -109,8 +131,10 @@ export async function fetchWithProviderRetry(
       await waitBeforeRetry(attempt, null, getErrorMessage(error), options)
       continue
     }
-    if (response.ok || !canRetry || !(await shouldRetryResponse(response))) return response
-    await consumeOrCancelBody(response)
+    if (response.ok || !canRetry) return response
+    const final = await finalResponse(response, options.abortSignal)
+    if (final) return final
+    if (!response.bodyUsed) await consumeOrCancelBody(response)
     await waitBeforeRetry(
       attempt,
       providerRetryAfterMs(response.headers),
@@ -138,7 +162,12 @@ export async function withProviderRetry<T>(
       if (attempt > PROVIDER_MAX_RETRIES || options.abortSignal?.aborted || !retryable) {
         throw error
       }
-      await waitBeforeRetry(attempt, null, getErrorMessage(error), options)
+      await waitBeforeRetry(
+        attempt,
+        options.retryAfterMs?.(error) ?? null,
+        getErrorMessage(error),
+        options
+      )
     }
   }
 }
