@@ -45,7 +45,7 @@ import type {
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
@@ -174,7 +174,7 @@ export interface CredentialGroupEnrollmentCompletion {
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
 export async function lockCredentialGroupEnrollmentLifecycle(
-  executor: DbOrTx,
+  executor: DbTransaction,
   enrollmentId: string
 ): Promise<void> {
   if (!enrollmentId.trim()) throw new Error('Credential group enrollment ID is required')
@@ -187,7 +187,7 @@ export async function lockCredentialGroupEnrollmentLifecycle(
 
 /** Serializes invitation issuance before an enrollment row is known or locked. */
 async function lockCredentialGroupInvitationTarget(
-  executor: DbOrTx,
+  executor: DbTransaction,
   groupId: string,
   email: string
 ): Promise<void> {

@@ -10,6 +10,7 @@ import {
   type LiveSearchAccountStatus,
   liveSearchProviderSchema,
   type NativeSearchQuery,
+  NOTION_SEARCH_TERMS_REQUIRED,
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
@@ -312,6 +313,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     if (input.filters)
       input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
     const filters = input.filters
+    if (!queries && filters?.source === 'notion' && !input.query.trim())
+      throw new OrchestrationError('validation', NOTION_SEARCH_TERMS_REQUIRED)
     if (
       filters?.startDate &&
       filters.endDate &&
@@ -661,7 +664,12 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'Document is outside your organization’s search scope'
         )
       document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
-      if (!(await session.verifyCurrent(document)))
+      /** Readers degrade section failures to warnings, so the signal decides cancellation. */
+      signal.throwIfAborted()
+      const current = await session.verifyCurrent(document)
+      /** A verifier may report a check cut short by cancellation as a normal result. */
+      signal.throwIfAborted()
+      if (!current)
         throw new OrchestrationError(
           'not_found',
           'Document is outside your organization’s search scope'

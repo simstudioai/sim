@@ -433,7 +433,7 @@ async function reconcileCompletedListing(
       hardHeld
     )
   if (input.documentAccess === 'admin' && aclCount > 0) {
-    const finished = await walk(aclAbsent, 500, async (rows) => {
+    const { finished } = await walk(aclAbsent, 500, async (rows) => {
       await revokeDocumentAcls(
         withAclPage,
         rows.map((row) => row.id),
@@ -445,7 +445,7 @@ async function reconcileCompletedListing(
   }
   if (!allowDeletion) return { finished: true, notice }
   if (!checkpoint.fullSync && !softHeld && softCount > 0) {
-    const finished = await walk(soft, 500, async (rows) => {
+    const { finished } = await walk(soft, 500, async (rows) => {
       const removed = await withLease((tx) =>
         tx
           .update(document)
@@ -466,7 +466,7 @@ async function reconcileCompletedListing(
     if (!finished) return { finished: false, notice }
   }
   if (!hardHeld && hardCount > 0) {
-    const finished = await walk(hard, 25, async (rows) => {
+    const { finished } = await walk(hard, 25, async (rows) => {
       /** Report newly removed documents once; purging existing tombstones is storage cleanup. */
       for (const tombstoned of [false, true]) {
         const ids = rows.filter((row) => row.tombstoned === tombstoned).map((row) => row.id)

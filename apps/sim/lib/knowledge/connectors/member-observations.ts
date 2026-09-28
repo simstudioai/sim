@@ -890,7 +890,8 @@ async function reconcileUnobservedPages(
  * then, once a member has completed a listing, by a bounded slice of a
  * resumable pass over the whole connector, so a
  * run never evaluates every live document of a large connector in one
- * statement.
+ * statement. The resurrection walk likewise resumes where a deadline last
+ * stopped it, rather than from the connector's first document.
  *
  * A document whose content refresh failed this run is not resurrected: its
  * stored content is known-stale, and surfacing it would show pre-tombstone
@@ -912,9 +913,15 @@ export async function applyMemberDocumentLifecycle(
   if (!(await tombstoneUnobserved(input, unobserved, now, result))) return result
   if (input.allowRemoval && !(await reconcileUnobservedPages(input, now, result))) return result
 
+  const [connector] = await db
+    .select({ cursor: knowledgeConnector.memberResurrectionCursor })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connectorId))
+  const startAfterId = connector?.cursor ?? undefined
   const condition = resurrectableDocument(connectorId)
-  const resurrectionFinished = await walkReconciliationWindows({
+  const resurrection = await walkReconciliationWindows({
     connectorId,
+    startAfterId,
     condition,
     pageSize: LIFECYCLE_PAGE_SIZE,
     deadlineAt: input.deadlineAt,
@@ -939,7 +946,17 @@ export async function applyMemberDocumentLifecycle(
       result.resurrected += changed.length
     },
   })
-  if (!resurrectionFinished) return result
+  /** One write per run, and only when the resume point moved: the connector row is hot. */
+  const resumeAfterId = resurrection.finished ? undefined : resurrection.lastId
+  if (resumeAfterId !== startAfterId) {
+    await input.withLease((tx) =>
+      tx
+        .update(knowledgeConnector)
+        .set({ memberResurrectionCursor: resumeAfterId ?? null })
+        .where(eq(knowledgeConnector.id, connectorId))
+    )
+  }
+  if (!resurrection.finished) return result
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)
   const purgeCandidates = input.allowRemoval

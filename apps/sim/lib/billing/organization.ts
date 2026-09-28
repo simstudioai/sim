@@ -14,7 +14,7 @@ import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/mem
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   attachOwnedWorkspacesToOrganization,
   attachOwnedWorkspacesToOrganizationTx,
@@ -350,7 +350,7 @@ export async function ensureOrganizationForTeamSubscription(
  * resolution and workspace attachment through the caller's transaction.
  */
 export async function ensureOrganizationForTeamSubscriptionTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   subscription: SubscriptionData & { workspaceIdsToAttach: string[] }
 ): Promise<SubscriptionData & { usageLimitUserIds: string[] }> {
   if (!isOrgPlan(subscription.plan)) {

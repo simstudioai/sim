@@ -79,8 +79,6 @@ async function claimThreshold(
   return writeLimitNotifications(scope, id, setExpr, onlyIfLower)
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /** One account's credits threshold, keyed on its billing period and limit. */
 export interface CreditsThresholdClaim {
   scope: 'user' | 'organization'
@@ -92,20 +90,21 @@ export interface CreditsThresholdClaim {
 
 /**
  * The stored claims for a credits threshold, and the condition under which it is still unclaimed:
- * `credits` holds the highest threshold emailed while `creditsPeriod` (the period's start day) and
- * `creditsLimit` (the limit in cents) still match, so a new period or a changed limit — in either
- * direction — re-arms both thresholds with no reset write, while within one a claim of 100 also
- * retires 80, and never the reverse.
+ * `credits` holds the highest threshold emailed while `creditsPeriod` (the period's exact start,
+ * in epoch seconds) and `creditsLimit` (the limit in cents) still match, so a new period — even
+ * one starting the same day as the last — or a changed limit, in either direction, re-arms both
+ * thresholds with no reset write, while within one a claim of 100 also retires 80, and never the
+ * reverse.
  */
 function creditsThresholdSql(claim: CreditsThresholdClaim) {
-  const periodDay = Math.floor(claim.periodStart.getTime() / DAY_MS)
+  const periodStartSeconds = Math.floor(claim.periodStart.getTime() / 1000)
   const limitCents = Math.round(claim.limit * 100)
   const column =
     claim.scope === 'user' ? userStats.limitNotifications : organization.limitNotifications
   return {
-    next: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${claim.threshold}::int, 'creditsPeriod', ${periodDay}::bigint, 'creditsLimit', ${limitCents}::bigint)`,
+    next: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object('credits', ${claim.threshold}::int, 'creditsPeriod', ${periodStartSeconds}::bigint, 'creditsLimit', ${limitCents}::bigint)`,
     unclaimed: sql<boolean>`not (
-      (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodDay}::bigint
+      (${column} ->> 'creditsPeriod')::bigint is not distinct from ${periodStartSeconds}::bigint
       and (${column} ->> 'creditsLimit')::bigint is not distinct from ${limitCents}::bigint
       and coalesce((${column} ->> 'credits')::int, 0) >= ${claim.threshold}::int
     )`,
