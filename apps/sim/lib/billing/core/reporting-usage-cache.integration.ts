@@ -105,7 +105,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
   })
 
-  it('does not store a sum that began more than a TTL ago', async () => {
+  it('shares a sum that ran longer than the TTL for a short floor instead of dropping it', async () => {
     const now = Date.now()
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(now - REPORTING_USAGE_CACHE_TTL_MS - 1_000)
@@ -116,7 +116,10 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     })
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
-    expect(await redis.get(sharedKey(payer))).toBeNull()
+    expect(await redis.get(sharedKey(payer))).toBe('5.75')
+    const ttl = await redis.pttl(sharedKey(payer))
+    expect(ttl).toBeGreaterThan(4_000)
+    expect(ttl).toBeLessThanOrEqual(5_000)
   })
 
   it('anchors a stored sum expiry to when the sum began, not when it was written', async () => {

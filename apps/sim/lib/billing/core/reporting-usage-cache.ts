@@ -29,13 +29,21 @@ const logger = createLogger('ReportingUsageCache')
  *
  * A sum is held both in Redis, shared by every process, and in each process that reads it. It
  * reflects the ledger as of the moment its sum began, and its Redis expiry is anchored to that
- * moment, so a sum is served from Redis for at most this TTL plus its jitter after it began —
- * including however long the sum itself ran — plus up to this TTL again in the reading process.
+ * moment, so it is served from Redis for at most max(this TTL + jitter, the sum's duration +
+ * {@link MIN_SHARED_TTL_MS}) after it began, plus up to this TTL again in the reading process.
  */
 export const REPORTING_USAGE_CACHE_TTL_MS = 30_000
 
 /** Redis expiry is jittered by up to this much, so payers summed together do not expire together. */
 const SHARED_TTL_JITTER_MS = 5_000
+
+/**
+ * The shortest time a sum is kept in Redis. A sum that ran longer than the TTL would otherwise
+ * expire on arrival, and under the database pressure that makes sums slow, every process would
+ * then run the same slow sum again. Five seconds shares it with the processes waiting on it while
+ * adding little staleness next to the time the sum itself took.
+ */
+const MIN_SHARED_TTL_MS = 5_000
 
 /**
  * How long a read waits on a connected Redis before summing the ledger instead, so a socket that
@@ -96,20 +104,26 @@ function warnSharedWriteFailed(error: unknown): void {
 
 /**
  * Fire-and-forget: a read never waits on, or fails because of, the shared write. The expiry is
- * anchored to when the sum began (`PXAT`), and a sum already older than the TTL is not written, so
- * neither a slow sum nor a write the client resends after a reconnect can give an old total a
- * fresh expiry. The write only lands when no sum is stored (`NX`), so an older sum can never
- * replace a fresher one or extend its expiry.
+ * anchored to when the sum began: the remaining lifetime is computed here and written with `PX`,
+ * which every Redis version accepts, floored at {@link MIN_SHARED_TTL_MS}. A write the client
+ * resends after a reconnect re-applies that same relative lifetime from the resend, so it can
+ * extend the expiry by at most the reconnect delay. The write only lands when no sum is stored
+ * (`NX`), so an older sum can never replace a fresher one or extend its expiry.
  */
 function writeSharedReportingUsageCost(key: string, cost: number, sumStartedAt: number): void {
   try {
-    if (Date.now() >= sumStartedAt + REPORTING_USAGE_CACHE_TTL_MS) return
     const redis = readyRedisClient()
     if (!redis) return
-    const expiresAt =
-      sumStartedAt + REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
+    const remainingMs =
+      sumStartedAt + REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS) - Date.now()
     redis
-      .set(sharedReportingUsageKey(key), String(cost), 'PXAT', expiresAt, 'NX')
+      .set(
+        sharedReportingUsageKey(key),
+        String(cost),
+        'PX',
+        Math.max(remainingMs, MIN_SHARED_TTL_MS),
+        'NX'
+      )
       .catch(warnSharedWriteFailed)
   } catch (error) {
     warnSharedWriteFailed(error)
