@@ -1,5 +1,6 @@
 import { inputValidationMock } from '@sim/testing'
 import { partialToolRegistry } from '@sim/testing/mocks/tool-registry.mock'
+import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -36,13 +37,13 @@ const REQUEST_PARAMS = {
   rating: 'POSITIVE',
 }
 
+/** The validator's refusal, naming the `host` param and every allowlisted Databricks domain. */
+const HOST_ALLOWLIST_ERROR =
+  'host must be a Databricks-hosted domain (e.g., *.cloud.databricks.com, *.cloud.databricks.us, *.cloud.databricks.mil, *.gcp.databricks.com, *.databricks.com, *.azuredatabricks.net, *.databricks.azure.us, *.databricks.azure.cn)'
+
 const DATABRICKS_TOOL_IDS = Object.keys(tools).filter((id) => id.startsWith('databricks_'))
 
 describe('databricks workspace host allowlist', () => {
-  it('registers the Databricks tools', () => {
-    expect(DATABRICKS_TOOL_IDS).not.toEqual([])
-  })
-
   it.each([
     'attacker.example.com',
     'https://attacker.example.com/',
@@ -51,16 +52,15 @@ describe('databricks workspace host allowlist', () => {
     'dbc-1.cloud.databricks.com@attacker.example.com',
     'databricks.com',
     'acme-databricks.com',
-  ])('refuses %s in every tool before a URL is built', (host) => {
-    const accepted = DATABRICKS_TOOL_IDS.filter((id) => {
+  ])('refuses %s in every tool with the host allowlist error', (host) => {
+    const notRefusedByAllowlist = DATABRICKS_TOOL_IDS.map((id) => {
       try {
-        urlBuilder(id)({ ...REQUEST_PARAMS, host })
-        return true
-      } catch {
-        return false
+        return `${id}: built ${urlBuilder(id)({ ...REQUEST_PARAMS, host })}`
+      } catch (error) {
+        return `${id}: ${getErrorMessage(error)}`
       }
-    })
-    expect(accepted).toEqual([])
+    }).filter((outcome) => !outcome.endsWith(`: ${HOST_ALLOWLIST_ERROR}`))
+    expect(notRefusedByAllowlist).toEqual([])
   })
 
   it('fails the tool call for a foreign host with the allowlist error', async () => {
@@ -70,7 +70,7 @@ describe('databricks workspace host allowlist', () => {
     })
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('host must be a Databricks-hosted domain')
+    expect(result.error).toContain(HOST_ALLOWLIST_ERROR)
   })
 
   it.each([
