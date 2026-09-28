@@ -661,6 +661,8 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'Document is outside your organization’s search scope'
         )
       document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
+      /** Readers degrade section failures to warnings, so the signal decides cancellation. */
+      signal.throwIfAborted()
       if (!(await session.verifyCurrent(document)))
         throw new OrchestrationError(
           'not_found',
