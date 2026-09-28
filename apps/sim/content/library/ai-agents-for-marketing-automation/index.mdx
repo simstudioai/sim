@@ -125,8 +125,8 @@ A bounded lead-routing workflow in Sim can combine model judgment with fixed bra
 1. A form submission triggers the workflow, which validates required fields and retrieves the matching CRM account.
 2. An Agent block receives the approved account context and returns a fit category, intent category, routing recommendation, and short rationale in a defined structure.
 3. A fixed Condition branch rejects incomplete records from automatic routing and sends them to an exception queue.
-4. Another Condition branch sends conflicting classifications and strategic accounts to a Human block, which pauses execution until a marketer approves or changes the route.
-5. After approval, the workflow updates the CRM owner, creates the follow-up task or draft, and sends an internal routing notification.
+4. Another Condition branch sends conflicting classifications and strategic accounts to a Human block, whose resume form requires an approval decision and lets the marketer supply a corrected route.
+5. After the marketer submits the form, a downstream Condition stops rejected submissions and passes only the approved or reviewer-supplied route to the CRM update, follow-up task or draft, and internal routing notification.
 6. The workflow writes the inputs, recommendation, approval decision, and resulting actions to the team's approved audit destination for later review.
 
 This division keeps validation and routing policy deterministic while using the model only for interpretation. It also prevents uncertain results from reaching activation tools without review.
