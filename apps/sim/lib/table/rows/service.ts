@@ -508,7 +508,7 @@ export async function replaceTableRows(
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `replaceTableRows` and `importReplaceRows`.
  *
- * Takes the table's unique-column locks before its row-order lock, so a caller already holding the
+ * Takes the table's unique lock before its row-order lock, so a caller already holding the
  * row-order lock must take `lockUniqueColumns` first.
  */
 export async function replaceTableRowsWithTx(

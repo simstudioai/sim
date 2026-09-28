@@ -13,6 +13,7 @@ import { tableTriggerMock } from '@sim/testing/mocks/table-trigger.mock'
 import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,8 +22,11 @@ vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-import { bulkInsertImportBatch } from '@/lib/table/import-data'
+import { bulkInsertImportBatch, importReplaceRows } from '@/lib/table/import-data'
+import type { DbTransaction } from '@/lib/table/planner'
+import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
 import { batchInsertRows, batchUpdateRows, insertRow, updateRow } from '@/lib/table/rows/service'
+import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
@@ -271,8 +275,13 @@ describe('table row writes against real PostgreSQL', () => {
         table.id,
         [
           () => insertEmail(table, 'dup@example.test'),
-          () =>
-            updateRow(
+          async () => {
+            // Start the edit only once the insert has passed its check and holds its locks.
+            expect(await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })).toEqual({
+              onOrderLock: 1,
+              onValueLock: 0,
+            })
+            return updateRow(
               {
                 tableId: table.id,
                 rowId: `${table.id}-a`,
@@ -283,13 +292,77 @@ describe('table row writes against real PostgreSQL', () => {
               },
               table,
               'unique-race'
-            ),
+            )
+          },
         ],
         { onOrderLock: 1, onValueLock: 1 }
       )
 
       expect(fulfilled(results)).toBe(1)
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
+    it('lets a replace that adds the first unique column wait out a writer on an older schema', async () => {
+      const table = await createTable([{ id: 'name', name: 'name', type: 'string' }])
+      // The writer resolved the table while it still had a unique column, so it holds the unique
+      // lock shared and will want the row-order lock next.
+      const stale: TableDefinition = {
+        ...table,
+        schema: { columns: [...table.schema.columns, ...uniqueColumns] },
+      }
+      let holdsUniqueLock!: () => void
+      const holding = new Promise<void>((resolve) => {
+        holdsUniqueLock = resolve
+      })
+      let release!: () => void
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const writer = db.transaction(async (trx) => {
+        await lockUniqueValues(trx, stale, [{ email: 'stale@example.test' }])
+        holdsUniqueLock()
+        await released
+        await acquireRowOrderLock(trx, table.id)
+      })
+      await holding
+
+      const replace = importReplaceRows(
+        table,
+        [{ id: 'code', name: 'code', type: 'string', unique: true }],
+        { rows: [{ name: 'fresh', code: 'c-1' }], workspaceId },
+        'unique-race'
+      )
+      expect(await waitForLockWaiters(table.id, { onOrderLock: 0, onValueLock: 1 })).toEqual({
+        onOrderLock: 0,
+        onValueLock: 1,
+      })
+      release()
+
+      const results = await Promise.allSettled([writer, replace])
+      expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled'])
+    })
+
+    it('holds a bounded number of locks however many unique columns a table has', async () => {
+      const wide: ColumnDefinition[] = Array.from({ length: 100 }, (_, i) => ({
+        id: `code_${i}`,
+        name: `code_${i}`,
+        type: 'string',
+        unique: true,
+      }))
+      const table = await createTable(wide)
+      const row = Object.fromEntries(wide.map((_, i) => [`code_${i}`, `value-${i}`]))
+      const advisoryLocksHeld = async (lock: (trx: DbTransaction) => Promise<void>) =>
+        db.transaction(async (trx) => {
+          await lock(trx)
+          const [{ held }] = await trx.execute<{ held: number }>(sql`SELECT count(*)::int AS held
+            FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()`)
+          return held
+        })
+
+      expect(await advisoryLocksHeld((trx) => lockUniqueValues(trx, table, [row]))).toBe(1)
+      expect(await advisoryLocksHeld((trx) => lockUniqueColumns(trx, table))).toBe(1)
+      const narrow = { code_0: 'value-0', code_1: 'value-1' }
+      expect(await advisoryLocksHeld((trx) => lockUniqueValues(trx, table, [narrow]))).toBe(3)
     })
 
     it('serializes a batch over the value-lock cap against a single insert of the same value', async () => {
@@ -331,7 +404,10 @@ describe('table row writes against real PostgreSQL', () => {
           () => insertEmail(table, 'dup@example.test'),
           async () => {
             // Start the import only once the insert has passed its check and holds its locks.
-            await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })
+            expect(await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })).toEqual({
+              onOrderLock: 1,
+              onValueLock: 0,
+            })
             return bulkInsertImportBatch(
               {
                 tableId: table.id,

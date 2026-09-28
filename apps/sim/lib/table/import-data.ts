@@ -121,7 +121,7 @@ export async function bulkInsertImportBatch(
   const inserted = await db.transaction(async (trx) => {
     await guardBatch(trx, data.tableId, revalidate)
     if (getUniqueColumns(table.schema).length > 0) {
-      // Whole-column locks, not per-value: a batch is far more values than the value-lock cap.
+      // The whole-table unique lock, not per-value: a batch is far more values than the value-lock cap.
       await lockUniqueColumns(trx, table)
       const uniqueResult = await checkBatchUniqueConstraintsDb(
         data.tableId,
