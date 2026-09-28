@@ -37,9 +37,6 @@ import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
  */
 const MAX_RETRY_AFTER_MS = 30_000
 
-/** Node's `fetch` rejects with this `TypeError` message when no response arrived. */
-const FETCH_FAILED_MESSAGES = new Set(['fetch failed', 'failed to fetch'])
-
 /** Bun's `fetch` rejects with an `Error` carrying one of these codes when no response arrived. */
 const BUN_CONNECTION_ERROR_CODES = new Set(['ConnectionRefused', 'ConnectionClosed'])
 
@@ -70,14 +67,12 @@ export function isWithinRetryWindow(retryAfterMs: number | null): boolean {
 }
 
 /**
- * A request that never got a response. Node rejects with `TypeError('fetch failed')` carrying
- * the socket error as `cause`; Bun with an `Error` carrying the connection code. Any other
- * `TypeError` is a malformed request, which a replay cannot fix.
+ * A request that never got a response, recognised by its socket error code rather than its
+ * message: Node rejects with `TypeError('fetch failed')` carrying the code on its `cause`,
+ * Bun with an `Error` carrying it directly. An error with no such code — a `TypeError` from
+ * a malformed request, say — is not a network fault, and a replay cannot fix it.
  */
 function isRetryableTransportFailure(error: unknown): boolean {
-  if (error instanceof TypeError) {
-    return error.cause !== undefined && FETCH_FAILED_MESSAGES.has(error.message.toLowerCase())
-  }
   const code = isRecordLike(error) ? error.code : undefined
   if (typeof code === 'string' && BUN_CONNECTION_ERROR_CODES.has(code)) return true
   return isRetryableInfrastructureError(error)

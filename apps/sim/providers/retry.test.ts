@@ -171,8 +171,18 @@ describe('fetchWithProviderRetry', () => {
       Object.assign(new Error('Unable to connect'), { code: 'ConnectionRefused' }),
     ],
     [
-      'Node network failure',
+      'Node connection reset',
       new TypeError('fetch failed', { cause: Object.assign(new Error(), { code: 'ECONNRESET' }) }),
+    ],
+    [
+      'Node refused connection',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new AggregateError([]), { code: 'ECONNREFUSED' }),
+      }),
+    ],
+    [
+      'TypeError caused by a socket error, whatever its message',
+      new TypeError('network error', { cause: Object.assign(new Error(), { code: 'ECONNRESET' }) }),
     ],
   ])('retries a %s', async (_, failure) => {
     const send = vi.fn().mockRejectedValueOnce(failure).mockImplementation(reply(200))
