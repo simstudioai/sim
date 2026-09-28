@@ -216,6 +216,7 @@ export const DEFAULTS = {
 export const HTTP = {
   STATUS: {
     OK: 200,
+    BAD_REQUEST: 400,
     FORBIDDEN: 403,
     NOT_FOUND: 404,
     TOO_MANY_REQUESTS: 429,

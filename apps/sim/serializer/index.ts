@@ -19,6 +19,7 @@ import {
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
+import { markWorkflowUserFailure } from '@/executor/utils/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -272,8 +273,13 @@ export class Serializer {
       const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
       if (missingRequiredFields.length > 0) {
         const blockName = block.name || blockConfig.name || 'Block'
-        throw new Error(
-          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
+        throw markWorkflowUserFailure(
+          new WorkflowValidationError(
+            `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`,
+            block.id,
+            block.type,
+            blockName
+          )
         )
       }
     }

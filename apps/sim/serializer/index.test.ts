@@ -24,7 +24,9 @@ import {
 } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 import { DAGBuilder } from '@/executor/dag/builder'
+import { isWorkflowUserFailure } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer/index'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 
 vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
@@ -449,6 +451,47 @@ describe('Serializer', () => {
             true
           )
         }).toThrow('Wait Block is missing required fields: Wait Amount')
+      }
+    )
+
+    it.concurrent(
+      'attributes a missing required field to its block as a workflow user failure',
+      () => {
+        const serializer = new Serializer()
+        const waitBlockMissingRequired: BlockState = {
+          id: 'wait-block',
+          type: 'wait',
+          name: 'Wait Block',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            timeValue: { id: 'timeValue', type: 'short-input', value: '' },
+            timeUnit: { id: 'timeUnit', type: 'dropdown', value: 'seconds' },
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        const thrown = (() => {
+          try {
+            serializer.serializeWorkflow(
+              { 'wait-block': waitBlockMissingRequired },
+              [],
+              {},
+              undefined,
+              true
+            )
+          } catch (error) {
+            return error
+          }
+        })()
+
+        expect(thrown).toMatchObject({
+          name: 'WorkflowValidationError',
+          blockId: 'wait-block',
+          blockType: 'wait',
+          blockName: 'Wait Block',
+        })
+        expect(isWorkflowUserFailure(thrown)).toBe(true)
       }
     )
 

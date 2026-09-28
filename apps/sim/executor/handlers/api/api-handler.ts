@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { BlockType, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { markWorkflowUserFailure } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -126,6 +127,16 @@ export class ApiBlockHandler implements BlockHandler {
           },
           timestamp: new Date().toISOString(),
         })
+
+        // The URL the workflow called rejected the request it sent.
+        const status = result.output?.status
+        if (
+          typeof status === 'number' &&
+          status >= HTTP.STATUS.BAD_REQUEST &&
+          status < HTTP.STATUS.SERVER_ERROR
+        ) {
+          markWorkflowUserFailure(error)
+        }
 
         throw error
       }

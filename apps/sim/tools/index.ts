@@ -91,6 +91,7 @@ import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-c
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
+import { isWorkflowUserFailure, markWorkflowUserFailure } from '@/executor/utils/errors'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
@@ -2424,6 +2425,7 @@ async function executeToolImplementation(
       // thrown error into a result object; an upstream provider's status stays
       // on `output` where it cannot be mistaken for ours.
       ...(error instanceof HttpError ? { statusCode: error.statusCode } : {}),
+      ...(isWorkflowUserFailure(error) ? { workflowUserFailure: true as const } : {}),
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,
@@ -2609,6 +2611,12 @@ function isToolResponse(value: unknown): value is ToolResponse {
   return isRecordLike(value) && typeof value.success === 'boolean' && isRecordLike(value.output)
 }
 
+/**
+ * Status the Function route answers a failure in the user's own code with (a
+ * runtime or compile error). The route keeps 5xx for its own faults.
+ */
+const FUNCTION_USER_CODE_FAILURE_STATUS = 422
+
 async function executeDeclaredInternalOperation({
   toolId,
   tool,
@@ -2790,10 +2798,13 @@ async function executeDeclaredInternalOperation({
     } catch {
       errorData = errorText
     }
-    throw createTransformedErrorFromErrorInfo(
+    const error = createTransformedErrorFromErrorInfo(
       { status: response.status, statusText: response.statusText, data: errorData },
       tool.errorExtractor
     )
+    throw isFunctionOperation && response.status === FUNCTION_USER_CODE_FAILURE_STATUS
+      ? markWorkflowUserFailure(error)
+      : error
   }
 
   if (tool.transformResponse) return tool.transformResponse(response, params, { signal })

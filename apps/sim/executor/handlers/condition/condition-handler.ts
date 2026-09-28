@@ -10,6 +10,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { markWorkflowUserFailure } from '@/executor/utils/errors'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   buildBranchNodeId,
@@ -295,7 +296,8 @@ async function evaluateSingleCondition(
     if (result.retryable === false) {
       throw new NonRetryableExecutionError(result.error ?? 'Condition evaluation is indeterminate')
     }
-    throw new Error(result.error ?? 'Condition evaluation failed')
+    const error = new Error(result.error ?? 'Condition evaluation failed')
+    throw result.workflowUserFailure ? markWorkflowUserFailure(error) : error
   }
 
   return Boolean(result.output?.result)
@@ -505,7 +507,9 @@ export class ConditionBlockHandler implements BlockHandler {
         return null
       case 'expression-threw':
         logger.error('Failed to evaluate condition', { conditionCount: conditions.length })
-        throw conditionError(conditions[evaluation.index], evaluation.message)
+        throw markWorkflowUserFailure(
+          conditionError(conditions[evaluation.index], evaluation.message)
+        )
       case 'no-verdict':
         if (!evaluation.retryable) {
           throw new NonRetryableExecutionError(

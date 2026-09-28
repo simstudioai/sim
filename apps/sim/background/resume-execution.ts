@@ -23,6 +23,10 @@ import {
   createResumeAttemptTimeoutController,
   PauseResumeManager,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import {
+  buildWorkflowJobFailureResult,
+  classifySettledWorkflowJobFailure,
+} from '@/lib/workflows/executor/job-failure'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializedSnapshot } from '@/executor/types'
@@ -230,6 +234,15 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
         workflowId,
       })
     )
+    // The resumed run executes under its parent's id, and the manager settles
+    // its post-execution work before re-throwing.
+    if (classifySettledWorkflowJobFailure(error, parentExecutionId) === 'workflow_failure') {
+      return {
+        ...buildWorkflowJobFailureResult({ error, workflowId, executionId: resumeExecutionId }),
+        parentExecutionId,
+        status: 'failed' as const,
+      }
+    }
     throw error
   } finally {
     timeoutController?.cleanup()

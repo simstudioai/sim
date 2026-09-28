@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { isWorkflowUserFailure } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolConfig } from '@/tools/types'
@@ -125,4 +126,22 @@ describe('ApiBlockHandler', () => {
     )
     expect(mockExecuteTool).toHaveBeenCalled()
   })
+
+  it.each([
+    { output: { status: 400, statusText: 'Bad Request' }, expected: true },
+    { output: { status: 503, statusText: 'Service Unavailable' }, expected: false },
+    { output: {}, expected: false },
+  ])(
+    'marks the failure as the workflow user failure only for a 4xx from the requested URL ($output.status)',
+    async ({ output, expected }) => {
+      mockExecuteTool.mockResolvedValue({ success: false, output, error: 'Request failed' })
+
+      const thrown = await handler
+        .execute(mockContext, mockBlock, { url: 'https://example.com/hook', method: 'POST' })
+        .catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(isWorkflowUserFailure(thrown)).toBe(expected)
+    }
+  )
 })

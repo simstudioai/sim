@@ -25,6 +25,7 @@ vi.mock('@/executor/utils/block-data', () => ({
 }))
 
 import { collectBlockData } from '@/executor/utils/block-data'
+import { isWorkflowUserFailure } from '@/executor/utils/errors'
 import { executeTool } from '@/tools'
 
 const mockExecuteTool = executeTool as ReturnType<typeof vi.fn>
@@ -365,6 +366,52 @@ describe('ConditionBlockHandler', () => {
     ).rejects.toThrow(/Evaluation error in condition "else if": Cannot read/)
     expect(mockExecuteTool).toHaveBeenCalledOnce()
     expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  describe('workflow user failures', () => {
+    const conditions = [
+      { id: 'cond1', title: 'if', value: '<parallel.currentItem.removed> === true' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    it('marks an expression that threw as the workflow user failure', async () => {
+      mockExecuteTool.mockResolvedValueOnce(threwAt(0, 'Cannot read properties of undefined'))
+
+      const thrown = await handler
+        .execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+        .catch((error: unknown) => error)
+
+      expect(isWorkflowUserFailure(thrown)).toBe(true)
+    })
+
+    it('marks an expression the sandbox could not parse as the workflow user failure', async () => {
+      const syntaxError = {
+        success: false,
+        error:
+          "Syntax Error: Line 3: `<parallel.currentItem.removed> === true` - Unexpected token '<'",
+        workflowUserFailure: true as const,
+      }
+      mockExecuteTool.mockResolvedValueOnce(syntaxError)
+      mockExecuteTool.mockResolvedValueOnce(syntaxError)
+
+      const thrown = await handler
+        .execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+        .catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(isWorkflowUserFailure(thrown)).toBe(true)
+    })
+
+    it('does not mark an evaluation that timed out', async () => {
+      mockExecuteTool.mockResolvedValue({ success: false, error: 'Request timed out after 5000ms' })
+
+      const thrown = await handler
+        .execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+        .catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(isWorkflowUserFailure(thrown)).toBe(false)
+    })
   })
 
   it('preserves routing metadata when the target block is disabled', async () => {

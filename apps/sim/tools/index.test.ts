@@ -1852,6 +1852,31 @@ describe('executeTool Function', () => {
     expect(result.output).not.toHaveProperty('cost')
   })
 
+  it.each([
+    { status: 422, expected: true },
+    { status: 500, expected: undefined },
+    { status: 503, expected: undefined },
+  ])(
+    'marks a Function failure as the workflow user failure only for the user-code status ($status)',
+    async ({ status, expected }) => {
+      mockExecuteFunction.mockResolvedValueOnce(
+        Response.json(
+          { success: false, error: 'ValueError: boom', output: { result: null, stdout: '' } },
+          { status }
+        )
+      )
+
+      const result = await executeTool(
+        'function_execute',
+        { code: 'raise ValueError("boom")' },
+        { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.workflowUserFailure).toBe(expected)
+    }
+  )
+
   it('does not log a secret-bearing non-OK response stream error', async () => {
     const secret = 'function-body-stream-secret-value'
     const streamError = `${secret} __var_API_KEY __sim_code_0_binding_0`

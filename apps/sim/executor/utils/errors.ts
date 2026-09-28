@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sim/utils/errors'
+import { findCause, getErrorMessage } from '@sim/utils/errors'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -139,6 +139,33 @@ function normalizeTrustedExecutionCost(cost: unknown): TrustedExecutionCost | un
 function isRecordedThrown(value: unknown): value is object {
   /** Functions key a WeakMap as well as objects do, so excluding them would drop the record. */
   return (typeof value === 'object' || typeof value === 'function') && value !== null
+}
+
+/**
+ * Marks `error` as caused by the workflow itself: its user code, an expression,
+ * its configuration, or a request it sent that the target rejected. Mark only a
+ * failure positively known to be the workflow's; an unmarked failure is treated
+ * as Sim failing to run the workflow.
+ */
+export function markWorkflowUserFailure<T extends Error>(error: T): T {
+  return Object.assign(error, { workflowUserFailure: true as const })
+}
+
+/**
+ * Whether `error`, or an error in its `.cause` chain, was marked with
+ * {@link markWorkflowUserFailure}. The chain is walked because block and child
+ * workflow boundaries wrap the failure they report.
+ */
+export function isWorkflowUserFailure(error: unknown): boolean {
+  return (
+    findCause(
+      error,
+      (value): value is Error =>
+        value instanceof Error &&
+        'workflowUserFailure' in value &&
+        value.workflowUserFailure === true
+    ) !== undefined
+  )
 }
 
 export interface BlockExecutionErrorDetails {

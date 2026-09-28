@@ -113,6 +113,12 @@ export interface ToolResponse {
    * status — a provider's 404 must never become the workflow API's status.
    */
   statusCode?: number
+  /**
+   * True when the tool failed because of the workflow itself (see
+   * `markWorkflowUserFailure`), carried across the same flattening as
+   * `statusCode` so the block can report the failure as the workflow's.
+   */
+  workflowUserFailure?: true
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]

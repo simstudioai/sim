@@ -5,7 +5,7 @@ import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { readTrustedExecutionCost } from '@/executor/utils/errors'
+import { isWorkflowUserFailure, readTrustedExecutionCost } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -107,6 +107,27 @@ describe('FunctionBlockHandler', () => {
       expect(thrown).toBeInstanceOf(Error)
       expect(thrown instanceof NonRetryableExecutionError).toBe(nonRetryable)
       expect(readTrustedExecutionCost(thrown)).toEqual(cost)
+    }
+  )
+
+  it.each([
+    { workflowUserFailure: true as const, expected: true },
+    { workflowUserFailure: undefined, expected: false },
+  ])(
+    'marks the failure as the workflow user failure only when the tool reports one ($expected)',
+    async ({ workflowUserFailure, expected }) => {
+      mockExecuteTool.mockResolvedValueOnce({
+        success: false,
+        output: { result: null, stdout: '' },
+        error: "ValueError: kind ''",
+        ...(workflowUserFailure ? { workflowUserFailure } : {}),
+      })
+
+      const thrown = await handler
+        .execute(mockContext, mockBlock, { code: 'raise ValueError()' })
+        .catch((error: unknown) => error)
+
+      expect(isWorkflowUserFailure(thrown)).toBe(expected)
     }
   )
 })

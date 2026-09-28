@@ -29,6 +29,13 @@ vi.mock('@/executor/execution/snapshot', () => ({
 }))
 
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
+import { buildBlockExecutionError, markWorkflowUserFailure } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
+
+const planPanels = {
+  id: 'plan-panels',
+  metadata: { id: 'function', name: 'planPanels' },
+} as SerializedBlock
 
 const { mockFindCellContextByExecutionId } = tableWorkflowColumnsMockFns
 const {
@@ -102,6 +109,39 @@ describe('executeResumeJob terminal errors', () => {
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')
     expect(rawError.message).toContain(secret)
+  })
+
+  it('completes the job when the resumed workflow failed with a recorded workflow user failure', async () => {
+    const blockError = Object.assign(
+      buildBlockExecutionError({
+        block: planPanels,
+        error: markWorkflowUserFailure(new Error("ValueError: kind ''")),
+      }),
+      { executionFinalizedByCore: true }
+    )
+    mockStartResumeExecution.mockRejectedValue(blockError)
+
+    await expect(executeResumeJob(payload)).resolves.toMatchObject({
+      success: false,
+      workflowId: 'workflow-1',
+      executionId: 'resume-execution-1',
+      parentExecutionId: 'parent-execution-1',
+      status: 'failed',
+      error: blockError.message,
+    })
+  })
+
+  it('faults the job on an unmarked block failure even when core recorded it', async () => {
+    const blockError = Object.assign(
+      buildBlockExecutionError({
+        block: planPanels,
+        error: new TypeError('rows.flatMap is not a function'),
+      }),
+      { executionFinalizedByCore: true }
+    )
+    mockStartResumeExecution.mockRejectedValue(blockError)
+
+    await expect(executeResumeJob(payload)).rejects.toBe(blockError)
   })
 
   it('starts a legacy attempt deadline before deserializing the full snapshot', async () => {

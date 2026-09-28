@@ -26,7 +26,6 @@ const {
   mockExecuteWorkflowCore,
   mockExecutionSnapshot,
   mockWasExecutionFinalizedByCore,
-  mockHasExecutionResult,
   mockIsWorkflowTimedOut,
   mockGetScheduleTimeValues,
   mockGetSubBlockValue,
@@ -34,7 +33,6 @@ const {
   mockExecuteWorkflowCore: vi.fn(),
   mockExecutionSnapshot: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
-  mockHasExecutionResult: vi.fn(),
   mockIsWorkflowTimedOut: vi.fn(() => false),
   mockGetScheduleTimeValues: vi.fn(),
   mockGetSubBlockValue: vi.fn(),
@@ -72,10 +70,6 @@ vi.mock('@/lib/workflows/schedules/utils', () => ({
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: mockExecutionSnapshot,
-}))
-
-vi.mock('@/executor/utils/errors', () => ({
-  hasExecutionResult: mockHasExecutionResult,
 }))
 
 import { executeScheduleJob } from './schedule-execution'
@@ -125,7 +119,6 @@ const principal = {
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     mockWasExecutionFinalizedByCore.mockReturnValue(false)
-    mockHasExecutionResult.mockReturnValue(false)
     mockIsWorkflowTimedOut.mockReturnValue(false)
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
@@ -379,7 +372,6 @@ describe('async preprocessing correlation threading', () => {
       executionTimeout: {},
     })
     mockExecuteWorkflowCore.mockRejectedValueOnce(rawError)
-    mockHasExecutionResult.mockImplementation((error) => error === rawError)
     mockWasExecutionFinalizedByCore.mockReturnValue(true)
 
     await expect(
@@ -395,7 +387,8 @@ describe('async preprocessing correlation threading', () => {
       })
     ).rejects.toBe(rawError)
 
-    expect(loggingSessionMockFns.mockWaitForPostExecution).not.toHaveBeenCalled()
+    // Core finalizes after throwing, so the task must settle that work before deciding.
+    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     expect(mockWasExecutionFinalizedByCore).toHaveBeenCalledWith(rawError, 'execution-finalized')
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })

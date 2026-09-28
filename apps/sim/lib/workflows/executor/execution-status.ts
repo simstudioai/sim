@@ -14,6 +14,7 @@ import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
+import { projectWorkflowJobOutcome } from '@/lib/workflows/executor/job-outcome'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
 
@@ -97,8 +98,13 @@ function projectQueueJob(
   job: Job,
   input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
 ): WorkflowExecutionStatusResponse {
+  const outcome = projectWorkflowJobOutcome(job)
   const status: WorkflowExecutionStatusResponse['status'] =
-    job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
+    outcome.status === 'pending'
+      ? 'queued'
+      : outcome.status === 'processing'
+        ? 'running'
+        : outcome.status
   const startedAt = job.startedAt ?? job.createdAt
   const endedAt = job.completedAt ?? null
 
@@ -113,7 +119,7 @@ function projectQueueJob(
     totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
     paused: null,
     cost: null,
-    error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
+    error: status === 'failed' ? (outcome.error ?? 'Execution failed') : null,
     finalOutput:
       input.includeOutput && status === 'completed' ? extractJobFinalOutput(job.output) : null,
     blockOutputs: null,
