@@ -340,12 +340,6 @@ describe('executeAnthropicProviderRequest none thinking level', () => {
     return create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams
   }
 
-  it('sends bare between_tools thinking on claude-sonnet-5-5', async () => {
-    const payload = await sendWithThinkingNone('claude-sonnet-5-5')
-    expect(payload.thinking).toEqual({ type: 'between_tools' })
-    expect(payload.output_config).toBeUndefined()
-  })
-
   it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
     'sends no thinking config on %s',
     async (model) => {
@@ -794,6 +788,89 @@ describe('streaming', () => {
         ])
         expect(payload.tools.at(-1).cache_control).toEqual({ type: 'ephemeral' })
       }
+    })
+  })
+
+  /**
+   * Both tool loops rebuild the request for every turn after a tool call, so
+   * Sonnet 5.5's `none` mapping must survive past the first request: a later
+   * turn without it would silently run adaptive thinking at the API default.
+   */
+  describe('executeAnthropicProviderRequest none thinking level across tool turns', () => {
+    const lookupTool = {
+      id: 'lookup',
+      name: 'lookup',
+      description: 'Lookup',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    const toolTurn = message(
+      [{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }],
+      'tool_use'
+    )
+    const answerTurn = message([{ type: 'text', text: 'done' }], 'end_turn')
+
+    function expectBareBetweenTools(payloads: Anthropic.Messages.MessageCreateParams[]) {
+      expect(payloads).toHaveLength(2)
+      for (const payload of payloads) {
+        expect(payload.thinking).toEqual({ type: 'between_tools' })
+        expect(payload.output_config).toBeUndefined()
+      }
+    }
+
+    it('sends bare between_tools on every non-streaming turn', async () => {
+      mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+      const create = vi.fn().mockResolvedValueOnce(toolTurn).mockResolvedValueOnce(answerTurn)
+
+      await executeAnthropicProviderRequest(
+        {
+          model: 'claude-sonnet-5-5',
+          apiKey: 'test-key',
+          maxTokens: 1024,
+          thinkingLevel: 'none',
+          agentEvents: true,
+          messages: [{ role: 'user', content: 'Look this up' }],
+          tools: [lookupTool],
+        },
+        {
+          providerId: 'anthropic',
+          providerLabel: 'Anthropic',
+          createClient: () => ({ messages: { create } }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )
+
+      expectBareBetweenTools(create.mock.calls.map((call) => call[0]))
+    })
+
+    it('sends bare between_tools on every streaming turn', async () => {
+      mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+      const createStream = vi
+        .fn()
+        .mockReturnValueOnce(stream([{ type: 'message_stop' }], toolTurn))
+        .mockReturnValueOnce(stream([{ type: 'message_stop' }], answerTurn))
+
+      const result = (await executeAnthropicProviderRequest(
+        {
+          model: 'claude-sonnet-5-5',
+          apiKey: 'test-key',
+          stream: true,
+          maxTokens: 1024,
+          thinkingLevel: 'none',
+          agentEvents: true,
+          messages: [{ role: 'user', content: 'Look this up' }],
+          tools: [lookupTool],
+        },
+        {
+          providerId: 'anthropic',
+          providerLabel: 'Anthropic',
+          createClient: () => ({ messages: { stream: createStream } }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )) as StreamingExecution
+      await collectEvents(result)
+
+      expectBareBetweenTools(createStream.mock.calls.map((call) => call[0]))
     })
   })
 })
