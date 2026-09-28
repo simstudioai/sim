@@ -304,51 +304,6 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
   )
 })
 
-/**
- * Claude Sonnet 5.5 rejects `thinking.type: "disabled"` with a 400 and names `between_tools`
- * (which takes no effort or display field) as its lowest setting. Every other model keeps
- * `none` as "send no thinking config".
- */
-describe('executeAnthropicProviderRequest none thinking level', () => {
-  async function sendWithThinkingNone(model: string) {
-    const create = vi.fn().mockResolvedValue({
-      id: 'msg-none',
-      type: 'message',
-      role: 'assistant',
-      model,
-      content: [{ type: 'text', text: 'Done' }],
-      stop_reason: 'end_turn',
-      stop_sequence: null,
-      usage: { input_tokens: 2, output_tokens: 2 },
-    })
-    await executeAnthropicProviderRequest(
-      {
-        model,
-        apiKey: 'test-key',
-        maxTokens: 1024,
-        thinkingLevel: 'none',
-        agentEvents: true,
-        messages: [{ role: 'user', content: 'Hello' }],
-      },
-      {
-        providerId: 'anthropic',
-        providerLabel: 'Anthropic',
-        createClient: () => ({ messages: { create } }) as never,
-        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-      }
-    )
-    return create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams
-  }
-
-  it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
-    'sends no thinking config on %s',
-    async (model) => {
-      const payload = await sendWithThinkingNone(model)
-      expect(payload.thinking).toBeUndefined()
-    }
-  )
-})
-
 describe('executeAnthropicProviderRequest native structured outputs', () => {
   /** The subset of the wire schema these assertions read back. */
   interface WireSchemaNode {
@@ -793,8 +748,11 @@ describe('streaming', () => {
 
   /**
    * Both tool loops rebuild the request for every turn after a tool call, so
-   * Sonnet 5.5's `none` mapping must survive past the first request: a later
-   * turn without it would silently run adaptive thinking at the API default.
+   * the `none` mapping must hold past the first request. Claude Sonnet 5.5
+   * rejects `thinking.type: "disabled"` and names `between_tools` (which takes
+   * no effort or display field) as its lowest setting; a later turn without it
+   * would silently run adaptive thinking. Every other model keeps `none` as
+   * "send no thinking config".
    */
   describe('executeAnthropicProviderRequest none thinking level across tool turns', () => {
     const lookupTool = {
@@ -804,28 +762,24 @@ describe('streaming', () => {
       params: {},
       parameters: { type: 'object', properties: {}, required: [] },
     }
-    const toolTurn = message(
-      [{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }],
-      'tool_use'
-    )
-    const answerTurn = message([{ type: 'text', text: 'done' }], 'end_turn')
+    const turns = [
+      message([{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }], 'tool_use'),
+      message([{ type: 'text', text: 'done' }], 'end_turn'),
+    ]
 
-    function expectBareBetweenTools(payloads: Anthropic.Messages.MessageCreateParams[]) {
-      expect(payloads).toHaveLength(2)
-      for (const payload of payloads) {
-        expect(payload.thinking).toEqual({ type: 'between_tools' })
-        expect(payload.output_config).toBeUndefined()
-      }
-    }
-
-    it('sends bare between_tools on every non-streaming turn', async () => {
+    /** Runs a tool exchange and returns every request body sent over the SDK boundary. */
+    async function runToolExchange(model: string, streaming: boolean) {
       mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
-      const create = vi.fn().mockResolvedValueOnce(toolTurn).mockResolvedValueOnce(answerTurn)
-
-      await executeAnthropicProviderRequest(
+      const sent: Anthropic.Messages.MessageCreateParams[] = []
+      const nextTurn = (payload: Anthropic.Messages.MessageCreateParams) => {
+        sent.push(payload)
+        return turns[sent.length - 1]
+      }
+      const result = await executeAnthropicProviderRequest(
         {
-          model: 'claude-sonnet-5-5',
+          model,
           apiKey: 'test-key',
+          stream: streaming,
           maxTokens: 1024,
           thinkingLevel: 'none',
           agentEvents: true,
@@ -835,43 +789,42 @@ describe('streaming', () => {
         {
           providerId: 'anthropic',
           providerLabel: 'Anthropic',
-          createClient: () => ({ messages: { create } }) as never,
+          createClient: () =>
+            ({
+              messages: streaming
+                ? {
+                    stream: (payload: never) =>
+                      stream([{ type: 'message_stop' }], nextTurn(payload)),
+                  }
+                : { create: async (payload: never) => nextTurn(payload) },
+            }) as never,
           logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
         }
       )
+      if (streaming) await collectEvents(result as StreamingExecution)
+      return sent
+    }
 
-      expectBareBetweenTools(create.mock.calls.map((call) => call[0]))
-    })
-
-    it('sends bare between_tools on every streaming turn', async () => {
-      mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
-      const createStream = vi
-        .fn()
-        .mockReturnValueOnce(stream([{ type: 'message_stop' }], toolTurn))
-        .mockReturnValueOnce(stream([{ type: 'message_stop' }], answerTurn))
-
-      const result = (await executeAnthropicProviderRequest(
-        {
-          model: 'claude-sonnet-5-5',
-          apiKey: 'test-key',
-          stream: true,
-          maxTokens: 1024,
-          thinkingLevel: 'none',
-          agentEvents: true,
-          messages: [{ role: 'user', content: 'Look this up' }],
-          tools: [lookupTool],
-        },
-        {
-          providerId: 'anthropic',
-          providerLabel: 'Anthropic',
-          createClient: () => ({ messages: { stream: createStream } }) as never,
-          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    it.each([false, true])(
+      'sends bare between_tools on every turn (streaming: %s)',
+      async (streaming) => {
+        const sent = await runToolExchange('claude-sonnet-5-5', streaming)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) {
+          expect(payload.thinking).toEqual({ type: 'between_tools' })
+          expect(payload.output_config).toBeUndefined()
         }
-      )) as StreamingExecution
-      await collectEvents(result)
+      }
+    )
 
-      expectBareBetweenTools(createStream.mock.calls.map((call) => call[0]))
-    })
+    it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
+      'sends no thinking config on %s',
+      async (model) => {
+        const sent = await runToolExchange(model, false)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) expect(payload.thinking).toBeUndefined()
+      }
+    )
   })
 })
 
