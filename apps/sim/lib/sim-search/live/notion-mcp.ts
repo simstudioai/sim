@@ -155,7 +155,9 @@ export async function searchNotionMcp(
   const next = string(result.next_cursor ?? result.nextCursor)
   const nextCursor = cursorKey && next && !clipped ? next : undefined
   const notices = array(result.notices).length > 0
-  const aiSearch = result.type === 'ai_search'
+  const aiSearch =
+    result.type === 'ai_search' ||
+    (tool === 'notion-ai-search' && result.type !== 'workspace_search')
   const hasMore = clipped || result.has_more === true || result.hasMore === true || Boolean(next)
   const cappedWithoutCoverage =
     rows.length >= limit && !next && result.has_more !== false && result.hasMore !== false

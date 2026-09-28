@@ -68,6 +68,7 @@ import {
   readLiveDocument,
   searchLiveKnowledge,
 } from '@/lib/sim-search/live/application'
+import { readDrive } from '@/lib/sim-search/live/google'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
@@ -431,6 +432,62 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toThrow('Revoked')
     expect(mocks.read).not.toHaveBeenCalled()
+  })
+  it.each([
+    ['a stop reason', 'user_stop:test'],
+    ['an AbortError', new DOMException('The operation was aborted.', 'AbortError')],
+    ['a TimeoutError', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])(
+    'rejects a read cancelled with %s instead of returning partial discussion coverage',
+    async (_, reason) => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      const controller = new AbortController()
+      mocks.read.mockImplementation((_provider, client) => readDrive(client, 'doc'))
+      mocks.json.mockImplementation(async (path: string) => {
+        if (!path.endsWith('/comments'))
+          return {
+            id: 'doc',
+            name: 'Launch',
+            mimeType: 'application/pdf',
+            webViewLink: document.url,
+          }
+        controller.abort(reason)
+        throw controller.signal.reason
+      })
+      await expect(
+        readLiveDocument.execute({
+          principal,
+          input: {
+            workspaceId: 'workspace',
+            documentId: search.results[0]!.documentId,
+            limit: 1,
+            resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+            signal: controller.signal,
+          },
+        })
+      ).rejects.toBe(reason)
+    }
+  )
+  it('rejects a read cancelled while its current scope was being verified', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    const controller = new AbortController()
+    mocks.service.mockResolvedValueOnce(undefined)
+    mocks.service.mockImplementationOnce(async () => {
+      controller.abort('user_stop:test')
+      return { policy: defaultLiveSearchPolicy(), verify: async () => true, partial: false }
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toBe('user_stop:test')
   })
   it('rejects cross-user document references before token resolution', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })

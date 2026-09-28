@@ -258,6 +258,20 @@ describe('Drive discussion reads', () => {
     expect(content).toMatch(/rate limit/i)
   })
 
+  it('degrades a failed comment request to partial coverage', async () => {
+    const api: NativeClient = {
+      text,
+      async json(path) {
+        if (path.endsWith('/comments'))
+          throw Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })
+        return DRIVE_FILE
+      },
+    }
+    const { content } = await readDrive(api, 'doc')
+    expect(content).toContain('Original document text')
+    expect(content).toMatch(/incomplete[\s\S]*could not be fully retrieved/i)
+  })
+
   it('detects repeated comment cursors without silently claiming all comments were read', async () => {
     let pages = 0
     const api: NativeClient = {
