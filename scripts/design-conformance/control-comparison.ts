@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { compareStrings } from '@sim/utils/string'
+import { inspectControlAnalysis } from '#control-analysis/analysis'
 import {
   removedColourAliasFindings,
   withoutVerifiedColourUsages,
@@ -7,10 +8,8 @@ import {
 import { classifyLayout } from '#control-analysis/layout-allowances'
 import type { ControlSource, SourceEntry } from '#control-analysis/model'
 import { mergeSourceFindings } from '#control-analysis/review'
-import { findingFingerprint } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { mergeShadowFindings, withoutApprovedShadows } from '#control-analysis/shadow-extras'
-import { inspectSimplifications } from '#control-analysis/simplifications'
 import { classifyTypography } from '#control-analysis/typography'
 import { centralInventory } from '#design-conformance/contracts'
 import { generateContracts } from '#design-conformance/generated-contracts'
@@ -19,6 +18,7 @@ import {
   type Change,
   canonical,
   type Finding,
+  findingFingerprint,
   inspectionFailure,
   type Report,
 } from '#design-conformance/model'
@@ -118,7 +118,7 @@ export function controlSource(repo: string, commit: string): ControlSource {
 }
 
 /** Compare authored occurrences; unchanged debt never licenses an additional copy. */
-export function compareSimplifications<T extends Finding>(
+export function introducedFindings<T extends Finding>(
   before: { findings: T[] },
   after: { findings: T[] }
 ) {
@@ -151,12 +151,10 @@ export async function addControlComparison(
       snapshot: { version: '1.0.0', commit: '', entries, hash: snapshotHash(entries) },
       read: (e) => source.read(e),
     })
-    return inspectSimplifications(source, [], 'forward', undefined, undefined, undefined, metadata)
+    return inspectControlAnalysis(source, [], 'forward', undefined, undefined, undefined, metadata)
   }
   const beforeAnalysis = await inspect(before())
   const afterAnalysis = await inspect(after())
-  const b = beforeAnalysis.simplifications
-  const a = afterAnalysis.simplifications
   for (const [side, analysis] of [
     ['before', beforeAnalysis],
     ['after', afterAnalysis],
@@ -183,15 +181,14 @@ export async function addControlComparison(
         report.coverageFailures.push({ ...note, side })
     }
   }
-  const findings = compareSimplifications(b, a)
-  const colourFindings = compareSimplifications(
+  const colourFindings = introducedFindings(
     beforeAnalysis.colourAssignments,
     afterAnalysis.colourAssignments
   )
-  report.findings.push(...findings, ...colourFindings)
+  report.findings.push(...colourFindings)
   report.findings = mergeSourceFindings(
     report.findings,
-    compareSimplifications(beforeAnalysis.review, afterAnalysis.review)
+    introducedFindings(beforeAnalysis.review, afterAnalysis.review)
   )
   const existingReviewNotes = new Set(
     beforeAnalysis.review.unchecked.map((note) => canonical([note.file, note.context, note.reason]))
@@ -219,7 +216,7 @@ export async function addControlComparison(
   }
   report.findings = mergeShadowFindings(
     withoutApprovedShadows(report.findings, afterAnalysis.shadowExtras),
-    compareSimplifications(beforeAnalysis.shadowExtras, afterAnalysis.shadowExtras)
+    introducedFindings(beforeAnalysis.shadowExtras, afterAnalysis.shadowExtras)
   )
   report.findings = classifyTypography(report.findings, afterAnalysis.typographyReview)
   const layout = classifyLayout(report.findings)
@@ -238,10 +235,6 @@ export async function addControlComparison(
     )
   )
   report.unchecked.push(
-    ...b.unchecked.map((n) => ({ ...n, side: 'before' })),
-    ...a.unchecked.map((n) => ({ ...n, side: 'after' }))
-  )
-  report.unchecked.push(
     ...beforeAnalysis.colourAssignments.unchecked.map((n) => ({ ...n, side: 'before' })),
     ...afterAnalysis.colourAssignments.unchecked.map((n) => ({ ...n, side: 'after' }))
   )
@@ -251,15 +244,6 @@ export async function addControlComparison(
     after: afterAnalysis.colourAssignments.coverage,
     introduced: colourFindings.length,
     verifiedUsages: afterAnalysis.colourAssignments.verifiedUsages,
-  }
-  report.controlSimplifications = {
-    version: '1.0.0',
-    before: b.coverage,
-    after: a.coverage,
-    existingBefore: b.findings.length,
-    existingAfter: a.findings.length,
-    introduced: findings.length,
-    unresolved: a.unchecked.length,
   }
   report.coverage.violations = report.findings.filter((f) => f.kind === 'usage-violation').length
   report.findings = report.findings.map((finding) => ({

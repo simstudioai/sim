@@ -3,10 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, expect, test } from 'vitest'
-import { findingFingerprint } from '#control-analysis/review-ledger'
 import { ciRefs, warningExitCode } from '#design-conformance/ci'
 import { repositoryRoot } from '#design-conformance/command'
 import { ConformanceLinter } from '#design-conformance/conformance'
@@ -630,54 +627,6 @@ test('nested CVA condition arrays finish within the real CLI timeout and remain 
   ).toBe(true)
 }, 25_000)
 
-test.each([
-  ['grid line integer', 'gridColumnStart', 'grid-column-start', '1', 1, ''],
-  ['grid row integer', 'gridRowEnd', 'grid-row-end', '3', 3, ''],
-  ['animation count', 'animationIterationCount', 'animation-iteration-count', '2', 2, ''],
-  ['border image ratio', 'borderImageSlice', 'border-image-slice', '2', 2, ''],
-  ['vendor line clamp', 'WebkitLineClamp', '-webkit-line-clamp', '2', 2, ''],
-  ['font weight', 'fontWeight', 'font-weight', '600', 600, ''],
-  ['ordinary dimension', 'width', 'width', '1', 1, ''],
-  ['numeric string dimension', 'width', 'width', "'1'", '1', ''],
-  ['numeric alias dimension', 'height', 'height', 'size', 4, 'const size=4;'],
-  ['string member dimension', 'height', 'height', 'sizes.small', '4', "const sizes={small:'4'};"],
-  ['typed grid alias', 'gridColumnEnd', 'grid-column-end', 'line', 2, 'const line=2 as const;'],
-  ['numeric custom variable', '--reserve', '--reserve', '1', 1, ''],
-] as const)(
-  'React numeric style serialization survives the real CLI: %s',
-  (_name, property, cssProperty, value, runtimeValue, prefix) => {
-    const { repo } = fixture()
-    writeFileSync(path.join(repo, ui), 'const A=()=> <button/>')
-    const base = commit(repo)
-    writeFileSync(
-      path.join(repo, ui),
-      `${prefix}const A=()=> <button style={{'${property}':${value}}}/>`
-    )
-    const result = run([
-      '--repo',
-      repo,
-      '--base',
-      base,
-      '--working-tree',
-      '--policy',
-      'appearance',
-      '--format',
-      'json',
-    ])
-    expect(result.status, result.stderr).toBe(1)
-    const report = JSON.parse(result.stdout) as Report
-    expect(report.status).toBe('completed')
-    const rendered = renderToStaticMarkup(
-      createElement('button', { style: { [property]: runtimeValue } })
-    )
-    const reactValue = rendered.match(/style="[^:"]+:([^"]*)"/)?.[1]
-    expect(reactValue).toBeTypeOf('string')
-    expect(report.findings.find((finding) => finding.property === cssProperty)?.value).toBe(
-      JSON.stringify([reactValue])
-    )
-  }
-)
-
 test('central numeric-looking style references keep their scalar type ambiguity explicit through the real CLI', () => {
   const { repo } = fixture()
   mkdirSync(path.join(repo, 'packages/emcn/src'), { recursive: true })
@@ -900,31 +849,6 @@ test.each([
   },
   30_000
 )
-
-test('external review decisions annotate but never remove a diff finding', () => {
-  const { repo, base } = fixture()
-  const args = ['--repo', repo, '--base', base, '--format', 'json']
-  const raw = JSON.parse(run(args).stdout) as Report
-  const reviews = path.join(temp, 'reviews.json')
-  const decision = JSON.stringify({
-    version: '1.0.0',
-    entries: [
-      {
-        fingerprint: findingFingerprint(raw.findings[0]),
-        status: 'retained-extra',
-        rationale: 'Reviewed test treatment',
-        evidence: '/external/review',
-      },
-    ],
-  })
-  writeFileSync(reviews, decision)
-  const annotated = JSON.parse(run([...args, '--reviews', reviews]).stdout) as Report
-  expect(annotated.findings).toEqual(raw.findings)
-  expect(annotated.reviewDecisions?.matches).toHaveLength(1)
-  const internal = path.join(repo, 'reviews.json')
-  writeFileSync(internal, decision)
-  expect(run([...args, '--reviews', internal]).status).toBe(2)
-})
 
 test('landing and docs edits stay out of the diff while product reuse restores helper checks', () => {
   const repo = mkdtempSync(path.join(temp, 'scope-'))

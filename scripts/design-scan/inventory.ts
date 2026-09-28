@@ -1,4 +1,3 @@
-import { findingFingerprint } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
 import { artworkFile, localArtworkDiff } from '#design-conformance/artwork'
 import { inspectSnapshotFacts, prepareSnapshotFacts } from '#design-conformance/conformance'
@@ -14,6 +13,7 @@ import {
   canonical,
   type Facts,
   type Finding,
+  findingFingerprint,
   hash,
   inspectionFailure,
 } from '#design-conformance/model'

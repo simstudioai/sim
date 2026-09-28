@@ -1,18 +1,9 @@
 /** @vitest-environment node */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 import { expect, test } from 'vitest'
 import { extractCentralRecipes } from '#design-conformance/central-recipes'
 import { centralFile, registry } from '#design-conformance/contracts'
-import { git, writeJson } from '#design-conformance/io'
 import { type Entry, TOKEN_FILE } from '#design-conformance/model'
-import {
-  assertRecipeSnapshot,
-  gitSnapshot,
-  loadSnapshot,
-  snapshotHash,
-} from '#design-conformance/system-snapshot'
+import { assertRecipeSnapshot, snapshotHash } from '#design-conformance/system-snapshot'
 
 const file = 'packages/presentation/src/layers.ts'
 const other = 'packages/visual-tokens/src/elevation.ts'
@@ -104,65 +95,6 @@ test('registered shared recipes participate in inventory and incomplete old snap
   expect(() =>
     assertRecipeSnapshot(snapshot, [{ path: file, mode: '100644', blob: 'c'.repeat(40) }])
   ).toThrow('known to exist')
-})
-
-test('merge-base snapshots include registered recipes and support historical absence', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'central-recipe-snapshot-'))
-  try {
-    git(root, ['init', '-q'])
-    const commit = () => {
-      git(root, ['add', '.'])
-      git(root, [
-        '-c',
-        'user.name=Test',
-        '-c',
-        'user.email=test@example.invalid',
-        'commit',
-        '-qm',
-        'fixture',
-      ])
-      return git(root, ['rev-parse', 'HEAD']).toString().trim()
-    }
-    mkdirSync(path.join(root, path.dirname(TOKEN_FILE)), { recursive: true })
-    writeFileSync(path.join(root, TOKEN_FILE), ':root {--ink:#123456}')
-    const absent = commit()
-    const file = Object.keys(registry.centralRecipes ?? {})[0]
-    mkdirSync(path.join(root, path.dirname(file)), { recursive: true })
-    writeFileSync(path.join(root, file), 'export const EDGE_Z_BASE=10')
-    const present = commit()
-    const old = gitSnapshot(root, absent)
-    const next = gitSnapshot(root, present)
-    expect(old.snapshot.entries.some((e) => e.path === file)).toBe(false)
-    expect(next.snapshot.entries.some((e) => e.path === file)).toBe(true)
-    const incomplete = {
-      ...next.snapshot,
-      recipeInventory: undefined,
-      entries: old.snapshot.entries,
-      hash: snapshotHash(old.snapshot.entries),
-    }
-    const frozen = path.join(root, 'frozen')
-    mkdirSync(path.join(frozen, 'commits'), { recursive: true })
-    writeJson(path.join(frozen, 'commits', `${present}.json`), incomplete)
-    writeJson(path.join(frozen, 'commits', `${absent}.json`), old.snapshot)
-    writeJson(path.join(frozen, 'manifest.json'), {
-      version: '1.0.0',
-      snapshots: { [present]: incomplete.hash, [absent]: old.snapshot.hash },
-    })
-    expect(() => loadSnapshot(frozen, present, root)).toThrow('known to exist')
-    expect(loadSnapshot(frozen, present).unchecked).toHaveLength(1)
-    expect(loadSnapshot(frozen, absent).unchecked).toEqual([])
-    expect(old.snapshot.recipeInventory).toContain(file)
-    expect(snapshotHash(old.snapshot.entries)).not.toBe(old.snapshot.hash)
-    writeJson(path.join(frozen, 'commits', `${absent}.json`), {
-      ...old.snapshot,
-      recipeInventory: [],
-    })
-    expect(() => loadSnapshot(frozen, absent)).toThrow('incompatible')
-    writeJson(path.join(frozen, 'commits', `${absent}.json`), old.snapshot)
-    expect(() => loadSnapshot(frozen, absent, root)).not.toThrow()
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
 })
 
 test('block-local recipe aliases cannot shadow the following outer return', () => {

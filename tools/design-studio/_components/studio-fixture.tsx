@@ -349,7 +349,7 @@ function ExtraPreview({ id }: ExtraPreviewProps) {
   }
 }
 
-/** Mounts production components with fixed example state for repeatable captures. */
+/** Mounts production components with fixed example state for repeatable previews. */
 export function StudioFixture({
   kind,
   id,

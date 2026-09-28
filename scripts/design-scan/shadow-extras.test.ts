@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
+import { inspectControlAnalysis } from '#control-analysis/analysis'
 import type { ControlSource } from '#control-analysis/model'
 import { mergeShadowFindings, withoutApprovedShadows } from '#control-analysis/shadow-extras'
-import { inspectSimplifications } from '#control-analysis/simplifications'
 
 const css =
   'apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
@@ -30,7 +30,7 @@ const source = (files: Record<string, string>): ControlSource => ({
   read: (entry) => files[entry.path],
 })
 const inspect = (files: Record<string, string> = {}) =>
-  inspectSimplifications(source({ ...defaults, ...files })).shadowExtras
+  inspectControlAnalysis(source({ ...defaults, ...files })).shadowExtras
 const finding = (report = inspect()) => {
   const a = report.approved[0]
   return {
@@ -159,8 +159,8 @@ test('only a matching shadow-family finding is removed; other rules, values and 
 test('parse failures never approve an effect and discovery order does not change the report', () => {
   expect(inspect({ [css]: `${selection} {` }).unchecked).toHaveLength(1)
   expect(inspect({ [css]: `${selection} {` }).approved).toHaveLength(1)
-  const forward = inspectSimplifications(source(defaults)).shadowExtras
+  const forward = inspectControlAnalysis(source(defaults)).shadowExtras
   const input = source(defaults)
   input.entries.reverse()
-  expect(inspectSimplifications(input).shadowExtras).toEqual(forward)
+  expect(inspectControlAnalysis(input).shadowExtras).toEqual(forward)
 })

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
+import { inspectControlAnalysis } from '#control-analysis/analysis'
 import { withoutVerifiedColourUsages } from '#control-analysis/colour-assignments'
 import type { ControlSource } from '#control-analysis/model'
-import { inspectSimplifications } from '#control-analysis/simplifications'
 
 const css = 'apps/sim/components/sample.css'
 const ui = 'apps/sim/components/sample.tsx'
@@ -21,7 +21,7 @@ function source(files: Record<string, string>): ControlSource {
   }
 }
 const inspect = (files: Record<string, string>) =>
-  inspectSimplifications(source({ [tokens]: globals, ...files })).colourAssignments
+  inspectControlAnalysis(source({ [tokens]: globals, ...files })).colourAssignments
 const flagged = (files: Record<string, string>) => inspect(files).findings
 const issues = (files: Record<string, string>) => {
   const report = inspect(files)
@@ -367,8 +367,8 @@ test('landing remains excluded, source is never executed and discovery order is 
     [ui]: `throw Error('never execute'); export const View=()=> <span className='[--rest:#ff00ff]'/>`,
     'apps/sim/app/(landing)/page.tsx': `export const Page=()=> <span className='[--rest:#00ff00]'/>`,
   })
-  const forward = inspectSimplifications(files).colourAssignments
-  const reverse = inspectSimplifications(
+  const forward = inspectControlAnalysis(files).colourAssignments
+  const reverse = inspectControlAnalysis(
     { ...files, entries: [...files.entries].reverse() },
     [],
     'reverse'

@@ -91,27 +91,6 @@
       ],
       "permission": "Reuse central EMCN artwork; introduce or change shared artwork with an explicit design-system review. Provider branding and user media remain exempt.",
       "source": "scripts/design-conformance/contracts.json#artwork"
-    },
-    "control-redundant-style": {
-      "properties": [
-        "className"
-      ],
-      "permission": "Remove only exact repeats proven redundant against every resolved active central recipe and the reviewed class merger",
-      "source": "scripts/design-conformance/README.md#control-simplifications"
-    },
-    "control-accessible-name": {
-      "properties": [
-        "accessible-name"
-      ],
-      "permission": "Name proven icon-only buttons with existing action text; dynamic names and content require review",
-      "source": "scripts/design-conformance/README.md#control-simplifications"
-    },
-    "control-duplicate-artwork": {
-      "properties": [
-        "artwork"
-      ],
-      "permission": "Reuse identical static central drawings while preserving caller size, paint and accessibility",
-      "source": "scripts/design-conformance/README.md#control-simplifications"
     }
   },
   "builtins": {

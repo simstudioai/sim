@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process'
-/** Regenerate the local Design Studio inventory and visual evidence from product source. */
+/** Regenerate the local Design Studio inventory from product source. */
 import { createHash } from 'node:crypto'
 import {
   cpSync,
@@ -12,7 +12,6 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
-import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,20 +20,11 @@ import { productScope } from '../design-conformance/control-scope.ts'
 const toolRoot = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(process.env.SIM_STUDIO_REPO ?? path.join(toolRoot, '../..'))
 const { parse } = createRequire(import.meta.url)('@babel/parser')
-const ledger = process.env.SIM_STUDIO_LEDGER ? path.resolve(process.env.SIM_STUDIO_LEDGER) : null
 const outputRoot = path.resolve(
   process.env.SIM_STUDIO_OUTPUT ?? path.join(homedir(), '.local/state/sim2/design-studio')
 )
 const bun = process.execPath
 const bunDirectory = path.dirname(bun)
-const capture = !process.argv.includes('--inventory-only')
-// Keep rounded-edge rasterization stable across fresh browser processes.
-const captureArgs = [
-  '--deterministic-mode',
-  '--disable-gpu',
-  '--disable-skia-runtime-opts',
-  '--disable-partial-raster',
-]
 const sha = (value) => createHash('sha256').update(value).digest('hex')
 const relative = (file) => path.relative(repo, file).split(path.sep).join('/')
 
@@ -271,8 +261,7 @@ function componentInventory() {
       usages: uses.get(`${item.kind}:${item.name}`) ?? [],
       fixture,
       states: fixtureContracts.states?.[item.name] ?? [],
-      status: fixture ? 'pending-capture' : 'needs-fixture',
-      images: {},
+      status: fixture ? 'ready' : 'needs-fixture',
     }
     entries.push(base)
     if (item.kind !== 'component') continue
@@ -307,8 +296,7 @@ function componentInventory() {
           variant: { axis: axis.name, value, defaultValue: axis.defaultValue },
           fixture: variantFixture,
           states: base.states.filter(applicable),
-          status: supportsVariant ? 'pending-capture' : 'needs-fixture',
-          images: {},
+          status: supportsVariant ? 'ready' : 'needs-fixture',
         })
       }
   }
@@ -316,8 +304,7 @@ function componentInventory() {
 }
 
 /** The scanner already resolves product wrappers to EMCN terminal renderers. */
-function attachTracedUses(entries, scanDir) {
-  const controls = JSON.parse(readFileSync(path.join(scanDir, 'controls.json'), 'utf8'))
+function attachTracedUses(entries, controls) {
   const bySymbol = new Map(
     entries
       .filter((entry) => !entry.variant && entry.kind === 'component')
@@ -459,24 +446,7 @@ function sampleFixture(items) {
   }
 }
 
-function extraInventory(scanDir) {
-  const findings = JSON.parse(readFileSync(path.join(scanDir, 'findings.json'), 'utf8'))
-  const decisionsPath = path.join(scanDir, 'review-decisions.json')
-  const decisions = existsSync(decisionsPath)
-    ? JSON.parse(readFileSync(decisionsPath, 'utf8'))
-    : { matches: [], stale: [], ambiguous: [] }
-  const ledgerEntries = new Map(
-    ledger
-      ? JSON.parse(readFileSync(ledger, 'utf8')).entries.map((item) => [item.fingerprint, item])
-      : []
-  )
-  const decisionDetails = {
-    stale: decisions.stale.map((fingerprint) => ledgerEntries.get(fingerprint) ?? { fingerprint }),
-    ambiguous: decisions.ambiguous.map(
-      (fingerprint) => ledgerEntries.get(fingerprint) ?? { fingerprint }
-    ),
-  }
-  const matched = new Map(decisions.matches.map((item) => [item.fingerprint, item]))
+function extraInventory(findings) {
   const entries = []
   const centralSignals = []
   const sourceGroups = new Map()
@@ -522,14 +492,6 @@ function extraInventory(scanDir) {
   }
   for (const item of findings) {
     const kind = 'finding'
-    const fingerprint =
-      item.identity ??
-      sha(
-        JSON.stringify(['finding', item.file, item.context, item.rule, item.property, item.value])
-      )
-    const decision =
-      matched.get(fingerprint) ??
-      (item.legacyFingerprint ? matched.get(item.legacyFingerprint) : undefined)
     const fixtureId = sourceFixture(item)
     const sourceGroup = sourceGroups.get(
       JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
@@ -543,21 +505,19 @@ function extraInventory(scanDir) {
       family: item.rule ?? item.kind,
       source: { file: item.file, line: item.line },
       usages: [{ file: item.file, line: item.line, relationship: 'authored' }],
-      rationale: decision?.rationale ?? item.reason ?? '',
-      decision: decision?.status ?? 'unreviewed',
+      rationale: item.reason ?? '',
       fixture,
       previewKind: fixtureId
         ? 'source-component'
         : fixture.sample.className || fixture.sample.values.length || fixture.sample.property
           ? 'source-style-sample'
           : 'indicative-sample',
-      status: 'pending-capture',
-      images: {},
+      status: 'ready',
     }
     if (item.file.startsWith('packages/emcn/')) centralSignals.push(entry)
     entries.push(entry)
   }
-  return { entries, centralSignals, decisions: decisionDetails }
+  return { entries, centralSignals }
 }
 
 function run(command, args, options = {}) {
@@ -591,283 +551,6 @@ function sourceRevision() {
   return digest.digest('hex')
 }
 
-async function captureImages(manifest, runDir) {
-  const require = createRequire(path.join(repo, 'package.json'))
-  const { chromium } = require('playwright')
-  const port = await new Promise((resolve, reject) => {
-    const socket = createServer()
-    socket.once('error', reject)
-    socket.listen(0, '127.0.0.1', () => {
-      const address = socket.address()
-      socket.close(() => resolve(address.port))
-    })
-  })
-  const appDirectory = path.join(repo, 'tools/design-studio')
-  const server = spawn(
-    path.join(repo, 'node_modules/.bin/next'),
-    ['dev', appDirectory, '--hostname', '127.0.0.1', '--port', String(port)],
-    {
-      cwd: appDirectory,
-      env: {
-        ...process.env,
-        NODE_ENV: 'development',
-        SIM_STUDIO_REPO: repo,
-        DATABASE_URL:
-          process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/simstudio',
-        NEXT_PUBLIC_APP_URL: `http://localhost:${port}`,
-      },
-      stdio: 'ignore',
-    }
-  )
-  let browser
-  try {
-    let ready = false
-    for (let attempt = 0; attempt < 90; attempt++) {
-      if (server.exitCode !== null) break
-      try {
-        const response = await fetch(`http://localhost:${port}/fixture?kind=icon&id=Check`)
-        if (response.ok) {
-          ready = true
-          break
-        }
-      } catch {}
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-    if (!ready) throw new Error('Fixture server did not become ready')
-    browser = await chromium.launch({ headless: true, args: captureArgs })
-    manifest.browser = `Chromium ${browser.version()} (Playwright ${require('playwright/package.json').version}; ${captureArgs.join(' ')})`
-    const context = await browser.newContext({
-      viewport: { width: 460, height: 320 },
-      deviceScaleFactor: 1,
-      locale: 'en-US',
-      timezoneId: 'UTC',
-      reducedMotion: 'reduce',
-    })
-    const page = await context.newPage()
-    await page.clock.install({ time: new Date('2026-09-23T12:00:00Z') })
-    const imageDir = path.join(runDir, 'images')
-    mkdirSync(imageDir, { recursive: true })
-    const imageCache = new Map()
-    const previousPointer = path.join(outputRoot, 'latest.json')
-    let previousImages = new Map()
-    let reuseSourceCaptures = false
-    let reuseSampleCaptures = false
-    if (existsSync(previousPointer)) {
-      try {
-        const previousRun = JSON.parse(readFileSync(previousPointer, 'utf8'))
-        const previousManifest = JSON.parse(
-          readFileSync(path.join(previousRun.path, 'manifest.json'), 'utf8')
-        )
-        if (previousManifest.browser === manifest.browser) {
-          reuseSourceCaptures =
-            previousManifest.sourceRevision === manifest.sourceRevision &&
-            previousManifest.fixtureHash === manifest.fixtureHash
-          reuseSampleCaptures = Boolean(
-            previousManifest.sampleRenderHash &&
-              previousManifest.sampleRenderHash === manifest.sampleRenderHash
-          )
-          previousImages = new Map(
-            [...previousManifest.components, ...previousManifest.extras]
-              .filter((entry) => entry.status === 'ready' && entry.fixture)
-              .map((entry) => [
-                JSON.stringify([entry.fixture, entry.states]),
-                { entry, directory: path.join(previousRun.path, 'images') },
-              ])
-          )
-        }
-      } catch {
-        // A prior run is an optimization only; capture normally if it cannot be read.
-      }
-    }
-    const captureLimit = Number(process.env.SIM_STUDIO_CAPTURE_LIMIT ?? 0)
-    const entries =
-      process.env.SIM_STUDIO_CAPTURE_KIND === 'extras'
-        ? manifest.extras
-        : process.env.SIM_STUDIO_CAPTURE_KIND === 'components'
-          ? manifest.components
-          : [...manifest.components, ...manifest.extras]
-    const selectedIds = process.env.SIM_STUDIO_CAPTURE_ENTRY?.split(',')
-    const selected = selectedIds
-      ? entries.filter((entry) => selectedIds.includes(entry.id))
-      : entries
-    for (const entry of captureLimit > 0 ? selected.slice(0, captureLimit) : selected) {
-      if (!entry.fixture) continue
-      const cacheKey = JSON.stringify([entry.fixture, entry.states])
-      const cached = imageCache.get(cacheKey)
-      if (cached) {
-        entry.images = cached.images
-        entry.status = cached.status
-        if (cached.captureError) entry.captureError = cached.captureError
-        continue
-      }
-      const previous = previousImages.get(cacheKey)
-      if (
-        previous &&
-        (reuseSourceCaptures || (entry.fixture.type === 'sample' && reuseSampleCaptures)) &&
-        Object.values(previous.entry.images).every((name) =>
-          existsSync(path.join(previous.directory, name))
-        )
-      ) {
-        entry.images = previous.entry.images
-        entry.status = 'ready'
-        for (const name of Object.values(entry.images))
-          cpSync(path.join(previous.directory, name), path.join(imageDir, name))
-        imageCache.set(cacheKey, { images: entry.images, status: entry.status })
-        continue
-      }
-      let failed = false
-      const params = new URLSearchParams({
-        kind: entry.fixture.type,
-        id: entry.fixture.id,
-        theme: 'dark',
-        size: '16',
-      })
-      if (entry.fixture.sample) params.set('sample', JSON.stringify(entry.fixture.sample))
-      if (entry.fixture.action) params.set('action', entry.fixture.action)
-      if (entry.fixture.variant) {
-        params.set('axis', entry.fixture.variant.axis)
-        params.set('value', entry.fixture.variant.value)
-      }
-      try {
-        if (process.env.SIM_STUDIO_TEST_CAPTURE_FAILURE === entry.id)
-          throw new Error('Injected fixture failure for capture regression')
-        for (const state of ['default', ...(entry.states ?? [])]) {
-          const effectiveState = state === 'default' ? (entry.fixture.defaultState ?? state) : state
-          params.set('state', effectiveState)
-          const response = await page.goto(`http://localhost:${port}/fixture?${params}`, {
-            waitUntil: 'domcontentloaded',
-            timeout: 30000,
-          })
-          if (!response?.ok()) throw new Error(`HTTP ${response?.status()}`)
-          const target = page.locator('[data-studio-fixture]')
-          await target.waitFor({ timeout: 10000 })
-          if (await target.locator('[data-studio-unavailable]').count())
-            throw new Error('Fixture returned unavailable placeholder')
-          if (
-            (await target.locator('*:visible').count()) === 0 &&
-            (await page
-              .locator('[role=dialog]:visible, [role=menu]:visible, [role=tooltip]:visible')
-              .count()) === 0
-          )
-            throw new Error('Fixture mounted no visible source element')
-          await page.evaluate(() => document.fonts.ready)
-          if (entry.fixture.action === 'open-submenu')
-            await page.getByText('More choices', { exact: true }).first().hover()
-          if (effectiveState === 'open' && entry.fixture.id === 'tooltip') {
-            await target.getByRole('button').first().hover()
-            await page.getByRole('tooltip').waitFor({ state: 'visible', timeout: 10000 })
-          }
-          if (state === 'focus') {
-            const control = target
-              .locator('button:not([disabled]), input:not([disabled]), textarea:not([disabled])')
-              .first()
-            await control.focus()
-            if (!(await control.evaluate((element) => element === document.activeElement)))
-              throw new Error('Focus state fixture did not focus a control')
-          }
-          if (
-            state === 'disabled' &&
-            (await target.locator('[disabled]:visible, [aria-disabled="true"]:visible').count()) ===
-              0
-          )
-            throw new Error('Disabled state fixture did not disable a control')
-          if (state === 'error' && (await target.locator('[aria-invalid=true]').count()) === 0)
-            throw new Error('Error state fixture did not mark an invalid control')
-          const expectsOpen =
-            effectiveState === 'open' ||
-            (entry.states?.includes('open') &&
-              entry.fixture.variant?.axis === 'open' &&
-              entry.fixture.variant.value === 'true')
-          if (expectsOpen)
-            await page
-              .locator(
-                '[role=dialog]:visible, [role=menu]:visible, [role=listbox]:visible, [role=tooltip]:visible, [data-radix-popper-content-wrapper]:visible'
-              )
-              .first()
-              .waitFor({ timeout: 10000 })
-          if (entry.fixture.requiredElement)
-            await page
-              .locator(`${entry.fixture.requiredElement}:visible`)
-              .first()
-              .waitFor({ timeout: 10000 })
-          if (
-            entry.fixture.action !== 'open-submenu' &&
-            !(effectiveState === 'open' && entry.fixture.id === 'tooltip')
-          )
-            await page.mouse.move(0, 0)
-          for (const theme of ['light', 'dark'])
-            for (const size of [16, 20]) {
-              const key = state === 'default' ? `${theme}-${size}` : `${theme}-${size}-${state}`
-              await page.evaluate(
-                ({ theme, size }) => {
-                  document.documentElement.classList.toggle('dark', theme === 'dark')
-                  document.documentElement.style.fontSize = `${size}px`
-                  const fixtureTheme = document.querySelector('[data-studio-theme]')
-                  fixtureTheme?.classList.toggle('dark', theme === 'dark')
-                  fixtureTheme?.classList.toggle('light', theme === 'light')
-                },
-                { theme, size }
-              )
-              await page.evaluate(() => document.fonts.ready)
-              await page.evaluate(
-                () =>
-                  new Promise((resolve) =>
-                    requestAnimationFrame(() => requestAnimationFrame(resolve))
-                  )
-              )
-              if (entry.fixture.action === 'open-submenu')
-                await page.getByText('More choices', { exact: true }).first().hover()
-              if (entry.name === 'TagInput' && state === 'default')
-                await page.evaluate(() => {
-                  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-                })
-              if (
-                entry.name === 'TagInput' ||
-                ['bar-chart', 'line-chart', 'radar-chart'].includes(entry.fixture.id) ||
-                (await page
-                  .locator(
-                    '[data-radix-popper-content-wrapper], [role="listbox"], [role="menu"], [role="dialog"]'
-                  )
-                  .count())
-              )
-                await page.waitForTimeout(150)
-              const name = `${sha(`${cacheKey}:${key}`).slice(0, 24)}.png`
-              await page.screenshot({ path: path.join(imageDir, name), animations: 'disabled' })
-              entry.images[key] = name
-            }
-        }
-      } catch (error) {
-        failed = true
-        entry.captureError = String(error)
-      }
-      entry.status = failed ? 'capture-failed' : 'ready'
-      imageCache.set(cacheKey, {
-        images: entry.images,
-        status: entry.status,
-        captureError: entry.captureError,
-      })
-    }
-    await context.close()
-  } finally {
-    if (browser) await browser.close()
-    server.kill('SIGTERM')
-  }
-}
-
-function fingerprintComponentPreviews(entries, runDir) {
-  const imageDir = path.join(runDir, 'images')
-  const keys = ['light-16', 'light-20', 'dark-16', 'dark-20']
-  for (const entry of entries) {
-    if (entry.status !== 'ready' || !keys.every((key) => entry.images[key])) continue
-    const digest = createHash('sha256')
-    for (const key of keys) {
-      digest.update(key)
-      digest.update(readFileSync(path.join(imageDir, entry.images[key])))
-    }
-    entry.previewFingerprint = digest.digest('hex')
-  }
-}
-
 async function main() {
   if (!existsSync(repo) || (!process.versions.bun && !process.env.SIM_STUDIO_SCAN_DIR))
     throw new Error('Run refresh with Bun from the product checkout')
@@ -890,7 +573,6 @@ async function main() {
       generation.stderr ||
         'Design infrastructure freshness check failed; run bun run design:generate'
     )
-  const initialLedgerHash = ledger ? sha(readFileSync(ledger)) : ''
   const initialSourceRevision = sourceRevision()
   mkdirSync(outputRoot, { recursive: true })
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${git(['rev-parse', '--short=10', 'HEAD'])}`
@@ -908,9 +590,10 @@ async function main() {
         '--repo',
         repo,
         '--working-tree',
-        ...(ledger ? ['--reviews', ledger] : []),
         '--output',
         scanDir,
+        '--batch-size',
+        '1000',
       ],
       {
         cwd: repo,
@@ -919,10 +602,13 @@ async function main() {
     )
     if (scan.code > 1) throw new Error(`Scanner failed with exit ${scan.code}`)
   }
-  const identity = JSON.parse(readFileSync(path.join(scanDir, 'identity.json'), 'utf8'))
+  const scanReport = JSON.parse(readFileSync(path.join(scanDir, 'scan.json'), 'utf8'))
+  if (scanReport.version !== 1 || !scanReport.inventory || !scanReport.controls)
+    throw new Error('Invalid scanner report')
+  const { identity, inventory, controls } = scanReport
   const components = componentInventory()
-  attachTracedUses(components.entries, scanDir)
-  const extras = extraInventory(scanDir)
+  attachTracedUses(components.entries, controls)
+  const extras = extraInventory(inventory.findings)
   for (const signal of extras.centralSignals) {
     const owners = components.entries.filter(
       (entry) => !entry.variant && entry.source.file === signal.source.file
@@ -936,9 +622,7 @@ async function main() {
           value: signal.value,
         })
   }
-  const scannerFailures = JSON.parse(
-    readFileSync(path.join(scanDir, 'coverage-failures.json'), 'utf8')
-  )
+  const scannerFailures = inventory.coverageFailures
   const fixtureSources = [
     'tools/design-studio/_components/component-fixtures.tsx',
     'tools/design-studio/_components/fixture-contracts.json',
@@ -950,45 +634,26 @@ async function main() {
   const fixtureHash = sha(
     fixtureSources.map((file) => `${file}:${sha(readFileSync(path.join(repo, file)))}`).join('\n')
   )
-  // Until rendering dependencies have a complete graph, every checkout change invalidates samples.
-  const sampleRenderHash = sha(JSON.stringify([fixtureHash, initialSourceRevision]))
-  const diagnostics = (name) => {
-    const file = path.join(scanDir, name)
-    return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : []
-  }
   const manifest = {
     version: 2,
     runId,
     identity,
     sourceRevision: initialSourceRevision,
-    ledgerHash: initialLedgerHash,
     fixtureHash,
-    sampleRenderHash,
-    browser: 'Playwright Chromium, pinned in product lockfile',
     components: components.entries,
     nonvisualExports: components.nonvisual,
     extras: extras.entries,
-    decisions: { stale: extras.decisions.stale, ambiguous: extras.decisions.ambiguous },
     coverageFailures: [...scannerFailures, ...components.failures],
     analysis: {
-      stylingUnchecked: diagnostics('unchecked.json'),
-      controlUnchecked: diagnostics('control-unchecked.json'),
-      limitations: identity.limitations ?? [],
+      stylingUnchecked: inventory.unchecked,
+      controlUnchecked: controls.unchecked,
+      limitations: inventory.limitations,
     },
-  }
-  if (capture) {
-    await captureImages(manifest, runDir)
-    fingerprintComponentPreviews(manifest.components, runDir)
   }
   if (sourceRevision() !== manifest.sourceRevision)
     manifest.coverageFailures.push({
       file: '<product-working-tree>',
-      reason: 'Source changed during capture; refresh again.',
-    })
-  if (ledger && sha(readFileSync(ledger)) !== initialLedgerHash)
-    manifest.coverageFailures.push({
-      file: '<review-ledger>',
-      reason: 'Review decisions changed during the run; refresh again.',
+      reason: 'Source changed during refresh; refresh again.',
     })
   const missing = [...manifest.components, ...manifest.extras].filter(
     (entry) => entry.status !== 'ready'
@@ -1005,7 +670,7 @@ async function main() {
   writeFileSync(temporary, `${JSON.stringify({ runId, path: runDir })}\n`)
   renameSync(temporary, pointer)
   process.stdout.write(
-    `Studio run: ${runDir}\nEntries: ${manifest.counts.components} EMCN exports and variants, ${manifest.counts.extras} detected Extras; ${missing.length} without complete captures.\n`
+    `Studio run: ${runDir}\nEntries: ${manifest.counts.components} EMCN exports and variants, ${manifest.counts.extras} detected Extras; ${missing.length} need fixtures.\n`
   )
   process.exitCode = manifest.status === 'complete' ? 0 : 1
 }

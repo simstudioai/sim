@@ -12,12 +12,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, expect, test } from 'vitest'
-import { findingFingerprint } from '#control-analysis/review-ledger'
 import { testComponents } from '#design-conformance/test-source'
 import { GitSource } from '#design-conformance/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
-import { csv, groups, validateOutput } from './report'
+import { validateOutput } from './report'
+
+const scan = (output: string) => JSON.parse(readFileSync(path.join(output, 'scan.json'), 'utf8'))
 
 const temporary: string[] = []
 afterEach(() => {
@@ -131,8 +132,6 @@ test('separate occurrences remain separate and closure reuse does not multiply t
   })
   const r = await inspectInventory(f.source())
   expect(r.findings).toHaveLength(2)
-  expect(groups(r.findings)).toHaveLength(1)
-  expect(groups(r.findings)[0].occurrences).toBe(2)
 })
 
 test('scope and artwork ownership follow the shared policy', async () => {
@@ -175,7 +174,7 @@ test('full scan emits one chrome occurrence per owned property across shared pas
     { encoding: 'utf8' }
   )
   expect(result.status, result.stderr).toBe(1)
-  const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
+  const findings = scan(output).inventory.findings
   expect(
     findings.filter(
       (f: { rule: string; file: string; value: string }) =>
@@ -209,7 +208,7 @@ test('registered block swatches are excluded for providers, built-in blocks and 
     { encoding: 'utf8' }
   )
   expect(result.status, result.stderr).toBe(0)
-  const items = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
+  const items = scan(output).inventory.findings
   expect(
     items.some(
       (item: { file: string; rule: string }) =>
@@ -240,8 +239,8 @@ test('full scan excludes Monaco theme colours but still checks styling beside th
     { encoding: 'utf8' }
   )
   expect(result.status, result.stderr).toBe(1)
-  const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
-  const items = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
+  const findings = scan(output).inventory.findings
+  const items = scan(output).inventory.findings
   expect(findings.some((finding: { value: string }) => finding.value.includes('#123456'))).toBe(
     true
   )
@@ -281,22 +280,18 @@ test('full scan excludes verified landing helpers until product imports them', (
     )
     expect([0, 1], result.stderr).toContain(result.status)
     return {
-      findings: JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8')) as {
+      findings: scan(output).inventory.findings as {
         file: string
       }[],
-      unchecked: JSON.parse(readFileSync(path.join(output, 'unchecked.json'), 'utf8')) as {
+      unchecked: scan(output).inventory.unchecked as {
         file: string
         reason: string
       }[],
-      coverage: JSON.parse(readFileSync(path.join(output, 'coverage.json'), 'utf8')) as {
+      coverage: scan(output).inventory.coverage as {
         files: Record<string, number>
       },
-      controls: JSON.parse(readFileSync(path.join(output, 'controls.json'), 'utf8')) as {
+      controls: scan(output).controls as {
         records: { file: string }[]
-      },
-      simplifications: JSON.parse(
-        readFileSync(path.join(output, 'simplifications.json'), 'utf8')
-      ) as {
         unchecked: { reason: string }[]
       },
     }
@@ -311,7 +306,7 @@ test('full scan excludes verified landing helpers until product imports them', (
     )
   ).toBe(false)
   expect(
-    landingOnly.simplifications.unchecked.some((item) =>
+    landingOnly.controls.unchecked.some((item) =>
       item.reason.includes('apps/sim/app/(landing)/components/mark:missing')
     )
   ).toBe(false)
@@ -455,9 +450,8 @@ test('missing required central source and invalid revisions fail operationally',
   expect(() => new GitSource(f.repo, 'not-a-ref')).toThrow('Git operation failed')
 })
 
-test('CSV formulas and output paths cannot modify the source checkout', () => {
+test('output paths cannot modify the source checkout', () => {
   const f = fixture()
-  expect(csv([['=1+1', '"quote"', 'line\nnext']])).toBe('"\'=1+1","""quote""","line\nnext"\n')
   expect(() => validateOutput(path.join(f.repo, 'output'), f.repo)).toThrow('outside')
   const alias = path.join(f.base, 'alias')
   symlinkSync(f.repo, alias)
@@ -476,17 +470,16 @@ test('CLI on synthetic repositories preserves 0/1/2, writes complete reports, an
   const status = f.git('status', '--porcelain')
   expect(run([...args, '--output', a]).status).toBe(1)
   expect(run([...args, '--output', b, '--order', 'reverse', '--batch-size', '1']).status).toBe(1)
-  for (const name of [
-    'findings.json',
-    'findings.csv',
-    'groups.json',
-    'unchecked.json',
-    'coverage.json',
-    'identity.json',
-    'summary.md',
-    'triage.csv',
+  expect(scan(a).inventory).toEqual(scan(b).inventory)
+  expect(scan(a).controls).toEqual(scan(b).controls)
+  expect(Object.keys(scan(a))).toEqual([
+    'version',
+    'identity',
+    'inventory',
+    'controls',
+    'details',
+    'metrics',
   ])
-    expect(readFileSync(path.join(a, name))).toEqual(readFileSync(path.join(b, name)))
   expect(run([...args, '--output', a]).status).toBe(2)
   const bad = path.join(f.base, 'invalid')
   expect(run(['--repo', f.repo, '--ref', 'missing', '--output', bad]).status).toBe(2)
@@ -526,8 +519,8 @@ test.each([
       { encoding: 'utf8' }
     )
     expect(result.status, result.stderr).toBe(status)
-    expect(JSON.parse(readFileSync(path.join(output, 'identity.json'), 'utf8')).status).toBe(state)
-    const failures = JSON.parse(readFileSync(path.join(output, 'coverage-failures.json'), 'utf8'))
+    expect(scan(output).identity.status).toBe(state)
+    const failures = scan(output).inventory.coverageFailures
     expect(failures.some((n: { file: string }) => n.file === file)).toBe(status === 2)
   },
   60_000
@@ -556,77 +549,16 @@ test.each([
       { encoding: 'utf8' }
     )
     expect(result.status, result.stderr).toBe(2)
-    expect(JSON.parse(readFileSync(path.join(output, 'identity.json'), 'utf8')).status).toBe(
-      'incomplete'
-    )
+    expect(scan(output).identity.status).toBe('incomplete')
     expect(
-      JSON.parse(readFileSync(path.join(output, 'coverage-failures.json'), 'utf8')).some(
+      scan(output).inventory.coverageFailures.some(
         (n: { file: string; reason: string }) => n.file === component && n.reason.startsWith(reason)
       )
     ).toBe(true)
-    expect(readFileSync(path.join(output, 'summary.md'), 'utf8')).toContain(
-      'design-conformance/2.0.0'
-    )
+    expect(scan(output).identity.policy).toBe('design-conformance/2.0.0')
   },
   60_000
 )
-
-test('scanner matches an external review ledger without hiding raw findings', async () => {
-  const f = fixture({ [component]: text('text-[#123456]') })
-  const raw = await inspectInventory(f.source())
-  const ledger = path.join(f.base, 'reviews.json')
-  const decision = JSON.stringify({
-    version: '1.0.0',
-    entries: [
-      {
-        fingerprint: findingFingerprint(raw.findings[0]),
-        status: 'retained-extra',
-        rationale: 'Reviewed test treatment',
-        evidence: '/external/review',
-      },
-    ],
-  })
-  writeFileSync(ledger, decision)
-  const script = fileURLToPath(new URL('./scan.ts', import.meta.url))
-  const output = path.join(f.base, 'with-reviews')
-  const result = spawnSync(
-    'bun',
-    [
-      '--no-env-file',
-      script,
-      '--repo',
-      f.repo,
-      '--ref',
-      'HEAD',
-      '--output',
-      output,
-      '--reviews',
-      ledger,
-    ],
-    { encoding: 'utf8' }
-  )
-  expect(result.status, result.stderr).toBe(1)
-  const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
-  const reviews = JSON.parse(readFileSync(path.join(output, 'review-decisions.json'), 'utf8'))
-  expect(findings).toContainEqual(expect.objectContaining({ value: 'text-[#123456]' }))
-  expect(reviews.matches).toHaveLength(1)
-  const internal = path.join(f.repo, 'reviews.json')
-  writeFileSync(internal, decision)
-  expect(
-    spawnSync('bun', [
-      '--no-env-file',
-      script,
-      '--repo',
-      f.repo,
-      '--ref',
-      'HEAD',
-      '--output',
-      path.join(f.base, 'invalid-reviews'),
-      '--reviews',
-      internal,
-    ]).status
-  ).toBe(2)
-})
 
 test('control associations use actual frozen findings, canonical identity and the innermost slot', async () => {
   const { inspectControls } = await import('#control-analysis/inventory')
@@ -673,10 +605,10 @@ test('full CLI connects colour assignment proof to usage and retains unsafe writ
     )
     expect([0, 1], result.stderr).toContain(result.status)
     return {
-      findings: JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8')) as {
+      findings: scan(output).inventory.findings as {
         rule: string
       }[],
-      colours: JSON.parse(readFileSync(path.join(output, 'colour-assignments.json'), 'utf8')),
+      colours: scan(output).details.colourAssignments,
     }
   }
   const valid = run('valid-alias')
@@ -755,14 +687,12 @@ test('public scanner reports layout separately while retaining chrome and unknow
     { encoding: 'utf8' }
   )
   expect(result.status, result.stderr).toBe(1)
-  const allowances = JSON.parse(readFileSync(path.join(output, 'layout-allowances.json'), 'utf8'))
-  const findings = JSON.parse(readFileSync(path.join(output, 'findings.json'), 'utf8'))
+  const allowances = scan(output).details.layoutAllowances
+  const findings = scan(output).inventory.findings
   expect(allowances).toHaveLength(2)
   expect(findings.some((f: { value: string }) => f.value === 'p-4')).toBe(true)
   expect(findings.some((f: { value: string }) => f.value === 'flex-row')).toBe(true)
-  expect(
-    JSON.parse(readFileSync(path.join(output, 'unchecked.json'), 'utf8')).length
-  ).toBeGreaterThan(0)
+  expect(scan(output).inventory.unchecked.length).toBeGreaterThan(0)
 })
 
 test('central token resolution gaps remain visible even with no consumer findings', async () => {

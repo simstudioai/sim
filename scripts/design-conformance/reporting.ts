@@ -7,7 +7,6 @@ export function findingCounts(report: Report) {
   return {
     usage: report.findings.filter((finding) => finding.kind === 'usage-violation').length,
     system: report.findings.filter((finding) => finding.kind === 'system-change').length,
-    legacy: report.findings.filter((finding) => !finding.kind).length,
   }
 }
 
@@ -42,12 +41,10 @@ export function textReport(report: Report): string {
   const lines = [
     `Design check: ${report.flagged ? 'findings reported' : 'no new findings'}${report.unchecked.length ? '; coverage incomplete' : ''} (${report.policyVersion}).`,
     `Product findings: ${counts.usage}; system changes: ${counts.system}; unchecked diagnostics: ${report.unchecked.length}.`,
-    `Reviewed decisions: ${report.reviewDecisions?.matches.length ?? 0}; stale decisions: ${report.reviewDecisions?.stale.length ?? 0}; ambiguous decisions: ${report.reviewDecisions?.ambiguous.length ?? 0}.`,
   ]
   for (const [kind, title] of [
     ['usage-violation', 'Product findings'],
     ['system-change', 'Central-system changes — review required'],
-    [undefined, 'Legacy policy findings'],
   ] as const) {
     const findings = report.findings.filter((finding) => finding.kind === kind)
     if (!findings.length) continue
@@ -64,12 +61,6 @@ export function textReport(report: Report): string {
     lines.push(
       'Unchecked inputs remain outside the result; no findings does not prove complete coverage.'
     )
-  }
-  if (report.reviewDecisions?.stale.length || report.reviewDecisions?.ambiguous.length) {
-    lines.push('', 'Review decisions requiring renewal')
-    for (const fingerprint of report.reviewDecisions.stale) lines.push(`  stale: ${fingerprint}`)
-    for (const fingerprint of report.reviewDecisions.ambiguous)
-      lines.push(`  ambiguous: ${fingerprint}`)
   }
   return `${lines.join('\n')}\n`
 }
@@ -104,7 +95,6 @@ export function githubSummary(report: Report): string {
     '| --- | ---: |',
     `| Product findings | ${counts.usage} |`,
     `| Central-system changes | ${counts.system} |`,
-    `| Legacy findings | ${counts.legacy} |`,
     `| Unchecked diagnostics | ${report.unchecked.length} |`,
     `| Checked files | ${report.coverage.checkedFiles} |`,
     `| Excluded files | ${report.coverage.excludedFiles} |`,

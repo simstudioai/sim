@@ -1,17 +1,8 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync, renameSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
+import { renameSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { gunzipSync } from 'node:zlib'
-import type { Catalogue, Change, Commits, Entry } from '#design-conformance/model'
-import { hash, type Policy } from '#design-conformance/model'
-export function policyOption(value: string | boolean | undefined): Policy {
-  if (value === undefined || value === 'conformance') return 'conformance'
-  if (value === 'appearance') return 'appearance'
-  if (value === 'tokens') return 'tokens'
-  throw new Error('Policy must be conformance, appearance or tokens')
-}
+import type { Change, Commits, Entry } from '#design-conformance/model'
 
 export function options(
   extra: Record<string, { type: 'string' | 'boolean' }> = {},
@@ -24,16 +15,10 @@ export function options(
       repo: { type: 'string' },
       base: { type: 'string' },
       head: { type: 'string' },
-      catalogue: { type: 'string' },
       output: { type: 'string' },
-      policy: { type: 'string' },
       ...extra,
     },
   }).values
-}
-export function loadCatalogue(file?: string): { catalogue: Catalogue; hash: string } {
-  const raw = readFileSync(file ?? new URL('./catalogue.json', import.meta.url), 'utf8')
-  return { catalogue: JSON.parse(raw), hash: hash(raw) }
 }
 export function writeJson(file: string, data: unknown): void {
   const temp = `${file}.${process.pid}.tmp`
@@ -109,55 +94,4 @@ export function verifiedText(bytes: Buffer, blob: string): string {
 }
 export function gitText(repo: string, entry: Entry): string {
   return verifiedText(git(repo, ['cat-file', 'blob', entry.blob]), entry.blob)
-}
-export interface Comparison extends Commits {
-  pr: number
-  cohort: string
-  sampleOrder: number
-  files: string[]
-}
-export interface Manifest {
-  datasetId: string
-  comparisons: Comparison[]
-}
-export function manifest(dataset: string, file?: string): { data: Manifest; hash: string } {
-  const source = readFileSync(file ?? path.join(dataset, 'manifest.json'), 'utf8')
-  const data = JSON.parse(source) as Manifest
-  if (
-    !Array.isArray(data.comparisons) ||
-    data.comparisons.length === 0 ||
-    new Set(data.comparisons.map((x) => x.pr)).size !== data.comparisons.length
-  )
-    throw new Error('Invalid comparison manifest')
-  for (const c of data.comparisons)
-    if (
-      !Number.isSafeInteger(c.pr) ||
-      c.pr <= 0 ||
-      ![c.base, c.head, c.mergeBase].every((x) => /^[a-f\d]{40}$/.test(x))
-    )
-      throw new Error('Invalid frozen comparison identity')
-  return { data, hash: hash(source) }
-}
-export function storedChanges(dataset: string, c: Comparison): Change[] {
-  const dir = path.join(dataset, 'cases', String(c.pr))
-  const changes = JSON.parse(readFileSync(path.join(dir, 'changes.json'), 'utf8')) as Change[]
-  const metadata = JSON.parse(readFileSync(path.join(dir, 'metadata.json'), 'utf8'))
-  if (
-    JSON.stringify(metadata.commits) !==
-    JSON.stringify({ base: c.base, head: c.head, mergeBase: c.mergeBase })
-  ) {
-    if (!['base', 'head', 'mergeBase'].every((k) => metadata.commits[k] === c[k as keyof Commits]))
-      throw new Error('Frozen comparison commit mismatch')
-  }
-  const files = changes.map((x) => (x.after ?? x.before)?.path).sort()
-  if (JSON.stringify(files) !== JSON.stringify([...c.files].sort()))
-    throw new Error('Frozen comparison file-set mismatch')
-  return changes
-}
-export function storedText(dataset: string, entry: Entry): string {
-  if (!/^[a-f\d]{40}$/.test(entry.blob)) throw new Error('Invalid stored blob identity')
-  return verifiedText(
-    gunzipSync(readFileSync(path.join(dataset, 'objects', `${entry.blob}.gz`))),
-    entry.blob
-  )
 }

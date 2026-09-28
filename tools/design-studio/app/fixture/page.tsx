@@ -48,7 +48,7 @@ function parseSample(raw: string): StudioSample | undefined {
   return isStudioSample(parsed) ? parsed : undefined
 }
 
-/** Isolated, development-only capture surface for a single source-backed fixture. */
+/** Isolated, development-only surface for a single source-backed fixture. */
 export default async function FixturePage({ searchParams }: FixturePageProps) {
   const params = await searchParams
   const value = (key: string) => {

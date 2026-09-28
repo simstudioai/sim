@@ -1,12 +1,11 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
+import { inspectControlAnalysis } from '#control-analysis/analysis'
 import { associateFindings } from '#control-analysis/associations'
 import type { ControlSource, InventoryFinding } from '#control-analysis/model'
 import { ReviewCollector } from '#control-analysis/review'
-import { findingFingerprint, matchReviews } from '#control-analysis/review-ledger'
 import { productScope } from '#control-analysis/scope'
-import { inspectSimplifications } from '#control-analysis/simplifications'
 import { extract } from '#design-conformance/extract'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import { inspectionFailure } from '#design-conformance/model'
@@ -29,7 +28,7 @@ const metadata = JSON.parse(
   readFileSync('scripts/design-conformance/contracts.generated.json', 'utf8')
 ) as GeneratedContracts
 const inspect = (files: Record<string, string>) =>
-  inspectSimplifications(
+  inspectControlAnalysis(
     source({
       [globals]: ':root { --caution: #f59e0b; --color-yellow-500: #eab308; --text-body: #444; }',
       ...files,
@@ -71,7 +70,7 @@ test('landing, docs and marketing helper contents are never read by shared analy
   }
   const base = source(files)
   const touched: string[] = []
-  inspectSimplifications({
+  inspectControlAnalysis({
     ...base,
     read: (entry) => {
       touched.push(entry.path)
@@ -346,7 +345,7 @@ test('customer branding and shared preview cursor selectors have distinct review
   )
 })
 
-test('landing imports are an explicit boundary and a ledger never removes raw findings', () => {
+test('landing imports remain an explicit unchecked boundary', () => {
   const report = inspect({
     [ui]: `import { LogoShell } from '@/app/(landing)/components/logo-shell'
     export const View=()=> <LogoShell><span style={{color:'#eee'}}/></LogoShell>`,
@@ -354,49 +353,7 @@ test('landing imports are an explicit boundary and a ledger never removes raw fi
   expect(
     report.review.unchecked.some((note) => note.reason.includes('excluded landing source'))
   ).toBe(true)
-  const finding = report.colourAssignments.findings[0]
-  expect(finding).toBeDefined()
-  const decisions = matchReviews(
-    {
-      version: '1.0.0',
-      entries: [
-        {
-          fingerprint: findingFingerprint(finding),
-          status: 'retained-extra',
-          rationale: 'Reviewed geometry',
-          evidence: '/external/review',
-        },
-      ],
-    },
-    [finding],
-    []
-  )
-  expect(decisions.matches).toHaveLength(1)
-  expect(report.colourAssignments.findings).toContain(finding)
-  const duplicate = matchReviews(
-    {
-      version: '1.0.0',
-      entries: [
-        {
-          fingerprint: findingFingerprint(finding),
-          status: 'retained-extra',
-          rationale: 'Reviewed geometry',
-          evidence: '/external/review',
-        },
-        {
-          fingerprint: 'a'.repeat(64),
-          status: 'designer-review',
-          rationale: 'Needs designer review',
-          evidence: '/external/review',
-        },
-      ],
-    },
-    [finding, finding],
-    []
-  )
-  expect(duplicate.matches).toEqual([])
-  expect(duplicate.ambiguous).toContain(findingFingerprint(finding))
-  expect(duplicate.stale).toContain('a'.repeat(64))
+  expect(report.colourAssignments.findings.length).toBeGreaterThan(0)
 })
 
 test('syntax and extraction errors remain distinguishable', () => {

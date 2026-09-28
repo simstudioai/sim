@@ -31,7 +31,6 @@ export interface StudioEntry {
   usages: StudioLocation[]
   rationale?: string
   value?: string
-  decision?: string
   signals?: { id: string; kind: string; source: StudioLocation; value?: string }[]
   variant?: { axis: string; value: string; defaultValue: string }
   fixture: {
@@ -44,11 +43,8 @@ export interface StudioEntry {
     action?: string
   } | null
   previewKind?: 'source-component' | 'source-style-sample' | 'indicative-sample'
-  previewFingerprint?: string
   states?: string[]
-  status: 'ready' | 'needs-fixture' | 'capture-failed' | 'pending-capture'
-  images: Record<string, string>
-  captureError?: string
+  status: 'ready' | 'needs-fixture'
 }
 
 export interface StudioManifest {
@@ -57,16 +53,10 @@ export interface StudioManifest {
   status: 'complete' | 'incomplete'
   identity: { commit: string; treeHash: string; scanner: unknown }
   sourceRevision: string
-  ledgerHash: string
   fixtureHash: string
-  browser: string
   components: StudioEntry[]
   nonvisualExports: { name: string; source: StudioLocation; reason: string }[]
   extras: StudioEntry[]
-  decisions: {
-    stale: { fingerprint: string; status?: string; rationale?: string; evidence?: string }[]
-    ambiguous: { fingerprint: string; status?: string; rationale?: string; evidence?: string }[]
-  }
   coverageFailures: { file: string; reason: string }[]
   analysis?: {
     stylingUnchecked: { file: string; line?: number; reason: string }[]
@@ -86,7 +76,6 @@ export function studioOutputRoot() {
 export function getStudioPageManifest(mode: 'components' | 'extras'): {
   manifest: StudioManifest
   stale: boolean
-  ledgerStale: boolean
 } | null {
   let manifest: StudioManifest
   try {
@@ -131,18 +120,6 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
   } catch {
     stale = true
   }
-  let ledgerStale = false
-  if (process.env.SIM_STUDIO_LEDGER) {
-    try {
-      const ledger = path.resolve(process.env.SIM_STUDIO_LEDGER)
-      ledgerStale =
-        createHash('sha256').update(readFileSync(ledger)).digest('hex') !== manifest.ledgerHash
-    } catch {
-      ledgerStale = true
-    }
-  } else if (manifest.ledgerHash) {
-    ledgerStale = true
-  }
   return {
     manifest: {
       ...manifest,
@@ -150,6 +127,5 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
       extras: mode === 'extras' ? manifest.extras : [],
     },
     stale,
-    ledgerStale,
   }
 }

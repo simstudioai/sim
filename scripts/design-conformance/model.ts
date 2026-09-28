@@ -3,15 +3,6 @@ import { readdirSync, readFileSync } from 'node:fs'
 import type { Route, SourceSummary } from '#design-conformance/source-summary'
 
 export const VERSION = '4.1.0'
-export const CATALOGUE_VERSION = '1.0.0'
-export type Policy = 'appearance' | 'tokens' | 'conformance'
-export const policyVersion = (policy: Policy) =>
-  policy === 'conformance'
-    ? 'design-conformance/2.0.0'
-    : policy === 'tokens'
-      ? 'token-lint/2.0.0'
-      : 'appearance-diff/2.1.0'
-export const SEED = '463fa05b27fe170cbb58bca89cc955313df5af84'
 export const TOKEN_FILE = 'apps/sim/app/_styles/globals.css'
 /** Failed inspection is distinct from an unresolved styling flow. */
 export const inspectionFailure = (reason: string) =>
@@ -127,11 +118,23 @@ export interface Finding {
   context: string
   before?: string | null
 }
+/** Line-independent identity for the same authored treatment. */
+export function findingFingerprint(finding: Finding): string {
+  return hash(
+    canonical([
+      'finding',
+      finding.file,
+      finding.context,
+      finding.rule,
+      finding.property,
+      finding.value,
+    ])
+  )
+}
 export interface Report {
   infrastructure?: ReturnType<
     typeof import('#design-conformance/generated-contracts').infrastructureStatus
   >
-  reviewDecisions?: import('#control-analysis/review-ledger').ReviewDecisions
   /** Changed product files whose styling could not be compared. */
   coverageFailures?: (Note & { file: string; side: 'before' | 'after' })[]
   layoutAllowances?: import('#control-analysis/layout-allowances').LayoutAllowance[]
@@ -143,15 +146,6 @@ export interface Report {
     after: { checked: number; verified: number; invalid: number; unresolved: number }
     introduced: number
     verifiedUsages: import('#control-analysis/colour-assignments').VerifiedColourUsage[]
-  }
-  controlSimplifications?: {
-    version: '1.0.0'
-    before: { controls: number; styleChecks: number; nameChecks: number; artwork: number }
-    after: { controls: number; styleChecks: number; nameChecks: number; artwork: number }
-    existingBefore: number
-    existingAfter: number
-    introduced: number
-    unresolved: number
   }
   contractsHash?: string
   centralSourceHashes?: { before: string; after: string }

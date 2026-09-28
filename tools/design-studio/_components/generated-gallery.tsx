@@ -7,7 +7,6 @@ import Link from 'next/link'
 interface GeneratedGalleryProps {
   manifest: StudioManifest
   stale: boolean
-  ledgerStale: boolean
   mode: 'components' | 'extras'
 }
 
@@ -148,10 +147,9 @@ function groupComponents(entries: StudioEntry[]): StudioTreatment[] {
   for (const entry of entries.filter((item) => !item.variant)) {
     // Structural exports can share a composite preview. Variants belong to the
     // section for their owning export rather than creating another section.
-    const key =
-      entry.status === 'ready' && entry.previewFingerprint
-        ? `${entry.family}:${entry.previewFingerprint}`
-        : entry.id
+    const key = entry.fixture
+      ? `${entry.family}:${entry.fixture.type}:${entry.fixture.id}`
+      : entry.id
     const group = groups.get(key) ?? []
     group.push(entry)
     groups.set(key, group)
@@ -370,14 +368,6 @@ function ExtraEvidencePanel({ entries, id }: ExtraPanelProps) {
                       </p>
                       {signal.value ? <p>Value: {signal.value}</p> : null}
                       <p>ID: {signal.id}</p>
-                      {signal.decision && signal.decision !== 'unreviewed' ? (
-                        <p>
-                          {signal.decision === 'scanner-classified'
-                            ? 'Scanner classification'
-                            : 'Prior review'}
-                          : {signal.decision}
-                        </p>
-                      ) : null}
                     </div>
                   </details>
                 </div>
@@ -545,7 +535,7 @@ interface TreatmentDetailProps {
   selectedVariants?: Record<string, string>
   onSelectEntry: (id: string) => void
   onSelectVariant: (axis: string, value: string) => void
-  captureStale: boolean
+  catalogStale: boolean
 }
 
 function previewProvenance(entry: StudioEntry): string {
@@ -578,7 +568,7 @@ function TreatmentDetail({
   selectedVariants,
   onSelectEntry,
   onSelectVariant,
-  captureStale,
+  catalogStale,
 }: TreatmentDetailProps) {
   const { entries } = treatment
   const exports = entries.filter((item) => !item.variant)
@@ -675,15 +665,13 @@ function TreatmentDetail({
           ) : null}
         </div>
         <span className='rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[var(--text-secondary)] text-xs'>
-          {captureStale
-            ? 'Last capture needs refresh'
+          {catalogStale
+            ? 'Catalog needs refresh'
             : entry.status !== 'ready'
-              ? entry.status === 'needs-fixture'
-                ? 'Last capture needs fixture'
-                : 'Last capture check incomplete'
+              ? 'Needs fixture'
               : failedCount
                 ? `${failedCount} fixture gaps`
-                : 'Last capture ready'}
+                : 'Live fixture available'}
         </span>
       </div>
 
@@ -761,9 +749,9 @@ function TreatmentDetail({
         />
         <p className='mt-3 text-[var(--text-muted)] text-xs'>
           Rendered from the current checkout.{' '}
-          {captureStale
-            ? 'The published capture and options come from an older source revision; refresh to verify this version.'
-            : 'Capture status describes the last published refresh.'}
+          {catalogStale
+            ? 'Source changed since the catalog was generated; refresh to update entries and options.'
+            : 'The catalog matches the last refresh.'}
         </p>
         <div className='mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 text-[var(--text-muted)] text-xs'>
           <span>{previewProvenance(entry)}</span>
@@ -817,11 +805,11 @@ function TreatmentDetail({
 }
 
 /** Displays one immutable local scan run, including incomplete coverage. */
-export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: GeneratedGalleryProps) {
+export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProps) {
   const [query, setQuery] = useState('')
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [size, setSize] = useState<16 | 20>(16)
-  const [captureState, setCaptureState] = useState('default')
+  const [previewState, setPreviewState] = useState('default')
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [selections, setSelections] = useState<Record<string, TreatmentSelection>>({})
   const [mobileBrowse, setMobileBrowse] = useState(false)
@@ -1210,14 +1198,13 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
               ? 'Browse live previews of styling detected outside EMCN. Open the source and evidence panels when you want to trace a treatment back to code.'
               : 'Browse EMCN components and icons. Component options come from the latest source scan; each section links to its definition and product uses.'}
           </p>
-          {stale || ledgerStale ? (
+          {stale ? (
             <p
               className='mt-4 rounded-lg border border-[var(--border)] px-4 py-3 text-[var(--text-body)] text-sm'
               role='status'
             >
-              {stale
-                ? 'Source changed since the last capture. Live previews use the current checkout; refresh the catalog and capture evidence.'
-                : 'Review notes changed since the last refresh.'}
+              Source changed since the last refresh. Live previews use the current checkout; refresh
+              the catalog to update entries and options.
             </p>
           ) : null}
           <div className='mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 border-[var(--border)] border-b pb-5 text-[var(--text-muted)] text-xs'>
@@ -1257,8 +1244,8 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
               <label className='flex flex-col gap-1 text-[var(--text-secondary)] text-xs'>
                 State
                 <select
-                  value={captureState}
-                  onChange={(event) => setCaptureState(event.target.value)}
+                  value={previewState}
+                  onChange={(event) => setPreviewState(event.target.value)}
                   className='rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2'
                 >
                   <option value='default'>Default</option>
@@ -1285,11 +1272,11 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                   className={`scroll-mt-24 border-[var(--border)] border-b py-12 ${mode === 'components' ? '[contain-intrinsic-size:auto_1000px] [content-visibility:auto]' : ''}`}
                 >
                   <TreatmentDetail
-                    captureStale={stale}
+                    catalogStale={stale}
                     treatment={treatment}
                     theme={theme}
                     size={size}
-                    requestedState={captureState}
+                    requestedState={previewState}
                     anchor={anchor}
                     selectedEntryId={selections[treatment.key]?.entryId}
                     selectedVariants={selections[treatment.key]?.variants}
@@ -1330,28 +1317,17 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
             <h2 className='font-season text-xl'>Current scan run</h2>
             <p className='mt-2 text-[var(--text-body)] text-sm'>
               {manifest.runId} ·{' '}
-              {stale ? 'source revision changed; refresh needed' : 'source revision matches'} ·{' '}
-              {manifest.ledgerHash
-                ? ledgerStale
-                  ? 'review notes changed; refresh needed'
-                  : 'review notes match'
-                : 'no review ledger supplied'}
+              {stale ? 'source revision changed; refresh needed' : 'source revision matches'}
             </p>
             <div className='mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[var(--text-muted)] text-xs'>
               <span>
-                {entries.filter((entry) => entry.status === 'ready').length} successful captures in
-                this publication
+                {entries.filter((entry) => entry.status === 'ready').length} entries with live
+                fixtures
               </span>
               <span>{manifest.coverageFailures.length} inspection failures</span>
               {mode === 'components' ? (
                 <span>{manifest.nonvisualExports.length} nonvisual exports classified</span>
-              ) : (
-                <span>
-                  {manifest.ledgerHash
-                    ? `${entries.filter((entry) => entry.decision === 'unreviewed').length} without a prior review note`
-                    : 'no review ledger supplied'}
-                </span>
-              )}
+              ) : null}
             </div>
             {manifest.analysis ? (
               <details className='mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-muted)] text-xs'>
@@ -1360,8 +1336,8 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                   inputs · {manifest.analysis.controlUnchecked.length} unresolved control inputs
                 </summary>
                 <p className='mt-3'>
-                  Successful capture means a fixture rendered. Unresolved analysis remains separate
-                  from inspection failures and capture status.
+                  A fixture adapter supplies a live preview. Unresolved analysis remains separate
+                  from inspection failures and fixture coverage.
                 </p>
                 <ul className='mt-3 list-disc space-y-2 pl-4'>
                   {manifest.analysis.limitations.map((limitation) => (
@@ -1375,8 +1351,8 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                       {manifest.analysis?.[kind].length})
                     </summary>
                     <p className='mt-2'>
-                      Showing up to 20 diagnostics. The full list is in the publication's scan/
-                      {kind === 'stylingUnchecked' ? 'unchecked.json' : 'control-unchecked.json'}.
+                      Showing up to 20 diagnostics. The full list is in the publication's
+                      scan/scan.json.
                     </p>
                     {manifest.analysis?.[kind].slice(0, 20).map((diagnostic, index) => (
                       <p
@@ -1404,37 +1380,8 @@ export function GeneratedGallery({ manifest, stale, ledgerStale, mode }: Generat
                 <p>Commit: {manifest.identity.commit}</p>
                 <p>Scanner tree: {manifest.identity.treeHash}</p>
                 <p>Fixture: {manifest.fixtureHash}</p>
-                <p>Ledger: {manifest.ledgerHash || 'none'}</p>
-                <p>Browser: {manifest.browser}</p>
               </div>
             </details>
-            {mode === 'extras' &&
-            (manifest.decisions.stale.length || manifest.decisions.ambiguous.length) ? (
-              <details className='mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-body)] text-xs'>
-                <summary className='cursor-pointer'>
-                  Review decisions needing a new match (
-                  {manifest.decisions.stale.length + manifest.decisions.ambiguous.length})
-                </summary>
-                {(['stale', 'ambiguous'] as const).map((kind) =>
-                  manifest.decisions[kind].map((decision) => (
-                    <div
-                      key={`${kind}:${decision.fingerprint}`}
-                      className='mt-3 border-[var(--border)] border-t pt-3'
-                    >
-                      <p className='break-all font-mono text-[var(--text-muted)]'>
-                        {kind}: {decision.fingerprint}
-                      </p>
-                      <p className='mt-1'>
-                        {decision.status}: {decision.rationale}
-                      </p>
-                      {decision.evidence ? (
-                        <p className='mt-1 break-all'>Prior evidence: {decision.evidence}</p>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </details>
-            ) : null}
             {manifest.coverageFailures.length ? (
               <details className='mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-body)] text-xs'>
                 <summary className='cursor-pointer'>

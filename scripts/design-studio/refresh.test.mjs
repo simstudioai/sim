@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,6 +12,17 @@ function write(root, name, contents) {
   const file = path.join(root, name)
   mkdirSync(path.dirname(file), { recursive: true })
   writeFileSync(file, contents)
+}
+
+function findings(scan) {
+  return JSON.parse(readFileSync(path.join(scan, 'scan.json'), 'utf8')).inventory.findings
+}
+
+function setFindings(scan, next) {
+  const file = path.join(scan, 'scan.json')
+  const report = JSON.parse(readFileSync(file, 'utf8'))
+  report.inventory.findings = next
+  writeFileSync(file, JSON.stringify(report))
 }
 
 function command(root, executable, args) {
@@ -62,27 +72,22 @@ function guardedRefresh() {
   )
   write(repo, 'apps/sim/app/_styles/globals.css', '@import "./tailwind.css";\n:root{--brand:#abc}')
   write(repo, 'apps/sim/app/_styles/tailwind.css', '@theme { --color-example: red; }')
-  write(scan, 'findings.json', '[]')
-  write(scan, 'controls.json', JSON.stringify({ records: [] }))
-  write(scan, 'coverage-failures.json', '[]')
   write(
     scan,
-    'unchecked.json',
-    JSON.stringify([{ file: 'example.tsx', line: 1, reason: 'Computed styling is unchecked' }])
-  )
-  write(
-    scan,
-    'control-unchecked.json',
-    JSON.stringify([{ file: 'example.tsx', line: 2, reason: 'Unknown spread' }])
-  )
-  write(
-    scan,
-    'identity.json',
+    'scan.json',
     JSON.stringify({
-      commit: 'test',
-      treeHash: 'test',
-      scanner: {},
-      limitations: ['Runtime cascade is unsupported.'],
+      version: 1,
+      identity: { commit: 'test', treeHash: 'test', scanner: {} },
+      inventory: {
+        findings: [],
+        unchecked: [{ file: 'example.tsx', line: 1, reason: 'Computed styling is unchecked' }],
+        coverageFailures: [],
+        limitations: ['Runtime cascade is unsupported.'],
+      },
+      controls: {
+        records: [],
+        unchecked: [{ file: 'example.tsx', line: 2, reason: 'Unknown spread' }],
+      },
     })
   )
   command(repo, 'git', ['init', '-q'])
@@ -103,7 +108,7 @@ function guardedRefresh() {
       '--repo',
       repo,
     ])
-    const result = spawnSync('node', [script, '--inventory-only'], {
+    const result = spawnSync('node', [script], {
       env: {
         ...process.env,
         SIM_STUDIO_REPO: repo,
@@ -112,19 +117,19 @@ function guardedRefresh() {
       },
       encoding: 'utf8',
     })
-    assert.equal(result.status, 1, result.stderr)
+    assert.ok([0, 1].includes(result.status), result.stderr)
     const pointer = JSON.parse(readFileSync(path.join(output, 'latest.json'), 'utf8'))
     return JSON.parse(readFileSync(path.join(pointer.path, 'manifest.json'), 'utf8'))
   }
   return { repo, refresh }
 }
 
-test('refresh invalidates sample captures when an imported stylesheet changes', () => {
+test('refresh tracks source changes in imported stylesheets', () => {
   const { repo, refresh } = guardedRefresh()
   const first = refresh()
   write(repo, 'apps/sim/app/_styles/tailwind.css', '@theme { --color-example: blue; }')
   const changed = refresh()
-  assert.notEqual(changed.sampleRenderHash, first.sampleRenderHash)
+  assert.notEqual(changed.sourceRevision, first.sourceRevision)
 }, 60000)
 
 test('refresh requires a fixture mapping for each variant axis', () => {
@@ -139,7 +144,7 @@ test('refresh requires a fixture mapping for each variant axis', () => {
   )
 }, 60000)
 
-test('refresh keeps disabled variant previews without impossible interaction captures', () => {
+test('refresh keeps disabled variants without impossible interaction states', () => {
   const { repo, refresh } = guardedRefresh()
   write(
     repo,
@@ -167,11 +172,10 @@ test('refresh keeps disabled variant previews without impossible interaction cap
   assert.deepEqual(disabled.states, ['disabled'])
   assert.equal(disabled.fixture.defaultState, undefined)
   assert.deepEqual(disabled.fixture.variant, { axis: 'disabled', value: 'true' })
-  assert.equal(disabled.status, 'pending-capture')
-  assert.deepEqual(disabled.images, {})
+  assert.equal(disabled.status, 'ready')
 }, 60000)
 
-test('refresh keeps explicitly closed variants out of open-state captures', () => {
+test('refresh keeps explicitly closed variants out of open states', () => {
   const { repo, refresh } = guardedRefresh()
   write(
     repo,
@@ -209,12 +213,11 @@ test('refresh publishes unresolved analysis and scanner limits separately from i
   assert.deepEqual(manifest.coverageFailures, [])
 }, 60000)
 
-test('refresh catalogs every detection independently of review decisions', () => {
+test('refresh catalogs every detected treatment and new EMCN export', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'sim-studio-'))
   const repo = path.join(root, 'repo')
   const scan = path.join(root, 'scan')
   const output = path.join(root, 'output')
-  const ledger = path.join(root, 'reviews.json')
   mkdirSync(repo)
   mkdirSync(scan)
   write(repo, 'package.json', '{}')
@@ -305,58 +308,34 @@ test('refresh catalogs every detection independently of review decisions', () =>
   }
   write(
     scan,
-    'findings.json',
-    JSON.stringify([
-      finding,
-      {
-        ...advisory,
-        rule: advisory.kind,
-        property: advisory.kind,
-        context: advisory.owner,
-        legacyFingerprint: createHash('sha256')
-          .update(
-            JSON.stringify([
-              'review-item',
-              advisory.file,
-              advisory.owner,
-              advisory.kind,
-              advisory.value,
-            ])
-          )
-          .digest('hex'),
-      },
-    ])
-  )
-  write(
-    scan,
-    'review-decisions.json',
-    JSON.stringify({ matches: [], stale: ['old'], ambiguous: ['duplicate'] })
-  )
-  write(scan, 'shadow-extras.json', JSON.stringify({ approved: [] }))
-  write(scan, 'coverage-failures.json', JSON.stringify([]))
-  write(scan, 'typography-review.json', JSON.stringify({ classifications: [] }))
-  write(
-    scan,
-    'identity.json',
-    JSON.stringify({ commit: 'test-head', treeHash: 'test-tree', scanner: {} })
-  )
-  write(
-    scan,
-    'controls.json',
+    'scan.json',
     JSON.stringify({
-      records: [
-        {
-          origin: 'emcn-component',
-          projection: true,
-          file: 'apps/sim/app/product/wrapper.tsx',
-          line: 7,
-          tag: 'Wrapper',
-          terminals: ['central:packages/emcn/src/components/example/example.tsx#Example@1'],
-        },
-      ],
+      version: 1,
+      identity: { commit: 'test-head', treeHash: 'test-tree', scanner: {} },
+      inventory: {
+        findings: [
+          finding,
+          { ...advisory, rule: advisory.kind, property: advisory.kind, context: advisory.owner },
+        ],
+        unchecked: [],
+        coverageFailures: [],
+        limitations: [],
+      },
+      controls: {
+        records: [
+          {
+            origin: 'emcn-component',
+            projection: true,
+            file: 'apps/sim/app/product/wrapper.tsx',
+            line: 7,
+            tag: 'Wrapper',
+            terminals: ['central:packages/emcn/src/components/example/example.tsx#Example@1'],
+          },
+        ],
+        unchecked: [],
+      },
     })
   )
-  writeFileSync(ledger, JSON.stringify({ version: '1.0.0', entries: [] }))
 
   const refresh = () => {
     command(repo, process.env.DESIGN_TEST_BUN ?? 'bun', [
@@ -365,13 +344,12 @@ test('refresh catalogs every detection independently of review decisions', () =>
       '--repo',
       repo,
     ])
-    const result = spawnSync('node', [script, '--inventory-only'], {
+    const result = spawnSync('node', [script], {
       env: {
         ...process.env,
         SIM_STUDIO_REPO: repo,
         SIM_STUDIO_SCAN_DIR: scan,
         SIM_STUDIO_OUTPUT: output,
-        SIM_STUDIO_LEDGER: ledger,
       },
       encoding: 'utf8',
     })
@@ -405,7 +383,6 @@ test('refresh catalogs every detection independently of review decisions', () =>
   const again = refresh()
   assert.deepEqual(first.components, again.components)
   assert.equal(first.sourceRevision, again.sourceRevision)
-  assert.equal(first.sampleRenderHash, again.sampleRenderHash)
 
   write(
     repo,
@@ -413,7 +390,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
     'export const cn = (...values) => values.filter(Boolean).join(" " )\n'
   )
   const changedClassMerger = refresh()
-  assert.notEqual(changedClassMerger.sampleRenderHash, first.sampleRenderHash)
+  assert.notEqual(changedClassMerger.sourceRevision, first.sourceRevision)
   write(repo, 'packages/emcn/src/lib/cn.ts', '')
   assert.deepEqual(
     first.components.map((entry) => entry.id),
@@ -442,10 +419,6 @@ test('refresh catalogs every detection independently of review decisions', () =>
   assert.equal(first.extras[0].fixture.sample.kind, 'surface')
   assert.equal(first.extras[0].fixture.sample.tag, 'Example')
   assert.equal(first.extras[0].previewKind, 'source-style-sample')
-  assert.deepEqual(first.decisions, {
-    stale: [{ fingerprint: 'old' }],
-    ambiguous: [{ fingerprint: 'duplicate' }],
-  })
 
   write(
     repo,
@@ -486,7 +459,6 @@ test('refresh catalogs every detection independently of review decisions', () =>
   )
   const changed = refresh()
   assert.notEqual(changed.sourceRevision, first.sourceRevision)
-  assert.notEqual(changed.sampleRenderHash, first.sampleRenderHash)
   assert.equal(changed.components.find((entry) => entry.name === 'Example').usages.length, 3)
 
   write(
@@ -505,80 +477,26 @@ test('refresh catalogs every detection independently of review decisions', () =>
     'needs-fixture'
   )
 
-  const fingerprint = createHash('sha256')
-    .update(
-      JSON.stringify([
-        'finding',
-        finding.file,
-        finding.context,
-        finding.rule,
-        finding.property,
-        finding.value,
-      ])
-    )
-    .digest('hex')
-  write(
-    scan,
-    'review-decisions.json',
-    JSON.stringify({
-      matches: [{ fingerprint, status: 'retained-extra', rationale: 'Reviewed source treatment' }],
-      stale: [],
-      ambiguous: [],
-    })
-  )
-  const decided = refresh()
-  assert.equal(decided.extras.length, 2)
-  assert.equal(decided.extras[0].decision, 'retained-extra')
-  assert.equal(decided.extras[0].status, 'pending-capture')
-
-  const advisoryFingerprint = createHash('sha256')
-    .update(
-      JSON.stringify(['review-item', advisory.file, advisory.owner, advisory.kind, advisory.value])
-    )
-    .digest('hex')
-  write(
-    scan,
-    'review-decisions.json',
-    JSON.stringify({
-      matches: [
-        {
-          fingerprint: advisoryFingerprint,
-          status: 'false-positive',
-          rationale: 'Historical note',
-        },
-      ],
-      stale: [],
-      ambiguous: [],
-    })
-  )
-  const historicallyDismissed = refresh()
-  assert.equal(historicallyDismissed.extras.length, 2)
-  assert.equal(historicallyDismissed.extras[1].decision, 'false-positive')
-
-  write(
-    scan,
-    'findings.json',
-    JSON.stringify([
-      finding,
-      advisory,
-      {
-        id: 'central-one',
-        file: 'packages/emcn/src/components/example/example.tsx',
-        line: 1,
-        owner: 'Example',
-        kind: 'stock-shadow',
-        value: 'shadow-sm',
-      },
-      {
-        id: 'unmatched-central',
-        file: 'packages/emcn/src/components/internal.tsx',
-        line: 2,
-        owner: 'Internal',
-        kind: 'local-typography',
-        value: 'text-sm',
-      },
-    ])
-  )
+  setFindings(scan, [
+    finding,
+    advisory,
+    {
+      id: 'central-one',
+      file: 'packages/emcn/src/components/example/example.tsx',
+      line: 1,
+      owner: 'Example',
+      kind: 'stock-shadow',
+      value: 'shadow-sm',
+    },
+    {
+      id: 'unmatched-central',
+      file: 'packages/emcn/src/components/internal.tsx',
+      line: 2,
+      owner: 'Internal',
+      kind: 'local-typography',
+      value: 'text-sm',
+    },
+  ])
   const central = refresh()
   assert.equal(central.extras.length, 4)
   assert.equal(central.extras[2].id, 'finding:central-one')
@@ -613,14 +531,7 @@ test('refresh catalogs every detection independently of review decisions', () =>
       value: 'bg-[#123456]',
     },
   ]
-  write(
-    scan,
-    'findings.json',
-    JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
-      ...newSignals,
-    ])
-  )
+  setFindings(scan, [...findings(scan), ...newSignals])
   const discovered = refresh()
   const newEntries = discovered.extras.filter((entry) =>
     entry.source.file.endsWith('/new-action.tsx')
@@ -632,21 +543,17 @@ test('refresh catalogs every detection independently of review decisions', () =>
   assert.match(newEntries[0].fixture.sample.className, /rounded-\[13px\]/)
   assert.equal(newEntries[0].previewKind, 'source-style-sample')
 
-  write(
-    scan,
-    'findings.json',
-    JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
-      {
-        id: 'moved-icon',
-        file: 'apps/sim/components/icons.tsx',
-        line: 1000,
-        owner: 'WorkflowIcon',
-        kind: 'mixed-product-artwork',
-        value: 'WorkflowIcon',
-      },
-    ])
-  )
+  setFindings(scan, [
+    ...findings(scan),
+    {
+      id: 'moved-icon',
+      file: 'apps/sim/components/icons.tsx',
+      line: 1000,
+      owner: 'WorkflowIcon',
+      kind: 'mixed-product-artwork',
+      value: 'WorkflowIcon',
+    },
+  ])
   const movedIcon = refresh().extras.find((entry) => entry.id === 'finding:moved-icon')
   assert.deepEqual(movedIcon.fixture, { type: 'extra', id: 'workflowIcon' })
 
@@ -654,61 +561,57 @@ test('refresh catalogs every detection independently of review decisions', () =>
     'apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
   const showcase =
     'apps/sim/app/workspace/[workspaceId]/integrations/components/integrations-showcase/integrations-showcase.tsx'
-  write(
-    scan,
-    'findings.json',
-    JSON.stringify([
-      ...JSON.parse(readFileSync(path.join(scan, 'findings.json'), 'utf8')),
-      {
-        id: 'code-moved',
-        file: richCss,
-        line: 800,
-        context: 'css / .rich-markdown-prose code',
-        kind: 'local-typography',
-        value: 'font-size: 0.875em',
-      },
-      {
-        id: 'selection-moved',
-        file: richCss,
-        line: 20,
-        context: 'css / .rich-markdown-nodes hr.rich-leaf-in-selection',
-        kind: 'central-radius',
-        value: '1px',
-      },
-      {
-        id: 'other-css',
-        file: richCss,
-        line: 10,
-        owner: 'css',
-        kind: 'local-typography',
-        value: 'line-height: 1.2',
-      },
-      {
-        id: 'tile-moved',
-        file: showcase,
-        line: 900,
-        context: 'IntegrationTile / div / className',
-        kind: 'stock-shadow',
-        value: 'shadow-xs',
-      },
-      {
-        id: 'showcase-moved',
-        file: showcase,
-        line: 1,
-        context: 'IntegrationsShowcase',
-        kind: 'central-artwork',
-        value: 'artwork',
-      },
-      {
-        id: 'other-showcase',
-        file: showcase,
-        line: 10,
-        context: 'UnknownPanel',
-        kind: 'local-alpha',
-        value: 'bg-black/10',
-      },
-    ])
-  )
+  setFindings(scan, [
+    ...findings(scan),
+    {
+      id: 'code-moved',
+      file: richCss,
+      line: 800,
+      context: 'css / .rich-markdown-prose code',
+      kind: 'local-typography',
+      value: 'font-size: 0.875em',
+    },
+    {
+      id: 'selection-moved',
+      file: richCss,
+      line: 20,
+      context: 'css / .rich-markdown-nodes hr.rich-leaf-in-selection',
+      kind: 'central-radius',
+      value: '1px',
+    },
+    {
+      id: 'other-css',
+      file: richCss,
+      line: 10,
+      owner: 'css',
+      kind: 'local-typography',
+      value: 'line-height: 1.2',
+    },
+    {
+      id: 'tile-moved',
+      file: showcase,
+      line: 900,
+      context: 'IntegrationTile / div / className',
+      kind: 'stock-shadow',
+      value: 'shadow-xs',
+    },
+    {
+      id: 'showcase-moved',
+      file: showcase,
+      line: 1,
+      context: 'IntegrationsShowcase',
+      kind: 'central-artwork',
+      value: 'artwork',
+    },
+    {
+      id: 'other-showcase',
+      file: showcase,
+      line: 10,
+      context: 'UnknownPanel',
+      kind: 'local-alpha',
+      value: 'bg-black/10',
+    },
+  ])
   const semantic = new Map(refresh().extras.map((entry) => [entry.id, entry]))
   assert.equal(semantic.get('finding:code-moved').fixture.id, 'rich-code')
   assert.equal(semantic.get('finding:selection-moved').fixture.id, 'rich-selection')

@@ -67,7 +67,6 @@ Permissions for longhands remain specific: allowing `padding-left` does not perm
 | Local controls/visuals and repeated treatments | Styled native/editor controls, noninteractive primitives, repeated typography/chrome, alpha and status colours | These are review evidence, not proof of visual defects. Pure complete EMCN recipe use does not create a local-control finding. |
 | Artwork | Product glyphs and static SVG drawings; central reuse and exact duplicates | Provider branding and user media are exempt. Mixed files are inspected by export/consumer, not broadly exempted. |
 | Colour assignments | CSS/custom-property writers, immutable imported aliases, finite branches and supported DOM writes | Missing/literal/non-colour origins warn; dynamic writers, cycles, unknown spreads and runtime inheritance stay unchecked. |
-| Control simplifications | Source-proven redundant styling, accessible names and duplicate artwork | Removal proofs require every supported alternative; accessibility is a bounded static check, not a browser audit. |
 
 Scope is product browser UI, including browser `app/desktop` screens and workspace desktop settings. Landing, its shared `apps/sim/lib/content` engine, docs, API routes, native desktop and build code are not inspected. Product imports from excluded landing implementations remain explicit unchecked boundaries. Product `--landing-*` use is a finding even when defined in global CSS.
 
@@ -81,19 +80,17 @@ CVA configuration follows read-only local aliases within the 12-node resolution 
 
 Inline React styles preserve strings and custom variables. Only proven numeric values receive React's dimensional `px` conversion; unitless properties follow the pinned React serializer. A numeric-looking central reference without scalar type evidence remains explicitly unchecked.
 
-## Debt and review records
+## Diff matching
 
 Diff matching counts occurrences by source treatment and owner. Unchanged debt and line shifts stay quiet; another copy warns. Source-only styling changes are traced to consumers. An unrelated deletion cannot cancel a new occurrence.
 
-Optional `--reviews /absolute/external/reviews.json` attaches source-fingerprint decisions and rationale/evidence. Legacy fingerprints migrate only through a unique current treatment; stale and ambiguous matches require renewed review. Decisions never remove raw findings or control Studio inclusion.
-
 ## Studio and evidence
 
-Refresh checks infrastructure freshness, scans the working tree, inventories EMCN public visual exports/variants and all detected Extras, then captures source-backed fixtures or clearly labeled indicative source-style samples. Fixed props/data/providers enable deterministic previews; product modules are only executed by the isolated browser fixture app, never by the analyzer. Missing adapters and failed captures stay visible. Opening Studio reads the latest publication and never starts a scan.
+Refresh checks infrastructure freshness, scans the working tree, and inventories EMCN public visual exports, variants, and all detected Extras. The local Studio renders source-backed fixtures or clearly labeled indicative source-style samples live. Fixed props, data, and providers make previews reproducible; product modules are executed only by the isolated Studio app, never by the analyzer. Missing adapters stay visible. Opening Studio reads the latest publication and never starts a scan.
 
-Reports, manifests and browser images live outside the checkout (default Studio output: `~/.local/state/sim2/design-studio`). All four light/dark, 16px/20px combinations are captured with pinned Playwright, viewport, locale, time, fonts and disabled animation. The recorded browser identity includes the fixed software-rendering flags; changing that profile invalidates cached captures. Indicative samples also invalidate when the shared class-merging implementation changes. Hash reproducibility is checked within the same browser and operating-system environment. A run publishes atomically, carries source/scanner/fixture/ledger identities and reports incomplete coverage. Review decisions add context only.
+The full scanner writes one external `scan.json` with findings, unresolved inputs, inspection failures, control inventory, and evidence. Studio manifests live outside the checkout too (default: `~/.local/state/sim2/design-studio`). A run publishes atomically with source, scanner, and fixture identity and reports incomplete coverage. No image generation or review ledger is required.
 
-Fixture adapters declare the export, axes and states they support. New values of a supported finite axis are discovered automatically; a new axis that needs different data or providers requires an adapter update and stays visible as needing a fixture. Capture readiness checks the intended visible surface for advertised open states, rather than accepting its trigger. The Studio shows unresolved analysis separately from capture status and distinguishes live checkout rendering from the last published captures.
+Fixture adapters declare the export, axes, and states they support. New values of a supported finite axis are discovered automatically; a new axis that needs different data or providers requires an adapter update and stays visible as needing a fixture. The Studio shows unresolved analysis separately from fixture coverage and distinguishes live checkout rendering from the last published inventory.
 
 ## Verification
 
@@ -106,7 +103,7 @@ bun run check:audits
 bun run lint:check
 ```
 
-The real CLI tests use temporary Git repositories to verify public API lifecycle, immutable isolation, stale/tampered output, ownership metadata, source-only changes, working-tree inputs, occurrence matching and intentional exclusions. Generated bytes must reproduce on unchanged source. Full-scan comparison and browser evidence remain external.
+The real CLI tests use temporary Git repositories to verify public API lifecycle, immutable isolation, stale/tampered output, ownership metadata, source-only changes, working-tree inputs, occurrence matching and intentional exclusions. Generated bytes must reproduce on unchanged source. Full-scan reports remain external.
 
 The focused fixture browser verifier is local and requires a running Studio server. It writes a JSON result and screenshots to the caller's external directory:
 
@@ -116,4 +113,4 @@ SIM_STUDIO_E2E_REPORT_PATH=/tmp/sim-studio-e2e/report.json \
 bun run test:studio:e2e
 ```
 
-CI runs the diff check and parser/tooling tests; it does not start the local Studio or capture browser images.
+CI runs the diff check and parser/tooling tests; it does not start the local Studio.

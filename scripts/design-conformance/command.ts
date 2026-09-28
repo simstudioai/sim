@@ -1,6 +1,5 @@
 import { appendFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { matchReviews, readReviewLedger } from '#control-analysis/review-ledger'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { addControlComparison, controlSource } from '#design-conformance/control-comparison'
 import {
@@ -8,50 +7,25 @@ import {
   generateContracts,
   infrastructureStatus,
 } from '#design-conformance/generated-contracts'
-import {
-  compareGit,
-  gitText,
-  loadCatalogue,
-  options,
-  policyOption,
-  writeJson,
-} from '#design-conformance/io'
-import { Linter } from '#design-conformance/lint'
-import {
-  type Change,
-  canonical,
-  type Entry,
-  hash,
-  type Policy,
-  type Report,
-} from '#design-conformance/model'
+import { compareGit, gitText, options, writeJson } from '#design-conformance/io'
+import { type Change, canonical, type Entry, hash, type Report } from '#design-conformance/model'
 import { githubAnnotations, githubSummary, textReport } from '#design-conformance/reporting'
 import { gitSnapshot } from '#design-conformance/system-snapshot'
 import { GitSource, inspectedSource } from '#design-conformance/worktree-source'
 
 export const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const usage =
-  'Usage: bun run check:design --base <revision> [--head HEAD | --working-tree] [--repo <repository>] [--format text|json] [--output <report.json>] [--reviews <external.json>] [--policy conformance|appearance|tokens] [--catalogue <legacy.json>]'
+  'Usage: bun run check:design --base <revision> [--head HEAD | --working-tree] [--repo <repository>] [--format text|json] [--output <report.json>]'
 
 export interface CheckArguments {
   repo: string
   base: string
   head: string
   workingTree?: boolean
-  policy: Policy
-  catalogue?: string
-  reviews?: string
 }
 
 export async function checkComparison(args: CheckArguments): Promise<Report> {
-  if (args.policy === 'conformance' && args.catalogue)
-    throw new Error(
-      '--catalogue is a legacy policy input; conformance uses central source snapshots'
-    )
-  const catalogue = args.policy === 'conformance' ? undefined : loadCatalogue(args.catalogue)
-  const linter = catalogue
-    ? await Linter.create(catalogue.catalogue, catalogue.hash, args.policy)
-    : new ConformanceLinter()
+  const linter = new ConformanceLinter()
   try {
     const immutable = compareGit(args.repo, args.base, args.workingTree ? 'HEAD' : args.head)
     const before = args.workingTree ? new GitSource(args.repo, immutable.commits.mergeBase) : null
@@ -72,21 +46,18 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
           ? before.read(entry)
           : gitText(args.repo, entry)
     }
-    const report =
-      linter instanceof ConformanceLinter
-        ? await addControlComparison(
-            await linter.analyze(
-              changes,
-              read,
-              commits,
-              before?.central() ?? gitSnapshot(args.repo, commits.mergeBase)
-            ),
-            changes,
-            () => controlSource(args.repo, commits.mergeBase),
-            () => after ?? controlSource(args.repo, commits.head)
-          )
-        : linter.analyze(changes, read, commits)
-    if (report.status === 'completed' && args.policy === 'conformance') {
+    const report = await addControlComparison(
+      await linter.analyze(
+        changes,
+        read,
+        commits,
+        before?.central() ?? gitSnapshot(args.repo, commits.mergeBase)
+      ),
+      changes,
+      () => controlSource(args.repo, commits.mergeBase),
+      () => after ?? controlSource(args.repo, commits.head)
+    )
+    if (report.status === 'completed') {
       const source = after ?? new GitSource(args.repo, commits.head)
       const metadata = await generateContracts(source.central())
       const artifact = source.entries.find((e) => e.path === GENERATED_FILE)
@@ -105,12 +76,6 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
         })
     }
     after?.assertUnchanged()
-    if (args.reviews && report.status === 'completed')
-      report.reviewDecisions = matchReviews(
-        readReviewLedger(args.reviews, args.repo),
-        report.findings,
-        []
-      )
     return report
   } catch (error) {
     return linter.report(null, error instanceof Error ? error.message : 'Operational failure')
@@ -147,7 +112,6 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       {
         format: { type: 'string' },
         help: { type: 'boolean' },
-        reviews: { type: 'string' },
         'working-tree': { type: 'boolean' },
       },
       argv
@@ -170,9 +134,6 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       base: args.base as string,
       head: (args.head as string | undefined) ?? 'HEAD',
       workingTree: args['working-tree'] === true,
-      policy: policyOption(args.policy),
-      catalogue: args.catalogue as string | undefined,
-      reviews: args.reviews as string | undefined,
     })
   } catch (error) {
     report = new ConformanceLinter().report(

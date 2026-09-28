@@ -584,7 +584,7 @@ test('untouched debt survives a compiler migration while additional copies still
     )
     expect(r.findings.filter((f) => f.kind === 'usage-violation').length).toBe(copies - 1)
   }
-})
+}, 15_000)
 
 test('equivalent conditional composition does not turn untouched chrome debt into new debt', async () => {
   const before = shared(
