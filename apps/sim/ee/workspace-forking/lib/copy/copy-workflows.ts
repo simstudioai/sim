@@ -207,9 +207,14 @@ export async function resolveForkFolderMapping({
      * `MAX_FOLDERS_PER_WORKSPACE`, so a fork that mirrors a large source tree into an
      * already-populated target could otherwise leave the target unreadable.
      *
-     * Runs inside the fork transaction, after the `fork-target` advisory lock, so it is
-     * atomic against every other fork/promote into this target and a refusal rolls the
-     * whole copy back. It does NOT take the folder mutation lock: that helper resets the
+     * Runs inside the caller's transaction, so a refusal rolls the whole copy back. What
+     * makes it atomic differs by caller: `promoteFork` holds `fork-target` and `fork-edge`,
+     * which serializes it against every other promote into the same target. `createFork`
+     * holds neither - it does not need to, because the target workspace is being created in
+     * this same transaction and nothing else can reach it yet. (An earlier revision of this
+     * comment asserted the `fork-target` lock for both, which was true of only one.)
+     *
+     * It does NOT take the folder mutation lock in either case: that helper resets the
      * transaction's `lock_timeout`, which the fork sets deliberately, so an ordinary
      * concurrent `createFolder` can still slip a row in between the count and the insert.
      */

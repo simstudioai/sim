@@ -91,6 +91,7 @@ export function ForkWorkspaceModal({
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ResourceSelection>(emptySelection)
   const [defaulted, setDefaulted] = useState(false)
+  const [copyUnsyncedRequested, setCopyUnsyncedRequested] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function ForkWorkspaceModal({
       setName(`${sourceWorkspaceName} (fork)`)
       setSelected(emptySelection())
       setDefaulted(false)
-      setCopyUnsyncedWorkflows(false)
+      setCopyUnsyncedRequested(false)
       setError(null)
     }
   }, [open, sourceWorkspaceName])
@@ -125,10 +126,23 @@ export function ForkWorkspaceModal({
     [defaulted, availableKinds, selected, resources.data]
   )
 
-  const [copyUnsyncedWorkflows, setCopyUnsyncedWorkflows] = useState(false)
-
   const syncedCount = resources.data?.deployedWorkflowCount ?? 0
   const unsyncedCount = resources.data?.unsyncedDeployedWorkflowCount ?? 0
+
+  /**
+   * Turning the override on would push the copy set past the hard ceiling `createFork`
+   * enforces, so the fork would be rejected after the user submitted it. Offer the toggle
+   * disabled with the reason rather than letting them arm a request that must fail.
+   */
+  const overrideExceedsForkLimit = syncedCount + unsyncedCount > MAX_FORK_DEPLOYED_WORKFLOWS
+  /**
+   * The ONE effective value - render, counts and submit all read this, never the raw
+   * request. Two readings is what let the switch show off-and-disabled (because the counts
+   * refreshed above the limit after the user armed it) while `handleSubmit` still sent
+   * `copyUnsyncedWorkflows: true`, so the server rejected a fork the modal appeared to
+   * allow. Derived rather than reset in an effect: a derived value cannot drift.
+   */
+  const copyUnsyncedWorkflows = copyUnsyncedRequested && !overrideExceedsForkLimit
 
   // A fork always produces a usable workspace: deployed workflows are copied, and
   // when the source has none, create-fork seeds a blank starter workflow (plus any
@@ -137,12 +151,6 @@ export function ForkWorkspaceModal({
   // on the override, so the note must not claim there are no deployed workflows at all.
   const workflowsToCopy = syncedCount + (copyUnsyncedWorkflows ? unsyncedCount : 0)
   const noWorkflowsToCopy = Boolean(resources.data) && workflowsToCopy === 0
-  /**
-   * Turning the override on would push the copy set past the hard ceiling `createFork`
-   * enforces, so the fork would be rejected after the user submitted it. Offer the toggle
-   * disabled with the reason rather than letting them arm a request that must fail.
-   */
-  const overrideExceedsForkLimit = syncedCount + unsyncedCount > MAX_FORK_DEPLOYED_WORKFLOWS
 
   const handleSubmit = () => {
     // At a workspace cap, creating a fork is the only gated action - send the user to
@@ -293,8 +301,8 @@ export function ForkWorkspaceModal({
                   <Label htmlFor='fork-copy-unsynced'>Copy unsynced workflows</Label>
                   <Switch
                     id='fork-copy-unsynced'
-                    checked={copyUnsyncedWorkflows && !overrideExceedsForkLimit}
-                    onCheckedChange={setCopyUnsyncedWorkflows}
+                    checked={copyUnsyncedWorkflows}
+                    onCheckedChange={setCopyUnsyncedRequested}
                     disabled={isForking || overrideExceedsForkLimit}
                   />
                 </div>

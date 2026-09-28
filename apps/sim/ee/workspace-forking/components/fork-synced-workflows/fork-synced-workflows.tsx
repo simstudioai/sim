@@ -136,7 +136,18 @@ export function ForkSyncedWorkflows({ workspaceId }: ForkSyncedWorkflowsProps) {
     )
   }
 
-  if (workflowsQuery.isLoading || foldersQuery.isLoading) return null
+  // `useWorkflows` and `useFolders` both set `placeholderData: keepPreviousData`, so during
+  // a workspace switch they serve the PREVIOUS workspace's rows with `isLoading: false`.
+  // Gating on loading alone rendered workspace A's workflows under workspace B's id, and a
+  // click then posted A's workflow ids against B. `sim-react-performance.md`: "Never carry
+  // placeholder data between protected resource keys ... an explicit loading state is
+  // truthful." Matches `custom-tools.tsx` and `integration-skills-section.tsx`.
+  const isLoading =
+    workflowsQuery.isPending ||
+    workflowsQuery.isPlaceholderData ||
+    foldersQuery.isPending ||
+    foldersQuery.isPlaceholderData
+  if (isLoading) return null
 
   if (tree.folders.length === 0 && tree.rootWorkflows.length === 0) {
     return (

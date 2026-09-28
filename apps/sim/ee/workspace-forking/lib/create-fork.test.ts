@@ -217,27 +217,23 @@ describe('createFork storage headroom gate', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('preserves the source workspace personal API-key policy in the child', async () => {
+  /**
+   * Both inherited workspace policies in one fork. `forkSyncNewWorkflowsExcluded` is set
+   * to `true` (not the default) so the assertion cannot pass on a hardcoded `false`: the
+   * new-workflow fork-sync default is lineage-uniform, and a child that did not inherit it
+   * would disagree with its parent from the moment it exists.
+   */
+  it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
+    mockResolveForkSyncExclusionForNewWorkflow.mockResolvedValue(true)
+
     const result = await createFork(forkParams())
 
     expect(result.workspace.allowPersonalApiKeys).toBe(false)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ allowPersonalApiKeys: false })
-    )
-  })
-
-  /**
-   * The new-workflow fork-sync default is lineage-uniform, so a child that did not inherit
-   * it would disagree with its parent from the moment it exists - the one state the
-   * lineage-wide write exists to prevent.
-   */
-  it('inherits the source workspace fork-sync default in the child', async () => {
-    mockResolveForkSyncExclusionForNewWorkflow.mockResolvedValue(true)
-
-    await createFork(forkParams())
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ forkSyncNewWorkflowsExcluded: true })
+      expect.objectContaining({
+        allowPersonalApiKeys: false,
+        forkSyncNewWorkflowsExcluded: true,
+      })
     )
   })
 

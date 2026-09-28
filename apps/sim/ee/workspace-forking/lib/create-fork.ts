@@ -230,16 +230,20 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       )
       // Returned BEFORE the lineage lock: replaying a completed fork copies nothing, so
       // making it queue behind an in-flight fork of the same lineage would let an
-      // idempotent retry fail on the lock timeout instead of serving its receipt.
+      // idempotent retry fail on the lock timeout instead of serving its receipt. The
+      // request key is per-request and nothing takes lineage-then-request, so returning
+      // from here holds no lock out of rank order.
       if (receipt?.forkResult) return { replay: receipt }
-      await lockForkRevision(tx, { sourceWorkspaceId: source.id })
-      await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
-      await assertForkSourceVersions(tx, source.id, sourceVersionIds)
     }
-    // The child inherits the lineage's new-workflow fork-sync default below, and
-    // `setForkSyncDefault` fans that value out across the lineage under this same key.
-    // Without it a fork created mid-change could inherit a stale default and break the
-    // "every member agrees" invariant.
+    // Rank 2, and it MUST precede `lockForkRevision` (rank 5) below: that helper takes
+    // `FOR UPDATE` on the source `workspace` row, which `unlinkForkEdge` updates while
+    // holding this same lineage key. Acquiring it after would close the cycle
+    // (fork: workspace row -> lineage; unlink: lineage -> workspace row) and deadlock.
+    // See the rank table on `acquireForkLineageLock`.
+    //
+    // It is also what makes the child's inherited new-workflow fork-sync default correct:
+    // `setForkSyncDefault` fans that value out across the lineage under this same key, so
+    // a fork created mid-change cannot inherit a stale default.
     await acquireForkLineageLock(tx, lineageRootId)
     // The root was resolved before this transaction, so an unlink committing in between
     // would leave us holding the OLD lineage's key while inserting into the new one - a
@@ -251,6 +255,11 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         'The source workspace changed fork lineage while this fork was being created. Try again.',
         409
       )
+    }
+    if (admission) {
+      await lockForkRevision(tx, { sourceWorkspaceId: source.id })
+      await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
+      await assertForkSourceVersions(tx, source.id, sourceVersionIds)
     }
     /**
      * The lock alone is not enough: `policy.organizationId` was captured by

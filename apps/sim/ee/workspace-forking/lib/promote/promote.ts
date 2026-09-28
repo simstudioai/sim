@@ -619,6 +619,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       // Target lock before edge lock (consistent ordering): the target lock serializes
       // every sync into this target so sibling forks can't interleave writes, and so
       // rollback's "newest sync" check stays race-free against a concurrent promote.
+      // Ranks 3 then 4, then `lockForkRevision` at 5 below - see the rank table on
+      // `acquireForkLineageLock`. Promote spans one edge, not a lineage, so it takes no
+      // rank-2 lineage lock; that is why it may start at 3.
       await acquireForkTargetLock(tx, targetWorkspaceId)
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
       if (admission) {

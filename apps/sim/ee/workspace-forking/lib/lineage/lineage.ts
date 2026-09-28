@@ -124,9 +124,31 @@ export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string):
  * created while the default was being changed could inherit a stale value, and the
  * "every member agrees" invariant would be merely likely rather than guaranteed.
  *
- * This is the COARSEST fork lock, so always acquire it BEFORE
- * {@link acquireForkTargetLock} and {@link acquireForkEdgeLock} to keep lock ordering
- * consistent across the feature.
+ * ## Lock order for the whole fork module
+ *
+ * Every fork transaction acquires in ASCENDING rank and never reacquires a lower rank
+ * afterwards. Cite the rank at each acquisition site.
+ *
+ * | Rank | Lock | Where |
+ * | --- | --- | --- |
+ * | 1 | `lockWorkspaceOperationRequest` (per-request idempotency key) | `lib/workspaces/operation-receipts` |
+ * | 2 | {@link acquireForkLineageLock} (coarsest fork lock) | here |
+ * | 3 | {@link acquireForkTargetLock} | here |
+ * | 4 | {@link acquireForkEdgeLock} | here |
+ * | 5 | `lockForkRevision` (a `resource_folders:*` advisory lock per workspace, then `FOR UPDATE` on `workspace`, `workflow`, `workflow_blocks`, `workflow_edges`, `workflow_subflows` and `FOR SHARE` on the active `workflow_deployment_version` rows) | `application/revision.ts` |
+ * | 6 | remaining row locks, taken in sorted id order | various |
+ *
+ * Rank 5 is the trap this table exists for. Ranking only the three advisory locks here
+ * said nothing about `lockForkRevision`, and `createFork` took it BEFORE this lock - so
+ * it held `FOR UPDATE` on the source `workspace` row while waiting on `fork-lineage`,
+ * while `unlinkForkEdge` held `fork-lineage` and waited to UPDATE that same row. A
+ * genuine cycle, reported independently by two reviewers.
+ *
+ * Do NOT assume a uniform 10s bound from {@link setForkLockTimeout} across a whole
+ * transaction: `lockForkRevision` reaches `acquireFolderMutationLock`
+ * (`lib/folders/locks.ts`), which re-sets `lock_timeout` to 5s mid-transaction, and the
+ * MCP server lock re-sets it to 3s. Pre-existing and wider than forks; recorded here so
+ * the contract does not assert something false.
  */
 export async function acquireForkLineageLock(tx: DbOrTx, rootWorkspaceId: string): Promise<void> {
   await tx.execute(

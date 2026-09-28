@@ -21,9 +21,9 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.user({ bucketName: 'workspace-fork-sync-default' }),
   errorPolicy: internalForkErrorPolicy,
   mapInput: ({ params, body }) => ({ workspaceId: params.id, ...body }),
-  present: ({ excludeNewWorkflows, workspacesUpdated }) => ({
+  present: ({ excludeNewWorkflows, changedWorkspaces }) => ({
     excludeNewWorkflows,
-    workspacesUpdated,
+    workspacesUpdated: changedWorkspaces.length,
   }),
   useCase: setForkSyncDefault,
 })

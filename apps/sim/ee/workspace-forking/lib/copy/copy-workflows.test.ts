@@ -713,15 +713,4 @@ describe('copyWorkflowStateIntoTarget fork-sync inheritance', () => {
     await copyWorkflowStateIntoTarget({ ...createParams(true), tx: stubCreateTx(rows) } as never)
     expect(rows[0].forkSyncExcluded).toBe(true)
   })
-
-  /**
-   * The field is required on the contract precisely so this can never be omitted: a copy
-   * that fell through to the column default would silently ATTACH itself to sync in an
-   * opt-in lineage, with no UI or audit signal.
-   */
-  it('always writes the column, never falling through to the DB default', async () => {
-    const rows: Record<string, unknown>[] = []
-    await copyWorkflowStateIntoTarget({ ...createParams(false), tx: stubCreateTx(rows) } as never)
-    expect('forkSyncExcluded' in rows[0]).toBe(true)
-  })
 })

@@ -53,6 +53,7 @@ export async function unlinkForkEdge(
     // key `setForkSyncDefault` and `createFork` lock on. Taking the lineage lock first
     // (the documented ordering) keeps an unlink from splitting a lineage underneath a
     // policy write that already enumerated its members.
+    // Ranks 2 then 4 - see the rank table on `acquireForkLineageLock`.
     await acquireForkLineageLock(tx, lineageRootId)
     await acquireForkEdgeLock(tx, childWorkspaceId)
 

@@ -47,9 +47,10 @@ beforeEach(() => {
   workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
   hoisted.resolveRootId.mockResolvedValue('root-ws')
   hoisted.resolveLineage.mockResolvedValue(LINEAGE)
-  // The use case's single `UPDATE ... RETURNING` over the global @sim/db mock: the rows it
-  // returns are the lineage members whose value actually changed.
-  dbChainMockFns.returning.mockResolvedValue(LINEAGE.map((id) => ({ id })))
+  // The use case's `UPDATE ... RETURNING` over the global @sim/db mock: the rows it returns
+  // are the lineage members whose value actually changed, each with the name the audit
+  // entry is filed under.
+  dbChainMockFns.returning.mockResolvedValue(LINEAGE.map((id) => ({ id, name: `Name of ${id}` })))
 })
 
 const run = (excludeNewWorkflows: boolean) =>
@@ -62,8 +63,7 @@ describe('setForkSyncDefault', () => {
   it('writes every lineage member when issued from a mid-lineage fork', async () => {
     await expect(run(true)).resolves.toMatchObject({
       excludeNewWorkflows: true,
-      workspacesUpdated: LINEAGE.length,
-      changedWorkspaceIds: LINEAGE,
+      changedWorkspaces: LINEAGE.map((id) => ({ id, name: `Name of ${id}` })),
     })
   })
 
@@ -82,6 +82,10 @@ describe('setForkSyncDefault', () => {
       // defaults it to the caller's workspace, so every entry would pile into one log and
       // the other members' admins would see nothing.
       expect(entry.workspaceId).toBe(entry.resourceId)
+      // The member's OWN name, not a raw id and not the caller's name. A lineage-wide
+      // change that named only the calling workspace left every other member's audit
+      // entry reading as an opaque identifier.
+      expect(entry.resourceName).toBe(`Name of ${entry.resourceId}`)
       expect(entry.metadata).toMatchObject({
         forkSyncNewWorkflowsExcluded: true,
         originWorkspaceId: 'fork-a',
@@ -92,10 +96,7 @@ describe('setForkSyncDefault', () => {
 
   it('writes no audit and no analytics when the value already matched everywhere', async () => {
     dbChainMockFns.returning.mockResolvedValue([])
-    await expect(run(true)).resolves.toMatchObject({
-      workspacesUpdated: 0,
-      changedWorkspaceIds: [],
-    })
+    await expect(run(true)).resolves.toMatchObject({ changedWorkspaces: [] })
     expect(auditMockFns.mockRecordAudit.mock.calls).toHaveLength(0)
     expect(posthogServerMockFns.mockCaptureServerEvent.mock.calls).toHaveLength(0)
   })
@@ -105,10 +106,9 @@ describe('setForkSyncDefault', () => {
    * would file a change record against a workspace that already held the requested value.
    */
   it('records nothing for a member that already held the requested value', async () => {
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'fork-b' }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'fork-b', name: 'Fork B' }])
     await expect(run(true)).resolves.toMatchObject({
-      workspacesUpdated: 1,
-      changedWorkspaceIds: ['fork-b'],
+      changedWorkspaces: [{ id: 'fork-b', name: 'Fork B' }],
     })
     const audited = auditMockFns.mockRecordAudit.mock.calls.map(([entry]) => entry)
     expect(audited.map((entry) => entry.resourceId)).toEqual(['fork-b'])

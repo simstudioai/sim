@@ -10,9 +10,6 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { MAX_FORK_DEPLOYED_WORKFLOWS } from '@/ee/workspace-forking/lib/limits'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
-
-export { MAX_FORK_DEPLOYED_WORKFLOWS }
-
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 

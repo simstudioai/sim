@@ -133,6 +133,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
   await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
+    // Ranks 3 then 4 - see the rank table on `acquireForkLineageLock`.
     await acquireForkTargetLock(tx, targetWorkspaceId)
     await acquireForkEdgeLock(tx, edge.childWorkspaceId)
 
