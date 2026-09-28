@@ -128,8 +128,9 @@ export async function walkReconciliationWindows(
       await walk.onPage(page.map((id, index) => ({ id, tombstoned: tombstoned[offset + index] })))
       covered = page.at(-1)
     }
-    if (size < RECONCILIATION_WINDOW_SIZE || !last)
+    if (size < RECONCILIATION_WINDOW_SIZE || !last) {
       return { finished: true, lastId: last ?? covered }
+    }
     covered = last
   }
 }

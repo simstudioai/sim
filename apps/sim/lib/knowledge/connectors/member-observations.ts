@@ -948,13 +948,14 @@ export async function applyMemberDocumentLifecycle(
   })
   /** One write per run, and only when the resume point moved: the connector row is hot. */
   const resumeAfterId = resurrection.finished ? undefined : resurrection.lastId
-  if (resumeAfterId !== startAfterId)
+  if (resumeAfterId !== startAfterId) {
     await input.withLease((tx) =>
       tx
         .update(knowledgeConnector)
         .set({ memberResurrectionCursor: resumeAfterId ?? null })
         .where(eq(knowledgeConnector.id, connectorId))
     )
+  }
   if (!resurrection.finished) return result
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)

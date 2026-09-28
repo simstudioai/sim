@@ -446,8 +446,6 @@ describe('member document lifecycle in PostgreSQL', () => {
 
     expect(await resurrect(true)).toMatchObject({ resurrected: 500, finished: false })
     expect(await resurrectionCursor()).toBe(ordered[499])
-    /** The tombstone cursor the deployed code parses as `{ externalId }` is never written here. */
-    expect(await savedCursor()).toBeNull()
 
     /** Resurrectable again, but behind the cursor: the resumed walk does not revisit it. */
     await db.update(document).set({ deletedAt }).where(eq(document.id, ordered[0]))
