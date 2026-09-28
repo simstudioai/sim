@@ -1359,8 +1359,9 @@ export const userStats = pgTable('user_stats', {
    * re-arms when usage drops back below the re-arm band. Keyed by limit
    * category ('storage' | 'tables'); seats live on `organization`. `credits`
    * instead holds the threshold emailed for the billing period and limit in
-   * `creditsPeriod` (start day) and `creditsLimit` (cents), so a new period or a
-   * changed limit re-arms it without a reset (see `claimCreditsThreshold`).
+   * `creditsPeriod` (start, epoch seconds) and `creditsLimit` (cents), so a new
+   * period or a changed limit re-arms it without a reset (see
+   * `claimCreditsThreshold`).
    *
    * Dedup granularity is per billing account per category — intentionally NOT
    * per table, so a user hitting the row limit on several tables gets one
