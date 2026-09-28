@@ -18,13 +18,13 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'AI Copilot / Chat agent-building surface',
       description:
-        'A workspace-wide natural-language surface (Chat) that can build workflows, manage data, and take actions across integrations, plus an in-editor Copilot scoped to building and editing a single workflow directly.',
+        'A workspace-wide natural-language surface (Chat) that can build workflows, manage data, and take actions across integrations, plus an in-editor Copilot (the `copilot` tab in the workflow panel) scoped to building and editing a single workflow directly — current public docs describe this workflow-scoped behavior under the Chat page without using the "Copilot" name.',
       shortDescription:
         'Chat builds and manages work across the workspace; in-editor Copilot edits a single workflow.',
       source: {
-        url: 'https://docs.sim.ai/copilot',
-        label: 'Sim Docs: Copilot',
-        asOf: '2026-07-08',
+        url: 'https://docs.sim.ai/chat',
+        label: 'Sim Docs: Chat',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -101,13 +101,13 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Smaller integration catalog than the largest generalist automation platforms',
       description:
-        "Sim ships 266 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
+        "Sim ships 356 first-party blocks and roughly 5,500 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
       shortDescription:
-        "266 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
+        "356 blocks and ~5,500 tool actions, versus Zapier and Pipedream's larger raw app counts.",
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
         label: 'Sim codebase: BLOCK_REGISTRY count',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -290,14 +290,14 @@ export const simProfile: CompetitorProfile = {
         value:
           'Yes: a native spreadsheet-like Tables feature (typed columns, not an external DB connector) with full keyboard support (arrow keys, Tab, copy-paste bulk load, Cmd/Ctrl+Z undo) and atomic per-row writes from multiple workflows at once',
         detail:
-          'No public fixed row-limit figure is documented (guidance says paginate reads past ~100k rows); a workflow can also be wired to run per row via a "workflow column."',
+          'No public fixed row-limit figure is documented (a row may hold up to 400 KB of data, a table up to 1,000 columns, and query responses carry a 5 MB row-data budget, per the docs FAQ); a workflow can also be wired to run per row via a "workflow column."',
         shortValue: 'Spreadsheet-like tables with keyboard nav and undo',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/tables',
             label: 'Sim Docs: Tables',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -347,9 +347,10 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/navigation.ts',
-            label: 'Sim codebase: Custom blocks nav entry (Enterprise/self-hosted gating)',
-            asOf: '2026-07-08',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/settings/navigation.ts',
+            label:
+              'Sim codebase: Custom blocks nav entry gating (Enterprise/self-hosted entitlement)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -357,15 +358,15 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
-        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
-        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
+          '25 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, Ollama Cloud, OpenRouter, Sakana, Nvidia, Kimi, Z.ai, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 25 named providers',
+        detail: 'apps/sim/providers/models.ts defines 25 provider entries.',
+        shortValue: '25 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/providers/models.ts',
             label: 'Sim codebase: PROVIDER_DEFINITIONS',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -389,16 +390,21 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/copilot',
-            label: 'Sim Docs: Copilot',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/chat',
+            label: 'Sim Docs: Chat',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/app/workspace/%5BworkspaceId%5D/w/%5BworkflowId%5D/components/panel/components/copilot',
+            label: 'Sim codebase: in-editor Copilot panel component',
+            asOf: '2026-09-15',
           },
         ],
       },
       knowledgeBaseRag: {
         value:
-          'Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
-        shortValue: 'Hybrid vector + full-text search, 11 file formats, 51 connectors',
+          'Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus 65 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
+        shortValue: 'Hybrid vector + full-text search, 11 file formats, 65 connectors',
         confidence: 'verified',
         sources: [
           {
@@ -413,8 +419,8 @@ export const simProfile: CompetitorProfile = {
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
-            label: 'Sim codebase: connector registry (51 connectors)',
-            asOf: '2026-07-08',
+            label: 'Sim codebase: connector registry (65 connectors)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -506,14 +512,15 @@ export const simProfile: CompetitorProfile = {
         value:
           'No: an Agent block calls tools the workflow author explicitly added to it at build time, rather than browsing and picking from a broader pool (e.g. an entire MCP server catalog) at inference time',
         detail:
-          'Runtime MCP "discovery" exists to resolve/refresh the schema of an already-configured tool. The model does not browse or choose from the server\'s full tool list.',
+          'Runtime MCP "discovery" resolves/refreshes the schema of an already-configured single tool in most configurations; an "MCP Server (Advanced)" tool entry is the exception — it hands the agent every tool the selected server currently exposes, though the server itself is still chosen by the workflow author at build time, not browsed at inference time.',
         shortValue: 'Tools pre-wired at build time; runtime discovery refreshes schemas',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/agent-handler.ts',
-            label: 'Sim codebase: agent tool resolution (pre-wired only)',
-            asOf: '2026-07-02',
+            label:
+              'Sim codebase: agent tool resolution (pre-wired, Advanced mode exposes full server catalog)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -534,7 +541,7 @@ export const simProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          'Yes: named, reusable "Agent Skills" (built on the open Agent Skills / SKILL.md format) that agents load on demand via progressive disclosure, editable in-app or imported from a SKILL.md file or GitHub URL',
+          'Yes: named, reusable "Agent Skills" (built on the open Agent Skills / SKILL.md format) that agents load on demand via progressive disclosure, editable in-app or imported by uploading a `.md` file with YAML frontmatter or a `.zip` containing a SKILL.md, or by pasting SKILL.md content directly into the create form',
         detail:
           "Only the skill name and description sit in the agent's system prompt (~50-100 tokens each); the full instructions load into context only when the agent calls load_skill.",
         shortValue: 'Named, on-demand skills using the open SKILL.md format',
@@ -543,7 +550,12 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://docs.sim.ai/skills',
             label: 'Sim Docs: Agent skills',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/skills/components/skill-import/skill-import.tsx',
+            label: 'Sim codebase: skill import (file upload only, no GitHub URL)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -623,16 +635,16 @@ export const simProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '1,000+ integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions',
+          '1,000+ integrations counting individual API actions, built from 356 first-party blocks and roughly 5,500 underlying tool actions',
         detail:
-          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
-        shortValue: '1,000+ integrations (266 blocks, ~3,900 tool actions)',
+          'Sim\'s landing page currently cites "hundreds of integrations"; the more granular block/tool-action counts below are the same integration surface measured at a different level of granularity.',
+        shortValue: '1,000+ integrations (356 blocks, ~5,500 tool actions)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
             label: 'Sim codebase: BLOCK_REGISTRY',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.sim.ai/tools',
@@ -642,21 +654,21 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://sim.ai',
             label: 'Sim Landing Page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
+          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 64 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
         shortValue:
-          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
+          'Webhook, cron, chat, REST API, 64 app triggers, plus a diff-aware Tables trigger',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/triggers',
             label: 'Sim Docs: Triggers overview',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/triggers/table/poller.ts',
@@ -704,21 +716,27 @@ export const simProfile: CompetitorProfile = {
       },
       apiPublishing: {
         value:
-          'Yes: a public REST API (mostly under /api/, with /api/v1 reserved for logs and audit-log endpoints) supporting API-triggered workflow execution and deployment rollback',
+          'Yes: a public REST API under /api/v2/ (the documented API-reference surface), with a legacy /api/v1/** surface still live for backward compatibility (workflows, tables, knowledge, files, copilot, logs, audit-logs, admin) supporting API-triggered workflow execution and deployment rollback',
         detail:
           'The API reference does not document SSE streaming, a resumable event buffer, a dedicated API-trigger block, or a chat-deployment surface as part of the REST API itself.',
-        shortValue: 'REST API (partially versioned) with rollback support',
+        shortValue: 'REST API (v2), with a legacy v1 surface still live',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/api-reference/getting-started',
             label: 'Sim Docs: API Reference - Getting Started',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.sim.ai/execution/api',
             label: 'Sim Docs: External API',
             asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/app/api/v1',
+            label:
+              'Sim codebase: /api/v1 directory (workflows, tables, knowledge, files, copilot, logs, audit-logs, admin)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -767,14 +785,19 @@ export const simProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Credit-based usage billing (Stripe), with bring-your-own-key exemption from metered caps',
-        shortValue: 'Credit-based billing, BYOK exempt from caps',
+          "Credit-based usage billing (Stripe), with bring-your-own-key routing AI-model token costs directly to the provider and avoiding Sim's 1.1x hosted-model markup — the base run charge and any Sim-hosted tool usage still count against the plan's credit cap",
+        shortValue: 'Credit-based billing; BYOK avoids markup, not the credit cap',
         confidence: 'verified',
         sources: [
           {
             url: 'https://sim.ai/pricing',
             label: 'Sim Pricing',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/costs',
+            label: 'Sim Docs: Costs (hosted multiplier and BYOK)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -810,43 +833,46 @@ export const simProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          'Yes: bring-your-own-key support exempts usage from metered credit caps, and multiple keys stored for the same provider are automatically round-robin rotated, with automatic fallback past any key that fails to decrypt',
-        shortValue: 'BYOK exempts credit caps; multi-key round-robin rotation',
+          "Yes: bring-your-own-key support routes AI-model usage costs directly to the provider (avoiding Sim's 1.1x hosted-model multiplier) rather than exempting all usage from the credit cap — the workflow base charge still applies — and multiple keys stored for the same provider are automatically round-robin rotated, with automatic fallback past any key that fails to decrypt",
+        shortValue: 'BYOK routes cost to provider, avoids markup; key rotation',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
             label: 'Sim Docs: Bring Your Own Key (BYOK)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-monitor.ts',
-            label: 'Sim codebase: BYOK usage-monitor logic',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/providers/cost-policy.ts',
+            label: 'Sim codebase: BYOK billing policy (resolveModelCostPolicy)',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/api-key/byok.ts',
             label: 'Sim codebase: BYOK key rotation',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC2 compliant',
-        shortValue: 'SOC2 compliant',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type II, ISO 27001:2022, and GDPR are listed on the Sim Trust Center, which also publishes the control set and the subprocessor list. HIPAA, PCI DSS, and FedRAMP are not listed there',
+        detail:
+          'Self-hosting, rather than additional certifications, is the primary lever Sim offers for data-residency-sensitive compliance needs.',
+        shortValue: 'SOC 2 Type II, ISO 27001, GDPR',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai',
-            label: 'Sim Landing Page',
-            asOf: '2026-07-02',
+            url: 'https://trust.sim.ai',
+            label: 'Sim Trust Center',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-07-02',
+            url: 'https://sim.ai',
+            label: 'Sim Landing Page (compliance badges)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -896,7 +922,7 @@ export const simProfile: CompetitorProfile = {
       },
       auditLogging: {
         value:
-          'Yes: dedicated audit_log table plus workflow execution logs, exposed via a public /v1/audit-logs API (Enterprise plan), plus continuous SIEM/warehouse export to Datadog, S3, GCS, Azure Blob, BigQuery, or Snowflake via a data-drains dispatcher',
+          'Yes: dedicated audit_log table plus workflow execution logs, exposed via a public /v2/audit-logs API (Enterprise plan, GET /api/v2/audit-logs, requires organization admin/owner access), plus continuous SIEM/warehouse export to Datadog, S3, GCS, Azure Blob, BigQuery, or Snowflake via a data-drains dispatcher',
         shortValue: 'Audit log API plus SIEM/warehouse export',
         confidence: 'verified',
         sources: [
@@ -910,19 +936,10 @@ export const simProfile: CompetitorProfile = {
             label: 'Sim Docs: Data Drains',
             asOf: '2026-07-02',
           },
-        ],
-      },
-      additionalCompliance: {
-        value: 'SOC2',
-        detail:
-          'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC2, rather than additional certifications.',
-        shortValue: 'SOC2',
-        confidence: 'estimated',
-        sources: [
           {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/api-reference/audit-logs/listAuditLogs',
+            label: 'Sim Docs: List Audit Logs (GET /api/v2/audit-logs)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -982,14 +999,14 @@ export const simProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Yes: Enterprise orgs can independently configure log retention, soft-deletion cleanup, and Chat/Copilot task cleanup (chats, runs, checkpoints, Inbox tasks) at 1 day to 5 years or Forever, applied org-wide with no per-workspace override',
+          'Yes: Enterprise orgs can independently configure log retention, soft-deletion cleanup, and Chat/Copilot task cleanup (chats, runs, checkpoints, Inbox tasks) at 1 day to 5 years or Forever, applied org-wide by default with an optional per-workspace override for any workspace that needs different rules',
         shortValue: 'Configurable retention: 1 day to 5 years, or forever',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/data-retention',
             label: 'Sim Docs: Data Retention',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1008,8 +1025,8 @@ export const simProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain, plus SCIM 2.0 directory provisioning for Okta, Microsoft Entra ID, OneLogin, and JumpCloud that creates, updates, deactivates, and removes members and maps pushed groups to permission groups, workspace access, and the organization admin role',
-        shortValue: 'SAML 2.0 and OIDC SSO with SCIM 2.0 provisioning',
+          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain',
+        shortValue: 'SAML 2.0 and OIDC SSO',
         confidence: 'verified',
         sources: [
           {
@@ -1017,10 +1034,25 @@ export const simProfile: CompetitorProfile = {
             label: 'Sim Docs: Single Sign-On (SSO)',
             asOf: '2026-07-02',
           },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: SCIM 2.0 directory provisioning on Enterprise plans, configured under Single sign-on then Provisioning, with documented setup for Okta, Microsoft Entra ID, OneLogin, and JumpCloud. The identity provider creates members when someone joins, updates them when their details change, and deactivates them on a deactivation request, and pushed groups map to permission groups, workspace access, and the organization admin role',
+        detail:
+          'Each user email domain must be verified in Sim first, and a self-hosted deployment has to be reachable by the identity provider over HTTPS. Deactivation suspends access while retaining organization membership, ownership, and the seat rather than deleting the user.',
+        shortValue: 'SCIM 2.0 on Enterprise',
+        confidence: 'verified',
+        sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/scim',
             label: 'Sim Docs: Directory provisioning (SCIM)',
-            asOf: '2026-09-07',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/scim/okta',
+            label: 'Sim Docs: Okta provisioning',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1041,16 +1073,16 @@ export const simProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: every one of Sim's 266 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+          "Yes: every one of Sim's 356 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
         detail:
           "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
-        shortValue: 'All 266 blocks are first-party authored and code-reviewed',
+        shortValue: 'All 356 blocks are first-party authored and code-reviewed',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/blocks/blocks',
             label: 'Sim codebase: first-party block directory',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },

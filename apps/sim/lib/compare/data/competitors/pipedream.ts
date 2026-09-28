@@ -36,7 +36,11 @@ export const pipedreamProfile: CompetitorProfile = {
       description:
         "Any step in a Pipedream workflow can be replaced with custom Node.js, Python, Bash, or Go code, and pre-built actions can be used as no-code building blocks or 'scaffolded' into code you customize.",
       shortDescription: 'Every workflow step can drop into custom code in four languages.',
-      source: { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+      source: {
+        url: 'https://pipedream.com/docs/workflows/building-workflows',
+        label: 'Pipedream Docs: Building Workflows',
+        asOf: '2026-09-15',
+      },
     },
     {
       title: 'Source-available component registry on GitHub',
@@ -105,7 +109,11 @@ export const pipedreamProfile: CompetitorProfile = {
         shortValue: 'Visual builder plus custom code steps',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows',
+            label: 'Pipedream Docs: Building Workflows',
+            asOf: '2026-09-15',
+          },
         ],
       },
       learningCurve: {
@@ -254,12 +262,7 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/docs/workflows/data-management/file-stores',
             label: 'File Stores docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/filestores/',
-            label: 'File Stores blog announcement',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -287,9 +290,10 @@ export const pipedreamProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/apps/helper-functions/actions/html-to-markdown',
-            label: 'HTML to Markdown action',
-            asOf: '2026-07-02',
+            url: 'https://github.com/PipedreamHQ/pipedream/tree/master/components/formatting/actions',
+            label:
+              'GitHub: Formatting app actions (convert-html-to-markdown, convert-markdown-to-html)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -346,13 +350,18 @@ export const pipedreamProfile: CompetitorProfile = {
         ],
       },
       agentReasoningBlocks: {
-        value: 'Yes: dedicated AI Agent Builder',
+        value:
+          "Yes, via 'String' (String.com), Pipedream's separately-branded, alpha-stage text-to-agent product built on Pipedream's automation engine: its landing page states 'Prompt, run, edit, and deploy AI agents in seconds,' distinct from plain data-routing workflow steps. It is not currently promoted on Pipedream's main homepage, which has been repositioned around Connect/MCP infrastructure for developer-built agents rather than a no-code agent builder.",
         detail:
-          "Pipedream markets an 'AI Agent Builder' to prompt, run, edit, and deploy AI agents, distinct from plain data-routing workflow steps.",
-        shortValue: 'Dedicated AI Agent Builder feature',
-        confidence: 'estimated',
+          "Pipedream's homepage no longer mentions an 'AI Agent Builder'; it now leads with 'The integration layer for AI agents' and sections for Connect, MCP, and Conduit (an enterprise agent-deployment offering, early access). The agent-building experience lives at a distinct product, String (also reachable at string.com), whose own page is tagged 'alpha' and carries the tagline 'Prompt, run, edit, and deploy AI agents in seconds,' with a prompt box ('How can String help you today?').",
+        shortValue: "Yes, via 'String' — a separate alpha-stage product",
+        confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/', label: 'Pipedream homepage', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/string',
+            label: 'Pipedream: String (alpha) landing page',
+            asOf: '2026-09-15',
+          },
         ],
       },
       naturalLanguageBuilding: {
@@ -370,35 +379,31 @@ export const pipedreamProfile: CompetitorProfile = {
         ],
       },
       knowledgeBaseRag: {
-        value: 'No dedicated customer-facing KB/RAG product feature',
+        value:
+          "Unknown: No dedicated customer-facing KB/RAG product feature is documented across Pipedream's current docs, but the specific detail that Pipedream built an internal Postgres+pgvector RAG system for its own support bot is no longer publicly documented — its sole source has gone dead.",
         detail:
-          'Pipedream built an internal Postgres+pgvector RAG system to power its own documentation search/chat assistant, but it is not offered as a customer-usable knowledge-base/vector-store feature inside workflows.',
-        shortValue: 'No customer-facing KB/RAG feature',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/blog/build-your-own-chat-bot-with-openai-and-pipedream/',
-            label: 'Pipedream Blog: Build your own chat bot with OpenAI and Pipedream',
-            asOf: '2026-07-04',
-          },
-        ],
+          "Pipedream's blog previously described an internal Postgres+pgvector RAG system built to power its own documentation search/chat assistant, but that blog post now redirects (302) to /docs, and no independent source corroborates that implementation detail. Separately, a search of Pipedream's current documentation index turns up no page describing a customer-usable knowledge-base, vector-store, or RAG feature inside workflows, so the higher-level claim (no customer-facing KB/RAG product) still holds, even though the specific internal-architecture detail can no longer be sourced.",
+        shortValue: 'Unknown, no customer-facing KB/RAG feature found',
+        confidence: 'unknown',
+        sources: [],
       },
       mcpSupport: {
         value: 'Yes: first-class, hosted MCP server',
         detail:
-          'Pipedream runs a hosted MCP server (mcp.pipedream.com) exposing 3,000+ apps / 10,000+ tools to any MCP client, with managed OAuth and credential isolation. Its GitHub repo also includes a reference/self-hosted MCP server implementation, though Pipedream notes it is no longer actively maintained and recommends the hosted remote MCP server for production use.',
+          "Pipedream runs a hosted MCP server (mcp.pipedream.com) exposing 3,000+ apps / 10,000+ tools to any MCP client, with managed OAuth and credential isolation. Its GitHub repo formerly included a reference/self-hosted MCP server implementation; Pipedream removed that directory from the repository entirely in July 2026, with the removal commit noting the README had flagged it as a reference implementation only, superseded by Pipedream's hosted remote MCP server for production use.",
         shortValue: 'Hosted MCP server, 3,000+ apps as tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/connect/mcp',
             label: 'Pipedream Docs: MCP Servers',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://github.com/PipedreamHQ/pipedream/blob/master/modelcontextprotocol/README.md',
-            label: 'GitHub: Modelcontextprotocol README (reference implementation, unmaintained)',
-            asOf: '2026-07-08',
+            url: 'https://github.com/PipedreamHQ/pipedream/commit/22fe22c5e2eb88a93e7e4e228abed60936f79fc4',
+            label:
+              'GitHub commit: "Remove deprecated modelcontextprotocol and docs-v2 directories"',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -570,7 +575,11 @@ export const pipedreamProfile: CompetitorProfile = {
         shortValue: 'Node.js, Python, Bash, or Go steps',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows',
+            label: 'Pipedream Docs: Building Workflows',
+            asOf: '2026-09-15',
+          },
         ],
       },
       codeSandboxRuntime: {
@@ -611,14 +620,9 @@ export const pipedreamProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/blog/creating-workflows-programmatically/',
-            label: 'Pipedream Blog: Creating Workflows with the REST API',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://pipedream.com/docs/rest-api/examples/workflows',
             label: 'Pipedream Docs: REST API Example - Create a Workflow',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -696,22 +700,16 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       entryPaidPlan: {
         value:
-          'Not publicly listed; third-party estimates range roughly $29–$45/mo for the entry paid tier',
+          "Publicly listed: the entry paid tier is 'Basic,' priced at $45/mo billed monthly or $29/mo ($348/yr) billed annually — a $192/yr discount for annual billing. It includes 2,000 credits/mo, 20M AI tokens/mo, 10 active workflows, and 5 connected accounts, sitting between the Free plan ($0/mo, 100 credits/mo, 3 workflows/3 accounts) and the 'Advanced' plan ($74/mo monthly or $49/mo annual, unlimited workflows/accounts, control-flow operators, GitHub Sync).",
         detail:
-          "Pipedream's own pricing page is JavaScript-rendered and not directly verifiable via static fetch. Third-party sources report conflicting numbers for the entry paid tier, roughly $29/mo to $45/mo for around 2,000 credits/month, but the exact current price is unconfirmed from a primary source.",
-        shortValue: '~$29–$45/mo (unconfirmed)',
-        confidence: 'estimated',
+          "Pipedream's pricing page renders its plan cards and prices client-side via JavaScript, but toggling between the 'Monthly' and 'Annual' billing views on the live page directly confirms the figures above: Basic shows '$45/mo' with 'Save $192 by switching to annual' on the Monthly view, and '$29/mo — $348 billed annually' on the Annual view. The page's plan lineup is Free / Basic / Advanced / Connect / Business (the last a custom-priced, contact-sales tier), so pricing for the entry paid tier is now clearly and precisely public rather than an unconfirmed third-party estimate.",
+        shortValue: 'Basic: $45/mo, or $29/mo billed annually',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/pricing',
-            label:
-              'Pipedream Pricing page (official, JS-rendered, not independently verifiable via fetch)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://automationatlas.io/answers/pipedream-pricing-explained-2026/',
-            label: 'Automation Atlas: Pipedream Pricing Explained 2026 (third-party)',
-            asOf: '2026-07-02',
+            label: 'Pipedream Pricing page (Basic plan, Monthly/Annual toggle)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -739,22 +737,28 @@ export const pipedreamProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type 2, with the report provided on request, plus HIPAA support (Pipedream acts as a Business Associate and signs BAAs, on the Business plan) and GDPR handled through Standard Contractual Clauses. Sensitive data is encrypted at rest via AWS KMS, whose ISO 27001/27017/27018 coverage is inherited from the AWS infrastructure layer. No independent Pipedream-held ISO 27001, PCI, or FedRAMP certification appears on its trust page.',
         detail:
-          'Pipedream provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It also supports HIPAA, acting as a Business Associate and offering BAAs.',
-        shortValue: 'SOC 2 Type II, HIPAA BAA available',
+          "Pipedream's Privacy and Security page states it provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It acts as a Business Associate and signs Business Associate Addendums (BAAs) for HIPAA/PHI use cases — the pricing page's plan-comparison table checks 'HIPAA' only for the Business plan — and uses Standard Contractual Clauses (SCCs) for GDPR-related data transfers. Sensitive data (OAuth grants, key-based credentials, env vars) is encrypted at rest with AES-256-GCM via AWS KMS, which itself holds SOC 1/2/3 and ISO 27001/27017/27018 certifications. That ISO/PCI/FedRAMP coverage is inherited from the AWS infrastructure layer, not a certification Pipedream independently holds on its own trust page. Some third-party review sites describe Pipedream itself as directly PCI, FedRAMP, and CSA STAR compliant, but Pipedream's own security documentation does not corroborate this.",
+        shortValue: 'SOC 2, HIPAA BAA, GDPR SCCs; ISO via AWS',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
             label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://pipedream.com/docs/privacy-and-security/hipaa',
             label: 'Pipedream Docs: HIPAA Compliance',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing page (Security & Compliance table, HIPAA row)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -773,16 +777,22 @@ export const pipedreamProfile: CompetitorProfile = {
         ],
       },
       rbac: {
-        value: 'Workspace-level access controls exist; granular per-plan RBAC not fully documented',
+        value:
+          "Documented, tiered access controls rather than full custom-role RBAC: Pipedream's plan-comparison page publishes 'Admin/editor roles' as included on every paid and free tier, 'Access controls for connected accounts' starting at the Advanced plan, and both 'Access controls for projects' and 'Require 2FA' (mandatory org-wide two-factor) reserved for the Business plan. This is coarser than a custom-role/permission-matrix RBAC system — there is no evidence of defining arbitrary named roles or granular per-resource permission sets — but the tiering itself is publicly documented, not undocumented.",
         detail:
-          'OAuth clients and workspace administration are scoped to workspace admins, and internal staff access follows least-privilege principles, but no page enumerates a customer-facing RBAC feature (custom roles/permissions) or which plans include it.',
-        shortValue: 'Workspace-level controls; granular RBAC unclear',
-        confidence: 'estimated',
+          "Pipedream's pricing page Security & Compliance comparison table lists 'Admin/editor roles' checked for all five plans (Free, Basic, Advanced, Connect, Business); 'Access controls for connected accounts' checked from Advanced upward; and 'Access controls for projects' plus 'Require 2FA' checked only for Business. OAuth clients and workspace administration are otherwise scoped to workspace admins, and internal staff access follows least-privilege principles, but no page describes defining custom named roles or a granular per-resource permission matrix.",
+        shortValue: 'Tiered access controls documented; no custom-role RBAC',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing page (Security & Compliance comparison table)',
+            asOf: '2026-09-15',
+          },
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
             label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -797,26 +807,6 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
             label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC 2 Type 2, HIPAA (via BAA, Enterprise), GDPR (SCCs), and AWS KMS infra with ISO 27001/27017/27018. No independent Pipedream-held ISO 27001/PCI/FedRAMP certification on the trust page',
-        detail:
-          "Pipedream's Privacy and Security page states it provides a SOC 2 Type 2 report on request, signs Business Associate Addendums (BAAs) for HIPAA/PHI use cases (Enterprise), and uses Standard Contractual Clauses (SCCs) for GDPR-related data transfers. Sensitive data (OAuth grants, key-based credentials, env vars) is encrypted at rest with AES-256-GCM via AWS KMS, which itself holds SOC 1/2/3 and ISO 27001/27017/27018 certifications. That ISO/PCI/FedRAMP coverage is inherited from the AWS infrastructure layer, not a certification Pipedream independently holds on its own trust page. Some third-party review sites describe Pipedream itself as directly PCI, FedRAMP, and CSA STAR compliant, but Pipedream's own security documentation does not corroborate this.",
-        shortValue: 'SOC 2, HIPAA BAA, GDPR SCCs; ISO via AWS only',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs – Privacy and Security',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/hippa/',
-            label: 'Pipedream Blog – Pipedream supports HIPAA compliance',
             asOf: '2026-07-02',
           },
         ],
@@ -870,16 +860,21 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Yes: Pipedream documents account-level retention rules for event/execution data, and states Enterprise customers can turn off all data retention, while internal application logs are deleted within about 30 days by default.',
+          'Yes: Pipedream documents account-level retention rules for event/execution data, and states Business-plan customers can turn off all data retention, while internal application logs are deleted within about 30 days by default.',
         detail:
-          'Documentation is thin on exact self-serve controls for standard workspaces; the clearest statement of org-configurable retention is tied to the Enterprise plan.',
-        shortValue: 'Yes, retention configurable on Enterprise',
-        confidence: 'estimated',
+          "Documentation is thin on exact self-serve controls for standard workspaces; the clearest statement of org-configurable retention is tied to the Business plan (Pipedream's pricing page checks 'Data retention controls' only for that tier).",
+        shortValue: 'Yes, retention configurable on Business plan',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
             label: 'Privacy and Security at Pipedream',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing page (Data retention controls row)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -902,6 +897,21 @@ export const pipedreamProfile: CompetitorProfile = {
             url: 'https://pipedream.com/docs/workspaces/sso',
             label: 'Single Sign On Overview',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: Pipedream supports provisioning user accounts from an identity provider via SCIM, available to any workspace on the Business plan and configured alongside Single Sign-On. The documentation confirms SCIM user-account provisioning and the Business-plan requirement, but does not enumerate which operations are covered (create, update, deactivate), which identity providers work with SCIM specifically, whether group or role mapping is supported, or any documented limits.',
+        detail:
+          'SCIM is documented as part of workspace SSO configuration; Pipedream lists Google, Okta, and any SAML-compliant provider as supported SSO identity providers, and the SCIM implementation details are not published.',
+        shortValue: 'Yes: SCIM user provisioning on Business plan',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workspaces',
+            label: 'Managing workspaces - Pipedream Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1042,36 +1052,36 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          "Yes: Pipedream's default HTTP-trigger behavior is asynchronous. A workflow returns an immediate 200 OK response to the caller while the rest of the workflow keeps running in the background, and developers can inspect the resulting event/execution afterward in the workflow's event history. A fully synchronous mode is also available via the `$.respond()` function, which can be called at the end of the workflow (blocking until completion) or mid-workflow with `immediate: true` to send a response early and continue processing after.",
+          "Partial: by default, a workflow's HTTP response (whether the built-in automatic 200 OK or an explicit `$.respond()` call) is not sent until the entire workflow finishes executing — Pipedream's docs state directly that '$.respond() is called at the end of your workflow, after all other code is done executing, so it may take some time to issue the response back.' To get an early response while the remaining steps keep running in the background, a step must explicitly call `$.respond({ immediate: true, ... })`; this is the opposite of a default-async model. No separate 'trigger now, poll status later' REST endpoint is documented, though the event/execution history UI lets you inspect completed runs afterward.",
         detail:
-          "Pipedream docs describe the default as an immediate 200 OK while processing continues in background; $.respond() gives synchronous or hybrid (immediate + continue) response patterns. No explicit API-based 'trigger now, poll status later' endpoint is documented, though the event inspector/history UI shows past execution results.",
-        shortValue: 'Yes, default is async with optional sync $.respond()',
+          "Pipedream's docs describe two response paths, both synchronous by default: the built-in automatic response (a canned '200 OK — Success!' payload, sent with no code required) and a manual `$.respond()` call in a code step. The docs' 'Timing of $.respond() execution' section is explicit that responses wait for the whole workflow to finish unless `immediate: true` is passed. The one documented exception is the no-code 'HTTP Response' action, which the docs say 'will always respond immediately when called in your workflow.' No explicit API-based 'trigger now, poll status later' endpoint is documented, though the event inspector/history UI shows past execution results.",
+        shortValue: 'No: response held until workflow completes by default',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/triggers',
-            label: 'Pipedream Docs: HTTP-triggered workflows (default async response, $.respond)',
-            asOf: '2026-07-02',
+            label: 'Pipedream Docs: Triggers (default response timing, $.respond, immediate:true)',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://pipedream.com/docs/workflows/events/inspect/',
             label: 'Pipedream Docs: Inspect Events (viewing past execution results)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       executionLimits: {
         value:
-          'Yes: Pipedream publishes hard execution limits. A single workflow execution times out at 300 seconds (5 minutes) by default on the free tier and can be raised to a maximum of 750 seconds (12.5 minutes) on paid plans; memory defaults to 256MB and can be raised up to 10GB. HTTP-triggered workflows are rate-limited to an average of 10 requests per second, with 429 Too Many Requests returned beyond that, and free workspaces additionally cap total test/dev runtime at 30 minutes per day.',
+          "Yes: Pipedream publishes hard execution limits. Workflow execution timeout defaults vary by trigger type — 30 seconds for HTTP- and Email-triggered workflows, 60 seconds for Cron-triggered workflows — and can be raised up to a plan-based ceiling: 300 seconds (5 minutes) on free tiers, 750 seconds (12.5 minutes) on paid tiers; memory defaults to 256MB and can be raised up to 10GB. HTTP-triggered workflows are rate-limited to an average of 10 requests per second, with 429 Too Many Requests returned beyond that. Free workspaces also have a daily builder-testing runtime cap that Pipedream's own limits page states as the bare number 750 with no time unit ('workspaces on the Free plan are limited to 750 of test runtime per day') — an apparent omission on Pipedream's own page, so the exact daily figure (750 seconds versus some other unit) is not clearly confirmed from that source.",
         detail:
           'Additional published caps: HTTP request body 512KB, email payload including attachments 30MB, combined function logs/exports 6MB, /tmp scratch disk 2GB (fixed), event retention 7 days (free) with execution details expiring after 365 days.',
-        shortValue: '5-12.5 min timeout, 10 req/s HTTP cap',
+        shortValue: '30-60s default; 5-12.5min ceiling; 10 req/s cap',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/limits',
             label: 'Pipedream Docs: Limits',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1119,36 +1129,41 @@ export const pipedreamProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Community forum/Slack (free/lower tiers), email support and dedicated Slack channel (higher tiers), dedicated support on Business/Enterprise',
+          'Community forum/public Slack (all tiers, including Free), email support starting at the Advanced plan, and a dedicated Slack Connect channel plus a dedicated Success Engineer reserved exclusively for the Business (top) plan.',
         detail:
-          'Free tier gets community support (forum + public Slack) only; paid tiers add email support and a dedicated Slack channel; Business/Enterprise adds dedicated support resources.',
-        shortValue: 'Community free tier; email/Slack on paid',
-        confidence: 'estimated',
+          "Pipedream's pricing page Support & Expertise comparison table checks 'Community forums' and 'Public Slack' for every plan including Free; 'Email' is checked starting at Advanced (not Free or Basic); and 'Dedicated Slack Connect channel' plus 'Dedicated Success Engineer' are checked only for Business. Pipedream's Support page separately states 'Enterprise plan: Dedicated Pipedream Support Engineer, shared Slack Connect channel, and an SLA' and 'Advanced plan: Email support' — the same tiering as the pricing page, under the older 'Enterprise' label the Support page has not updated to 'Business.'",
+        shortValue: 'Community all tiers; email from Advanced; dedicated on Business',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing page (Support & Expertise comparison table)',
+            asOf: '2026-09-15',
+          },
           {
             url: 'https://pipedream.com/support',
             label: 'Pipedream Support page',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/pricing',
-            label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       sla: {
         value:
-          'Enterprise plan reportedly includes a dedicated Success Engineer and uptime guarantee; no published response-time SLA',
+          "Business plan (Pipedream's top self-serve tier, custom/contact-sales pricing) publishes a named SLA and a dedicated Support Engineer as included features — the pricing page's plan-comparison table has a checked 'SLA' row and an 'Uptime and availability SLAs' bullet for that plan — but Pipedream does not publish the specific numeric terms of that SLA (e.g., uptime percentage or response-time thresholds) on any public page.",
         detail:
-          'No Pipedream page publishes a specific support response-time SLA for any tier; enterprise-level uptime/support arrangements appear to be negotiated directly with sales rather than published.',
-        shortValue: 'No published response-time SLA',
-        confidence: 'estimated',
+          "The plan-comparison matrix on Pipedream's pricing page has a row labeled 'SLA,' checked only for the Business plan; the Business plan's feature list also includes 'Uptime and availability SLAs.' Pipedream's support page separately states: 'Enterprise plan: Dedicated Pipedream Support Engineer, shared Slack Connect channel, and an SLA' — the same feature set as the pricing page's Business tier, just under Pipedream's older 'Enterprise' label, which the support page has not been updated to match. Neither page states an uptime percentage or a response-time commitment.",
+        shortValue: 'SLA named on Business plan; no numeric terms published',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/pricing',
-            label: 'Pipedream Pricing page',
-            asOf: '2026-07-02',
+            label: 'Pipedream Pricing page (plan-comparison table, SLA row)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://pipedream.com/support',
+            label: "Pipedream Support page ('Enterprise plan' priority-support callout)",
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1177,17 +1192,13 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream',
             label: 'Workday Newsroom – Workday Signs Definitive Agreement to Acquire Pipedream',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://pipedream.com/blog/pipedream-to-be-acquired-by-workday/',
-            label: 'Pipedream Blog – Pipedream to be acquired by Workday',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://pipedream.com/blog/series-a-financing/',
-            label: 'Pipedream Blog – Pipedream Closes $20M Series A Financing',
-            asOf: '2026-07-08',
+            url: 'https://www.prnewswire.com/news-releases/pipedream-closes-20-million-series-a-funding-round-led-by-true-ventures-301549167.html',
+            label:
+              'PR Newswire – Pipedream Closes $20 Million Series A Funding Round Led by True Ventures',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://prospeo.io/c/pipedream',
@@ -1200,14 +1211,19 @@ export const pipedreamProfile: CompetitorProfile = {
         value:
           'Yes: Pipedream operates Pipedream University, a structured library of courses and video lessons that teaches workflow building, custom code steps, and platform concepts beyond ad hoc docs and blog posts.',
         detail:
-          'No formal certification/exam program; it reads as structured video courses rather than a certification track.',
+          "No formal certification/exam program; it reads as structured video courses rather than a certification track. Pipedream's own site now links to this content inconsistently: pipedream.com/university, the URL Pipedream's own Support page still points to under 'Watch the University courses,' currently returns a genuine 404 ('404: Page not found'). The course content itself remains live as a 25-video 'Pipedream University' playlist on Pipedream's official YouTube channel, last updated September 2023, covering workflow building through custom component development.",
         shortValue: 'Yes, via Pipedream University courses',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/university',
-            label: 'Pipedream University',
-            asOf: '2026-07-02',
+            url: 'https://www.youtube.com/playlist?list=PL1t0lzi97kVxs0wBXesMmUNxkv8SvJHcG',
+            label: 'YouTube: Pipedream University playlist (official Pipedream channel)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://pipedream.com/support',
+            label: "Pipedream Support page ('Watch the University courses' link, target broken)",
+            asOf: '2026-09-15',
           },
         ],
       },

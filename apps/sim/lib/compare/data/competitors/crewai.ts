@@ -25,7 +25,7 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.crewai.com/en/concepts/flows',
         label: 'Flows - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -36,7 +36,7 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/crewAIInc/crewAI',
         label: 'crewAIInc/crewAI (GitHub)',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -47,7 +47,7 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.crewai.com/en/concepts/llms',
         label: 'LLMs - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -59,7 +59,7 @@ export const crewaiProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.crewai.com/en/learn/a2a-agent-delegation',
         label: 'Agent-to-Agent (A2A) Protocol - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -67,59 +67,61 @@ export const crewaiProfile: CompetitorProfile = {
       description:
         'CrewAI AMP (the commercial Agent Management Platform) adds Crew Studio, a chat-and-canvas interface where a builder describes an automation in natural language and the AI generates agents, tasks, and tools as an editable drag-and-drop workflow, exportable to Python code. This gives the code-first framework an optional visual entry point for non-developers. Sim ships an equivalent natural-language builder (Chat and in-editor Copilot) as a core, free part of the product, not a separate paid add-on layered on top of a code-only open-source base.',
       shortDescription:
-        "Natural-language chat generates an editable visual workflow, exportable to code, as a paid AMP add-on; Sim's Chat and Copilot ship the same capability free.",
+        "Natural-language chat generates an editable visual workflow, exportable to code, via the separate AMP platform (included on its free Basic tier); Sim's Chat and Copilot ship the same capability free in the core product.",
       source: {
         url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
         label: 'Crew Studio - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
   limitations: [
     {
-      title: 'Core framework is code-only; no visual builder without the paid AMP platform',
+      title: 'Core framework is code-only; visual builder is a separate AMP platform feature',
       description:
         'The open-source crewAI framework is authored entirely in Python (classes, YAML configs, decorators), with no built-in drag-and-drop canvas. Visual building (Crew Studio) is a feature of the separate, commercial CrewAI AMP platform, not the free self-hosted framework.',
-      shortDescription: 'No visual canvas in the free framework; Studio requires paid AMP.',
+      shortDescription:
+        'No visual canvas in the free framework; Studio is a separate AMP platform feature.',
       source: {
         url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
         label: 'Crew Studio - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
       title:
         'Human-in-the-loop input is a blocking, single-step primitive, not a rich approval workflow',
       description:
-        "HITL in the open-source framework is now the @human_feedback decorator on Flows (v1.8.0+), which pauses for synchronous, console-based review in local runs, replacing the older Task human_input=True flag. Production HITL, via webhooks, an in-platform pending-review state, responder assignment, SLAs, and escalation policies (the 'Flow HITL Management Platform'), requires CrewAI AMP/Enterprise.",
+        "HITL in the open-source framework includes the @human_feedback decorator on Flows (v1.8.0+), which pauses for synchronous, console-based review in local runs, alongside the separate, still-documented Task-level human_input=True flag (a per-task input prompt that predates Flows and remains a current, undeprecated part of the docs, not superseded by it). Production HITL, via webhooks, an in-platform pending-review state, responder assignment, SLAs, and escalation policies (the 'Flow HITL Management Platform'), requires CrewAI AMP/Enterprise.",
       shortDescription: 'OSS HITL is console-based via @human_feedback; rich approval needs AMP.',
       source: {
         url: 'https://docs.crewai.com/en/learn/human-in-the-loop',
         label: 'Human-in-the-Loop (HITL) Workflows - CrewAI Docs',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
       title: 'Governance, security, and hosted deployment features gated to CrewAI AMP',
       description:
-        'SSO (Microsoft Entra, Okta), role-based access control, dedicated VPC networking, on-premise/private deployment (AMP Factory), audit trails, and the SOC 2/HIPAA-compliant hosted environment are Enterprise-tier CrewAI AMP features, not part of the free open-source framework.',
+        "SSO (Microsoft Entra, Okta), role-based access control, dedicated VPC networking, and on-premise/private deployment (AMP Factory) are Enterprise-tier CrewAI AMP features per CrewAI's pricing page; audit trails are described in third-party CrewAI production write-ups rather than itemized on CrewAI's own pricing page, and the SOC 2 Type 2 and HIPAA-compliant hosted environment is documented separately on CrewAI's Trust Center. None of this is part of the free open-source framework.",
       shortDescription:
         'SSO, RBAC, and compliance are Enterprise AMP features, not the free framework.',
       source: {
         url: 'https://crewai.com/pricing',
         label: 'CrewAI Pricing',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
       title: 'Requires Python fluency; no low-code entry point in the core product',
       description:
-        'Crews and Flows are authored as Python classes, decorators, and YAML configuration, so using the core framework directly requires working knowledge of Python, virtual environments, and package management. Non-developers depend on the separate, paid AMP Studio layer; there is no built-in low-code mode in the open-source package.',
-      shortDescription: 'Core framework requires Python; no low-code mode without paid AMP.',
+        "Crews and Flows are authored as Python classes, decorators, and YAML configuration, so using the core framework directly requires working knowledge of Python, virtual environments, and package management. Non-developers depend on the separate CrewAI AMP platform's Studio layer, which is included even on AMP's free Basic tier (capped at 50 executions/month) as well as on paid Enterprise; there is no built-in low-code mode in the open-source package itself.",
+      shortDescription:
+        'Core framework requires Python; low-code mode is a separate AMP platform feature.',
       source: {
         url: 'https://docs.crewai.com/en/concepts/agents',
         label: 'Agents - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -127,35 +129,36 @@ export const crewaiProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Code-first Python framework (Crews and Flows); visual Studio only via paid CrewAI AMP',
+          "Code-first Python framework (Crews and Flows); visual Studio is a separate CrewAI AMP platform feature, available on AMP's free Basic tier as well as paid Enterprise",
         detail:
-          'The open-source core is authored in Python: Agents, Tasks, and Crews are Python classes/YAML config, and Flows use Python decorators (@start, @listen, @router) for event-driven orchestration. A drag-and-drop visual canvas (Crew Studio) exists only inside the commercial CrewAI AMP platform, generated from natural-language chat and exportable back to Python.',
-        shortValue: 'Python code framework; visual builder is a paid AMP add-on',
+          "The open-source core is authored in Python: Agents, Tasks, and Crews are Python classes/YAML config, and Flows use Python decorators (@start, @listen, @router) for event-driven orchestration. A drag-and-drop visual canvas (Crew Studio) exists inside the separate, commercial CrewAI AMP platform, generated from natural-language chat and exportable back to Python; it ships even on AMP's free Basic tier (capped at 50 executions/month), not only on paid Enterprise.",
+        shortValue:
+          "Python code framework; visual builder is a separate AMP platform feature, available on AMP's free Basic tier",
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.crewai.com/en/concepts/flows',
             label: 'Flows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
             label: 'Crew Studio - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       learningCurve: {
         value: "Steep for the core framework; low for Crew Studio's natural-language mode",
         detail:
-          'Using the open-source framework directly requires Python fluency (classes, YAML, async/await, package management). Crew Studio, the paid AMP visual/chat layer, targets non-developers who describe an automation in plain language.',
-        shortValue: 'Steep in code; low via paid Studio chat interface',
+          "Using the open-source framework directly requires Python fluency (classes, YAML, async/await, package management). Crew Studio, the separate CrewAI AMP platform's visual/chat layer (available on AMP's free Basic tier as well as paid Enterprise), targets non-developers who describe an automation in plain language.",
+        shortValue: "Steep in code; low via Studio's chat interface, free on AMP's Basic tier",
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://blog.crewai.com/enabling-domain-experts-to-build-and-deploy-agentic-workflows-without-the-need-to-write-code/',
@@ -180,7 +183,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI',
             label: 'crewAIInc/crewAI (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -195,12 +198,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://sambanova.ai/blog/sambanova-and-crewai-partner-to-deliver-agentic-ai-at-scale-on-crewai-amp',
-            label: 'SambaNova and CrewAI Partner on CrewAI AMP',
-            asOf: '2026-07-02',
+            url: 'https://docs-platform.crewai.com/platform/en/features/sso',
+            label: 'SSO - CrewAI Platform Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -215,7 +218,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/flows',
             label: 'Flows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -230,7 +233,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI/blob/main/LICENSE',
             label: 'crewAI/LICENSE (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -254,7 +257,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/deploy-to-amp',
             label: 'Deploy to AMP - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -269,7 +272,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
             label: 'Crew Studio - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -284,7 +287,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/knowledge',
             label: 'Knowledge - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -299,7 +302,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/knowledge',
             label: 'Knowledge - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -322,12 +325,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/flows',
             label: 'Flows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.crewai.com/t/flows-calling-crews-or-crews-tasks-calling-flows/3684',
             label: 'Flows calling Crews or Crews/Tasks calling Flows - CrewAI Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -343,17 +346,17 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/tool-repository',
             label: 'Tool Repository - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
             label: 'Crew Studio - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.crewai.com/t/crew-method-as-tool/400',
             label: 'Crew method as tool - CrewAI Community',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -370,7 +373,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/llms',
             label: 'LLMs - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -385,7 +388,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -393,14 +396,14 @@ export const crewaiProfile: CompetitorProfile = {
         value:
           'Yes: Crew Studio (CrewAI AMP) generates an editable workflow from a chat description',
         detail:
-          'Crew Studio lets a builder describe an automation in natural language; the platform generates agents, tasks, and tools as an editable drag-and-drop canvas, exportable to Python. This is a CrewAI AMP (paid) feature, not part of the free open-source framework, where crews are authored directly in code.',
-        shortValue: 'Yes, via Crew Studio chat interface (paid AMP feature)',
+          "Crew Studio lets a builder describe an automation in natural language; the platform generates agents, tasks, and tools as an editable drag-and-drop canvas, exportable to Python. This is a feature of the separate CrewAI AMP platform, included even on AMP's free Basic tier (capped at 50 executions/month) as well as on paid Enterprise, not part of the free open-source framework, where crews are authored directly in code.",
+        shortValue: 'Yes, via Crew Studio chat interface (separate AMP platform, free Basic tier)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
             label: 'Crew Studio - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -414,7 +417,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/knowledge',
             label: 'Knowledge - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -428,7 +431,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/mcp/overview',
             label: 'MCP Servers as Tools in CrewAI - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -443,12 +446,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/tasks',
             label: 'Tasks (Guardrails) - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/enterprise/features/hallucination-guardrail',
             label: 'Hallucination Guardrail - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -463,7 +466,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/learn/human-in-the-loop',
             label: 'Human-in-the-Loop (HITL) Workflows - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -478,7 +481,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools',
             label: 'crewAIInc/crewAI - lib/crewai-tools (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -493,7 +496,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/learn/tool-hooks',
@@ -521,7 +524,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -536,12 +539,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/zinyando/crewai_chat_ui',
             label: 'crewai_chat_ui (GitHub, community package)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.copilotkit.ai/blog/how-to-add-a-frontend-to-any-crewai-agent-using-ag-ui-protocol',
             label: 'How to add a Frontend to any CrewAI Agent using AG-UI Protocol - CopilotKit',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -564,7 +567,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/flows',
             label: 'Flows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.crewai.com/en/concepts/tasks',
+            label: 'Tasks - CrewAI Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -579,7 +587,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/learn/a2a-agent-delegation',
             label: 'Agent-to-Agent (A2A) Protocol - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -594,7 +602,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/flows',
             label: 'Flows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.crewai.com/t/loops-in-a-flow/1306',
@@ -616,12 +624,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools/src/crewai_tools/tools',
             label: 'crewAIInc/crewAI - lib/crewai-tools/tools directory (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/tools/automation/composiotool',
             label: 'Composio Tool - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -636,7 +644,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/webhook-automation',
             label: 'Webhook Automation - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -650,7 +658,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -665,22 +673,22 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/tools/ai-ml/codeinterpretertool',
             label: 'Code Interpreter (removal notice) - CrewAI Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.kb.cert.org/vuls/id/221883',
             label: 'VU#221883 vendor statement - CERT Coordination Center',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs-platform.crewai.com/platform/en/guides/deploy-to-amp',
             label: 'Deploy to AMP - CrewAI Platform Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs-platform.crewai.com/platform/en/guides/private-package-registry',
             label: 'Private Package Registries - CrewAI Platform Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -694,7 +702,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/enterprise/guides/use-crew-api',
             label: 'Trigger Deployed Crew API - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -709,7 +717,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI',
             label: 'crewAIInc/crewAI (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -735,7 +743,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -750,7 +758,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -765,7 +773,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -780,24 +788,29 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/llms',
             label: 'LLMs - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'Yes: CrewAI AMP has a SOC 2 Type 1 audit report (dated November 2025), available via its Trust Center',
+          'Yes: CrewAI AMP has a SOC 2 Type 2 audit report (released June 2026, covering the November 15, 2025 - February 14, 2026 examination period) and a HIPAA audit report (dated February 2026) for the Enterprise edition, both available via its Trust Center. No ISO 27001, PCI, or FedRAMP certification is confirmed. These attestations apply to the Enterprise/AMP offering, not to a self-hosted deployment of the open-source framework, which has no compliance certification of its own since it is not a hosted service.',
         detail:
-          "CrewAI's Trust Center (trust.crewai.com, indexed by Vanta) lists a SOC 2 Type 1 Audit Report from November 2025. This applies to the Enterprise/AMP offering, not to a self-hosted deployment of the open-source framework, which has no compliance certification of its own since it isn't a hosted service.",
-        shortValue: 'SOC 2 Type 1 report (Nov 2025) for the AMP platform',
+          "CrewAI's Trust Center (trust.crewai.com, indexed by Vanta) lists the SOC 2 Type 2 Report for CrewAI, released June 2026 with an examination period of November 15, 2025 to February 14, 2026, alongside the HIPAA Audit Report from February 2026. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
+        shortValue: 'SOC 2 Type 2 and HIPAA audits, AMP Enterprise only',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://trust.crewai.com/',
             label: 'CrewAI Trust Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://crewai.com/pricing',
+            label: 'CrewAI Pricing',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -812,7 +825,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/features/sso',
             label: 'SSO - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://crewai.com/pricing',
+            label: 'CrewAI Pricing',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -827,7 +845,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/features/sso',
             label: 'SSO - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -842,27 +860,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://techjacksolutions.com/ai-tools/crewai/crewai-production-guide/',
             label: 'CrewAI in Production: Deployment, Monitoring & Scaling - TechJack Solutions',
-            asOf: '2026-07-04',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'HIPAA (Enterprise edition, audit report dated February 2026); no ISO 27001, PCI, or FedRAMP certification confirmed',
-        detail:
-          "CrewAI's Trust Center lists a HIPAA Audit Report dated February 2026 for the Enterprise edition, alongside the SOC 2 Type 1 report. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
-        shortValue: 'HIPAA audit (Feb 2026); FedRAMP claim unconfirmed',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.crewai.com/',
-            label: 'CrewAI Trust Center',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://crewai.com/pricing',
-            label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -885,7 +883,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/features/secrets-manager/gcp',
             label: 'Google Cloud Secret Manager - CrewAI Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -916,7 +914,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/features/pii-trace-redactions',
             label: 'PII Redaction for Traces - CrewAI Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -931,9 +929,16 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
+      },
+      scim: {
+        value:
+          'Not publicly documented: no CrewAI page describes SCIM 2.0 directory provisioning or automated creation, update, or deactivation of members from an identity provider. The platform SSO documentation covers SAML 2.0 and OAuth 2.0/OIDC authentication through WorkOS (the SaaS default), Microsoft Entra ID, Okta, Auth0, and Keycloak, and the pricing page lists SSO and role-based access control as Enterprise-tier features, but neither names SCIM, directory sync, or group-to-role provisioning. The open-source framework has no user accounts or sign-in at all, so the question does not apply to it. Not finding a SCIM page is not itself confirmation that the capability does not exist.',
+        shortValue: 'Not publicly documented; SSO only, no SCIM',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:
@@ -946,17 +951,17 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs-platform.crewai.com/platform/en/features/sso',
             label: 'SSO - CrewAI Platform Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs-platform.crewai.com/platform/en/features/rbac',
             label: 'RBAC - CrewAI Platform Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://enterprise-docs.crewai.com/features/workos-sso',
             label: 'WorkOS SSO - CrewAI Platform Helm Chart',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -971,12 +976,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/tool-repository',
             label: 'CrewAI Enterprise Tool Repository docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools',
             label: 'crewAIInc/crewAI - lib/crewai-tools (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -993,7 +998,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/observability/tracing',
             label: 'CrewAI Tracing - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1016,7 +1021,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/webhook-automation',
             label: 'Webhook Automation - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1031,17 +1036,17 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/capture_telemetry_logs',
             label: 'Capture Telemetry Logs - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.dynatrace.com/hub/detail/crewai-observability/',
             label: 'CrewAI monitoring & observability - Dynatrace Hub',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://signoz.io/docs/crewai-observability/',
             label: 'CrewAI Observability & Monitoring with OpenTelemetry - SigNoz Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.ibm.com/docs/en/instana-observability/1.0.304?topic=frameworks-crewai',
@@ -1061,7 +1066,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/learn/kickoff-async',
             label: 'Kickoff Crew Asynchronously - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1076,7 +1081,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1091,7 +1096,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/concepts/tasks',
             label: 'Tasks (Guardrails - guardrail_max_retries) - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1106,12 +1111,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/webhook-automation',
             label: 'Webhook Automation - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.crewai.com/en/enterprise/guides/kickoff-crew',
             label: 'Kickoff Crew - CrewAI Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1128,7 +1133,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1150,7 +1155,7 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://github.com/crewAIInc/crewAI',
             label: 'crewAIInc/crewAI (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1165,12 +1170,18 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://siliconangle.com/2024/10/22/agentic-ai-startup-crewai-closes-18m-funding-round/',
             label: 'Agentic AI startup CrewAI closes $18M funding round - SiliconANGLE',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.insightpartners.com/ideas/behind-the-investment-crewai/',
             label: 'Behind the Investment: CrewAI - Insight Partners',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.globenewswire.com/news-release/2024/10/22/2966872/0/en/CrewAI-Launches-Multi-Agentic-Platform-to-Deliver-on-the-Promise-of-Generative-AI-for-Enterprise.html',
+            label:
+              'CrewAI Launches Multi-Agentic Platform to Deliver on the Promise of Generative AI for Enterprise - GlobeNewswire',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1185,12 +1196,12 @@ export const crewaiProfile: CompetitorProfile = {
           {
             url: 'https://learn.crewai.com',
             label: 'CrewAI Academy (learn.crewai.com)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.deeplearning.ai/short-courses/multi-ai-agent-systems-with-crewai/',
             label: 'Multi AI Agent Systems with crewAI - DeepLearning.AI',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },

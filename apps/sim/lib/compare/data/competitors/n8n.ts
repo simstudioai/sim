@@ -86,22 +86,24 @@ export const n8nProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'AI Workflow Builder not yet available self-hosted or on Enterprise',
+      title:
+        'n8n Assistant (formerly AI Workflow Builder) still excludes Enterprise, on Cloud and self-hosted alike',
       description:
-        'The natural-language-to-workflow AI Workflow Builder is in beta and limited to Cloud Trial/Starter/Pro plans. Enterprise and self-hosted support is listed as planned for a future release, so self-hosters cannot use it today.',
-      shortDescription: "Beta AI builder is Cloud-only today; self-hosters can't use it.",
+        "n8n's natural-language-to-workflow feature, originally shipped as the AI Workflow Builder in October 2025 beta, was relaunched in July 2026 as 'n8n Assistant' and remains labeled Preview rather than general availability. It is documented as available on n8n Cloud Starter and Pro, and on self-hosted Community, Registered Community, and Business editions (self-hosted use is bring-your-own-key, since n8n's Gateway credits do not extend to self-hosted instances). It is explicitly not available on n8n Cloud Enterprise or self-hosted Enterprise; n8n directs Enterprise customers to contact their Customer Success Manager for preview access.",
+      shortDescription:
+        'Preview now reaches self-hosted Community/Business; Enterprise (Cloud and self-hosted) still excluded.',
       source: {
-        url: 'https://community.n8n.io/t/introducing-ai-workflow-builder-beta/204919',
-        label: 'n8n Community: Introducing AI Workflow Builder (Beta)',
-        asOf: '2026-07-02',
+        url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-assistant-preview',
+        label: 'n8n Docs: Use n8n Assistant (Preview)',
+        asOf: '2026-09-15',
       },
     },
     {
       title: "No public SOC 2 report; only 'aligned to' SOC 2",
       description:
-        "n8n's security program is 'aligned to' the SOC 2 framework with annual independent audits, and the SOC 2 report is available to enterprise customers via the Trust Center, not published publicly.",
+        "n8n's security page (n8n.io/legal/security/) describes the company's security program as 'aligned to' the SOC 2 framework, with continuous evaluation and annual independent audits. The Trust Center (trust.n8n.io) separately lists SOC 2 Type 2 as an achieved compliance certification, but the SOC 2 report itself sits behind an email-gated 'Get access' request rather than being freely downloadable — unlike the SOC 3 report, which n8n's security page offers as a direct public download.",
       shortDescription: 'SOC 2 report is available only on request to enterprise customers.',
-      source: { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
+      source: { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-09-15' },
     },
     {
       title: 'No RBAC or workflow sharing at all on the free Community edition',
@@ -127,19 +129,24 @@ export const n8nProfile: CompetitorProfile = {
       builderType: {
         value: 'Hybrid visual/code node-based builder',
         detail:
-          "n8n's core interface is a visual, drag-and-drop node canvas where each node is a step. It supports a Custom Code node (JavaScript/Python) and an HTTP Request Tool for arbitrary API calls, plus a natural-language AI Workflow Builder, gated by pricing tier rather than a beta flag, that generates an editable draft workflow from a text prompt.",
+          "n8n's core interface is a visual, drag-and-drop node canvas where each node is a step. It supports a Custom Code node (JavaScript/Python) and an HTTP Request Tool for arbitrary API calls, plus a natural-language builder — the AI Workflow Builder, relaunched in July 2026 as 'n8n Assistant' — that generates an editable draft workflow from a text prompt. Far from being gated by pricing tier alone, it is still explicitly labeled Preview (not GA) and is itself the beta-style gate: it is documented as available on Cloud Starter/Pro and self-hosted Community/Registered Community/Business, but not on Cloud or self-hosted Enterprise.",
         shortValue: 'Visual canvas plus code node and AI builder',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder',
             label: 'n8n AI Workflow Builder docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.code',
             label: 'n8n Code node docs',
             asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-assistant-preview',
+            label: 'n8n Docs: Use n8n Assistant (Preview)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -297,19 +304,19 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Yes: n8n has a native Data Table feature (Data Table node, DataTable API, and a Data tables UI tab) for creating and managing structured tables of rows and columns directly inside an n8n instance, without an external database.',
         detail:
-          "Storage is capped at 50MB per instance by default (self-hosted instances can raise this via the N8N_DATA_TABLES_MAX_SIZE_BYTES environment variable); direct programmatic access from a Code node isn't supported. Spreadsheet-style keyboard navigation isn't explicitly documented.",
+          "Storage is capped at 200 MiB per instance by default, shared across all data tables combined (not per table); self-hosted instances can raise this via the N8N_DATA_TABLES_MAX_SIZE_BYTES environment variable. n8n shows a warning at 80% of the limit and a final warning at the limit itself; past that point manual row additions are disabled and workflow executions that try to insert or update data start failing. Direct programmatic access from a Code node isn't supported. Spreadsheet-style keyboard navigation isn't explicitly documented.",
         shortValue: 'Yes, native Data Table feature',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/build/work-with-data/data-tables.md',
             label: 'Data tables | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.datatable',
             label: 'Data Table | Nodes | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -411,10 +418,11 @@ export const n8nProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          'Yes: AI Workflow Builder, generally available on Starter, Pro, and Enterprise Cloud',
+          "Partial: relaunched as 'n8n Assistant,' still in Preview (not GA); available on Cloud Starter/Pro and self-hosted Community/Registered Community/Business, not on Cloud or self-hosted Enterprise",
         detail:
-          'Users describe a workflow in plain text and the AI Workflow Builder generates a draft, editable node-based workflow with iterative multi-turn refinement. Launched in beta in late 2025, it reached general availability for n8n Cloud customers on the Starter, Pro, and Enterprise plans; self-hosted availability is not documented.',
-        shortValue: 'GA on Starter/Pro/Enterprise Cloud plans',
+          "Users describe a workflow, edit, debug request, or agent in plain text; the assistant plans it, builds or edits it in the selected project, tests it, and helps fix errors, producing a normal, fully editable n8n workflow. Launched in beta in October 2025 as the 'AI Workflow Builder' on Cloud Trial/Starter/Pro, it reportedly reached Starter/Pro/Enterprise Cloud general availability by January 2026 per n8n's blog, but n8n relaunched it in July 2026 as 'n8n Assistant,' explicitly still labeled Preview. Current documented availability is n8n Cloud Starter and Pro, and self-hosted Community, Registered Community, and Business editions (self-hosted access is bring-your-own-key). It is not yet available on n8n Cloud Enterprise or self-hosted Enterprise; n8n directs Enterprise customers to their Customer Success Manager for preview access.",
+        shortValue:
+          'Preview on Cloud Starter/Pro and self-hosted (not Enterprise); GA claim is stale',
         confidence: 'verified',
         sources: [
           {
@@ -425,7 +433,12 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder',
             label: 'n8n AI Workflow Builder docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-assistant-preview',
+            label: 'n8n Docs: Use n8n Assistant (Preview)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -482,21 +495,32 @@ export const n8nProfile: CompetitorProfile = {
         ],
       },
       humanInTheLoop: {
-        value: 'Yes: dedicated Human-in-the-Loop node built on Wait',
+        value:
+          "Yes: human approval gates exist in two forms — an AI-Agent tool-review step (Approve/Deny) and a 'Send and Wait for a Response' operation on communication nodes, both built on the underlying Wait mechanism",
         detail:
-          "n8n has a dedicated Human-in-the-Loop node (a higher-level abstraction built on the underlying Wait node) that pauses an active workflow mid-run and waits on human approval or input, distinct from a plain delay. The approver is notified via a configurable channel, Gmail, Slack, Telegram, Discord, Microsoft Teams, WhatsApp, or n8n's built-in Chat, with 'Approve Only' or 'Approve and Disapprove' options. The run resumes when the reviewer responds via a button or webhook callback, and an optional timeout triggers a fallback path if no response arrives within the configured window (minutes up to a day).",
-        shortValue: 'Dedicated approval node with timeout fallback',
+          "For AI Agent tool calls, a Tools Panel human-review step pauses the agent before it runs a chosen tool and requests Approve/Deny through a configurable channel (n8n Chat, Slack, Discord, Telegram, Microsoft Teams, Gmail, WhatsApp Business Cloud, Google Chat, or Microsoft Outlook). Separately, the 'Send and Wait for a Response' operation — available on Discord, Slack, Gmail, Telegram, and other communication nodes — pauses the whole workflow and offers an Approval response type with either an approval-only button or both approval and disapproval buttons, a configurable Limit Wait Time, and resumption via the reviewer's button click (a webhook callback under the hood, per n8n's queue-mode docs on '/webhook-waiting' endpoints).",
+        shortValue: 'Two approval mechanisms: tool-review gate and Send and Wait',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/advanced-ai/human-in-the-loop-tools/',
             label: 'Human-in-the-loop for AI tool calls | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools',
             label: 'Human-in-the-loop for tools | Build | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.discord/',
+            label: 'Discord node docs (Send and Wait for a Response) | n8n Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.n8n.io/hosting/scaling/queue-mode',
+            label: 'Enable queue mode (/webhook-waiting endpoints) | n8n Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -844,32 +868,38 @@ export const n8nProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          'De facto yes: Chat Model nodes require users\' own provider API credentials, though n8n does not name this "BYOK"',
+          'Partial: BYOK required on Enterprise and self-hosted, but n8n Cloud Starter and Pro now offer a hosted-key alternative (Gateway credits) for major Chat Model nodes',
         detail:
-          "n8n's OpenAI and Anthropic credential docs both walk users through generating an API key in the provider's own console and entering it as the node credential; no n8n-hosted key is supplied for these Chat Model nodes. Separately, n8n's pricing page describes plan-included 'AI credits' (2,300 on Starter, up to 13,700+ on higher tiers) for n8n's own in-app AI Assistant feature, which is distinct from the provider credentials Chat Model nodes require. n8n does not name a bring-your-own-API-key policy, but requiring each provider's own key for Chat Model nodes makes BYOK the de facto default for workflow-level LLM calls.",
-        shortValue: 'De facto via provider API keys, not named',
-        confidence: 'estimated',
+          "n8n's OpenAI and Anthropic credential docs walk users through generating an API key in the provider's own console and entering it as the node credential, and n8n's pricing page separately describes plan-included 'AI credits' (2,300 on Starter, up to 13,700+ on higher tiers) for n8n's own in-app AI Assistant feature, distinct from Chat Model node credentials. However, as of n8n 2.36.0, n8n Cloud Starter and Pro customers can select 'Use Gateway credits' directly in a supported node's credential field (OpenAI, Anthropic, Google Gemini, Qwen, MiniMax, and a growing list of others) to run that node against n8n's own prepaid, metered gateway with no provider account or API key. n8n Cloud Enterprise and self-hosted n8n do not have Gateway credits, so BYOK remains the only option there, and users can still choose 'Use my own credential' per node even where Gateway credits are available.",
+        shortValue:
+          'BYOK required on Enterprise/self-hosted; Cloud Starter/Pro can use hosted Gateway credits',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/integrations/builtin/credentials/openai',
             label: 'n8n docs: OpenAI credentials',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.n8n.io/integrations/builtin/credentials/anthropic',
             label: 'n8n docs: Anthropic credentials',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.n8n.io/build/understand-workflows/use-gateway-credits',
+            label: 'n8n docs: Use Gateway credits',
+            asOf: '2026-09-15',
           },
         ],
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          "SOC 2: program 'aligned to' SOC 2 with annual third-party audits; report available to enterprise customers via Trust Center",
+          "SOC 2 Type II certification, viewable via the Trust Center, with a security program described as 'aligned to' the SOC 2 framework under continuous evaluation and annual independent third-party audits; the SOC 2 report is provided to enterprise customers on request rather than published openly. A SOC 3 report is publicly downloadable from the Security page, and GDPR compliance is claimed as a data processor. No HIPAA, ISO 27001, PCI, or FedRAMP certification found.",
         detail:
-          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly.',
-        shortValue: 'Aligned to SOC 2, report on request',
+          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly; n8n now holds SOC 2 Type II certification, viewable via the Trust Center, in addition to the public SOC 3 report. The Trust Center and the legal/security page also list GDPR compliance (as a data processor with a standard DPA) and CAIQ self-assessment questionnaires for both cloud and self-hosted deployments. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.',
+        shortValue: 'SOC 2 Type II, public SOC 3, GDPR',
         confidence: 'verified',
         sources: [
           { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
@@ -926,27 +956,6 @@ export const n8nProfile: CompetitorProfile = {
             url: 'https://n8n.io/legal/security/',
             label: 'Security | n8n (audit log retention)',
             asOf: '2026-07-04',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'GDPR (as data processor), SOC 2 Type II certification, and a publicly downloadable SOC 3 report; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
-        detail:
-          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA), CAIQ self-assessment questionnaires for both cloud and self-hosted deployments, and a SOC 3 report that is publicly downloadable from the Security page. n8n now holds SOC 2 Type II certification, viewable via the Trust Center, in addition to the public SOC 3 report. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
-        shortValue: 'GDPR, SOC 2 Type II certified, public SOC 3 report',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://trust.n8n.io/',
-            label: 'n8n Trust Center | Powered by SafeBase',
-            asOf: '2026-07-08',
-          },
-          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-08' },
-          {
-            url: 'https://support.n8n.io/article/request-for-soc-2-report',
-            label: 'Request for SOC-2 report | n8n Help Center',
-            asOf: '2026-07-08',
           },
         ],
       },
@@ -1039,21 +1048,21 @@ export const n8nProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          "Yes: n8n supports SAML and OIDC single sign-on on Business/Enterprise plans, including automated user provisioning that assigns a user's instance role and project access from their identity-provider attributes on first login.",
+          "Yes: n8n supports SAML single sign-on on Business and Enterprise plans, and OIDC single sign-on on Enterprise plans only, both including automated user provisioning that assigns a user's instance role and project access from identity-provider attributes on first login.",
         detail:
-          'Works with Okta, Azure AD, or any SAML-compliant IdP. The role/project mapping is driven by IdP attributes named n8n_instance_role and n8n_projects, and is documented as part of Enterprise governance features.',
-        shortValue: 'Yes, SAML/OIDC SSO with role auto-provisioning',
+          "SAML works with Okta, Azure AD, Auth0, Authentik, JumpCloud, Keycloak, PingIdentity, or any SAML-compliant IdP; OIDC works with any OpenID Connect-compliant IdP via a discovery endpoint, client ID, and client secret. The role/project mapping for both protocols is driven by IdP attributes named n8n_instance_role and n8n_projects, or by expression-based mapping rules defined inside n8n (available from n8n 2.19.0) when the IdP can't encode n8n-specific role logic, and is documented as part of Enterprise governance features.",
+        shortValue: 'SAML on Business/Enterprise; OIDC on Enterprise only',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/user-management/saml/setup/',
             label: 'Set up SAML | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.n8n.io/user-management/oidc/setup/',
             label: 'Set up OIDC | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://blog.n8n.io/introducing-custom-project-roles-and-user-provisioning-via-sso-built-for-enterprise-governance/',
@@ -1061,6 +1070,15 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
+      },
+      scim: {
+        value:
+          "Not publicly documented: no n8n documentation confirming SCIM 2.0 directory provisioning was found. n8n's SSO documentation covers SAML and OIDC authentication, and its user-management documentation covers email invites and LDAP, with neither mentioning SCIM. A community feature request asking for SCIM support remains open with no official n8n response, so SCIM availability could not be confirmed either way.",
+        detail:
+          'n8n does document automated user provisioning through SSO, where a user instance role and project access are assigned from identity-provider attributes on first login, but that is authentication-time provisioning rather than identity-provider-driven create/update/deactivate.',
+        shortValue: 'Not publicly documented; SCIM support unconfirmed',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:
@@ -1113,14 +1131,14 @@ export const n8nProfile: CompetitorProfile = {
         value:
           'Customer-facing Insights dashboard with per-workflow/per-node metrics, not span-level distributed tracing',
         detail:
-          "n8n ships a native, customer-facing 'Insights' dashboard (Pro, Business, and Enterprise plans) showing per-workflow tables of total production executions, failed executions, failure rate, time saved, and time-series trends including P95 execution duration, workflow error rate, and node error rate. This is dashboard/metrics-level observability, not fine-grained span/trace-level tracing of internal node execution. That requires exporting to external tools like OpenTelemetry, SigNoz, or Grafana, which n8n supports feeding but doesn't natively render as spans.",
-        shortValue: 'Dashboard metrics, not span-level tracing',
+          "n8n ships a native, customer-facing 'Insights' feature (summary banner on all plans/editions; full dashboard on Cloud Pro/Enterprise and self-hosted Business/Enterprise) showing, per workflow, total production executions, failed production executions, failure rate, time saved, and run time average (including wait-node time), with historical comparison windows up to a year on Enterprise. This is dashboard/metrics-level observability, not fine-grained span/trace-level tracing of internal node execution. That requires exporting to external tools like OpenTelemetry, SigNoz, or Grafana, which n8n supports feeding but doesn't natively render as spans.",
+        shortValue: 'Dashboard metrics (not P95/error-rate breakdowns), not span-level tracing',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/insights/',
             label: 'Insights | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://signoz.io/docs/n8n-monitoring/',
@@ -1318,11 +1336,11 @@ export const n8nProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2019 in Berlin. Raised a $180M Series C in October 2025 (Accel-led) at a $2.5B valuation, $240M total raised. Valuation rose to $5.2B in May 2026 following a strategic investment from SAP. Roughly 900-1,000 employees as of mid-2026 per multiple employee-tracking sources (Tracxn, RocketReach, LeadIQ, Revelio).',
+          'Founded 2019 in Berlin. Raised a $180M Series C in October 2025 (Accel-led) at a $2.5B valuation, $240M total raised. Valuation rose to $5.2B in May 2026 following a strategic investment from SAP. Employee count is not reliably documented: PitchBook lists only 109 employees as of 2025, inconsistent with other public estimates in the 900-1,000 range for mid-2026, so headcount should be treated as unconfirmed pending a citable source.',
         detail:
-          'n8n GmbH was founded in 2019 and is headquartered in Berlin, Germany. It raised a $180M Series C announced October 9, 2025, led by Accel with participation from Meritech, Redpoint, Evantic, and Visionaries Club, plus corporate investors NVIDIA and T.Capital, valuing the company at $2.5B and bringing total funding to $240M. In May 2026, SAP made a strategic investment that valued n8n at $5.2B. Employee-count trackers report roughly 900-1,000 employees as of mid-2026.',
-        shortValue: 'Berlin, 2019; $5.2B valuation, ~1,000 staff',
-        confidence: 'verified',
+          "n8n GmbH was founded in 2019 and is headquartered in Berlin, Germany. It raised a $180M Series C announced October 9, 2025, led by Accel with participation from Meritech, Redpoint, Evantic, and Visionaries Club, plus corporate investors NVIDIA and T.Capital, valuing the company at $2.5B and bringing total funding to $240M. In May 2026, SAP made a strategic investment that valued n8n at $5.2B. Employee count is not reliably documented: PitchBook's profile (cited above, for funding data) lists only 109 employees as of 2025, which is inconsistent with n8n's public profile as a ~$5B-valued company with hundreds of integrations and a 24/7 Enterprise support org; other employee-tracking aggregators report figures in the 900-1,000 range for mid-2026, but those specific trackers are not among this profile's sources, so the number should be treated as not publicly confirmed pending a citable source.",
+        shortValue: 'Berlin, 2019; $5.2B valuation; employee count unconfirmed',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://blog.n8n.io/series-c/',
@@ -1337,7 +1355,7 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://pitchbook.com/profiles/company/398691-46',
             label: 'n8n 2026 Company Profile: Valuation, Funding & Investors | PitchBook',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://blog.n8n.io/n8n-sap/',
