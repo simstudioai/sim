@@ -19,6 +19,7 @@ import {
   parseOptionalNumberInput,
 } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
+import { SLACK_AGENT_SCOPES } from '@/triggers/slack/capabilities'
 
 /**
  * Canonical basic/advanced pair for the channel target, shared by the card
@@ -3503,6 +3504,11 @@ export const SlackV2Block: BlockConfig = {
   description: 'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
   longDescription:
     'Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.',
+  bestPractices: `${SlackBlock.bestPractices}
+Native agent-session streaming uses a custom Slack bot and a supported trigger event. Enable streamResponse and select the intended outputs in streamOutputs; Sim Chat (mothership) streams its content output. The trigger owns the streamed reply, so another send needs a separate purpose.
+The custom-bot manifest's baseline agent scopes are ${SLACK_AGENT_SCOPES.join(', ')}. Selected capabilities add their required scopes and event subscriptions. Verify the installed app's grants, resource access and event configuration; a saved credential or edited manifest alone does not prove access.
+streamIncludeToolCalls displays tool activity; it does not authorize tool execution. Configure Sim Chat's selected operations and their credentials separately. Choose streamIncludeThinking deliberately for the destination audience.
+Block Kit messages can contain buttons, selects and forms, but interactions require the app's interactivity request URL and the corresponding interaction trigger. Treat message events, button/select callbacks and modal submissions as separate paths. A control's action_id/value correlates work; runtime actor and state checks authorize it.`,
   hideFromToolbar: false,
   sunset: undefined,
   canvasPresentation: {
