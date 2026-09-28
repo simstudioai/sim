@@ -256,6 +256,10 @@ export {
   emailTemplatesMockFns,
 } from './email-templates.mock'
 export {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from './email-unsubscribe.mock'
+export {
   embeddingsMock,
   embeddingsMockFns,
   MockEmbeddingOutputLimitError,
@@ -379,6 +383,7 @@ export {
   inputValidationMock,
   inputValidationMockFns,
 } from './input-validation.mock'
+export { integrationMatcherMock } from './integration-matcher.mock'
 export {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -1044,7 +1049,6 @@ export {
   workspaceForkingMappingStoreMockFns,
 } from './workspace-forking-mapping-store.mock'
 export {
-  MockExternalUrlValidationError,
   MockWorkspaceFileFolderConflictError,
   MockWorkspaceFileItemsNotFoundError,
   MockWorkspaceFileMoveConflictError,

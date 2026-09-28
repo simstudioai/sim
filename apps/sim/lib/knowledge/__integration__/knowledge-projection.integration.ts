@@ -24,6 +24,7 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
+  embeddingKeywordSearch,
   embeddingKeywordTin,
   embeddingSearch,
   knowledgeBase,
@@ -383,7 +384,6 @@ beforeAll(async () => {
       sql.raw(`CREATE SCHEMA tin;
       CREATE FUNCTION tin.full_score(tid) RETURNS double precision LANGUAGE sql IMMUTABLE AS 'SELECT 1.0::float8';
       CREATE FUNCTION knowledge_tin_base_token(text) RETURNS text LANGUAGE sql IMMUTABLE AS $$SELECT 'kb'$$;
-      CREATE FUNCTION knowledge_tin_membership_key(text) RETURNS bigint LANGUAGE sql IMMUTABLE AS $$SELECT hashtextextended('embedding_keyword_tin:' || $1, 0)$$;
       CREATE FUNCTION knowledge_tin_stream(vector tsvector) RETURNS text LANGUAGE sql IMMUTABLE AS $$
         SELECT coalesce(string_agg(entry.lexeme, ' ' ORDER BY position), '')
         FROM unnest(vector) AS entry(lexeme, positions, weights), unnest(entry.positions) AS position
@@ -400,7 +400,6 @@ afterAll(async () => {
       sql.raw(`DROP OPERATOR IF EXISTS ==> (text, text);
       DROP FUNCTION IF EXISTS tin_fixture_match(text, text);
       DROP FUNCTION IF EXISTS knowledge_tin_base_token(text);
-      DROP FUNCTION IF EXISTS knowledge_tin_membership_key(text);
       DROP FUNCTION IF EXISTS knowledge_tin_stream(tsvector);
       DROP SCHEMA IF EXISTS tin CASCADE;`)
     )
@@ -728,6 +727,46 @@ describe('the projector', () => {
     expect(vectorPages.map((page) => page.written)).toEqual([1, 2, 1])
     expect(pages.every((page) => page.written <= 2)).toBe(true)
     expect(await markOf()).toBeUndefined()
+  })
+
+  it('writes keyword rows for search-index knowledge bases only', async () => {
+    const workspaceBaseId = generateId()
+    const workspaceDocument = generateId()
+    const workspaceChunk = generateId()
+    await db.insert(knowledgeBase).values({
+      id: workspaceBaseId,
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
+      name: 'Workspace keyword fixture',
+      chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 20 },
+    })
+    try {
+      await db.insert(document).values({
+        id: workspaceDocument,
+        knowledgeBaseId: workspaceBaseId,
+        filename: 'keyword.md',
+        fileUrl: 'https://fixture.test/keyword',
+        fileSize: 12,
+        mimeType: 'text/plain',
+        processingStatus: 'completed',
+      })
+      await write('async', (tx) =>
+        tx.insert(embedding).values({
+          ...chunkRow(workspaceChunk, 0),
+          documentId: workspaceDocument,
+          knowledgeBaseId: workspaceBaseId,
+        })
+      )
+      await project()
+      const keywordRows = await db
+        .select({ id: embeddingKeywordSearch.id })
+        .from(embeddingKeywordSearch)
+        .where(inArray(embeddingKeywordSearch.id, [chunkId, workspaceChunk]))
+      expect(keywordRows).toEqual([{ id: chunkId }])
+      expect(await rowAcl(embeddingSearch, workspaceChunk)).toBeDefined()
+    } finally {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, workspaceBaseId))
+    }
   })
 
   it.each(['sync', 'async'] as const)(

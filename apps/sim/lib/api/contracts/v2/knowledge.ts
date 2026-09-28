@@ -139,6 +139,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Knowledge base description, or null when none is set.')
       .meta({ examples: ['All product documentation and guides'] }),
     tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .unwrap()
       .describe('Total tokens across indexed documents.')
       .meta({ examples: [48213] }),
     embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel

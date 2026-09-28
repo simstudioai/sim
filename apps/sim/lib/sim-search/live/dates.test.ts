@@ -62,6 +62,18 @@ describe('generic live search dates', () => {
     expect(sourceDateType('slack', { ...doc, kind: 'file' })).toBe('modified')
     expect(sourceDateType('slack', doc)).toBe('message')
   })
+  it.each(['fireflies', 'granola'])(
+    'filters %s meetings by when they happened, not when notes changed',
+    (provider) => {
+      expect(matchesSourceDates(doc, provider, filters)).toBe(true)
+      expect(sourceDate(doc, provider)).toBe(doc.eventStartAt)
+      expect(sourceDateType(provider, doc)).toBe('event_start')
+      expect(matchesSourceDates({ ...doc, eventStartAt: filters.endDate }, provider, filters)).toBe(
+        false
+      )
+      expect(matchesSourceDates({ ...doc, eventStartAt: undefined }, provider, filters)).toBe(false)
+    }
+  )
   it('intersects user-selected date constraints across offsets without widening them', () => {
     expect(
       intersectWorkspaceSearchFilters(

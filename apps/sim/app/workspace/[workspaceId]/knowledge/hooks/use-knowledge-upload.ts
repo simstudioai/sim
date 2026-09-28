@@ -120,11 +120,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     })
   }
 
-  /** Reconciles both caches an upload moves: the base's documents and the list's `docCount`. */
+  /** Reconciles both caches an upload moves: the base's documents and the counted `docCount`. */
   const invalidateKnowledgeCaches = async (knowledgeBaseId: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) }),
-      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.countedLists() }),
     ])
   }
 

@@ -7,16 +7,27 @@ import {
   sameResourceScopeCondition,
 } from '@/lib/core/resource-scope.server'
 import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   loadScopedManagedMcpRuntimeCredential,
   ManagedMcpCredentialError,
 } from '@/lib/credentials/managed-mcp'
 import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import {
+  isManagedSearchMcpProvider,
+  MANAGED_SEARCH_MCP_READ_TOOLS,
+  type ManagedSearchMcpProvider,
+} from '@/lib/sim-search/live/managed-mcp-config'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
-/** Only the caller's Coda grant is eligible; org grants also obey current workspace sharing policy. */
-export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: string) {
+/** Only the caller's grants at fixed trusted providers qualify; org grants obey current workspace policy. */
+async function listOwnManagedMcpAccounts(
+  owner: ResourceOwner,
+  userId: string,
+  providers: readonly ManagedSearchMcpProvider[]
+) {
+  if (!providers.length) return []
   const scope = resourceScopeFromOwner(owner)
   const workspace =
     scope.kind === 'workspace'
@@ -30,6 +41,7 @@ export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: strin
       workspaceId: credential.workspaceId,
       organizationId: credential.organizationId,
       groupId: credentialGroup.id,
+      connectorId: mcpServers.managedConnectorId,
     })
     .from(credential)
     .innerJoin(
@@ -49,8 +61,14 @@ export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: strin
         sameResourceScopeCondition(credential, credentialGroup),
         sameResourceScopeCondition(credential, mcpServers),
         eq(mcpServers.credentialGroupId, credentialGroup.id),
-        eq(mcpServers.managedConnectorId, 'coda'),
-        eq(mcpServers.url, 'https://docs.superhuman.com/apis/mcp'),
+        or(
+          ...providers.map((provider) =>
+            and(
+              eq(mcpServers.managedConnectorId, provider),
+              eq(mcpServers.url, MANAGED_MCP_CONNECTORS[provider].url)
+            )
+          )
+        ),
         eq(mcpServers.enabled, true),
         isNull(mcpServers.deletedAt),
         eq(credential.type, 'managed_mcp'),
@@ -63,6 +81,12 @@ export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: strin
     )
   const visible: typeof rows = []
   for (const row of rows) {
+    if (
+      !row.connectorId ||
+      !isManagedSearchMcpProvider(row.connectorId) ||
+      !providers.includes(row.connectorId)
+    )
+      continue
     if (workspace && row.organizationId) {
       try {
         await requireOrganizationAccountsWorkspaceAccess(
@@ -71,7 +95,7 @@ export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: strin
             organizationId: row.organizationId,
             credentialGroupId: row.groupId,
           },
-          'mcp:coda'
+          `mcp:${row.connectorId}`
         )
       } catch {
         continue
@@ -82,38 +106,54 @@ export async function listOwnCodaMcpAccounts(owner: ResourceOwner, userId: strin
   return visible
 }
 
-export async function listCodaMcpSearchAccounts(
-  owner: ResourceOwner,
-  userId: string
-): Promise<LiveAccount[]> {
-  return (await listOwnCodaMcpAccounts(owner, userId)).map((row) => ({
-    id: row.id,
-    displayName: row.displayName,
-    provider: 'coda',
-    providerId: 'mcp:coda',
-    type: 'managed_mcp',
-    scopes: [],
-  }))
-}
-
-export async function loadOwnCodaMcpRuntime(
+export async function listManagedMcpSearchAccounts(
   owner: ResourceOwner,
   userId: string,
-  credentialId: string
+  denied: ReadonlySet<string> = new Set()
+): Promise<LiveAccount[]> {
+  const providers = Object.keys(MANAGED_SEARCH_MCP_READ_TOOLS)
+    .filter(isManagedSearchMcpProvider)
+    .filter((provider) => !denied.has(provider))
+  return (await listOwnManagedMcpAccounts(owner, userId, providers)).flatMap((row) => {
+    if (!row.connectorId || !isManagedSearchMcpProvider(row.connectorId)) return []
+    return [
+      {
+        id: row.id,
+        displayName: row.displayName,
+        provider: row.connectorId,
+        providerId: `mcp:${row.connectorId}`,
+        type: 'managed_mcp' as const,
+        scopes: [],
+      },
+    ]
+  })
+}
+
+export async function loadOwnManagedMcpRuntime(
+  owner: ResourceOwner,
+  userId: string,
+  credentialId: string,
+  provider: ManagedSearchMcpProvider
 ) {
-  const row = (await listOwnCodaMcpAccounts(owner, userId)).find((row) => row.id === credentialId)
+  const label = MANAGED_MCP_CONNECTORS[provider].name
+  const row = (await listOwnManagedMcpAccounts(owner, userId, [provider])).find(
+    (row) => row.id === credentialId
+  )
   if (!row)
-    throw new NativeSearchError('reconnect', 'Your Coda OAuth connection is no longer available.')
+    throw new NativeSearchError(
+      'reconnect',
+      `Your ${label} OAuth connection is no longer available.`
+    )
   const runtime = await loadScopedManagedMcpRuntimeCredential(
     credentialId,
     resourceScopeFromOwner(row),
     userId
   ).catch((error: unknown) => {
     if (error instanceof ManagedMcpCredentialError && [401, 403, 404].includes(error.statusCode))
-      throw new NativeSearchError('reconnect', 'Reconnect your personal Coda account.')
+      throw new NativeSearchError('reconnect', `Reconnect your personal ${label} account.`)
     throw error
   })
-  if (runtime.credentialType !== 'mcp:coda')
-    throw new NativeSearchError('reconnect', 'Coda connection changed.')
+  if (runtime.credentialType !== `mcp:${provider}`)
+    throw new NativeSearchError('reconnect', `${label} connection changed.`)
   return runtime
 }

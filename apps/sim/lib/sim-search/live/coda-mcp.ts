@@ -1,114 +1,26 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
-import { validateToolArguments } from '@/lib/mcp/application/execute-tool'
-import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
-import { mcpService } from '@/lib/mcp/service'
-import type { McpToolResult } from '@/lib/mcp/types'
 import { parseCodaResourceUri } from '@/lib/sim-search/live/coda-uri'
 import { hasDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
-import { loadOwnCodaMcpRuntime } from '@/lib/sim-search/live/mcp-accounts'
+import {
+  createManagedSearchMcpClient,
+  type ManagedSearchMcpClient,
+} from '@/lib/sim-search/live/managed-mcp'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 const logger = createLogger('CodaMcpSearch')
 
-const READ_TOOLS = [
-  'search',
-  'url_convert',
-  'content_read',
-  'document_outline',
-  'table_rows_read',
-] as const
-type ReadTool = (typeof READ_TOOLS)[number]
-export interface CodaMcpClient {
-  call(name: ReadTool, args: Record<string, unknown>): Promise<unknown>
-}
+export interface CodaMcpClient extends ManagedSearchMcpClient {}
 
-/** MCP OAuth remains server-side; the model can never choose a server URL or invoke a write tool. */
-export async function createCodaMcpClient(
+export function createCodaMcpClient(
   owner: ResourceOwner,
   userId: string,
   credentialId: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  searches = 1
 ): Promise<CodaMcpClient> {
-  const initial = await loadOwnCodaMcpRuntime(owner, userId, credentialId)
-  const loadCurrent = async () => {
-    signal.throwIfAborted()
-    const current = await loadOwnCodaMcpRuntime(owner, userId, credentialId)
-    if (
-      current.mcpServerId !== initial.mcpServerId ||
-      current.oauthConfigVersion !== initial.oauthConfigVersion ||
-      current.grantedAt.getTime() !== initial.grantedAt.getTime()
-    )
-      throw new NativeSearchError('reconnect', 'Coda connection changed. Search again.')
-    return current
-  }
-  const loadProvider = async () => createManagedMcpAuthProvider(await loadCurrent())
-  const tools = await mcpService.discoverManagedMcpTools(
-    initial.mcpServerId,
-    initial.scope,
-    { credentialId, loadProvider },
-    signal,
-    { requireComplete: true }
-  )
-  let requests = 0
-  return {
-    async call(name, args) {
-      if (!READ_TOOLS.includes(name) || ++requests > 12)
-        throw new NativeSearchError('unavailable', 'Coda read request limit reached.')
-      const tool = tools.find((tool) => tool.name === name)
-      if (!tool)
-        throw new NativeSearchError(
-          'unavailable',
-          `Coda no longer advertises ${name}. Reconnect or update the connector.`
-        )
-      validateToolArguments(tool, args)
-      await loadCurrent()
-      const result = await mcpService.executeManagedMcpTool({
-        connectionId: credentialId,
-        serverId: initial.mcpServerId,
-        scope: initial.scope,
-        toolCall: { name, arguments: args },
-        loadAuthProvider: loadProvider,
-        signal,
-        timeoutMs: 10_000,
-      })
-      return codaMcpPayload(result)
-    },
-  }
-}
-
-/** Servers may return structuredContent or JSON text blocks. Unknown formats fail visibly. */
-export function codaMcpPayload(result: McpToolResult): unknown {
-  if (result.isError) {
-    const exceededQuota = result.content?.some(
-      (block) => block.type === 'text' && /weekly limit of \d+ MCP requests/i.test(block.text ?? '')
-    )
-    throw new NativeSearchError(
-      'unavailable',
-      exceededQuota
-        ? 'Coda MCP request limit reached. Try again when it resets.'
-        : 'Coda could not complete this read. Check the query and your access.'
-    )
-  }
-  if (result.structuredContent !== undefined) return unwrapCodaMcpResult(result.structuredContent)
-  const text = (result.content ?? [])
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text ?? '')
-    .join('\n')
-  try {
-    return unwrapCodaMcpResult(JSON.parse(text))
-  } catch {
-    if (text) return { text }
-    throw new NativeSearchError('unavailable', 'Coda returned no readable content.')
-  }
-}
-
-function unwrapCodaMcpResult(value: unknown): unknown {
-  return isRecordLike(value) && typeof value.toolName === 'string' && 'result' in value
-    ? value.result
-    : value
+  return createManagedSearchMcpClient(owner, userId, credentialId, 'coda', signal, searches)
 }
 
 function requireCodaUri(uri: string): string {

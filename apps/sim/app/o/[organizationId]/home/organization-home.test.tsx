@@ -7,6 +7,7 @@ import {
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -46,7 +47,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => 
   useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
-vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({

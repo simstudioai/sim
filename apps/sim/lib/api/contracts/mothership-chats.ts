@@ -9,6 +9,11 @@ import {
 } from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { AgentStreamEvent, TextDeltaClassification } from '@/providers/stream-events'
 
@@ -71,7 +76,11 @@ export const markMothershipChatReadContract = defineRouteContract({
 
 const mothershipExecuteMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
-  content: z.string(),
+  content: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
+})
+
+const mothershipContextInputSchema = scheduleContextSchema.extend({
+  label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
 })
 
 const mothershipExecuteFileAttachmentSchema = z
@@ -134,7 +143,7 @@ export const mothershipExecuteBodySchema = z.object({
    * mirroring the interactive chat path. Headless executions use this to pass
    * captured contexts into the run without a live client.
    */
-  contexts: z.array(scheduleContextSchema).optional(),
+  contexts: z.array(mothershipContextInputSchema).max(MAX_CHAT_CONTEXTS).optional(),
   mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
@@ -162,7 +171,8 @@ export const mothershipChatGetQuerySchema = z
 
 export const mothershipChatPostEnvelopeSchema = z
   .object({
-    message: z.string().optional(),
+    message: z.string().max(MAX_CHAT_MESSAGE_LENGTH).optional(),
+    contexts: z.array(mothershipContextInputSchema).max(MAX_CHAT_CONTEXTS).optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),

@@ -12,9 +12,16 @@ export const liveSearchProviderSchema = z.enum([
   'confluence',
   'github',
   'gitlab',
+  'linear',
+  'fireflies',
+  'granola',
+  'notion',
   'coda',
 ])
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
+
+export const NOTION_SEARCH_TERMS_REQUIRED =
+  'Notion requires search terms. Add keywords or a concise question.'
 
 /**
  * Native queries one call may send to the same provider account. Alternatives run as separate
@@ -54,6 +61,14 @@ export const nativeSearchQuerySchema = z
     keywordOnly: z.boolean().optional(),
   })
   .strict()
+  .superRefine((input, context) => {
+    if (input.provider === 'notion' && !input.query)
+      context.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: NOTION_SEARCH_TERMS_REQUIRED,
+      })
+  })
 export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>
 
 export const nativeSearchQueriesSchema = z
@@ -126,14 +141,14 @@ export const workspaceSearchFiltersSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Live search: inclusive lower date bound. Calendar uses scheduled event start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
+      'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
     ),
   endDate: z
     .string()
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Live search: exclusive upper bound on the same date as startDate. For a whole day, use the next local midnight.'
+      'Live search: exclusive upper date bound. Include this with startDate whenever the request names a specific day or bounded range, even if the title uniquely identifies a result. For whole days, startDate is local midnight on the first included day and endDate is local midnight after the final included day. Preserve the timezone offset at each boundary.'
     ),
   sortBy: z
     .enum(['relevance', 'newest', 'oldest'])
@@ -173,7 +188,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS). Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Notion requires nonempty search terms even with dates or sorting. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()
@@ -181,7 +196,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       .max(2000)
       .default('')
       .describe(
-        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.'
+        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.'
       ),
     topK: z
       .number()
@@ -239,7 +254,7 @@ export const readDocumentInputSchema = z.object({
     .max(8)
     .default(3)
     .describe(
-      'Maximum chunks; the server may return fewer to fit its text budget. Follow next for more context.'
+      'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.'
     ),
   startChunkIndex: z
     .number()

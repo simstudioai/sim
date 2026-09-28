@@ -15,6 +15,7 @@ import { tableViews } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   buildColumnIdByName,
   getColumnId,
@@ -404,9 +405,7 @@ async function withTableViewsLock<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_views:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_views', `user_table_views:${tableId}`)
     return write(trx)
   })
 }

@@ -1,7 +1,5 @@
 import type { Buffer } from 'buffer'
 import path from 'path'
-import { createLogger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -11,12 +9,7 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { ensureFileNameExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import type { UserFile } from '@/executor/types'
-
-const logger = createLogger('FetchExternalUrl')
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
@@ -34,11 +27,6 @@ export class ExternalUrlValidationError extends Error {
 
 export interface FetchExternalUrlOptions {
   url: string
-  userId: string
-  /** When provided alongside `saveToWorkspace: true`, the downloaded bytes are persisted as a workspace file. */
-  workspaceId?: string
-  /** Defaults to true when a `workspaceId` is provided. Set false when the URL already points at our own storage. */
-  saveToWorkspace?: boolean
   headers?: Record<string, string>
   signal?: AbortSignal
   maxDownloadBytes?: number
@@ -55,32 +43,20 @@ export interface FetchExternalUrlResult {
   buffer: Buffer
   /** Content-Type from the response, or inferred from the filename extension. */
   mimeType: string
-  /**
-   * Saved workspace file record. Undefined when the workspace save was skipped
-   * (no workspaceId, `saveToWorkspace: false`, missing write permission, or a
-   * save error — the last is logged, not thrown, so the parse path stays alive).
-   */
-  savedWorkspaceFile?: UserFile
 }
 
 /**
- * Fetch an external URL into memory and (optionally) save it as a fresh workspace file.
+ * Fetch an external URL into memory behind SSRF validation and download limits.
  *
  * URL fetches are NEVER deduplicated by filename. Two URLs whose paths end in
- * `image.png` are two different fetches that produce two different workspace
- * files; `uploadWorkspaceFile` allocates a unique on-disk name (`image.png`,
- * `image (1).png`, ...) on the save side. Keying a cache by path tail would
- * silently return stale bytes — that was the original bug this helper exists
- * to make unrepresentable.
+ * `image.png` are two different fetches with two different payloads; keying a
+ * cache by path tail would silently return stale bytes.
  */
-export async function fetchExternalUrlToWorkspace(
+export async function fetchExternalUrl(
   options: FetchExternalUrlOptions
 ): Promise<FetchExternalUrlResult> {
   const {
     url,
-    userId,
-    workspaceId,
-    saveToWorkspace = Boolean(workspaceId),
     headers,
     signal,
     maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES,
@@ -121,38 +97,5 @@ export async function fetchExternalUrlToWorkspace(
   const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)
   const filename = ensureFileNameExtension(pathFilename, mimeType)
 
-  let savedWorkspaceFile: UserFile | undefined
-  if (workspaceId && saveToWorkspace) {
-    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (permission === 'admin' || permission === 'write') {
-      try {
-        savedWorkspaceFile = await uploadWorkspaceFile(
-          workspaceId,
-          userId,
-          buffer,
-          filename,
-          mimeType
-        )
-      } catch (saveError) {
-        logger.warn('Failed to save fetched URL to workspace storage', {
-          workspaceId,
-          filename,
-          cause: describeError(saveError),
-        })
-      }
-    } else if (permission === null) {
-      logger.warn('Skipping workspace save: user is not a workspace member', {
-        userId,
-        workspaceId,
-      })
-    } else {
-      logger.warn('Skipping workspace save: user lacks write permission', {
-        userId,
-        workspaceId,
-        permission,
-      })
-    }
-  }
-
-  return { filename, buffer, mimeType, savedWorkspaceFile }
+  return { filename, buffer, mimeType }
 }

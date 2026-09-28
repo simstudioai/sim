@@ -68,6 +68,7 @@ import {
   readLiveDocument,
   searchLiveKnowledge,
 } from '@/lib/sim-search/live/application'
+import { readDrive } from '@/lib/sim-search/live/google'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
@@ -124,6 +125,33 @@ describe('authorized live retrieval', () => {
     })
     mocks.adminVerify.mockResolvedValue(true)
   })
+  it.each([
+    { startDate: '2026-08-01T00:00:00Z' },
+    { source: ' notion ', startDate: '2026-08-01T00:00:00Z' },
+    { sortBy: 'newest' as const },
+    { sortBy: 'oldest' as const },
+  ])('rejects a Notion-only live listing with %j', async (bound) => {
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: ' \t ', filters: { source: 'notion', ...bound } },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Notion requires search terms. Add keywords or a concise question.',
+    })
+  })
+  it.each([undefined, 'google_drive'])(
+    'preserves date-only live results with source %s',
+    async (source) => {
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { source, startDate: '2026-08-01T00:00:00Z' } },
+      })
+      expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['doc'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    }
+  )
   it('filters admin-token GitLab results through the reader ACL before projection', async () => {
     const gitlab = {
       ...account,
@@ -404,6 +432,62 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toThrow('Revoked')
     expect(mocks.read).not.toHaveBeenCalled()
+  })
+  it.each([
+    ['a stop reason', 'user_stop:test'],
+    ['an AbortError', new DOMException('The operation was aborted.', 'AbortError')],
+    ['a TimeoutError', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])(
+    'rejects a read cancelled with %s instead of returning partial discussion coverage',
+    async (_, reason) => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      const controller = new AbortController()
+      mocks.read.mockImplementation((_provider, client) => readDrive(client, 'doc'))
+      mocks.json.mockImplementation(async (path: string) => {
+        if (!path.endsWith('/comments'))
+          return {
+            id: 'doc',
+            name: 'Launch',
+            mimeType: 'application/pdf',
+            webViewLink: document.url,
+          }
+        controller.abort(reason)
+        throw controller.signal.reason
+      })
+      await expect(
+        readLiveDocument.execute({
+          principal,
+          input: {
+            workspaceId: 'workspace',
+            documentId: search.results[0]!.documentId,
+            limit: 1,
+            resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+            signal: controller.signal,
+          },
+        })
+      ).rejects.toBe(reason)
+    }
+  )
+  it('rejects a read cancelled while its current scope was being verified', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    const controller = new AbortController()
+    mocks.service.mockResolvedValueOnce(undefined)
+    mocks.service.mockImplementationOnce(async () => {
+      controller.abort('user_stop:test')
+      return { policy: defaultLiveSearchPolicy(), verify: async () => true, partial: false }
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toBe('user_stop:test')
   })
   it('rejects cross-user document references before token resolution', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })
