@@ -124,6 +124,33 @@ describe('authorized live retrieval', () => {
     })
     mocks.adminVerify.mockResolvedValue(true)
   })
+  it.each([
+    { startDate: '2026-08-01T00:00:00Z' },
+    { source: ' notion ', startDate: '2026-08-01T00:00:00Z' },
+    { sortBy: 'newest' as const },
+    { sortBy: 'oldest' as const },
+  ])('rejects a Notion-only live listing with %j', async (bound) => {
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: ' \t ', filters: { source: 'notion', ...bound } },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Notion requires search terms. Add keywords or a concise question.',
+    })
+  })
+  it.each([undefined, 'google_drive'])(
+    'preserves date-only live results with source %s',
+    async (source) => {
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { source, startDate: '2026-08-01T00:00:00Z' } },
+      })
+      expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['doc'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    }
+  )
   it('filters admin-token GitLab results through the reader ACL before projection', async () => {
     const gitlab = {
       ...account,

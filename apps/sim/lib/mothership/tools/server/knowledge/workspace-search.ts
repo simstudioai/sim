@@ -4,6 +4,7 @@ import {
   readDocumentInputSchema,
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
@@ -211,7 +212,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
               error instanceof SearchDeadlineError
                 ? error.message
                 : error instanceof z.ZodError
-                  ? 'Invalid search arguments'
+                  ? getValidationErrorMessage(error, 'Invalid search arguments')
                   : messageForCopilotKnowledgeError(error),
           }
         }

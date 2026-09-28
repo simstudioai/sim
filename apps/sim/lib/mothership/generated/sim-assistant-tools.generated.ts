@@ -20,6 +20,9 @@ export const liveSearchProviderSchema = z.enum([
 ])
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
+export const NOTION_SEARCH_TERMS_REQUIRED =
+  'Notion requires search terms. Add keywords or a concise question.'
+
 /**
  * Native queries one call may send to the same provider account. Alternatives run as separate
  * provider searches and fuse into one ranking, so the bound keeps a call within the provider's
@@ -58,6 +61,14 @@ export const nativeSearchQuerySchema = z
     keywordOnly: z.boolean().optional(),
   })
   .strict()
+  .superRefine((input, context) => {
+    if (input.provider === 'notion' && !input.query)
+      context.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: NOTION_SEARCH_TERMS_REQUIRED,
+      })
+  })
 export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>
 
 export const nativeSearchQueriesSchema = z
@@ -177,7 +188,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Notion requires nonempty search terms even with dates or sorting. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()
@@ -185,7 +196,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       .max(2000)
       .default('')
       .describe(
-        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.'
+        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.'
       ),
     topK: z
       .number()

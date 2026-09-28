@@ -216,7 +216,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     transport: 'managed_mcp',
     guide: {
       syntax:
-        'Natural-language or plain keyword content search through Notion MCP. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
+        'Natural-language or plain keyword content search through Notion MCP. Search terms are required even with dates or sorting. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
       scope:
         'project optionally takes a known Notion page URL when the advertised tool supports page scoping. Dates use explicit last-edited timestamps; results without those timestamps cannot satisfy date filters. Read a result for page content.',
       example: 'deployment rollback checklist',

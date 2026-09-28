@@ -10,6 +10,7 @@ import {
   type LiveSearchAccountStatus,
   liveSearchProviderSchema,
   type NativeSearchQuery,
+  NOTION_SEARCH_TERMS_REQUIRED,
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
@@ -312,6 +313,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     if (input.filters)
       input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
     const filters = input.filters
+    if (!queries && filters?.source === 'notion' && !input.query.trim())
+      throw new OrchestrationError('validation', NOTION_SEARCH_TERMS_REQUIRED)
     if (
       filters?.startDate &&
       filters.endDate &&
