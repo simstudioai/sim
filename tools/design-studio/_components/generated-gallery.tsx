@@ -512,7 +512,9 @@ function TreatmentDetail({
               ? 'Needs fixture'
               : failedCount
                 ? `${failedCount} fixture gaps`
-                : 'Live fixture available'}
+                : entry.kind === 'extra' && entry.previewKind !== 'source-component'
+                  ? 'Indicative preview'
+                  : 'Live source preview'}
         </span>
       </div>
 

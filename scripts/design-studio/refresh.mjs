@@ -17,6 +17,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { groupComponents, groupExtras } from '../../tools/design-studio/_lib/catalog.ts'
 import { productScope } from '../design-conformance/control-scope.ts'
+import { workingTreeRevision } from '../design-conformance/source-revision.ts'
 
 const toolRoot = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(process.env.SIM_STUDIO_REPO ?? path.join(toolRoot, '../..'))
@@ -495,30 +496,13 @@ function git(args) {
   return result.stdout.trim()
 }
 
-function sourceRevision() {
-  const changed = spawnSync('git', ['diff', '--binary', 'HEAD'], {
-    cwd: repo,
-    maxBuffer: 64 * 1024 * 1024,
-  })
-  if (changed.status !== 0) throw new Error(String(changed.stderr))
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'])
-    .split('\0')
-    .filter(Boolean)
-    .sort()
-  const digest = createHash('sha256')
-    .update(git(['rev-parse', 'HEAD']))
-    .update(changed.stdout)
-  for (const file of untracked) digest.update(file).update(readFileSync(path.join(repo, file)))
-  return digest.digest('hex')
-}
-
 async function main() {
   if (!existsSync(repo) || (!process.versions.bun && !process.env.SIM_STUDIO_SCAN_DIR))
     throw new Error('Run refresh with Bun from the product checkout')
   const relativeOutput = path.relative(repo, outputRoot)
   if (!relativeOutput.startsWith('..') && !path.isAbsolute(relativeOutput))
     throw new Error('Studio output must be outside the product checkout')
-  const initialSourceRevision = sourceRevision()
+  const initialSourceRevision = workingTreeRevision(repo)
   mkdirSync(outputRoot, { recursive: true })
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${git(['rev-parse', '--short=10', 'HEAD'])}`
   const runDir = path.join(outputRoot, `run-${runId}`)
@@ -548,9 +532,15 @@ async function main() {
     if (scan.code > 1) throw new Error(`Scanner failed with exit ${scan.code}`)
   }
   const scanReport = JSON.parse(readFileSync(path.join(scanDir, 'scan.json'), 'utf8'))
-  if (scanReport.version !== 2 || !scanReport.inventory?.metadata || !scanReport.controls)
+  if (scanReport.version !== 3 || !scanReport.inventory?.metadata || !scanReport.controls)
     throw new Error('Invalid scanner report')
   const { identity, inventory, controls } = scanReport
+  if (inventory.mode !== 'working-tree' || !identity || identity.sourceRevision === null)
+    throw new Error('Studio requires a working-tree scan of the current checkout')
+  if (identity.sourceRevision !== initialSourceRevision)
+    throw new Error(
+      'Scan source revision does not match the current checkout; rerun studio:refresh'
+    )
   const components = componentInventory(inventory.metadata)
   attachTracedUses(components.entries, controls)
   const extras = extraInventory(inventory.findings)
@@ -584,7 +574,7 @@ async function main() {
       limitations: inventory.limitations,
     },
   }
-  if (sourceRevision() !== manifest.sourceRevision)
+  if (workingTreeRevision(repo) !== manifest.sourceRevision)
     manifest.coverageFailures.push({
       file: '<product-working-tree>',
       reason: 'Source changed during refresh; refresh again.',

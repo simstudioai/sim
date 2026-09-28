@@ -18,6 +18,8 @@ The published catalog groups exports and scanner signals into visual treatments.
 
 Update fixture imports and switch cases when exports are renamed or removed. Product Extras require a maintained source mapping for a real component preview; automatically generated style samples are indicative. A generic sample shows one detected class or value at a time, so mutually exclusive source branches are never combined into one specimen.
 
+An entry is `ready` when its preview can render. The preview provenance distinguishes live product or EMCN source from an indicative sample; `ready` does not imply a source-backed fixture.
+
 ## Live previews
 
 Studio previews render the current checkout. Their catalog entries and fixture coverage come from the last published refresh. Source mismatches are shown beside the preview and above the catalog. Unresolved styling/control analysis and scanner limits remain separate from fixture coverage.

@@ -10,6 +10,7 @@ import { classifyLayout, type LayoutAllowance } from '#control-analysis/layout-a
 import type { ReviewReport } from '#control-analysis/review'
 import { mergeSourceFindings } from '#control-analysis/review'
 import { inspectionFailure } from '#design-conformance/model'
+import { workingTreeRevision } from '#design-conformance/source-revision'
 import { GitSource } from '#design-conformance/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
@@ -61,6 +62,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const output = validateOutput(values.output, values.repo)
     const identity = scannerIdentity()
     const source = new GitSource(values.repo, values.ref ?? 'HEAD', !!values['working-tree'])
+    const sourceRevision = source.mode === 'working-tree' ? workingTreeRevision(source.repo) : null
     let controls: ControlInventory | undefined
     let colourAssignments: ColourAssignmentReport | undefined
     let layoutAllowances: LayoutAllowance[] = []
@@ -99,10 +101,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     })
     if (!controls) throw new Error('Control analysis did not complete')
     source.assertUnchanged()
+    if (sourceRevision && workingTreeRevision(source.repo) !== sourceRevision)
+      throw new Error('Working-tree source changed during the scan; rerun for a consistent report')
     writeResults(
       output,
       inventory,
-      identity,
+      { ...identity, sourceRevision },
       {
         elapsedMs: performance.now() - start,
         maxRss: process.resourceUsage().maxRSS,

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'vitest'
+import { workingTreeRevision } from '../design-conformance/source-revision.ts'
 
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'refresh.mjs')
 const metadataScript = `
@@ -28,6 +29,8 @@ function updateMetadata(repo, scan) {
   const report = JSON.parse(readFileSync(file, 'utf8'))
   const { version, sourceHash, exports, diagnostics } = JSON.parse(result.stdout)
   report.inventory.metadata = { version, sourceHash, exports, diagnostics }
+  report.inventory.mode = 'working-tree'
+  report.identity.sourceRevision = workingTreeRevision(repo)
   writeFileSync(file, JSON.stringify(report))
 }
 
@@ -111,7 +114,7 @@ function guardedRefresh() {
     scan,
     'scan.json',
     JSON.stringify({
-      version: 2,
+      version: 3,
       identity: { commit: 'test', treeHash: 'test', scanner: {} },
       inventory: {
         findings: [],
@@ -154,31 +157,28 @@ function guardedRefresh() {
   return { repo, refresh }
 }
 
-test('Studio consumes the unmodified report written by the scanner CLI', () => {
-  const { repo } = guardedRefresh()
-  write(
-    repo,
-    'apps/sim/app/product/page.tsx',
-    "import { Example } from '@sim/emcn'\nexport default function Page() { return <div style={{ color: '#123456' }}><Example /></div> }\n"
-  )
-  const root = path.dirname(repo)
-  const scan = path.join(root, 'real-scan')
-  const scanner = path.resolve('scripts/design-scan/scan.ts')
+function runScanner(repo, source = '--working-tree') {
+  const scan = path.join(path.dirname(repo), `real-scan-${source.slice(2)}`)
   const scanned = spawnSync(
     process.env.DESIGN_TEST_BUN ?? 'bun',
-    ['--no-env-file', scanner, '--repo', repo, '--working-tree', '--output', scan],
+    [
+      '--no-env-file',
+      path.resolve('scripts/design-scan/scan.ts'),
+      '--repo',
+      repo,
+      source,
+      ...(source === '--ref' ? ['HEAD'] : []),
+      '--output',
+      scan,
+    ],
     { encoding: 'utf8', timeout: 120000 }
   )
   assert.ok([0, 1].includes(scanned.status), scanned.stderr)
-  const reportFile = path.join(scan, 'scan.json')
-  const reportBytes = readFileSync(reportFile)
-  const report = JSON.parse(reportBytes.toString())
-  assert.equal(report.version, 2)
-  assert.ok(report.inventory.metadata.exports.Example)
-  assert.ok(report.inventory.findings.some((finding) => finding.value === '#123456'))
+  return scan
+}
 
-  const output = path.join(root, 'real-studio')
-  const refreshed = spawnSync('node', [script], {
+function publishScan(repo, scan, output) {
+  return spawnSync('node', [script], {
     env: {
       ...process.env,
       SIM_STUDIO_REPO: repo,
@@ -188,6 +188,26 @@ test('Studio consumes the unmodified report written by the scanner CLI', () => {
     encoding: 'utf8',
     timeout: 120000,
   })
+}
+
+test('Studio consumes the unmodified report written by the scanner CLI', () => {
+  const { repo } = guardedRefresh()
+  write(
+    repo,
+    'apps/sim/app/product/page.tsx',
+    "import { Example } from '@sim/emcn'\nexport default function Page() { return <div style={{ color: '#123456' }}><Example /></div> }\n"
+  )
+  const root = path.dirname(repo)
+  const scan = runScanner(repo)
+  const reportFile = path.join(scan, 'scan.json')
+  const reportBytes = readFileSync(reportFile)
+  const report = JSON.parse(reportBytes.toString())
+  assert.equal(report.version, 3)
+  assert.ok(report.inventory.metadata.exports.Example)
+  assert.ok(report.inventory.findings.some((finding) => finding.value === '#123456'))
+
+  const output = path.join(root, 'real-studio')
+  const refreshed = publishScan(repo, scan, output)
   assert.ok([0, 1].includes(refreshed.status), refreshed.stderr)
   assert.deepEqual(readFileSync(reportFile), reportBytes)
   const pointer = JSON.parse(readFileSync(path.join(output, 'latest.json'), 'utf8'))
@@ -205,6 +225,53 @@ test('Studio consumes the unmodified report written by the scanner CLI', () => {
       report.inventory.findings.some((finding) => entry.id === `finding:${finding.id}`)
     )
   )
+}, 120000)
+
+for (const [name, change] of [
+  [
+    'tracked edit',
+    (repo) =>
+      write(
+        repo,
+        'packages/emcn/src/components/example/example.tsx',
+        "export const Example = ({size, variant}: {size?: 'sm' | 'lg'; variant?: 'plain' | 'filled'}) => <button data-changed />\n"
+      ),
+  ],
+  [
+    'new product file',
+    (repo) =>
+      write(
+        repo,
+        'apps/sim/app/product/new.tsx',
+        'export const NewProductSurface = () => <button />\n'
+      ),
+  ],
+]) {
+  test(`a ${name} makes an injected scan stale without replacing the latest publication`, () => {
+    const { repo } = guardedRefresh()
+    const scan = runScanner(repo)
+    const output = path.join(path.dirname(repo), 'real-studio')
+    const first = publishScan(repo, scan, output)
+    assert.ok([0, 1].includes(first.status), first.stderr)
+    const pointer = path.join(output, 'latest.json')
+    const published = readFileSync(pointer)
+
+    change(repo)
+    const stale = publishScan(repo, scan, output)
+    assert.equal(stale.status, 2, stale.stderr)
+    assert.match(stale.stderr, /scan.*source revision|source revision.*scan/i)
+    assert.deepEqual(readFileSync(pointer), published)
+  }, 120000)
+}
+
+test('an immutable scan cannot publish a current Studio catalog', () => {
+  const { repo } = guardedRefresh()
+  const scan = runScanner(repo, '--ref')
+  const output = path.join(path.dirname(repo), 'real-studio')
+  const result = publishScan(repo, scan, output)
+  assert.equal(result.status, 2, result.stderr)
+  assert.match(result.stderr, /working.tree scan/i)
+  assert.equal(existsSync(path.join(output, 'latest.json')), false)
 }, 120000)
 
 test('refresh tracks source changes in imported stylesheets', () => {
@@ -393,7 +460,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     scan,
     'scan.json',
     JSON.stringify({
-      version: 2,
+      version: 3,
       identity: { commit: 'test-head', treeHash: 'test-tree', scanner: {} },
       inventory: {
         findings: [

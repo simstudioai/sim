@@ -1,10 +1,10 @@
 import 'server-only'
 
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { workingTreeRevision } from '../../../scripts/design-conformance/source-revision'
 
 export interface StudioLocation {
   file: string
@@ -122,21 +122,7 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
       cwd: process.env.SIM_STUDIO_REPO ?? process.cwd(),
       encoding: 'utf8',
     }).trim()
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim()
-    const diff = execFileSync('git', ['diff', '--binary', 'HEAD'], {
-      cwd: repo,
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
-      cwd: repo,
-      encoding: 'utf8',
-    })
-      .split('\0')
-      .filter(Boolean)
-      .sort()
-    const digest = createHash('sha256').update(head).update(diff)
-    for (const name of untracked) digest.update(name).update(readFileSync(path.join(repo, name)))
-    stale = digest.digest('hex') !== manifest.sourceRevision
+    stale = workingTreeRevision(repo) !== manifest.sourceRevision
   } catch {
     stale = true
   }

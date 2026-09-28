@@ -24,7 +24,7 @@ export function scannerIdentity() {
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
 
   return {
-    version: 'design-scan/2',
+    version: 'design-scan/3',
     sourceHash: hash(canonical(files)),
     policy: registry.policy,
     contractsHash,
