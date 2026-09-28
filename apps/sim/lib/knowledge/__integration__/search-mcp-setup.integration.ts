@@ -188,6 +188,15 @@ describe('atomic organization live Search MCP setup', () => {
     expect((await snapshot()).servers).toEqual(before)
   })
 
+  it('approves a provider a concurrent approval configured while this lookup failed', async () => {
+    vi.mocked(dns.resolveHostAddresses).mockImplementationOnce(async () => {
+      await approve('fireflies')
+      throw new Error('DNS unavailable')
+    })
+    await approve('fireflies')
+    expect((await snapshot()).servers).toHaveLength(1)
+  })
+
   it('serializes concurrent approvals into one group and one server per provider', async () => {
     const providers = ['fireflies', 'granola', 'notion']
     const results = await Promise.all(

@@ -32,15 +32,10 @@ function toSetupError(error: unknown): never {
   throw error
 }
 
-/**
- * Runs before source approval opens its transaction. A provider whose server does not exist yet
- * has that server checked here, because the check resolves DNS and must not run while the
- * transaction holds the accounts lock; an already-configured provider needs no check.
- */
-export async function prepareSearchMcpProvider(
+async function hasProviderServer(
   organizationId: string,
   provider: ManagedSearchMcpProvider
-): Promise<SearchMcpProviderSetup> {
+): Promise<boolean> {
   const [existing] = await db
     .select({ id: mcpServers.id })
     .from(mcpServers)
@@ -54,13 +49,27 @@ export async function prepareSearchMcpProvider(
       )
     )
     .limit(1)
-  if (existing) return { provider, validated: null }
+  return existing !== undefined
+}
+
+/**
+ * Runs before source approval opens its transaction. A provider whose server does not exist yet
+ * has that server checked here, because the check resolves DNS and must not run while the
+ * transaction holds the accounts lock; an already-configured provider needs no check. A failed
+ * check looks again first, since a concurrent approval may have created the server meanwhile.
+ */
+export async function prepareSearchMcpProvider(
+  organizationId: string,
+  provider: ManagedSearchMcpProvider
+): Promise<SearchMcpProviderSetup> {
+  if (await hasProviderServer(organizationId, provider)) return { provider, validated: null }
   try {
     return {
       provider,
       validated: await validateManagedMcpConnectorInput({ connectorId: provider }),
     }
   } catch (error) {
+    if (await hasProviderServer(organizationId, provider)) return { provider, validated: null }
     toSetupError(error)
   }
 }
