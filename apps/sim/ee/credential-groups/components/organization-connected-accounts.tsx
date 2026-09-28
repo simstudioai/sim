@@ -80,6 +80,7 @@ export function OrganizationConnectedAccounts({
           organizationId={organizationId}
           group={group}
           availableProviders={accounts.data.availableProviders}
+          availableMcpConnectors={accounts.data.availableMcpConnectors}
         />
       )}
       {tab === 'people' && <OrganizationAccountPeople organizationId={organizationId} />}

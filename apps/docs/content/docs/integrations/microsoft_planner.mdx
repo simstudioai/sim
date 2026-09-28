@@ -414,4 +414,23 @@ Update task details including description, checklist items, and references in Mi
 | `metadata` | object | Metadata including taskId |
 |   ↳ `taskId` | string | Task ID |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Microsoft Planner account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-planner` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `Group.Read.All` | Read all groups, memberships, and group content |
+| `Tasks.ReadWrite` | Read and manage Planner tasks |
+| `offline_access` | Access account when not using the application |
+
 

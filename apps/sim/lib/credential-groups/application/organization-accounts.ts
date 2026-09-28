@@ -23,7 +23,10 @@ import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollme
 import { ManagedMcpConnectorError } from '@/lib/credential-groups/managed-mcp-service'
 import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
-import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
+import {
+  listConfiguredCredentialGroupProviders,
+  listConfiguredManagedMcpConnectors,
+} from '@/lib/credential-groups/provider-availability'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
@@ -173,6 +176,7 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
           })
         : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
+      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id),
       canManage: context.role === 'owner' || context.role === 'admin',
       indexingAvailable: await isKnowledgeMemberAccessAvailable({
         organizationId: context.organizationId,

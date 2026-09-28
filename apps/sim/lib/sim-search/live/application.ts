@@ -14,6 +14,7 @@ import {
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -56,6 +57,34 @@ import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const hubspotContinuationSchema = z
+  .object({
+    v: z.literal(1),
+    scope: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
+    cursor: z.string().regex(/^[1-9]\d{0,3}$/),
+    listingEndDate: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict()
+type HubSpotContinuation = z.output<typeof hubspotContinuationSchema>
+
+function readHubSpotContinuation(value: string): HubSpotContinuation {
+  try {
+    if (!value.startsWith('hubspot:') || value.length > 512) throw new Error('Invalid continuation')
+    return hubspotContinuationSchema.parse(
+      JSON.parse(Buffer.from(value.slice(8), 'base64url').toString('utf8'))
+    )
+  } catch {
+    throw new NativeSearchError(
+      'unavailable',
+      'Invalid HubSpot cursor. Restart this search without a cursor.'
+    )
+  }
+}
+
+function writeHubSpotContinuation(value: HubSpotContinuation): string {
+  return `hubspot:${Buffer.from(JSON.stringify(hubspotContinuationSchema.parse(value))).toString('base64url')}`
+}
 
 const referenceSchema = z
   .object({
@@ -295,6 +324,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
+    const requestedFilters = input.filters
+      ? workspaceSearchFiltersSchema.parse(input.filters)
+      : undefined
+    input = { ...input, filters: requestedFilters }
     if (
       (!input.query.trim() && !queries?.some((query) => query.query)) ||
       queries?.some((query) => !query.query)
@@ -310,8 +343,6 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       input.topK > 50
     )
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
-    if (input.filters)
-      input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
     const filters = input.filters
     if (!queries && filters?.source === 'notion' && !input.query.trim())
       throw new OrchestrationError('validation', NOTION_SEARCH_TERMS_REQUIRED)
@@ -360,12 +391,57 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       native: NativeSearchQuery | undefined,
       status: Pick<LiveSearchAccountStatus, 'accountId' | 'provider' | 'displayName' | 'queryIndex'>
     ): Promise<SearchedQuery> => {
+      let queryFilters = filters
+      let queryNative = native
+      let hubspotScope: string | undefined
+      let listingEndDate: string | undefined
+      if (account.provider === 'hubspot') {
+        hubspotScope = fingerprint(
+          canonicalJson({
+            provider: 'hubspot',
+            user: userId,
+            owner: resourceScopeKey(resourceScopeFromOwner(input)),
+            account: account.id,
+            query: (native?.query ?? input.query).trim(),
+            kind: native?.kind,
+            sort: requestedFilters?.sortBy ?? 'relevance',
+            startDate: instantScopePart(requestedFilters?.startDate),
+            endDate: instantScopePart(requestedFilters?.endDate),
+            modifiedAfter: instantScopePart(requestedFilters?.modifiedAfter),
+            modifiedBefore: instantScopePart(requestedFilters?.modifiedBefore),
+            documentIds: requestedFilters?.documentIds
+              ? [...new Set(requestedFilters.documentIds)].sort(compareStrings)
+              : undefined,
+          })
+        )
+        if (native?.cursor) {
+          const continuation = readHubSpotContinuation(native.cursor)
+          const allowsListingBound =
+            Boolean(dateSortDirection(requestedFilters)) && !hasDateBounds(requestedFilters)
+          if (
+            continuation.scope !== hubspotScope ||
+            (continuation.listingEndDate && !allowsListingBound) ||
+            (allowsListingBound && !native.query && !continuation.listingEndDate)
+          )
+            throw new NativeSearchError(
+              'unavailable',
+              'HubSpot cursor does not match this account, query, kind, or filters. Restart without a cursor.'
+            )
+          listingEndDate = continuation.listingEndDate
+          queryFilters = listingEndDate
+            ? { ...requestedFilters, endDate: listingEndDate }
+            : requestedFilters
+          queryNative = { ...native, cursor: continuation.cursor }
+        } else if (!hasDateBounds(requestedFilters)) {
+          listingEndDate = filters?.endDate
+        }
+      }
       const page = await measureSearchStage('live.search', () =>
         session.search({
-          filters,
+          filters: queryFilters,
           policy: session.policy,
           query: input.query,
-          native,
+          native: queryNative,
           limit: input.topK,
           scopes: resolved.account.scopes,
         })
@@ -382,18 +458,18 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           session,
           candidates.filter(
             ({ document, documentId }) =>
-              matchesLiveFilters(document, documentId, account.provider, filters) ||
-              lacksFilterDate(document, account.provider, filters)
+              matchesLiveFilters(document, documentId, account.provider, queryFilters) ||
+              lacksFilterDate(document, account.provider, queryFilters)
           )
         )
       )
       const matching = firstOfEachDocument(
         permitted.filter(({ document, documentId }) =>
-          matchesLiveFilters(document, documentId, account.provider, filters)
+          matchesLiveFilters(document, documentId, account.provider, queryFilters)
         )
       )
       const undatedExcluded = permitted.some(({ document }) =>
-        lacksFilterDate(document, account.provider, filters)
+        lacksFilterDate(document, account.provider, queryFilters)
       )
       const undatedUnsorted =
         dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
@@ -438,7 +514,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               ? 'No readable matches on this page. Continue with nextCursor for more.'
               : undefined,
           ]),
-          nextCursor: page.nextCursor,
+          nextCursor:
+            page.nextCursor && hubspotScope
+              ? writeHubSpotContinuation({
+                  v: 1,
+                  scope: hubspotScope,
+                  cursor: page.nextCursor,
+                  ...(listingEndDate ? { listingEndDate } : {}),
+                })
+              : page.nextCursor,
         },
         results: matching.map((candidate, index) => {
           const result = resultFor(

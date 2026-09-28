@@ -1,9 +1,6 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_PLAIN,
-} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
@@ -71,16 +68,7 @@ interface IntegrationTileProps {
 export function IntegrationTile({ blockType, icon: Icon, framed = false }: IntegrationTileProps) {
   const brandBg = resolveBrandTileBg(blockType)
 
-  if (!framed) {
-    return (
-      <div
-        className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
-        style={brandBg ? { background: brandBg } : undefined}
-      >
-        <Icon className={getTileIconColorClass(brandBg)} />
-      </div>
-    )
-  }
+  if (!framed) return <BrandTile icon={Icon} background={brandBg} />
 
   return (
     <div className='size-11 shrink-0 rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-xs dark:bg-[var(--surface-5)]'>

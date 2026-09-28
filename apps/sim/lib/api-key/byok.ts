@@ -316,6 +316,20 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Ollama Cloud ${model}`)
   }
 
+  if (provider === 'kie') {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'kie')
+      if (byokResult) {
+        logger.info('Using BYOK key for Kie', { model, workspaceId, scope: byokResult.scope })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    throw new Error(`API key is required for Kie ${model}`)
+  }
+
   if (provider === 'bedrock') {
     return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
   }

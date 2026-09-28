@@ -32,6 +32,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
 import {
   useCreateCredentialGroupMcpConnector,
@@ -199,6 +200,11 @@ export function CredentialGroupDetails({
     return getCredentialGroupProviderService(provider).name.toLowerCase().includes(providerQuery)
   })
   const shownMcpConnectors = MANAGED_MCP_CONNECTOR_IDS.filter((connectorId) => {
+    if (
+      !credentialGroup.mcpServers.some((server) => server.managedConnectorId === connectorId) &&
+      !accounts.data?.availableMcpConnectors.includes(connectorId)
+    )
+      return false
     if (!providerQuery) return true
     const connector = MANAGED_MCP_CONNECTORS[connectorId]
     return (
@@ -245,7 +251,8 @@ export function CredentialGroupDetails({
             return (
               <SettingsResourceRow
                 key={provider}
-                icon={<ProviderIcon aria-hidden />}
+                iconVariant='custom'
+                icon={<CredentialGroupProviderTile provider={provider} icon={ProviderIcon} />}
                 title={service.name}
                 description={descriptionText}
                 badge={
@@ -318,7 +325,8 @@ export function CredentialGroupDetails({
             return (
               <SettingsResourceRow
                 key={connectorId}
-                icon={<ConnectorIcon aria-hidden />}
+                iconVariant='custom'
+                icon={<CredentialGroupProviderTile provider={connectorId} icon={ConnectorIcon} />}
                 title={server?.name ?? connector.name}
                 description={
                   connectorId === 'databricks'

@@ -13,6 +13,7 @@ export const liveSearchProviderSchema = z.enum([
   'github',
   'gitlab',
   'linear',
+  'hubspot',
   'fireflies',
   'granola',
   'notion',
@@ -27,24 +28,30 @@ export const NOTION_SEARCH_TERMS_REQUIRED =
  * Native queries one call may send to the same provider account. Alternatives run as separate
  * provider searches and fuse into one ranking, so the bound keeps a call within the provider's
  * burst limits (Slack allows about ten searches per user per minute) while leaving room for the
- * four GitHub or GitLab kinds.
+ * four independently searchable kinds in GitHub, GitLab, or HubSpot.
  */
 export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
 
 /**
- * Providers whose `kind` selects a separate search endpoint. They take one query per kind: their
- * query languages already join alternatives with OR, and each extra query fans out into several
- * repository or project requests against strict search rate limits.
+ * Providers whose kind selects a distinct search collection. One query per kind bounds fanout
+ * while retaining independently searchable collections within the per-account request limit.
  */
-const KIND_PROVIDERS: ReadonlySet<LiveSearchProvider> = new Set(['github', 'gitlab'])
+const PROVIDER_KIND_SCHEMAS = {
+  github: z.enum(['issues', 'code', 'repositories', 'commits']),
+  gitlab: z.enum(['issues', 'code', 'merge_requests', 'wiki']),
+  hubspot: z.enum(['contacts', 'companies', 'deals', 'tickets']),
+} as const
+
+function hasSearchKinds(
+  provider: LiveSearchProvider
+): provider is keyof typeof PROVIDER_KIND_SCHEMAS {
+  return Object.hasOwn(PROVIDER_KIND_SCHEMAS, provider)
+}
 
 const nativeSearchKindSchema = z.enum([
-  'issues',
-  'code',
-  'repositories',
-  'commits',
-  'merge_requests',
-  'wiki',
+  ...PROVIDER_KIND_SCHEMAS.github.options,
+  ...PROVIDER_KIND_SCHEMAS.gitlab.options,
+  ...PROVIDER_KIND_SCHEMAS.hubspot.options,
 ])
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
@@ -62,6 +69,15 @@ export const nativeSearchQuerySchema = z
   })
   .strict()
   .superRefine((input, context) => {
+    if (input.kind && hasSearchKinds(input.provider)) {
+      const kinds = PROVIDER_KIND_SCHEMAS[input.provider]
+      if (!kinds.safeParse(input.kind).success)
+        context.addIssue({
+          code: 'custom',
+          path: ['kind'],
+          message: `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`,
+        })
+    }
     if (input.provider === 'notion' && !input.query)
       context.addIssue({
         code: 'custom',
@@ -94,7 +110,7 @@ export const nativeSearchQueriesSchema = z
     }
     /** The search a query runs, ignoring its account and any kind its provider does not use. */
     const searchKey = ({ accountId: _, kind, ...query }: NativeSearchQuery) =>
-      JSON.stringify({ ...query, kind: KIND_PROVIDERS.has(query.provider) ? kind : undefined })
+      JSON.stringify({ ...query, kind: hasSearchKinds(query.provider) ? kind : undefined })
     for (const [index, query] of queries.entries()) {
       const addIssue = (message: string) =>
         context.addIssue({ code: 'custom', path: [index], message })
@@ -102,11 +118,11 @@ export const nativeSearchQueriesSchema = z
       if (earlier.some((previous) => searchKey(previous) === searchKey(query)))
         addIssue('Duplicate native query.')
       else if (
-        KIND_PROVIDERS.has(query.provider) &&
+        hasSearchKinds(query.provider) &&
         earlier.some((previous) => !previous.kind || !query.kind || previous.kind === query.kind)
       )
         addIssue(
-          'Send one GitHub or GitLab query per account and kind; join alternatives with OR in one query (GitHub code search has no OR, so search code alternatives in another call).'
+          'Send one query per account and kind for GitHub, GitLab, or HubSpot. Use provider-supported operators for alternatives, or send another call.'
         )
       else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
@@ -188,7 +204,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Notion requires nonempty search terms even with dates or sorting. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub, GitLab, and HubSpot take one per kind. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()

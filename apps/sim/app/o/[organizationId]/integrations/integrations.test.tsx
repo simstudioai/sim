@@ -998,6 +998,7 @@ describe('live integrations backend selection', () => {
     })
     mockUseOrganizationAccounts.mockReturnValue({
       data: {
+        availableMcpConnectors: [],
         credentialGroup: {
           status: 'active',
           mcpServers: [],
@@ -1031,6 +1032,7 @@ describe('live integrations backend selection', () => {
     mocks.integrations.mockReturnValue({ data: [{ connectorType: 'slack', approved: true }] })
     mockUseOrganizationAccounts.mockReturnValue({
       data: {
+        availableMcpConnectors: [],
         credentialGroup: {
           status: 'active',
           mcpServers: [],

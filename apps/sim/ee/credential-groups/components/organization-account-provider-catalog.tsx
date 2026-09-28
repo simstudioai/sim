@@ -27,6 +27,7 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 
 export type OrganizationAccountProviderChoice =
   | { kind: 'oauth'; provider: CredentialGroupProvider }
@@ -68,7 +69,10 @@ export function OrganizationAccountProviderCatalog({
           )
       )
       .map((connectorId) => ({
-        name: MANAGED_MCP_CONNECTORS[connectorId].name,
+        name:
+          connectorId === 'hubspot'
+            ? 'HubSpot (member access)'
+            : MANAGED_MCP_CONNECTORS[connectorId].name,
         icon: getManagedMcpConnectorIcon(connectorId),
         choice: { kind: 'mcp', connectorId } as const,
       })),
@@ -108,8 +112,18 @@ export function OrganizationAccountProviderCatalog({
             <div className={RESOURCE_LIST_STACK}>
               {providers.map(({ name, icon: Icon, choice }) => (
                 <SettingsResourceRow
-                  key={choice.kind === 'oauth' ? choice.provider : choice.connectorId}
-                  icon={<Icon aria-hidden />}
+                  key={
+                    choice.kind === 'oauth'
+                      ? `oauth:${choice.provider}`
+                      : `mcp:${choice.connectorId}`
+                  }
+                  iconVariant='custom'
+                  icon={
+                    <CredentialGroupProviderTile
+                      provider={choice.kind === 'oauth' ? choice.provider : choice.connectorId}
+                      icon={Icon}
+                    />
+                  }
                   title={name}
                   trailing={
                     <Chip

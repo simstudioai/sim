@@ -179,6 +179,9 @@ const client: NativeClient = {
     const endpoint = `${path}${query.size ? `?${query}` : ''}`
     return githubApi(endpoint, 'adapter')
   },
+  async bytes() {
+    throw new Error('Unexpected binary request in a PR read')
+  },
   async text() {
     throw new Error('Unexpected text request in a PR read')
   },

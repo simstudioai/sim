@@ -293,7 +293,7 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
     expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
   })
 
-  it.each(['claude-fable-5-1', 'claude-opus-5-5'])(
+  it.each(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])(
     'drops forced tool_choice when the catalog model disables Force (%s)',
     async (model) => {
       const { payload, warn } = await runWithForcedTool(model)
@@ -745,6 +745,87 @@ describe('streaming', () => {
       }
     })
   })
+
+  /**
+   * Both tool loops rebuild the request for every turn after a tool call, so
+   * the `none` mapping must hold past the first request. Claude Sonnet 5.5
+   * rejects `thinking.type: "disabled"` and names `between_tools` (which takes
+   * no effort or display field) as its lowest setting; a later turn without it
+   * would silently run adaptive thinking. Every other model keeps `none` as
+   * "send no thinking config".
+   */
+  describe('executeAnthropicProviderRequest none thinking level across tool turns', () => {
+    const lookupTool = {
+      id: 'lookup',
+      name: 'lookup',
+      description: 'Lookup',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    const turns = [
+      message([{ type: 'tool_use', id: 'tool-1', name: 'lookup', input: {} }], 'tool_use'),
+      message([{ type: 'text', text: 'done' }], 'end_turn'),
+    ]
+
+    /** Runs a tool exchange and returns every request body sent over the SDK boundary. */
+    async function runToolExchange(model: string, streaming: boolean) {
+      mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
+      const sent: Anthropic.Messages.MessageCreateParams[] = []
+      const nextTurn = (payload: Anthropic.Messages.MessageCreateParams) => {
+        sent.push(payload)
+        return turns[sent.length - 1]
+      }
+      const result = await executeAnthropicProviderRequest(
+        {
+          model,
+          apiKey: 'test-key',
+          stream: streaming,
+          maxTokens: 1024,
+          thinkingLevel: 'none',
+          agentEvents: true,
+          messages: [{ role: 'user', content: 'Look this up' }],
+          tools: [lookupTool],
+        },
+        {
+          providerId: 'anthropic',
+          providerLabel: 'Anthropic',
+          createClient: () =>
+            ({
+              messages: streaming
+                ? {
+                    stream: (payload: never) =>
+                      stream([{ type: 'message_stop' }], nextTurn(payload)),
+                  }
+                : { create: async (payload: never) => nextTurn(payload) },
+            }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )
+      if (streaming) await collectEvents(result as StreamingExecution)
+      return sent
+    }
+
+    it.each([false, true])(
+      'sends bare between_tools on every turn (streaming: %s)',
+      async (streaming) => {
+        const sent = await runToolExchange('claude-sonnet-5-5', streaming)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) {
+          expect(payload.thinking).toEqual({ type: 'between_tools' })
+          expect(payload.output_config).toBeUndefined()
+        }
+      }
+    )
+
+    it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
+      'sends no thinking config on %s',
+      async (model) => {
+        const sent = await runToolExchange(model, false)
+        expect(sent).toHaveLength(2)
+        for (const payload of sent) expect(payload.thinking).toBeUndefined()
+      }
+    )
+  })
 })
 
 /**
@@ -758,6 +839,7 @@ describe('buildThinkingConfig', () => {
     for (const model of [
       'claude-fable-5-1',
       'claude-fable-5',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-opus-5-5',
       'claude-opus-5',

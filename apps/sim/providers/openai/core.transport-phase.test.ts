@@ -40,6 +40,9 @@ function timeoutError() {
   return new DOMException('The operation timed out.', 'TimeoutError')
 }
 
+/** Pins an error response to one attempt, so these cases exercise presentation, not retry. */
+const NOT_RETRYABLE = new Headers({ 'x-should-retry': 'false' })
+
 const COMPLETED = {
   id: 'resp_1',
   status: 'completed',
@@ -116,7 +119,7 @@ describe('OpenAI transport phase annotation', () => {
     const apiError = {
       ok: false,
       status: 429,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.resolve(JSON.stringify({ error: { message: 'Rate limit reached' } })),
     }
 
@@ -129,7 +132,7 @@ describe('OpenAI transport phase annotation', () => {
     const htmlError = {
       ok: false,
       status: 502,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.resolve(`<html><body>${'x'.repeat(5000)}</body></html>`),
     }
 
@@ -180,7 +183,7 @@ describe('OpenAI transport phase annotation', () => {
     const unreadable = {
       ok: false,
       status: 502,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.reject(timeoutError()),
     }
 
@@ -207,6 +210,30 @@ describe('OpenAI transport phase annotation', () => {
 
     expect(error.message).toContain('phase=awaiting-response-headers')
     expect(error.message).toMatch(/elapsedMs=\d+/)
+  })
+
+  /** The incident this path once had: a single transient 500 failed the whole run. */
+  it('replays a transient server error before reporting it', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 500, headers: new Headers() })
+        .mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: () => Promise.resolve(COMPLETED),
+        })
+
+      const pending = run(fetchMock)
+      await vi.runAllTimersAsync()
+
+      await expect(pending).resolves.toMatchObject({ content: 'ok' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves a healthy response entirely unaffected', async () => {

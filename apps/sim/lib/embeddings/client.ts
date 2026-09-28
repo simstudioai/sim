@@ -11,6 +11,7 @@ import {
   wireFallback,
 } from '@/lib/core/config/env-capabilities'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
 import {
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
@@ -252,26 +253,6 @@ export function isBYOKEmbeddingCredentialRejection(error: unknown): error is Emb
     !error.quotaExhausted &&
     (error.status === 401 || error.status === 403)
   )
-}
-
-/**
- * True when a rejection body reports an exhausted balance rather than a rate
- * limit. OpenAI returns 429 for both, but only a rate limit reopens: a spent
- * account stands until someone adds credit, so retrying it cannot succeed.
- */
-function isQuotaExhaustionBody(errorText: string): boolean {
-  try {
-    const body = JSON.parse(errorText) as { error?: { type?: string; code?: string } }
-    const type = body.error?.type
-    const code = body.error?.code
-    return (
-      type === 'insufficient_quota' ||
-      code === 'insufficient_quota' ||
-      code === 'credit_balance_exhausted'
-    )
-  } catch {
-    return false
-  }
 }
 
 /** Reads a bounded provider body for internal diagnostics and quota classification. */

@@ -60,6 +60,8 @@ https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
 
 Scopes are requested by Sim at authorization time; you generally do not need to pre-declare them, but Google and Microsoft require you to enable the corresponding APIs on the project/app first (for example Gmail API, Drive API, Calendar API).
 
+Each integration page ends with an **OAuth Scopes** section listing its redirect URI, environment variables, and every scope Sim requests, for example [Gmail](/integrations/gmail#oauth-scopes). Use it for providers that make you declare scopes on the app, such as Slack, and to confirm a connected account was granted everything Sim needs.
+
 </Step>
 
 <Step>
@@ -263,13 +265,25 @@ read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullreq
 `pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
 trigger subscription management.
 
+Some providers need more setup than a client ID, secret, and redirect URI:
+
+| Service | Extra setup |
+|---|---|
+| Asana | Sim requests the `default` scope. Enable **Full permissions** under the app's OAuth settings, or Asana rejects the authorization. |
+| Attio | Enable the scopes listed on the [Attio page](/integrations/attio#oauth-scopes) in the app's Developer console; Attio grants scopes from the app, not the authorization request. |
+| Cal.com | Sim does not send a `scope` parameter, so connecting works only with a legacy Cal.com OAuth client: one with no scopes configured, or only `READ_BOOKING` and `READ_PROFILE`. Cal.com requires at least one scope on new clients and rejects their authorization without a `scope` parameter. |
+| DocuSign | `DOCUSIGN_AUTH_HOST` defaults to the demo host `account-d.docusign.com`. Set it to `account.docusign.com` for production accounts. |
+| Microsoft | Azure AD, Teams, and Planner request permissions that need tenant admin consent. For Dataverse and Dynamics 365, add the **Dynamics CRM** API's delegated `user_impersonation` permission. |
+| Notion | Enable the integration's **Read content**, **Update content**, **Insert content**, **Read comments**, **Insert comments**, and **User information with email addresses** capabilities. |
+| Zoho Desk and ManageEngine | Both use one Zoho client. Register both `zoho-desk` and `manageengine-sdp` redirect URIs on it if you use both. |
+
 ### Services with a different flow
 
 | Service | Configuration | Notes |
 |---|---|---|
 | **Instagram** | `INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET` | Instagram App ID/Secret from the Meta App Dashboard (Instagram → API setup with Instagram login). Redirect URI: `/api/auth/oauth2/callback/instagram`. **Publishing requires cloud object storage** — Meta fetches a public HTTPS URL, so local-disk storage will not work. |
 | **Shopify** | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | Redirect URI: `/api/auth/oauth2/callback/shopify`. Per-shop install flow. |
-| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. |
+| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. Add your Sim origin (`NEXT_PUBLIC_APP_URL`) to the API key's allowed origins, or Trello will not redirect back. |
 
 ## Non-OAuth integration credentials
 

@@ -6783,10 +6783,12 @@ export const userTableDefinitions = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     /**
      * @remarks
-     * Monotonic counter bumped by a statement-level trigger on `user_table_rows`
-     * (INSERT/UPDATE/DELETE). Keys the versioned table-snapshot cache so a stored
-     * CSV under `v{rows_version}` is reused until the table mutates. Never written
-     * from application code — the trigger is the only writer (bypass-proof).
+     * Monotonic counter bumped by triggers on `user_table_rows`: statement-level
+     * on INSERT/DELETE, and a deferred constraint trigger that bumps once per
+     * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
+     * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
+     * reused until the table mutates. Never written from application code — the
+     * triggers are the only writers (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**
@@ -6832,6 +6834,11 @@ export const userTableRows = pgTable(
   'user_table_rows',
   {
     id: text('id').primaryKey(),
+    /**
+     * The foreign key is `DEFERRABLE INITIALLY DEFERRED` (the `table_rows_version_at_commit`
+     * migration), so a row updated twice in one transaction does not key-share the definition row
+     * mid-transaction. drizzle can't express deferrability, so it lives only in the migration.
+     */
     tableId: text('table_id')
       .notNull()
       .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
