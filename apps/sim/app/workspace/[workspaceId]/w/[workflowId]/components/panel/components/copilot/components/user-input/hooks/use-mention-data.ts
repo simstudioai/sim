@@ -250,7 +250,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     try {
       setIsLoadingKnowledge(true)
       const result = await requestJson(listKnowledgeBasesContract, {
-        query: { workspaceId },
+        query: { workspaceId, includeCounts: false },
       })
       const items = result.data
       const sorted = [...items].sort((a, b) => {

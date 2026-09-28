@@ -1,17 +1,20 @@
 /**
  * Knowledge-base document totals against real PostgreSQL: the public v1 list and detail count
  * only the documents their caller can read, and the internal list reads no document at all
- * unless the caller asks for totals.
+ * unless the caller asks for totals. A request without the flag is counted, since a page loaded
+ * before the flag existed requires both totals on every row.
  */
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, organization, user, workspace } from '@sim/db/schema'
-import { createMockRequest } from '@sim/testing'
+import { authMock, authMockFns, createMockRequest } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const caller = vi.hoisted(() => ({ userId: '' }))
+
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/app/api/v1/middleware', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app/api/v1/middleware')>()),
@@ -34,6 +37,7 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { listInternalKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
+import { GET as listInternalKnowledgeBasesRoute } from '@/app/api/knowledge/route'
 import { GET as getKnowledgeBase } from '@/app/api/v1/knowledge/[id]/route'
 import { GET as listKnowledgeBases } from '@/app/api/v1/knowledge/route'
 
@@ -46,6 +50,10 @@ describe('knowledge-base document totals in PostgreSQL', () => {
       throw new Error('Unexpected provider request in knowledge-base count tests')
     })
     caller.userId = ids.bobId
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: ids.bobId },
+      session: { id: 'fixture-reader' },
+    })
     await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
     await db.insert(document).values([
       {
@@ -133,5 +141,22 @@ describe('knowledge-base document totals in PostgreSQL', () => {
       })
     ).knowledgeBases
     expect(counted).toMatchObject({ docCount: 1, tokenCount: 10 })
+  })
+
+  it('counts an internal list request that omits the flag', async () => {
+    const list = async (query: string) => {
+      const response = await listInternalKnowledgeBasesRoute(
+        createMockRequest('GET', undefined, {}, `http://localhost/api/knowledge?${query}`),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      return (await response.json()).data
+    }
+    const workspaceQuery = `workspaceId=${ids.workspaceId}&scope=active`
+    expect(await list(workspaceQuery)).toEqual([
+      expect.objectContaining({ id: ids.knowledgeBaseId, docCount: 1, tokenCount: 10 }),
+    ])
+    const [uncounted] = await list(`${workspaceQuery}&includeCounts=false`)
+    expect(uncounted).not.toHaveProperty('tokenCount')
   })
 })
