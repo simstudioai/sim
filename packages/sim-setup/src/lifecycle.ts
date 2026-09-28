@@ -61,15 +61,18 @@ function dockerText(args: string[], cwd: string = ROOT): string | null {
   return result.status === 0 ? result.stdout.trim() : null
 }
 
+/** A service's container state, or `'unknown'` when the Docker query itself failed. */
+export type ServiceState = { state: 'running' | 'stopped' } | null | 'unknown'
+
 /**
  * Reduces `docker ps --format '{{.State}}'` output for one Compose service to the
  * same shape `runDetection` uses for standalone containers. A scaled service can
- * have several replicas; any running replica counts as running.
+ * have several replicas; any running replica counts as running. `null` means the
+ * query failed, which is not the same as "no containers", so it maps to `'unknown'`.
  */
-export function composeServiceState(
-  stateOutput: string | null
-): { state: 'running' | 'stopped' } | null {
-  const states = (stateOutput ?? '')
+export function composeServiceState(stateOutput: string | null): ServiceState {
+  if (stateOutput === null) return 'unknown'
+  const states = stateOutput
     .split('\n')
     .map((state) => state.trim())
     .filter(Boolean)
@@ -82,22 +85,56 @@ export function composeServiceState(
  * `sim-postgres` / `sim-redis` name lookup never sees them. Find the service by
  * the labels Compose stamps on every container instead.
  */
-function composeServiceContainer(
-  install: ComposeInstall,
-  service: 'db' | 'redis'
-): { state: 'running' | 'stopped' } | null {
-  return composeServiceState(
-    dockerText([
-      'ps',
-      '-a',
-      '--filter',
-      `label=com.docker.compose.project=${install.project}`,
-      '--filter',
-      `label=com.docker.compose.service=${service}`,
-      '--format',
-      '{{.State}}',
-    ])
-  )
+export function composeServiceQuery(project: string, service: 'db' | 'redis'): string[] {
+  return [
+    'ps',
+    '-a',
+    '--filter',
+    `label=com.docker.compose.project=${project}`,
+    '--filter',
+    `label=com.docker.compose.service=${service}`,
+    '--format',
+    '{{.State}}',
+  ]
+}
+
+export interface ServiceRow {
+  label: string
+  state: ServiceState
+}
+
+/**
+ * Container rows for `status`. Standalone `sim-postgres` / `sim-redis` belong to
+ * the dev install; each Compose stack runs its own `db` / `redis` services, which
+ * are looked up by label through `query` (Docker by default, a fake in tests).
+ */
+export function serviceStatusRows(
+  installs: Install[],
+  standalone: { db: ServiceState; redis: ServiceState },
+  query: (args: string[]) => string | null = (args) => dockerText(args)
+): ServiceRow[] {
+  const rows: ServiceRow[] = []
+  const stacks = installs.filter((install): install is ComposeInstall => install.kind === 'compose')
+  if (stacks.length === 0 || installs.some((install) => install.kind === 'dev')) {
+    rows.push(
+      { label: `postgres (${DB_CONTAINER})`, state: standalone.db },
+      { label: `redis (${REDIS_CONTAINER})`, state: standalone.redis }
+    )
+  }
+  for (const stack of stacks) {
+    const scope = stacks.length > 1 ? `${stack.project} ` : ''
+    rows.push(
+      {
+        label: `${scope}postgres (compose db)`,
+        state: composeServiceState(query(composeServiceQuery(stack.project, 'db'))),
+      },
+      {
+        label: `${scope}redis (compose redis)`,
+        state: composeServiceState(query(composeServiceQuery(stack.project, 'redis'))),
+      }
+    )
+  }
+  return rows
 }
 
 /** Docker command whose output the user should see (up, logs); returns exit code. */
@@ -132,7 +169,7 @@ interface K8sInstall {
   /** False when the context's API server is outside the local allowlist — flagged before destructive ops. */
   local: boolean
 }
-type Install = ComposeInstall | DevInstall | K8sInstall
+export type Install = ComposeInstall | DevInstall | K8sInstall
 
 interface ComposeProject {
   Name: string
@@ -627,25 +664,19 @@ async function status(): Promise<void> {
     return
   }
   for (const install of installs) console.log(` ${glyph.pass} ${describeInstall(install)}`)
-  const containerState = (state: { state: 'running' | 'stopped' } | null) =>
-    docker ? (state ? state.state : 'absent') : 'unknown (docker down)'
+  const containerState = (state: ServiceState) => {
+    if (!docker) return 'unknown (docker down)'
+    if (state === 'unknown') return 'unknown (docker query failed)'
+    return state ? state.state : 'absent'
+  }
   console.log()
-  const composeStacks = installs.filter((install) => install.kind === 'compose')
-  // Standalone containers belong to the dev install; Compose stacks run their own
-  // `db` / `redis` services, which the standalone name lookup can't see.
-  if (composeStacks.length === 0 || installs.some((install) => install.kind === 'dev')) {
-    console.log(` postgres (${DB_CONTAINER}):  ${containerState(detection.dbContainer)}`)
-    console.log(` redis (${REDIS_CONTAINER}):     ${containerState(detection.redisContainer)}`)
-  }
-  for (const stack of composeStacks) {
-    const scope = composeStacks.length > 1 ? `${stack.project} ` : ''
-    console.log(
-      ` ${scope}postgres (compose db):  ${containerState(composeServiceContainer(stack, 'db'))}`
-    )
-    console.log(
-      ` ${scope}redis (compose redis):  ${containerState(composeServiceContainer(stack, 'redis'))}`
-    )
-  }
+  const rows = serviceStatusRows(installs, {
+    db: detection.dbContainer,
+    redis: detection.redisContainer,
+  })
+  const width = Math.max(...rows.map((row) => row.label.length)) + 3
+  for (const row of rows)
+    console.log(` ${`${row.label}:`.padEnd(width)}${containerState(row.state)}`)
   const [app, realtime] = await Promise.all([
     httpHealth(`${APP_URL}/api/health`),
     httpHealth(REALTIME_HEALTH),
