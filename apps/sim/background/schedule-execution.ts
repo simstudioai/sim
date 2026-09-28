@@ -38,6 +38,7 @@ import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
+import { classifyWorkflowJobFailure } from '@/lib/workflows/executor/job-failure'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
@@ -855,6 +856,13 @@ export async function executeScheduleJob(
           disableReason,
         })
 
+      /**
+       * A platform fault, re-thrown only after the schedule's own bookkeeping
+       * (failure count, next run, claim) has run, so faulting the job to alert
+       * on it never leaves the schedule claimed or its cadence stalled.
+       */
+      let jobFault: unknown
+
       try {
         const [scheduleRecord] = await db
           .select({
@@ -1203,6 +1211,9 @@ export async function executeScheduleJob(
             `Error updating schedule ${payload.scheduleId} after execution error`,
             'consecutive_failures'
           )
+
+          const failure = await classifyWorkflowJobFailure({ error, executionId, loggingSession })
+          if (failure === 'job_fault') jobFault = error
         }
       } catch (error: unknown) {
         try {
@@ -1211,6 +1222,7 @@ export async function executeScheduleJob(
             return
           }
 
+          jobFault = error
           logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error, {
             cause: describeError(error),
           })
@@ -1230,6 +1242,8 @@ export async function executeScheduleJob(
           trace.getActiveSpan()?.recordException(toError(recoveryError))
         }
       }
+
+      if (jobFault !== undefined) throw jobFault
     })
   } finally {
     timeoutController.cleanup()

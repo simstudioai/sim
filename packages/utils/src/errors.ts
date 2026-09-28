@@ -317,6 +317,19 @@ export function findCause<T>(
   return undefined
 }
 
+/**
+ * Whether `value` is a JavaScript runtime programming error: a type, reference
+ * or range fault raised by the running code itself, as opposed to an `Error` a
+ * caller throws on purpose to reject its input.
+ */
+export function isProgrammingError(
+  value: unknown
+): value is TypeError | ReferenceError | RangeError {
+  return (
+    value instanceof TypeError || value instanceof ReferenceError || value instanceof RangeError
+  )
+}
+
 function readPgErrorField(error: unknown, field: string): string | undefined {
   const seen = new Set<unknown>()
   let current: unknown = error

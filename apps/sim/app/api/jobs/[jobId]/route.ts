@@ -8,6 +8,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { projectWorkflowJobOutcome } from '@/lib/workflows/executor/job-outcome'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
@@ -66,15 +67,16 @@ export const GET = withRouteHandler(
         return createErrorResponse('Access denied', 403)
       }
 
+      const outcome = projectWorkflowJobOutcome(job)
       const response: Record<string, unknown> = {
         success: true,
         taskId,
-        status: job.status,
+        status: outcome.status,
         metadata: job.metadata,
       }
 
       if (job.output !== undefined) response.output = job.output
-      if (job.error !== undefined) response.error = job.error
+      if (outcome.error !== undefined) response.error = outcome.error
 
       return NextResponse.json(response)
     } catch (error: unknown) {

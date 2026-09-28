@@ -272,8 +272,11 @@ export class Serializer {
       const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
       if (missingRequiredFields.length > 0) {
         const blockName = block.name || blockConfig.name || 'Block'
-        throw new Error(
-          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
+        throw new WorkflowValidationError(
+          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`,
+          block.id,
+          block.type,
+          blockName
         )
       }
     }

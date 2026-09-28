@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
-import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
+import {
+  describeError,
+  findCause,
+  getErrorMessage,
+  isProgrammingError,
+  toError,
+} from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
@@ -2424,6 +2430,7 @@ async function executeToolImplementation(
       // thrown error into a result object; an upstream provider's status stays
       // on `output` where it cannot be mistaken for ours.
       ...(error instanceof HttpError ? { statusCode: error.statusCode } : {}),
+      ...(findCause(error, isProgrammingError) ? { isSystemError: true as const } : {}),
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,

@@ -1147,6 +1147,50 @@ describe('executeTool Function', () => {
     }
   })
 
+  it.each([
+    { thrown: new TypeError('rows.flatMap is not a function'), isSystemError: true },
+    {
+      thrown: new Error('Workspace ID is required in execution context'),
+      isSystemError: undefined,
+    },
+  ])(
+    'marks a failure as a system error only when Sim code raised a programming error ($thrown.name)',
+    async ({ thrown, isSystemError }) => {
+      const mockTool = {
+        id: 'test_operation_input_throws',
+        name: 'Test Operation Input Throws',
+        description: 'Throws while building its operation input',
+        version: '1.0.0',
+        params: {},
+        operation: {
+          input: () => {
+            throw thrown
+          },
+        },
+      } satisfies InternalToolConfig<Record<string, unknown>>
+      ;(tools as Record<string, unknown>).test_operation_input_throws = mockTool
+
+      try {
+        const result = await executeTool(
+          'test_operation_input_throws',
+          {},
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              workspaceId: 'workspace-1',
+              workflowId: 'workflow-1',
+            }),
+          }
+        )
+
+        expect(result.success).toBe(false)
+        expect(result.isSystemError).toBe(isSystemError)
+      } finally {
+        Reflect.deleteProperty(tools, 'test_operation_input_throws')
+      }
+    }
+  )
+
   it('preserves actorless schedule authority for registered operations', async () => {
     const mockTool = {
       id: 'test_actorless_registered_operation',

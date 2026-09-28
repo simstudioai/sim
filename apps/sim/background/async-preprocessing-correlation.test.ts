@@ -74,10 +74,13 @@ vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
-vi.mock('@/executor/utils/errors', () => ({
+vi.mock('@/executor/utils/errors', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/utils/errors')>()),
   hasExecutionResult: mockHasExecutionResult,
 }))
 
+import { buildBlockExecutionError } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
 import { executeScheduleJob } from './schedule-execution'
 import { executeWorkflowJob } from './workflow-execution'
 
@@ -395,7 +398,8 @@ describe('async preprocessing correlation threading', () => {
       })
     ).rejects.toBe(rawError)
 
-    expect(loggingSessionMockFns.mockWaitForPostExecution).not.toHaveBeenCalled()
+    // Core finalizes after throwing, so the task must settle that work before deciding.
+    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     expect(mockWasExecutionFinalizedByCore).toHaveBeenCalledWith(rawError, 'execution-finalized')
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })
@@ -624,5 +628,73 @@ describe('async preprocessing correlation threading', () => {
         infraRetryCount: 0,
       })
     )
+  })
+
+  describe('scheduled run failures', () => {
+    const schedulePayload = {
+      scheduleId: 'schedule-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      now: '2025-01-01T00:00:00.000Z',
+      scheduledFor: '2025-01-01T00:00:00.000Z',
+    }
+
+    beforeEach(() => {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: true,
+        actorUserId: 'actor-1',
+        workflowRecord: {
+          id: 'workflow-1',
+          userId: 'owner-1',
+          workspaceId: 'workspace-1',
+          variables: {},
+        },
+        billingAttribution,
+        executionTimeout: {},
+      })
+    })
+
+    it('faults the job on a failure core never recorded, after recording the schedule failure', async () => {
+      const engineError = new Error('Workflow state not found')
+      mockExecuteWorkflowCore.mockRejectedValueOnce(engineError)
+
+      await expect(
+        executeScheduleJob({
+          ...schedulePayload,
+          executionId: 'execution-schedule-fault',
+          requestId: 'request-schedule-fault',
+        })
+      ).rejects.toBe(engineError)
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ lastQueuedAt: null, lastFailedAt: expect.any(Date) })
+      )
+    })
+
+    it('completes the job when the workflow failed in a block core recorded', async () => {
+      mockExecuteWorkflowCore.mockRejectedValueOnce(
+        buildBlockExecutionError({
+          block: {
+            id: 'plan-panels',
+            metadata: { id: 'function', name: 'planPanels' },
+          } as SerializedBlock,
+          error: new Error("ValueError: kind ''"),
+        })
+      )
+      mockWasExecutionFinalizedByCore.mockReturnValue(true)
+
+      await expect(
+        executeScheduleJob({
+          ...schedulePayload,
+          executionId: 'execution-schedule-failure',
+          requestId: 'request-schedule-failure',
+        })
+      ).resolves.toBeUndefined()
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ lastQueuedAt: null, lastFailedAt: expect.any(Date) })
+      )
+    })
   })
 })

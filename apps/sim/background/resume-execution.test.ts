@@ -29,6 +29,8 @@ vi.mock('@/executor/execution/snapshot', () => ({
 }))
 
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
+import { buildBlockExecutionError } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
 
 const { mockFindCellContextByExecutionId } = tableWorkflowColumnsMockFns
 const {
@@ -102,6 +104,29 @@ describe('executeResumeJob terminal errors', () => {
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')
     expect(rawError.message).toContain(secret)
+  })
+
+  it('completes the job when the resumed workflow failed in a block core recorded', async () => {
+    const blockError = Object.assign(
+      buildBlockExecutionError({
+        block: {
+          id: 'plan-panels',
+          metadata: { id: 'function', name: 'planPanels' },
+        } as SerializedBlock,
+        error: new Error("ValueError: kind ''"),
+      }),
+      { executionFinalizedByCore: true }
+    )
+    mockStartResumeExecution.mockRejectedValue(blockError)
+
+    await expect(executeResumeJob(payload)).resolves.toMatchObject({
+      success: false,
+      workflowId: 'workflow-1',
+      executionId: 'resume-execution-1',
+      parentExecutionId: 'parent-execution-1',
+      status: 'failed',
+      error: blockError.message,
+    })
   })
 
   it('starts a legacy attempt deadline before deserializing the full snapshot', async () => {

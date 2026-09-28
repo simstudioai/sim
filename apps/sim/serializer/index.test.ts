@@ -452,6 +452,36 @@ describe('Serializer', () => {
       }
     )
 
+    it.concurrent('attributes a missing required field to the block that lacks it', () => {
+      const serializer = new Serializer()
+      const waitBlockMissingRequired: any = {
+        id: 'wait-block',
+        type: 'wait',
+        name: 'Wait Block',
+        position: { x: 0, y: 0 },
+        subBlocks: { timeValue: { value: '' }, timeUnit: { value: 'seconds' } },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() =>
+        serializer.serializeWorkflow(
+          { 'wait-block': waitBlockMissingRequired },
+          [],
+          {},
+          undefined,
+          true
+        )
+      ).toThrow(
+        expect.objectContaining({
+          name: 'WorkflowValidationError',
+          blockId: 'wait-block',
+          blockType: 'wait',
+          blockName: 'Wait Block',
+        })
+      )
+    })
+
     it.concurrent('should handle empty string values as missing', () => {
       const serializer = new Serializer()
 

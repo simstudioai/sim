@@ -34,6 +34,10 @@ import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
+import {
+  buildWorkflowJobFailureResult,
+  classifyWorkflowJobFailure,
+} from '@/lib/workflows/executor/job-failure'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -313,6 +317,13 @@ export async function executeWorkflowJob(
 
         if (error instanceof ExecutionTimeoutError) throw error
 
+        const failure = await classifyWorkflowJobFailure({ error, executionId, loggingSession })
+        if (failure === 'workflow_failure') {
+          return {
+            ...buildWorkflowJobFailureResult({ error, workflowId, executionId }),
+            metadata: payload.metadata,
+          }
+        }
         if (wasExecutionFinalizedByCore(error, executionId)) {
           throw error
         }

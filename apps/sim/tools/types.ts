@@ -113,6 +113,12 @@ export interface ToolResponse {
    * status — a provider's 404 must never become the workflow API's status.
    */
   statusCode?: number
+  /**
+   * True when the failure was a programming error in Sim's own code rather than
+   * anything the workflow did, carried across the same flattening as
+   * `statusCode` so the job running the workflow can still fault on it.
+   */
+  isSystemError?: true
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]

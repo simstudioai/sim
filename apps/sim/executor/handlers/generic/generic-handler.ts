@@ -358,6 +358,7 @@ export class GenericBlockHandler implements BlockHandler {
           // status (hosted-key 429/503) would be lost here. Carry it onto the
           // error so `getExecutionErrorStatus` can still reach the API caller.
           ...(typeof result.statusCode === 'number' ? { statusCode: result.statusCode } : {}),
+          ...(result.isSystemError ? { isSystemError: true } : {}),
         })
 
         throw error
