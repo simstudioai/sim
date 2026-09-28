@@ -7,18 +7,16 @@
  * values it writes, so the second writer's check runs after the first commits and sees its row.
  * Writers of different values never wait on each other.
  *
- * Lock order, everywhere: the table's schema lock (when taken), then these locks, then the table's
- * row-order lock, then the definition row.
- * Every transaction takes all of them at once, before the row-order lock, in one sorted order.
+ * Lock order, everywhere: the table's schema lock (when taken), then these locks, taken all at once
+ * in one sorted order, then the table's row-order lock, then the definition row.
  */
 
 import { compareStrings } from '@sim/utils/string'
 import { type AdvisoryXactLockRequest, acquireAdvisoryXactLocks } from '@/lib/db/advisory-locks'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnValueForEquality } from '@/lib/table/column-types'
 import type { DbTransaction } from '@/lib/table/planner'
-import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
-import { getUniqueColumns } from '@/lib/table/validation'
+import type { RowData, TableDefinition } from '@/lib/table/types'
+import { getUniqueColumns, uniqueValueKey } from '@/lib/table/validation'
 
 const UNIQUE_LOCK_TAG = 'user_table_unique_value'
 
@@ -37,20 +35,12 @@ function columnLockKey(tableId: string, columnId: string): string {
 }
 
 /**
- * The normalized key two unique-column values share exactly when the unique check treats them as
- * equal: `columnValueForEquality`, then JSON. Value locks and in-batch duplicate detection both key
- * on it.
- */
-export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
-  return JSON.stringify(columnValueForEquality(value, column))
-}
-
-/**
  * Locks the unique-column values `rows` will write, before their unique check. Pass `columnIds` to
  * lock only the unique columns a patch changes; values it leaves alone are already stored.
  *
  * Each written column takes a shared column lock, then an exclusive lock per value. The value key
- * is {@link uniqueValueKey}, so two values the check treats as equal always share a key; null cells never conflict and take none.
+ * is `uniqueValueKey`, so two values the check treats as equal always share a key; null cells
+ * never conflict and take none.
  * A column falls back to one exclusive column lock when a value is an object or array (a `json`
  * column's check matches by containment, which no single key can express), and every column does
  * when the transaction would exceed {@link MAX_VALUE_LOCKS}. An exclusive column lock waits for,

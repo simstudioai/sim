@@ -67,7 +67,7 @@ import {
   mutateTableRowsWithSecretProvenance,
   type TableRowProvenanceReader,
 } from '@/lib/table/rows/secret-provenance'
-import { lockUniqueColumns, lockUniqueValues, uniqueValueKey } from '@/lib/table/rows/unique-locks'
+import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import {
   buildFilterClause,
   buildPredicateClause,
@@ -110,6 +110,7 @@ import {
   coerceRowValues,
   getUniqueColumns,
   type UncoercibleValuePolicy,
+  uniqueValueKey,
   validateRowSize,
 } from '@/lib/table/validation'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
@@ -2560,6 +2561,7 @@ export async function batchUpdateRows(
       }
     }
   }
+
   const now = new Date()
 
   const affectedRowIds = await db.transaction(async (trx) => {

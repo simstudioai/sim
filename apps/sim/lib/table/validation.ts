@@ -406,6 +406,14 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
+/**
+ * The key two unique-column values share exactly when the unique check treats them as equal.
+ * In-batch duplicate detection and the unique-value locks both key on it.
+ */
+export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
+  return JSON.stringify(columnValueForEquality(value, column))
+}
+
 /** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
 export function validateUniqueConstraints(
   data: RowData,
@@ -593,7 +601,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue = JSON.stringify(columnValueForEquality(value, column))
+      const normalizedValue = uniqueValueKey(value, column)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!

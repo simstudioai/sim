@@ -20,7 +20,8 @@ tableBillingMockFns.mockWouldExceedRowLimit.mockReturnValue(false)
 // suites can use large synthetic row counts without tripping the plan limit.
 vi.mock('@/lib/table/billing', () => tableBillingMock)
 
-vi.mock('@/lib/table/validation', () => ({
+vi.mock('@/lib/table/validation', async (importOriginal) => ({
+  uniqueValueKey: (await importOriginal<typeof import('@/lib/table/validation')>()).uniqueValueKey,
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
   coerceRowToSchema: vi.fn(() => ({ valid: true, errors: [] })),
