@@ -435,20 +435,30 @@ export async function readGmail(
   for (const candidate of latest) {
     options.signal.throwIfAborted()
     const candidateId = string(candidate.id)
-    if (
-      !(await options.verify({
-        id: candidateId,
-        accessMetadata: { id: candidateId, labelIds: candidate.labelIds },
-      }))
-    ) {
-      warnings.add('messages outside the source search scope were omitted')
-      continue
+    let row: Record<string, unknown>
+    try {
+      if (
+        !(await options.verify({
+          id: candidateId,
+          accessMetadata: { id: candidateId, labelIds: candidate.labelIds },
+        }))
+      ) {
+        warnings.add('messages outside the source search scope were omitted')
+        continue
+      }
+      row = object(
+        await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
+          query: { format: 'full' },
+        })
+      )
+    } catch (error) {
+      options.signal.throwIfAborted()
+      if (error instanceof NativeSearchError && error.httpStatus === 404) {
+        warnings.add('some messages are no longer available')
+        continue
+      }
+      throw error
     }
-    const row = object(
-      await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
-        query: { format: 'full' },
-      })
-    )
     if (row.id !== candidateId || row.threadId !== threadId)
       throw new NativeSearchError(
         'unavailable',
