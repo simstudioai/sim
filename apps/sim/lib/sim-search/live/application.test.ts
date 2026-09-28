@@ -441,6 +441,27 @@ describe('authorized live retrieval', () => {
       ).rejects.toBe(reason)
     }
   )
+  it('rejects a read cancelled while its current scope was being verified', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    const controller = new AbortController()
+    mocks.service.mockResolvedValueOnce(undefined)
+    mocks.service.mockImplementationOnce(async () => {
+      controller.abort('user_stop:test')
+      return { policy: defaultLiveSearchPolicy(), verify: async () => true, partial: false }
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toBe('user_stop:test')
+  })
   it('rejects cross-user document references before token resolution', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })
     const reference = decodeLiveReference(search.results[0].documentId)
