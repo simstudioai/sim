@@ -25,6 +25,7 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { Serializer } from '@/serializer/index'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 
 vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
@@ -454,12 +455,15 @@ describe('Serializer', () => {
 
     it.concurrent('attributes a missing required field to the block that lacks it', () => {
       const serializer = new Serializer()
-      const waitBlockMissingRequired: any = {
+      const waitBlockMissingRequired: BlockState = {
         id: 'wait-block',
         type: 'wait',
         name: 'Wait Block',
         position: { x: 0, y: 0 },
-        subBlocks: { timeValue: { value: '' }, timeUnit: { value: 'seconds' } },
+        subBlocks: {
+          timeValue: { id: 'timeValue', type: 'short-input', value: '' },
+          timeUnit: { id: 'timeUnit', type: 'dropdown', value: 'seconds' },
+        },
         outputs: {},
         enabled: true,
       }
