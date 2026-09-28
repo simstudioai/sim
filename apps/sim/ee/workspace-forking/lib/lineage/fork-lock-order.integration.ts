@@ -74,15 +74,19 @@ describe('fork lock ordering in PostgreSQL', () => {
   let setup: ReturnType<typeof postgres>
   const connections: ReturnType<typeof postgres>[] = []
 
-  /** A drizzle executor pinned to this suite's schema, on its own backend. */
-  function connect(): DbOrTx {
+  /**
+   * A drizzle executor pinned to this suite's schema, on its own backend. The raw client
+   * comes back too so a race can close its own sessions; `connections` is the backstop that
+   * closes anything a failing test left open.
+   */
+  function connect(): { executor: DbOrTx; client: ReturnType<typeof postgres> } {
     const client = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: testSchema },
       onnotice: () => {},
     })
     connections.push(client)
-    return drizzle(client, { schema }) as DbOrTx
+    return { executor: drizzle(client, { schema }) as DbOrTx, client }
   }
 
   beforeAll(async () => {
@@ -148,10 +152,14 @@ describe('fork lock ordering in PostgreSQL', () => {
    * reproduces the pre-fix one. Returns the error that aborted a session, or null.
    */
   async function raceForkAgainstUnlink(forkTakesLineageFirst: boolean): Promise<string | null> {
-    const forkDb = connect()
-    const unlinkDb = connect()
+    const { executor: forkDb, client: forkClient } = connect()
+    const { executor: unlinkDb, client: unlinkClient } = connect()
     const forkHoldsFirstLock = createDeferred<void>()
-    const unlinkBackendPid = createDeferred<number>()
+    // `null` means the unlink never got far enough to report a backend, so there is nothing
+    // to wait on. Every barrier here is settled on the failure path as well as the happy
+    // one: an unsettled deferred turns a clean database error into a test timeout, which
+    // hides the very diagnostics a concurrency test exists to give.
+    const unlinkBackendPid = createDeferred<number | null>()
     const unlinkMayFinish = createDeferred<void>()
     let failure: string | null = null
 
@@ -173,32 +181,46 @@ describe('fork lock ordering in PostgreSQL', () => {
       .catch((error: unknown) => {
         failure ??= describeFailure(error)
       })
+      // Releases the barrier below if this session died before taking its first lock.
+      // `createDeferred`'s resolve is a no-op once settled, so the happy path is unchanged.
+      .finally(() => forkHoldsFirstLock.resolve())
 
-    const unlinkSession = forkHoldsFirstLock.promise.then(() =>
-      unlinkDb
-        .transaction(async (tx) => {
-          await setForkLockTimeout(tx)
-          // Publish this transaction's backend before it can block, so the barrier waits
-          // on exactly this session rather than on whatever else the database is doing.
-          const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-          unlinkBackendPid.resolve(Number(self?.pid))
-          // `unlinkForkEdge` takes the lineage lock, then writes the workspace row.
-          await takeLineageLock(tx)
-          await tx
-            .update(workspace)
-            .set({ updatedAt: new Date() })
-            .where(eq(workspace.id, SOURCE_WORKSPACE_ID))
-        })
-        .catch((error: unknown) => {
-          failure ??= describeFailure(error)
-        })
-    )
+    const unlinkSession = forkHoldsFirstLock.promise
+      .then(() =>
+        unlinkDb
+          .transaction(async (tx) => {
+            await setForkLockTimeout(tx)
+            // Publish this transaction's backend before it can block, so the barrier waits
+            // on exactly this session rather than on whatever else the database is doing.
+            const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+            unlinkBackendPid.resolve(Number(self?.pid))
+            // `unlinkForkEdge` takes the lineage lock, then writes the workspace row.
+            await takeLineageLock(tx)
+            await tx
+              .update(workspace)
+              .set({ updatedAt: new Date() })
+              .where(eq(workspace.id, SOURCE_WORKSPACE_ID))
+          })
+          .catch((error: unknown) => {
+            failure ??= describeFailure(error)
+          })
+      )
+      // Covers a connection that drops before `pg_backend_pid()` returns.
+      .finally(() => unlinkBackendPid.resolve(null))
 
-    await forkHoldsFirstLock.promise
-    await waitForBlockedBackend(await unlinkBackendPid.promise)
-    unlinkMayFinish.resolve()
-
-    await Promise.all([forkSession, unlinkSession])
+    try {
+      await forkHoldsFirstLock.promise
+      const unlinkPid = await unlinkBackendPid.promise
+      // A session that already failed cannot go on to block, so skip the barrier and let
+      // its error be what the test reports.
+      if (failure === null && unlinkPid !== null) await waitForBlockedBackend(unlinkPid)
+    } finally {
+      // Both sessions must be released and drained even when the barrier itself threw,
+      // or the fork transaction sits on `unlinkMayFinish` and the suite hangs.
+      unlinkMayFinish.resolve()
+      await Promise.all([forkSession, unlinkSession])
+      await Promise.all([forkClient.end({ timeout: 5 }), unlinkClient.end({ timeout: 5 })])
+    }
     return failure
   }
 
@@ -244,7 +266,7 @@ describe('fork lock ordering in PostgreSQL', () => {
    */
   it('holds the workspace row through the production revision lock', async () => {
     await check('revision-lock-covers-workspace-row', async () => {
-      const probe = connect()
+      const { executor: probe } = connect()
       const locked = await probe.transaction(async (tx) => {
         await setForkLockTimeout(tx)
         await lockForkRevision(tx, { sourceWorkspaceId: SOURCE_WORKSPACE_ID })
