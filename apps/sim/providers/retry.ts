@@ -36,6 +36,12 @@ import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
  */
 const MAX_RETRY_AFTER_MS = 30_000
 
+/**
+ * How long a 429's body may take to arrive for quota classification. A real error body comes
+ * with the headers; one that stalls past this is treated as an ordinary rate limit.
+ */
+const QUOTA_BODY_READ_TIMEOUT_MS = 5_000
+
 /** Bun's `fetch` rejects with an `Error` carrying one of these codes when no response arrived. */
 const BUN_CONNECTION_ERROR_CODES = new Set(['ConnectionRefused', 'ConnectionClosed'])
 
@@ -81,8 +87,8 @@ function isRetryableTransportFailure(error: unknown): boolean {
  * The response to hand back when a failed one must not be replayed, or `null` to replay it.
  *
  * Telling a spent balance from a rate limit means reading a 429's body. It is read
- * directly, bounded and under the caller's signal, and a 429 that is not replayed comes
- * back rebuilt from that text. A `clone()` would tee the stream, and cancelling one branch
+ * directly, bounded in size and time and under the caller's signal, and a 429 that is not
+ * replayed comes back rebuilt from that text. A `clone()` would tee the stream, and cancelling one branch
  * of a tee settles only once the other is cancelled too — an oversized body would hang.
  */
 async function nonRetryableResponse(
@@ -95,17 +101,21 @@ async function nonRetryableResponse(
   if (!isWithinRetryWindow(providerRetryAfterMs(response.headers))) return response
   if (directive === 'true' || response.status !== 429) return null
 
+  const deadline = new AbortController()
+  const timer = setTimeout(() => deadline.abort(), QUOTA_BODY_READ_TIMEOUT_MS)
   let body: string
   try {
     body = await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'provider error response',
-      signal: abortSignal,
+      signal: abortSignal ? AbortSignal.any([abortSignal, deadline.signal]) : deadline.signal,
     })
   } catch {
     abortSignal?.throwIfAborted()
-    /** An unreadable or oversized body cannot be a quota error, so it stays a rate limit. */
+    /** An unreadable, oversized, or stalled body cannot be a quota error; it stays a rate limit. */
     return null
+  } finally {
+    clearTimeout(timer)
   }
   if (!isQuotaExhaustionBody(body)) return null
   return new Response(body, {
