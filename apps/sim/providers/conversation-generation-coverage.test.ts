@@ -35,7 +35,10 @@ function preparedPayload(node: ts.Node): boolean {
  * to compact history. The nearest declaration decides, so an inner shadow must be prepared too.
  */
 function preparedBinding(identifier: ts.Identifier): boolean {
-  const declares = (name: ts.BindingName) => name.getText() === identifier.text
+  const declares = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name)
+      ? name.text === identifier.text
+      : name.elements.some((element) => !ts.isOmittedExpression(element) && declares(element.name))
   for (let scope = identifier.parent; scope; scope = scope.parent) {
     if (ts.isFunctionLike(scope) && scope.parameters.some((parameter) => declares(parameter.name)))
       return false

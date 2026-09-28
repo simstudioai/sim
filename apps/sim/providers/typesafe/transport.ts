@@ -2,7 +2,11 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { isRetryableProviderStatus, providerRetryAfterMs } from '@/providers/retry'
+import {
+  isRetryableProviderStatus,
+  isWithinRetryWindow,
+  providerRetryAfterMs,
+} from '@/providers/retry'
 import { PROVIDER_HEADERS_TIMEOUT_MS, PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { buildJevBody } from '@/providers/typesafe/schema'
 
@@ -57,8 +61,10 @@ export async function requestJevEvaluation(
         error instanceof TypeSafeHttpError
           ? isRetryableProviderStatus(error.status)
           : !response || timeout.aborted || error instanceof TypeError
-      if (!retryable || attempt >= PROVIDER_MAX_RETRIES) throw error
       const retryAfterMs = error instanceof TypeSafeHttpError ? error.retryAfterMs : null
+      if (!retryable || attempt >= PROVIDER_MAX_RETRIES || !isWithinRetryWindow(retryAfterMs)) {
+        throw error
+      }
       await interruptibleSleep(backoffWithJitter(attempt + 1, retryAfterMs), abortSignal)
     }
   }

@@ -1,17 +1,3 @@
-import type { Logger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { interruptibleSleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
-import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
-import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
-import {
-  consumeOrCancelBody,
-  DEFAULT_MAX_ERROR_BODY_BYTES,
-  readResponseTextWithLimit,
-} from '@/lib/core/utils/stream-limits'
-import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
-
 /**
  * Retry policy for provider calls that no vendor SDK retries for us: the raw-fetch
  * Responses path and SDKs whose own retry is unusable.
@@ -22,9 +8,40 @@ import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
  * `retry-after` obeyed, and a caller's abort never retried. Only the wait for response
  * headers is covered — once a body is streaming, nothing is replayed.
  *
- * One deliberate divergence: a 429 reporting an exhausted balance is not retried. The
- * SDKs replay it, but a spent account does not reopen within a backoff window.
+ * Two deliberate divergences, both so a block's fallback model runs instead of waiting on
+ * a failure that will not clear: a 429 reporting an exhausted balance is not retried, and
+ * neither is a failure whose requested delay exceeds {@link MAX_RETRY_AFTER_MS}.
+ *
+ * @packageDocumentation
  */
+
+import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
+import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import {
+  consumeOrCancelBody,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
+
+/**
+ * The longest server-requested delay waited out before a replay. A longer one — a daily
+ * quota, a provider-wide pause — outlasts the retry budget, so the failure surfaces at once.
+ * Matches the backoff ceiling.
+ */
+const MAX_RETRY_AFTER_MS = 30_000
+
+/** Node's `fetch` rejects with this `TypeError` message when no response arrived. */
+const FETCH_FAILED_MESSAGES = new Set(['fetch failed', 'failed to fetch'])
+
+/** Bun's `fetch` rejects with an `Error` carrying one of these codes when no response arrived. */
+const BUN_CONNECTION_ERROR_CODES = new Set(['ConnectionRefused', 'ConnectionClosed'])
 
 export interface ProviderRetryOptions {
   logger: Logger
@@ -44,15 +61,26 @@ export function isRetryableProviderStatus(status: number): boolean {
 export function providerRetryAfterMs(headers: Headers): number | null {
   const precise = Number.parseFloat(headers.get('retry-after-ms') ?? '')
   if (Number.isFinite(precise) && precise >= 0) return precise
-  return parseRetryAfter(headers.get('retry-after'))
+  return parseRetryAfter(headers.get('retry-after'), Number.POSITIVE_INFINITY)
+}
+
+/** Whether a requested delay is short enough to wait out; no delay means backoff decides. */
+export function isWithinRetryWindow(retryAfterMs: number | null): boolean {
+  return retryAfterMs === null || retryAfterMs <= MAX_RETRY_AFTER_MS
 }
 
 /**
- * A dropped or refused connection: Node's `fetch` raises a `TypeError`, Bun's an `Error`
- * carrying the syscall code.
+ * A request that never got a response. Node rejects with `TypeError('fetch failed')` carrying
+ * the socket error as `cause`; Bun with an `Error` carrying the connection code. Any other
+ * `TypeError` is a malformed request, which a replay cannot fix.
  */
 function isRetryableTransportFailure(error: unknown): boolean {
-  return error instanceof TypeError || isRetryableInfrastructureError(error)
+  if (error instanceof TypeError) {
+    return error.cause !== undefined && FETCH_FAILED_MESSAGES.has(error.message.toLowerCase())
+  }
+  const code = isRecordLike(error) ? error.code : undefined
+  if (typeof code === 'string' && BUN_CONNECTION_ERROR_CODES.has(code)) return true
+  return isRetryableInfrastructureError(error)
 }
 
 /**
@@ -63,14 +91,15 @@ function isRetryableTransportFailure(error: unknown): boolean {
  * back rebuilt from that text. A `clone()` would tee the stream, and cancelling one branch
  * of a tee settles only once the other is cancelled too — an oversized body would hang.
  */
-async function finalResponse(
+async function nonRetryableResponse(
   response: Response,
   abortSignal: AbortSignal | undefined
 ): Promise<Response | null> {
   const directive = response.headers.get('x-should-retry')
-  if (directive === 'true') return null
-  if (directive === 'false' || !isRetryableProviderStatus(response.status)) return response
-  if (response.status !== 429) return null
+  if (directive === 'false') return response
+  if (directive !== 'true' && !isRetryableProviderStatus(response.status)) return response
+  if (!isWithinRetryWindow(providerRetryAfterMs(response.headers))) return response
+  if (directive === 'true' || response.status !== 429) return null
 
   let body: string
   try {
@@ -95,17 +124,23 @@ async function finalResponse(
 async function waitBeforeRetry(
   attempt: number,
   retryAfterMs: number | null,
-  reason: string,
+  failure: Record<string, unknown>,
   { logger, label, abortSignal }: ProviderRetryOptions
 ): Promise<void> {
   const delayMs = backoffWithJitter(attempt, retryAfterMs)
-  logger.warn(`${label} request failed (${reason}); retrying`, {
+  logger.warn(`${label} request failed; retrying`, {
+    ...failure,
     attempt,
     maxRetries: PROVIDER_MAX_RETRIES,
     delayMs: Math.round(delayMs),
   })
   await interruptibleSleep(delayMs, abortSignal)
   abortSignal?.throwIfAborted()
+}
+
+/** Bounded, so an SDK that folds the whole error body into its message cannot flood the log. */
+function describeError(error: unknown): string {
+  return truncate(getErrorMessage(error), 200)
 }
 
 /**
@@ -128,17 +163,17 @@ export async function fetchWithProviderRetry(
       if (!canRetry || options.abortSignal?.aborted || !isRetryableTransportFailure(error)) {
         throw error
       }
-      await waitBeforeRetry(attempt, null, getErrorMessage(error), options)
+      await waitBeforeRetry(attempt, null, { error: describeError(error) }, options)
       continue
     }
     if (response.ok || !canRetry) return response
-    const final = await finalResponse(response, options.abortSignal)
+    const final = await nonRetryableResponse(response, options.abortSignal)
     if (final) return final
     if (!response.bodyUsed) await consumeOrCancelBody(response)
     await waitBeforeRetry(
       attempt,
       providerRetryAfterMs(response.headers),
-      `HTTP ${response.status}`,
+      { status: response.status, requestId: response.headers.get('x-request-id') },
       options
     )
   }
@@ -159,15 +194,16 @@ export async function withProviderRetry<T>(
       const status = isRecordLike(error) && typeof error.status === 'number' ? error.status : null
       const retryable =
         status === null ? isRetryableTransportFailure(error) : isRetryableProviderStatus(status)
-      if (attempt > PROVIDER_MAX_RETRIES || options.abortSignal?.aborted || !retryable) {
+      const retryAfterMs = options.retryAfterMs?.(error) ?? null
+      if (
+        attempt > PROVIDER_MAX_RETRIES ||
+        options.abortSignal?.aborted ||
+        !retryable ||
+        !isWithinRetryWindow(retryAfterMs)
+      ) {
         throw error
       }
-      await waitBeforeRetry(
-        attempt,
-        options.retryAfterMs?.(error) ?? null,
-        getErrorMessage(error),
-        options
-      )
+      await waitBeforeRetry(attempt, retryAfterMs, { status, error: describeError(error) }, options)
     }
   }
 }

@@ -48,6 +48,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -97,6 +98,7 @@ async function executeChatCompletionsRequest(
     apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
+    ...openAICompatTransport(),
     ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
   })
 

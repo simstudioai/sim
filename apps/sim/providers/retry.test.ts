@@ -154,19 +154,42 @@ describe('fetchWithProviderRetry', () => {
     await pending
   })
 
-  it('retries a dropped connection', async () => {
-    const send = vi.fn().mockRejectedValueOnce(connectionReset()).mockImplementation(reply(200))
+  /** A daily quota or provider-wide pause outlasts any backoff; the fallback model should run now. */
+  it('does not wait out a server delay longer than the retry window', async () => {
+    const send = vi.fn().mockImplementation(reply(429, '', { 'retry-after': '120' }))
+
+    const response = await settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))
+
+    expect(response.status).toBe(429)
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['Bun connection reset', connectionReset()],
+    [
+      'Bun refused connection',
+      Object.assign(new Error('Unable to connect'), { code: 'ConnectionRefused' }),
+    ],
+    [
+      'Node network failure',
+      new TypeError('fetch failed', { cause: Object.assign(new Error(), { code: 'ECONNRESET' }) }),
+    ],
+  ])('retries a %s', async (_, failure) => {
+    const send = vi.fn().mockRejectedValueOnce(failure).mockImplementation(reply(200))
 
     const response = await settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))
 
     expect(response.status).toBe(200)
   })
 
-  it('does not retry an unrecognised failure', async () => {
-    const send = vi.fn().mockRejectedValue(new Error('body serialization failed'))
+  it.each([
+    ['an unrecognised failure', new Error('body serialization failed')],
+    ['a TypeError from building the request', new TypeError('Invalid URL')],
+  ])('does not retry %s', async (_, failure) => {
+    const send = vi.fn().mockRejectedValue(failure)
 
-    await expect(settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))).rejects.toThrow(
-      'body serialization failed'
+    await expect(settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))).rejects.toBe(
+      failure
     )
     expect(send).toHaveBeenCalledTimes(1)
   })
@@ -262,5 +285,28 @@ describe('withProviderRetry', () => {
 
     await vi.advanceTimersByTimeAsync(200)
     await expect(pending).resolves.toBe('answer')
+  })
+
+  it('surfaces an SDK error at once when its delay is longer than the retry window', async () => {
+    const quota = sdkError(429)
+    const operation = vi.fn().mockRejectedValue(quota)
+
+    await expect(
+      settle(
+        withProviderRetry(operation, { logger, label: 'Gemini', retryAfterMs: () => 3_600_000 })
+      )
+    ).rejects.toBe(quota)
+    expect(operation).toHaveBeenCalledTimes(1)
+  })
+
+  /** A malformed request fails inside the SDK before any fetch; replaying cannot fix it. */
+  it('does not retry a TypeError the SDK raised while building the request', async () => {
+    const bug = new TypeError("Cannot use 'in' operator to search for 'functionDeclarations'")
+    const operation = vi.fn().mockRejectedValue(bug)
+
+    await expect(settle(withProviderRetry(operation, { logger, label: 'Gemini' }))).rejects.toBe(
+      bug
+    )
+    expect(operation).toHaveBeenCalledTimes(1)
   })
 })
