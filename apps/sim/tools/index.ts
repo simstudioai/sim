@@ -4,7 +4,8 @@ import {
   describeError,
   findCause,
   getErrorMessage,
-  isProgrammingError,
+  isSystemError,
+  SystemError,
   toError,
 } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -2430,7 +2431,7 @@ async function executeToolImplementation(
       // thrown error into a result object; an upstream provider's status stays
       // on `output` where it cannot be mistaken for ours.
       ...(error instanceof HttpError ? { statusCode: error.statusCode } : {}),
-      ...(findCause(error, isProgrammingError) ? { isSystemError: true as const } : {}),
+      ...(findCause(error, isSystemError) ? { isSystemError: true as const } : {}),
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,
@@ -2738,7 +2739,7 @@ async function executeDeclaredInternalOperation({
     })
   } else {
     const handler = await getInternalToolOperationHandler(toolId)
-    if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
+    if (!handler) throw new SystemError(`No internal operation registered for ${toolId}`)
     const requestedTimeout = Number(params.timeout)
     const operationTimeout =
       Number.isFinite(requestedTimeout) && requestedTimeout > 0
@@ -3293,7 +3294,7 @@ async function executeMcpTool(
     logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
     validateRequestBodySize(JSON.stringify(params), actualRequestId, `mcp:${toolId}`)
     const handler = await getInternalToolOperationHandler(toolId)
-    if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
+    if (!handler) throw new SystemError(`No internal operation registered for ${toolId}`)
     const resultResponse = await handler({
       toolId,
       input: params,

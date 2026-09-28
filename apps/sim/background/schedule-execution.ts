@@ -861,7 +861,7 @@ export async function executeScheduleJob(
        * (failure count, next run, claim) has run, so faulting the job to alert
        * on it never leaves the schedule claimed or its cadence stalled.
        */
-      let jobFault: unknown
+      let jobFault: { error: unknown } | undefined
 
       try {
         const [scheduleRecord] = await db
@@ -1213,7 +1213,7 @@ export async function executeScheduleJob(
           )
 
           const failure = await classifyWorkflowJobFailure({ error, executionId, loggingSession })
-          if (failure === 'job_fault') jobFault = error
+          if (failure === 'job_fault') jobFault = { error }
         }
       } catch (error: unknown) {
         try {
@@ -1222,7 +1222,7 @@ export async function executeScheduleJob(
             return
           }
 
-          jobFault = error
+          jobFault = { error }
           logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error, {
             cause: describeError(error),
           })
@@ -1243,7 +1243,7 @@ export async function executeScheduleJob(
         }
       }
 
-      if (jobFault !== undefined) throw jobFault
+      if (jobFault) throw jobFault.error
     })
   } finally {
     timeoutController.cleanup()

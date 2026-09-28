@@ -1,4 +1,4 @@
-import { findCause, getErrorMessage, isProgrammingError } from '@sim/utils/errors'
+import { findCause, getErrorMessage, isSystemError } from '@sim/utils/errors'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { wasExecutionFinalizedByCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -60,20 +60,12 @@ const UNATTRIBUTED_WORKFLOW_FAILURE_CODES: ReadonlySet<WorkflowExecutionErrorCod
 ])
 
 /**
- * Whether Sim's own code, not the workflow, caused the failure: a programming
- * error anywhere in the `.cause` chain, or a link marked `isSystemError` where
- * `executeTool` flattened such an error into a result. User code never produces
- * either, since sandboxes return its errors as data.
+ * Whether Sim's own code, not the workflow, caused the failure anywhere in the
+ * `.cause` chain. User code never produces a system error, since sandboxes
+ * return its errors as data.
  */
 function isSystemFailure(error: unknown): boolean {
-  return (
-    findCause(
-      error,
-      (value): value is Error =>
-        isProgrammingError(value) ||
-        (value instanceof Error && 'isSystemError' in value && value.isSystemError === true)
-    ) !== undefined
-  )
+  return findCause(error, isSystemError) !== undefined
 }
 
 /**

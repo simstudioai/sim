@@ -319,14 +319,45 @@ export function findCause<T>(
 
 /**
  * Whether `value` is a JavaScript runtime programming error: a type, reference
- * or range fault raised by the running code itself, as opposed to an `Error` a
- * caller throws on purpose to reject its input.
+ * or range fault raised by the running code itself. A runtime API reporting an
+ * external failure wraps what it observed as `cause` (`fetch` rejects a network
+ * failure as `TypeError('fetch failed', { cause })`), while a defect such as
+ * calling a missing method never carries one.
  */
 export function isProgrammingError(
   value: unknown
 ): value is TypeError | ReferenceError | RangeError {
   return (
-    value instanceof TypeError || value instanceof ReferenceError || value instanceof RangeError
+    (value instanceof TypeError ||
+      value instanceof ReferenceError ||
+      value instanceof RangeError) &&
+    value.cause === undefined
+  )
+}
+
+/**
+ * A broken invariant in Sim's own code, never a rejection of the caller's
+ * input. Throw it where an invariant is checked so the failure is recognised as
+ * a platform fault even after it is flattened into a plain error.
+ */
+export class SystemError extends Error {
+  readonly isSystemError = true
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'SystemError'
+  }
+}
+
+/**
+ * Whether Sim's own code caused `value`: a {@link SystemError}, an error that
+ * carries its `isSystemError` flag across a flattening boundary, or a
+ * programming error (see {@link isProgrammingError}).
+ */
+export function isSystemError(value: unknown): value is Error {
+  return (
+    isProgrammingError(value) ||
+    (value instanceof Error && 'isSystemError' in value && value.isSystemError === true)
   )
 }
 

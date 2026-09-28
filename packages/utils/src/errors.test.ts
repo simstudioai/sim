@@ -4,6 +4,7 @@ import {
   getPostgresCancellationReason,
   getPostgresErrorCode,
   getTransientDatabaseFailure,
+  isProgrammingError,
 } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
 
@@ -234,5 +235,29 @@ describe('describeError', () => {
       described = describeError(a)
     }).not.toThrow()
     expect(described?.causeChain?.length).toBeLessThanOrEqual(10)
+  })
+})
+
+describe('isProgrammingError', () => {
+  it('recognizes a defect the running code raised itself', () => {
+    const thrown = (() => {
+      try {
+        JSON.parse('null').flatMap()
+      } catch (error) {
+        return error
+      }
+    })()
+
+    expect(isProgrammingError(thrown)).toBe(true)
+  })
+
+  it('does not treat a runtime API reporting an external failure as a defect', () => {
+    const networkFailure = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:443'), {
+        code: 'ECONNREFUSED',
+      }),
+    })
+
+    expect(isProgrammingError(networkFailure)).toBe(false)
   })
 })

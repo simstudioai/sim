@@ -1191,6 +1191,41 @@ describe('executeTool Function', () => {
     }
   )
 
+  it('marks a declared operation with no registered handler as a system error', async () => {
+    const mockTool = {
+      id: 'test_unregistered_operation',
+      name: 'Test Unregistered Operation',
+      description: 'Declares an operation no handler implements',
+      version: '1.0.0',
+      params: {},
+      operation: { input: createInternalToolOperationInput },
+    } satisfies InternalToolConfig<Record<string, unknown>>
+    ;(tools as Record<string, unknown>).test_unregistered_operation = mockTool
+    mockGetInternalToolOperationHandler.mockResolvedValueOnce(undefined)
+
+    try {
+      const result = await executeTool(
+        'test_unregistered_operation',
+        {},
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-1',
+            workflowId: 'workflow-1',
+          }),
+        }
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'No internal operation registered for test_unregistered_operation',
+        isSystemError: true,
+      })
+    } finally {
+      Reflect.deleteProperty(tools, 'test_unregistered_operation')
+    }
+  })
+
   it('preserves actorless schedule authority for registered operations', async () => {
     const mockTool = {
       id: 'test_actorless_registered_operation',
