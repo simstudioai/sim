@@ -30,7 +30,8 @@ const logger = createLogger('ReportingUsageCache')
  * A sum is held both in Redis, shared by every process, and in each process that reads it. It
  * reflects the ledger as of the moment its sum began, and its Redis expiry is anchored to that
  * moment, so it is served from Redis for at most max(this TTL + jitter, the sum's duration +
- * {@link MIN_SHARED_TTL_MS}) after it began, plus up to this TTL again in the reading process.
+ * {@link MIN_SHARED_TTL_MS}) after it began (plus any reconnect delay for a resent write), plus
+ * up to this TTL again in the reading process.
  */
 export const REPORTING_USAGE_CACHE_TTL_MS = 30_000
 
