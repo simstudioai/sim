@@ -1,0 +1,96 @@
+import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+/** Only this service's configs are needed; the full registry is ~6,000 modules. */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/databricks')) }
+})
+
+import { executeTool } from '@/tools/index'
+import { tools } from '@/tools/registry'
+
+type ToolParams = Record<string, unknown>
+
+function urlBuilder(toolId: string): (params: ToolParams) => string {
+  const url = tools[toolId].request.url
+  if (typeof url !== 'function') throw new Error(`${toolId} has a static url`)
+  return url as (params: ToolParams) => string
+}
+
+/** Every identifier any Databricks tool reads while building its URL. */
+const REQUEST_PARAMS = {
+  apiKey: 'dapi-test-token',
+  spaceId: 'space1',
+  conversationId: 'conv1',
+  messageId: 'msg1',
+  attachmentId: 'att1',
+  statementId: 'stmt1',
+  clusterId: 'cluster1',
+  jobId: 1,
+  runId: 2,
+  warehouseId: 'wh1',
+  content: 'question',
+  sql: 'SELECT 1',
+  rating: 'POSITIVE',
+}
+
+const DATABRICKS_TOOL_IDS = Object.keys(tools).filter((id) => id.startsWith('databricks_'))
+
+describe('databricks workspace host allowlist', () => {
+  it.each([
+    'attacker.example.com',
+    'https://attacker.example.com/',
+    'dbc-1.cloud.databricks.com.attacker.example.com',
+    'attacker.example.com/dbc-1.cloud.databricks.com',
+    'dbc-1.cloud.databricks.com@attacker.example.com',
+    'cloud.databricks.com',
+  ])('refuses %s in every tool before a URL is built', (host) => {
+    expect(DATABRICKS_TOOL_IDS.length).toBe(26)
+    const accepted = DATABRICKS_TOOL_IDS.filter((id) => {
+      try {
+        urlBuilder(id)({ ...REQUEST_PARAMS, host })
+        return true
+      } catch {
+        return false
+      }
+    })
+    expect(accepted).toEqual([])
+  })
+
+  it('fails the tool call without sending the token to a foreign host', async () => {
+    const result = await executeTool('databricks_list_clusters', {
+      host: 'attacker.example.com',
+      apiKey: 'dapi-test-token',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('host must be a Databricks-hosted domain')
+    expect(inputValidationMockFns.mockValidateUrlWithDNS).not.toHaveBeenCalled()
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['dbc-a1b2.cloud.databricks.com', 'https://dbc-a1b2.cloud.databricks.com'],
+    ['  https://dbc-a1b2.cloud.databricks.com/  ', 'https://dbc-a1b2.cloud.databricks.com'],
+    ['http://dbc-a1b2.cloud.databricks.com', 'https://dbc-a1b2.cloud.databricks.com'],
+    ['adb-123.4.azuredatabricks.net', 'https://adb-123.4.azuredatabricks.net'],
+    ['https://123.4.gcp.databricks.com/', 'https://123.4.gcp.databricks.com'],
+    ['dbc-a1b2.cloud.databricks.us', 'https://dbc-a1b2.cloud.databricks.us'],
+    ['adb-123.4.databricks.azure.us', 'https://adb-123.4.databricks.azure.us'],
+    ['adb-123.4.databricks.azure.cn', 'https://adb-123.4.databricks.azure.cn'],
+  ])('builds the same request URLs for workspace host %s', (host, origin) => {
+    const params = { ...REQUEST_PARAMS, host }
+    expect(urlBuilder('databricks_list_clusters')(params)).toBe(`${origin}/api/2.0/clusters/list`)
+    expect(urlBuilder('databricks_execute_sql')(params)).toBe(`${origin}/api/2.0/sql/statements/`)
+    expect(urlBuilder('databricks_get_job')(params)).toBe(`${origin}/api/2.1/jobs/get?job_id=1`)
+    expect(urlBuilder('databricks_get_run_output')(params)).toBe(
+      `${origin}/api/2.1/jobs/runs/get-output?run_id=2`
+    )
+    expect(urlBuilder('databricks_genie_get_message')(params)).toBe(
+      `${origin}/api/2.0/genie/spaces/space1/conversations/conv1/messages/msg1`
+    )
+  })
+})
