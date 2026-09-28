@@ -30,8 +30,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
   'Desk.tickets.UPDATE': 'Update tickets and add comments',
   'Desk.contacts.READ': 'View contacts',
+  'Desk.articles.READ': 'View knowledge base articles',
+  'Desk.organization.READ': 'View organization details',
   'Desk.agents.READ': 'View agents',
-  'Desk.basic.READ': 'View basic account and organization data',
+  'Desk.basic.READ': 'View basic data such as organizations, agents, and departments',
   'Desk.webhooks.CREATE': 'Create webhooks',
   'Desk.webhooks.DELETE': 'Delete webhooks',
   'aaaserver.profile.READ': 'View your Zoho profile',
@@ -60,9 +62,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
   'https://www.googleapis.com/auth/gmail.readonly': 'View email messages and settings',
-  'https://www.googleapis.com/auth/gmail.modify': 'View and manage email messages',
-  'https://www.googleapis.com/auth/drive.file': 'View and manage Google Drive files',
-  'https://www.googleapis.com/auth/drive': 'Access all Google Drive files',
+  'https://www.googleapis.com/auth/gmail.modify': 'Read, compose, send, and modify email messages',
+  'https://www.googleapis.com/auth/drive.file':
+    'View and manage Google Drive files you open or create with Sim',
+  'https://www.googleapis.com/auth/drive': 'View, edit, create, and delete all Google Drive files',
   'https://www.googleapis.com/auth/calendar.readonly': 'View calendars and events',
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/contacts': 'View and manage Google Contacts',
@@ -73,7 +76,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/forms.responses.readonly': 'View responses to Google Forms',
   'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
-  'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/ediscovery': 'Manage Google Vault matters, holds, and exports',
   'https://www.googleapis.com/auth/ediscovery.readonly':
     'View Google Vault matters, holds, and saved queries',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
@@ -88,18 +91,17 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/chat.messages.readonly':
     'View messages in Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/meetings.space.created':
-    'Create and manage Google Meet meeting spaces',
+    'Create and manage Google Meet meeting spaces created by Sim',
   'https://www.googleapis.com/auth/meetings.space.readonly':
-    'View Google Meet meeting space details',
-  'https://www.googleapis.com/auth/cloud-platform':
-    'Full access to Google Cloud resources for Vertex AI',
+    'View information about your Google Meet conferences',
+  'https://www.googleapis.com/auth/cloud-platform': 'View and manage all Google Cloud data',
 
   // Confluence scopes
   'read:confluence-content.all': 'Read all Confluence content',
   'read:confluence-space.summary': 'Read Confluence space information',
   'read:space:confluence': 'View Confluence spaces',
   'read:space-details:confluence': 'View detailed Confluence space information',
-  'write:confluence-content': 'Create and edit Confluence pages',
+  'write:confluence-content': 'Create and edit Confluence pages, blog posts, and comments',
   'write:confluence-space': 'Manage Confluence spaces',
   'write:confluence-file': 'Upload files to Confluence',
   'read:content:confluence': 'Read Confluence content',
@@ -163,7 +165,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // X (Twitter) scopes
   'tweet.read': 'Read tweets and timeline',
-  'tweet.write': 'Post and delete tweets',
+  'tweet.write': 'Post, repost, and delete tweets',
   'tweet.moderate.write': 'Hide and unhide replies to tweets',
   'users.read': 'Read user profiles and account information',
   'follows.read': 'View followers and following lists',
@@ -187,14 +189,14 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // Airtable scopes
   'data.records:read': 'Read records',
-  'data.records:write': 'Write to records',
+  'data.records:write': 'Create, edit, and delete records',
   'schema.bases:read': 'View bases and tables',
-  'webhook:manage': 'Manage webhooks',
+  'webhook:manage': 'Create, view, and delete base webhooks and read their payloads',
 
   // Jira scopes
-  'read:jira-user': 'Read Jira user',
-  'read:jira-work': 'Read Jira work',
-  'write:jira-work': 'Write to Jira work',
+  'read:jira-user': 'View Jira user profiles, including email addresses',
+  'read:jira-work': 'View Jira projects and issues, and search issues',
+  'write:jira-work': 'Create, edit, and delete Jira issues, comments, and worklogs',
   'manage:jira-webhook': 'Register and manage Jira webhooks',
   'read:webhook:jira': 'View Jira webhooks',
   'write:webhook:jira': 'Create and update Jira webhooks',
@@ -210,7 +212,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:avatar:jira': 'Read Jira avatar',
   'read:issue:jira': 'Read Jira issues',
   'read:status:jira': 'Read Jira status',
-  'read:user:jira': 'Read Jira user',
+  'read:user:jira': 'View Jira users',
   'read:field-configuration:jira': 'Read Jira field configuration',
   'read:issue-details:jira': 'Read Jira issue details',
   'read:field:jira': 'Read Jira field configurations',
@@ -275,33 +277,34 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:cmdb-attribute:jira': 'View Assets object type attributes',
 
   // Microsoft scopes
-  'User.Read': 'Read Microsoft user',
-  'Chat.Read': 'Read Microsoft chats',
-  'Chat.ReadWrite': 'Write to Microsoft chats',
-  'Chat.ReadBasic': 'Read Microsoft chats',
+  'User.Read': 'Sign in and read your profile',
+  'Chat.Read': 'Read your Teams chat messages',
+  'Chat.ReadWrite': 'Read and write your Teams chat messages',
+  'Chat.ReadBasic': 'Read names and members of your Teams chats',
   'ChatMessage.Send': 'Send chat messages',
-  'Channel.ReadBasic.All': 'Read Microsoft channels',
-  'ChannelMessage.Send': 'Write to Microsoft channels',
-  'ChannelMessage.Read.All': 'Read Microsoft channels',
-  'ChannelMessage.ReadWrite': 'Read and write to Microsoft channels',
+  'Channel.ReadBasic.All': 'Read channel names and descriptions',
+  'ChannelMessage.Send': 'Send channel messages',
+  'ChannelMessage.Read.All': 'Read channel messages',
+  'ChannelMessage.ReadWrite': 'Read and write channel messages',
   'ChannelMember.Read.All': 'Read team channel members',
-  'Group.Read.All': 'Read Microsoft groups',
+  'Group.Read.All': 'Read all groups, memberships, and group content',
   'Group.ReadWrite.All': 'Read and write all groups',
-  'Team.ReadBasic.All': 'Read Microsoft teams',
+  'Team.ReadBasic.All': 'Read team names and descriptions',
   'TeamMember.Read.All': 'Read team members',
-  'Mail.ReadWrite': 'Write to Microsoft emails',
-  'Mail.ReadBasic': 'Read Microsoft emails',
-  'Mail.Read': 'Read Microsoft emails',
+  'Mail.ReadWrite': 'Read, create, update, and delete your email',
+  'Mail.ReadBasic': 'Read email properties, excluding body and attachments',
+  'Mail.Read': 'Read your email',
   'Mail.Send': 'Send emails',
   'Calendars.ReadWrite': 'Read and manage Outlook calendar events',
   'Files.Read': 'Read OneDrive files',
   'Files.ReadWrite': 'Read and write OneDrive files',
-  'Files.Read.All': 'Read files shared with you, including SharePoint libraries',
+  'Files.Read.All': 'Read all files you can access, including SharePoint libraries',
   'Files.ReadWrite.All': 'Read and write files you have access to, including SharePoint libraries',
   'Tasks.ReadWrite': 'Read and manage Planner tasks',
-  'Sites.Read.All': 'Read Sharepoint sites',
-  'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
-  'Sites.Manage.All': 'Manage Sharepoint sites',
+  'Sites.Read.All': 'Read documents and list items in all SharePoint sites',
+  'Sites.ReadWrite.All':
+    'Create, edit, and delete documents and list items in all SharePoint sites',
+  'Sites.Manage.All': 'Create and delete lists and document libraries in all SharePoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
@@ -312,24 +315,25 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Read and reset authentication methods and passwords for all users',
   'AuditLog.Read.All': 'Read sign-in and directory audit logs',
   'Application.Read.All': 'Read all applications and service principals',
-  'AppRoleAssignment.ReadWrite.All': 'Grant and revoke application role assignments',
+  'AppRoleAssignment.ReadWrite.All':
+    'Manage app role assignments and permission grants for any app',
   'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
   'Device.Read.All': 'Read all devices',
   'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
-  identity: 'Access Reddit identity',
+  identity: 'View your Reddit username and signup date',
   submit: 'Submit posts and comments',
   vote: 'Vote on posts and comments',
   save: 'Save and unsave posts and comments',
-  edit: 'Edit posts and comments',
+  edit: 'Edit and delete your posts and comments',
   subscribe: 'Subscribe and unsubscribe from subreddits',
-  history: 'Access Reddit history',
+  history: 'View your voting history and saved or hidden posts',
   privatemessages: 'Access inbox and send private messages',
   account: 'Update account preferences and settings',
   mysubreddits: 'Access subscribed and moderated subreddits',
-  flair: 'Manage user and post flair',
-  report: 'Report posts and comments for rule violations',
+  flair: 'Select your user flair and change flair on your posts',
+  report: 'Report content and hide or show posts',
   modposts: 'Approve, remove, and moderate posts in moderated subreddits',
   modflair: 'Manage flair in moderated subreddits',
   modmail: 'Access and respond to moderator mail',
@@ -344,21 +348,22 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // Slack scopes
   'channels:read': 'View public channels',
-  'channels:history': 'Read channel messages',
+  'channels:history': 'Read public channel messages',
   'channels:manage': 'Create, archive, and rename public channels',
   'groups:read': 'View private channels',
-  'groups:history': 'Read private messages',
+  'groups:history': 'Read private channel messages',
   'groups:write': 'Create, archive, and manage private channels',
   'chat:write': 'Send messages',
-  'chat:write.public': 'Post to public channels',
+  'chat:write.public': 'Post to public channels without joining them',
   'chat:write.customize': 'Customize message username and icon',
   'assistant:write': 'Manage assistant status, titles, and suggested prompts',
-  'im:write': 'Send direct messages',
+  'im:write': 'Start direct messages',
   'im:history': 'Read direct message history',
+  'app_mentions:read': 'View messages that mention the app',
   'im:read': 'View direct message channels',
   'users:read': 'View workspace users',
   'users:read.email': 'View user email addresses',
-  'files:write': 'Upload files',
+  'files:write': 'Upload, edit, and delete files',
   'files:read': 'Download and read files',
   'lists:read': 'Read Slack Lists, rows, and column schemas',
   'lists:write': 'Create and rename Slack Lists and create, update, or delete rows',
@@ -376,18 +381,18 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
   // HubSpot scopes
   'crm.objects.contacts.read': 'Read HubSpot contacts',
-  'crm.objects.contacts.write': 'Create and update HubSpot contacts',
+  'crm.objects.contacts.write': 'Create, update, and delete HubSpot contacts',
   'crm.objects.companies.read': 'Read HubSpot companies',
-  'crm.objects.companies.write': 'Create and update HubSpot companies',
+  'crm.objects.companies.write': 'Create, update, and delete HubSpot companies',
   'crm.objects.deals.read': 'Read HubSpot deals',
-  'crm.objects.deals.write': 'Create and update HubSpot deals',
+  'crm.objects.deals.write': 'Create, update, and delete HubSpot deals',
   'crm.objects.owners.read': 'Read HubSpot object owners',
   'crm.objects.users.read': 'Read HubSpot users',
   'crm.objects.users.write': 'Create and update HubSpot users',
   'crm.objects.marketing_events.read': 'Read HubSpot marketing events',
   'crm.objects.marketing_events.write': 'Create and update HubSpot marketing events',
   'crm.objects.line_items.read': 'Read HubSpot line items',
-  'crm.objects.line_items.write': 'Create and update HubSpot line items',
+  'crm.objects.line_items.write': 'Create, update, and delete HubSpot line items',
   'crm.objects.quotes.read': 'Read HubSpot quotes',
   'crm.objects.quotes.write': 'Create and update HubSpot quotes',
   'crm.objects.appointments.read': 'Read HubSpot appointments',
@@ -400,7 +405,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.lists.write': 'Create and update HubSpot lists',
   'crm.objects.tickets.read': 'Read HubSpot tickets',
   'crm.objects.tickets.write': 'Create and update HubSpot tickets',
-  tickets: 'Access HubSpot tickets',
+  tickets: 'Create, read, update, and delete HubSpot tickets',
   oauth: 'Authenticate with HubSpot OAuth',
 
   // Salesforce scopes
@@ -408,7 +413,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   refresh_token: 'Maintain long-term access to Salesforce account',
 
   // Asana scopes
-  default: 'Access Asana workspace',
+  default: 'Full access to everything the account can reach in Asana',
 
   // Pipedrive scopes
   base: 'Basic access to Pipedrive account',
@@ -447,7 +452,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   write_customers: 'Read and manage Shopify customers',
   write_inventory: 'Read and manage Shopify inventory levels',
   read_locations: 'View store locations',
-  write_merchant_managed_fulfillment_orders: 'Create fulfillments for orders',
+  write_merchant_managed_fulfillment_orders:
+    'Read and fulfill orders assigned to merchant-managed locations',
 
   // Zoom scopes
   'user:read:user': 'View Zoom profile information',
@@ -460,7 +466,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'meeting:read:list_past_participants': 'View past meeting participants',
   'cloud_recording:read:list_user_recordings': 'List Zoom cloud recordings',
   'cloud_recording:read:list_recording_files': 'View recording files',
-  'cloud_recording:delete:recording_file': 'Delete cloud recordings',
+  'cloud_recording:delete:recording_file': 'Delete individual cloud recording files',
 
   // Dropbox scopes
   'account_info.read': 'View Dropbox account information',
@@ -472,7 +478,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'sharing.write': 'Share files and folders with others',
 
   // WordPress.com scopes
-  global: 'Full access to manage WordPress.com sites, posts, pages, media, and settings',
+  global: 'Full access to every WordPress.com site the account can manage',
 
   // Spotify scopes
   'user-read-private': 'View Spotify account details',
@@ -494,8 +500,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'ugc-image-upload': 'Upload images to Spotify playlists',
 
   // DocuSign scopes
-  signature: 'Create and send envelopes for e-signature',
-  extended: 'Extended access to DocuSign account features',
+  signature: 'Send, track, and manage envelopes with the eSignature API',
+  extended: 'Keep access active by extending the refresh token lifetime',
 
   // Attio scopes
   'record_permission:read-write': 'Read and write CRM records',
@@ -529,19 +535,30 @@ const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
   'microsoft-word': {
     'Files.Read': 'Read your Word documents in OneDrive',
     'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive',
-    'Files.Read.All': 'Read Word documents shared with you, including SharePoint libraries',
+    'Files.Read.All': 'Read Word documents you can access, including SharePoint libraries',
     'Files.ReadWrite.All':
       'Read, create, and edit Word documents you have access to, including SharePoint libraries',
   },
   bitbucket: {
     account: 'View your Bitbucket account and workspace memberships',
     repository: 'View repositories and source code',
-    'repository:write': 'Create and modify repositories, branches, and source code',
-    pullrequest: 'View pull requests, comments, approvals, and statuses',
+    'repository:write': 'Push to repositories and create or delete branches',
+    pullrequest: 'View and comment on pull requests',
     'pullrequest:write': 'Create, update, approve, decline, and merge pull requests',
     pipeline: 'View pipelines, steps, and logs',
     'pipeline:write': 'Run and stop pipelines',
     webhook: 'Manage repository webhooks',
+  },
+  linear: {
+    read: 'Read issues, projects, teams, and other workspace data',
+    write: 'Create and update issues, projects, comments, and other workspace data',
+  },
+  reddit: {
+    read: 'Read posts and comments through your account',
+  },
+  trello: {
+    read: 'Read boards, lists, cards, and workspaces',
+    write: 'Create and update boards, lists, and cards',
   },
 }
 
