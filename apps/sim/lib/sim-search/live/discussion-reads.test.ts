@@ -258,6 +258,35 @@ describe('Drive discussion reads', () => {
     expect(content).toMatch(/rate limit/i)
   })
 
+  it.each([
+    ['cancelled', new DOMException('The operation was aborted.', 'AbortError')],
+    ['timed out', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])('rejects a %s read instead of reporting partial comment coverage', async (_, reason) => {
+    const signal = AbortSignal.abort(reason)
+    const api: NativeClient = {
+      text,
+      async json(path) {
+        if (path.endsWith('/comments')) signal.throwIfAborted()
+        return DRIVE_FILE
+      },
+    }
+    await expect(readDrive(api, 'doc')).rejects.toBe(reason)
+  })
+
+  it('degrades a failed comment request to partial coverage', async () => {
+    const api: NativeClient = {
+      text,
+      async json(path) {
+        if (path.endsWith('/comments'))
+          throw Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })
+        return DRIVE_FILE
+      },
+    }
+    const { content } = await readDrive(api, 'doc')
+    expect(content).toContain('Original document text')
+    expect(content).toMatch(/incomplete[\s\S]*could not be fully retrieved/i)
+  })
+
   it('detects repeated comment cursors without silently claiming all comments were read', async () => {
     let pages = 0
     const api: NativeClient = {

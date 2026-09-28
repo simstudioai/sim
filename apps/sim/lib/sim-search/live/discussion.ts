@@ -13,6 +13,7 @@ interface DiscussionPage {
 /**
  * Collects a bounded discussion without representing provider failures or omitted pages as an
  * empty, complete history. The caller puts the warning before the document's first read window.
+ * A cancelled or timed-out read rejects rather than resolving as partial coverage.
  */
 export async function readDiscussionSection(
   label: string,
@@ -46,6 +47,8 @@ export async function readDiscussionSection(
       if (page === DISCUSSION_MAX_PAGES - 1)
         omitted = 'reached the page limit; more entries may exist'
     } catch (error) {
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))
+        throw error
       omitted = error instanceof NativeSearchError ? error.message : 'could not be fully retrieved'
       break
     }
