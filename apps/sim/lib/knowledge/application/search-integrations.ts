@@ -16,7 +16,10 @@ import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
-import { addOrganizationSearchMcpProvider } from '@/lib/sim-search/live/member-setup'
+import {
+  addOrganizationSearchMcpProvider,
+  prepareSearchMcpProvider,
+} from '@/lib/sim-search/live/member-setup'
 import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SERVICE_PROVIDERS,
@@ -150,6 +153,9 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
           setWhere: sql`${organizationSearchIntegration.approved} IS DISTINCT FROM ${input.approved}`,
         })
         .returning({ connectorType: organizationSearchIntegration.connectorType })
+    const mcpSetup = mcpProvider
+      ? await prepareSearchMcpProvider(context.organizationId, mcpProvider)
+      : null
     let memberAccounts: { groupId: string; changed: boolean } | undefined
     const changed =
       policy || memberProvider || mcpProvider
@@ -165,11 +171,11 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
                   throw new OrchestrationError('validation', error.message)
                 throw error
               })
-            if (mcpProvider)
+            if (mcpSetup)
               memberAccounts = await addOrganizationSearchMcpProvider(
                 context.organizationId!,
                 requirePrincipalSubjectUserId(principal),
-                mcpProvider,
+                mcpSetup,
                 tx
               )
             if (policy)
