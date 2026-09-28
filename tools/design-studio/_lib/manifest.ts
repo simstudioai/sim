@@ -22,6 +22,26 @@ export interface StudioSample {
   value: string
 }
 
+export interface StudioFixture {
+  type: string
+  id: string
+  variant?: { axis: string; value: string }
+  sample?: StudioSample
+  defaultState?: string
+  requiredElement?: string
+  action?: string
+}
+
+export interface StudioVariant {
+  id: string
+  axis: string
+  value: string
+  defaultValue?: string
+  fixture: StudioFixture | null
+  states: string[]
+  status: 'ready' | 'needs-fixture'
+}
+
 export interface StudioEntry {
   id: string
   kind: 'component' | 'icon' | 'extra'
@@ -32,35 +52,36 @@ export interface StudioEntry {
   rationale?: string
   value?: string
   signals?: { id: string; kind: string; source: StudioLocation; value?: string }[]
-  variant?: { axis: string; value: string; defaultValue: string }
-  fixture: {
-    type: string
-    id: string
-    variant?: { axis: string; value: string }
-    sample?: StudioSample
-    defaultState?: string
-    requiredElement?: string
-    action?: string
-  } | null
+  variants?: StudioVariant[]
+  fixture: StudioFixture | null
   previewKind?: 'source-component' | 'source-style-sample' | 'indicative-sample'
   states?: string[]
   status: 'ready' | 'needs-fixture'
 }
 
+export interface StudioTreatment {
+  key: string
+  family: string
+  title: string
+  entries: StudioEntry[]
+}
+
 export interface StudioManifest {
-  version: 2
+  version: 3
   runId: string
   status: 'complete' | 'incomplete'
   identity: { commit: string; treeHash: string; scanner: unknown }
   sourceRevision: string
   fixtureHash: string
-  components: StudioEntry[]
+  components: StudioTreatment[]
   nonvisualExports: { name: string; source: StudioLocation; reason: string }[]
-  extras: StudioEntry[]
+  extras: StudioTreatment[]
   coverageFailures: { file: string; reason: string }[]
   analysis?: {
-    stylingUnchecked: { file: string; line?: number; reason: string }[]
-    controlUnchecked: { file: string; line?: number; reason: string }[]
+    stylingUncheckedCount: number
+    controlUncheckedCount: number
+    stylingUncheckedSample: { file: string; line?: number; reason: string }[]
+    controlUncheckedSample: { file: string; line?: number; reason: string }[]
     limitations: string[]
   }
   counts: { components: number; extras: number; missing: number }
@@ -92,7 +113,7 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
     const runDirectory = path.join(studioOutputRoot(), `run-${latest.runId}`)
     if (path.resolve(latest.path) !== runDirectory) return null
     manifest = JSON.parse(readFileSync(path.join(runDirectory, 'manifest.json'), 'utf8'))
-    if (manifest.version !== 2 || manifest.runId !== latest.runId) return null
+    if (manifest.version !== 3 || manifest.runId !== latest.runId) return null
   } catch {
     return null
   }

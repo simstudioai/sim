@@ -15,6 +15,7 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { groupComponents, groupExtras } from '../../tools/design-studio/_lib/catalog.ts'
 import { productScope } from '../design-conformance/control-scope.ts'
 
 const toolRoot = path.dirname(fileURLToPath(import.meta.url))
@@ -262,6 +263,7 @@ function componentInventory() {
       fixture,
       states: fixtureContracts.states?.[item.name] ?? [],
       status: fixture ? 'ready' : 'needs-fixture',
+      ...(item.kind === 'component' ? { variants: [] } : {}),
     }
     entries.push(base)
     if (item.kind !== 'component') continue
@@ -289,11 +291,11 @@ function componentInventory() {
           : null
         if (variantFixture?.defaultState && !applicable(variantFixture.defaultState))
           variantFixture.defaultState = undefined
-        entries.push({
-          ...base,
+        base.variants.push({
           id: `component:${item.name}:${axis.name}=${value}`,
-          name: `${item.name} · ${axis.name}: ${value}`,
-          variant: { axis: axis.name, value, defaultValue: axis.defaultValue },
+          axis: axis.name,
+          value,
+          defaultValue: axis.defaultValue,
           fixture: variantFixture,
           states: base.states.filter(applicable),
           status: supportsVariant ? 'ready' : 'needs-fixture',
@@ -306,9 +308,7 @@ function componentInventory() {
 /** The scanner already resolves product wrappers to EMCN terminal renderers. */
 function attachTracedUses(entries, controls) {
   const bySymbol = new Map(
-    entries
-      .filter((entry) => !entry.variant && entry.kind === 'component')
-      .map((entry) => [entry.name, entry])
+    entries.filter((entry) => entry.kind === 'component').map((entry) => [entry.name, entry])
   )
   for (const record of controls.records ?? []) {
     if (record.origin !== 'emcn-component' || !record.projection) continue
@@ -332,8 +332,6 @@ function attachTracedUses(entries, controls) {
         entry.usages.push(site)
     }
   }
-  for (const entry of entries)
-    if (entry.variant) entry.usages = bySymbol.get(entry.id.split(':')[1])?.usages ?? entry.usages
 }
 
 const sourceContextCache = new Map()
@@ -610,9 +608,7 @@ async function main() {
   attachTracedUses(components.entries, controls)
   const extras = extraInventory(inventory.findings)
   for (const signal of extras.centralSignals) {
-    const owners = components.entries.filter(
-      (entry) => !entry.variant && entry.source.file === signal.source.file
-    )
+    const owners = components.entries.filter((entry) => entry.source.file === signal.source.file)
     if (owners.length)
       for (const owner of owners)
         (owner.signals ??= []).push({
@@ -635,18 +631,20 @@ async function main() {
     fixtureSources.map((file) => `${file}:${sha(readFileSync(path.join(repo, file)))}`).join('\n')
   )
   const manifest = {
-    version: 2,
+    version: 3,
     runId,
     identity,
     sourceRevision: initialSourceRevision,
     fixtureHash,
-    components: components.entries,
+    components: groupComponents(components.entries),
     nonvisualExports: components.nonvisual,
-    extras: extras.entries,
+    extras: groupExtras(extras.entries),
     coverageFailures: [...scannerFailures, ...components.failures],
     analysis: {
-      stylingUnchecked: inventory.unchecked,
-      controlUnchecked: controls.unchecked,
+      stylingUncheckedCount: inventory.unchecked.length,
+      controlUncheckedCount: controls.unchecked.length,
+      stylingUncheckedSample: inventory.unchecked.slice(0, 20),
+      controlUncheckedSample: controls.unchecked.slice(0, 20),
       limitations: inventory.limitations,
     },
   }
@@ -655,13 +653,21 @@ async function main() {
       file: '<product-working-tree>',
       reason: 'Source changed during refresh; refresh again.',
     })
-  const missing = [...manifest.components, ...manifest.extras].filter(
-    (entry) => entry.status !== 'ready'
-  )
+  const componentEntries = manifest.components.flatMap((treatment) => treatment.entries)
+  const extraEntries = manifest.extras.flatMap((treatment) => treatment.entries)
+  const missing = [
+    ...componentEntries.filter((entry) => entry.status !== 'ready'),
+    ...componentEntries
+      .flatMap((entry) => entry.variants ?? [])
+      .filter((entry) => entry.status !== 'ready'),
+    ...extraEntries.filter((entry) => entry.status !== 'ready'),
+  ]
   manifest.status = missing.length || manifest.coverageFailures.length ? 'incomplete' : 'complete'
   manifest.counts = {
-    components: manifest.components.length,
-    extras: manifest.extras.length,
+    components:
+      componentEntries.length +
+      componentEntries.reduce((total, entry) => total + (entry.variants?.length ?? 0), 0),
+    extras: extraEntries.length,
     missing: missing.length,
   }
   writeFileSync(path.join(runDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)

@@ -25,6 +25,18 @@ function setFindings(scan, next) {
   writeFileSync(file, JSON.stringify(report))
 }
 
+function components(manifest) {
+  return manifest.components.flatMap((treatment) => treatment.entries)
+}
+
+function variants(manifest) {
+  return components(manifest).flatMap((entry) => entry.variants ?? [])
+}
+
+function extras(manifest) {
+  return manifest.extras.flatMap((treatment) => treatment.entries)
+}
+
 function command(root, executable, args) {
   const result = spawnSync(executable, args, { cwd: root, encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr)
@@ -136,10 +148,10 @@ test('refresh requires a fixture mapping for each variant axis', () => {
   const { refresh } = guardedRefresh()
   const manifest = refresh()
   assert.ok(
-    manifest.components.find((entry) => entry.id === 'component:Example:variant=filled').fixture
+    variants(manifest).find((entry) => entry.id === 'component:Example:variant=filled').fixture
   )
   assert.equal(
-    manifest.components.find((entry) => entry.id === 'component:Example:size=lg').fixture,
+    variants(manifest).find((entry) => entry.id === 'component:Example:size=lg').fixture,
     null
   )
 }, 60000)
@@ -161,10 +173,10 @@ test('refresh keeps disabled variants without impossible interaction states', ()
     })
   )
   const manifest = refresh()
-  const enabled = manifest.components.find(
+  const enabled = variants(manifest).find(
     (entry) => entry.id === 'component:Example:disabled=false'
   )
-  const disabled = manifest.components.find(
+  const disabled = variants(manifest).find(
     (entry) => entry.id === 'component:Example:disabled=true'
   )
   assert.deepEqual(enabled.states, ['open', 'focus', 'disabled'])
@@ -192,8 +204,8 @@ test('refresh keeps explicitly closed variants out of open states', () => {
     })
   )
   const manifest = refresh()
-  const closed = manifest.components.find((entry) => entry.id === 'component:Example:open=false')
-  const opened = manifest.components.find((entry) => entry.id === 'component:Example:open=true')
+  const closed = variants(manifest).find((entry) => entry.id === 'component:Example:open=false')
+  const opened = variants(manifest).find((entry) => entry.id === 'component:Example:open=true')
   assert.deepEqual(closed.states, ['focus'])
   assert.equal(closed.fixture.defaultState, undefined)
   assert.deepEqual(opened.states, ['open', 'focus'])
@@ -203,10 +215,10 @@ test('refresh keeps explicitly closed variants out of open states', () => {
 test('refresh publishes unresolved analysis and scanner limits separately from inspection failures', () => {
   const { refresh } = guardedRefresh()
   const manifest = refresh()
-  assert.deepEqual(manifest.analysis.stylingUnchecked, [
+  assert.deepEqual(manifest.analysis.stylingUncheckedSample, [
     { file: 'example.tsx', line: 1, reason: 'Computed styling is unchecked' },
   ])
-  assert.deepEqual(manifest.analysis.controlUnchecked, [
+  assert.deepEqual(manifest.analysis.controlUncheckedSample, [
     { file: 'example.tsx', line: 2, reason: 'Unknown spread' },
   ])
   assert.deepEqual(manifest.analysis.limitations, ['Runtime cascade is unsupported.'])
@@ -359,22 +371,31 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   }
 
   const first = refresh()
+  assert.equal(first.version, 3)
+  assert.equal(first.counts.components, components(first).length + variants(first).length)
+  assert.equal(first.counts.extras, extras(first).length)
   assert.equal(
-    first.components.some((e) => e.name === 'SPACING' || e.name === 'Compound'),
+    new Set([...components(first), ...variants(first), ...extras(first)].map((entry) => entry.id))
+      .size,
+    first.counts.components + first.counts.extras
+  )
+  assert.ok(variants(first).every((entry) => !('usages' in entry)))
+  assert.equal(
+    components(first).some((e) => e.name === 'SPACING' || e.name === 'Compound'),
     false
   )
   assert.equal(
     first.nonvisualExports.some((e) => e.name === 'SPACING'),
     true
   )
-  assert.equal(first.components.find((e) => e.name === 'Compound.Part').fixture.id, 'example')
+  assert.equal(components(first).find((e) => e.name === 'Compound.Part').fixture.id, 'example')
   assert.equal(
-    first.components.find((e) => e.id === 'component:Compound.Part:size=lg').fixture,
+    variants(first).find((e) => e.id === 'component:Compound.Part:size=lg').fixture,
     null
   )
 
   assert.equal(
-    first.components
+    components(first)
       .find((e) => e.name === 'Compound.Part')
       .usages.filter((u) => u.relationship === 'direct').length,
     1
@@ -393,7 +414,10 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   assert.notEqual(changedClassMerger.sourceRevision, first.sourceRevision)
   write(repo, 'packages/emcn/src/lib/cn.ts', '')
   assert.deepEqual(
-    first.components.map((entry) => entry.id),
+    components(first).flatMap((entry) => [
+      entry.id,
+      ...(entry.variants ?? []).map((variant) => variant.id),
+    ]),
     [
       'component:Compound.Part',
       'component:Compound.Part:size=lg',
@@ -405,20 +429,20 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     ]
   )
   assert.deepEqual(
-    first.components
+    components(first)
       .find((entry) => entry.name === 'Example')
       .usages.map((site) => site.relationship),
     ['direct', 'via Wrapper']
   )
-  assert.equal(first.extras.length, 2)
+  assert.equal(extras(first).length, 2)
   assert.deepEqual(
-    first.extras.map((entry) => entry.id),
+    extras(first).map((entry) => entry.id),
     ['finding:finding-one', 'finding:advisory-one']
   )
-  assert.equal(first.extras[0].fixture.type, 'sample')
-  assert.equal(first.extras[0].fixture.sample.kind, 'surface')
-  assert.equal(first.extras[0].fixture.sample.tag, 'Example')
-  assert.equal(first.extras[0].previewKind, 'source-style-sample')
+  assert.equal(extras(first)[0].fixture.type, 'sample')
+  assert.equal(extras(first)[0].fixture.sample.kind, 'surface')
+  assert.equal(extras(first)[0].fixture.sample.tag, 'Example')
+  assert.equal(extras(first)[0].previewKind, 'source-style-sample')
 
   write(
     repo,
@@ -431,7 +455,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     "export * from './components'\nexport * from './icons'\nexport { RootOnly } from './components/root-only'\n"
   )
   assert.equal(
-    refresh().components.find((entry) => entry.id === 'component:RootOnly')?.status,
+    components(refresh()).find((entry) => entry.id === 'component:RootOnly')?.status,
     'needs-fixture'
   )
   write(
@@ -448,8 +472,14 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     "export { Example, SPACING, Compound } from './example/example'\nexport * from './cycle-a'\n"
   )
   assert.deepEqual(
-    refresh().components.map((entry) => entry.id),
-    first.components.map((entry) => entry.id)
+    components(refresh()).flatMap((entry) => [
+      entry.id,
+      ...(entry.variants ?? []).map((variant) => variant.id),
+    ]),
+    components(first).flatMap((entry) => [
+      entry.id,
+      ...(entry.variants ?? []).map((variant) => variant.id),
+    ])
   )
 
   write(
@@ -459,7 +489,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   )
   const changed = refresh()
   assert.notEqual(changed.sourceRevision, first.sourceRevision)
-  assert.equal(changed.components.find((entry) => entry.name === 'Example').usages.length, 3)
+  assert.equal(components(changed).find((entry) => entry.name === 'Example').usages.length, 3)
 
   write(
     repo,
@@ -473,7 +503,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   )
   const exported = refresh()
   assert.equal(
-    exported.components.find((entry) => entry.id === 'component:NewControl')?.status,
+    components(exported).find((entry) => entry.id === 'component:NewControl')?.status,
     'needs-fixture'
   )
 
@@ -498,11 +528,11 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     },
   ])
   const central = refresh()
-  assert.equal(central.extras.length, 4)
-  assert.equal(central.extras[2].id, 'finding:central-one')
-  assert.equal(central.extras[3].id, 'finding:unmatched-central')
+  assert.equal(extras(central).length, 4)
+  assert.equal(extras(central)[2].id, 'finding:central-one')
+  assert.equal(extras(central)[3].id, 'finding:unmatched-central')
   assert.deepEqual(
-    central.components
+    components(central)
       .find((entry) => entry.id === 'component:Example')
       ?.signals?.map((signal) => signal.id),
     ['finding:central-one']
@@ -533,7 +563,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   ]
   setFindings(scan, [...findings(scan), ...newSignals])
   const discovered = refresh()
-  const newEntries = discovered.extras.filter((entry) =>
+  const newEntries = extras(discovered).filter((entry) =>
     entry.source.file.endsWith('/new-action.tsx')
   )
   assert.equal(newEntries.length, 2)
@@ -554,7 +584,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
       value: 'WorkflowIcon',
     },
   ])
-  const movedIcon = refresh().extras.find((entry) => entry.id === 'finding:moved-icon')
+  const movedIcon = extras(refresh()).find((entry) => entry.id === 'finding:moved-icon')
   assert.deepEqual(movedIcon.fixture, { type: 'extra', id: 'workflowIcon' })
 
   const richCss =
@@ -612,7 +642,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
       value: 'bg-black/10',
     },
   ])
-  const semantic = new Map(refresh().extras.map((entry) => [entry.id, entry]))
+  const semantic = new Map(extras(refresh()).map((entry) => [entry.id, entry]))
   assert.equal(semantic.get('finding:code-moved').fixture.id, 'rich-code')
   assert.equal(semantic.get('finding:selection-moved').fixture.id, 'rich-selection')
   assert.equal(semantic.get('finding:other-css').fixture.type, 'sample')

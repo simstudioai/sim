@@ -1,20 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { StudioEntry, StudioManifest } from '@studio/_lib/manifest'
+import { extraShortValue, formatFamily, sourceFileName } from '@studio/_lib/catalog'
+import type {
+  StudioEntry,
+  StudioManifest,
+  StudioTreatment,
+  StudioVariant,
+} from '@studio/_lib/manifest'
 import Link from 'next/link'
 
 interface GeneratedGalleryProps {
   manifest: StudioManifest
   stale: boolean
   mode: 'components' | 'extras'
-}
-
-interface StudioTreatment {
-  key: string
-  family: string
-  title: string
-  entries: StudioEntry[]
 }
 
 interface NavigationGroup {
@@ -25,158 +24,6 @@ interface NavigationGroup {
 interface TreatmentSelection {
   entryId?: string
   variants: Record<string, string>
-}
-
-const REVIEW_FAMILY_NAMES: Record<string, string> = {
-  'central-artwork': 'Product artwork',
-  'central-colour': 'Colours',
-  'central-colour-assignment': 'Runtime colours',
-  'central-radius': 'Corner radii',
-  'central-typography': 'EMCN typography',
-  'component-chrome': 'Component styling',
-  'emcn-recipe-override': 'EMCN styling overrides',
-  'local-alpha': 'Local opacity',
-  'local-control': 'Local controls',
-  'local-typography': 'Local typography',
-  'local-visual-primitive': 'Visual primitives',
-  'mixed-product-artwork': 'Mixed artwork',
-  'repeated-treatment': 'Repeated treatments',
-  'runtime-style': 'Runtime styling',
-  'runtime-style-customer-brand': 'Customer branding',
-  'runtime-style-editor-tooltip': 'Editor tooltips',
-  'shared-product-recipe': 'Shared product recipes',
-  'stock-shadow': 'Stock shadows',
-  'styled-native-control': 'Styled native controls',
-}
-
-const ELEMENT_ROLE_NAMES: Record<string, string> = {
-  a: 'Link',
-  button: 'Button',
-  div: 'Surface',
-  h1: 'Heading',
-  h2: 'Heading',
-  img: 'Image',
-  input: 'Input',
-  span: 'Text',
-  textarea: 'Text area',
-}
-
-function formatFamily(family: string): string {
-  if (REVIEW_FAMILY_NAMES[family]) return REVIEW_FAMILY_NAMES[family]
-  return family.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function formatExportName(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-}
-
-function formatExtraName(name: string): string {
-  const [owner, target] = name.split(' / ')
-  const ownerName = formatExportName(owner.replaceAll('_', ' '))
-  if (target?.startsWith('@sim/emcn#')) {
-    return `${ownerName} · ${formatExportName(target.slice('@sim/emcn#'.length))}`
-  }
-  if (target) {
-    const element = target.split(' / ')[0]
-    if (owner === 'css') return `CSS · ${element.slice(0, 40)}`
-    return `${ownerName} · ${ELEMENT_ROLE_NAMES[element] ?? formatExportName(element)}`
-  }
-  return formatExportName(name.replaceAll('_', ' '))
-}
-
-function sourceFileName(file: string): string {
-  return file.split('/').at(-1) ?? file
-}
-
-function extraShortValue(entry: StudioEntry): string {
-  if (entry.family.includes('artwork')) return 'Product artwork'
-  const value = entry.value ?? entry.fixture?.sample?.values[0]
-  if (!value) return sourceFileName(entry.source.file)
-  if (/^[a-f0-9]{32,}$/i.test(value)) return 'Source fingerprint'
-  return value.length > 52 ? `${value.slice(0, 49)}…` : value
-}
-
-function treatmentKey(entry: StudioEntry): string {
-  const fixture = entry.fixture
-  if (fixture?.type === 'sample' && fixture.sample) {
-    const sample = fixture.sample
-    if (sample.className || sample.values.length) {
-      return JSON.stringify(['sample', sample.kind, sample.tag, sample.className, sample.values])
-    }
-    return JSON.stringify([
-      'source-location',
-      entry.source.file,
-      entry.source.line,
-      sample.kind,
-      sample.property,
-      sample.value,
-    ])
-  }
-  if (entry.id.startsWith('shadow-extra:') || entry.id.startsWith('typography-extra:')) {
-    return entry.id
-  }
-  if (fixture?.type === 'extra') return `source-component:${fixture.id}`
-  return entry.id
-}
-
-function groupExtras(entries: StudioEntry[]): StudioTreatment[] {
-  const groups = new Map<string, StudioEntry[]>()
-  for (const entry of entries) {
-    const key = treatmentKey(entry)
-    const group = groups.get(key) ?? []
-    group.push(entry)
-    groups.set(key, group)
-  }
-  return [...groups].map(([key, members]) => {
-    const names = new Set(members.map((member) => member.name))
-    const locations = new Set(
-      members.map((member) => `${member.source.file}:${member.source.line}`)
-    )
-    const sample = members[0].fixture?.sample
-    const title =
-      names.size > 1 && locations.size > 1 && sample?.className
-        ? `${formatExportName(sample.tag)} · ${extraShortValue(members[0])}`
-        : formatExtraName(members[0].name)
-    return { key, family: members[0].family, title, entries: members }
-  })
-}
-
-function groupComponents(entries: StudioEntry[]): StudioTreatment[] {
-  const groups = new Map<string, StudioEntry[]>()
-  const ownerGroups = new Map<string, string>()
-  for (const entry of entries.filter((item) => !item.variant)) {
-    // Structural exports can share a composite preview. Variants belong to the
-    // section for their owning export rather than creating another section.
-    const key = entry.fixture
-      ? `${entry.family}:${entry.fixture.type}:${entry.fixture.id}`
-      : entry.id
-    const group = groups.get(key) ?? []
-    group.push(entry)
-    groups.set(key, group)
-    ownerGroups.set(entry.id, key)
-  }
-  for (const entry of entries.filter((item) => item.variant)) {
-    const ownerId = entry.id.slice(0, entry.id.lastIndexOf(':'))
-    const key = ownerGroups.get(ownerId) ?? entry.id
-    const group = groups.get(key) ?? []
-    group.push(entry)
-    groups.set(key, group)
-  }
-  return [...groups].map(([key, members]) => {
-    const exports = members.filter((member) => !member.variant)
-    const named = exports.length ? exports : members
-    return {
-      key,
-      family: members[0].family,
-      title:
-        named.length > 1 && members[0].family !== 'Icons'
-          ? formatFamily(members[0].family)
-          : named.length > 1
-            ? named.map((member) => formatExportName(member.name)).join(' / ')
-            : formatExportName(named[0].name),
-      entries: members,
-    }
-  })
 }
 
 function componentNavigationGroup(treatment: StudioTreatment): string {
@@ -571,29 +418,22 @@ function TreatmentDetail({
   catalogStale,
 }: TreatmentDetailProps) {
   const { entries } = treatment
-  const exports = entries.filter((item) => !item.variant)
+  const exports = entries.filter((item) => item.kind !== 'extra')
   const defaultEntry = exports.find((item) => item.status === 'ready') ?? exports[0] ?? entries[0]
   const selectedEntry = entries.find((item) => item.id === selectedEntryId) ?? defaultEntry
   const isExtra = selectedEntry.kind === 'extra'
-  const ownerId = selectedEntry.variant
-    ? selectedEntry.id.slice(0, selectedEntry.id.lastIndexOf(':'))
-    : selectedEntry.id
-  const owner = exports.find((item) => item.id === ownerId) ?? defaultEntry
-  const entry = isExtra ? selectedEntry : owner
-  const axes = new Map<string, StudioEntry[]>()
-  for (const item of entries) {
-    if (!item.variant || !item.id.startsWith(`${owner.id}:`)) continue
-    const options = axes.get(item.variant.axis) ?? []
-    options.push(item)
-    axes.set(item.variant.axis, options)
+  const entry = selectedEntry
+  const axes = new Map<string, StudioVariant[]>()
+  for (const variant of entry.variants ?? []) {
+    const options = axes.get(variant.axis) ?? []
+    options.push(variant)
+    axes.set(variant.axis, options)
   }
-  const requestedVariants =
-    selectedVariants ??
-    (selectedEntry.variant ? { [selectedEntry.variant.axis]: selectedEntry.variant.value } : {})
+  const requestedVariants = selectedVariants ?? {}
   const activeVariants: Record<string, string> = {}
   for (const [axis, options] of axes) {
     const value = requestedVariants[axis]
-    if (value && options.some((option) => option.variant?.value === value && !!option.fixture)) {
+    if (value && options.some((option) => option.value === value && !!option.fixture)) {
       activeVariants[axis] = value
     }
   }
@@ -607,7 +447,13 @@ function TreatmentDetail({
   const stateAvailable = requestedState === 'default' || effectiveStates.includes(requestedState)
   const previewState = stateAvailable ? requestedState : 'default'
   const selectedKey = `${theme}-${size}${previewState === 'default' ? '' : `-${previewState}`}`
-  const failedCount = entries.filter((item) => item.status !== 'ready').length
+  const failedCount = entries.reduce(
+    (count, item) =>
+      count +
+      Number(item.status !== 'ready') +
+      (item.variants?.filter((variant) => variant.status !== 'ready').length ?? 0),
+    0
+  )
   const stateUnavailable = !stateAvailable
   const sourceFileCount = isExtra ? new Set(entries.map((item) => item.source.file)).size : 0
   const ownedSignals = [
@@ -693,7 +539,7 @@ function TreatmentDetail({
               <label className='flex min-w-40 flex-col gap-1 text-[var(--text-secondary)] text-xs'>
                 Export
                 <select
-                  value={owner.id}
+                  value={entry.id}
                   onChange={(event) => onSelectEntry(event.target.value)}
                   className='rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)]'
                 >
@@ -718,17 +564,11 @@ function TreatmentDetail({
                 >
                   <option value=''>
                     Default
-                    {options[0].variant?.defaultValue
-                      ? ` (${options[0].variant.defaultValue})`
-                      : ''}
+                    {options[0].defaultValue ? ` (${options[0].defaultValue})` : ''}
                   </option>
                   {options.map((option) => (
-                    <option
-                      key={option.id}
-                      value={option.variant?.value}
-                      disabled={!option.fixture}
-                    >
-                      {option.variant?.value}
+                    <option key={option.id} value={option.value} disabled={!option.fixture}>
+                      {option.value}
                       {!option.fixture ? ' · Needs fixture' : ''}
                     </option>
                   ))}
@@ -817,10 +657,15 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
   const sidebarRef = useRef<HTMLElement>(null)
   const navigationInProgress = useRef(false)
   const visibleKeys = useRef<Set<string>>(new Set())
-  const entries = mode === 'components' ? manifest.components : manifest.extras
-  const treatments = useMemo(
-    () => (mode === 'extras' ? groupExtras(entries) : groupComponents(entries)),
-    [entries, mode]
+  const treatments = mode === 'components' ? manifest.components : manifest.extras
+  const entries = useMemo(() => treatments.flatMap((treatment) => treatment.entries), [treatments])
+  const entryCount = mode === 'components' ? manifest.counts.components : manifest.counts.extras
+  const missingCount = entries.reduce(
+    (count, entry) =>
+      count +
+      Number(entry.status !== 'ready') +
+      (entry.variants?.filter((variant) => variant.status !== 'ready').length ?? 0),
+    0
   )
   const anchors = useMemo(
     () => new Map(treatments.map((treatment, index) => [treatment.key, `treatment-${index}`])),
@@ -833,7 +678,8 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
           [
             treatment.title,
             ...treatment.entries.map(
-              (entry) => `${entry.name} ${entry.family} ${entry.source.file} ${entry.value ?? ''}`
+              (entry) =>
+                `${entry.name} ${entry.family} ${entry.source.file} ${entry.value ?? ''} ${(entry.variants ?? []).map((variant) => `${variant.axis} ${variant.value}`).join(' ')}`
             ),
           ].some((value) => value.toLowerCase().includes(text))
         )
@@ -900,7 +746,9 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
         (treatment) =>
           hash === anchors.get(treatment.key) ||
           hash.startsWith(`${anchors.get(treatment.key)}-`) ||
-          treatment.entries.some((entry) => entry.id === hash)
+          treatment.entries.some(
+            (entry) => entry.id === hash || entry.variants?.some((variant) => variant.id === hash)
+          )
       )
       if (!target) return
       const anchor = anchors.get(target.key)
@@ -910,17 +758,16 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
       navigationInProgress.current = true
       if (!visibleKeys.current.has(target.key)) setQuery('')
       const linkedEntry = target.entries.find((entry) => entry.id === hash)
-      if (linkedEntry) {
-        const ownerId = linkedEntry.variant
-          ? linkedEntry.id.slice(0, linkedEntry.id.lastIndexOf(':'))
-          : linkedEntry.id
+      const variantOwner = target.entries.find((entry) =>
+        entry.variants?.some((variant) => variant.id === hash)
+      )
+      if (linkedEntry || variantOwner) {
+        const variant = variantOwner?.variants?.find((item) => item.id === hash)
         setSelections((previous) => ({
           ...previous,
           [target.key]: {
-            entryId: ownerId,
-            variants: linkedEntry.variant
-              ? { [linkedEntry.variant.axis]: linkedEntry.variant.value }
-              : {},
+            entryId: (linkedEntry ?? variantOwner)?.id,
+            variants: variant ? { [variant.axis]: variant.value } : {},
           },
         }))
       }
@@ -1209,12 +1056,12 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
           ) : null}
           <div className='mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 border-[var(--border)] border-b pb-5 text-[var(--text-muted)] text-xs'>
             <span>
-              {entries.length} {mode === 'extras' ? 'scanner signals' : 'exports and variants'}
+              {entryCount} {mode === 'extras' ? 'scanner signals' : 'exports and variants'}
             </span>
             <span>
               {treatments.length} {mode === 'extras' ? 'visual treatments' : 'component previews'}
             </span>
-            <span>{entries.filter((entry) => entry.status !== 'ready').length} fixture gaps</span>
+            <span>{missingCount} fixture gaps</span>
             <span className='ml-auto'>{manifest.status} run</span>
           </div>
           <div className='-mx-5 sm:-mx-8 lg:-mx-10 sticky top-0 z-20 flex flex-wrap items-end gap-3 border-[var(--border)] border-b bg-[var(--bg)] px-5 py-3 sm:px-8 lg:px-10'>
@@ -1320,10 +1167,7 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
               {stale ? 'source revision changed; refresh needed' : 'source revision matches'}
             </p>
             <div className='mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[var(--text-muted)] text-xs'>
-              <span>
-                {entries.filter((entry) => entry.status === 'ready').length} entries with live
-                fixtures
-              </span>
+              <span>{entryCount - missingCount} entries with live fixtures</span>
               <span>{manifest.coverageFailures.length} inspection failures</span>
               {mode === 'components' ? (
                 <span>{manifest.nonvisualExports.length} nonvisual exports classified</span>
@@ -1332,8 +1176,8 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
             {manifest.analysis ? (
               <details className='mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-[var(--text-muted)] text-xs'>
                 <summary className='cursor-pointer text-[var(--text-secondary)]'>
-                  Analysis limits · {manifest.analysis.stylingUnchecked.length} unresolved styling
-                  inputs · {manifest.analysis.controlUnchecked.length} unresolved control inputs
+                  Analysis limits · {manifest.analysis.stylingUncheckedCount} unresolved styling
+                  inputs · {manifest.analysis.controlUncheckedCount} unresolved control inputs
                 </summary>
                 <p className='mt-3'>
                   A fixture adapter supplies a live preview. Unresolved analysis remains separate
@@ -1348,13 +1192,19 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
                   <details key={kind} className='mt-4'>
                     <summary className='cursor-pointer'>
                       {kind === 'stylingUnchecked' ? 'Styling' : 'Control'} diagnostics (
-                      {manifest.analysis?.[kind].length})
+                      {kind === 'stylingUnchecked'
+                        ? manifest.analysis?.stylingUncheckedCount
+                        : manifest.analysis?.controlUncheckedCount}
+                      )
                     </summary>
                     <p className='mt-2'>
                       Showing up to 20 diagnostics. The full list is in the publication's
                       scan/scan.json.
                     </p>
-                    {manifest.analysis?.[kind].slice(0, 20).map((diagnostic, index) => (
+                    {(kind === 'stylingUnchecked'
+                      ? manifest.analysis?.stylingUncheckedSample
+                      : manifest.analysis?.controlUncheckedSample
+                    )?.map((diagnostic, index) => (
                       <p
                         key={`${diagnostic.file}:${diagnostic.line}:${index}`}
                         className='mt-2 break-all'
