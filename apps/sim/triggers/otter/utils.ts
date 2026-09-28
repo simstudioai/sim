@@ -22,13 +22,14 @@ export const otterTriggerOptions = [
 ]
 
 /**
- * Whether a delivery's event matches the trigger. A delivery without an event
- * name is accepted: the event type is chosen on the Otter webhook itself, so a
- * missing name is not evidence of a mismatch.
+ * Whether a delivery's event matches the trigger. The All Events trigger
+ * accepts everything; a typed trigger requires the documented event name, so a
+ * delivery without one cannot start a workflow for an event it did not prove.
  */
 export function isOtterEventMatch(triggerId: string, event: string | null): boolean {
   const expected = OTTER_TRIGGER_TO_EVENT[triggerId]
-  if (!expected || !event) return true
+  if (!expected) return true
+  if (!event) return false
   return normalizeOtterEvent(event) === expected
 }
 

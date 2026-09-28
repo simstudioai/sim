@@ -262,7 +262,7 @@ export function mapOtterConversationDetail(
 export function mapOtterWorkspace(value: unknown): OtterWorkspace {
   const raw = toRecordOrNull(value) ?? {}
   return {
-    id:
+    workspaceId:
       typeof raw.id === 'string' && /^\d+$/.test(raw.id) ? Number(raw.id) : toNumberOrNull(raw.id),
     name: toStringOrNull(raw.name),
     owner: mapOtterUser(raw.owner),
@@ -272,16 +272,28 @@ export function mapOtterWorkspace(value: unknown): OtterWorkspace {
   }
 }
 
-/** Read the `meta` envelope every Otter response carries. */
-export function readOtterMeta(body: unknown): {
+/** Read `meta.retrieved_at`, which every Otter response carries. */
+export function readOtterRetrievedAt(body: unknown): string | null {
+  return toStringOrNull(toRecordOrNull(toRecordOrNull(body)?.meta)?.retrieved_at)
+}
+
+/**
+ * Read the pagination `meta` of a cursor-paginated list. A missing or
+ * non-boolean `has_more` throws rather than reading as the last page, which
+ * would silently hide the remaining conversations.
+ */
+export function readOtterPagination(body: unknown): {
   retrievedAt: string | null
   hasMore: boolean
   nextCursor: string | null
 } {
-  const meta = toRecordOrNull(toRecordOrNull(body)?.meta) ?? {}
+  const meta = toRecordOrNull(toRecordOrNull(body)?.meta)
+  if (typeof meta?.has_more !== 'boolean') {
+    throw new Error('Unexpected Otter API response: missing meta.has_more')
+  }
   return {
     retrievedAt: toStringOrNull(meta.retrieved_at),
-    hasMore: meta.has_more === true,
+    hasMore: meta.has_more,
     nextCursor: toStringOrNull(meta.next_cursor),
   }
 }

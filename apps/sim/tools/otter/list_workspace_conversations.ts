@@ -10,7 +10,7 @@ import {
   otterHeaders,
   parseOtterLimit,
   readOtterDataList,
-  readOtterMeta,
+  readOtterPagination,
 } from '@/tools/otter/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -73,7 +73,7 @@ export const otterListWorkspaceConversationsTool: ToolConfig<
       success: true,
       output: {
         conversations: readOtterDataList(body).map(mapOtterConversation),
-        ...readOtterMeta(body),
+        ...readOtterPagination(body),
       },
     }
   },

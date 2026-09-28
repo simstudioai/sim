@@ -26,7 +26,7 @@ import {
   otterHeaders,
   readOtterDataList,
   readOtterDataObject,
-  readOtterMeta,
+  readOtterPagination,
 } from '@/tools/otter/utils'
 
 const logger = createLogger('OtterConnector')
@@ -88,23 +88,75 @@ function channelNames(conversation: OtterConversation): string[] {
     .filter(Boolean)
 }
 
+/** Conversations this recent are re-read daily, since edits cluster soon after a meeting. */
+const OTTER_REFRESH_WINDOW_DAYS = 14
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const LISTED_HASH = /^otter:v2:(transcript|notes):([0-9a-f]{64}):(settled|d\d{8})$/
+const HYDRATED_HASH = /^otter:v2:(transcript|notes):([0-9a-f]{64}):(settled|d\d{8}):([0-9a-f]{64})$/
+
+type OtterContentHash =
+  | { kind: 'listed'; version: string }
+  | { kind: 'hydrated'; version: string; text: string }
+
+function parseContentHash(hash: string): OtterContentHash | null {
+  const listed = LISTED_HASH.exec(hash)
+  if (listed) return { kind: 'listed', version: `${listed[1]}:${listed[2]}:${listed[3]}` }
+  const hydrated = HYDRATED_HASH.exec(hash)
+  if (hydrated) {
+    return {
+      kind: 'hydrated',
+      version: `${hydrated[1]}:${hydrated[2]}:${hydrated[3]}`,
+      text: hydrated[4],
+    }
+  }
+  return null
+}
+
 /**
- * Change-detection hash from list metadata. Otter has no modification
- * timestamp, so the hash covers every list field that changes when Otter
- * finishes or regenerates notes (title, summary, processing status) or that
- * feeds a tag (owner, guests, channels), plus the transcript setting. The list
- * and detail endpoints return the same conversation object, so the hash is
- * identical on both paths. Action-item completion, insight and outline edits,
- * transcript edits, and custom-prompt output do not appear in list metadata;
- * they refresh on a full resync (`rehydrateOnFullSync`).
+ * A listing matches stored content only when its version (transcript setting,
+ * metadata fingerprint, and refresh token) is unchanged. A re-read whose text is
+ * identical is `equivalent`, so a daily refresh only re-indexes content that
+ * actually changed.
  */
-async function buildContentHash(
+function matchContentHash(candidate: string, stored: string): 'current' | 'equivalent' | 'stale' {
+  const next = parseContentHash(candidate)
+  const previous = parseContentHash(stored)
+  if (!next || previous?.kind !== 'hydrated') return 'stale'
+  if (next.kind === 'listed') return previous.version === next.version ? 'current' : 'stale'
+  return previous.text === next.text ? 'equivalent' : 'stale'
+}
+
+/**
+ * Refresh token for the listing hash. Otter exposes no modification timestamp,
+ * and transcript, action-item, insight, outline, and custom-prompt edits never
+ * reach list metadata. Recent conversations therefore carry the current UTC day,
+ * so they are re-read at most once a day; older ones are `settled` and refresh
+ * on a metadata change or a full resync (`rehydrateOnFullSync`).
+ */
+function refreshToken(createdAt: string | null, now: Date): string {
+  const created = createdAt ? Date.parse(createdAt) : Number.NaN
+  if (Number.isNaN(created) || now.getTime() - created > OTTER_REFRESH_WINDOW_DAYS * DAY_MS) {
+    return 'settled'
+  }
+  return `d${now.toISOString().slice(0, 10).replace(/-/g, '')}`
+}
+
+/**
+ * Listing hash from conversation metadata: every list field that changes when
+ * Otter finishes or regenerates notes (title, summary, processing status) or that
+ * feeds a tag (owner, guests, channels), the transcript setting, and the refresh
+ * token. The list and detail endpoints return the same conversation object.
+ */
+async function buildListedHash(
   conversation: OtterConversation,
-  withTranscript: boolean
+  withTranscript: boolean,
+  now: Date
 ): Promise<string> {
   const sorted = (values: string[]) => [...values].sort(compareStrings)
   const fingerprint = await computeContentHash(
     JSON.stringify({
+      id: conversation.id,
       title: conversation.title,
       createdAt: conversation.createdAt,
       abstractSummary: conversation.abstractSummary,
@@ -114,12 +166,16 @@ async function buildContentHash(
       channels: sorted(channelNames(conversation)),
     })
   )
-  return `otter:${conversation.id}:${withTranscript ? 'transcript' : 'notes'}:${fingerprint}`
+  return `otter:v2:${withTranscript ? 'transcript' : 'notes'}:${fingerprint}:${refreshToken(
+    conversation.createdAt,
+    now
+  )}`
 }
 
 async function conversationToStub(
   conversation: OtterConversation,
-  withTranscript: boolean
+  withTranscript: boolean,
+  now: Date
 ): Promise<ExternalDocument> {
   return {
     externalId: conversation.id,
@@ -128,7 +184,7 @@ async function conversationToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: conversation.url ?? undefined,
-    contentHash: await buildContentHash(conversation, withTranscript),
+    contentHash: await buildListedHash(conversation, withTranscript, now),
     // With transcripts the download, not the indexed text, bounds hydration memory.
     estimatedBytes: withTranscript ? OTTER_MAX_RESPONSE_BYTES : CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     metadata: {
@@ -208,12 +264,10 @@ function buildContent(
 ): { content: string; transcriptOmitted: boolean } | null {
   const notes = buildNotes(conversation)
   if (Buffer.byteLength(notes, 'utf8') > CONNECTOR_TEXT_DOCUMENT_MAX_BYTES) return null
-  if (transcriptTooLarge) {
-    return {
-      content: `${notes}\n\n## Transcript\n${TRANSCRIPT_OMITTED_NOTICE}`,
-      transcriptOmitted: true,
-    }
-  }
+  const withNotice = `${notes}\n\n## Transcript\n${TRANSCRIPT_OMITTED_NOTICE}`
+  const noticeFits = Buffer.byteLength(withNotice, 'utf8') <= CONNECTOR_TEXT_DOCUMENT_MAX_BYTES
+  const omitted = { content: noticeFits ? withNotice : notes, transcriptOmitted: true }
+  if (transcriptTooLarge) return omitted
 
   const transcript = conversation.transcript?.content?.trim()
   if (!transcript) return { content: notes, transcriptOmitted: false }
@@ -226,10 +280,7 @@ function buildContent(
   if (size <= CONNECTOR_TEXT_DOCUMENT_MAX_BYTES) {
     return { content: `${notes}${header}${transcript}`, transcriptOmitted: false }
   }
-  return {
-    content: `${notes}\n\n## Transcript\n${TRANSCRIPT_OMITTED_NOTICE}`,
-    transcriptOmitted: true,
-  }
+  return omitted
 }
 
 const NOTES_ONLY_INCLUDE = 'action_items,insights,outline'
@@ -331,20 +382,16 @@ export const otterConnector: ConnectorConfig = {
     )
     // A page without a `data` array or a boolean `has_more` throws rather than reading
     // as the complete source, which would reconcile every unseen conversation as deleted.
-    const listed = readOtterDataList(body).map(mapOtterConversation)
-    const conversations = listed.filter((conversation) => conversation.id)
-    if (conversations.length < listed.length) {
-      logger.warn('Otter returned conversations without an ID; skipping them', {
-        skipped: listed.length - conversations.length,
-      })
+    const conversations = readOtterDataList(body).map(mapOtterConversation)
+    // Dropping an ID-less entry would let reconciliation delete the conversation it stands for.
+    if (conversations.some((conversation) => !conversation.id)) {
+      throw new Error('Unexpected Otter API response: conversation without an ID')
     }
-    if (typeof toRecordOrNull(toRecordOrNull(body)?.meta)?.has_more !== 'boolean') {
-      throw new Error('Unexpected Otter API response: missing meta.has_more')
-    }
-    const { hasMore: sourceHasMore, nextCursor } = readOtterMeta(body)
+    const { hasMore: sourceHasMore, nextCursor } = readOtterPagination(body)
 
+    const now = new Date()
     const allStubs = await Promise.all(
-      conversations.map((conversation) => conversationToStub(conversation, withTranscript))
+      conversations.map((conversation) => conversationToStub(conversation, withTranscript, now))
     )
     let documents = allStubs
     let capDroppedConversations = false
@@ -426,7 +473,7 @@ export const otterConnector: ConnectorConfig = {
         throw new Error(`Otter returned conversation ${externalId} without an ID`)
       }
 
-      const stub = await conversationToStub(detail, withTranscript)
+      const stub = await conversationToStub(detail, withTranscript, new Date())
       const built = buildContent(detail, transcriptTooLarge)
       if (!built) {
         logger.warn('Otter conversation notes exceed the text limit; skipping', { externalId })
@@ -442,6 +489,7 @@ export const otterConnector: ConnectorConfig = {
         ...stub,
         content: built.content,
         contentDeferred: false,
+        contentHash: `${stub.contentHash}:${await computeContentHash(built.content)}`,
         estimatedBytes: Buffer.byteLength(built.content, 'utf8'),
       }
     } catch (error) {
@@ -501,6 +549,8 @@ export const otterConnector: ConnectorConfig = {
       return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
+
+  matchContentHash,
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

@@ -73,19 +73,19 @@ export const otterHandler: WebhookProviderHandler = {
   },
 
   /**
-   * Otter makes two additional attempts when a delivery fails and sends no
-   * delivery ID, so the key is built from the event, the webhook source, and
-   * the conversation, never from per-attempt fields like `retrieved_at`. The
-   * same conversation can legitimately arrive once per event and per source (a
-   * webhook URL may be reused across several Otter webhooks). Re-sharing a
-   * conversation to the same source within the 7-day webhook dedupe window is
-   * therefore collapsed.
+   * Otter sends no delivery ID. A conversation completes once per source, so
+   * `conversation_completed` is keyed by event, source, and conversation, and
+   * Otter's two retry attempts collapse onto the first delivery. A conversation
+   * can be shared to the same source again later, so `conversation_shared` also
+   * keys on `meta.retrieved_at`, the time Otter assembled that delivery, keeping
+   * each share a separate run.
    */
   extractIdempotencyId(body: unknown) {
     const conversationId = readOtterId(toRecordOrNull(toRecordOrNull(body)?.data)?.id)
     if (!conversationId) return null
-    const { event, sourceType, source } = readWebhookMeta(body)
+    const { event, sourceType, source, retrievedAt } = readWebhookMeta(body)
     const sourceId = readOtterId(toRecordOrNull(source)?.id)
-    return `otter:${event ?? ''}:${sourceType ?? ''}:${sourceId}:${conversationId}`
+    const occurrence = event === 'conversation_shared' ? `:${retrievedAt ?? ''}` : ''
+    return `otter:${event ?? ''}:${sourceType ?? ''}:${sourceId}:${conversationId}${occurrence}`
   },
 }

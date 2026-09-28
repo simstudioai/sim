@@ -8,7 +8,7 @@ import {
   OTTER_RETRIEVED_AT_OUTPUT,
   otterHeaders,
   readOtterDataObject,
-  readOtterMeta,
+  readOtterRetrievedAt,
 } from '@/tools/otter/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -63,7 +63,7 @@ export const otterGetConversationTool: ToolConfig<
       success: true,
       output: {
         ...mapOtterConversationDetail(readOtterDataObject(body), body),
-        retrievedAt: readOtterMeta(body).retrievedAt,
+        retrievedAt: readOtterRetrievedAt(body),
       },
     }
   },

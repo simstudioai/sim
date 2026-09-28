@@ -97,7 +97,7 @@ export interface OtterConversationDetail extends OtterConversation {
 }
 
 export interface OtterWorkspace {
-  id: number | null
+  workspaceId: number | null
   name: string | null
   owner: OtterUser | null
   memberCount: number | null

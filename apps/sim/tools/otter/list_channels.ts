@@ -10,7 +10,7 @@ import {
   OTTER_RETRIEVED_AT_OUTPUT,
   otterHeaders,
   readOtterDataList,
-  readOtterMeta,
+  readOtterRetrievedAt,
 } from '@/tools/otter/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -45,7 +45,7 @@ export const otterListChannelsTool: ToolConfig<OtterListChannelsParams, OtterLis
           channels: readOtterDataList(body)
             .map(mapOtterChannel)
             .filter((channel): channel is OtterChannel => channel !== null),
-          retrievedAt: readOtterMeta(body).retrievedAt,
+          retrievedAt: readOtterRetrievedAt(body),
         },
       }
     },

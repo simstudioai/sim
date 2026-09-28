@@ -10,7 +10,7 @@ import {
   OTTER_USER_PROPERTIES,
   otterHeaders,
   readOtterDataList,
-  readOtterMeta,
+  readOtterRetrievedAt,
 } from '@/tools/otter/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -54,7 +54,7 @@ export const otterListChannelMembersTool: ToolConfig<
         members: readOtterDataList(body)
           .map(mapOtterUser)
           .filter((member): member is OtterUser => member !== null),
-        retrievedAt: readOtterMeta(body).retrievedAt,
+        retrievedAt: readOtterRetrievedAt(body),
       },
     }
   },

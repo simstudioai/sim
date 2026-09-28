@@ -6,7 +6,7 @@ import {
   OTTER_USER_PROPERTIES,
   otterHeaders,
   readOtterDataObject,
-  readOtterMeta,
+  readOtterRetrievedAt,
 } from '@/tools/otter/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -39,13 +39,17 @@ export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGet
         success: true,
         output: {
           ...mapOtterWorkspace(readOtterDataObject(body)),
-          retrievedAt: readOtterMeta(body).retrievedAt,
+          retrievedAt: readOtterRetrievedAt(body),
         },
       }
     },
 
     outputs: {
-      id: { type: 'number', description: 'Workspace ID', nullable: true },
+      workspaceId: {
+        type: 'number',
+        description: 'Workspace ID (the id field); pass it to List Workspace Conversations',
+        nullable: true,
+      },
       name: { type: 'string', description: 'Workspace name', nullable: true },
       owner: {
         type: 'object',

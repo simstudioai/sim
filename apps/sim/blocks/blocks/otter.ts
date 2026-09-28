@@ -252,8 +252,7 @@ export const OtterBlock: BlockConfig = {
     retrievedAt: { type: 'string', description: 'When Otter retrieved the data (ISO 8601)' },
     id: {
       type: 'string',
-      description:
-        'Conversation ID for Get Conversation, or the numeric workspace ID for Get Workspace',
+      description: 'Conversation ID',
     },
     title: { type: 'string', description: 'Conversation title' },
     url: { type: 'string', description: 'URL to view the conversation in Otter' },
@@ -300,6 +299,10 @@ export const OtterBlock: BlockConfig = {
     members: {
       type: 'json',
       description: 'Channel members (id, name, firstName, lastName, email)',
+    },
+    workspaceId: {
+      type: 'number',
+      description: 'Workspace ID from Get Workspace; pass it to List Workspace Conversations',
     },
     name: { type: 'string', description: 'Workspace name' },
     memberCount: { type: 'number', description: 'Number of workspace members' },

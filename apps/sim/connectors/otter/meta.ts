@@ -15,9 +15,9 @@ export const otterConnectorMeta: ConnectorMeta = {
   },
 
   /**
-   * Otter exposes no conversation modification timestamp, so an explicit full
-   * resync must rehydrate content even when list metadata is unchanged (for
-   * example after a transcript is edited in Otter).
+   * Otter exposes no conversation modification timestamp. Recent conversations
+   * are re-read daily by the connector; an explicit full resync rehydrates older
+   * ones whose list metadata is unchanged (for example after a transcript edit).
    */
   rehydrateOnFullSync: true,
 

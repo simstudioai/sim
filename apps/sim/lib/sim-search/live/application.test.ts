@@ -518,7 +518,7 @@ describe('authorized live retrieval', () => {
           return {
             id: 'doc',
             name: 'Launch',
-            mimeType: 'application/pdf',
+            mimeType: 'application/zip',
             webViewLink: document.url,
           }
         controller.abort(reason)
