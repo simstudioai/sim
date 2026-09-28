@@ -98,6 +98,19 @@ export function isRetryableInfrastructureError(error: unknown): boolean {
 }
 
 /**
+ * A network-level failure only — a dropped, refused, or timed-out socket anywhere in the
+ * cause chain. Narrower than {@link isRetryableInfrastructureError}: database and application
+ * codes are excluded, so a caller replaying a billed request never mistakes one for a socket.
+ */
+export function isRetryableNetworkError(error: unknown): boolean {
+  return getErrorChain(error).some(
+    (candidate) =>
+      (typeof candidate.code === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.code)) ||
+      (typeof candidate.errno === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.errno))
+  )
+}
+
+/**
  * A retryable infrastructure failure raised strictly BEFORE the guarded
  * operation performed any effect (no workflow block ran, no mutation
  * committed). Throwing it is a contract:

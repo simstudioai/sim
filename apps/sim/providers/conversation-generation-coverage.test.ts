@@ -21,11 +21,53 @@ function insideNamedAncestor(node: ts.Node, name: string): boolean {
 }
 
 function preparedPayload(node: ts.Node): boolean {
+  if (ts.isIdentifier(node)) return preparedBinding(node)
   return (
     ts.isAwaitExpression(node) &&
     ts.isCallExpression(node.expression) &&
     node.expression.expression.getText() === 'prepareConversationGeneration'
   )
+}
+
+/**
+ * Whether the nearest declaration of `identifier` is a `const` bound to a prepared payload.
+ * Retried sends prepare once and replay the binding, since preparing can itself call a model
+ * to compact history. The nearest declaration decides, so an inner shadow must be prepared too.
+ */
+function preparedBinding(identifier: ts.Identifier): boolean {
+  const declares = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name)
+      ? name.text === identifier.text
+      : name.elements.some((element) => !ts.isOmittedExpression(element) && declares(element.name))
+  for (let scope = identifier.parent; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some((parameter) => declares(parameter.name)))
+      return false
+    if (
+      ts.isCatchClause(scope) &&
+      scope.variableDeclaration &&
+      declares(scope.variableDeclaration.name)
+    )
+      return false
+    if (
+      (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) &&
+      scope.initializer &&
+      ts.isVariableDeclarationList(scope.initializer) &&
+      scope.initializer.declarations.some((declaration) => declares(declaration.name))
+    )
+      return false
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      const declaration = statement.declarationList.declarations.find((d) => declares(d.name))
+      if (!declaration) continue
+      return (
+        Boolean(statement.declarationList.flags & ts.NodeFlags.Const) &&
+        declaration.initializer !== undefined &&
+        preparedPayload(declaration.initializer)
+      )
+    }
+  }
+  return false
 }
 
 describe('provider generation context coverage', () => {
@@ -60,7 +102,7 @@ describe('provider generation context coverage', () => {
             file.endsWith('/openai-compat/streaming-tool-loop.ts')
           ) {
             argument = 0
-          } else if (callee === 'JSON.stringify' && insideNamedAncestor(node, 'postOnce')) {
+          } else if (callee === 'JSON.stringify' && insideNamedAncestor(node, 'post')) {
             argument = 0
           }
           if (argument !== undefined) {
