@@ -22,7 +22,13 @@ import {
   scrollFadeAttributes,
   scrollFadeXClass,
 } from '@sim/emcn'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  AnimatePresence,
+  type AnimationPlaybackControls,
+  animate,
+  motion,
+  useReducedMotion,
+} from 'framer-motion'
 import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
@@ -32,6 +38,12 @@ import { TabStripAction } from './tab-strip-action'
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
+/**
+ * Fixed duration for bringing the active tab into view. Native smooth scrolling
+ * takes longer the further it travels, so a crowded strip crawled across dozens
+ * of tabs.
+ */
+const REVEAL_SCROLL_TRANSITION = { duration: 0.2, ease: TAB_TRANSITION.ease }
 
 /**
  * Width, not flex-basis: `flex-1` compiles to `flex: 1 1 0%`, and Tailwind emits
@@ -508,6 +520,7 @@ export function TabStrip({
   const dropTargetIndexRef = useRef<number | null>(null)
   const autoScrollRafRef = useRef<number | null>(null)
   const autoScrollDirectionRef = useRef(0)
+  const revealScrollRef = useRef<AnimationPlaybackControls | null>(null)
   const focusedTabRef = useRef<{
     id: string
     element: HTMLButtonElement
@@ -535,6 +548,11 @@ export function TabStrip({
     const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
     setCanScrollLeft(node.scrollLeft > 1)
     setCanScrollRight(node.scrollLeft < maxScrollLeft - 1)
+  }, [])
+
+  const stopRevealScroll = useCallback(() => {
+    revealScrollRef.current?.stop()
+    revealScrollRef.current = null
   }, [])
 
   const stopAutoScroll = useCallback(() => {
@@ -579,9 +597,20 @@ export function TabStrip({
     // gradient at a scroll extreme, so no margin is needed to clear one.
     const nextLeft = Math.max(0, Math.min(maxScrollLeft, target))
     if (Math.abs(nextLeft - node.scrollLeft) < 1) return
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    node.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : 'smooth' })
-  }, [activeRegularId, regularTabOrder])
+    stopRevealScroll()
+    if (reduceMotion) {
+      node.scrollLeft = nextLeft
+      return
+    }
+    revealScrollRef.current = animate(node.scrollLeft, nextLeft, {
+      ...REVEAL_SCROLL_TRANSITION,
+      onUpdate: (left) => {
+        node.scrollLeft = left
+      },
+    })
+  }, [activeRegularId, regularTabOrder, reduceMotion, stopRevealScroll])
+
+  useEffect(() => stopRevealScroll, [stopRevealScroll])
 
   useLayoutEffect(() => {
     revealActiveTab()
@@ -621,13 +650,14 @@ export function TabStrip({
         event.deltaY
       )
       if (next === null) return
+      stopRevealScroll()
       node.scrollLeft = next
       updateOverflow()
       event.preventDefault()
     }
     strip.addEventListener('wheel', handleWheel, { passive: false })
     return () => strip.removeEventListener('wheel', handleWheel)
-  }, [updateOverflow])
+  }, [stopRevealScroll, updateOverflow])
 
   const handleDragStart = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, id: string) => {
@@ -677,6 +707,7 @@ export function TabStrip({
       stopAutoScroll()
       if (direction === 0) return
       autoScrollDirectionRef.current = direction
+      stopRevealScroll()
       const tick = () => {
         const before = node.scrollLeft
         node.scrollLeft += direction * DRAG_SCROLL_SPEED
@@ -690,7 +721,7 @@ export function TabStrip({
       }
       autoScrollRafRef.current = requestAnimationFrame(tick)
     },
-    [stopAutoScroll, tabs, updateOverflow]
+    [stopAutoScroll, stopRevealScroll, tabs, updateOverflow]
   )
 
   const handleDragOver = useCallback(
