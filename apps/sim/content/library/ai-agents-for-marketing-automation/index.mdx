@@ -6,7 +6,7 @@ date: 2026-08-29
 updated: 2026-09-28
 authors:
   - andrew
-readingTime: 15
+readingTime: 16
 tags: [Marketing Automation, AI Agents, Agentic Workflows, Sim]
 ogImage: /library/ai-agents-for-marketing-automation/cover.jpg
 canonical: https://www.sim.ai/library/ai-agents-for-marketing-automation
@@ -117,6 +117,19 @@ The following templates are starting points rather than fully autonomous recipes
 | Website conversion review | Scheduled run or page release | Retrieve page copy and analytics context, evaluate it against an approved rubric, and propose test hypotheses | CMS, analytics platform, experimentation system, brand library | Rubric-based evaluation and generation | Conversion owner selects tests | Prioritized experiment backlog |
 | Customer lifecycle risk handoff | Product or engagement signal changes | Gather account context, classify the likely lifecycle state, create a task, and draft an internal summary | Product analytics, CRM, customer-success platform, messaging system | Classification and summarization | Account owner confirms outreach strategy | CRM task and internal briefing |
 | Marketing data hygiene | Scheduled audit or record update | Detect duplicates, normalize fields, flag suspicious changes, and propose merges | CRM, warehouse, enrichment provider | Structured extraction and entity matching | Data owner approves destructive changes | Cleaned records and exception queue |
+
+### Worked example: qualify and route an inbound lead
+
+A bounded lead-routing workflow in Sim can combine model judgment with fixed branches and human review:
+
+1. A form submission triggers the workflow, which validates required fields and retrieves the matching CRM account.
+2. An Agent block receives the approved account context and returns a fit category, intent category, routing recommendation, and short rationale in a defined structure.
+3. A fixed Condition branch rejects incomplete records from automatic routing and sends them to an exception queue.
+4. Another Condition branch sends conflicting classifications and strategic accounts to a Human block, which pauses execution until a marketer approves or changes the route.
+5. After approval, the workflow updates the CRM owner, creates the follow-up task or draft, and sends an internal routing notification.
+6. The workflow writes the inputs, recommendation, approval decision, and resulting actions to the team's approved audit destination for later review.
+
+This division keeps validation and routing policy deterministic while using the model only for interpretation. It also prevents uncertain results from reaching activation tools without review.
 
 A workflow is a strong agent candidate when the team can describe the desired outcome and constraints but cannot enumerate every valid branch in advance. A deterministic automation remains preferable when the logic is stable, the inputs are structured, and the same action should always follow the same conditions. For a deeper treatment of lead and account workflows, see [AI agents for sales and CRM automation](https://www.sim.ai/library/best-ai-agents-sales-crm-automation).
 
@@ -273,11 +286,7 @@ A production agent should fail safely. When evidence is missing or confidence is
 
 ## Where can buyers compare related marketing automation options?
 
-Sim routes broad AI agent-builder comparisons to its canonical buyer guide while dedicated marketing-platform and HubSpot-alternative guides address narrower selection questions.
-
-- Read [Best AI Agent Builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026) for the canonical comparison of general-purpose agent builders.
-- Use the forthcoming marketing automation platform comparison for a platform-first evaluation of campaign suites and automation products. Its final repository slug is not yet known, so this article does not guess a URL.
-- Use the forthcoming HubSpot alternatives guide when HubSpot replacement intent is the primary buying question. Its final repository slug is not yet known, so this article does not guess a URL.
+Read [Best AI Agent Builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026) for the canonical comparison of general-purpose agent builders.
 
 ## Sources and verification
 
