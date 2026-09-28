@@ -452,6 +452,38 @@ describe('processContextsServer - skill contexts', () => {
 })
 
 describe('processContextsServer - docs contexts', () => {
+  it.each([
+    {
+      message: 'Explain loops',
+      contexts: Array.from({ length: 101 }, () => ({ kind: 'docs' as const, label: 'Docs' })),
+    },
+    { message: 'x'.repeat(1024 * 1024 + 1), contexts: [{ kind: 'docs' as const, label: 'Docs' }] },
+    { message: 'Explain loops', contexts: [{ kind: 'docs' as const, label: 'x'.repeat(1001) }] },
+  ])('rejects context resolution beyond its input budget', async ({ message, contexts }) => {
+    await expect(processContextsServer(contexts, 'reader', message, 'workspace-1')).rejects.toThrow(
+      /exceeds|maximum/i
+    )
+  })
+
+  it('preserves multiword block mentions while removing resource labels and unknown mentions', async () => {
+    searchDocsExecute.mockImplementationOnce(async ({ query }: { query: string }) => ({
+      results: [],
+      note: query,
+    }))
+    const result = await processContextsServer(
+      [
+        { kind: 'docs', label: 'Product docs' },
+        { kind: 'blocks', label: 'Read [rows]' },
+        { kind: 'integration', label: 'My service' },
+      ],
+      'reader',
+      '@Product docs compare @Read [rows] with @My service and @unknown',
+      'workspace-1'
+    )
+    const docs = result.find((context) => context.type === 'docs')
+    expect(JSON.parse(docs!.content).note).toBe('compare Read [rows] with and')
+  })
+
   it('routes @Docs to an unscoped search_docs query', async () => {
     const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
     const results = [

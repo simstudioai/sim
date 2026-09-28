@@ -1,4 +1,5 @@
-import type { QueryClient } from '@tanstack/react-query'
+import { sleep } from '@sim/utils/helpers'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { suspendBrowserScope, suspendTerminalScope } = vi.hoisted(() => ({
@@ -9,7 +10,7 @@ const { suspendBrowserScope, suspendTerminalScope } = vi.hoisted(() => ({
 vi.mock('@/lib/browser-agent/transport', () => ({ suspendBrowserScope }))
 vi.mock('@/lib/terminal/transport', () => ({ suspendTerminalScope }))
 
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import {
   handleMothershipChatStatusEvent,
   resyncMothershipChatCaches,
@@ -182,6 +183,80 @@ describe('handleMothershipChatStatusEvent', () => {
         })
     }
   )
+})
+
+describe('chat detail refetches driven by status events', () => {
+  function mountDetail(cached: MothershipChatHistory) {
+    const queryClient = new QueryClient()
+    const fetchTranscript = vi.fn(async () => cached)
+    queryClient.setQueryData(mothershipChatKeys.detail('chat-1'), cached)
+    const unsubscribe = new QueryObserver(queryClient, {
+      queryKey: mothershipChatKeys.detail('chat-1'),
+      queryFn: fetchTranscript,
+      staleTime: Number.POSITIVE_INFINITY,
+    }).subscribe(() => {})
+    return { queryClient, fetchTranscript, unsubscribe }
+  }
+
+  const liveStream: MothershipChatHistory = {
+    id: 'chat-1',
+    title: null,
+    messages: [
+      { id: 'stream-1' },
+      { id: 'live-assistant:stream-1' },
+    ] as MothershipChatHistory['messages'],
+    activeStreamId: 'stream-1',
+    resources: [],
+  }
+
+  it('does not reload the transcript when the viewer finishes its own live stream', async () => {
+    const { queryClient, fetchTranscript, unsubscribe } = mountDetail(liveStream)
+
+    handleMothershipChatStatusEvent(queryClient, 'ws-1', {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
+    await sleep(0)
+
+    expect(fetchTranscript).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('reloads the saved transcript when a cached mid-stream detail is opened after completion', async () => {
+    const queryClient = new QueryClient()
+    const fetchTranscript = vi.fn(async () => ({ ...liveStream, activeStreamId: null }))
+    queryClient.setQueryData(mothershipChatKeys.detail('chat-1'), liveStream)
+
+    handleMothershipChatStatusEvent(queryClient, 'ws-1', {
+      chatId: 'chat-1',
+      type: 'completed',
+      streamId: 'stream-1',
+    })
+    const unsubscribe = new QueryObserver(queryClient, {
+      queryKey: mothershipChatKeys.detail('chat-1'),
+      queryFn: fetchTranscript,
+      staleTime: Number.POSITIVE_INFINITY,
+    }).subscribe(() => {})
+
+    await vi.waitFor(() => expect(fetchTranscript).toHaveBeenCalledTimes(1))
+    unsubscribe()
+  })
+
+  it('marks the detail stale on rename without reloading the transcript', async () => {
+    const { queryClient, fetchTranscript, unsubscribe } = mountDetail({
+      ...liveStream,
+      messages: [],
+      activeStreamId: null,
+    })
+
+    handleMothershipChatStatusEvent(queryClient, 'ws-1', { chatId: 'chat-1', type: 'renamed' })
+    await sleep(0)
+
+    expect(fetchTranscript).not.toHaveBeenCalled()
+    expect(queryClient.getQueryState(mothershipChatKeys.detail('chat-1'))?.isInvalidated).toBe(true)
+    unsubscribe()
+  })
 })
 
 describe('resyncMothershipChatCaches', () => {

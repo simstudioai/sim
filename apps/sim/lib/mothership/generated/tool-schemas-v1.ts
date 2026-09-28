@@ -5186,7 +5186,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         limit: {
           default: 3,
           description:
-            'Maximum chunks; the server may return fewer to fit its text budget. Follow next for more context.',
+            'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.',
           type: 'integer',
           minimum: 1,
           maximum: 8,
@@ -5990,7 +5990,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         startDate: {
           description:
-            'Live search: inclusive lower date bound. Calendar uses scheduled event start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
+            'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
           type: 'string',
           format: 'date-time',
           pattern:
@@ -5998,7 +5998,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         endDate: {
           description:
-            'Live search: exclusive upper bound on the same date as startDate. For a whole day, use the next local midnight.',
+            'Live search: exclusive upper date bound. Include this with startDate whenever the request names a specific day or bounded range, even if the title uniquely identifies a result. For whole days, startDate is local midnight on the first included day and endDate is local midnight after the final included day. Preserve the timezone offset at each boundary.',
           type: 'string',
           format: 'date-time',
           pattern:
@@ -6044,7 +6044,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         nativeQueries: {
           description:
-            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS). Up to 4 per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to 4 per account run separately and merge; GitHub, GitLab, and HubSpot take one per kind. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
           minItems: 1,
           maxItems: 9,
           type: 'array',
@@ -6062,6 +6062,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'confluence',
                   'github',
                   'gitlab',
+                  'linear',
+                  'hubspot',
+                  'fireflies',
+                  'granola',
+                  'notion',
                   'coda',
                 ],
               },
@@ -6076,7 +6081,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               kind: {
                 type: 'string',
-                enum: ['issues', 'code', 'repositories', 'commits', 'merge_requests', 'wiki'],
+                enum: [
+                  'issues',
+                  'code',
+                  'repositories',
+                  'commits',
+                  'merge_requests',
+                  'wiki',
+                  'contacts',
+                  'companies',
+                  'deals',
+                  'tickets',
+                ],
               },
               project: {
                 type: 'string',
@@ -6110,7 +6126,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         query: {
           default: '',
           description:
-            'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.',
+            'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.',
           type: 'string',
           maxLength: 2000,
         },

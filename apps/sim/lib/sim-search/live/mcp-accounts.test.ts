@@ -17,8 +17,8 @@ vi.mock('@/lib/credentials/managed-mcp', () => ({
 }))
 
 import {
-  listCodaMcpSearchAccounts,
-  loadOwnCodaMcpRuntime,
+  listManagedMcpSearchAccounts,
+  loadOwnManagedMcpRuntime,
 } from '@/lib/sim-search/live/mcp-accounts'
 
 const row = {
@@ -27,6 +27,7 @@ const row = {
   workspaceId: null,
   organizationId: 'org',
   groupId: 'group',
+  connectorId: 'coda',
 }
 describe('Coda personal search authority', () => {
   beforeEach(() => {
@@ -40,9 +41,9 @@ describe('Coda personal search authority', () => {
   })
   it('filters by the acting person and applies organization workspace grants before discovery', async () => {
     queueTableRows(schemaMock.credential, [row])
-    expect(await listCodaMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')).toMatchObject([
-      { id: 'mine', type: 'managed_mcp' },
-    ])
+    expect(
+      await listManagedMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')
+    ).toMatchObject([{ id: 'mine', type: 'managed_mcp' }])
     expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'person')
     expect(mocks.policy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -57,12 +58,12 @@ describe('Coda personal search authority', () => {
   it('does not expose or decrypt grants rejected by workspace policy', async () => {
     queueTableRows(schemaMock.credential, [row])
     mocks.policy.mockRejectedValue(new Error('denied'))
-    expect(await listCodaMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')).toEqual([])
+    expect(await listManagedMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')).toEqual([])
     expect(mocks.runtime).not.toHaveBeenCalled()
   })
   it('supports organization search without inventing a workspace and binds token resolution to the person', async () => {
     queueTableRows(schemaMock.credential, [row])
-    await loadOwnCodaMcpRuntime({ organizationId: 'org' }, 'person', 'mine')
+    await loadOwnManagedMcpRuntime({ organizationId: 'org' }, 'person', 'mine', 'coda')
     expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.runtime).toHaveBeenCalledWith(
       'mine',
@@ -73,7 +74,7 @@ describe('Coda personal search authority', () => {
   it('rejects references to credentials outside the fresh own-account listing', async () => {
     queueTableRows(schemaMock.credential, [row])
     await expect(
-      loadOwnCodaMcpRuntime({ organizationId: 'org' }, 'person', 'someone-else')
+      loadOwnManagedMcpRuntime({ organizationId: 'org' }, 'person', 'someone-else', 'coda')
     ).rejects.toThrow('no longer available')
     expect(mocks.runtime).not.toHaveBeenCalled()
   })

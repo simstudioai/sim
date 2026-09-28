@@ -44,7 +44,8 @@ import type {
   CredentialGroupEnrollmentRecord,
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
@@ -173,25 +174,29 @@ export interface CredentialGroupEnrollmentCompletion {
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
 export async function lockCredentialGroupEnrollmentLifecycle(
-  executor: DbOrTx,
+  executor: DbTransaction,
   enrollmentId: string
 ): Promise<void> {
   if (!enrollmentId.trim()) throw new Error('Credential group enrollment ID is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-enrollment:${enrollmentId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_enrollment',
+    `credential-group-enrollment:${enrollmentId}`
   )
 }
 
 /** Serializes invitation issuance before an enrollment row is known or locked. */
 async function lockCredentialGroupInvitationTarget(
-  executor: DbOrTx,
+  executor: DbTransaction,
   groupId: string,
   email: string
 ): Promise<void> {
   if (!groupId.trim()) throw new Error('Credential group ID is required')
   if (!email.trim()) throw new Error('Credential group enrollment email is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-invitation:${groupId}:${email}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_invitation',
+    `credential-group-invitation:${groupId}:${email}`
   )
 }
 

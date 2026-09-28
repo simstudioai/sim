@@ -36,6 +36,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 import { DatabricksMcpConnectorModal } from '@/ee/credential-groups/components/databricks-mcp-connector-modal'
 import {
   OrganizationAccountProviderCatalog,
@@ -160,14 +161,13 @@ export function OrganizationAccountProviders({
         }
       }),
     ...group.mcpServers
-      .filter(
-        (server) =>
-          (!availableMcpConnectors || availableMcpConnectors.includes(server.managedConnectorId)) &&
-          (server.managedConnectorId !== 'databricks' || server.enabled)
-      )
+      .filter((server) => server.managedConnectorId !== 'databricks' || server.enabled)
       .map((server) => ({
         id: server.id,
-        name: MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
+        name:
+          server.managedConnectorId === 'hubspot'
+            ? 'HubSpot (member access)'
+            : MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
         icon: getManagedMcpConnectorIcon(server.managedConnectorId),
         configure:
           server.managedConnectorId === 'databricks' ? () => setDatabricksOpen(true) : undefined,
@@ -221,7 +221,13 @@ export function OrganizationAccountProviders({
           {visibleRows.map(({ id, name, icon: Icon, configure, choice }) => (
             <SettingsResourceRow
               key={id}
-              icon={<Icon aria-hidden />}
+              iconVariant='custom'
+              icon={
+                <CredentialGroupProviderTile
+                  provider={choice.kind === 'oauth' ? choice.provider : choice.connectorId}
+                  icon={Icon}
+                />
+              }
               title={name}
               trailing={
                 <div className='flex items-center gap-2'>

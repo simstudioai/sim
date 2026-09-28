@@ -2,6 +2,7 @@ import type {
   DatabricksCancelRunParams,
   DatabricksCancelRunResponse,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCancelRunResponse> = {
@@ -33,13 +34,7 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   },
 
   request: {
-    url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      return `https://${host}/api/2.1/jobs/runs/cancel`
-    },
+    url: (params) => databricksUrl(params.host, '/api/2.1/jobs/runs/cancel'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

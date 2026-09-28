@@ -22,6 +22,7 @@ import {
   sweepStaleMemberObservations,
   writeProjectionPages,
 } from '@/lib/knowledge/connectors/member-observations'
+import { windowScan } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import { type LeaseTransaction, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -339,7 +340,8 @@ describe('applyMemberDocumentLifecycle', () => {
   it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [])
+    /** The resurrection walk's only window, read through `db.execute`, is empty. */
+    dbChainMockFns.execute.mockResolvedValueOnce(windowScan([]))
     queueTableRows(schemaMock.document, [{ id: 'd-1' }])
     vi.mocked(hardDeleteDocuments).mockRejectedValueOnce(
       new ConnectorSyncDeletionGuardError('lease reclaimed')

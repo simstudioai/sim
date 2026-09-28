@@ -327,7 +327,7 @@ describe('knowledge base counts with live source permissions', () => {
         createdAt: new Date('2026-01-01'),
       },
     ])
-    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { countsFor: access })
     expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
     expect(getForConnectors).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalledWith({

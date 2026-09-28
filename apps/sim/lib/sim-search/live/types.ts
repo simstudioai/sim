@@ -20,7 +20,20 @@ export interface LiveAccount {
   scopes: string[]
 }
 
+export type NativeAccessReference = Pick<NativeDocument, 'id' | 'container' | 'kind'>
+
+export interface NativeReadOptions {
+  policy: LiveSearchPolicy
+  filters?: WorkspaceSearchFilters
+  signal: AbortSignal
+  verify(
+    reference: NativeAccessReference & Pick<NativeDocument, 'accessMetadata'>
+  ): Promise<boolean>
+}
+
 export interface NativeDocument {
+  /** Server-only references whose content must pass a fresh check before projection. */
+  accessDependencies?: readonly NativeAccessReference[]
   /**
    * Server-only permission evidence from the same response as the content. Only a verifier
    * bound to the client that produced it may consume it; it is never projected to callers.
@@ -69,6 +82,7 @@ export interface NativeClient {
     }
   ): Promise<unknown>
   text(path: string, query?: Record<string, string>): Promise<string>
+  bytes(path: string, query?: Record<string, string>): Promise<Buffer>
 }
 
 export interface NativeSearchInput {

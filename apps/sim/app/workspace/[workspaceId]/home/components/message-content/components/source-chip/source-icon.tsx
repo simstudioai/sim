@@ -29,6 +29,15 @@ const GOOGLE_DOCUMENT_ICON_BY_PATH: ReadonlyMap<string, StyleableIcon> = new Map
   ['presentation', GoogleSlidesIcon],
 ])
 
+const BRAND_TYPE_BY_HOSTNAME: ReadonlyMap<string, string> = new Map([
+  ['github.com', 'github'],
+  ['gitlab.com', 'gitlab'],
+  ['notion.so', 'notion'],
+  ['drive.google.com', 'google_drive'],
+  ['mail.google.com', 'gmail'],
+  ['calendar.google.com', 'google_calendar'],
+])
+
 interface SourceIconProps {
   source: SourceTagData
   size?: 'default' | 'inline'
@@ -45,7 +54,12 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
     hostname === 'docs.google.com'
       ? GOOGLE_DOCUMENT_ICON_BY_PATH.get(new URL(source.url).pathname.split('/')[1] ?? '')
       : undefined
-  const Icon = DocumentIcon ?? ConnectorIcon
+  const hostBrandType =
+    hostname === 'slack.com' || hostname?.endsWith('.slack.com')
+      ? 'slack'
+      : BRAND_TYPE_BY_HOSTNAME.get(hostname?.replace(/^www\./, '') ?? '')
+  const HostIcon = hostBrandType ? BRAND_ICON_BY_BASE_TYPE.get(hostBrandType) : undefined
+  const Icon = DocumentIcon ?? ConnectorIcon ?? HostIcon
   const className = cn('shrink-0', size === 'inline' ? 'size-[12px]' : 'size-[14px]')
   if (Icon) return <BrandIcon icon={Icon} className={className} />
   if (hostname && failedHostname !== hostname) {

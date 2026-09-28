@@ -92,6 +92,7 @@ export const workspaceFileFoldersMockFns = {
   mockRelocateWorkspaceFileFolderByPath: vi.fn(),
   mockDeleteWorkspaceFileFolderByPath: vi.fn(),
   mockArchiveWorkspaceFileFolderIfEmpty: vi.fn(),
+  mockWorkspaceFileNameFolderCondition: vi.fn(),
 }
 
 const fns = workspaceFileFoldersMockFns
@@ -133,4 +134,5 @@ export const workspaceFileFoldersMock = {
   relocateWorkspaceFileFolderByPath: fns.mockRelocateWorkspaceFileFolderByPath,
   deleteWorkspaceFileFolderByPath: fns.mockDeleteWorkspaceFileFolderByPath,
   archiveWorkspaceFileFolderIfEmpty: fns.mockArchiveWorkspaceFileFolderIfEmpty,
+  workspaceFileNameFolderCondition: fns.mockWorkspaceFileNameFolderCondition,
 }

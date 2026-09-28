@@ -104,6 +104,27 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     hint: 'Use Confluence space keys. Restrict the site below when spaces share a key.',
     example: 'ENG, TEAM',
   },
+  linear: { label: 'Projects', hint: 'Member accounts search all accessible issues.', example: '' },
+  hubspot: {
+    label: 'CRM records',
+    hint: 'Member accounts search CRM records allowed by their HubSpot permissions.',
+    example: '',
+  },
+  fireflies: {
+    label: 'Meetings',
+    hint: 'Member accounts search accessible meeting transcripts.',
+    example: '',
+  },
+  granola: {
+    label: 'Meetings',
+    hint: 'Member accounts search accessible meeting notes.',
+    example: '',
+  },
+  notion: {
+    label: 'Pages',
+    hint: 'Member accounts search accessible Notion content.',
+    example: '',
+  },
   coda: {
     label: 'Documents',
     hint: 'Use document IDs or superhuman://docs/ID references.',

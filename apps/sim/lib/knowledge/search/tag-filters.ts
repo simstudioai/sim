@@ -13,6 +13,7 @@ import {
   selectAuthorizedSearchResults,
 } from '@/lib/knowledge/search/candidates'
 import {
+  buildDateTagCondition,
   coerceTagFilterValue,
   escapeLikePattern,
   uncompilableTagFilterError,
@@ -51,7 +52,8 @@ type TagFilterTable = Pick<typeof embedding, TagSlotKey>
 
 /**
  * Build a single SQL condition for a filter. Date values arrive as `YYYY-MM-DD` strings and
- * compare as dates.
+ * compare as dates; an unknown date operator or a `between` without a valid upper bound narrows
+ * to the day itself.
  */
 function buildFilterCondition(filter: StructuredFilter, embeddingTable: TagFilterTable) {
   const { tagSlot, fieldType, operator, value, valueTo } = filter
@@ -120,33 +122,13 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: TagFilte
     const coerced = coerceTagFilterValue(value, 'date')
     if (!coerced.ok) return null
     const dateStr = coerced.value as string
-
-    switch (operator) {
-      case 'eq':
-        return sql`${column}::date = ${dateStr}::date`
-      case 'neq':
-        return sql`${column}::date != ${dateStr}::date`
-      case 'gt':
-        return sql`${column}::date > ${dateStr}::date`
-      case 'gte':
-        return sql`${column}::date >= ${dateStr}::date`
-      case 'lt':
-        return sql`${column}::date < ${dateStr}::date`
-      case 'lte':
-        return sql`${column}::date <= ${dateStr}::date`
-      case 'between':
-        if (valueTo !== undefined) {
-          const coercedTo = coerceTagFilterValue(valueTo, 'date')
-          if (!coercedTo.ok) {
-            return sql`${column}::date = ${dateStr}::date`
-          }
-          const dateStrTo = coercedTo.value as string
-          return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
-        }
-        return sql`${column}::date = ${dateStr}::date`
-      default:
-        return sql`${column}::date = ${dateStr}::date`
-    }
+    const coercedTo = coerceTagFilterValue(valueTo, 'date')
+    const dateStrTo = coercedTo.ok ? (coercedTo.value as string) : undefined
+    return (
+      buildDateTagCondition(column, operator, dateStr, dateStrTo) ??
+      buildDateTagCondition(column, 'eq', dateStr) ??
+      null
+    )
   }
 
   if (fieldType === 'boolean') {

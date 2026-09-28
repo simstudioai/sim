@@ -120,6 +120,7 @@ import {
   processDocOps,
   RETRY_WINDOW_DAYS,
   runChangeFeedPass,
+  staleSeen,
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
@@ -2301,7 +2302,13 @@ export async function executeMemberSync(
                   await tx
                     .update(document)
                     .set({ sourceSeenAt: run.runStartedAt })
-                    .where(and(eq(document.connectorId, connectorId), inArray(document.id, page)))
+                    .where(
+                      and(
+                        eq(document.connectorId, connectorId),
+                        inArray(document.id, page),
+                        staleSeen(run.runStartedAt)
+                      )
+                    )
                 }
               })
             }

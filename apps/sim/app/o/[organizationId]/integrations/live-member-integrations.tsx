@@ -2,8 +2,12 @@
 
 import { Chip, toast } from '@sim/emcn'
 import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
-import { connectorDisplayName, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
+import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
+import {
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchMcpConnector,
+} from '@/lib/sim-search/live/source-catalog'
 import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
 import { GenericSecretSourceRow } from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -19,20 +23,6 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
-
-const SOURCES: Record<string, string> = {
-  'google-drive': 'google_drive',
-  gmail: 'gmail',
-  'google-email': 'gmail',
-  'google-calendar': 'google_calendar',
-  'google-docs': 'google_drive',
-  'google-sheets': 'google_drive',
-  'google-slides': 'google_drive',
-  'github-repositories': 'github',
-  slack: 'slack',
-  jira: 'jira',
-  confluence: 'confluence',
-}
 
 interface LiveMemberIntegrationsProps {
   organizationId: string
@@ -69,25 +59,34 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const data = inventory.data
   const approvals = new Map(policies.data.map((policy) => [policy.connectorType, policy]))
   const group = data.credentialGroup
-  const codaServerIds = new Set(
-    group?.mcpServers
-      .filter((server) => server.managedConnectorId === 'coda')
-      .map((server) => server.id)
+  const mcpProviders = new Map(
+    group?.mcpServers.map((server) => [server.id, server.managedConnectorId])
   )
-  const codaAccounts = (data.viewerMcpAccounts ?? []).filter((account) =>
-    codaServerIds.has(account.mcpServerId)
-  )
-  const available = SEARCH_SOURCE_TYPES.filter(
+  const mcpAccounts = (provider: string) =>
+    (data.viewerMcpAccounts ?? []).filter(
+      (account) => mcpProviders.get(account.mcpServerId) === provider
+    )
+  const accountsForProvider = (provider: string) =>
+    liveSearchMcpConnector(provider)
+      ? mcpAccounts(provider)
+      : (data.viewerAccounts ?? []).filter(
+          (account) => liveSearchProviderForCredential(account.providerId) === provider
+        )
+  const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
+      (provider !== 'hubspot' ||
+        data.availableMcpConnectors.includes('hubspot') ||
+        mcpAccounts(provider).length > 0) &&
       (approvals.get(provider)?.approved ||
-        data.viewerAccounts?.some((account) => SOURCES[account.providerId] === provider) ||
-        (provider === 'coda' && codaAccounts.length))
+        data.viewerAccounts?.some(
+          (account) => liveSearchProviderForCredential(account.providerId) === provider
+        ) ||
+        mcpAccounts(provider).length)
   )
   const query = search.trim().toLowerCase()
   const visible = available.filter(([provider, meta]) =>
-    `${provider} ${meta.name} ${(data.viewerAccounts ?? [])
-      .filter((account) => SOURCES[account.providerId] === provider)
+    `${provider} ${meta.name} ${accountsForProvider(provider)
       .map((account) => account.displayName)
       .join(' ')}`
       .toLowerCase()
@@ -105,7 +104,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
       {visible.map(([provider, meta]) => {
         const approval = approvals.get(provider)
         const approved = approval?.approved === true
-        const name = connectorDisplayName(provider)
+        const name = meta.name
         if (provider === 'gitlab')
           return (
             <SettingsResourceRow
@@ -120,25 +119,22 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
             />
           )
         const option = group?.options.find(
-          (option) => SOURCES[option.provider] === provider && option.status === 'active'
+          (option) =>
+            liveSearchProviderForCredential(option.provider) === provider &&
+            option.status === 'active'
         )
-        const server =
-          provider === 'coda'
-            ? group?.mcpServers.find(
-                (server) => server.managedConnectorId === 'coda' && server.enabled
-              )
-            : undefined
-        const accounts =
-          provider === 'coda'
-            ? codaAccounts
-            : (data.viewerAccounts ?? []).filter(
-                (account) => SOURCES[account.providerId] === provider
-              )
+        const server = liveSearchMcpConnector(provider)
+          ? group?.mcpServers.find(
+              (server) => server.managedConnectorId === provider && server.enabled
+            )
+          : undefined
+        const accounts = accountsForProvider(provider)
         const ready =
           group?.status === 'active' &&
           Boolean(option || server) &&
           approved &&
-          (!option || option.configurationStatus === 'ready')
+          (!option || option.configurationStatus === 'ready') &&
+          (provider !== 'hubspot' || data.availableMcpConnectors.includes('hubspot'))
         const scope =
           approval?.policy?.accessMode === 'service_account'
             ? 'Selected resources you can access'

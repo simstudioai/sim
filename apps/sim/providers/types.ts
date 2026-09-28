@@ -19,6 +19,7 @@ export type ProviderId =
   | 'meta'
   | 'zai'
   | 'kimi'
+  | 'kie'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'

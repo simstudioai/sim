@@ -274,12 +274,11 @@ function arrange(
         {
           ownedCount: options.existingDocument ? 2 : 1,
           listedCount: 1,
+          aclCount: 0,
           softCount: 0,
           hardCount: 0,
         },
       ])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [])
     }
     queueTableRows(schemaMock.document, [{ count: 1 }])
   }
