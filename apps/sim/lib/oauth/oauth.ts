@@ -316,6 +316,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
+          'https://www.googleapis.com/auth/apps.groups.settings',
         ],
         serviceAccountProviderId: 'google-service-account',
       },
@@ -427,7 +428,26 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-excel',
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+        /**
+         * The block's SharePoint file source needs more than the OneDrive-only
+         * `Files.Read`/`Files.ReadWrite`: the `.All` variants cover document
+         * libraries the user can open, and `Sites.Read.All` is the only
+         * delegated permission Graph accepts for the site search behind the
+         * site picker. All three are user-consentable for delegated access.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+         */
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Files.Read.All',
+          'Files.ReadWrite.All',
+          'Sites.Read.All',
+          'offline_access',
+        ],
       },
       'microsoft-planner': {
         name: 'Microsoft Planner',
@@ -435,15 +455,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-planner',
         icon: MicrosoftPlannerIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: [
-          'openid',
-          'profile',
-          'email',
-          'Group.ReadWrite.All',
-          'Group.Read.All',
-          'Tasks.ReadWrite',
-          'offline_access',
-        ],
+        scopes: ['openid', 'profile', 'email', 'Tasks.ReadWrite', 'offline_access'],
       },
       'microsoft-teams': {
         name: 'Microsoft Teams',
@@ -465,12 +477,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'ChannelMessage.Read.All',
           'ChannelMessage.ReadWrite',
           'ChannelMember.Read.All',
-          'Group.Read.All',
-          'Group.ReadWrite.All',
           'Team.ReadBasic.All',
           'TeamMember.Read.All',
           'offline_access',
           'Files.Read',
+          'Files.ReadWrite',
           'Sites.Read.All',
         ],
       },
@@ -710,13 +721,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'write:jira-work',
           'read:me',
           'offline_access',
-          'read:issue.vote:jira',
           'read:user:jira',
-          'delete:issue:jira',
-          'delete:comment:jira',
-          'delete:attachment:jira',
-          'delete:issue-worklog:jira',
-          'delete:issue-link:jira',
           // Jira Service Management scopes. The classic scopes are required: Atlassian
           // enforces an endpoint's granular scope set as all-of, and several JSM request
           // endpoints include scopes outside this list in their granular sets.
@@ -1075,13 +1080,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'subscribe',
           'history',
           'privatemessages',
-          'account',
           'mysubreddits',
-          'flair',
           'report',
           'modposts',
-          'modflair',
-          'modmail',
         ],
       },
     },
@@ -1188,7 +1189,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'calcom-service-account',
         icon: CalComIcon,
         baseProviderIcon: CalComIcon,
-        scopes: [],
+        scopes: [
+          'PROFILE_READ',
+          'BOOKING_READ',
+          'BOOKING_WRITE',
+          'EVENT_TYPE_READ',
+          'EVENT_TYPE_WRITE',
+          'SCHEDULE_READ',
+          'SCHEDULE_WRITE',
+        ],
       },
     },
     defaultService: 'calcom',
@@ -1485,6 +1494,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'cloud_recording:read:list_user_recordings',
           'cloud_recording:read:list_recording_files',
           'cloud_recording:delete:recording_file',
+          'cloud_recording:delete:meeting_recording',
         ],
         serviceAccountProviderId: 'zoom-service-account',
       },
@@ -1548,11 +1558,6 @@ interface ProviderAuthConfig {
   useBasicAuth: boolean
   additionalHeaders?: Record<string, string>
   supportsRefreshTokenRotation?: boolean
-  /**
-   * If true, the refresh token is sent in the Authorization header as Bearer token
-   * instead of in the request body. Used by Cal.com.
-   */
-  refreshTokenInAuthHeader?: boolean
   /**
    * If true, the token endpoint expects a JSON body with Content-Type: application/json
    * instead of the default application/x-www-form-urlencoded. Used by Notion.
@@ -1673,13 +1678,11 @@ function getProviderAuthConfig(
         'CALCOM_CLIENT_ID'
       )
       return {
-        tokenEndpoint: 'https://app.cal.com/api/auth/oauth/refreshToken',
+        tokenEndpoint: 'https://api.cal.com/v2/auth/oauth2/token',
         clientId,
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
-        // Cal.com requires refresh token in Authorization header, not body
-        refreshTokenInAuthHeader: true,
       }
     }
     case 'airtable': {
@@ -2154,15 +2157,7 @@ function buildAuthRequest(
 
   const bodyParams: Record<string, string> = {
     grant_type: 'refresh_token',
-  }
-
-  // Handle refresh token placement
-  if (config.refreshTokenInAuthHeader) {
-    // Cal.com style: refresh token in Authorization header as Bearer token
-    headers.Authorization = `Bearer ${refreshToken}`
-  } else {
-    // Standard OAuth: refresh token in request body
-    bodyParams.refresh_token = refreshToken
+    refresh_token: refreshToken,
   }
 
   if (config.useBasicAuth) {

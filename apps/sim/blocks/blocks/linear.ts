@@ -319,7 +319,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           { text: 'Update project status', field: 'projectStatusId', core: true },
         ],
         linear_delete_project_status: [
-          { text: 'Delete project status', field: 'projectStatusId', core: true },
+          { text: 'Archive project status', field: 'projectStatusId', core: true },
         ],
         linear_list_project_statuses: [
           'List project statuses',
@@ -431,7 +431,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         // Project Status Operations
         { label: 'Create Project Status', id: 'linear_create_project_status' },
         { label: 'Update Project Status', id: 'linear_update_project_status' },
-        { label: 'Delete Project Status', id: 'linear_delete_project_status' },
+        { label: 'Archive Project Status', id: 'linear_delete_project_status' },
         { label: 'List Project Statuses', id: 'linear_list_project_statuses' },
       ],
       value: () => 'linear_read_issues',

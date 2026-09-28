@@ -1,4 +1,5 @@
 import type { GoogleGroupsResponse, GoogleGroupsUpdateParams } from '@/tools/google_groups/types'
+import { GOOGLE_GROUPS_DIRECTORY_SCOPES } from '@/tools/google_groups/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsResponse> = {
@@ -10,6 +11,7 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
   oauth: {
     required: true,
     provider: 'google-groups',
+    requiredScopes: GOOGLE_GROUPS_DIRECTORY_SCOPES,
   },
 
   params: {

@@ -2,6 +2,7 @@ import type {
   GoogleGroupsListMembersParams,
   GoogleGroupsResponse,
 } from '@/tools/google_groups/types'
+import { GOOGLE_GROUPS_DIRECTORY_SCOPES } from '@/tools/google_groups/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGroupsResponse> = {
@@ -13,6 +14,7 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
   oauth: {
     required: true,
     provider: 'google-groups',
+    requiredScopes: GOOGLE_GROUPS_DIRECTORY_SCOPES,
   },
 
   params: {
