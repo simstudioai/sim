@@ -11,7 +11,16 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import {
   type createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -139,6 +148,13 @@ describe('member document lifecycle in PostgreSQL', () => {
     (
       await db
         .select({ cursor: knowledgeConnector.memberTombstoneCursor })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, members.connectorId))
+    )[0].cursor
+  const resurrectionCursor = async () =>
+    (
+      await db
+        .select({ cursor: knowledgeConnector.memberResurrectionCursor })
         .from(knowledgeConnector)
         .where(eq(knowledgeConnector.id, members.connectorId))
     )[0].cursor
@@ -388,6 +404,58 @@ describe('member document lifecycle in PostgreSQL', () => {
       await run()
     }
     expect(await tombstonedIds()).toEqual(new Set([firstInEveryOrder.id]))
+  })
+
+  it('resumes a resurrection walk from where the deadline stopped it, not from the first document', async () => {
+    const observedAgain = Array.from({ length: 700 }, (_, index) => ({
+      ...row(`observed-again-${index}`),
+      deletedAt,
+    }))
+    await insertRows(observedAgain)
+    await observe(observedAgain.map(({ id }) => id))
+    const ordered = (
+      await db
+        .select({ id: document.id })
+        .from(document)
+        .where(eq(document.connectorId, members.connectorId))
+        .orderBy(document.id)
+    ).map(({ id }) => id)
+    /** Stopping reads the clock past the deadline, which the walk captured when it started. */
+    const resurrect = async (stopAfterFirstPage: boolean) => {
+      const deadlineAt = Date.now() + 60_000
+      let clock: MockInstance<typeof Date.now> | undefined
+      try {
+        return await applyMemberDocumentLifecycle({
+          connectorId: members.connectorId,
+          knowledgeBaseId: ids.knowledgeBaseId,
+          runId: members.runId,
+          allowRemoval: false,
+          unobservedDocumentIds: [],
+          deadlineAt,
+          lease: { beatIfDue: async () => {} },
+          withLease: async (fn) => {
+            const written = await db.transaction(fn)
+            if (stopAfterFirstPage) clock ??= vi.spyOn(Date, 'now').mockReturnValue(deadlineAt)
+            return written
+          },
+        })
+      } finally {
+        clock?.mockRestore()
+      }
+    }
+
+    expect(await resurrect(true)).toMatchObject({ resurrected: 500, finished: false })
+    expect(await resurrectionCursor()).toBe(ordered[499])
+    /** The tombstone cursor the deployed code parses as `{ externalId }` is never written here. */
+    expect(await savedCursor()).toBeNull()
+
+    /** Resurrectable again, but behind the cursor: the resumed walk does not revisit it. */
+    await db.update(document).set({ deletedAt }).where(eq(document.id, ordered[0]))
+    expect(await resurrect(false)).toMatchObject({ resurrected: 200, finished: true })
+    expect(await resurrectionCursor()).toBeNull()
+    expect((await tombstonedIds()).has(ordered[0])).toBe(true)
+
+    expect(await resurrect(false)).toMatchObject({ resurrected: 1, finished: true })
   })
 
   it('continues past a full selected batch even if its observations change before UPDATE', async () => {

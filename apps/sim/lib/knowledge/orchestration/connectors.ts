@@ -138,10 +138,13 @@ export type KnowledgeConnectorRow = typeof knowledgeConnector.$inferSelect
 type ConnectorRow = KnowledgeConnectorRow
 /**
  * The connector row as it reaches every caller: never carrying the stored API
- * key, nor the members-mode reconcile cursor, which names a document the
- * caller may not be able to read.
+ * key, nor the members-mode reconcile cursors, which name documents the caller
+ * may not be able to read.
  */
-export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey' | 'memberTombstoneCursor'>
+export type ConnectorWithoutSecret = Omit<
+  ConnectorRow,
+  'encryptedApiKey' | 'memberTombstoneCursor' | 'memberResurrectionCursor'
+>
 
 /** A refused `sourceConfig`, with the failure class the caller wants surfaced. */
 export interface SourceConfigRejection {
@@ -159,7 +162,12 @@ export interface ConnectorKnowledgeBase {
 }
 
 export function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
-  const { encryptedApiKey: _encryptedApiKey, memberTombstoneCursor: _cursor, ...rest } = row
+  const {
+    encryptedApiKey: _encryptedApiKey,
+    memberTombstoneCursor: _tombstoneCursor,
+    memberResurrectionCursor: _resurrectionCursor,
+    ...rest
+  } = row
   return rest
 }
 

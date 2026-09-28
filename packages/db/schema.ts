@@ -6155,6 +6155,11 @@ export const knowledgeConnector = pgTable(
      */
     memberTombstoneCursor: jsonb('member_tombstone_cursor').$type<{ externalId: string }>(),
     /**
+     * Where the members-mode resurrection walk resumes: the last document id
+     * it covered. NULL starts a new walk from the connector's first document.
+     */
+    memberResurrectionCursor: text('member_resurrection_cursor'),
+    /**
      * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
      *
      * `pending` and `syncing` are the two halves of a sync in flight: `pending`

@@ -19,6 +19,8 @@ interface ReconciliationRow {
 
 export interface ReconciliationWalk {
   connectorId: string
+  /** Resumes after this document id, the `lastId` an earlier walk stopped at. */
+  startAfterId?: string
   /**
    * Evaluated over the window's rows, which carry only the document's id, connector, exclusion,
    * archival, tombstone, seen, ACL and content-hash columns.
@@ -29,6 +31,13 @@ export interface ReconciliationWalk {
   deadlineAt: number
   beforePage: () => Promise<void>
   onPage: (rows: ReconciliationRow[]) => Promise<void>
+}
+
+export interface ReconciliationWalkResult {
+  /** False when the deadline stopped the walk. */
+  finished: boolean
+  /** The last document id the walk covered, from which a stopped walk resumes. */
+  lastId: string | undefined
 }
 
 /** A type alias, not an interface, so it satisfies `db.execute`'s row-record constraint. */
@@ -97,29 +106,30 @@ async function scanWindow(walk: ReconciliationWalk, afterId: string | undefined)
 }
 
 /**
- * Walks a connector's owned documents in id order, one window per statement, handing the rows
- * matching `condition` to `onPage` in pages of at most `pageSize`. A window without matches still
- * advances the walk, which ends after the first window shorter than a full one. Returns false when
- * the deadline stopped it.
+ * Walks a connector's owned documents in id order from `startAfterId`, one window per statement,
+ * handing the rows matching `condition` to `onPage` in pages of at most `pageSize`. A window
+ * without matches still advances the walk, which ends after the first window shorter than a full
+ * one.
  */
-export async function walkReconciliationWindows(walk: ReconciliationWalk): Promise<boolean> {
-  let after: string | undefined
+export async function walkReconciliationWindows(
+  walk: ReconciliationWalk
+): Promise<ReconciliationWalkResult> {
+  let covered = walk.startAfterId
   for (;;) {
-    if (Date.now() >= walk.deadlineAt) return false
+    if (Date.now() >= walk.deadlineAt) return { finished: false, lastId: covered }
     await walk.beforePage()
-    if (Date.now() >= walk.deadlineAt) return false
-    const { size, last, ids, tombstoned } = await scanWindow(walk, after)
+    if (Date.now() >= walk.deadlineAt) return { finished: false, lastId: covered }
+    const { size, last, ids, tombstoned } = await scanWindow(walk, covered)
     for (let offset = 0; offset < ids.length; offset += walk.pageSize) {
       if (offset > 0) await walk.beforePage()
       /** Materialized ids are acted on only inside the budget, so a late page is left for the next run. */
-      if (Date.now() >= walk.deadlineAt) return false
-      await walk.onPage(
-        ids
-          .slice(offset, offset + walk.pageSize)
-          .map((id, index) => ({ id, tombstoned: tombstoned[offset + index] }))
-      )
+      if (Date.now() >= walk.deadlineAt) return { finished: false, lastId: covered }
+      const page = ids.slice(offset, offset + walk.pageSize)
+      await walk.onPage(page.map((id, index) => ({ id, tombstoned: tombstoned[offset + index] })))
+      covered = page.at(-1)
     }
-    if (size < RECONCILIATION_WINDOW_SIZE || !last) return true
-    after = last
+    if (size < RECONCILIATION_WINDOW_SIZE || !last)
+      return { finished: true, lastId: last ?? covered }
+    covered = last
   }
 }
