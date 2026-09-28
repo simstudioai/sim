@@ -107,8 +107,6 @@ Slack reply, error message, or escalation
 Logs and maintenance review
 ```
 
-**Architecture diagram brief:** Create a horizontal diagram showing Slack on the left, Sim in the center, and approved models, knowledge sources, and business tools on the right. Show an authorization gate before retrieval, a human-approval gate before write actions, and a logging path beneath the workflow. Use solid arrows for data flow and dashed arrows for approvals and audit events.
-
 ## How do you set up a Slack app for an AI bot?
 
 Slack requires you to [create an app](https://api.slack.com/apps/), add a bot user, grant only the necessary OAuth scopes, subscribe to selected events, and install the app in the target workspace.
@@ -168,7 +166,7 @@ When Slack asks for a request URL, use the endpoint supplied by the workflow tri
 
 Sim connects Slack to an AI workflow by using an authenticated Slack trigger for incoming requests and Slack actions for messages, updates, or other permitted operations. You can compare this implementation with the options in [best AI agents for Slack](https://www.sim.ai/library/best-ai-agents-for-slack).
 
-In Sim’s visual builder, create a new workflow and select the Slack connection or trigger appropriate to the interaction you chose. Authenticate the dedicated Slack app or workspace connection, then select the event, command, or message source that should start the workflow.
+In Sim’s visual builder, create a new workflow and select the Slack connection or trigger appropriate to the interaction you chose. Authenticate the dedicated Slack app or workspace connection, then select the event, command, or message source that should start the workflow. Slash commands require a custom Slack bot configured with its signing secret; the native Sim Slack app does not subscribe to slash commands and cannot deploy that trigger.
 
 Keep the raw Slack event available during early testing. Useful fields commonly include:
 
