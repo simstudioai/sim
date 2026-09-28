@@ -83,6 +83,12 @@ export interface ModelCapabilities {
      * to the per-provider defaults in {@link getThinkingStreamVisibility}.
      */
     streamed?: ThinkingStreamVisibility
+    /**
+     * How the pickers' `none` level reaches the API when the model rejects
+     * `thinking.type: "disabled"`. `between_tools` (Claude Sonnet 5.5) turns off
+     * up-front thinking; omitted, `none` sends no thinking config.
+     */
+    noneMode?: 'between_tools'
   }
   /** Uses native state and questions instead of a conversational prompt. */
   evaluation?: boolean
@@ -1015,7 +1021,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-5',
+    defaultModel: 'claude-sonnet-5-5',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
     color: '#D97757',
@@ -1072,6 +1078,30 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         sunset: { status: 'legacy' },
       },
       {
+        id: 'claude-sonnet-5-5',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 10.0,
+          updatedAt: '2026-09-28',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+            noneMode: 'between_tools',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-28',
+        recommended: true,
+      },
+      {
         id: 'claude-sonnet-5',
         pricing: {
           input: 2.0,
@@ -1090,7 +1120,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-30',
-        recommended: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-5-5',

@@ -293,13 +293,64 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
     expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
   })
 
-  it.each(['claude-fable-5-1', 'claude-opus-5-5'])(
+  it.each(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])(
     'drops forced tool_choice when the catalog model disables Force (%s)',
     async (model) => {
       const { payload, warn } = await runWithForcedTool(model)
       expect(payload.tools?.map((tool) => tool.name)).toEqual(['publish'])
       expect(payload).not.toHaveProperty('tool_choice')
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('rejects forced tool_choice'))
+    }
+  )
+})
+
+/**
+ * Claude Sonnet 5.5 rejects `thinking.type: "disabled"` with a 400 and names `between_tools`
+ * (which takes no effort or display field) as its lowest setting. Every other model keeps
+ * `none` as "send no thinking config".
+ */
+describe('executeAnthropicProviderRequest none thinking level', () => {
+  async function sendWithThinkingNone(model: string) {
+    const create = vi.fn().mockResolvedValue({
+      id: 'msg-none',
+      type: 'message',
+      role: 'assistant',
+      model,
+      content: [{ type: 'text', text: 'Done' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 2, output_tokens: 2 },
+    })
+    await executeAnthropicProviderRequest(
+      {
+        model,
+        apiKey: 'test-key',
+        maxTokens: 1024,
+        thinkingLevel: 'none',
+        agentEvents: true,
+        messages: [{ role: 'user', content: 'Hello' }],
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: () => ({ messages: { create } }) as never,
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      }
+    )
+    return create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams
+  }
+
+  it('sends bare between_tools thinking on claude-sonnet-5-5', async () => {
+    const payload = await sendWithThinkingNone('claude-sonnet-5-5')
+    expect(payload.thinking).toEqual({ type: 'between_tools' })
+    expect(payload.output_config).toBeUndefined()
+  })
+
+  it.each(['claude-sonnet-5', 'claude-opus-5-5'])(
+    'sends no thinking config on %s',
+    async (model) => {
+      const payload = await sendWithThinkingNone(model)
+      expect(payload.thinking).toBeUndefined()
     }
   )
 })
@@ -758,6 +809,7 @@ describe('buildThinkingConfig', () => {
     for (const model of [
       'claude-fable-5-1',
       'claude-fable-5',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-opus-5-5',
       'claude-opus-5',
