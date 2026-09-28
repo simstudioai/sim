@@ -27,7 +27,7 @@ faq:
   - q: "Can I build a custom AI agent for Slack?"
     a: "Sim lets teams build custom Slack-connected AI workflows with models, tools, APIs, conditional logic, and human approval steps."
   - q: "Can I self-host a Slack AI agent?"
-    a: "Sim can be self-hosted under the Apache License 2.0, while n8n can be self-hosted subject to its source-available Sustainable Use License terms."
+    a: "Sim’s Apache License 2.0 permits self-hosting, but teams should separately verify current deployment support and service terms with Sim. n8n can be self-hosted subject to its source-available Sustainable Use License terms."
   - q: "Is Sim open source?"
     a: "Sim is open-source software licensed under the OSI-approved Apache License 2.0."
   - q: "Is n8n open source?"
@@ -164,6 +164,8 @@ A reliable CRM agent should not send an entire Slack thread directly to a model 
 
 [Dust](https://dust.tt/home/solutions/knowledge), [Sim](https://docs.sim.ai/academy/use-cases/slack-it-triage), [Botpress](https://www.botpress.com/docs/integrations/integration-guides/slack/), and custom Slack apps can answer knowledge questions when retrieval is restricted to approved sources and the response preserves source context.
 
+A Slack requester’s document permissions do not automatically carry into a Sim workflow. Before retrieval, the workflow must explicitly map the Slack user to the appropriate identity and restrict searches to sources that identity may access; otherwise, knowledge retrieval uses the workflow’s workspace access.
+
 A grounded knowledge workflow should:
 
 1. Identify the user and the access level attached to the request.
@@ -257,7 +259,7 @@ For adjacent product categories, compare the [best AI agent platforms](https://w
 
 Sim provides a verifiable Apache 2.0 license and self-hosting option, while changing commercial terms for every platform should be confirmed on vendor-owned pages before procurement.
 
-- **Sim:** Sim is self-hostable under the [OSI-approved Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE); hosted-service billing was not asserted in this comparison.
+- **Sim:** The [OSI-approved Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) permits self-hosting; buyers should separately verify current deployment support and service terms with Sim. Hosted-service billing was not asserted in this comparison.
 - **ClearFeed:** ClearFeed’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [ClearFeed](https://clearfeed.ai/).
 - **Dust:** Dust’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [Dust](https://dust.tt/).
 - **Botpress:** Botpress’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [Botpress](https://www.botpress.com/docs/integrations/integration-guides/slack/).
