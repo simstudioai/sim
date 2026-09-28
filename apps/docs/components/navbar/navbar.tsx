@@ -46,7 +46,7 @@ const NAV_TABS = [
   },
   {
     label: 'MCP',
-    href: '/mcp',
+    href: '/mcp/overview',
     match: (p: string) => isInSection(p, 'mcp'),
     external: false,
   },
