@@ -6096,7 +6096,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       },
       nativeQueries: {
         description:
-          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Up to 4 per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies terms, Granola natural-language questions, Notion keywords or AI questions when available). Notion requires nonempty search terms even with dates or sorting. Up to 4 per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
         minItems: 1,
         maxItems: 9,
         type: 'array',
@@ -6140,7 +6140,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       query: {
         default: '',
         description:
-          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.',
+          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.',
         type: 'string',
         maxLength: 2000,
       },
