@@ -227,6 +227,11 @@ describe('fetchWithProviderRetry', () => {
   it.each([
     ['an unrecognised failure', new Error('body serialization failed')],
     ['a TypeError from building the request', new TypeError('Invalid URL')],
+    [
+      'an application error code',
+      Object.assign(new Error('overloaded'), { code: 'RESOURCE_EXHAUSTED' }),
+    ],
+    ['a database error code', Object.assign(new Error('admin shutdown'), { code: '57P01' })],
   ])('does not retry %s', async (_, failure) => {
     const send = vi.fn().mockRejectedValue(failure)
 

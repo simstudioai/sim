@@ -22,7 +22,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
-import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -80,7 +80,7 @@ export function isWithinRetryWindow(retryAfterMs: number | null): boolean {
 function isRetryableTransportFailure(error: unknown): boolean {
   const code = isRecordLike(error) ? error.code : undefined
   if (typeof code === 'string' && BUN_CONNECTION_ERROR_CODES.has(code)) return true
-  return isRetryableInfrastructureError(error)
+  return isRetryableNetworkError(error)
 }
 
 /**
