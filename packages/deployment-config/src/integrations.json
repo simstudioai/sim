@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26",
+  "updatedAt": "2026-09-28",
   "integrations": [
     {
       "type": "onepassword",
@@ -16947,6 +16947,73 @@
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics", "payments"]
+    },
+    {
+      "type": "otter",
+      "slug": "otter-ai",
+      "name": "Otter.ai",
+      "description": "Read Otter.ai meeting conversations, transcripts, and summaries",
+      "longDescription": "Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OtterIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/otter",
+      "operations": [
+        {
+          "name": "List Conversations",
+          "description": "List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel."
+        },
+        {
+          "name": "Get Conversation",
+          "description": "Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript."
+        },
+        {
+          "name": "Get Conversation Audio",
+          "description": "Get the MP3 audio download link for an Otter conversation."
+        },
+        {
+          "name": "Import Recording",
+          "description": "Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL."
+        },
+        {
+          "name": "List Channels",
+          "description": "List the Otter channels available to the authenticated user, in alphabetical order."
+        },
+        {
+          "name": "List Channel Members",
+          "description": "List the members of an Otter channel, in alphabetical order."
+        },
+        {
+          "name": "Get Workspace",
+          "description": "Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type."
+        },
+        {
+          "name": "List Workspace Conversations",
+          "description": "List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [
+        {
+          "id": "otter_conversation_completed",
+          "name": "Otter Conversation Completed",
+          "description": "Trigger workflow when an Otter conversation shared to the webhook source finishes processing"
+        },
+        {
+          "id": "otter_conversation_shared",
+          "name": "Otter Conversation Shared",
+          "description": "Trigger workflow when an existing Otter conversation is shared to the webhook source"
+        },
+        {
+          "id": "otter_webhook",
+          "name": "Otter Webhook",
+          "description": "Trigger workflow on any Otter workspace webhook event"
+        }
+      ],
+      "triggerCount": 3,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["meeting", "note-taking", "speech-to-text"]
     },
     {
       "type": "outlook",

@@ -3529,6 +3529,16 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  otterCreateConversationTool,
+  otterGetConversationAudioTool,
+  otterGetConversationTool,
+  otterGetWorkspaceTool,
+  otterListChannelMembersTool,
+  otterListChannelsTool,
+  otterListConversationsTool,
+  otterListWorkspaceConversationsTool,
+} from '@/tools/otter'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -10387,6 +10397,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_teams_list_teams: microsoftTeamsListTeamsTool,
   microsoft_teams_list_chats: microsoftTeamsListChatsTool,
   microsoft_teams_list_channels: microsoftTeamsListChannelsTool,
+  otter_create_conversation: otterCreateConversationTool,
+  otter_get_conversation: otterGetConversationTool,
+  otter_get_conversation_audio: otterGetConversationAudioTool,
+  otter_get_workspace: otterGetWorkspaceTool,
+  otter_list_channel_members: otterListChannelMembersTool,
+  otter_list_channels: otterListChannelsTool,
+  otter_list_conversations: otterListConversationsTool,
+  otter_list_workspace_conversations: otterListWorkspaceConversationsTool,
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
