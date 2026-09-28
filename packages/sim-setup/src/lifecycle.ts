@@ -61,6 +61,45 @@ function dockerText(args: string[], cwd: string = ROOT): string | null {
   return result.status === 0 ? result.stdout.trim() : null
 }
 
+/**
+ * Reduces `docker ps --format '{{.State}}'` output for one Compose service to the
+ * same shape `runDetection` uses for standalone containers. A scaled service can
+ * have several replicas; any running replica counts as running.
+ */
+export function composeServiceState(
+  stateOutput: string | null
+): { state: 'running' | 'stopped' } | null {
+  const states = (stateOutput ?? '')
+    .split('\n')
+    .map((state) => state.trim())
+    .filter(Boolean)
+  if (states.length === 0) return null
+  return { state: states.includes('running') ? 'running' : 'stopped' }
+}
+
+/**
+ * Compose names containers `<project>-<service>-<n>`, so the standalone
+ * `sim-postgres` / `sim-redis` name lookup never sees them. Find the service by
+ * the labels Compose stamps on every container instead.
+ */
+function composeServiceContainer(
+  install: ComposeInstall,
+  service: 'db' | 'redis'
+): { state: 'running' | 'stopped' } | null {
+  return composeServiceState(
+    dockerText([
+      'ps',
+      '-a',
+      '--filter',
+      `label=com.docker.compose.project=${install.project}`,
+      '--filter',
+      `label=com.docker.compose.service=${service}`,
+      '--format',
+      '{{.State}}',
+    ])
+  )
+}
+
 /** Docker command whose output the user should see (up, logs); returns exit code. */
 function dockerInherit(args: string[], cwd: string = ROOT): number {
   return spawnSync('docker', args, { cwd, stdio: 'inherit' }).status ?? 1
@@ -591,8 +630,22 @@ async function status(): Promise<void> {
   const containerState = (state: { state: 'running' | 'stopped' } | null) =>
     docker ? (state ? state.state : 'absent') : 'unknown (docker down)'
   console.log()
-  console.log(` postgres (${DB_CONTAINER}):  ${containerState(detection.dbContainer)}`)
-  console.log(` redis (${REDIS_CONTAINER}):     ${containerState(detection.redisContainer)}`)
+  const composeStacks = installs.filter((install) => install.kind === 'compose')
+  // Standalone containers belong to the dev install; Compose stacks run their own
+  // `db` / `redis` services, which the standalone name lookup can't see.
+  if (composeStacks.length === 0 || installs.some((install) => install.kind === 'dev')) {
+    console.log(` postgres (${DB_CONTAINER}):  ${containerState(detection.dbContainer)}`)
+    console.log(` redis (${REDIS_CONTAINER}):     ${containerState(detection.redisContainer)}`)
+  }
+  for (const stack of composeStacks) {
+    const scope = composeStacks.length > 1 ? `${stack.project} ` : ''
+    console.log(
+      ` ${scope}postgres (compose db):  ${containerState(composeServiceContainer(stack, 'db'))}`
+    )
+    console.log(
+      ` ${scope}redis (compose redis):  ${containerState(composeServiceContainer(stack, 'redis'))}`
+    )
+  }
   const [app, realtime] = await Promise.all([
     httpHealth(`${APP_URL}/api/health`),
     httpHealth(REALTIME_HEALTH),
