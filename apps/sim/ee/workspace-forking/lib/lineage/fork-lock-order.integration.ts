@@ -117,19 +117,27 @@ describe('fork lock ordering in PostgreSQL', () => {
   })
 
   /**
-   * Waits until some backend on this database is genuinely blocked on a lock, so the second
-   * acquisition races a real holder rather than an arbitrary sleep. Both orders reach this
-   * state (pre-fix the unlink blocks on the row write, shipped it blocks on the lineage
-   * lock), which is what lets one barrier serve both.
+   * Waits until THIS unlink transaction's own backend is blocked on a lock, so the fork's
+   * second acquisition races a real holder rather than an arbitrary sleep.
+   *
+   * Filtered to one pid on purpose. Counting any Lock waiter on the database would let an
+   * unrelated session (a parallel suite, a leftover connection) release the barrier before
+   * the unlink had blocked, so the pre-fix control could proceed with its cycle still open
+   * and stop being a reliable negative.
+   *
+   * Both orders reach this state - pre-fix the unlink blocks on the row write, shipped it
+   * blocks on the lineage lock - which is what lets one barrier serve both. Never blocking
+   * means the race did not set up, so it throws rather than quietly proceeding.
    */
-  async function waitForBlockedBackend(): Promise<void> {
+  async function waitForBlockedBackend(pid: number): Promise<void> {
     for (let attempt = 0; attempt < 100; attempt++) {
       const [row] = await setup`
         SELECT count(*)::int AS blocked FROM pg_stat_activity
-        WHERE datname = current_database() AND wait_event_type = 'Lock'`
+        WHERE pid = ${pid} AND wait_event_type = 'Lock'`
       if ((row?.blocked ?? 0) > 0) return
       await sleep(50)
     }
+    throw new Error(`Unlink backend ${pid} never blocked on a lock; the race did not set up`)
   }
 
   /**
@@ -143,6 +151,7 @@ describe('fork lock ordering in PostgreSQL', () => {
     const forkDb = connect()
     const unlinkDb = connect()
     const forkHoldsFirstLock = createDeferred<void>()
+    const unlinkBackendPid = createDeferred<number>()
     const unlinkMayFinish = createDeferred<void>()
     let failure: string | null = null
 
@@ -169,6 +178,10 @@ describe('fork lock ordering in PostgreSQL', () => {
       unlinkDb
         .transaction(async (tx) => {
           await setForkLockTimeout(tx)
+          // Publish this transaction's backend before it can block, so the barrier waits
+          // on exactly this session rather than on whatever else the database is doing.
+          const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+          unlinkBackendPid.resolve(Number(self?.pid))
           // `unlinkForkEdge` takes the lineage lock, then writes the workspace row.
           await takeLineageLock(tx)
           await tx
@@ -182,7 +195,7 @@ describe('fork lock ordering in PostgreSQL', () => {
     )
 
     await forkHoldsFirstLock.promise
-    await waitForBlockedBackend()
+    await waitForBlockedBackend(await unlinkBackendPid.promise)
     unlinkMayFinish.resolve()
 
     await Promise.all([forkSession, unlinkSession])
