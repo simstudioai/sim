@@ -186,6 +186,18 @@ export const LIVE_SEARCH_PROVIDERS = {
     search: searchLinear,
     read: (client, reference) => readLinear(client, reference.id),
   },
+  hubspot: {
+    transport: 'managed_mcp',
+    guide: {
+      syntax:
+        'Plain text, at most 200 characters, searched in default CRM properties. Use a company name, domain, contact email, deal name, ticket subject, or concise keywords. Empty queries list records and require sortBy newest/oldest or a date bound. Search is lexical, not semantic; remove common stop words if no matches.',
+      scope:
+        'kind selects contacts, companies, deals, or tickets; omitted searches all four. Dates and newest/oldest sorting use record modification time. Continue only an explicit kind with its returned cursor and unchanged query/filters. Read matches for CRM properties, including custom properties returned by HubSpot.',
+      example: 'example.com',
+      avoid:
+        'Boolean/field operators, project, inferred ownership, pipeline/lifecycle filters, custom object types, association or activity-history claims, and totals or revenue aggregation from a bounded result set. "My deals" requires an owner filter this adapter does not support; do not silently treat it as all visible deals.',
+    },
+  },
   fireflies: {
     transport: 'managed_mcp',
     guide: {

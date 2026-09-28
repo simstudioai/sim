@@ -130,7 +130,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           group?.status === 'active' &&
           Boolean(option || server) &&
           approved &&
-          (!option || option.configurationStatus === 'ready')
+          (!option || option.configurationStatus === 'ready') &&
+          (provider !== 'hubspot' || data.availableMcpConnectors.includes('hubspot'))
         const scope =
           approval?.policy?.accessMode === 'service_account'
             ? 'Selected resources you can access'
