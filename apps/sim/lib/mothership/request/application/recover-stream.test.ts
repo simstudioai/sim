@@ -73,6 +73,7 @@ const run = {
   workspaceId: '33333333-3333-4333-8333-333333333333',
   status: 'active',
   workflowId: null,
+  startedAt: new Date('2026-01-01T00:00:00Z'),
   requestContext: {
     requestId: 'request',
     controllerToken: 'old-controller',
