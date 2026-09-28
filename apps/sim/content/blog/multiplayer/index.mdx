@@ -1,194 +1,199 @@
 ---
 slug: multiplayer
 title: 'Realtime Collaboration'
-description: A high-level explanation into Sim realtime collaborative workflow builder - from operation queues to conflict resolution.
+description: 'Build, review, test, and deploy AI agent workflows collaboratively with Sim Multiplayer, a shared visual canvas for technical teams and domain experts.'
 date: 2025-11-11
-updated: 2025-11-11
+updated: 2026-09-19
 authors:
-  - vik
-readingTime: 12
-tags: [Multiplayer, Realtime, Collaboration, WebSockets, Architecture]
+  - andrew
+readingTime: 9
+tags: [Multiplayer, Collaboration, AI Agents, Workflows, Sim]
 ogImage: /blog/multiplayer/cover.jpg
 canonical: https://www.sim.ai/blog/multiplayer
 draft: false
 faq:
-  - q: "Does Sim use CRDTs or operational transforms for multiplayer editing?"
-    a: "No. Sim uses a simpler last-writer-wins strategy with client-generated timestamps rather than Figma-style operational transforms. Workflow building has lower conflict density than text editing, since users typically work on different blocks or parts of the canvas, so the simpler approach is sufficient."
-  - q: "What happens if two users edit the same block at the same time in Sim?"
-    a: "Both clients render their local changes optimistically, then the server persists both updates based on client timestamps and broadcasts each in sequence. Clients receive the conflicting positions or values and converge to whichever carries the latest timestamp, with value conflicts on the same text field resolved by last-to-arrive within a 25ms server-side coalescing window."
-  - q: "What happens if a collaborator deletes a block I'm currently editing?"
-    a: "When the server broadcasts the deletion, your client immediately cancels all pending operations targeting that block, including subblock updates, and removes it from local state without sending those stale operations to the server or showing an error. This client-side cancellation avoids wasting network requests on operations that would fail anyway."
-  - q: "How does undo/redo work when multiple people are editing the same Sim workflow?"
-    a: "Undo/redo is a local, per-user stack: undoing an action generates an inverse operation (e.g., undo an add becomes a remove) that flows through the same operation queue as a normal edit, so collaborators see the change in real time. Undo stacks are per-user and only cover your own actions, and entries referencing entities another collaborator deleted are automatically pruned as invalid."
-  - q: "What happens if a client loses connection while editing a Sim workflow?"
-    a: "Failed operations retry with exponential backoff — structural changes get 3 attempts and text edits get 5. If all retries fail, the queue is cleared and the UI becomes read-only until the user manually refreshes."
-  - q: "Why does Sim separate blocks, edges, and subflows into different database tables?"
-    a: "Blocks, edges, and subflows have different update patterns and conflict characteristics, so storing them in separate normalized tables (workflow_blocks, workflow_edges, workflow_subflows) lets Sim make targeted updates, such as moving a block only touching its position fields, without loading or locking the entire workflow."
+  - q: "What is Sim Multiplayer?"
+    a: "Sim Multiplayer is a collaborative experience for building, reviewing, and improving AI agent workflows on a shared visual canvas."
+  - q: "Can multiple people work on the same Sim workflow?"
+    a: "Sim Multiplayer is designed to let teammates collaborate around the same workflow instead of coordinating through duplicated builds or screenshots."
+  - q: "Who should use Sim Multiplayer?"
+    a: "Sim Multiplayer is most useful for teams that need technical builders, domain experts, process owners, or reviewers to contribute to the same AI workflow."
+  - q: "Can I use Sim by myself?"
+    a: "Sim supports individual workflow building, and Multiplayer becomes useful when a workflow needs shared input, review, or ownership."
+  - q: "What are the benefits of collaborative AI workflow building?"
+    a: "Sim Multiplayer can reduce handoff friction, surface edge cases earlier, speed up feedback, and help more teammates understand how an AI workflow operates."
+  - q: "Does Sim Multiplayer make workflows production-ready?"
+    a: "Sim Multiplayer improves collaboration and review, but teams must still test workflow behavior and apply appropriate security, approval, deployment, and monitoring practices."
+  - q: "Does Sim Multiplayer replace human approval steps?"
+    a: "Sim Multiplayer does not replace human approval steps and can instead help teams decide where those controls belong in a workflow."
+  - q: "Is Sim open source?"
+    a: "Sim is licensed under the Apache License 2.0, an OSI-approved open-source license."
+  - q: "Is Sim Multiplayer only for AI engineers?"
+    a: "Sim Multiplayer is not only for AI engineers because product, operations, support, compliance, and other domain experts can contribute valuable workflow knowledge."
+  - q: "How should teams evaluate Sim Multiplayer?"
+    a: "Sim Multiplayer should be evaluated by asking a real team to build, test, explain, and revise a representative workflow together."
+  - q: "How does Sim compare with n8n for collaboration?"
+    a: "Sim focuses its Multiplayer experience on collaborative AI agent workflow building, while teams should test Sim and n8n against the same use case and verify each vendor’s current collaboration and plan details directly."
+  - q: "What is the best AI agent builder for teams?"
+    a: "Sim is a strong option for teams that prioritize collaborative visual workflow building, while the broader best AI agent builder question is covered by Sim’s canonical Best AI Agent Builders in 2026 guide."
 ---
 
-When we started building Sim, we noticed that AI workflow development looked a lot like the design process [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) had already solved for. Product managers need to sketch out user-facing flows, engineers need to configure integrations and APIs, and domain experts need to validate business logic—often all at the same time. Traditional workflow builders force serial collaboration: one person edits, saves, exports, and notifies the next person. This creates unnecessary friction.
+Sim Multiplayer lets teams build, review, and improve AI agent workflows together on the same visual canvas. It replaces screenshot-driven handoffs and duplicated builds with a shared workspace where technical builders and domain experts can see the workflow, contribute at the same time, and test the result before deployment.
 
-We decided multiplayer editing was the right approach, even though workflow platforms like n8n and Make do not currently offer it. This post explains how we built it. We'll cover the operation queue, conflict resolution, how we handle blocks/edges/subflows separately, undo/redo as a wrapper around this, and why our system is a lot simpler than you'd expect.
+## TL;DR
 
-## Architecture Overview: Client-Server with WebSockets
+- Invite collaborators to a workspace and assign Read, Write, or Admin access.
+- Teammates with editing access can open the same workflow, see collaborator avatars and cursors, and make simultaneous changes.
+- Test the draft from the editor with representative inputs before publishing it.
+- Deployment creates a fixed, versioned snapshot, so later canvas edits do not silently change the live workflow.
+- Multiplayer improves shared review, but it does not replace testing, approvals, security controls, monitoring, or rollback planning.
 
-Sim uses a client-server architecture where browser clients communicate with a standalone Node.js WebSocket server over persistent connections. When you open a workflow, your client joins a "workflow room" on the server. All subsequent operations—adding blocks, connecting edges, updating configurations—are synchronized through this connection.
+## What is multiplayer in Sim?
 
-### Server-Side: The Source of Truth
+Sim Multiplayer is a collaborative building experience that allows teammates to work together on an AI agent workflow.
 
-The server maintains authoritative state in PostgreSQL across three normalized tables:
+A shared canvas gives the team one place to understand how models, tools, data, conditions, and actions fit together. Instead of one person translating every requirement into workflow logic, collaborators can inspect the workflow directly and contribute while the context is fresh.
 
-- `workflow_blocks`: Block metadata, positions, configurations, and subblock values
-- `workflow_edges`: Connections between blocks with source/target handles
-- `workflow_subflows`: Loop and parallel container configurations with child node lists
+Multiplayer is especially useful when the person who understands the business process is not the same person who implements the workflow. Both contributors can work from the same visual representation of the system. For more background on how these systems coordinate steps and tools, see [AI agent orchestration explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained).
 
-This separation is deliberate. Blocks, edges, and subflows have different update patterns and conflict characteristics. By storing them separately:
+## How do you invite collaborators and set permissions?
 
-1. **Targeted updates**: Moving a block only updates `positionX` and `positionY` fields for that specific block row. We don't load or lock the entire workflow.
-2. **Query optimization**: Different operations hit different tables with appropriate indexes. Updating edge connections only touches `workflow_edges`, leaving blocks untouched.
-3. **Separate channels**: Structural operations (adding blocks, connecting edges) go through the main operation handler with persistence-first logic. Value updates (editing text in a subblock) go through a separate debounced channel with server-side coalescing—reducing database writes from hundreds to dozens for a typical typing session.
+A workspace Admin can open the invitation dialog from the workspace header or organization settings, enter one or more email addresses, select one or more workspaces, choose the workspace access level, and choose whether each person joins as an internal member or external collaborator. The invitee then accepts the emailed invitation before accessing the selected workspace.
 
-The server uses different broadcast strategies: position updates are broadcast immediately for smooth collaborative dragging (optimistic), while structural operations (adding blocks, connecting edges) persist first to ensure consistency (pessimistic).
+Sim documents three workspace permission levels in its [roles and permissions guide](https://docs.sim.ai/platform/permissions):
 
-### Client-Side: Optimistic Updates with Reconciliation
+- **Read** can view workflows and execution results but cannot make changes, run workflows, or deploy them.
+- **Write** can create, edit, delete, and run workflows and collaborate on workflow editing, but cannot manage workspace members or deploy workflows.
+- **Admin** adds member and workspace management and deployment permissions.
 
-Clients maintain local copies of workflow state in [Zustand](https://github.com/pmndrs/zustand) stores. When you drag a block or type in a text field, the UI updates immediately—this is optimistic rendering. Simultaneously, the client queues an operation in a separate operation queue store to send to the server.
+Choose the least privilege each collaborator needs. A reviewer who only needs to inspect the workflow can use Read access; a teammate making changes needs Write access; the person responsible for membership or releases needs Admin access. Credential access has its own controls, so workspace access should not be treated as permission to share personal secrets.
 
-The client doesn't wait for server confirmation to render changes. Instead, it assumes success and continues. If the server rejects an operation (permissions failure, conflict, validation error), the client reconciles by either retrying or reverting the local change.
+## How does real-time collaboration work in Sim?
 
-This is why workflow editing feels instantaneous—you never wait for a network round-trip to see your changes. The downside is added complexity around handling reconciliation, retries, and conflict resolution.
+When collaborators open the same workflow, Sim joins each client to that workflow's realtime room. The canvas shows connected collaborators through avatars and transmits live cursor positions, helping teammates understand who is present and where their cursors are. These indicators communicate presence; they are not locks that reserve part of the canvas for one person.
 
-## The Operation Queue: Reliability Through Retries
+A typical collaborative session looks like this:
 
-At the heart of Sim's multiplayer system is the **Operation Queue**—a client-side abstraction that ensures no operation is lost, even under poor network conditions.
+1. Open the workflow the team wants to build or improve.
+2. Invite the relevant technical and domain experts to its workspace with the appropriate permission.
+3. Walk through the workflow from its trigger to its final action.
+4. Add or adjust model, tool, logic, and data steps together.
+5. Run the draft from the editor with representative inputs.
+6. Review behavior, edge cases, permissions, and expected outputs.
+7. Have an Admin deploy the reviewed version when it is ready.
 
-### How It Works
+Sim synchronizes structural edits, block positions, field values, and cursor movement over its realtime service. Each browser updates its local canvas immediately for responsive editing, while operations are queued for server validation, persistence, and broadcast to the other clients. Collaborators may edit different areas simultaneously; when they target the same value, the system converges rather than presenting a merge editor.
 
-Every user action that modifies workflow state generates an operation object:
+This approach shortens the feedback loop between an idea and a working implementation. Questions can be resolved while the workflow is visible instead of being collected for a later handoff.
 
-```typescript
-{
-  id: 'op-uuid',
-  operation: {
-    operation: 'update',  // or 'add', 'remove', 'move'
-    target: 'block',      // or 'edge', 'subblock', 'variable'
-    payload: { /* change data */ }
-  },
-  workflowId: 'workflow-id',
-  userId: 'user-id',
-  status: 'pending'
-}
-```
+## Why should teams build AI agent workflows together?
 
-Operations are enqueued in FIFO order. The queue processor sends one operation at a time over the WebSocket, waiting for server confirmation before proceeding to the next. Text edits (subblock values, variable fields) are debounced client-side and coalesced server-side—a user typing a 500-character prompt generates ~10 operations instead of 500.
+AI agent workflows combine technical decisions with business judgment. The builder may know how to connect a model and tools, but a domain expert often knows which inputs are trustworthy, which exceptions matter, and what a safe output looks like. Collaboration makes that knowledge available during implementation rather than after it.
 
-Failed operations retry with exponential backoff (structural changes get 3 attempts, text edits get 5). If all retries fail, the system enters offline mode—the queue is cleared and the UI becomes read-only until the user manually refreshes.
+Building together can help teams:
 
-### Handling Dependent Operations
+- Clarify requirements before they become workflow logic.
+- Catch missing steps and edge cases earlier.
+- Review prompts, tools, and decision paths in context.
+- Explain workflow behavior without recreating it in a separate diagram.
+- Share ownership instead of depending on a single builder.
+- Move from feedback to a tested revision with fewer handoffs.
 
-The operation queue's real power emerges when handling conflicts between collaborators. Consider this scenario:
+Multiplayer does not remove the need for testing or operational controls. It gives the team a shared artifact for those conversations. Once a workflow is live, [AI agent observability](https://www.sim.ai/library/ai-agent-observability) becomes the complementary practice of understanding its behavior, latency, cost, and failures.
 
-**User A** deletes a block while **User B** has a pending subblock update for that same block in their operation queue.
+## Who is Sim Multiplayer for?
 
-```
-┌─────────────┐                    ┌─────────────┐                    ┌─────────────┐
-│   User A    │                    │   Server    │                    │   User B    │
-└──────┬──────┘                    └──────┬──────┘                    └──────┬──────┘
-       │                                  │                                  │
-       │  Delete Block X                  │                                  │
-       ├─────────────────────────────────>│                                  │
-       │                                  │                                  │
-       │                                  │  Persist deletion                │
-       │                                  │  ────────────┐                   │
-       │                                  │              │                   │
-       │                                  │<─────────────┘                   │
-       │                                  │                                  │
-       │                                  │  Broadcast: Block X deleted      │
-       │                                  ├─────────────────────────────────>│
-       │                                  │                                  │
-       │                                  │             Cancel all ops for X │
-       │                                  │             (including subblock) │
-       │                                  │                          ────────┤
-       │                                  │                                  │
-       │                                  │              Remove Block X      │
-       │                                  │                          ────────┤
-       │                                  │                                  │
-```
+Sim Multiplayer is for teams whose AI workflows require both technical implementation and domain expertise. Common collaboration patterns include:
 
-Here's what happens:
+- AI engineers working with product managers on an agent-backed feature.
+- Operations teams building internal automations with technical support.
+- Customer-support leaders reviewing classification, routing, or response workflows.
+- Sales and marketing teams refining research, enrichment, and outreach processes.
+- Agencies building workflows with clients who need to validate business logic.
+- Security or compliance reviewers inspecting how data and tools are used.
 
-1. User A's delete operation reaches the server and persists successfully
-2. The server broadcasts the deletion to all clients, including User B
-3. User B's client receives the broadcast and **immediately cancels all pending operations** for Block X (including the subblock update)
-4. Then User B's client removes Block X from local state
+Solo builders can still use Sim without turning every build into a group session. Multiplayer becomes valuable when a workflow needs review, shared context, or contributions from more than one person.
 
-No operations are sent to the server for a block that no longer exists. The client proactively removes all related operations from the queue—both block-level operations and subblock operations. User B never sees an error because the stale operation is silently discarded before it's sent.
+## What can teams build together?
 
-This is more efficient than server-side validation. By canceling dependent operations locally when receiving a deletion broadcast, we avoid wasting network requests on operations that would fail anyway.
+### Support workflows
 
-## Conflict Resolution: Timestamps and Determinism
+A support lead can explain escalation rules and quality expectations while a builder connects models, knowledge sources, and downstream tools. Together they can test representative requests and inspect where the workflow needs stronger instructions or safeguards.
 
-In line with our goal of keeping things simple, Sim uses a **last-writer-wins** strategy with timestamp-based ordering. Every operation carries a client-generated timestamp. When conflicts occur, the operation with the latest timestamp takes precedence.
+### Operations workflows
 
-This is simpler than Figma's operational transform approach, but sufficient for our use case. Workflow building has lower conflict density than text editing—users typically work on different parts of the canvas or different blocks.
+An operations specialist can identify required inputs, exceptions, and approval points while a technical teammate configures the workflow. Working from one canvas makes it easier to see whether the implementation matches the real process.
 
-**Position conflicts** are handled with timestamp ordering. If two users simultaneously drag the same block, both clients render their local positions optimistically. The server persists both updates based on timestamps, broadcasting each in sequence. Clients receive the conflicting positions and converge to the latest timestamp.
+### Product prototypes
 
-**Value conflicts** (editing the same text field) are rarer but use last-to-arrive wins. Subblock updates are coalesced server-side within a 25ms window—whichever update reaches the server last within that window is persisted, regardless of client timestamp.
+Product managers can clarify expected user behavior while engineers evaluate tool calls, model behavior, failure paths, and integration requirements. The workflow becomes an executable artifact for discussion rather than a static specification.
 
-## Undo/Redo: A Thin Wrapper Over Sockets
+### Client projects
 
-Undo/redo in multiplayer environments is notoriously complex. Should undoing overwrite others' changes? What happens when you undo something someone else modified?
+Agencies can review workflow logic with clients in a format that is easier to inspect than source code alone. Clients validate terminology, decision rules, and expected outputs while the agency handles implementation details, reducing late revisions caused by document-based handoffs.
 
-Sim takes a pragmatic approach: **undo/redo is a local, per-user stack that generates inverse operations sent through the same socket system as regular edits.**
+## How does Multiplayer improve workflow reviews?
 
-### How It Works
+Multiplayer makes reviews more concrete because reviewers examine the system on the canvas where it is built. A useful review should answer:
 
-Every operation you perform is recorded in a local undo stack with its inverse:
+- What starts the workflow?
+- Which data enters each step?
+- Which model or tool is responsible for each action?
+- What happens when information is missing?
+- Where should a person review or approve an outcome?
+- What could fail, and how should the workflow respond?
+- Does the final output meet the team's quality standard?
 
-- **Add block** → Inverse: **Remove block** (with full block snapshot)
-- **Remove block** → Inverse: **Add block** (restoring from snapshot)
-- **Move block** → Inverse: **Move block** (with original position)
-- **Update subblock** → Inverse: **Update subblock** (with previous value)
+Reviewing these questions against the actual workflow separates workflow-design problems from prompt, model, data, or integration problems. Teams considering different implementation approaches can also use the examples in [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) to frame architectural tradeoffs without reducing the review to a feature checklist.
 
-When you press Cmd+Z:
+## How should teams test and deploy a collaborative workflow?
 
-1. Pop the latest operation from your undo stack
-2. Push it to your redo stack
-3. Execute the inverse operation by queuing it through the operation queue
-4. The inverse operation flows through the normal socket system: validation, persistence, broadcast
+The canvas is the current draft. Define representative inputs on the Start trigger, use the editor's Run action, and inspect each run before release. Test expected cases, missing or malformed inputs, tool failures, permission boundaries, and any high-impact action that should require human review.
 
-This means **undo is just another edit**. If you undo adding a block, Sim sends a "remove block" operation through the queue. Other users see the block disappear in real-time, as if you manually deleted it.
+According to the [Sim workflow documentation](https://docs.sim.ai/workflows), editor runs use the draft. The [deployment guide](https://docs.sim.ai/workflows/deployment) explains that deploying publishes an immutable snapshot as a numbered version. Editing the canvas afterward changes only the draft; outside callers continue using the active snapshot until an Admin publishes an update. Previous versions remain available for promotion if a team needs to restore a known-good release.
 
-### Coalescing and Snapshots
+That separation matters during simultaneous editing: an unfinished canvas change does not automatically leak into a live API, chat, or MCP deployment. Teams should still coordinate who owns the release decision, finish their test plan, review the diff from the currently live version, and monitor the new version after publication.
 
-Consecutive operations of the same type are coalesced. If you drag a block across the canvas in 50 small movements, only the starting and ending positions are recorded—pressing undo moves the block back to where you started dragging, not through every intermediate position.
+## Does multiplayer make AI workflows safer?
 
-For removal operations, we snapshot the complete state of the removed entity (including all subblock values and connected edges) at the time of removal. This snapshot travels with the undo entry. When you undo a deletion, we restore from the snapshot, ensuring perfect reconstruction even if the workflow structure changed in the interim.
+Multiplayer can strengthen workflow review, but collaboration alone does not make an AI workflow safe or production-ready.
 
-### Multiplayer Undo Semantics
+Teams should test expected behavior, failure cases, tool permissions, sensitive-data handling, and human approval requirements. High-impact actions need controls appropriate to their risk. Domain experts can identify incorrect assumptions, technical reviewers can examine implementation choices, and process owners can confirm that the workflow reflects the intended operating procedure.
 
-Undo stacks are **per-user**. Your undo history doesn't include others' changes. This matches user expectations: Cmd+Z undoes *your* recent actions, not your collaborator's.
+Multiplayer also does not replace version control, change management, approvals, or rollback procedures. Low-risk prototypes may need only lightweight peer review. Workflows that affect customers, money, sensitive information, or irreversible actions should have explicit owners, test cases, approval gates, monitoring, and recovery plans.
 
-The system prunes invalid operations from your stack when entities are deleted by collaborators. If User B has "add edge to Block X" in their undo stack, but User A deletes Block X, that undo entry becomes invalid and is automatically removed since the target block no longer exists.
+## How does the collaboration architecture work?
 
-An interesting case: you add a block, someone else connects an edge to it, and then you undo your addition. The block disappears along with their edge (because of foreign key constraints). This is correct—your block no longer exists, so edges referencing it can't exist either. Both users see the block and edge vanish.
+The original Multiplayer implementation drew inspiration from [Figma's account of its multiplayer architecture](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/), but Sim uses a pragmatic model suited to structured workflows rather than character-by-character document editing.
 
-During execution, undo operations are marked in-progress to prevent circular recording—undoing shouldn't create a new undo entry for the inverse operation itself.
+Browser clients communicate with a standalone realtime service over persistent Socket.IO connections. Workflow state is persisted in PostgreSQL across normalized workflow, block, edge, and subflow data. Keeping blocks, edges, and subflows separate allows targeted writes: moving a block can update its position without rewriting the complete workflow. The client keeps responsive local state in [Zustand](https://github.com/pmndrs/zustand).
 
-## Conclusion
+The operation queue sends structural changes in order and retries failed updates. Current limits are three retry attempts for structural operations and five for subblock or variable updates. High-frequency field changes use a separate server-side channel that coalesces updates for the same field over a 25-millisecond interval. Position updates retain client timestamps for ordering, while other committed operations use server timestamps.
 
-Building multiplayer workflow editing required rethinking assumptions about how workflow builders should work. By applying lessons from Figma's collaborative design tool to the domain of AI agent workflows, we created a system that feels fast, reliable, and natural for teams building together.
+Undo and redo remain local to each user. Sim records an operation and its inverse, then sends that inverse through the same collaboration path when the user chooses Undo. Consecutive moves can be coalesced, deletion entries retain the state needed for restoration, and entries that no longer apply after another collaborator's edit are pruned. In practical terms, Undo reverses your action and broadcasts the resulting edit; it does not travel backward through another person's private history.
 
-If you're building collaborative editing for structured data (not just text), consider:
+If one collaborator deletes a block while another has pending edits for it, clients cancel queued operations that target the removed entity. This prevents stale changes from being sent after the shared workflow has already moved on.
 
-- Whether OT/CRDT complexity is necessary for your conflict density
-- How to separate high-frequency value updates from structural changes
-- What guarantees your users need around data persistence and offline editing
-- Whether exposing operation status builds trust in the system
+## How does Sim Multiplayer compare with n8n?
 
-Multiplayer workflow building is no longer a technical curiosity—it's how teams should work together to build AI agents. And the infrastructure to make it reliable and fast is more approachable than you might think.
+Sim Multiplayer is designed around collaborative AI agent workflow building. n8n also documents [workflow sharing between users](https://docs.n8n.io/build/manage-workflows/share-with-others/), but the most useful comparison is a realistic team exercise rather than a static feature checklist.
 
----
+Ask the same contributors to build, explain, test, and revise the same workflow in each product. Evaluate how quickly technical and nontechnical teammates can understand the logic, contribute feedback, diagnose failures, and reach an approved result. Verify each vendor's current collaboration, deployment, role, and plan documentation before deciding because those details can change.
 
-*Interested in how Sim's multiplayer system works in practice? [Try building a workflow](https://sim.ai) with a collaborator in real-time.*
+For the broader platform comparison, read [The best AI agent builders in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026). This article focuses specifically on collaborative workflow building in Sim.
+
+## What should you know before starting?
+
+- Sim Multiplayer supports collaborative workflow building and review on a shared visual canvas.
+- Write and Admin workspace roles can edit together; Read is view-only, and deployment is reserved for Admins.
+- Presence includes collaborator identity and live cursors.
+- Draft testing and deployment are separate steps, and live deployments use versioned snapshots.
+- Sim supports solo work as well as team collaboration.
+- Sim is [licensed under the Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE).
+- Multiplayer complements rather than replaces testing, approvals, monitoring, and operational controls.
+
+## How do you start building with your team?
+
+Start with one process that has a clear trigger, a measurable output, and an owner who understands the edge cases. Invite the relevant collaborators, give each person the minimum necessary workspace role, build the smallest useful version, and run it with realistic examples. Bring reviewers into the workflow before expanding its scope, then have an Admin publish the reviewed snapshot.
+
+[Start building with Sim](https://sim.ai) or explore the [Sim documentation](https://docs.sim.ai) to create, run, and deploy workflows.
