@@ -154,6 +154,59 @@ function guardedRefresh() {
   return { repo, refresh }
 }
 
+test('Studio consumes the unmodified report written by the scanner CLI', () => {
+  const { repo } = guardedRefresh()
+  write(
+    repo,
+    'apps/sim/app/product/page.tsx',
+    "import { Example } from '@sim/emcn'\nexport default function Page() { return <div style={{ color: '#123456' }}><Example /></div> }\n"
+  )
+  const root = path.dirname(repo)
+  const scan = path.join(root, 'real-scan')
+  const scanner = path.resolve('scripts/design-scan/scan.ts')
+  const scanned = spawnSync(
+    process.env.DESIGN_TEST_BUN ?? 'bun',
+    ['--no-env-file', scanner, '--repo', repo, '--working-tree', '--output', scan],
+    { encoding: 'utf8', timeout: 120000 }
+  )
+  assert.ok([0, 1].includes(scanned.status), scanned.stderr)
+  const reportFile = path.join(scan, 'scan.json')
+  const reportBytes = readFileSync(reportFile)
+  const report = JSON.parse(reportBytes.toString())
+  assert.equal(report.version, 2)
+  assert.ok(report.inventory.metadata.exports.Example)
+  assert.ok(report.inventory.findings.some((finding) => finding.value === '#123456'))
+
+  const output = path.join(root, 'real-studio')
+  const refreshed = spawnSync('node', [script], {
+    env: {
+      ...process.env,
+      SIM_STUDIO_REPO: repo,
+      SIM_STUDIO_SCAN_DIR: scan,
+      SIM_STUDIO_OUTPUT: output,
+    },
+    encoding: 'utf8',
+    timeout: 120000,
+  })
+  assert.ok([0, 1].includes(refreshed.status), refreshed.stderr)
+  assert.deepEqual(readFileSync(reportFile), reportBytes)
+  const pointer = JSON.parse(readFileSync(path.join(output, 'latest.json'), 'utf8'))
+  const manifest = JSON.parse(readFileSync(path.join(pointer.path, 'manifest.json'), 'utf8'))
+  const example = components(manifest).find((entry) => entry.name === 'Example')
+  assert.ok(example)
+  assert.ok(example.variants.some((entry) => entry.id === 'component:Example:variant=filled'))
+  assert.ok(
+    example.usages.some(
+      (usage) => usage.file === 'apps/sim/app/product/page.tsx' && usage.relationship === 'direct'
+    )
+  )
+  assert.ok(
+    extras(manifest).some((entry) =>
+      report.inventory.findings.some((finding) => entry.id === `finding:${finding.id}`)
+    )
+  )
+}, 120000)
+
 test('refresh tracks source changes in imported stylesheets', () => {
   const { repo, refresh } = guardedRefresh()
   const first = refresh()

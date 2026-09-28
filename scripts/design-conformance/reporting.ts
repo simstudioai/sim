@@ -2,8 +2,8 @@ import type { Finding, Report } from '#design-conformance/model'
 
 /** Keep source-authored newlines from becoming terminal workflow commands. */
 const line = (value: string) => value.replaceAll('\r', '\\r').replaceAll('\n', '\\n')
-const bounded = (value: string) =>
-  value.length > 1000 ? `${value.slice(0, 1000)}… [truncated; see JSON]` : value
+const bounded = (value: string, limit = 1000) =>
+  value.length > limit ? `${value.slice(0, limit)}… [truncated; see JSON]` : value
 
 export function findingCounts(report: Report) {
   return {
@@ -13,16 +13,21 @@ export function findingCounts(report: Report) {
 }
 
 function description(finding: Finding): string {
-  const parts = [finding.reason, `input: ${finding.provenance?.input ?? finding.value}`]
+  const parts = [bounded(finding.reason, 250)]
+  if (finding.contract) parts.push(`contract: ${bounded(finding.contract, 160)}`)
+  if (finding.provenance) {
+    parts.push(
+      `source: ${bounded(finding.provenance.source, 180)}`,
+      `permitted: ${bounded(finding.provenance.permitted, 180)}`
+    )
+    if (finding.provenance.composition)
+      parts.push(`through: ${bounded(finding.provenance.composition, 120)}`)
+  }
+  parts.push(`input: ${bounded(finding.provenance?.input ?? finding.value, 180)}`)
   if (finding.kind === 'system-change')
     parts.push(
-      `${finding.property}: ${JSON.stringify(finding.before ?? null)} → ${JSON.stringify(finding.value)}`
+      `${finding.property}: ${bounded(JSON.stringify(finding.before ?? null), 180)} → ${bounded(JSON.stringify(finding.value), 180)}`
     )
-  if (finding.contract) parts.push(`contract: ${finding.contract}`)
-  if (finding.provenance) {
-    parts.push(`source: ${finding.provenance.source}`, `permitted: ${finding.provenance.permitted}`)
-    if (finding.provenance.composition) parts.push(`through: ${finding.provenance.composition}`)
-  }
   return parts.join('; ')
 }
 
@@ -68,7 +73,7 @@ export function textReport(report: Report): string {
       lines.push(`  ${bounded(description)}`)
     }
     lines.push(
-      `Showing ${Math.min(relevant.length, 20)} of ${report.unchecked.length} unchecked diagnostics; complete evidence is in the JSON report. No findings does not prove complete coverage.`
+      `Showing ${Math.min(relevant.length, 20)} of ${report.unchecked.length} unchecked diagnostics. Rerun the same bun run check:design command with --format json to print the complete report, or --output /tmp/design-check.json to save it. No findings does not prove complete coverage.`
     )
   }
   return `${lines.join('\n')}\n`

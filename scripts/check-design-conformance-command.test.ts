@@ -1081,6 +1081,16 @@ test('large finding messages stay bounded in logs while JSON keeps full evidence
   expect(JSON.stringify(report)).toContain('a'.repeat(3000))
 })
 
+test('long authored input cannot hide warning source or permitted action', () => {
+  const report = findingReport()
+  report.findings[0].provenance!.input = 'a'.repeat(3000)
+  const annotation = githubAnnotations(report)[0]
+  expect(annotation).toContain(`source: ${TOKEN_FILE}`)
+  expect(annotation).toContain('permitted: central variable')
+  expect(annotation).toContain('input:')
+  expect(JSON.stringify(report)).toContain('a'.repeat(3000))
+})
+
 test('large unchecked summaries keep complete JSON evidence and bound human output', () => {
   const report = new ConformanceLinter().report(null)
   report.unchecked = Array.from({ length: 101 }, (_, index) => ({
@@ -1100,6 +1110,23 @@ test('large unchecked summaries keep complete JSON evidence and bound human outp
   expect(text).toContain('101 unchecked diagnostics')
   expect(text).not.toContain('component-100.tsx:1 (after) — reason-100')
   expect(JSON.stringify(report)).toContain('component-100.tsx')
+})
+
+test('local text output names a command that exposes omitted diagnostics', () => {
+  const report = new ConformanceLinter().report(null)
+  report.unchecked = Array.from({ length: 21 }, (_, index) => ({
+    file: `component-${index}.tsx`,
+    line: 1,
+    side: 'after',
+    context: '',
+    reason: `Unresolved input ${index}`,
+    relevant: true,
+  }))
+  const output = textReport(report)
+  expect(output).toContain('bun run check:design')
+  expect(output).toContain('--output')
+  expect(output).toContain('--format json')
+  expect(output).not.toContain('component-20.tsx:1')
 })
 
 test('inspection severity is explicit and does not depend on diagnostic wording', () => {
