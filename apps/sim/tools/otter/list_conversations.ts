@@ -61,11 +61,13 @@ export const otterListConversationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(`${OTTER_API_BASE}/conversations`)
-      if (params.includeShared !== undefined && params.includeShared !== null) {
+      const channelId = params.channelId?.trim()
+      // Otter lets channel_id override include_shared, so the flag is only sent without one.
+      if (channelId) {
+        url.searchParams.set('channel_id', channelId)
+      } else if (params.includeShared !== undefined && params.includeShared !== null) {
         url.searchParams.set('include_shared', String(params.includeShared))
       }
-      const channelId = params.channelId?.trim()
-      if (channelId) url.searchParams.set('channel_id', channelId)
       const limit = parseOtterLimit(params.limit)
       if (limit !== undefined) url.searchParams.set('limit', String(limit))
       const cursor = params.cursor?.trim()
