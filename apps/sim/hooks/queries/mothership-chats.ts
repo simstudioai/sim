@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
@@ -63,6 +64,17 @@ export interface MothershipChatHistory {
 }
 
 export type MothershipChatOwner = string | { organizationId: string }
+
+/** Reports which chats were deleted when another request in the batch failed. */
+export class MothershipChatDeleteError extends Error {
+  constructor(
+    readonly deletedChatIds: string[],
+    cause: Error
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MothershipChatDeleteError'
+  }
+}
 
 export const mothershipChatKeys = {
   all: ['mothership-chats'] as const,
@@ -377,7 +389,10 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
         })
       )
       const failed = results.find((result) => result.status === 'rejected')
-      if (failed) throw failed.reason
+      if (failed) {
+        const deletedChatIds = chatIds.filter((_, index) => results[index].status === 'fulfilled')
+        throw new MothershipChatDeleteError(deletedChatIds, toError(failed.reason))
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
