@@ -84,7 +84,6 @@ describe('databricks workspace host allowlist', () => {
     ['adb-123.4.databricks.azure.cn', 'https://adb-123.4.databricks.azure.cn'],
     ['dbc-a1b2.cloud.databricks.mil', 'https://dbc-a1b2.cloud.databricks.mil'],
     ['https://acme.databricks.com/', 'https://acme.databricks.com'],
-    ['dbc-a1b2.cloud.databricks.com.', 'https://dbc-a1b2.cloud.databricks.com.'],
   ])('builds the same request URLs for workspace host %s', (host, origin) => {
     const params = { ...REQUEST_PARAMS, host }
     expect(urlBuilder('databricks_list_clusters')(params)).toBe(`${origin}/api/2.0/clusters/list`)
@@ -97,4 +96,16 @@ describe('databricks workspace host allowlist', () => {
       `${origin}/api/2.0/genie/spaces/space1/conversations/conv1/messages/msg1`
     )
   })
+
+  it.each([
+    ['dbc-a1b2.cloud.databricks.com.', 'https://dbc-a1b2.cloud.databricks.com'],
+    ['https://dbc-a1b2.cloud.databricks.com.:8443/', 'https://dbc-a1b2.cloud.databricks.com:8443'],
+  ])(
+    'drops the trailing FQDN dot of %s, which the old tools kept and Bun TLS rejects',
+    (host, origin) => {
+      expect(urlBuilder('databricks_list_clusters')({ ...REQUEST_PARAMS, host })).toBe(
+        `${origin}/api/2.0/clusters/list`
+      )
+    }
+  )
 })

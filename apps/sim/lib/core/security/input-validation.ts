@@ -1167,8 +1167,10 @@ function validateVendorHostedUrl(
   if (!urlResult.isValid) return urlResult
 
   const parsed = new URL(candidate)
-  // A fully qualified name's trailing dot names the same host.
-  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '')
+  // A trailing FQDN dot names the same host, but TLS hostname verification rejects it.
+  const fullyQualified = parsed.hostname.endsWith('.')
+  if (fullyQualified) parsed.hostname = parsed.hostname.slice(0, -1)
+  const hostname = parsed.hostname.toLowerCase()
   const allowed = suffixes.some(
     (suffix) => (allowBareSuffix && hostname === suffix.slice(1)) || hostname.endsWith(suffix)
   )
@@ -1186,7 +1188,8 @@ function validateVendorHostedUrl(
     }
   }
 
-  return { isValid: true, sanitized: sanitize === 'origin' ? parsed.origin : candidate }
+  if (sanitize === 'origin') return { isValid: true, sanitized: parsed.origin }
+  return { isValid: true, sanitized: fullyQualified ? parsed.href : candidate }
 }
 
 /**
