@@ -30,6 +30,24 @@ describe('createKieFetch', () => {
     })
   })
 
+  it('keeps retry and tracing headers on a rewritten error', async () => {
+    const response = await kieFetchReturning(
+      createMockResponse({
+        json: { code: 429, msg: 'Rate limited' },
+        headers: {
+          ...JSON_HEADERS,
+          'retry-after': '7',
+          'x-request-id': 'req_1',
+          'content-length': '999',
+        },
+      })
+    )('https://api.kie.ai')
+
+    expect(response.headers.get('retry-after')).toBe('7')
+    expect(response.headers.get('x-request-id')).toBe('req_1')
+    expect(response.headers.get('content-length')).toBeNull()
+  })
+
   it.each([
     [429, 429],
     [455, 503],

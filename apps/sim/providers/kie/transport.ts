@@ -40,18 +40,32 @@ export function createKieFetch(baseFetch?: typeof fetch): typeof fetch {
       body = undefined
     }
 
+    const headers = rebodiedHeaders(response.headers)
     if (!isRecordLike(body) || typeof body.code !== 'number' || body.code === 200) {
       return new Response(text, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers,
+        headers,
       })
     }
 
     const message = typeof body.msg === 'string' ? body.msg : `Kie request failed (${body.code})`
+    headers.set('content-type', 'application/json')
     return new Response(JSON.stringify({ type: 'error', error: { type: 'kie_error', message } }), {
       status: toHttpStatus(body.code),
-      headers: { 'content-type': 'application/json' },
+      headers,
     })
   }
+}
+
+/**
+ * Upstream headers for a body that has already been read and decoded. `Retry-After`
+ * and request ids must survive for the retry policy and diagnostics; the length and
+ * encoding no longer describe the new body.
+ */
+function rebodiedHeaders(upstream: Headers): Headers {
+  const headers = new Headers(upstream)
+  headers.delete('content-length')
+  headers.delete('content-encoding')
+  return headers
 }
