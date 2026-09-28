@@ -11,6 +11,7 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
+import type { OAuthServiceConfig } from '../apps/sim/lib/oauth/types'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
 import { formatGeneratedSource } from './format-generated-source'
 
@@ -413,10 +414,17 @@ interface ToolMetadataParam {
   visibility?: string
 }
 
+interface ToolMetadataOAuth {
+  provider?: string
+  requiredScopes?: string[]
+  credentialKind?: 'oauth' | 'service-account'
+}
+
 interface ToolMetadataEntry {
   name?: string
   description?: string
   params?: Record<string, ToolMetadataParam>
+  oauth?: ToolMetadataOAuth
 }
 
 /** Client-safe tool metadata, keyed by tool id and kept in sync with the registry by CI. */
@@ -1717,13 +1725,13 @@ function blankStringsAndComments(content: string): string | null {
 }
 
 /**
- * Extract the OAuth service id from the block's `oauth-input` credential
- * subBlock. Scoped to that subBlock's object literal so `serviceId` fields on
- * other subBlocks (e.g. file selectors) are never picked up. Brace matching
- * runs on a blanked copy of the content so string literals and comments
- * containing braces cannot skew it.
+ * Extract the source of the block's `oauth-input` credential subBlock object
+ * literal, so its fields are never confused with same-named fields on other
+ * subBlocks (e.g. a file selector's `serviceId`). Brace matching runs on a
+ * blanked copy of the content so string literals and comments containing
+ * braces cannot skew it.
  */
-function extractOAuthServiceId(blockContent: string): string | undefined {
+function extractOAuthSubBlock(blockContent: string): string | undefined {
   const typeMatch = /type\s*:\s*['"]oauth-input['"]/.exec(blockContent)
   if (!typeMatch) return undefined
 
@@ -1746,8 +1754,23 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
 
   const objectEnd = findMatchingClose(scannable, objectStart)
   if (objectEnd === -1) return undefined
-  const subBlockContent = blockContent.substring(objectStart, objectEnd)
-  return /serviceId\s*:\s*['"]([^'"]+)['"]/.exec(subBlockContent)?.[1]
+  return blockContent.substring(objectStart, objectEnd)
+}
+
+/** Extract the OAuth service id from the block's `oauth-input` credential subBlock. */
+function extractOAuthServiceId(blockContent: string): string | undefined {
+  const subBlock = extractOAuthSubBlock(blockContent)
+  return subBlock ? /serviceId\s*:\s*['"]([^'"]+)['"]/.exec(subBlock)?.[1] : undefined
+}
+
+/**
+ * Whether the credential depends on the block's `environmentUrl`, which is what
+ * switches a Dataverse credential to the environment-bound grant (see
+ * `resolveMicrosoftDataverseCredentialPolicy`).
+ */
+function isEnvironmentBoundCredential(blockContent: string): boolean {
+  const subBlock = extractOAuthSubBlock(blockContent)
+  return subBlock ? /dependsOn\s*:\s*\[[^\]]*['"]environmentUrl['"]/.test(subBlock) : false
 }
 
 /**
@@ -4362,7 +4385,12 @@ async function generateBlockDoc(blockPath: string) {
 
       const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
+      const oauthServiceId =
+        extractAuthType(fileContent) === 'oauth' ? extractOAuthServiceId(fileContent) : undefined
+      const oauthCredential = oauthServiceId
+        ? { serviceId: oauthServiceId, environmentBound: isEnvironmentBoundCredential(fileContent) }
+        : undefined
+      const markdown = await generateMarkdownForBlock(blockConfig, displayType, oauthCredential)
 
       let finalContent = markdown
       if (Object.keys(manualSections).length > 0) {
@@ -4385,7 +4413,8 @@ async function generateBlockDoc(blockPath: string) {
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string
+  displayType?: string,
+  oauthCredential?: OAuthCredentialSource
 ): Promise<string> {
   const {
     type,
@@ -4524,6 +4553,10 @@ async function generateMarkdownForBlock(
     usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
   }
 
+  const oauthScopesSection = oauthCredential
+    ? await buildOAuthScopesSection(oauthCredential, tools.access ?? [])
+    : ''
+
   return `---
 title: ${name}
 description: ${description}
@@ -4538,8 +4571,203 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ${usageInstructions}
 
-${toolsSection}
+${toolsSection}${oauthScopesSection}
 `
+}
+
+const OAUTH_SCOPES_HEADING = '## OAuth Scopes'
+const DATAVERSE_ENVIRONMENT_SCOPE = '<environment-url>/.default'
+const DATAVERSE_SAMPLE_ENVIRONMENT = 'https://yourorg.crm.dynamics.com'
+const SELF_HOSTING_OAUTH_GUIDE = '/platform/self-hosting/integrations-oauth'
+const CONNECTOR_PROVIDERS_PATH = path.join(rootDir, 'apps/sim/lib/auth/connectors/providers.ts')
+const OAUTH_CALLBACK_ROUTES_PATH = path.join(rootDir, 'apps/sim/app/api/auth/oauth2/callback')
+
+/** The block's OAuth credential subBlock, as the scopes section needs it. */
+interface OAuthCredentialSource {
+  serviceId: string
+  environmentBound: boolean
+}
+
+interface OAuthDocsSources {
+  getMicrosoftDataverseOAuthScopes: (environmentUrl: string) => string[]
+  getServiceConfigByServiceId: (serviceId: string) => OAuthServiceConfig | null
+  getScopeDescription: (scope: string, providerId?: string) => string
+  isScopeSatisfiedBy: (required: string, granted: ReadonlySet<string>) => boolean
+  getSlackApprovalGatedScopes: (enabled: boolean) => readonly string[]
+  getOAuthClientCapabilityFields: (serviceId: string) => readonly string[] | null
+  salesforceLoginHosts: Readonly<Record<string, string>>
+}
+
+let oauthDocsSources: OAuthDocsSources | null = null
+
+/**
+ * Loads the runtime OAuth registries the scopes section documents, so the page
+ * lists exactly what the app requests rather than a hand-kept copy.
+ */
+async function loadOAuthDocsSources(): Promise<OAuthDocsSources> {
+  if (oauthDocsSources) return oauthDocsSources
+  const [utils, oauth, salesforce, dataverse, capabilities] = await Promise.all([
+    import(path.join(rootDir, 'apps/sim/lib/oauth/utils.ts')),
+    import(path.join(rootDir, 'apps/sim/lib/oauth/oauth.ts')),
+    import(path.join(rootDir, 'apps/sim/lib/oauth/salesforce.ts')),
+    import(path.join(rootDir, 'apps/sim/lib/oauth/microsoft-dataverse.ts')),
+    import(path.join(rootDir, 'packages/deployment-config/src/env-capabilities.ts')),
+  ])
+  oauthDocsSources = {
+    getMicrosoftDataverseOAuthScopes: dataverse.getMicrosoftDataverseOAuthScopes,
+    getServiceConfigByServiceId: utils.getServiceConfigByServiceId,
+    getScopeDescription: utils.getScopeDescription,
+    isScopeSatisfiedBy: utils.isScopeSatisfiedBy,
+    getSlackApprovalGatedScopes: oauth.getSlackApprovalGatedScopes,
+    getOAuthClientCapabilityFields: capabilities.getOAuthClientCapabilityFields,
+    salesforceLoginHosts: salesforce.SALESFORCE_LOGIN_HOSTS,
+  }
+  return oauthDocsSources
+}
+
+/**
+ * The path a provider returns to after consent, or null when the service does
+ * not use an OAuth 2.0 redirect (Trello authorizes with an API key). Better
+ * Auth connectors declare their redirect literally (Salesforce builds one per
+ * login host); Instagram, Shopify, and QuickBooks own a route at that path.
+ */
+function oauthCallbackPath(providerId: string, sources: OAuthDocsSources): string | null {
+  const callbackPath = `/api/auth/oauth2/callback/${providerId}`
+  const registered =
+    readSourceFile(CONNECTOR_PROVIDERS_PATH).includes(`${callbackPath}\``) ||
+    providerId in sources.salesforceLoginHosts ||
+    fs.existsSync(path.join(OAUTH_CALLBACK_ROUTES_PATH, providerId, 'route.ts'))
+  return registered ? callbackPath : null
+}
+
+/**
+ * The grant an environment-bound Dataverse credential requests, with the
+ * environment's resource scope shown as a placeholder.
+ */
+function environmentBoundDataverseScopes(sources: OAuthDocsSources): string[] {
+  const sampleOrigin = new URL(
+    sources.getMicrosoftDataverseOAuthScopes(DATAVERSE_SAMPLE_ENVIRONMENT)[3]
+  ).origin
+  return sources
+    .getMicrosoftDataverseOAuthScopes(DATAVERSE_SAMPLE_ENVIRONMENT)
+    .map((scope) => (scope.startsWith(sampleOrigin) ? DATAVERSE_ENVIRONMENT_SCOPE : scope))
+}
+
+function scopeTable(
+  scopes: readonly string[],
+  describe: (scope: string) => string,
+  header = 'Description'
+): string {
+  const rows = scopes.map((scope) => `| \`${scope}\` | ${escapeMdxCell(describe(scope))} |`)
+  return `| Scope | ${header} |\n| ----- | ${'-'.repeat(header.length)} |\n${rows.join('\n')}\n\n`
+}
+
+/**
+ * Builds the "## OAuth Scopes" section for an OAuth integration: the redirect
+ * URI and environment variables a self-hoster registers, every scope the
+ * connect flow requests, scopes requested only behind a deployment flag, and
+ * scopes that actions restricted to a bot or service-account credential need
+ * beyond the OAuth grant.
+ */
+async function buildOAuthScopesSection(
+  { serviceId: oauthServiceId, environmentBound }: OAuthCredentialSource,
+  toolIds: readonly string[]
+): Promise<string> {
+  const sources = await loadOAuthDocsSources()
+  const service = sources.getServiceConfigByServiceId(oauthServiceId)
+  if (!service || service.authType === 'service_account') return ''
+
+  const dataverse = service.providerId === 'microsoft-dataverse'
+  const describe = (scope: string) => {
+    if (scope === DATAVERSE_ENVIRONMENT_SCOPE) {
+      return 'Access your Dataverse environment through the permissions granted to the app registration'
+    }
+    const description = sources.getScopeDescription(scope, service.providerId)
+    return description === scope ? '' : description
+  }
+
+  // Resolved with the flag on so the page does not depend on the generating environment.
+  const gatedScopes =
+    service.providerId === 'slack' ? sources.getSlackApprovalGatedScopes(true) : []
+  const gated = new Set(gatedScopes)
+  const requested =
+    dataverse && environmentBound
+      ? environmentBoundDataverseScopes(sources)
+      : service.scopes.filter((scope) => !gated.has(scope))
+  const granted = new Set(requested)
+
+  let section = `${OAUTH_SCOPES_HEADING}\n\n`
+  const article = /^[aeiou]/i.test(service.name) ? 'an' : 'a'
+  section += requested.length
+    ? `Sim requests these scopes when someone connects ${article} ${service.name} account. `
+    : `Sim requests no OAuth scopes for ${service.name}. `
+  section += `On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](${SELF_HOSTING_OAUTH_GUIDE}) for the full setup.\n\n`
+
+  const providerIds = [service.providerId, ...(service.additionalProviderIds ?? [])]
+  const redirects = providerIds.flatMap((providerId) => {
+    const callbackPath = oauthCallbackPath(providerId, sources)
+    if (!callbackPath) return []
+    const label = providerIds.length > 1 ? service.providerIdLabels?.[providerId] : undefined
+    const uri = `\`<NEXT_PUBLIC_APP_URL>${callbackPath}\``
+    return [label ? `${escapeMdxCell(label)}: ${uri}` : uri]
+  })
+  const envFields = sources.getOAuthClientCapabilityFields(oauthServiceId)
+  const settings: string[] = []
+  if (redirects.length) settings.push(`| Redirect URI | ${redirects.join('<br />')} |`)
+  if (envFields?.length) {
+    settings.push(
+      `| Environment variables | ${envFields.map((field) => `\`${field}\``).join(', ')} |`
+    )
+  } else if (service.clientConfiguration) {
+    settings.push(
+      `| Client credentials | Entered in Sim when connecting an account, not set as environment variables |`
+    )
+  }
+  if (settings.length) {
+    section += `| Setting | Value |\n| ------- | ----- |\n${settings.join('\n')}\n\n`
+  }
+
+  if (requested.length) section += scopeTable(requested, describe)
+
+  if (dataverse) {
+    if (environmentBound) {
+      section += `Each connection is bound to one environment. \`<environment-url>\` is that environment's Web API origin, so the scope looks like \`https://yourorg.api.crm.dynamics.com/.default\`. `
+    }
+    section +=
+      'In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.\n\n'
+  }
+
+  if (gatedScopes.length) {
+    section +=
+      'Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:\n\n'
+    section += scopeTable(gatedScopes, describe)
+  }
+
+  const metadata = await loadToolMetadata()
+  const displayNames = await loadToolDisplayNames()
+  const botOnlyScopes = new Map<string, string[]>()
+  for (const toolId of toolIds) {
+    const oauth = metadata[toolId]?.oauth
+    if (oauth?.credentialKind !== 'service-account') continue
+    for (const scope of oauth.requiredScopes ?? []) {
+      if (granted.has(scope) || sources.isScopeSatisfiedBy(scope, granted)) continue
+      const actions = botOnlyScopes.get(scope) ?? []
+      const name = displayNames.get(toolId) ?? stripVersionSuffix(toolId)
+      if (!actions.includes(name)) actions.push(name)
+      botOnlyScopes.set(scope, actions)
+    }
+  }
+  if (botOnlyScopes.size) {
+    section +=
+      'Some actions run only on a bot or service-account credential, never the OAuth connection. That credential needs these additional scopes:\n\n'
+    section += scopeTable(
+      [...botOnlyScopes.keys()].sort(compareCatalogNames),
+      (scope) => botOnlyScopes.get(scope)?.join(', ') ?? '',
+      'Actions'
+    )
+  }
+
+  return section
 }
 
 /**
@@ -5188,13 +5416,17 @@ async function generateAllTriggerDocs(): Promise<void> {
       const existing = readGeneratedFile(outputFilePath)
 
       if (existing?.includes('\n## Actions')) {
-        // Actions page generated this run by the block pass — append the Triggers section.
+        // Actions page generated this run by the block pass — add the Triggers
+        // section after Actions and before any OAuth Scopes section.
         if (!existing.includes('\n## Triggers')) {
-          if (CHECK_ONLY) {
-            emittedByPath.set(outputFilePath, `${existing}\n${buildTriggersSection(triggers)}`)
-          } else {
-            fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
-          }
+          const triggersSection = buildTriggersSection(triggers)
+          const scopesIndex = existing.indexOf(`\n${OAUTH_SCOPES_HEADING}\n`)
+          emitGeneratedFile(
+            outputFilePath,
+            scopesIndex === -1
+              ? `${existing}\n${triggersSection}`
+              : `${existing.slice(0, scopesIndex)}\n${triggersSection}${existing.slice(scopesIndex)}`
+          )
         }
       } else {
         // Trigger-only service (no actions block) — (re)write the standalone page,
