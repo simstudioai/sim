@@ -574,6 +574,9 @@ export function TabStrip({
   const revealActiveTab = useCallback(() => {
     const node = scrollNodeRef.current
     if (!node || !activeRegularId) return
+    // Stopped before any early return, so a reveal still in flight toward a
+    // previous tab cannot scroll an already-visible active tab away.
+    stopRevealScroll()
     const element = Array.from(node.querySelectorAll<HTMLElement>('[data-tab-strip-item]')).find(
       (candidate) => candidate.dataset.tabStripItem === activeRegularId
     )
@@ -597,7 +600,6 @@ export function TabStrip({
     // gradient at a scroll extreme, so no margin is needed to clear one.
     const nextLeft = Math.max(0, Math.min(maxScrollLeft, target))
     if (Math.abs(nextLeft - node.scrollLeft) < 1) return
-    stopRevealScroll()
     if (reduceMotion) {
       node.scrollLeft = nextLeft
       return
@@ -656,7 +658,12 @@ export function TabStrip({
       event.preventDefault()
     }
     strip.addEventListener('wheel', handleWheel, { passive: false })
-    return () => strip.removeEventListener('wheel', handleWheel)
+    // Touch, pen, and scrollbar drags scroll natively without a wheel event.
+    strip.addEventListener('pointerdown', stopRevealScroll)
+    return () => {
+      strip.removeEventListener('wheel', handleWheel)
+      strip.removeEventListener('pointerdown', stopRevealScroll)
+    }
   }, [stopRevealScroll, updateOverflow])
 
   const handleDragStart = useCallback(
