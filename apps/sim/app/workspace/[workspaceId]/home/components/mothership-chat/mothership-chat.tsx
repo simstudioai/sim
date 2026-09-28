@@ -12,7 +12,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { type ClipboardContent, cn } from '@sim/emcn'
+import {
+  type ClipboardContent,
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
@@ -529,6 +536,10 @@ export function MothershipChat({
   })
 
   const hasMessages = messages.length > 0
+  const scrollEdges = useScrollEdges(scrollElementRef, {
+    contentRef: sizerRef,
+    enabled: !isLoading || hasMessages,
+  })
 
   /**
    * Keep a bottom-pinned transcript pinned when the scroll container resizes.
@@ -851,7 +862,12 @@ export function MothershipChat({
             inputRef={find.inputRef}
           />
         )}
-        <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
+        <div
+          ref={setScrollElement}
+          className={cn(styles.scrollContainer, scrollFadeClass, overflowFadeSizeClass)}
+          {...scrollFadeAttributes(scrollEdges)}
+          onCopy={handleCopy}
+        >
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
