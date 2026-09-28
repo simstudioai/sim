@@ -435,17 +435,17 @@ export async function readGmail(
   for (const candidate of latest) {
     options.signal.throwIfAborted()
     const candidateId = string(candidate.id)
-    if (
-      !(await options.verify({
-        id: candidateId,
-        accessMetadata: { id: candidateId, labelIds: candidate.labelIds },
-      }))
-    ) {
-      warnings.add('messages outside the source search scope were omitted')
-      continue
-    }
     let row: Record<string, unknown>
     try {
+      if (
+        !(await options.verify({
+          id: candidateId,
+          accessMetadata: { id: candidateId, labelIds: candidate.labelIds },
+        }))
+      ) {
+        warnings.add('messages outside the source search scope were omitted')
+        continue
+      }
       row = object(
         await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
           query: { format: 'full' },
