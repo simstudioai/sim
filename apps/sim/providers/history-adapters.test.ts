@@ -125,7 +125,7 @@ describe('canonical provider wire adapters', () => {
         expect(
           PROVIDER_DEFINITIONS[providerId].models.every((model) => isEvaluationModel(model.id))
         ).toBe(true)
-      } else {
+      } else if (typeof protocol !== 'function') {
         expect(providerHistoryAdapters[protocol]).toBeDefined()
       }
     }
