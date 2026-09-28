@@ -79,6 +79,7 @@ const mailbox: GmailMessage[] = Array.from({ length: 12 }, (_, index) => ({
     body: { data: Buffer.from(`Synthetic evidence ${index}.`).toString('base64url') },
   },
 }))
+const messageFailures = new Map<string, number>()
 const mediaStarted = createDeferred<void>()
 const mediaClosed = createDeferred<void>()
 const server = http.createServer((request, response) => {
@@ -92,6 +93,15 @@ const server = http.createServer((request, response) => {
     const row = mailbox.find((message) => message.id === id)
     const isThread = url.pathname.startsWith('/gmail/v1/users/me/threads/')
     const isAttachment = url.pathname.includes('/attachments/')
+    const failure =
+      !isThread && url.searchParams.get('format') === 'full' ? messageFailures.get(id) : undefined
+    if (failure) {
+      requests.push({ id, resource: 'message', status: failure })
+      response
+        .writeHead(failure, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: { code: failure } }))
+      return
+    }
     const threadMessages = isThread ? mailbox.filter((message) => message.threadId === id) : []
     const metadata = (message: (typeof mailbox)[number]) => ({
       ...message,
@@ -284,6 +294,78 @@ try {
   server.listen(0, '127.0.0.1', () => started.resolve())
   await started.promise
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  for (const { name, failedId, status, expectedStatus } of [
+    { name: 'healthy conversation', failedId: '', status: 200 },
+    { name: 'missing sibling', failedId: 'reply', status: 404 },
+    { name: 'missing anchor', failedId: 'anchor', status: 404, expectedStatus: 'unavailable' },
+    { name: 'expired credentials', failedId: 'reply', status: 401, expectedStatus: 'reconnect' },
+    { name: 'denied credentials', failedId: 'reply', status: 403, expectedStatus: 'reconnect' },
+    { name: 'rate limit', failedId: 'reply', status: 429, expectedStatus: 'rate_limited' },
+    { name: 'server failure', failedId: 'reply', status: 500, expectedStatus: 'unavailable' },
+  ]) {
+    await check(
+      `Gmail conversation handles ${name} without hiding unrelated failures`,
+      async () => {
+        const before = mailbox.length
+        mailbox.push(
+          ...['anchor', 'retained', 'reply'].map((id, index) => ({
+            id,
+            threadId: 'failure-conversation',
+            labelIds: ['INBOX'],
+            internalDate: String(Date.UTC(2026, 0, 1, 12, index)),
+            payload: {
+              mimeType: 'text/plain',
+              body: { data: Buffer.from(`Synthetic ${id} evidence.`).toString('base64url') },
+            },
+          }))
+        )
+        if (failedId) messageFailures.set(failedId, status)
+        try {
+          const signal = AbortSignal.timeout(5000)
+          const api = createNativeClient({ origin, accessToken: TOKEN, signal })
+          const policy = {
+            ...defaultLiveSearchPolicy('gmail'),
+            mode: 'selected' as const,
+            included: ['INBOX'],
+          }
+          const verify = createPolicyVerifier('gmail', policy, api, origin)
+          assert.ok(await verify({ id: 'anchor' }))
+          const reading = readGmail(api, 'anchor', {
+            policy,
+            signal,
+            verify: (reference) => verify(reference, reference.accessMetadata),
+          })
+          if (expectedStatus) {
+            await assert.rejects(
+              reading,
+              (error: unknown) =>
+                error instanceof NativeSearchError && error.status === expectedStatus
+            )
+            return
+          }
+          const document = await reading
+          assert.equal(document.id, 'anchor')
+          assert.ok(document.content.includes('Synthetic anchor evidence.'))
+          assert.ok(document.content.includes('Synthetic retained evidence.'))
+          assert.equal(document.content.includes('Synthetic reply evidence.'), status === 200)
+          assert.equal(document.content.includes('Coverage incomplete:'), status === 404)
+          assert.deepEqual(
+            document.accessDependencies,
+            status === 404 ? [{ id: 'retained' }] : [{ id: 'retained' }, { id: 'reply' }]
+          )
+          const current = createPolicyVerifier('gmail', policy, api, origin, undefined, {
+            fresh: true,
+          })
+          assert.ok(await current({ id: document.id }))
+          for (const dependency of document.accessDependencies ?? [])
+            assert.ok(await current(dependency))
+        } finally {
+          mailbox.splice(before)
+          messageFailures.clear()
+        }
+      }
+    )
+  }
   await check(
     'Gmail conversation and fresh selected-label checks fit one native request budget',
     async () => {

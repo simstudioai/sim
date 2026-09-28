@@ -444,11 +444,21 @@ export async function readGmail(
       warnings.add('messages outside the source search scope were omitted')
       continue
     }
-    const row = object(
-      await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
-        query: { format: 'full' },
-      })
-    )
+    let row: Record<string, unknown>
+    try {
+      row = object(
+        await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
+          query: { format: 'full' },
+        })
+      )
+    } catch (error) {
+      options.signal.throwIfAborted()
+      if (error instanceof NativeSearchError && error.httpStatus === 404) {
+        warnings.add('some messages are no longer available')
+        continue
+      }
+      throw error
+    }
     if (row.id !== candidateId || row.threadId !== threadId)
       throw new NativeSearchError(
         'unavailable',
