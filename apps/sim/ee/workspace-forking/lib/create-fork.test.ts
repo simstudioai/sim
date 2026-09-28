@@ -1,7 +1,10 @@
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
-import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
 import {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
@@ -20,6 +23,7 @@ const {
   mockScheduleForkContentCopy,
   mockCollectReferencedFileFolderPaths,
   mockResolveForkSyncExclusionForNewWorkflow,
+  mockLockForkRevision,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
@@ -32,6 +36,7 @@ const {
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
   // Historical opt-out default unless a test opts the lineage in.
   mockResolveForkSyncExclusionForNewWorkflow: vi.fn(async () => false),
+  mockLockForkRevision: vi.fn(async () => {}),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
@@ -75,6 +80,16 @@ vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
+vi.mock('@/ee/workspace-forking/application/revision', () => ({
+  lockForkRevision: mockLockForkRevision,
+  assertForkPreviewFresh: vi.fn(async () => {}),
+  assertForkSourceVersions: vi.fn(async () => {}),
+}))
+vi.mock('@/lib/workspaces/operations/receipts', () => ({
+  findWorkspaceOperationReceipt: vi.fn(async () => null),
+  insertWorkspaceOperationReceipt: vi.fn(async () => {}),
+  lockWorkspaceOperationRequest: vi.fn(async () => {}),
+}))
 vi.mock('@/ee/workspace-forking/lib/sync-default', () => ({
   // The lineage root is resolved before the fork tx; a standalone source is its own root.
   resolveForkLineageRootId: vi.fn(async (_executor: unknown, workspaceId: string) => workspaceId),
@@ -235,6 +250,36 @@ describe('createFork storage headroom gate', () => {
         forkSyncNewWorkflowsExcluded: true,
       })
     )
+  })
+
+  /**
+   * The deadlock guard, asserted where the order actually lives. `fork-lock-order.integration.ts`
+   * proves this ORDER is the correct one against real Postgres; this proves `createFork`
+   * follows it. Without this, reordering these two calls would leave every check green:
+   * the integration suite drives the helpers itself and never calls `createFork`.
+   *
+   * `lockForkRevision` takes `FOR UPDATE` on the source `workspace` row, which
+   * `unlinkForkEdge` updates while holding the lineage key. Taking it first closes a
+   * genuine cycle. Ranks 2 then 5 in the table on `acquireForkLineageLock`.
+   */
+  it('takes the lineage lock before the revision lock, closing the unlink deadlock', async () => {
+    await createFork({
+      ...forkParams(),
+      admission: {
+        workspaceId: 'src-ws',
+        requestId: 'req-1',
+        requestHash: 'hash-1',
+        previewFingerprint: 'fp-1',
+        choices: {},
+      },
+    })
+
+    const lineageAt =
+      workspaceForkingLineageMockFns.mockAcquireForkLineageLock.mock.invocationCallOrder[0]
+    const revisionAt = mockLockForkRevision.mock.invocationCallOrder[0]
+    expect(lineageAt).toBeDefined()
+    expect(revisionAt).toBeDefined()
+    expect(lineageAt).toBeLessThan(revisionAt)
   })
 
   it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {
