@@ -23,7 +23,7 @@ import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 const MATCH_LIMIT = 500
 const EXCLUDED_CONTENT =
-  'button, [aria-hidden="true"], [data-agent-group], [data-chat-activity], [data-interaction-card], [data-chat-find-ignore]'
+  'button, [aria-hidden="true"], [data-agent-group], [data-chat-activity], [data-interaction-card], [data-chat-find-ignore], [data-footnote-ref], [data-footnotes]'
 const TEXT_BLOCK = 'p, h1, h2, h3, h4, h5, h6, pre, li, td, th'
 
 interface UseChatFindProps {
@@ -127,9 +127,12 @@ export function useChatFind({
   const [index, setIndex] = useState(0)
   if (scope !== chatId) {
     setScope(chatId)
-    setIsOpen(false)
-    setQuery('')
-    setIndex(0)
+    // A pending chat adopting its id (undefined → id) is the same conversation.
+    if (scope !== undefined) {
+      setIsOpen(false)
+      setQuery('')
+      setIndex(0)
+    }
   }
   const deferredQuery = useDeferredValue(query)
   const term = isOpen ? deferredQuery.trim() : ''

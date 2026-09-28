@@ -28,9 +28,13 @@ export function computeMentionRanges(text: string, contexts: ChatMessageContext[
   for (const rawCtx of contexts) {
     if (!rawCtx.label) continue
     const ctx = withResolvedBlockType(rawCtx)
-    const prefix = ctx.kind === 'skill' || ctx.kind === 'mcp' ? '/' : '@'
+    const prefix =
+      ctx.kind === 'skill' || ctx.kind === 'mcp' || ctx.kind === 'slash_command' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
-    const pattern = new RegExp(`(^|\\s)(${escapeRegExp(token)})(\\s|$)`, 'g')
+    const pattern = new RegExp(
+      `(^|\\s)(${escapeRegExp(token)})(?=[\\s,;:!?)\\]]|\\.(?![\\w-])|$)`,
+      'g'
+    )
     let match: RegExpExecArray | null
     while ((match = pattern.exec(text)) !== null) {
       const leadingSpace = match[1]
@@ -44,8 +48,12 @@ export function computeMentionRanges(text: string, contexts: ChatMessageContext[
     ranges.push(range)
   }
 
-  ranges.sort((a, b) => a.start - b.start)
-  return ranges
+  ranges.sort((a, b) => a.start - b.start || b.end - a.end)
+  const merged: MentionRange[] = []
+  for (const range of ranges) {
+    if (range.start >= (merged[merged.length - 1]?.end ?? 0)) merged.push(range)
+  }
+  return merged
 }
 
 /**
