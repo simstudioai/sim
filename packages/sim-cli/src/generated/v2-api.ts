@@ -5024,10 +5024,18 @@ type GetBlockResponseRef0 = {
   placeholder?: string
   mode?: string
   hidden?: boolean
+  reactiveCondition?: {
+    watchFields: Array<string>
+    requiredType: 'oauth' | 'service_account'
+  }
   condition?: GetBlockResponseRef1
   options?: Array<{
     id: string
     label?: string
+    reactiveCondition?: {
+      watchFields: Array<string>
+      requiredType: 'oauth' | 'service_account'
+    }
     hasIcon?: boolean
     hosted?: boolean
   }>
@@ -5186,7 +5194,15 @@ type GetBlockResponseRef6 = {
         options?: Array<{
           id: string
           label: string
+          reactiveCondition?: {
+            watchFields: Array<string>
+            requiredType: 'oauth' | 'service_account'
+          }
         }>
+        reactiveCondition?: {
+          watchFields: Array<string>
+          requiredType: 'oauth' | 'service_account'
+        }
         condition?: GetBlockResponseRef1
       }
     >
