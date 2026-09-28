@@ -41,7 +41,7 @@ import {
   createWorkspaceAccountsGroup,
 } from '@/lib/credential-groups/workspace-accounts'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 type WorkspaceCredentialGroupRecord = CredentialGroupRecord & { workspaceId: string }
 type OrganizationCredentialGroupRecord = CredentialGroupRecord & {
@@ -249,25 +249,25 @@ export function ensureWorkspaceAccountsGroup(
   scope: Extract<ResourceScope, { kind: 'organization' }>,
   userId: string,
   option?: CredentialGroupOptionInput,
-  executor?: DbOrTx
+  executor?: DbTransaction
 ): Promise<OrganizationCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   workspaceId: string,
   userId: string,
   option?: CredentialGroupOptionInput,
-  executor?: DbOrTx
+  executor?: DbTransaction
 ): Promise<WorkspaceCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   scope: ResourceScope,
   userId: string,
   option?: CredentialGroupOptionInput,
-  executor?: DbOrTx
+  executor?: DbTransaction
 ): Promise<CredentialGroupRecord & { created: boolean }>
 export async function ensureWorkspaceAccountsGroup(
   scopeInput: string | ResourceScope,
   userId: string,
   option?: CredentialGroupOptionInput,
-  executor?: DbOrTx
+  executor?: DbTransaction
 ): Promise<CredentialGroupRecord & { created: boolean }> {
   const scope = credentialGroupScope(scopeInput)
   if (option?.provider === 'slack') {
@@ -275,7 +275,7 @@ export async function ensureWorkspaceAccountsGroup(
   }
   const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
   let wasCreated = false
-  const provision = async (tx: DbOrTx) => {
+  const provision = async (tx: DbTransaction) => {
     await acquireAdvisoryXactLock(
       tx,
       'search_accounts',
@@ -400,7 +400,7 @@ export async function addOrganizationAccountProvider(
   organizationId: string,
   userId: string,
   option: { provider: CredentialGroupStandardOAuthProvider; label: string },
-  executor: DbOrTx
+  executor: DbTransaction
 ): Promise<{ groupId: string; changed: boolean }> {
   const scope = { kind: 'organization', organizationId } as const
   const group = await ensureWorkspaceAccountsGroup(scope, userId, undefined, executor)

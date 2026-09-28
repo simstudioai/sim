@@ -1,5 +1,5 @@
 import { type SQL, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 const LOCK_TAG_PATTERN = /^[a-z][a-z0-9_]*$/
 
@@ -19,7 +19,11 @@ function lockTag(tag: string): SQL {
  * Blocks until the transaction-scoped advisory lock for `key` is held. The lock
  * releases on commit or rollback.
  */
-export async function acquireAdvisoryXactLock(tx: DbOrTx, tag: string, key: string): Promise<void> {
+export async function acquireAdvisoryXactLock(
+  tx: DbTransaction,
+  tag: string,
+  key: string
+): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0)) ${lockTag(tag)}`)
 }
 
@@ -28,7 +32,7 @@ export async function acquireAdvisoryXactLock(tx: DbOrTx, tag: string, key: stri
  * Returns whether the lock is now held.
  */
 export async function tryAcquireAdvisoryXactLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   tag: string,
   key: string
 ): Promise<boolean> {
