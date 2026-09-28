@@ -48,8 +48,6 @@ import {
 import type { ChatContext } from '@/stores/panel'
 import { hasToolId } from '@/tools/tool-ids'
 
-export const maxDuration = 3600
-
 const logger = createLogger('MothershipExecuteAPI')
 const MOTHERSHIP_EXECUTE_STREAM_HEADER = 'x-mothership-execute-stream'
 const MOTHERSHIP_EXECUTE_STREAM_VALUE = 'ndjson'

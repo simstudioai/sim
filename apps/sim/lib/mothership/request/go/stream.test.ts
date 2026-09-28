@@ -179,6 +179,7 @@ describe('copilot go stream helpers', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -422,6 +423,41 @@ describe('copilot go stream helpers', () => {
       )
     }
   )
+
+  it('keeps a healthy stream open beyond an hour when no deadline was requested', async () => {
+    vi.useFakeTimers()
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            streamController = controller
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } }
+      )
+    )
+    const context = createStreamingContext()
+    const pending = runStreamLoop(
+      'https://example.com/mothership/stream',
+      {},
+      context,
+      turnScopedExecContext(),
+      { flushAfterEvent: false }
+    )
+    await vi.advanceTimersByTimeAsync(2 * 60 * 60_000)
+    expect(context.streamComplete).toBe(false)
+    expect(context.errors).toEqual([])
+    streamController?.enqueue(
+      new TextEncoder().encode(
+        'data: {"v":1,"type":"complete","seq":1,"ts":"","stream":{"streamId":"s"},"payload":{"status":"complete"}}\n\n'
+      )
+    )
+    streamController?.close()
+    await pending
+    expect(context.errors).toEqual([])
+    vi.useRealTimers()
+  })
 
   it('bounds response-header waits without classifying the deadline as user Stop', async () => {
     vi.mocked(fetch).mockImplementationOnce(

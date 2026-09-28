@@ -22,17 +22,17 @@ describe('stream recovery budget', () => {
     }
     expect(retry.nextDelay(error)).toBeNull()
     expect(retry.attempt).toBe(3)
-    expect(retry.remainingMs()).toBeGreaterThan(3_500_000)
+    expect(retry.remainingMs()).toBeUndefined()
   })
 
   it('bounds the recovery period from the first failure without shortening healthy work', () => {
     vi.useFakeTimers()
     const retry = new StreamRetryWindow()
-    vi.advanceTimersByTime(600_000)
+    vi.advanceTimersByTime(6 * 60 * 60_000)
     expect(retry.nextDelay(new TypeError('fetch failed'))).not.toBeNull()
     vi.advanceTimersByTime(30_000)
     expect(retry.nextDelay(new TypeError('fetch failed'))).toBeNull()
-    expect(retry.remainingMs()).toBe(2_970_000)
+    expect(retry.remainingMs()).toBeUndefined()
   })
 
   it('never extends the original execution deadline', () => {

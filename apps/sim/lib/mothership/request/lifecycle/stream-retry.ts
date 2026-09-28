@@ -1,5 +1,4 @@
 import { backoffWithJitter } from '@sim/utils/retry'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import {
   CopilotBackendError,
@@ -9,17 +8,18 @@ import {
 const MAX_STREAM_RETRIES = 3
 const STREAM_RECOVERY_WINDOW_MS = 30_000
 
-/** Recovery is bounded independently of the healthy run's execution budget. */
+/** Recovery is bounded from a connection failure, independently of healthy execution time. */
 export class StreamRetryWindow {
-  private readonly deadline: number
+  private readonly deadline?: number
   private recoveryDeadline?: number
   attempt = 0
 
-  constructor(timeoutMs = ORCHESTRATION_TIMEOUT_MS) {
-    this.deadline = Date.now() + timeoutMs
+  constructor(timeoutMs?: number) {
+    this.deadline = timeoutMs === undefined ? undefined : Date.now() + timeoutMs
   }
 
-  remainingMs(): number {
+  remainingMs(): number | undefined {
+    if (this.deadline === undefined) return undefined
     const remaining = this.deadline - Date.now()
     if (remaining <= 0)
       throw new Error('The connection to the assistant could not be restored in time.')
@@ -31,7 +31,11 @@ export class StreamRetryWindow {
     this.recoveryDeadline ??= Date.now() + STREAM_RECOVERY_WINDOW_MS
     if (this.attempt >= MAX_STREAM_RETRIES) return null
     const delay = backoffWithJitter(this.attempt + 1, null, { baseMs: 250, maxMs: 5_000 })
-    if (Date.now() + delay >= Math.min(this.deadline, this.recoveryDeadline)) return null
+    if (
+      Date.now() + delay >=
+      Math.min(this.deadline ?? Number.POSITIVE_INFINITY, this.recoveryDeadline)
+    )
+      return null
     this.attempt++
     return delay
   }

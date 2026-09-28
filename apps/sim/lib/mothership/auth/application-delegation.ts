@@ -1,7 +1,7 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 
-/** Keeps delegated authority valid for the full bounded Copilot orchestration lifetime. */
+/** Per-operation authority expires independently of the assistant run lifetime. */
 export const COPILOT_APPLICATION_DELEGATION_TTL_MS = ORCHESTRATION_TIMEOUT_MS
 
 export interface CopilotExecutionContext {

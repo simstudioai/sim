@@ -1,7 +1,6 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -125,9 +124,13 @@ export async function runStreamLoop(
   execContext: ExecutionContext,
   options: StreamLoopOptions
 ): Promise<void> {
-  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
-  const timeoutSignal = AbortSignal.timeout(Math.ceil(timeout))
-  const requestSignal = abortSignal ? AbortSignal.any([abortSignal, timeoutSignal]) : timeoutSignal
+  const { timeout, abortSignal } = options
+  const timeoutSignal = timeout === undefined ? undefined : AbortSignal.timeout(Math.ceil(timeout))
+  const requestSignal = timeoutSignal
+    ? abortSignal
+      ? AbortSignal.any([abortSignal, timeoutSignal])
+      : timeoutSignal
+    : abortSignal
   const filePreviewAdapterState = createFilePreviewAdapterState()
   const attemptedInlineImages = new Set<string>()
 
@@ -262,12 +265,15 @@ export async function runStreamLoop(
     },
   }
 
-  const timeoutId = setTimeout(() => {
-    context.errors.push('Request timed out')
-    context.streamComplete = true
-    endedOn = CopilotSseCloseReason.Timeout
-    reader.cancel().catch(() => {})
-  }, timeout)
+  const timeoutId =
+    timeout === undefined
+      ? undefined
+      : setTimeout(() => {
+          context.errors.push('Request timed out')
+          context.streamComplete = true
+          endedOn = CopilotSseCloseReason.Timeout
+          reader.cancel().catch(() => {})
+        }, timeout)
 
   try {
     await processSSEStream(reader, abortSignal, async (raw) => {

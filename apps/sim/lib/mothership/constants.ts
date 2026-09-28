@@ -10,7 +10,7 @@ export const SIM_AGENT_API_URL =
     ? rawAgentUrl
     : SIM_AGENT_API_URL_DEFAULT
 
-/** Default timeout for the copilot orchestration stream loop (60 min). */
+/** Bounded per-operation credential and permission lifetime; not a total run limit. */
 export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
 
 /**
@@ -26,14 +26,14 @@ export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
  * executions, media/image generation, sandboxed code, deep research). Those
  * tools carry their own inner budgets (plan execution timeouts, sandbox
  * timeouts), so this cap only backstops a true hang and sits above all of
- * them — matching ORCHESTRATION_TIMEOUT_MS so it never undercuts a legal run.
+ * them. This limits one operation, not the entire assistant run.
  */
 export const TOOL_WATCHDOG_LONG_RUNNING_MS = ORCHESTRATION_TIMEOUT_MS
 
 /** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
 export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
 
-/** Timeout for the client-side streaming response handler (60 min). */
+/** Maximum wait for one client-executed workflow tool (60 min). */
 export const STREAM_TIMEOUT_MS = 3_600_000
 
 /**

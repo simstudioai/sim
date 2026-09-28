@@ -37,13 +37,10 @@ import {
 } from '@/lib/mothership/request/session'
 import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
-export const maxDuration = 3600
-
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
-const MAX_STREAM_MS = 60 * 60 * 1000
 
 function extractCanonicalRequestId(value: unknown): string {
   return typeof value === 'string' && value.length > 0 ? value : ''
@@ -396,7 +393,7 @@ async function handleResumeRequestBody({
       await flushEvents()
 
       let pollDelayMs = POLL_INTERVAL_MS
-      while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
+      while (!controllerClosed) {
         pollIterations += 1
         const currentRun = await readRun().catch((err) => {
           logger.warn('Failed to poll latest run for stream', {
@@ -419,7 +416,7 @@ async function handleResumeRequestBody({
         const flushed = await flushEvents()
         /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
            decays toward the cap so an attached client doesn't hammer Postgres + Redis
-           at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
+           at 4 Hz during long runs. Any flushed event snaps back to full rate. */
         pollDelayMs =
           flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
 
@@ -450,13 +447,6 @@ async function handleResumeRequestBody({
         }
 
         await sleep(pollDelayMs)
-      }
-      if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
-        emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-          message: 'The stream recovery timed out before completion.',
-          code: 'resume_timeout',
-          reason: 'timeout',
-        })
       }
     } catch (error) {
       if (!controllerClosed && !request.signal.aborted) {

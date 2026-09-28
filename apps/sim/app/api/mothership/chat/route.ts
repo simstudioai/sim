@@ -10,8 +10,6 @@ import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
 import { validateShimEnvelope } from '@/lib/mothership/request/http'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
-export const maxDuration = 3600
-
 // Unified chat route surface.
 export const GET = withRouteHandler((request: NextRequest) => {
   const validation = mothershipChatGetQuerySchema.safeParse(
