@@ -1,21 +1,76 @@
-import { mcpServers } from '@sim/db/schema'
+import { db } from '@sim/db'
+import { credentialGroup, mcpServers } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { requireManagedMcpConnectorUrl } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   createManagedMcpConnector,
   ManagedMcpConnectorError,
+  type ValidatedManagedMcpConnectorInput,
+  validateManagedMcpConnectorInput,
 } from '@/lib/credential-groups/managed-mcp-service'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import type { ManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
+
+/**
+ * A search provider ready for source approval. `validated` is set only when approval will create
+ * the provider's server.
+ */
+export interface SearchMcpProviderSetup {
+  provider: ManagedSearchMcpProvider
+  validated: ValidatedManagedMcpConnectorInput | null
+}
+
+function toSetupError(error: unknown): never {
+  if (error instanceof ManagedMcpConnectorError)
+    throw new OrchestrationError(
+      error.code === 'bad_gateway' ? 'internal' : error.code,
+      error.message
+    )
+  throw error
+}
+
+/**
+ * Runs before source approval opens its transaction. A provider whose server does not exist yet
+ * has that server checked here, because the check resolves DNS and must not run while the
+ * transaction holds the accounts lock; an already-configured provider needs no check.
+ */
+export async function prepareSearchMcpProvider(
+  organizationId: string,
+  provider: ManagedSearchMcpProvider
+): Promise<SearchMcpProviderSetup> {
+  const [existing] = await db
+    .select({ id: mcpServers.id })
+    .from(mcpServers)
+    .innerJoin(credentialGroup, eq(credentialGroup.id, mcpServers.credentialGroupId))
+    .where(
+      and(
+        resourceScopeCondition(credentialGroup, { kind: 'organization', organizationId }),
+        eq(mcpServers.organizationId, organizationId),
+        eq(mcpServers.managedConnectorId, provider),
+        isNull(mcpServers.deletedAt)
+      )
+    )
+    .limit(1)
+  if (existing) return { provider, validated: null }
+  try {
+    return {
+      provider,
+      validated: await validateManagedMcpConnectorInput({ connectorId: provider }),
+    }
+  } catch (error) {
+    toSetupError(error)
+  }
+}
 
 /** Joins source approval's transaction, serializing concurrent setup through the accounts lock. */
 export async function addOrganizationSearchMcpProvider(
   organizationId: string,
   userId: string,
-  provider: ManagedSearchMcpProvider,
-  executor: DbOrTx
+  { provider, validated }: SearchMcpProviderSetup,
+  executor: DbTransaction
 ): Promise<{ groupId: string; changed: boolean }> {
   const group = await ensureWorkspaceAccountsGroup(
     { kind: 'organization', organizationId },
@@ -58,23 +113,15 @@ export async function addOrganizationSearchMcpProvider(
       )
     return { groupId: group.id, changed: group.created }
   }
-  try {
-    await createManagedMcpConnector(
-      {
-        organizationId,
-        credentialGroupId: group.id,
-        userId,
-        input: { connectorId: provider },
-      },
-      executor
+  /** The server was removed after preparation found it; a retry prepares it again. */
+  if (!validated)
+    throw new OrchestrationError(
+      'conflict',
+      'Connected accounts changed while adding this source. Try again.'
     )
-  } catch (error) {
-    if (error instanceof ManagedMcpConnectorError)
-      throw new OrchestrationError(
-        error.code === 'bad_gateway' ? 'internal' : error.code,
-        error.message
-      )
-    throw error
-  }
+  await createManagedMcpConnector(
+    { organizationId, credentialGroupId: group.id, userId, validated },
+    executor
+  ).catch(toSetupError)
   return { groupId: group.id, changed: true }
 }
