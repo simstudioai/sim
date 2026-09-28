@@ -17,7 +17,9 @@ function lockTag(tag: string): SQL {
 
 /**
  * Blocks until the transaction-scoped advisory lock for `key` is held. The lock
- * releases on commit or rollback.
+ * releases on commit or rollback. It takes a transaction, never the pool: on a
+ * pooled connection the statement autocommits, releasing the lock before the
+ * caller's work runs.
  */
 export async function acquireAdvisoryXactLock(
   tx: DbTransaction,
@@ -29,7 +31,8 @@ export async function acquireAdvisoryXactLock(
 
 /**
  * Takes the transaction-scoped advisory lock for `key` without waiting.
- * Returns whether the lock is now held.
+ * Returns whether the lock is now held. Like {@link acquireAdvisoryXactLock},
+ * it takes a transaction so the lock outlives the statement.
  */
 export async function tryAcquireAdvisoryXactLock(
   tx: DbTransaction,
