@@ -8,6 +8,7 @@ import { useChatSelection } from '@/app/workspace/[workspaceId]/w/components/sid
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import {
+  MothershipChatDeleteError,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -124,19 +125,27 @@ export function useOrganizationChatActions({
 
   const confirmDelete = useCallback(() => {
     if (chatsToDelete.length === 0 || isDeleting) return
+    const redirectIfDeleted = (ids: string[]) => {
+      if (
+        ids.some((id) => window.location.pathname === organizationRoutes(organizationId).chat(id))
+      ) {
+        router.push(organizationRoutes(organizationId).home)
+      }
+    }
     const options = {
       onSuccess: () => {
         setChatIdsToDelete([])
         useFolderStore.getState().clearChatSelection()
-        if (
-          chatIdsToDelete.some(
-            (id) => window.location.pathname === organizationRoutes(organizationId).chat(id)
-          )
-        ) {
-          router.push(organizationRoutes(organizationId).home)
-        }
+        redirectIfDeleted(chatIdsToDelete)
       },
-      onError: (error: Error) => toast.error(error.message),
+      onError: (error: Error) => {
+        if (error instanceof MothershipChatDeleteError) {
+          const deletedIds = new Set(error.deletedChatIds)
+          setChatIdsToDelete((ids) => ids.filter((id) => !deletedIds.has(id)))
+          redirectIfDeleted(error.deletedChatIds)
+        }
+        toast.error(error.message)
+      },
     }
     if (chatsToDelete.length === 1) {
       deleteChat.mutate(chatsToDelete[0].id, options)

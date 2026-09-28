@@ -125,6 +125,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
+  MothershipChatDeleteError,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -887,7 +888,19 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     if (chatIdsToDelete.length === 1) {
       deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
     } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
+      deleteChatsMutation.mutate(chatIdsToDelete, {
+        onSuccess: onDeleteSuccess,
+        onError: (error) => {
+          if (
+            error instanceof MothershipChatDeleteError &&
+            error.deletedChatIds.some(
+              (id) => window.location.pathname === `/workspace/${workspaceId}/chat/${id}`
+            )
+          ) {
+            router.push(`/workspace/${workspaceId}/home`)
+          }
+        },
+      })
     }
     setIsChatDeleteModalOpen(false)
   }
@@ -1445,6 +1458,8 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                     key={chat.id}
                                     chat={chat}
                                     isCurrentRoute={pathname === chat.href}
+                                    isSelected={hasChatMultiSelection && selectedChats.has(chat.id)}
+                                    onSelectChat={handleChatClick}
                                     isMenuOpen={menuOpenChatId === chat.id}
                                     isEditing={chat.id === chatFlyoutRename.editingId}
                                     editValue={chatFlyoutRename.value}

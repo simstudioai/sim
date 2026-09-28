@@ -141,6 +141,8 @@ export function ChatsSection({
                     key={chat.id}
                     chat={chat}
                     isCurrentRoute={pathname === chat.href}
+                    isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
+                    onSelectChat={actions.handleChatClick}
                     isMenuOpen={menuOpenChatId === chat.id}
                     isEditing={rename.editingId === chat.id}
                     editValue={rename.value}

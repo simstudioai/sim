@@ -10,7 +10,9 @@ export function isSidebarBackgroundClick(event: MouseEvent<HTMLElement>): boolea
   return (
     event.target instanceof Element &&
     event.currentTarget.contains(event.target) &&
-    !event.target.closest('button, [role="button"], a')
+    !event.target.closest(
+      'a, button, input, textarea, select, [role="button"], [contenteditable]:not([contenteditable="false"])'
+    )
   )
 }
 
