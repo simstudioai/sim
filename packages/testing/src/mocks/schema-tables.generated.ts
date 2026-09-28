@@ -1568,6 +1568,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'memberSyncConsecutiveFailures',
     'accessRewritePending',
     'memberTombstoneCursor',
+    'memberResurrectionCursor',
     'status',
     'lastSyncAt',
     'lastSyncError',
