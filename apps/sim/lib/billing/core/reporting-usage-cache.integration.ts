@@ -22,7 +22,10 @@ const redisUrl = readTestRedisUrl()
 vi.mock('@sim/db', () => ({ db: { transaction }, dbReplica: {} }))
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
-import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
+import {
+  REPORTING_USAGE_CACHE_TTL_MS,
+  readSoftGateUsageCost,
+} from '@/lib/billing/core/reporting-usage-cache'
 import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 
 const schemaName = `reporting_usage_${generateId().replaceAll('-', '')}`
@@ -71,6 +74,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
     await redis.del(sharedKey(payer))
   })
 
@@ -99,6 +103,36 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     await redis.set(sharedKey(payer), 'not-a-number', 'PX', 30_000)
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
+  })
+
+  it('does not store a sum that began more than a TTL ago', async () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now - REPORTING_USAGE_CACHE_TTL_MS - 1_000)
+    transaction.mockImplementationOnce(async (callback) => {
+      const result = await database.transaction(callback)
+      vi.setSystemTime(now)
+      return result
+    })
+
+    await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
+    expect(await redis.get(sharedKey(payer))).toBeNull()
+  })
+
+  it('anchors a stored sum expiry to when the sum began, not when it was written', async () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now - 20_000)
+    transaction.mockImplementationOnce(async (callback) => {
+      const result = await database.transaction(callback)
+      vi.setSystemTime(now)
+      return result
+    })
+
+    await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
+    const ttl = await redis.pttl(sharedKey(payer))
+    expect(ttl).toBeGreaterThan(REPORTING_USAGE_CACHE_TTL_MS - 20_000 - 1_000)
+    expect(ttl).toBeLessThanOrEqual(REPORTING_USAGE_CACHE_TTL_MS - 20_000 + 5_000)
   })
 
   it('never lets a slower, older sum replace one stored while it ran', async () => {

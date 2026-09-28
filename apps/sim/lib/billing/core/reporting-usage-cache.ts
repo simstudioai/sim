@@ -28,9 +28,9 @@ const logger = createLogger('ReportingUsageCache')
  * small against a year-long allowance while turning a per-event scan into one per window.
  *
  * A sum is held both in Redis, shared by every process, and in each process that reads it. It
- * reflects the ledger as of the moment its sum began, so a served sum can omit usage written over
- * the sum's own duration, plus up to this TTL and its jitter in Redis, plus up to this TTL again
- * in the reading process.
+ * reflects the ledger as of the moment its sum began, and its Redis expiry is anchored to that
+ * moment, so a sum is served from Redis for at most this TTL plus its jitter after it began —
+ * including however long the sum itself ran — plus up to this TTL again in the reading process.
  */
 export const REPORTING_USAGE_CACHE_TTL_MS = 30_000
 
@@ -95,17 +95,21 @@ function warnSharedWriteFailed(error: unknown): void {
 }
 
 /**
- * Fire-and-forget: a read never waits on, or fails because of, the shared write. The write only
- * lands when no sum is stored (`NX`), so a slow, older sum can never replace a fresher one or
- * extend its expiry.
+ * Fire-and-forget: a read never waits on, or fails because of, the shared write. The expiry is
+ * anchored to when the sum began (`PXAT`), and a sum already older than the TTL is not written, so
+ * neither a slow sum nor a write the client resends after a reconnect can give an old total a
+ * fresh expiry. The write only lands when no sum is stored (`NX`), so an older sum can never
+ * replace a fresher one or extend its expiry.
  */
-function writeSharedReportingUsageCost(key: string, cost: number): void {
+function writeSharedReportingUsageCost(key: string, cost: number, sumStartedAt: number): void {
   try {
+    if (Date.now() >= sumStartedAt + REPORTING_USAGE_CACHE_TTL_MS) return
     const redis = readyRedisClient()
     if (!redis) return
-    const ttlMs = REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
+    const expiresAt =
+      sumStartedAt + REPORTING_USAGE_CACHE_TTL_MS + randomInt(0, SHARED_TTL_JITTER_MS)
     redis
-      .set(sharedReportingUsageKey(key), String(cost), 'PX', ttlMs, 'NX')
+      .set(sharedReportingUsageKey(key), String(cost), 'PXAT', expiresAt, 'NX')
       .catch(warnSharedWriteFailed)
   } catch (error) {
     warnSharedWriteFailed(error)
@@ -124,8 +128,9 @@ async function sumReportingUsageCost(
 ): Promise<number> {
   const shared = await readSharedReportingUsageCost(key)
   if (shared !== undefined) return shared
+  const sumStartedAt = Date.now()
   const cost = await getBillingPeriodUsageCost(entity, period)
-  writeSharedReportingUsageCost(key, cost)
+  writeSharedReportingUsageCost(key, cost, sumStartedAt)
   return cost
 }
 
