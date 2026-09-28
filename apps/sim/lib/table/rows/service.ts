@@ -67,7 +67,7 @@ import {
   mutateTableRowsWithSecretProvenance,
   type TableRowProvenanceReader,
 } from '@/lib/table/rows/secret-provenance'
-import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
+import { lockUniqueColumns, lockUniqueValues, uniqueValueKey } from '@/lib/table/rows/unique-locks'
 import {
   buildFilterClause,
   buildPredicateClause,
@@ -2531,25 +2531,54 @@ export async function batchUpdateRows(
     })
   }
 
+  // Like `updateRow`, each update locks and checks only the unique columns it changes: a value it
+  // leaves alone is the one already stored. Updates that change none cost nothing extra here.
   const uniqueColumns = getUniqueColumns(table.schema)
+  const uniqueChecks: Array<{ rowId: string; mergedData: RowData; columns: ColumnDefinition[] }> =
+    []
+  if (uniqueColumns.length > 0) {
+    // The DB check runs before any write and the value locks are deduplicated, so two updates in
+    // this batch writing the same value would both pass it; catch them here, keyed like the locks.
+    const firstWriter = new Map<string, string>()
+    for (const { rowId, changedColumnIds, mergedData } of mergedUpdates) {
+      const changed = new Set(changedColumnIds)
+      const columns = uniqueColumns.filter((column) => changed.has(getColumnId(column)))
+      if (columns.length === 0) continue
+      uniqueChecks.push({ rowId, mergedData, columns })
+      for (const column of columns) {
+        const value = mergedData[getColumnId(column)]
+        if (value === null || value === undefined) continue
+        const key = `${getColumnId(column)}:${uniqueValueKey(value, column)}`
+        const otherRowId = firstWriter.get(key)
+        if (otherRowId !== undefined && otherRowId !== rowId) {
+          throw new OrchestrationError(
+            'validation',
+            `Row ${rowId}: Column "${column.name}" must be unique. Value "${String(value)}" duplicates row ${otherRowId} in batch`
+          )
+        }
+        firstWriter.set(key, rowId)
+      }
+    }
+  }
   const now = new Date()
 
   const affectedRowIds = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    if (uniqueColumns.length > 0) {
-      // Each update locks only the unique values it writes; values it leaves alone are stored.
+    if (uniqueChecks.length > 0) {
       await lockUniqueValues(
         trx,
         table,
-        mergedUpdates.map(({ changedColumnIds, mergedData }) =>
-          Object.fromEntries(changedColumnIds.map((columnId) => [columnId, mergedData[columnId]]))
+        uniqueChecks.map(({ mergedData, columns }) =>
+          Object.fromEntries(
+            columns.map((column) => [getColumnId(column), mergedData[getColumnId(column)]])
+          )
         )
       )
-      for (const { rowId, mergedData } of mergedUpdates) {
+      for (const { rowId, mergedData, columns } of uniqueChecks) {
         const uniqueValidation = await checkUniqueConstraintsDb(
           data.tableId,
           mergedData,
-          table.schema,
+          { ...table.schema, columns },
           rowId,
           trx
         )

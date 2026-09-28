@@ -7,7 +7,8 @@
  * values it writes, so the second writer's check runs after the first commits and sees its row.
  * Writers of different values never wait on each other.
  *
- * Lock order, everywhere: these locks, then the table's row-order lock, then the definition row.
+ * Lock order, everywhere: the table's schema lock (when taken), then these locks, then the table's
+ * row-order lock, then the definition row.
  * Every transaction takes all of them at once, before the row-order lock, in one sorted order.
  */
 
@@ -16,23 +17,32 @@ import { type AdvisoryXactLockRequest, acquireAdvisoryXactLocks } from '@/lib/db
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnValueForEquality } from '@/lib/table/column-types'
 import type { DbTransaction } from '@/lib/table/planner'
-import type { RowData, TableDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { getUniqueColumns } from '@/lib/table/validation'
 
 const UNIQUE_LOCK_TAG = 'user_table_unique_value'
 
 /**
  * Most value locks one transaction takes before it locks whole columns instead. Every advisory lock
- * holds a slot in the server's shared lock table, which is sized for `max_locks_per_transaction`
- * (64 by default) per connection and shared by every transaction, so a few writers each holding
- * thousands of value locks could exhaust it and fail unrelated queries. 1,000 is the largest write
- * the row APIs accept (`MAX_BULK_OPERATION_SIZE`), so ordinary writes keep per-value locks and only
- * bulk imports and larger batches serialize on the column.
+ * holds a slot in the server's shared lock table, which is sized at `max_locks_per_transaction`
+ * (64 by default) × connections and shared by every transaction, so concurrent writers each holding
+ * more than their per-connection share can exhaust it and fail unrelated queries with `out of
+ * shared memory`. Capping at that per-connection budget keeps ordinary writes on per-value locks
+ * while larger batches serialize on the column.
  */
-const MAX_VALUE_LOCKS = 1000
+const MAX_VALUE_LOCKS = 64
 
 function columnLockKey(tableId: string, columnId: string): string {
   return `user_table_unique:${tableId}:${columnId}`
+}
+
+/**
+ * The normalized key two unique-column values share exactly when the unique check treats them as
+ * equal: `columnValueForEquality`, then JSON. Value locks and in-batch duplicate detection both key
+ * on it.
+ */
+export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
+  return JSON.stringify(columnValueForEquality(value, column))
 }
 
 /**
@@ -40,8 +50,7 @@ function columnLockKey(tableId: string, columnId: string): string {
  * lock only the unique columns a patch changes; values it leaves alone are already stored.
  *
  * Each written column takes a shared column lock, then an exclusive lock per value. The value key
- * is the same normalization the batch check compares (`columnValueForEquality`, then JSON), so two
- * values the check treats as equal always share a key; null cells never conflict and take none.
+ * is {@link uniqueValueKey}, so two values the check treats as equal always share a key; null cells never conflict and take none.
  * A column falls back to one exclusive column lock when a value is an object or array (a `json`
  * column's check matches by containment, which no single key can express), and every column does
  * when the transaction would exceed {@link MAX_VALUE_LOCKS}. An exclusive column lock waits for,
@@ -60,25 +69,25 @@ export async function lockUniqueValues(
     if (columnIds && !columnIds.has(columnId)) continue
     const columnKey = columnLockKey(table.id, columnId)
     const keys: string[] = []
-    let byValue = true
+    let columnByValue = true
     for (const row of rows) {
       const value = row[columnId]
       if (value === null || value === undefined) continue
       if (typeof value === 'object') {
-        byValue = false
+        columnByValue = false
         break
       }
-      keys.push(`${columnKey}:${JSON.stringify(columnValueForEquality(value, column))}`)
+      keys.push(`${columnKey}:${uniqueValueKey(value, column)}`)
     }
-    if (byValue && keys.length === 0) continue
-    columnLocks.set(columnKey, byValue)
-    if (byValue) for (const key of keys) valueKeys.add(key)
+    if (columnByValue && keys.length === 0) continue
+    columnLocks.set(columnKey, columnByValue)
+    if (columnByValue) for (const key of keys) valueKeys.add(key)
   }
 
   const byValue = valueKeys.size <= MAX_VALUE_LOCKS
-  const locks: AdvisoryXactLockRequest[] = [...columnLocks.keys()]
-    .sort(compareStrings)
-    .map((key) => ({ key, shared: byValue && (columnLocks.get(key) ?? false) }))
+  const locks: AdvisoryXactLockRequest[] = [...columnLocks.entries()]
+    .sort(([a], [b]) => compareStrings(a, b))
+    .map(([key, columnByValue]) => ({ key, shared: byValue && columnByValue }))
   if (byValue) {
     for (const key of [...valueKeys].sort(compareStrings)) locks.push({ key, shared: false })
   }

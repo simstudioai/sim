@@ -3,9 +3,8 @@
 -- The statement-level UPDATE bump (0240) locked the table's definition row
 -- inside every row-write transaction and held it across the remaining round
 -- trips (executions patch, provenance sidecar, read capture) and the commit,
--- so concurrent writers to one table queued behind each other. Nearly half of
--- those bumps also came from provenance-only UPDATEs that leave the CSV
--- snapshot bytes untouched.
+-- so concurrent writers to one table queued behind each other. It also bumped
+-- on provenance-only UPDATEs, which leave the CSV snapshot bytes untouched.
 --
 -- A deferred constraint trigger fires at COMMIT, so the definition row is
 -- locked only for the commit itself. It fires only for UPDATEs that set `data`

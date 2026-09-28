@@ -21,7 +21,8 @@ vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-import { batchInsertRows, insertRow, updateRow } from '@/lib/table/rows/service'
+import { bulkInsertImportBatch } from '@/lib/table/import-data'
+import { batchInsertRows, batchUpdateRows, insertRow, updateRow } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
@@ -112,6 +113,40 @@ describe('table row writes against real PostgreSQL', () => {
         'unique-race'
       )
 
+    type LockWaiters = { onOrderLock: number; onValueLock: number }
+
+    /**
+     * Polls until exactly `expected.onOrderLock` sessions wait on the table's row-order lock and
+     * `expected.onValueLock` wait on a unique-value lock, and returns the last count seen.
+     */
+    async function waitForLockWaiters(tableId: string, expected: LockWaiters) {
+      const orderLockKey = `user_table_rows_pos:${tableId}`
+      let waiting: LockWaiters = { onOrderLock: 0, onValueLock: 0 }
+      for (let attempt = 0; attempt < 400; attempt++) {
+        await sleep(5)
+        ;[waiting] = await control<LockWaiters[]>`
+          WITH lock AS (SELECT hashtextextended(${orderLockKey}, 0) AS key)
+          SELECT
+            count(*) FILTER (
+              WHERE l.classid = ((lock.key >> 32) & 4294967295)::oid
+                AND l.objid = (lock.key & 4294967295)::oid
+            )::int AS "onOrderLock",
+            count(*) FILTER (WHERE a.query LIKE '%user_table_unique_value%')::int AS "onValueLock"
+          FROM pg_locks l
+          JOIN pg_stat_activity a ON a.pid = l.pid
+          CROSS JOIN lock
+          WHERE l.locktype = 'advisory' AND NOT l.granted
+            AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`
+        if (
+          waiting.onOrderLock === expected.onOrderLock &&
+          waiting.onValueLock === expected.onValueLock
+        ) {
+          break
+        }
+      }
+      return waiting
+    }
+
     /**
      * Holds the table's row-order lock while `writes` start, and releases it only once exactly
      * `onOrderLock` of them wait on it and `onValueLock` wait on a unique-value lock. Inserts take
@@ -122,38 +157,14 @@ describe('table row writes against real PostgreSQL', () => {
     async function raceUnderHeldOrderLock(
       tableId: string,
       writes: Array<() => Promise<unknown>>,
-      expected: { onOrderLock: number; onValueLock: number }
+      expected: LockWaiters
     ): Promise<PromiseSettledResult<unknown>[]> {
-      const orderLockKey = `user_table_rows_pos:${tableId}`
       const holder = await control.reserve()
       try {
         await holder`BEGIN`
-        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${orderLockKey}, 0))`
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
         const racers = Promise.allSettled(writes.map((write) => write()))
-        let waiting = { onOrderLock: 0, onValueLock: 0 }
-        for (let attempt = 0; attempt < 400; attempt++) {
-          await sleep(5)
-          ;[waiting] = await control<{ onOrderLock: number; onValueLock: number }[]>`
-            WITH lock AS (SELECT hashtextextended(${orderLockKey}, 0) AS key)
-            SELECT
-              count(*) FILTER (
-                WHERE l.classid = ((lock.key >> 32) & 4294967295)::oid
-                  AND l.objid = (lock.key & 4294967295)::oid
-              )::int AS "onOrderLock",
-              count(*) FILTER (WHERE a.query LIKE '%user_table_unique_value%')::int AS "onValueLock"
-            FROM pg_locks l
-            JOIN pg_stat_activity a ON a.pid = l.pid
-            CROSS JOIN lock
-            WHERE l.locktype = 'advisory' AND NOT l.granted
-              AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`
-          if (
-            waiting.onOrderLock === expected.onOrderLock &&
-            waiting.onValueLock === expected.onValueLock
-          ) {
-            break
-          }
-        }
-        expect(waiting).toEqual(expected)
+        expect(await waitForLockWaiters(tableId, expected)).toEqual(expected)
         await holder`COMMIT`
         return await racers
       } finally {
@@ -279,6 +290,90 @@ describe('table row writes against real PostgreSQL', () => {
 
       expect(fulfilled(results)).toBe(1)
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
+    it('serializes a batch over the value-lock cap against a single insert of the same value', async () => {
+      const table = await createTable(uniqueColumns)
+      // More values than the per-transaction value-lock cap, so the batch locks the column instead.
+      const rows = Array.from({ length: 80 }, (_, i) => ({ email: `bulk-${i}@example.test` }))
+      rows.push({ email: 'dup@example.test' })
+
+      const results = await raceUnderHeldOrderLock(
+        table.id,
+        [
+          () =>
+            batchInsertRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                rows,
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            ),
+          () => insertEmail(table, 'dup@example.test'),
+        ],
+        { onOrderLock: 1, onValueLock: 1 }
+      )
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
+    it('rejects an import batch racing a single insert of the same value', async () => {
+      const table = await createTable(uniqueColumns)
+
+      const results = await raceUnderHeldOrderLock(
+        table.id,
+        [
+          () => insertEmail(table, 'dup@example.test'),
+          async () => {
+            // Start the import only once the insert has passed its check and holds its locks.
+            await waitForLockWaiters(table.id, { onOrderLock: 1, onValueLock: 0 })
+            return bulkInsertImportBatch(
+              {
+                tableId: table.id,
+                workspaceId,
+                rows: [{ email: 'x@example.test' }, { email: 'dup@example.test' }],
+                startPosition: 0,
+              },
+              table,
+              'unique-race'
+            )
+          },
+        ],
+        { onOrderLock: 1, onValueLock: 1 }
+      )
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
+    it('rejects a batch update that writes one value to two rows', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { email: 'dup@example.test' } },
+              { rowId: `${table.id}-b`, data: { email: 'dup@example.test' } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-update'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(0)
     })
   })
 
