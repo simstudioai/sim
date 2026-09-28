@@ -173,8 +173,9 @@ function groupGitHubText(query: string): string {
   return [text ? `(${text})` : '', ...qualifiers].filter(Boolean).join(' ')
 }
 
-/** GitHub rejects more than 256 characters of search text; qualifiers do not count toward it. */
 const GITHUB_TEXT_CHARACTERS = 256
+
+/** Whether a query's search text exceeds GitHub's 256-character limit; qualifiers do not count toward it. */
 export const exceedsGitHubTextLimit = (query: string) =>
   githubTokens(query)
     .filter((token) => !GITHUB_QUALIFIER.test(token))
