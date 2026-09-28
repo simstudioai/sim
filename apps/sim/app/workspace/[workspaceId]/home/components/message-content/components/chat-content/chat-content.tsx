@@ -366,7 +366,15 @@ const MARKDOWN_COMPONENTS = {
       </div>
     )
   },
-  a({ children, href }: { children?: React.ReactNode; href?: string }) {
+  a({
+    children,
+    href,
+    'data-footnote-ref': footnoteRef,
+  }: {
+    children?: React.ReactNode
+    href?: string
+    'data-footnote-ref'?: boolean
+  }) {
     if (href?.startsWith(SOURCE_LINK_PREFIX)) {
       return (
         <SourceReference index={Number(href.slice(SOURCE_LINK_PREFIX.length))}>
@@ -393,7 +401,13 @@ const MARKDOWN_COMPONENTS = {
       )
     }
     return (
-      <a href={href} className={PROSE_LINK_CLASS} target='_blank' rel='noopener noreferrer'>
+      <a
+        href={href}
+        data-footnote-ref={footnoteRef}
+        className={PROSE_LINK_CLASS}
+        target='_blank'
+        rel='noopener noreferrer'
+      >
         {children}
       </a>
     )

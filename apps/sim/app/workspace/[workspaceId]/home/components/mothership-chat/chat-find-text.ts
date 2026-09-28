@@ -22,6 +22,7 @@ export function getChatFindText(markdown: string): string {
       return node.value
     if (node.type === 'image' || node.type === 'imageReference') return '\uffff'
     if (node.type === 'break') return '\n'
+    if (node.type === 'footnoteDefinition') return ''
     if (!('children' in node)) return ''
     return node.children
       .map(text)
