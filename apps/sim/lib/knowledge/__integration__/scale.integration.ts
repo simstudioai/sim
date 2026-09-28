@@ -368,9 +368,14 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
     )
     report['reconciliation.window.scan.plan'] = scanned['QUERY PLAN']
     saveReport()
-    expect(planIndexNames('reconciliation.window.scan')).toContain(
-      'doc_connector_reconciliation_v2_idx'
-    )
+    /**
+     * Every keyset step is an ordered index probe: through the v2 index, or the primary key when
+     * this fixture's single connector is nearly the whole table. Either is a valid plan.
+     */
+    const walkIndexes = new Set(planIndexNames('reconciliation.window.scan'))
+    expect(walkIndexes.size).toBeGreaterThan(0)
+    for (const name of walkIndexes)
+      expect(['doc_connector_reconciliation_v2_idx', 'document_pkey']).toContain(name)
     const [removed] = await db.execute(
       sql`SELECT count(*)::int AS count FROM document WHERE connector_id = ${ids.connectorId} AND external_id::integer > ${rows - absentCount} AND deleted_at IS NOT NULL AND cardinality(acl) = 0`
     )

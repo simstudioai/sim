@@ -175,10 +175,10 @@ function groupGitHubText(query: string): string {
 
 /** GitHub rejects more than 256 characters of search text; qualifiers do not count toward it. */
 const GITHUB_TEXT_CHARACTERS = 256
-const githubTextLength = (query: string) =>
+export const exceedsGitHubTextLimit = (query: string) =>
   githubTokens(query)
     .filter((token) => !GITHUB_QUALIFIER.test(token))
-    .join(' ').length
+    .join(' ').length > GITHUB_TEXT_CHARACTERS
 
 export async function searchGitHub(
   client: NativeClient,
@@ -318,7 +318,7 @@ export async function searchGitHub(
             ? `${dateField}:<=${dates.end}`
             : ''
   const datedQuery = dateRange ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
-  if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
+  if (exceedsGitHubTextLimit(text))
     throw new NativeSearchError(
       'unavailable',
       'GitHub search text is limited to 256 characters. Shorten the query.'
