@@ -20,7 +20,8 @@ tableBillingMockFns.mockWouldExceedRowLimit.mockReturnValue(false)
 // suites can use large synthetic row counts without tripping the plan limit.
 vi.mock('@/lib/table/billing', () => tableBillingMock)
 
-vi.mock('@/lib/table/validation', () => ({
+vi.mock('@/lib/table/validation', async (importOriginal) => ({
+  uniqueValueKey: (await importOriginal<typeof import('@/lib/table/validation')>()).uniqueValueKey,
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
   coerceRowToSchema: vi.fn(() => ({ valid: true, errors: [] })),
@@ -202,7 +203,7 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
   })
 
-  it('upsertRow skips the advisory lock on the update path (match found)', async () => {
+  it('upsertRow skips the row-order lock on the update path (match found)', async () => {
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -238,7 +239,7 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
       'req-1'
     )
 
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(false)
+    expect(findExecutedSqlContaining('SELECT pg_advisory_xact_lock(')).toBe(false)
   })
 
   /**
@@ -468,7 +469,8 @@ describe('updateRow — uniqueness probe scoping', () => {
       'tbl-1',
       { name: 'Grace', age: 30 },
       { ...TABLE.schema, columns: [{ name: 'name', type: 'string', unique: true }] },
-      'row-1'
+      'row-1',
+      expect.anything()
     )
   })
 

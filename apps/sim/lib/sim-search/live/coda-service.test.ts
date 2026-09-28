@@ -5,7 +5,7 @@ import type { NativeClient } from '@/lib/sim-search/live/types'
 
 const doc = { id: 'allowed', name: 'Shared doc', browserLink: 'https://coda.io/d/doc' }
 const reference = { id: 'coda://docs/allowed/pages/page', kind: 'mcp' }
-const createClient = () => ({ json: vi.fn<NativeClient['json']>(), text: vi.fn() })
+const createClient = () => ({ json: vi.fn<NativeClient['json']>(), text: vi.fn(), bytes: vi.fn() })
 
 describe('Coda service document boundary', () => {
   it('intersects explicit service document selections before loading source metadata', async () => {

@@ -1,5 +1,11 @@
 import { type ReactNode, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
@@ -51,6 +57,7 @@ export function SearchResultsView({
               SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
               SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
               scrollFadeClass,
+              overflowFadeSizeClass,
               'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'
             )}
             {...scrollFadeAttributes(scrollEdges)}

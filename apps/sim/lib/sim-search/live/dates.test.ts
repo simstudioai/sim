@@ -12,7 +12,7 @@ const filters = {
   sortBy: 'oldest' as const,
 }
 const input: NativeSearchInput = { query: '', limit: 20, scopes: ['search:read.public'], filters }
-const client = () => ({ json: vi.fn(), text: vi.fn() })
+const client = () => ({ json: vi.fn(), text: vi.fn(), bytes: vi.fn() })
 const doc: NativeDocument = {
   id: 'one',
   title: 'Meeting',

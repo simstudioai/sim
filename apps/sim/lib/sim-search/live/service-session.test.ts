@@ -41,7 +41,7 @@ vi.mock('@/connectors/registry', () => ({
   },
 }))
 
-const api = { json: vi.fn<NativeClient['json']>(), text: vi.fn() }
+const api = { json: vi.fn<NativeClient['json']>(), text: vi.fn(), bytes: vi.fn() }
 const source = {
   id: 'source',
   credentialId: 'service',

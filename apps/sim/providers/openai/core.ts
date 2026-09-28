@@ -23,6 +23,7 @@ import {
   buildOpenAIUsageTokens,
   createOpenAIUsageAccumulator,
 } from '@/providers/openai/usage'
+import { fetchWithProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -428,19 +429,27 @@ export async function executeResponsesProviderRequest(
    * headers is named on the streaming paths too — they call
    * {@link fetchResponsesWithSummaryFallback} directly and never reach `postResponses`,
    * which is where the annotation used to live.
+   *
+   * The body is prepared once, outside the retry: preparing it can compact the
+   * conversation with a model call of its own, which a replayed send must not repeat.
    */
-  const postOnce = async (
+  const post = async (
     payload: Record<string, unknown>,
     abortSignal: AbortSignal | undefined,
     startedAt: number
   ): Promise<Response> => {
+    const body = JSON.stringify(await prepareConversationGeneration(request, 'responses', payload))
     try {
-      return await fetchImpl(config.endpoint, {
-        method: 'POST',
-        headers: config.headers,
-        body: JSON.stringify(await prepareConversationGeneration(request, 'responses', payload)),
-        signal: abortSignal,
-      })
+      return await fetchWithProviderRetry(
+        () =>
+          fetchImpl(config.endpoint, {
+            method: 'POST',
+            headers: config.headers,
+            body,
+            signal: abortSignal,
+          }),
+        { logger, label: config.providerLabel, abortSignal }
+      )
     } catch (error) {
       throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
     }
@@ -454,7 +463,7 @@ export async function executeResponsesProviderRequest(
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
       : requestedBody
-    const response = await postOnce(body, abortSignal, startedAt)
+    const response = await post(body, abortSignal, startedAt)
     if (response.ok) return response
 
     const message = await parseErrorResponse(response, startedAt)
@@ -470,7 +479,7 @@ export async function executeResponsesProviderRequest(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
     )
-    const retryResponse = await postOnce(strippedBody, abortSignal, startedAt)
+    const retryResponse = await post(strippedBody, abortSignal, startedAt)
     if (!retryResponse.ok) {
       const retryMessage = await parseErrorResponse(retryResponse, startedAt)
       throw new Error(

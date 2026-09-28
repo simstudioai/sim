@@ -683,4 +683,22 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 |   ↳ `image` | object | Collection image |
 |   ↳ `products` | array | Products in the collection |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Shopify account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/shopify` |
+| Environment variables | `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `write_products` | Read and manage Shopify products |
+| `write_orders` | Read and manage Shopify orders |
+| `write_customers` | Read and manage Shopify customers |
+| `write_inventory` | Read and manage Shopify inventory levels |
+| `read_locations` | View store locations |
+| `write_merchant_managed_fulfillment_orders` | Read and fulfill orders assigned to merchant-managed locations |
+
 

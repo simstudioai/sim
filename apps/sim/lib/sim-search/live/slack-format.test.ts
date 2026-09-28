@@ -36,6 +36,7 @@ describe('Slack search presentation', () => {
         throw aborted
       }),
       text: vi.fn(),
+      bytes: vi.fn(),
     }
     await expect(readSlack(api, '123.456', 'D1')).rejects.toBe(aborted)
   })

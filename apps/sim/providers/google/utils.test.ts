@@ -1,9 +1,11 @@
+import { ApiError } from '@google/genai'
 import { describe, expect, it, vi } from 'vitest'
 import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   convertToGeminiFormat,
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
 } from '@/providers/google/utils'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -583,5 +585,43 @@ describe('createReadableStreamFromGeminiStream', () => {
     await expect(collectEvents(stream)).rejects.toThrow(
       'Gemini prompt blocked: SAFETY (Prompt violated safety policy)'
     )
+  })
+})
+
+/** The SDK sets `ApiError.message` to the JSON error body, so this is the wire shape it sees. */
+describe('geminiRetryDelayMs', () => {
+  function rateLimited(retryDelay: string) {
+    return new ApiError({
+      status: 429,
+      message: JSON.stringify({
+        error: {
+          code: 429,
+          status: 'RESOURCE_EXHAUSTED',
+          details: [
+            { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [] },
+            { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay },
+          ],
+        },
+      }),
+    })
+  }
+
+  it.each([
+    ['31s', 31_000],
+    ['0.5s', 500],
+  ])('reads a RetryInfo delay of %s', (retryDelay, expected) => {
+    expect(geminiRetryDelayMs(rateLimited(retryDelay))).toBe(expected)
+  })
+
+  it('has no delay when the error carries no RetryInfo', () => {
+    const error = new ApiError({
+      status: 503,
+      message: JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE' } }),
+    })
+    expect(geminiRetryDelayMs(error)).toBeNull()
+  })
+
+  it('has no delay for a transport failure', () => {
+    expect(geminiRetryDelayMs(new TypeError('fetch failed'))).toBeNull()
   })
 })

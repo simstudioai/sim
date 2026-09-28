@@ -72,6 +72,10 @@ import {
   registerAgentWebContents,
 } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
+import {
+  keepSessionCookiesAcrossRestarts,
+  withSessionCookieLifetime,
+} from '@/main/browser-agent/session-cookies'
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
@@ -1327,17 +1331,19 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
  * here and is counted rather than being quietly relaxed.
  *
  * Failures are per-cookie: one rejected cookie must not cost the user the
- * rest. Nothing about a cookie is logged.
+ * rest. Nothing about a cookie is logged. Session cookies get the bounded
+ * lifetime from {@link withSessionCookieLifetime} so they survive a restart.
  */
 export async function importAgentCookies(
   cookies: CookiesSetDetails[]
 ): Promise<{ imported: number; failed: number }> {
   const jar = electronSession.fromPartition(AGENT_PARTITION).cookies
+  const nowSeconds = Date.now() / 1000
   let imported = 0
   let failed = 0
   for (const cookie of cookies) {
     try {
-      await jar.set(cookie)
+      await jar.set(withSessionCookieLifetime(cookie, nowSeconds))
       imported += 1
     } catch {
       failed += 1
@@ -1594,6 +1600,7 @@ const browserPermissions: BrowserPermissionHandlers = {
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
+  keepSessionCookiesAcrossRestarts(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {

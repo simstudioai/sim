@@ -228,7 +228,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -243,13 +243,13 @@ export const MCP = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-5',
+  DEFAULT_MODEL: 'claude-sonnet-5-5',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

@@ -1,7 +1,12 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
-import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  isRetryableProviderStatus,
+  isWithinRetryWindow,
+  providerRetryAfterMs,
+} from '@/providers/retry'
 import { PROVIDER_HEADERS_TIMEOUT_MS, PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { buildJevBody } from '@/providers/typesafe/schema'
 
@@ -43,10 +48,7 @@ export async function requestJevEvaluation(
       })
       if (!response.ok) {
         await consumeOrCancelBody(response)
-        throw new TypeSafeHttpError(
-          response.status,
-          parseRetryAfter(response.headers.get('retry-after'))
-        )
+        throw new TypeSafeHttpError(response.status, providerRetryAfterMs(response.headers))
       }
       return await readResponseJsonWithLimit(response, {
         maxBytes: MAX_EVALUATION_RESPONSE_BYTES,
@@ -57,10 +59,12 @@ export async function requestJevEvaluation(
       abortSignal?.throwIfAborted()
       const retryable =
         error instanceof TypeSafeHttpError
-          ? error.status === 408 || error.status === 429 || error.status >= 500
+          ? isRetryableProviderStatus(error.status)
           : !response || timeout.aborted || error instanceof TypeError
-      if (!retryable || attempt >= PROVIDER_MAX_RETRIES) throw error
       const retryAfterMs = error instanceof TypeSafeHttpError ? error.retryAfterMs : null
+      if (!retryable || attempt >= PROVIDER_MAX_RETRIES || !isWithinRetryWindow(retryAfterMs)) {
+        throw error
+      }
       await interruptibleSleep(backoffWithJitter(attempt + 1, retryAfterMs), abortSignal)
     }
   }
