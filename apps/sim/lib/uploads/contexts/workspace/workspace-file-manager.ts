@@ -117,6 +117,7 @@ import {
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
   resolveWorkspaceFileFolderTarget,
+  workspaceFileNameFolderCondition,
 } from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -262,7 +263,12 @@ export function generateWorkspaceFileKey(workspaceId: string, fileName: string):
   return `workspace/${workspaceId}/${buildStorageKeySegment(`${timestamp}-${random}-`, fileName)}`
 }
 
-const MAX_COPY_SUFFIX = 1000
+/**
+ * Numbered ` (n)` candidates probed before falling back to a random suffix. Keeps
+ * the familiar `a (1).pdf` naming for the common case while bounding every
+ * allocation to a fixed number of point lookups however many copies exist.
+ */
+const MAX_NUMBERED_COPY_SUFFIX = 20
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
@@ -387,7 +393,7 @@ async function cleanupWorkspaceStorageObject(key: string, reason: string): Promi
 /**
  * Inserts ` (n)` before the last extension (e.g. `a.pdf` → `a (1).pdf`), or appends for names without.
  */
-function withCopySuffix(fileName: string, n: number): string {
+function withCopySuffix(fileName: string, n: number | string): string {
   const lastDot = fileName.lastIndexOf('.')
   const hasExtension = lastDot > 0 && lastDot < fileName.length - 1
   if (hasExtension) {
@@ -398,6 +404,9 @@ function withCopySuffix(fileName: string, n: number): string {
 
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
+ *
+ * Tries the base name, then `name (1)` … `name (20)`, then a random short-id suffix. The
+ * result is a hint: the unique index stays the authority, and callers retry on 23505.
  */
 export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
@@ -407,13 +416,13 @@ export async function allocateUniqueWorkspaceFileName(
   if (!(await fileExistsInWorkspace(workspaceId, baseName, folderId))) {
     return baseName
   }
-  for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
+  for (let n = 1; n <= MAX_NUMBERED_COPY_SUFFIX; n++) {
     const candidate = withCopySuffix(baseName, n)
     if (!(await fileExistsInWorkspace(workspaceId, candidate, folderId))) {
       return candidate
     }
   }
-  throw new FileConflictError(baseName)
+  return withCopySuffix(baseName, generateShortId(8))
 }
 
 /**
@@ -1263,7 +1272,6 @@ export async function getWorkspaceFileByName(
   fileName: string,
   options?: { folderId?: string | null }
 ): Promise<WorkspaceFileRecord | null> {
-  const folderId = options?.folderId ?? null
   const files = await db
     .select()
     .from(workspaceFiles)
@@ -1272,7 +1280,7 @@ export async function getWorkspaceFileByName(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.originalName, fileName),
         eq(workspaceFiles.context, 'workspace'),
-        folderId ? eq(workspaceFiles.folderId, folderId) : isNull(workspaceFiles.folderId),
+        workspaceFileNameFolderCondition(options?.folderId),
         isNull(workspaceFiles.deletedAt)
       )
     )

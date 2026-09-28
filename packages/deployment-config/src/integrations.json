@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-25",
+  "updatedAt": "2026-09-26",
   "integrations": [
     {
       "type": "onepassword",
@@ -6618,8 +6618,8 @@
       "type": "databricks",
       "slug": "databricks",
       "name": "Databricks",
-      "description": "Run SQL queries and manage jobs on Databricks",
-      "longDescription": "Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.",
+      "description": "Run SQL, manage jobs, and ask Genie agents on Databricks",
+      "longDescription": "Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Ask Genie spaces (Genie agents) questions in natural language and get back answers, the generated SQL, result rows, and charts, continuing a conversation across follow-ups, or run Genie agent mode for multi-step research reports. Requires a Personal Access Token and workspace host URL.",
       "bgColor": "#F9F7F4",
       "iconName": "DatabricksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/databricks",
@@ -6671,9 +6671,65 @@
         {
           "name": "Get Cluster",
           "description": "Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID."
+        },
+        {
+          "name": "Ask Genie",
+          "description": "Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows."
+        },
+        {
+          "name": "Get Genie Message",
+          "description": "Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions."
+        },
+        {
+          "name": "List Genie Messages",
+          "description": "List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history."
+        },
+        {
+          "name": "Get Genie Query Result",
+          "description": "Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED."
+        },
+        {
+          "name": "Execute Genie Query",
+          "description": "Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result."
+        },
+        {
+          "name": "Download Genie Visualization",
+          "description": "Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces."
+        },
+        {
+          "name": "Send Genie Feedback",
+          "description": "Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions."
+        },
+        {
+          "name": "Delete Genie Message",
+          "description": "Delete a message from a Genie conversation."
+        },
+        {
+          "name": "List Genie Conversations",
+          "description": "List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned."
+        },
+        {
+          "name": "Delete Genie Conversation",
+          "description": "Delete a Genie conversation you no longer need."
+        },
+        {
+          "name": "List Genie Spaces",
+          "description": "List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question."
+        },
+        {
+          "name": "Get Genie Space",
+          "description": "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions)."
+        },
+        {
+          "name": "Ask Genie Agent",
+          "description": "Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace."
+        },
+        {
+          "name": "List Genie Agent Items",
+          "description": "List an agent-mode conversation's full history in order: questions, reasoning, SQL calls, query results, and reports. Agent mode is in preview and must be enabled on the workspace."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -23120,8 +23176,8 @@
       "type": "snowflake",
       "slug": "snowflake",
       "name": "Snowflake",
-      "description": "Query data and manage warehouses and tasks in Snowflake",
-      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
+      "description": "Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.",
       "bgColor": "#FFFFFF",
       "iconName": "SnowflakeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/snowflake",
@@ -23245,9 +23301,17 @@
         {
           "name": "Call Procedure",
           "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        },
+        {
+          "name": "Ask Cortex Analyst",
+          "description": "Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up."
+        },
+        {
+          "name": "Send Cortex Analyst Feedback",
+          "description": "Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab."
         }
       ],
-      "operationCount": 30,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

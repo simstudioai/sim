@@ -52,23 +52,21 @@ describe('buildTagFilterCondition', () => {
           value: ' 2026-04-21',
         })
       )
-      expect(sql).toBe('?::date = ?::date')
-      expect(params).toEqual(['document.date1', '2026-04-21'])
+      expect(sql).toBe('? >= ?::date::timestamp AND ? < (?::date + 1)::timestamp')
+      expect(params).toEqual(['document.date1', '2026-04-21', 'document.date1', '2026-04-21'])
     })
 
     it('compiles a trimmed between bound too', () => {
-      const condition = buildTagFilterCondition({
-        tagSlot: 'date1',
-        fieldType: 'date',
-        operator: 'between',
-        value: '2026-04-01',
-        valueTo: ' 2026-04-30 ',
-      }) as unknown as { type: string; conditions: unknown[] }
-      expect(condition.type).toBe('and')
-      expect(rendered(condition.conditions[1] as never).params).toEqual([
-        'document.date1',
-        '2026-04-30',
-      ])
+      const { params } = rendered(
+        buildTagFilterCondition({
+          tagSlot: 'date1',
+          fieldType: 'date',
+          operator: 'between',
+          value: '2026-04-01',
+          valueTo: ' 2026-04-30 ',
+        })
+      )
+      expect(params).toEqual(['document.date1', '2026-04-01', 'document.date1', '2026-04-30'])
     })
   })
 })

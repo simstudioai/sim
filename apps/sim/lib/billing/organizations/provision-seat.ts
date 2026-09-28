@@ -18,7 +18,7 @@ import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ProvisionSeat')
 
@@ -49,7 +49,7 @@ interface EnsureTeamOrganizationParams {
   billingOwnerUserId: string
   workspaceOrganizationId: string | null
   /** Transaction that also accepts the invitation and grants permissions. */
-  executor: DbOrTx
+  executor: DbTransaction
   /** Workspace rows already covered by the caller's invitation/workspace locks. */
   workspaceIdsToAttach: string[]
 }
@@ -113,7 +113,7 @@ export async function ensureTeamOrganizationForAcceptance(
 async function ensureOrganizationOnTeamPlan(
   organizationId: string,
   actorId: string,
-  executor: DbOrTx
+  executor: DbTransaction
 ): Promise<EnsureTeamOrganizationResult> {
   await acquireOrganizationMutationLock(executor, organizationId)
   await assertNoUnresolvedEnterpriseIssuance(executor, organizationId)
@@ -153,7 +153,7 @@ async function ensureOrganizationOnTeamPlan(
 async function convertPersonalSubscriptionToTeam(
   userId: string,
   workspaceIdsToAttach: string[],
-  executor: DbOrTx
+  executor: DbTransaction
 ): Promise<EnsureTeamOrganizationResult> {
   const personalSub = await getHighestPriorityPersonalSubscription(userId, {
     onError: 'throw',

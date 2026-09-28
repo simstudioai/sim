@@ -90,6 +90,25 @@ describe('Assistant retrieval tools', () => {
       next: null,
     })
   })
+  it.each([{ startDate: '2026-09-01T00:00:00Z' }, { sortBy: 'newest' }, { sortBy: 'oldest' }])(
+    'returns actionable validation for empty Notion native queries with %j',
+    async (bound) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+      const result = await searchWorkspaceServerTool.execute(
+        {
+          ...bound,
+          query: 'fallback terms',
+          nativeQueries: [{ provider: 'notion', query: ' \t ' }],
+        },
+        { ...context, assistantSearch: undefined }
+      )
+      expect(result).toMatchObject({
+        success: false,
+        message: 'Notion requires search terms. Add keywords or a concise question.',
+      })
+      expect(result).not.toHaveProperty('data')
+    }
+  )
   it('returns a safe permanent configuration failure instead of empty results or opaque error', async () => {
     mocks.search.mockRejectedValue(new EmbeddingConfigurationError())
     const result = await searchWorkspaceServerTool.execute({ query: 'policy' }, context)

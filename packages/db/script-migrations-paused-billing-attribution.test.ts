@@ -377,6 +377,7 @@ describe('script migration registry', () => {
       '0022_projection_source_acl_backfill',
       '0023_projection_acl_skip_unfilled',
       '0024_knowledge_projection_async',
+      '0025_scope_keyword_projections',
     ])
   })
 })

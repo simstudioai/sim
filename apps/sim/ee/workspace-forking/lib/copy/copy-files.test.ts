@@ -14,6 +14,7 @@ import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** The `workspace_files` columns {@link fileRows} enforces its unique indexes on. */
@@ -36,7 +37,7 @@ interface WorkspaceFileRow {
  */
 const { fileRows, allocateFromFileRows } = vi.hoisted(() => {
   const fileRows: WorkspaceFileRow[] = []
-  const withCopySuffix = (name: string, n: number) => {
+  const withCopySuffix = (name: string, n: number | string) => {
     const lastDot = name.lastIndexOf('.')
     return lastDot > 0 && lastDot < name.length - 1
       ? `${name.slice(0, lastDot)} (${n})${name.slice(lastDot)}`
@@ -63,11 +64,11 @@ const { fileRows, allocateFromFileRows } = vi.hoisted(() => {
             row.originalName === name
         )
       if (!taken(baseName)) return baseName
-      for (let n = 1; n <= 1000; n++) {
+      for (let n = 1; n <= 20; n++) {
         const candidate = withCopySuffix(baseName, n)
         if (!taken(candidate)) return candidate
       }
-      throw new Error(`A file named "${baseName}" already exists in this workspace`)
+      return withCopySuffix(baseName, generateShortId(8))
     },
   }
 })

@@ -3,8 +3,17 @@ import type { ResourceOwner } from '@/lib/core/resource-scope'
 import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import type { ResolvedLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import { readFirefliesMcp, searchFirefliesMcp } from '@/lib/sim-search/live/fireflies-mcp'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
-import { createNativeClient, NATIVE_SEARCH_REQUEST_BUDGET } from '@/lib/sim-search/live/http'
+import { readGranolaMcp, searchGranolaMcp } from '@/lib/sim-search/live/granola-mcp'
+import {
+  createNativeClient,
+  NATIVE_SEARCH_REQUEST_BUDGET,
+  NativeSearchError,
+} from '@/lib/sim-search/live/http'
+import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
+import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
+import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
@@ -46,7 +55,7 @@ interface OpenLiveAccountSessionInput {
 
 /**
  * Opens the clients a search or read of one account needs: the member's provider client (or
- * Coda MCP client), an administrator GitLab session, and the source verifier. Search and read
+ * managed MCP client), an administrator GitLab session, and the source verifier. Search and read
  * share this so both apply exactly the same boundary.
  */
 export async function openLiveAccountSession(
@@ -78,7 +87,48 @@ export async function openLiveAccountSession(
           signal,
         })
       : undefined
-  const mcp = client ? undefined : await createCodaMcpClient(owner, userId, account.id, signal)
+  const openMcp = async () => {
+    if (client) return undefined
+    if (!isManagedSearchMcpProvider(provider))
+      throw new NativeSearchError(
+        'unavailable',
+        'This provider does not support managed MCP Search.'
+      )
+    return provider === 'coda'
+      ? createCodaMcpClient(owner, userId, account.id, signal, input.searches)
+      : createManagedSearchMcpClient(owner, userId, account.id, provider, signal, input.searches)
+  }
+  const mcp = await openMcp()
+  const searchMcp = (search: NativeSearchInput) => {
+    if (!mcp) throw new NativeSearchError('unavailable', 'Managed MCP connection unavailable.')
+    switch (provider) {
+      case 'coda':
+        return searchCodaMcp(mcp, search)
+      case 'fireflies':
+        return searchFirefliesMcp(mcp, search)
+      case 'granola':
+        return searchGranolaMcp(mcp, search)
+      case 'notion':
+        return searchNotionMcp(mcp, search)
+      default:
+        throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
+    }
+  }
+  const readMcp = (id: string) => {
+    if (!mcp) throw new NativeSearchError('unavailable', 'Managed MCP connection unavailable.')
+    switch (provider) {
+      case 'coda':
+        return readCodaMcp(mcp, id)
+      case 'fireflies':
+        return readFirefliesMcp(mcp, id)
+      case 'granola':
+        return readGranolaMcp(mcp, id)
+      case 'notion':
+        return readNotionMcp(mcp, id)
+      default:
+        throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
+    }
+  }
 
   /** A service source replaces the member policy and verifies with its own credential. */
   const sourceBoundary = async (memberPolicy: LiveSearchPolicy, fresh = false) => {
@@ -113,7 +163,7 @@ export async function openLiveAccountSession(
       if (scoped === null) return { documents: [] }
       if (admin) return admin.search(scoped)
       return searchWithinPolicy(provider, client, scoped, (request) =>
-        client ? searchNativeProvider(provider, client, request) : searchCodaMcp(mcp!, request)
+        client ? searchNativeProvider(provider, client, request) : searchMcp(request)
       )
     },
     async verify(document) {
@@ -123,7 +173,7 @@ export async function openLiveAccountSession(
     read(reference, filters) {
       if (admin) return admin.read(reference)
       if (client) return readNativeProvider(provider, client, reference, boundary.policy, filters)
-      return readCodaMcp(mcp!, reference.id)
+      return readMcp(reference.id)
     },
     async verifyCurrent(document) {
       const current = await sourceBoundary(

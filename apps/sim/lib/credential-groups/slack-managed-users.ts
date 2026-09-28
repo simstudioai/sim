@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -27,6 +27,7 @@ import {
   SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
@@ -743,8 +744,10 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
           'invalid_state'
         )
     }
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-managed-users:${params.attempt.credentialGroupId}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'slack_managed_users',
+      `slack-managed-users:${params.attempt.credentialGroupId}`
     )
     const [group] = await tx
       .select()

@@ -12,7 +12,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
@@ -205,7 +205,7 @@ export async function attachOwnedWorkspacesToOrganization({
  * transaction.
  */
 export async function attachOwnedWorkspacesToOrganizationTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     ownerUserId,
     organizationId,
@@ -424,7 +424,7 @@ export async function detachOrganizationWorkspaces(
  * describing detachments that a later rollback undid.
  */
 export async function detachOrganizationWorkspacesTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
   const organizationWorkspacesWhere = and(

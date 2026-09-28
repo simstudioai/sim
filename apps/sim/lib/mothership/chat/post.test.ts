@@ -220,7 +220,10 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
 const { mockBuildCopilotRequestPayload: buildCopilotRequestPayload } = mothershipChatPayloadMockFns
-const { mockResolveOrCreateChat: resolveOrCreateChat } = mothershipChatLifecycleMockFns
+const {
+  mockResolveOrCreateChat: resolveOrCreateChat,
+  mockLoadChatMcpServerIds: loadChatMcpServerIds,
+} = mothershipChatLifecycleMockFns
 const { mockAuthorizeOrganizationChat: authorizeOrganizationChat } =
   mothershipOrganizationChatsMockFns
 const { mockAppendCopilotChatMessages: appendCopilotChatMessages } = mothershipChatMessagesMockFns
@@ -334,9 +337,9 @@ describe('handleUnifiedChatPost', () => {
     resolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [],
       isNew: true,
     })
+    loadChatMcpServerIds.mockResolvedValue([])
     finalizeAssistantTurn.mockResolvedValue({
       found: true,
       updated: true,
@@ -770,7 +773,6 @@ describe('handleUnifiedChatPost', () => {
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
       isNew: false,
-      conversationHistory: [{ role: 'user', content: 'Previous turn', requestMode: previousMode }],
     })
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/mothership/chat', {
@@ -1245,17 +1247,9 @@ describe('handleUnifiedChatPost', () => {
     resolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: '/Docs search auth',
-          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
-        },
-        { id: 'msg-2', role: 'assistant', content: 'here you go' },
-      ],
       isNew: false,
     })
+    loadChatMcpServerIds.mockResolvedValue(['mcp-server-1'])
 
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1283,16 +1277,9 @@ describe('handleUnifiedChatPost', () => {
     resolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: '/Docs search auth',
-          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
-        },
-      ],
       isNew: false,
     })
+    loadChatMcpServerIds.mockResolvedValue(['mcp-server-1'])
 
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1771,7 +1758,6 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     resolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [],
       isNew: true,
     })
   })

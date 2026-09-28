@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
@@ -88,7 +88,7 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * permission and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     userId,
     observedOrganizationId,
@@ -263,7 +263,7 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
  * transaction already holds.
  */
 export async function createDefaultPersonalWorkspaceInTransaction(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; userName: string | null | undefined }
 ): Promise<CreatedWorkspace> {
   const firstName = params.userName?.split(' ')[0] || null
