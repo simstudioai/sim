@@ -7,7 +7,9 @@ import {
   resolveOperationIds,
 } from '@/lib/catalog/projection/block-summary'
 import {
+  type CatalogCredentialCondition,
   type CatalogSubBlock,
+  copyCredentialCondition,
   normalizeCondition,
   projectSubBlock,
 } from '@/lib/catalog/projection/subblock'
@@ -98,7 +100,8 @@ export interface CatalogTriggerConfigField {
   description?: string
   placeholder?: string
   default?: unknown
-  options?: { id: string; label: string }[]
+  options?: { id: string; label: string; reactiveCondition?: CatalogCredentialCondition }[]
+  reactiveCondition?: CatalogCredentialCondition
   condition?: CatalogSubBlock['condition']
 }
 
@@ -357,10 +360,15 @@ export function projectBlockTriggers(block: BlockConfig): CatalogBlockTrigger[] 
         field.options = subBlock.options.map((option) => ({
           id: option.id,
           label: option.label || option.id,
+          ...(option.reactiveCondition
+            ? { reactiveCondition: copyCredentialCondition(option.reactiveCondition) }
+            : {}),
         }))
       }
       const condition = normalizeCondition(subBlock.condition)
       if (condition) field.condition = condition
+      if (subBlock.reactiveCondition)
+        field.reactiveCondition = copyCredentialCondition(subBlock.reactiveCondition)
 
       configFields[subBlock.id] = field
     }

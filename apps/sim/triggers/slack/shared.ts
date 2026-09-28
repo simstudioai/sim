@@ -1,5 +1,7 @@
 import type { TriggerOutput } from '@/triggers/types'
 
+export const SLACK_STREAM_RESPONSE_EVENTS = ['message', 'app_mention']
+
 /**
  * Unified Slack trigger output shape, shared by the legacy bring-your-own-app
  * webhook trigger and the native OAuth (`slack_app`) trigger. Both normalize

@@ -106,6 +106,21 @@ function expectSerializable(projection: unknown, label: string): void {
   walk(projection, label)
 }
 
+it('preserves credential gates in the Slack trigger contract sent to clients', () => {
+  const config = getBlockRegistry().slack_v2
+  const wire = v2BlockDetailSchema.parse(projectBlockDetail(config, { deployment: HOSTED }))
+  const trigger = wire.triggers.find(({ id }) => id === 'slack_oauth')!
+  expect(trigger.configFields.streamResponse).toMatchObject({
+    reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'service_account' },
+    condition: { field: 'eventType', value: ['message', 'app_mention'] },
+  })
+  expect(
+    trigger.configFields.eventType.options?.find(({ id }) => id === 'assistant_thread_started')
+  ).toMatchObject({
+    reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'oauth' },
+  })
+})
+
 describe('block catalog projection sweep', () => {
   const blocks = Object.values(getBlockRegistry())
 
