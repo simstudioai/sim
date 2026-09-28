@@ -53,7 +53,7 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { isRetryableTransactionError } from '@/lib/db/transaction'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
@@ -78,7 +78,7 @@ export const MEMBER_BILLING_RECONCILIATION_EVENT_TYPE = 'billing.reconcile-membe
 
 /** Serializes organization-wide owner, seat, move, and membership decisions. */
 export async function acquireOrganizationMutationLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string
 ): Promise<void> {
   await tx.execute(
@@ -104,7 +104,7 @@ export async function acquireOrganizationMutationLock(
  * the wait (it raises SQLSTATE 55P03 instead of hanging) if a holder is stuck.
  */
 export async function acquireOrgMembershipLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   userId: string,
   organizationId: string
 ): Promise<void> {
@@ -126,7 +126,7 @@ export async function acquireOrgMembershipLock(
  * transfer and refuses the insert.
  */
 export async function acquireOrganizationUserMutationLocks(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; organizationIds: string[] }
 ): Promise<void> {
   const organizationIds = [...new Set(params.organizationIds)].sort()
@@ -637,7 +637,7 @@ interface MembershipValidationResult {
  * back together in the caller's transaction.
  */
 export async function ensureUserInOrganizationTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: AddMemberParams
 ): Promise<EnsureMemberResult> {
   const {
@@ -883,7 +883,7 @@ async function applyPaidOrgJoinBillingTx(
  * and the personal-Pro transition.
  */
 export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   userId: string,
   organizationId: string,
   options: { sourceOperationId?: string } = {}
@@ -966,7 +966,10 @@ export async function withInvitationSafeOrganizationAccessMutation<T>(
     scope: InvitationRemovalScope
     additionalOrganizationIds?: string[]
   },
-  operation: (tx: DbOrTx, locked: { workspaceIds: string[]; invitationIds: string[] }) => Promise<T>
+  operation: (
+    tx: DbTransaction,
+    locked: { workspaceIds: string[]; invitationIds: string[] }
+  ) => Promise<T>
 ): Promise<T> {
   let candidate = await getInvitationRemovalLockSnapshot(db, params)
 

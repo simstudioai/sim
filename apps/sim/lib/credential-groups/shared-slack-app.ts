@@ -9,11 +9,11 @@ import {
 } from '@/lib/credential-groups/provider-configuration'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 /** Configures personal consent atomically with the authorized admin's bot installation. */
 export async function configureSharedSlackMemberApp(
-  tx: DbOrTx,
+  tx: DbTransaction,
   input: {
     organizationId: string
     userId: string

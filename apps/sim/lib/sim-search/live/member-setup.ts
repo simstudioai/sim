@@ -7,7 +7,7 @@ import {
   ManagedMcpConnectorError,
 } from '@/lib/credential-groups/managed-mcp-service'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import type { ManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 
 /** Joins source approval's transaction, serializing concurrent setup through the accounts lock. */
@@ -15,7 +15,7 @@ export async function addOrganizationSearchMcpProvider(
   organizationId: string,
   userId: string,
   provider: ManagedSearchMcpProvider,
-  executor: DbOrTx
+  executor: DbTransaction
 ): Promise<{ groupId: string; changed: boolean }> {
   const group = await ensureWorkspaceAccountsGroup(
     { kind: 'organization', organizationId },

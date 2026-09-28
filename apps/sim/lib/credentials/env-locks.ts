@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 const ENV_MAP_LOCK_TIMEOUT_MS = 5_000
 
@@ -17,17 +17,17 @@ const ENV_MAP_LOCK_TIMEOUT_MS = 5_000
  * already takes this lock — a prefixed key would be a different lock and would
  * serialize against nothing.
  */
-async function lockEnvMap(tx: DbOrTx, tag: string, lockKey: string): Promise<void> {
+async function lockEnvMap(tx: DbTransaction, tag: string, lockKey: string): Promise<void> {
   await tx.execute(sql`SELECT set_config('lock_timeout', ${`${ENV_MAP_LOCK_TIMEOUT_MS}ms`}, true)`)
   await acquireAdvisoryXactLock(tx, tag, lockKey)
 }
 
 /** Serializes writers of one workspace's environment variables map. */
-export async function lockWorkspaceEnvMap(tx: DbOrTx, workspaceId: string): Promise<void> {
+export async function lockWorkspaceEnvMap(tx: DbTransaction, workspaceId: string): Promise<void> {
   await lockEnvMap(tx, 'workspace_env_map', workspaceId)
 }
 
 /** Serializes writers of one user's personal environment variables map. */
-export async function lockPersonalEnvMap(tx: DbOrTx, userId: string): Promise<void> {
+export async function lockPersonalEnvMap(tx: DbTransaction, userId: string): Promise<void> {
   await lockEnvMap(tx, 'personal_env_map', userId)
 }

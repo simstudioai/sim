@@ -14,7 +14,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   capabilityDeniedBy,
   capabilityRefusal,
@@ -225,7 +225,7 @@ export async function resolveGoverningPermissionGroupOrganization(params: {
  * lapse, which is the condition the admin must fix first anyway.
  */
 export async function lockWorkspaceCreationContext(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     userId,
     organizationId,
