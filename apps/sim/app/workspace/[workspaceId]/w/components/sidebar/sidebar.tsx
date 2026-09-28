@@ -115,6 +115,7 @@ import {
   compareByOrder,
   createSidebarDragGhost,
   groupWorkflowsByFolder,
+  isSidebarBackgroundClick,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
@@ -1101,10 +1102,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement
-    if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
-      return
-    }
+    if (!isSidebarBackgroundClick(e)) return
     const { selectOnly, clearAllSelection } = useFolderStore.getState()
     workflowId ? selectOnly(workflowId) : clearAllSelection()
   }

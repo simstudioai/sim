@@ -138,7 +138,13 @@ function IntentAwareChatNavigationLink({
       onTouchStart={onTouchStart}
       onClick={(event) => {
         onClick?.(event)
-        if (!event.defaultPrevented && !event.metaKey && !event.ctrlKey && onSelectChat) {
+        if (
+          !event.defaultPrevented &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey &&
+          onSelectChat
+        ) {
           if (event.shiftKey) event.preventDefault()
           onSelectChat(chatId, event.shiftKey)
         }

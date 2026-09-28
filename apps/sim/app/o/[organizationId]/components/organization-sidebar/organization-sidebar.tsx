@@ -37,6 +37,7 @@ import {
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { isSidebarBackgroundClick } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -146,9 +147,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   }
 
   const handleSidebarClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (event.target instanceof Element && event.target.closest('button, [role="button"], a')) {
-      return
-    }
+    if (!isSidebarBackgroundClick(event)) return
     useFolderStore.getState().clearChatSelection()
   }
 
