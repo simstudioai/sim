@@ -33,6 +33,7 @@ interface ChatNavigationLinkProps extends Omit<ComponentProps<typeof Link>, 'hre
   chatId: string
   href: string
   isCurrentRoute?: boolean
+  onSelectChat?: (chatId: string, shiftKey: boolean) => void
 }
 
 export function ChatNavigationLink(props: ChatNavigationLinkProps) {
@@ -46,6 +47,7 @@ function IntentAwareChatNavigationLink({
   isCurrentRoute = false,
   onBlur,
   onClick,
+  onSelectChat,
   onFocus,
   onMouseEnter,
   onMouseLeave,
@@ -136,6 +138,10 @@ function IntentAwareChatNavigationLink({
       onTouchStart={onTouchStart}
       onClick={(event) => {
         onClick?.(event)
+        if (!event.defaultPrevented && !event.metaKey && !event.ctrlKey && onSelectChat) {
+          if (event.shiftKey) event.preventDefault()
+          onSelectChat(chatId, event.shiftKey)
+        }
         if (
           !event.defaultPrevented &&
           !event.metaKey &&

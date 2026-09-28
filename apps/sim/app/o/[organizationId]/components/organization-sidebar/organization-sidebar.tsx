@@ -38,6 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('OrganizationSidebar')
@@ -144,6 +145,13 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     }
   }
 
+  const handleSidebarClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (event.target instanceof Element && event.target.closest('button, [role="button"], a')) {
+      return
+    }
+    useFolderStore.getState().clearChatSelection()
+  }
+
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -161,6 +169,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
         className='group/rail sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
         data-collapsed={isCollapsed || undefined}
         aria-label='Organization sidebar'
+        onClick={handleSidebarClick}
       >
         <div className='flex h-full flex-col'>
           {/* The peek card already sits below the lane; reserving it again doubles the offset. */}
