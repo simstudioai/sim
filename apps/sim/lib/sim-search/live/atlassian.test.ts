@@ -14,6 +14,7 @@ function client(rows: Record<string, unknown>): NativeClient & { json: ReturnTyp
       return rows[path]
     }),
     text: vi.fn(),
+    bytes: vi.fn(),
   }
 }
 
@@ -62,6 +63,7 @@ describe('Confluence live documents', () => {
         throw new NativeSearchError('unavailable', 'Provider request failed (404).', undefined, 404)
       }),
       text: vi.fn(),
+      bytes: vi.fn(),
     }
     await expect(readAtlassian(api, 'confluence', '9', 'cloud')).resolves.toMatchObject({
       kind: 'blogpost',
@@ -83,6 +85,7 @@ describe('Confluence live documents', () => {
         throw new Error(`Unexpected request: ${path}`)
       }),
       text: vi.fn(),
+      bytes: vi.fn(),
     }
     await expect(readAtlassian(api, 'confluence', '9', 'cloud')).rejects.toBe(failure)
   })
