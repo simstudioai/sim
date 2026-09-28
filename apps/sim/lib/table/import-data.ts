@@ -25,6 +25,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
+import { lockUniqueColumns } from '@/lib/table/rows/unique-locks'
 import { addTableColumnsWithTx, auditTableColumnsAdded, getTableById } from '@/lib/table/service'
 import type {
   ReplaceRowsResult,
@@ -282,6 +283,9 @@ export async function importAppendRows(
   })
   const result = await db.transaction(async (trx) => {
     let working = await refreshUnderLock(trx, table)
+    // Lock the unique columns whole, ahead of the row-order lock: per-value locks for every row of
+    // an import would flood the server's lock table.
+    await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
       // Take the row-order lock before creating columns so this path uses the
       // same rows_pos → user_table_definitions order as plain inserts. Creating
@@ -305,7 +309,8 @@ export async function importAppendRows(
           secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
         },
         working,
-        generateId().slice(0, 8)
+        generateId().slice(0, 8),
+        { uniqueColumnsLocked: true }
       )
       inserted.push(...batchInserted)
     }
@@ -347,6 +352,7 @@ export async function importReplaceRows(
   })
   const result = await db.transaction(async (trx) => {
     let working = await refreshUnderLock(trx, table)
+    await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
       await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, working, additions, requestId)
