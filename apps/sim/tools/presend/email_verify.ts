@@ -37,14 +37,14 @@ export const emailVerifyTool: ToolConfig<PresendEmailVerifyParams, PresendEmailV
       success: true,
       output: {
         email: data?.email ?? '',
-        valid: data?.valid ?? false,
+        valid: data?.valid ?? null,
         syntaxValid: data?.syntax_valid ?? false,
         domain: data?.domain ?? '',
-        mxFound: data?.has_mx ?? false,
+        mxFound: data?.has_mx ?? null,
         mxCount: data?.mx_count ?? 0,
         disposable: data?.disposable ?? false,
         roleAccount: data?.role_account ?? false,
-        reason: data?.reason ?? '',
+        reason: data?.reason ?? null,
       },
     }
   },
@@ -56,7 +56,9 @@ export const emailVerifyTool: ToolConfig<PresendEmailVerifyParams, PresendEmailV
     },
     valid: {
       type: 'boolean',
-      description: 'Whether the email address is valid overall',
+      description:
+        'Whether the email address is valid overall. Null if it could not be checked (e.g. MX lookup failed); retry later',
+      nullable: true,
     },
     syntaxValid: {
       type: 'boolean',
@@ -68,7 +70,9 @@ export const emailVerifyTool: ToolConfig<PresendEmailVerifyParams, PresendEmailV
     },
     mxFound: {
       type: 'boolean',
-      description: "Whether the domain's MX records were found",
+      description:
+        "Whether the domain's MX records were found. Null if the MX lookup itself failed",
+      nullable: true,
     },
     mxCount: {
       type: 'number',
@@ -84,7 +88,9 @@ export const emailVerifyTool: ToolConfig<PresendEmailVerifyParams, PresendEmailV
     },
     reason: {
       type: 'string',
-      description: 'Explanation when the address is invalid, otherwise null',
+      description:
+        'Why the address is not valid: invalid_syntax, no_mx_record, disposable_domain, or mx_lookup_failed. Null when the address is valid',
+      nullable: true,
     },
   },
 }
