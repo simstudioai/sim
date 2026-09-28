@@ -2,14 +2,13 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import {

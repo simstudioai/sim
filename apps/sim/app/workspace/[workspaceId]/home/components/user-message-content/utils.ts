@@ -45,8 +45,12 @@ export function computeMentionRanges(text: string, contexts: ChatMessageContext[
     ranges.push(range)
   }
 
-  ranges.sort((a, b) => a.start - b.start)
-  return ranges
+  ranges.sort((a, b) => a.start - b.start || b.end - a.end)
+  const merged: MentionRange[] = []
+  for (const range of ranges) {
+    if (range.start >= (merged.at(-1)?.end ?? 0)) merged.push(range)
+  }
+  return merged
 }
 
 /**

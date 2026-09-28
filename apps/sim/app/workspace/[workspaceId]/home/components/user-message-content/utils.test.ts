@@ -1,10 +1,9 @@
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
 function spans(text: string, contexts: ChatMessageContext[]): string[] {
   return computeMentionRanges(text, contexts).map((range) => text.slice(range.start, range.end))
@@ -24,6 +23,18 @@ describe('computeMentionRanges', () => {
 
   it('does not match a mention that is a prefix of a longer name', () => {
     expect(spans('@Workflow-2', [workflow])).toEqual([])
+  })
+
+  it('keeps only the longest of overlapping mentions', () => {
+    const report: ChatMessageContext = { kind: 'file', label: 'report' }
+    const reportPdf: ChatMessageContext = { kind: 'file', label: 'report.pdf' }
+    expect(spans('compare @report.pdf with @report', [report, reportPdf])).toEqual([
+      '@report.pdf',
+      '@report',
+    ])
+    expect(
+      spans('@Workflow 2 and @Workflow', [workflow, { kind: 'workflow', label: 'Workflow 2' }])
+    ).toEqual(['@Workflow 2', '@Workflow'])
   })
 
   it('matches slash commands by their slash prefix', () => {

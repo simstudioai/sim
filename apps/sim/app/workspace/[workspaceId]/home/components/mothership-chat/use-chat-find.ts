@@ -127,6 +127,7 @@ export function useChatFind({
   const [index, setIndex] = useState(0)
   if (scope !== chatId) {
     setScope(chatId)
+    // A pending chat adopting its id (undefined → id) is the same conversation.
     if (scope !== undefined) {
       setIsOpen(false)
       setQuery('')
