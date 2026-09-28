@@ -105,6 +105,11 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     example: 'ENG, TEAM',
   },
   linear: { label: 'Projects', hint: 'Member accounts search all accessible issues.', example: '' },
+  hubspot: {
+    label: 'CRM records',
+    hint: 'Member accounts search CRM records allowed by their HubSpot permissions.',
+    example: '',
+  },
   fireflies: {
     label: 'Meetings',
     hint: 'Member accounts search accessible meeting transcripts.',

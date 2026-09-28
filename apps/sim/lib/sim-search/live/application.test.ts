@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   resolveAccount: vi.fn(),
   search: vi.fn(),
+  mcpCall: vi.fn(),
   read: vi.fn(),
   admin: vi.fn(),
   adminSearch: vi.fn(),
@@ -40,6 +41,9 @@ vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession:
 vi.mock('@/lib/sim-search/live/policy-store', () => ({
   loadLiveSearchPolicies: vi.fn(async () => ({})),
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
+}))
+vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   createCodaMcpClient: vi.fn(),
@@ -131,6 +135,157 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
+  })
+  describe('HubSpot continuation context', () => {
+    const connected = {
+      ...account,
+      provider: 'hubspot' as const,
+      providerId: 'mcp:hubspot',
+      type: 'managed_mcp' as const,
+      displayName: 'Fixture CRM',
+    }
+    const native = {
+      provider: 'hubspot' as const,
+      accountId: connected.id,
+      kind: 'contacts' as const,
+      query: 'launch',
+    }
+    const filters = { startDate: '2026-08-01T00:00:00Z', endDate: '2026-10-01T00:00:00Z' }
+    const row = (id: number, date: string) => ({
+      id,
+      displayName: `Fixture ${id}`,
+      properties: { name: `Fixture ${id}`, lastmodifieddate: date, hs_lastmodifieddate: date },
+    })
+    const response = (args: Record<string, unknown>, rows: unknown[], total: number) => ({
+      results: rows,
+      total,
+      offset: Number(args.offset ?? 0) + rows.length,
+      urlTemplate: `https://app.hubspot.com/contacts/12345/record/${args.objectType === 'COMPANY' ? '0-2' : '0-1'}/{id}`,
+    })
+    const details = {
+      accountId: 12345,
+      toolInformation: {
+        crmObjectTypeAvailability: {
+          CONTACT: { read: 'AVAILABLE' },
+          COMPANY: { read: 'AVAILABLE' },
+        },
+      },
+    }
+    beforeEach(() => {
+      mocks.accounts.mockResolvedValue([connected, { ...connected, id: 'another-account' }])
+      mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+        if (name === 'get_user_details') return details
+        if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+        return response(args, [row(args.offset ? 43 : 42, '2026-09-01T00:00:00Z')], 2)
+      })
+    })
+    it.each([
+      { name: 'query', native: { ...native, query: 'release' }, filters },
+      { name: 'kind', native: { ...native, kind: 'companies' as const }, filters },
+      { name: 'date', native, filters: { ...filters, endDate: '2026-09-30T00:00:00Z' } },
+      { name: 'sort', native, filters: { ...filters, sortBy: 'oldest' as const } },
+      { name: 'account', native: { ...native, accountId: 'another-account' }, filters },
+    ])(
+      'rejects a cursor replayed after changing $name while the fresh search remains valid',
+      async (changed) => {
+        const first = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters, nativeQueries: [native] },
+        })
+        const cursor = first.live?.accounts[0]?.nextCursor
+        expect(cursor).toBeTruthy()
+        const fresh = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters: changed.filters, nativeQueries: [changed.native] },
+        })
+        expect(fresh.results).toHaveLength(1)
+        const replay = await searchLiveKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            topK: 1,
+            filters: changed.filters,
+            nativeQueries: [{ ...changed.native, cursor }],
+          },
+        })
+        expect(replay.results).toEqual([])
+        expect(replay.live?.accounts[0]).toMatchObject({
+          status: 'unavailable',
+          message: expect.stringMatching(/cursor|continuation|restart/i),
+        })
+      }
+    )
+    it.each(['remove implicit cutoff', 'override explicit cutoff'] as const)(
+      'rejects a continuation that would %s',
+      async (mode) => {
+        const query = mode === 'remove implicit cutoff' ? '' : 'launch'
+        const searchInput = {
+          ...input,
+          query,
+          topK: 1,
+          filters: mode === 'remove implicit cutoff' ? { sortBy: 'newest' as const } : filters,
+          nativeQueries: [{ ...native, query }],
+        }
+        const first = await searchLiveKnowledge.execute({ principal, input: searchInput })
+        expect(first.results).toHaveLength(1)
+        const cursor = first.live?.accounts[0]?.nextCursor
+        expect(cursor).toBeTruthy()
+        const payload = JSON.parse(Buffer.from(cursor!.slice(8), 'base64url').toString('utf8'))
+        if (mode === 'remove implicit cutoff') payload.listingEndDate = undefined
+        else payload.listingEndDate = '2026-11-01T00:00:00Z'
+        const altered = `hubspot:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+        const result = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...searchInput, nativeQueries: [{ ...native, query, cursor: altered }] },
+        })
+        expect(result.results).toEqual([])
+        expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+      }
+    )
+    it.each(['provider window', 'local date filtering'] as const)(
+      'keeps the original implicit listing boundary after time advances: %s',
+      async (stage) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const old = row(43, '2026-09-01T11:30:00Z')
+          const later = row(44, '2026-09-01T12:30:00Z')
+          mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+            if (name === 'get_user_details') return details
+            if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+            if (!args.offset) return response(args, [row(42, '2026-09-01T11:45:00Z')], 3)
+            if (stage === 'local date filtering') return response(args, [old, later], 3)
+            const groups = args.filterGroups as { filters: { operator: string; value: string }[] }[]
+            const upper = Number(
+              groups[0].filters.find((filter) => filter.operator === 'LT')?.value
+            )
+            return response(args, [upper <= Date.parse('2026-09-01T12:00:00Z') ? old : later], 2)
+          })
+          const listing = {
+            ...input,
+            query: '',
+            topK: 1,
+            filters: { sortBy: 'newest' as const },
+            nativeQueries: [{ ...native, query: '' }],
+          }
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(first.results).toHaveLength(1)
+          expect(cursor).toBeTruthy()
+          vi.setSystemTime(new Date('2026-09-01T13:00:00Z'))
+          const continued = await searchLiveKnowledge.execute({
+            principal,
+            input: { ...listing, topK: 2, nativeQueries: [{ ...native, query: '', cursor }] },
+          })
+          expect(
+            continued.results.map((result) => decodeLiveReference(result.documentId).id)
+          ).toEqual(['hubspot:12345:contacts:43'])
+          expect(continued.live?.accounts[0]?.status).not.toBe('unavailable')
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
   })
   it.each([
     { startDate: '2026-08-01T00:00:00Z' },

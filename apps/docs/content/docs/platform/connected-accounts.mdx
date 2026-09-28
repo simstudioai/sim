@@ -38,6 +38,7 @@ In **Providers**, select **Add provider** and search the catalog. Complete any r
 | OAuth providers, such as Gmail or Google Drive | Add the provider from the available catalog. Each invited person authorizes their account. |
 | Slack | Supply the Slack App ID, Slack workspace ID, OAuth client ID, and client secret, then complete app verification. The organization uses one app and Slack workspace. Existing workspace Slack bots remain separate. |
 | Fireflies and Granola | Add the provider. Sim supplies the MCP endpoint and handles OAuth client registration. People only complete their own authorization. |
+| HubSpot (member access) | The deployment supplies a registered HubSpot MCP OAuth app. People sign in and allow CRM read access. See [HubSpot Search](/search/hubspot). |
 | Databricks | Enter a name, the tenant's MCP URL, a registered OAuth client ID, and a client secret if required by that client. |
 
 For Databricks, **Add** validates and saves the configuration before the provider appears in the list. Cancelling the form leaves nothing added. Use an official Databricks HTTPS MCP endpoint, such as `https://your-workspace.cloud.databricks.com/api/2.0/mcp/sql`, and the OAuth client registered for your deployment. People connecting later use this organization configuration.

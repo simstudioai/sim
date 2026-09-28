@@ -28,6 +28,7 @@ return #keys
 
 interface StoredCredentialGroupMcpOAuthAttempt {
   oauthConfigVersion: number
+  configurationFingerprint?: string
   userId: string
   version: typeof MCP_OAUTH_ATTEMPT_VERSION
   workspaceId?: string
@@ -43,6 +44,7 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 
 export interface CredentialGroupMcpOAuthAttempt {
   oauthConfigVersion: number
+  configurationFingerprint?: string
   userId: string
   state: string
   workspaceId?: string
@@ -78,6 +80,9 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
     typeof candidate.oauthConfigVersion === 'number' &&
     Number.isInteger(candidate.oauthConfigVersion) &&
     candidate.oauthConfigVersion > 0 &&
+    (candidate.configurationFingerprint === undefined ||
+      (typeof candidate.configurationFingerprint === 'string' &&
+        /^[a-f0-9]{64}$/.test(candidate.configurationFingerprint))) &&
     typeof candidate.userId === 'string' &&
     candidate.userId.length > 0 &&
     ((typeof candidate.workspaceId === 'string' &&
@@ -104,6 +109,7 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
   oauthConfigVersion: number
+  configurationFingerprint?: string
   userId: string
   state: string
   workspaceId?: string
@@ -126,6 +132,7 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
     oauthConfigVersion: params.oauthConfigVersion,
+    configurationFingerprint: params.configurationFingerprint,
     userId: params.userId,
     ...resourceScopeFields(resourceScopeFromOwner(params)),
     email: params.email,
@@ -167,6 +174,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   return {
     state,
     oauthConfigVersion: parsed.oauthConfigVersion,
+    configurationFingerprint: parsed.configurationFingerprint,
     userId: parsed.userId,
     ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     email: parsed.email,

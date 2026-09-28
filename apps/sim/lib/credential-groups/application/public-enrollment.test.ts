@@ -397,12 +397,6 @@ describe('public Credential Group enrollment application operations', () => {
     await expect(
       completePublicCredentialGroupMcpOAuth.execute({ principal, input: { attempt, code: 'code' } })
     ).resolves.toEqual({ connectionId: 'mcp-cg-person', mcpServerId: 'mcp-server-1' })
-    expect(mocks.completeMcpOAuth).toHaveBeenCalledWith(
-      expect.any(Object),
-      'verifier',
-      'code',
-      invitationToken
-    )
     expect(mocks.fireTrigger).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'credential_added',

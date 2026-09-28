@@ -435,6 +435,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/google-calendar.mdx',
   'search/google-drive.mdx',
   'search/granola.mdx',
+  'search/hubspot.mdx',
   'search/jira.mdx',
   'search/linear.mdx',
   'search/mcp.mdx',

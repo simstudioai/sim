@@ -16,7 +16,10 @@ import {
   CredentialGroupEnrollmentError,
   listCredentialGroupEnrollments,
 } from '@/lib/credential-groups/enrollments'
-import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
+import {
+  listConfiguredCredentialGroupProviders,
+  listConfiguredManagedMcpConnectors,
+} from '@/lib/credential-groups/provider-availability'
 import {
   ensureWorkspaceAccountsGroup,
   getCredentialGroup,
@@ -36,9 +39,11 @@ export const getWorkspaceAccountsSettings = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: workspaceAccountsSettingsDelegationPolicy },
   async execute({ context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
+    const credentialGroup = await getWorkspaceAccountsGroup(context.workspaceId)
     return {
-      credentialGroup: await getWorkspaceAccountsGroup(context.workspaceId),
+      credentialGroup,
       availableProviders: listConfiguredCredentialGroupProviders(),
+      availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id),
     }
   },
 })
