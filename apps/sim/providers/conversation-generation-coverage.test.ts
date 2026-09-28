@@ -21,11 +21,36 @@ function insideNamedAncestor(node: ts.Node, name: string): boolean {
 }
 
 function preparedPayload(node: ts.Node): boolean {
+  if (ts.isIdentifier(node)) return preparedBinding(node)
   return (
     ts.isAwaitExpression(node) &&
     ts.isCallExpression(node.expression) &&
     node.expression.expression.getText() === 'prepareConversationGeneration'
   )
+}
+
+/**
+ * A `const` in an enclosing block bound to a prepared payload. Retried sends prepare once
+ * and replay the binding, since preparing can itself call a model to compact history.
+ */
+function preparedBinding(identifier: ts.Identifier): boolean {
+  for (let scope = identifier.parent; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      if (!(statement.declarationList.flags & ts.NodeFlags.Const)) continue
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          declaration.name.getText() === identifier.text &&
+          declaration.initializer &&
+          preparedPayload(declaration.initializer)
+        ) {
+          return true
+        }
+      }
+    }
+  }
+  return false
 }
 
 describe('provider generation context coverage', () => {
@@ -60,7 +85,7 @@ describe('provider generation context coverage', () => {
             file.endsWith('/openai-compat/streaming-tool-loop.ts')
           ) {
             argument = 0
-          } else if (callee === 'JSON.stringify' && insideNamedAncestor(node, 'postOnce')) {
+          } else if (callee === 'JSON.stringify' && insideNamedAncestor(node, 'post')) {
             argument = 0
           }
           if (argument !== undefined) {

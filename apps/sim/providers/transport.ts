@@ -37,6 +37,8 @@ export const PROVIDER_HEADERS_TIMEOUT_MS = 600_000
  * is non-idempotent and carries no idempotency key, and on the non-streaming path
  * the response only exists once the generation has already been billed — so a
  * replay re-bills completed work, multiplied by every turn of the tool loop.
+ *
+ * Calls no vendor SDK retries apply the same budget through `@/providers/retry`.
  */
 export const PROVIDER_MAX_RETRIES = 2
 
