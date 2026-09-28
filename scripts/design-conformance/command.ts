@@ -2,11 +2,6 @@ import { appendFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { addControlComparison, controlSource } from '#design-conformance/control-comparison'
-import {
-  GENERATED_FILE,
-  generateContracts,
-  infrastructureStatus,
-} from '#design-conformance/generated-contracts'
 import { compareGit, gitText, options, writeJson } from '#design-conformance/io'
 import { type Change, canonical, type Entry, hash, type Report } from '#design-conformance/model'
 import { githubAnnotations, githubSummary, textReport } from '#design-conformance/reporting'
@@ -57,24 +52,27 @@ export async function checkComparison(args: CheckArguments): Promise<Report> {
       () => controlSource(args.repo, commits.mergeBase),
       () => after ?? controlSource(args.repo, commits.head)
     )
-    if (report.status === 'completed') {
-      const source = after ?? new GitSource(args.repo, commits.head)
-      const metadata = await generateContracts(source.central())
-      const artifact = source.entries.find((e) => e.path === GENERATED_FILE)
-      report.infrastructure = infrastructureStatus(
-        metadata,
-        artifact ? source.read(artifact) : undefined
+    const changedFiles = new Set(
+      changes.flatMap((change) =>
+        [change.before?.path, change.after?.path].filter((file): file is string => Boolean(file))
       )
-      if (!report.infrastructure.fresh)
-        report.unchecked.push({
-          file: GENERATED_FILE,
-          line: 1,
-          context: 'generated infrastructure',
-          side: 'after',
-          reason:
-            'Generated design infrastructure is stale; run bun run design:generate and commit the output. Fresh source metadata was used for this comparison.',
-        })
-    }
+    )
+    const beforeNotes = new Map<string, number>()
+    const noteKey = (note: Report['unchecked'][number]) =>
+      canonical([note.file, note.context, note.reason])
+    for (const note of report.unchecked)
+      if (note.side === 'before') {
+        const key = noteKey(note)
+        beforeNotes.set(key, (beforeNotes.get(key) ?? 0) + 1)
+      }
+    report.unchecked = report.unchecked.map((note) => {
+      const key = noteKey(note)
+      const old = beforeNotes.get(key) ?? 0
+      if (note.side === 'after' && old) beforeNotes.set(key, old - 1)
+      return changedFiles.has(note.file) || (note.side === 'after' && !old)
+        ? { ...note, relevant: true }
+        : note
+    })
     after?.assertUnchanged()
     return report
   } catch (error) {

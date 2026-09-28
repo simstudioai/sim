@@ -19,7 +19,6 @@ import {
 } from '#design-conformance/normalize'
 import type { SystemInput } from '#design-conformance/system-snapshot'
 
-export const GENERATED_FILE = 'scripts/design-conformance/contracts.generated.json'
 export interface StylingSlot {
   protected: string[]
   allowed: string[]
@@ -85,23 +84,6 @@ interface ModuleFacts {
 export const metadataSource = (file: string) =>
   /^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) && !/\.(?:test|spec|generated)\./.test(file)
 
-export function infrastructureStatus(metadata: GeneratedContracts, actual?: string) {
-  const expected = generatedBytes(metadata)
-  return {
-    fresh: actual === expected,
-    expectedHash: hash(expected),
-    actualHash: actual === undefined ? null : hash(actual),
-    command: 'bun run design:generate',
-  }
-}
-
-export function generatedBytes(result: GeneratedContracts): string {
-  const objectLines = (value: Record<string, unknown>) =>
-    Object.entries(value)
-      .map(([name, facts]) => `    ${JSON.stringify(name)}: ${JSON.stringify(facts)}`)
-      .join(',\n')
-  return `{\n  "version": "${result.version}",\n  "sourceHash": "${result.sourceHash}",\n  "exports": {\n${objectLines(result.exports)}\n  },\n  "diagnostics": ${JSON.stringify(result.diagnostics)}\n}\n`
-}
 export async function generateContracts(
   input: SystemInput,
   compiled?: Compiler
@@ -1171,7 +1153,7 @@ async function generate(
         )
   }
   // Private presentational functions supply ownership to public wrappers; they are
-  // analyzed once and removed from the compact public artifact after propagation.
+  // analyzed once and omitted from compact public facts after propagation.
   const privateNames = new Set<string>()
   for (const [file, module] of modules)
     for (const [name, fn] of module.functions) {

@@ -15,6 +15,7 @@ export interface ControlSource {
   readOwnership?(entry: Entry): string
 }
 export interface Diagnostic {
+  inspection?: 'failed'
   file: string
   line: number
   context: string

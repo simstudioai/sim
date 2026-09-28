@@ -19,7 +19,6 @@ import {
 import { centralInventory, registry } from '#design-conformance/contracts'
 import { canonical, hash } from '#design-conformance/model'
 import { htmlSink } from '#design-conformance/rendered-html'
-import type { SourceIndex } from '#design-conformance/source-summary'
 
 const traverse =
   typeof traverseModule === 'function'
@@ -231,7 +230,6 @@ const areaOf = (file: string) =>
 export function inspectControls(
   source: ControlSource,
   order: 'forward' | 'reverse' = 'forward',
-  sourceIndex?: SourceIndex,
   centralReference?: (
     ref: string
   ) => { recipe?: boolean; value?: string; source: string } | undefined,
@@ -248,8 +246,14 @@ export function inspectControls(
   const recipeBases = new Set<string>()
   const nonUi: Diagnostic[] = []
   const notes = new Map<string, Diagnostic>()
-  const note = (file: string, line: number, context: string, reason: string) => {
-    const n = { file, line, context, reason }
+  const note = (
+    file: string,
+    line: number,
+    context: string,
+    reason: string,
+    inspection?: 'failed'
+  ) => {
+    const n = { file, line, context, reason, ...(inspection ? { inspection } : {}) }
     notes.set(canonical(n), n)
   }
   const coverage = {
@@ -304,7 +308,8 @@ export function inspectControls(
         'control-discovery',
         !regular(entry)
           ? 'Non-regular source is not followed'
-          : 'Source exceeds 2 MiB; control discovery unavailable'
+          : 'Source exceeds 2 MiB; control discovery unavailable',
+        'failed'
       )
       continue
     }
@@ -367,7 +372,7 @@ export function inspectControls(
       })
     } catch (error) {
       coverage.parseFailures++
-      note(file, 1, 'control-discovery', `Parser failure: ${String(error)}`)
+      note(file, 1, 'control-discovery', `Parser failure: ${String(error)}`, 'failed')
       continue
     }
     coverage.parsedModules++
@@ -1345,17 +1350,6 @@ export function inspectControls(
           expr,
           use.inputs[name]?.expression ?? '<spread or omitted>'
         )
-        // Reuse the frozen index's scalar answer only when our lexical/immutability proof agrees.
-        if (
-          sourceIndex &&
-          expr.kind === 'ref' &&
-          !resolved.unresolved &&
-          resolved.values?.length === 1
-        ) {
-          const shared = sourceIndex.value(sourceRef(expr.ref))
-          if (typeof resolved.values[0] === 'string' && shared === resolved.values[0])
-            resolved.values = [shared]
-        }
         if (resolved.values?.length || use.inputs[name]) use.inputs[name] = resolved
       }
     if (props)

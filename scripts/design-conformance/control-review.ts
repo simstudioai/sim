@@ -293,7 +293,8 @@ export class ReviewCollector {
           entry.path,
           1,
           'css',
-          `Native-control CSS review could not parse source: ${String(error).slice(0, 160)}`
+          `Native-control CSS review could not parse source: ${String(error).slice(0, 160)}`,
+          'failed'
         )
       }
     }
@@ -329,7 +330,8 @@ export class ReviewCollector {
           mixedIcons.path,
           1,
           'artwork',
-          `Mixed artwork export inventory failed: ${String(error).slice(0, 160)}`
+          `Mixed artwork export inventory failed: ${String(error).slice(0, 160)}`,
+          'failed'
         )
       }
     }
@@ -356,8 +358,8 @@ export class ReviewCollector {
       ...(related ? { related } : {}),
     })
   }
-  private note(file: string, line: number, context: string, reason: string) {
-    const diagnostic = { file, line, context, reason }
+  private note(file: string, line: number, context: string, reason: string, inspection?: 'failed') {
+    const diagnostic = { file, line, context, reason, ...(inspection ? { inspection } : {}) }
     this.unchecked.set(canonical(diagnostic), diagnostic)
   }
   private finding(
@@ -471,7 +473,7 @@ export class ReviewCollector {
       column: 1,
       context,
       provenance: {
-        source: 'scripts/design-conformance/contracts.generated.json#exports',
+        source: 'packages/emcn/src public export and implementation',
         input: token,
         permitted: 'Use the EMCN component API or review a shared variant',
       },

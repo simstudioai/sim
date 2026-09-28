@@ -130,9 +130,7 @@
     "studio:dev": "next dev tools/design-studio --hostname 127.0.0.1 --port 3001",
     "type-check:studio": "tsc --noEmit -p tools/design-studio/tsconfig.json",
     "type-check:design": "tsc --noEmit -p scripts/design-conformance/tsconfig.json",
-    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts",
-    "design:generate": "bun --no-env-file scripts/generate-design-contracts.ts",
-    "check:design-generated": "bun run --no-env-file scripts/generate-design-contracts.ts --check"
+    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts"
   },
   "overrides": {
     "react": "19.2.4",

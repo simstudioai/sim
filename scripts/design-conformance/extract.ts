@@ -93,7 +93,14 @@ export function extract(
   if (Buffer.byteLength(text) > 2 * 1024 * 1024)
     return {
       atoms: [],
-      unchecked: [{ line: 1, context: '', reason: 'Source exceeds the 2 MiB parsing limit' }],
+      unchecked: [
+        {
+          line: 1,
+          context: '',
+          reason: 'Source exceeds the 2 MiB parsing limit',
+          inspection: 'failed',
+        },
+      ],
     }
   const add = (
     kind: Atom['kind'],
@@ -1602,6 +1609,7 @@ export function extract(
       line: 1,
       context: '',
       reason: `${parsed ? 'Extraction failure' : 'Parser failure'}: ${String(error).slice(0, 240)}; file styling is unchecked`,
+      inspection: 'failed',
     })
   } finally {
     // All binding resolution is file-local. Drop Babel's path/scope caches at that boundary

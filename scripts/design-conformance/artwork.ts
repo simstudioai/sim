@@ -111,6 +111,7 @@ export function artworkDiff(
         line: 1,
         context: 'artwork',
         reason: 'Artwork symlink/submodule is not followed',
+        inspection: 'failed',
       })
       return undefined
     }
@@ -121,6 +122,7 @@ export function artworkDiff(
         line: 1,
         context: 'artwork',
         reason: 'Artwork source exceeds the 2 MiB parsing limit; only blob change is known',
+        inspection: 'failed',
       })
       return entry.blob
     }
@@ -147,6 +149,7 @@ export function artworkDiff(
         line: 1,
         context: 'artwork',
         reason: 'Artwork parser failure; only blob change is known',
+        inspection: 'failed',
       })
       return entry.blob
     }

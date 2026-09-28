@@ -9,6 +9,7 @@ import {
 } from '#design-conformance/contracts'
 import { designSystem } from '#design-conformance/design-system'
 import { extract } from '#design-conformance/extract'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import {
   canonical,
   type Facts,
@@ -26,6 +27,7 @@ import {
 } from '#design-conformance/worktree-source'
 
 export interface Diagnostic {
+  inspection?: 'failed'
   file: string
   line: number
   context: string
@@ -41,6 +43,7 @@ export interface Inventory {
   commit: string
   centralHash: string
   treeHash: string
+  metadata: GeneratedContracts
   findings: InventoryFinding[]
   unchecked: Diagnostic[]
   coverageFailures: Diagnostic[]
@@ -126,7 +129,13 @@ export async function inspectInventory(
       })
     } else if (!regular(entry)) {
       counts.nonRegular++
-      note({ file: entry.path, line: 1, context: '', reason: 'Symlink/submodule is not followed' })
+      note({
+        file: entry.path,
+        line: 1,
+        context: '',
+        reason: 'Symlink/submodule is not followed',
+        inspection: 'failed',
+      })
     } else if (entry.bytes > registry.limits.sourceBytes) {
       counts.oversized++
       note({
@@ -134,6 +143,7 @@ export async function inspectInventory(
         line: 1,
         context: '',
         reason: 'Source exceeds the 2 MiB parsing limit',
+        inspection: 'failed',
       })
     } else {
       consumers.push(entry)
@@ -248,13 +258,19 @@ export async function inspectInventory(
     )
   )
   const unchecked = [...notes.values()].sort((a, b) => compare(canonical(a), canonical(b)))
-  const coverageFailures = unchecked.filter((n) => inspectionFailure(n.reason))
+  const coverageFailures = unchecked.filter(inspectionFailure)
   return {
     mode: source.mode,
     status: coverageFailures.length ? 'incomplete' : 'completed',
     commit: source.commit,
     centralHash: input.snapshot.hash,
     treeHash: hash(canonical(source.entries)),
+    metadata: {
+      version: system.metadata.version,
+      sourceHash: system.metadata.sourceHash,
+      exports: system.metadata.exports,
+      diagnostics: system.metadata.diagnostics,
+    },
     findings: ordered,
     unchecked,
     coverageFailures,

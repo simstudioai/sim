@@ -71,8 +71,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         const result = inspectControlAnalysis(
           source,
           values.order as 'forward' | 'reverse',
-          index,
-          system.resolve
+          system.resolve,
+          system.metadata
         )
         controls = result.controls
         colourAssignments = result.colourAssignments
@@ -89,7 +89,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
           unchecked: [
             ...colourAssignments.unchecked,
             ...review.unchecked,
-            ...controls.unchecked.filter((n) => inspectionFailure(n.reason)),
+            ...controls.unchecked.filter(inspectionFailure),
           ],
         }
       },

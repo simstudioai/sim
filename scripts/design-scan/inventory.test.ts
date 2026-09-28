@@ -64,6 +64,30 @@ test('full scan records the maintained analyzer identity', () => {
   expect(scannerIdentity().sourceHash).toMatch(/^[a-f\d]{64}$/)
 })
 
+test('scan publishes source-derived public export facts without a committed artifact', async () => {
+  const f = fixture({
+    [component]: "import {Button} from '@sim/emcn'; export const View=()=> <Button/>",
+  })
+  const report = await inspectInventory(f.source())
+  expect(Object.keys(report.metadata).sort()).toEqual([
+    'diagnostics',
+    'exports',
+    'sourceHash',
+    'version',
+  ])
+  expect(report.metadata.exports.Button.kind).toBe('component')
+  expect(report.metadata.exports.Button.slots.className.protected).toContain('background-color')
+})
+
+test('build scripts are excluded while browser desktop screens remain checked', async () => {
+  const script = 'apps/sim/scripts/product-lookalike.tsx'
+  const desktop = 'apps/sim/app/desktop/settings/page.tsx'
+  const f = fixture({ [script]: text('text-[#123456]'), [desktop]: text('text-[#123456]') })
+  const report = await inspectInventory(f.source())
+  expect(report.findings.some((finding) => finding.file === script)).toBe(false)
+  expect(report.findings.some((finding) => finding.file === desktop)).toBe(true)
+})
+
 test('inventories unchanged debt, preserves source locations and ignores central literal authoring', async () => {
   const f = fixture({ [component]: `\n\n${text('text-[#434343] text-[13px]')}` })
   const r = await inspectInventory(f.source())
@@ -609,7 +633,7 @@ test('central recipe appearance never grants renderer ownership or approves late
   let records: ReturnType<typeof inspectControls>['records'] = []
   const inv = await inspectInventory(f.source(), {
     withSourceIndex: (index, _findings, system) => {
-      records = inspectControls(f.source(), 'forward', index, system.resolve).records
+      records = inspectControls(f.source(), 'forward', system.resolve).records
     },
   })
   const r = records.find((r) => r.file === component)

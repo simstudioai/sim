@@ -1,21 +1,18 @@
 import { spawnSync } from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, test } from 'vitest'
+import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 
 const roots: string[] = []
-const cli = path.resolve('scripts/generate-design-contracts.ts')
-const artifact = 'scripts/design-conformance/contracts.generated.json'
+const inspectCode = `
+import { generateContracts } from ${JSON.stringify(path.resolve('scripts/design-conformance/generated-contracts.ts'))}
+import { GitSource } from ${JSON.stringify(path.resolve('scripts/design-conformance/worktree-source.ts'))}
+const source = new GitSource(process.env.DESIGN_TEST_REPO, process.env.DESIGN_TEST_REF ?? 'HEAD', !process.env.DESIGN_TEST_REF)
+process.stdout.write(JSON.stringify(await generateContracts(source.central())))
+`
+const metadata = new Map<string, GeneratedContracts>()
 const checkCli = path.resolve('scripts/check-design-conformance.ts')
 const bun = process.env.DESIGN_TEST_BUN ?? 'bun'
 function write(root: string, file: string, source: string) {
@@ -53,142 +50,27 @@ declare function cn(...args:unknown[]):string
 throw new Error('Do not execute product modules')`
 }
 function run(root: string, ...args: string[]) {
-  return spawnSync(bun, ['--no-env-file', cli, '--repo', root, ...args], {
+  const ref = args.includes('--ref') ? args[args.indexOf('--ref') + 1] : undefined
+  const result = spawnSync(bun, ['--no-env-file', '-e', inspectCode], {
     encoding: 'utf8',
     timeout: 60000,
+    env: {
+      ...process.env,
+      DESIGN_TEST_REPO: root,
+      ...(ref ? { DESIGN_TEST_REF: ref } : {}),
+    },
   })
+  if (result.status === 0) metadata.set(root, JSON.parse(result.stdout))
+  return result
 }
 function generated(root: string) {
-  return JSON.parse(readFileSync(path.join(root, artifact), 'utf8'))
+  const result = metadata.get(root)
+  if (!result) throw new Error('Source metadata was not inspected')
+  return result
 }
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
-
-test('CLI discovers new APIs, narrows recipe variants to public props and is byte deterministic', () => {
-  const root = fixture()
-  expect(run(root, '--check').status).toBe(1)
-  expect(existsSync(path.join(root, 'scripts'))).toBe(false)
-  const first = run(root)
-  expect(first.status, first.stderr).toBe(0)
-  const bytes = readFileSync(path.join(root, artifact), 'utf8')
-  const entry = generated(root).exports.Example
-  expect(entry.variants.variant.values).toEqual(['filled', 'plain'])
-  expect(entry.variants.size.default).toBe('sm')
-  expect(entry.slots.className.protected).toContain('border-radius')
-  expect(run(root).status).toBe(0)
-  expect(readFileSync(path.join(root, artifact), 'utf8')).toBe(bytes)
-  expect(run(root, '--check').status).toBe(0)
-  write(root, artifact, '{}')
-  expect(run(root, '--check').status).toBe(1)
-  expect(readFileSync(path.join(root, artifact), 'utf8')).toBe('{}')
-}, 60_000)
-
-test.each(['file', 'dangling', 'scripts', 'design-conformance'])(
-  'generation rejects a linked %s output boundary without modifying external files',
-  (kind) => {
-    const root = fixture()
-    const external = mkdtempSync(path.join(tmpdir(), 'design-output-target-'))
-    roots.push(external)
-    const sentinel = path.join(external, 'sentinel')
-    writeFileSync(sentinel, 'external bytes must survive')
-    if (kind === 'file' || kind === 'dangling') {
-      mkdirSync(path.dirname(path.join(root, artifact)), { recursive: true })
-      symlinkSync(
-        kind === 'file' ? sentinel : path.join(external, 'missing'),
-        path.join(root, artifact)
-      )
-    } else {
-      const parent = kind === 'scripts' ? 'scripts' : path.dirname(artifact)
-      mkdirSync(path.dirname(path.join(root, parent)), { recursive: true })
-      symlinkSync(external, path.join(root, parent), 'dir')
-    }
-    const child = run(root)
-    expect(readFileSync(sentinel, 'utf8')).toBe('external bytes must survive')
-    expect(readdirSync(external)).toEqual(['sentinel'])
-    expect(child.status, child.stderr).toBe(2)
-    expect(run(root, '--check').status).toBe(2)
-    expect(readdirSync(external)).toEqual(['sentinel'])
-  },
-  60_000
-)
-
-test.each(['symlink', 'fifo', 'nonregular', 'invalid-descriptor'])(
-  'generation refuses an output changed to %s at descriptor opening',
-  (kind) => {
-    const root = fixture()
-    const external = mkdtempSync(path.join(tmpdir(), 'design-output-race-'))
-    roots.push(external)
-    const sentinel = path.join(external, 'sentinel')
-    writeFileSync(sentinel, 'external bytes must survive')
-    write(root, artifact, 'existing output must survive validation failure')
-    const output = path.join(root, artifact)
-    const preload = path.join(external, 'replace-output.cjs')
-    const attack =
-      kind === 'symlink'
-        ? `fs.unlinkSync(output);fs.symlinkSync(${JSON.stringify(sentinel)},output);`
-        : kind === 'invalid-descriptor'
-          ? 'const descriptor=open(file,flags,mode);fs.closeSync(descriptor);return descriptor;'
-          : `fs.unlinkSync(output);require('node:child_process').execFileSync('mkfifo',[output]);${kind === 'nonregular' ? 'open(output,fs.constants.O_RDWR|fs.constants.O_NONBLOCK);' : ''}`
-    writeFileSync(
-      preload,
-      `
-const fs=require('node:fs');const requested=${JSON.stringify(output)};const output=fs.realpathSync(requested);const open=fs.openSync;const write=fs.writeFileSync;
-fs.openSync=(file,flags,mode)=>{if((file===output||file===requested)&&(flags&fs.constants.O_WRONLY)){process.stderr.write('Output replacement applied\\n');${attack}}return open(file,flags,mode)};
-fs.writeFileSync=(file,...args)=>{if(file===output||file===requested){const descriptor=fs.openSync(file,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_TRUNC,0o644);try{return write(descriptor,...args)}finally{fs.closeSync(descriptor)}}return write(file,...args)};
-`
-    )
-    const child = spawnSync(
-      bun,
-      ['--no-env-file', '--preload', preload, cli, '--repo', root, '--ref', 'HEAD'],
-      {
-        encoding: 'utf8',
-        timeout: 5000,
-      }
-    )
-    expect(child.stderr).toContain('Output replacement applied')
-    expect(child.status, child.stderr).toBe(2)
-    expect(readFileSync(sentinel, 'utf8')).toBe('external bytes must survive')
-    if (kind === 'invalid-descriptor')
-      expect(readFileSync(output, 'utf8')).toBe('existing output must survive validation failure')
-    if (kind === 'nonregular') expect(child.stderr).toContain('not a regular file')
-  },
-  15_000
-)
-
-test('generation rejects a directory output and preserves immutable checks through a repository alias', () => {
-  const root = fixture()
-  mkdirSync(path.join(root, artifact), { recursive: true })
-  write(root, `${artifact}/sentinel`, 'directory bytes must survive')
-  expect(run(root, '--ref', 'HEAD').status).toBe(2)
-  expect(readFileSync(path.join(root, artifact, 'sentinel'), 'utf8')).toBe(
-    'directory bytes must survive'
-  )
-  rmSync(path.join(root, artifact), { recursive: true })
-  expect(run(root).status).toBe(0)
-  git(root, 'add', '.')
-  git(
-    root,
-    '-c',
-    'user.name=Test',
-    '-c',
-    'user.email=test@example.com',
-    'commit',
-    '-qm',
-    'generated'
-  )
-  const external = mkdtempSync(path.join(tmpdir(), 'design-output-alias-'))
-  roots.push(external)
-  const alias = path.join(external, 'repo')
-  symlinkSync(root, alias, 'dir')
-  expect(run(alias).status).toBe(0)
-  const sentinel = path.join(external, 'sentinel')
-  writeFileSync(sentinel, 'external bytes must survive')
-  rmSync(path.join(root, artifact))
-  symlinkSync(sentinel, path.join(root, artifact))
-  expect(run(alias, '--check', '--ref', 'HEAD').status).toBe(0)
-  expect(readFileSync(sentinel, 'utf8')).toBe('external bytes must survive')
-}, 60_000)
 
 test('nested finite style lookups own only the selected slot chrome', () => {
   const root = fixture()
@@ -285,19 +167,18 @@ test('public namespaces, compound roots and native props stay distinct', () => {
   expect(metadata.exports['Compound.Part'].kind).toBe('component')
 }, 60_000)
 
-test('API lifecycle, reexports and immutable snapshots never read proposed component implementations', () => {
+test('API lifecycle and immutable snapshots never read proposed implementations', () => {
   const root = fixture()
   expect(run(root).status).toBe(0)
-  const old = readFileSync(path.join(root, artifact), 'utf8')
+  const old = generated(root).exports
   write(
     root,
     'packages/emcn/src/index.ts',
     "export {Example as Renamed} from './components/example'\n"
   )
   write(root, 'packages/emcn/src/components/example.tsx', component('', 'bg-black'))
-  expect(run(root, '--check').status).toBe(1)
   expect(run(root, '--ref', 'HEAD').status).toBe(0)
-  expect(readFileSync(path.join(root, artifact), 'utf8')).toBe(old)
+  expect(generated(root).exports).toEqual(old)
   expect(run(root).status).toBe(0)
   expect(generated(root).exports.Example).toBeUndefined()
   expect(generated(root).exports.Renamed.slots.className.protected).toContain('background-color')
@@ -322,7 +203,7 @@ test('validated source ownership allows customization and rejects invalid or con
     '\n * @designAllow className color\n * @designProtect className colours\n',
   ]) {
     write(root, 'packages/emcn/src/components/example.tsx', component(annotation))
-    expect(run(root).status).toBe(2)
+    expect(run(root).status).toBe(1)
   }
 }, 60_000)
 
@@ -345,25 +226,14 @@ test('broken public imports, parse failures, token cycles and unresolved referen
       .join('\n')
   ).toMatch(/absent/)
   write(root, 'packages/emcn/src/index.ts', "export * from './missing'")
-  expect(run(root).status).toBe(2)
+  expect(run(root).status).toBe(1)
   write(root, 'packages/emcn/src/components/example.tsx', 'export const Broken = (')
-  expect(run(root).status).toBe(2)
+  expect(run(root).status).toBe(1)
 }, 60_000)
 
 test('real working-tree and immutable checks discover ownership without registration and retain originating changes', () => {
   const root = fixture()
   expect(run(root).status).toBe(0)
-  git(root, 'add', '.')
-  git(
-    root,
-    '-c',
-    'user.name=Test',
-    '-c',
-    'user.email=test@example.com',
-    'commit',
-    '-qm',
-    'generated base'
-  )
   const base = git(root, 'rev-parse', 'HEAD')
   write(
     root,
@@ -389,11 +259,10 @@ test('real working-tree and immutable checks discover ownership without registra
     )
     return { exit: result.status, report: JSON.parse(result.stdout) }
   }
-  const stale = check('--working-tree')
-  expect(stale.exit).toBe(1)
-  expect(stale.report.infrastructure.fresh).toBe(false)
+  const unprotected = check('--working-tree')
+  expect(unprotected.exit).toBe(1)
   expect(
-    stale.report.findings.some(
+    unprotected.report.findings.some(
       (f: { rule: string; context: string }) =>
         f.rule === 'component-chrome' && f.context.includes('NewControl')
     )
@@ -405,7 +274,6 @@ test('real working-tree and immutable checks discover ownership without registra
   )
   expect(run(root).status).toBe(0)
   const permitted = check('--working-tree')
-  expect(permitted.report.infrastructure.fresh).toBe(true)
   expect(
     permitted.report.findings.some((f: { rule: string }) => f.rule === 'component-chrome')
   ).toBe(false)
@@ -596,7 +464,7 @@ declare function cn(...args:unknown[]):string;throw new Error('Product modules m
     const entry = metadata.exports.Example
     if (scenario.unchecked) {
       expect(entry.slots.className.protected).toEqual([])
-      expect(entry.slots.className.unchecked.join('\n')).toMatch(/rendered props bundle/i)
+      expect((entry.slots.className.unchecked ?? []).join('\n')).toMatch(/rendered props bundle/i)
       expect(entry.variants.gap.default).toBeUndefined()
     } else {
       expect(entry.slots.className.protected).toEqual(['border-radius', 'gap'])
@@ -756,7 +624,6 @@ test('actual ChipButtonGroup helper preserves consumer ownership and effective g
   )
   expect(result.status, result.stderr).not.toBe(2)
   const report = JSON.parse(result.stdout)
-  expect(report.infrastructure.fresh).toBe(true)
   expect(
     report.findings.some(
       (f: { file: string; rule: string }) =>
@@ -820,7 +687,7 @@ throw new Error('Product modules must not execute')`
     const entry = metadata.exports.Example
     if (scenario.unchecked) {
       expect(entry.slots.className.protected).toEqual([])
-      expect(entry.slots.className.unchecked.join('\n')).toMatch(/rendered props bundle/i)
+      expect((entry.slots.className.unchecked ?? []).join('\n')).toMatch(/rendered props bundle/i)
       expect(entry.variants.size.default).toBeUndefined()
     } else {
       expect(entry.slots.className.protected).toEqual(['border-radius', 'height'])
@@ -996,7 +863,6 @@ test('rendered props precedence avoids false consumer chrome warnings', () => {
   )
   expect(result.status, result.stderr).not.toBe(2)
   const report = JSON.parse(result.stdout)
-  expect(report.infrastructure.fresh).toBe(true)
   expect(
     report.findings.some(
       (finding: { file: string; rule: string }) =>
@@ -1023,7 +889,7 @@ export function Example(props:{className?:string}){return <button className="rou
     )
     expect(run(root).status).toBe(0)
     const slot = generated(root).exports.Example.slots.className
-    expect(slot.unchecked.join('\n')).toMatch(/props.*override/i)
+    expect((slot.unchecked ?? []).join('\n')).toMatch(/props.*override/i)
     if (mode === 'annotated') expect(slot.protected).toContain('border-radius')
     const result = spawnSync(
       bun,
@@ -1042,7 +908,6 @@ export function Example(props:{className?:string}){return <button className="rou
     )
     expect(result.status, result.stderr).not.toBe(2)
     const report = JSON.parse(result.stdout)
-    expect(report.infrastructure.fresh).toBe(true)
     expect(
       report.unchecked.some(
         (note: { file: string; reason: string }) =>
@@ -1093,7 +958,7 @@ test.each(['constant', 'body'])(
   60_000
 )
 
-test('public declaration files participate in finite prop extraction and staleness', () => {
+test('public declaration changes participate in finite prop extraction', () => {
   const root = fixture()
   write(
     root,
@@ -1117,7 +982,12 @@ test('public declaration files participate in finite prop extraction and stalene
     'packages/emcn/src/components/props.d.ts',
     "export interface Props{className?:string;variant?:'plain'|'filled'|'new'}"
   )
-  expect(run(root, '--check').status).toBe(1)
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.variants.variant.values).toEqual([
+    'filled',
+    'new',
+    'plain',
+  ])
 }, 60_000)
 
 test.each([
@@ -1135,7 +1005,9 @@ test.each([
         /public props.*unchecked/i.test(d.reason)
       )
     ).toBe(true)
-    expect(metadata.exports.Example.slots.className.unchecked.join('\n')).toMatch(/public props/i)
+    expect((metadata.exports.Example.slots.className.unchecked ?? []).join('\n')).toMatch(
+      /public props/i
+    )
   },
   60_000
 )
@@ -1165,7 +1037,7 @@ test.each(['missing', 'ambiguous'])(
         : "export * from './components/example';export * from './components/other'"
     )
     const result = run(root)
-    expect(result.status).toBe(2)
+    expect(result.status).toBe(1)
     expect(result.stderr).toMatch(/public export/i)
   },
   60_000
@@ -1194,7 +1066,7 @@ test('ownership metadata rejects longhand permissions overlapping a protected fa
     )
   )
   const result = run(root)
-  expect(result.status).toBe(2)
+  expect(result.status).toBe(1)
   expect(result.stderr).toMatch(/contradictory/i)
 }, 60_000)
 
@@ -1229,7 +1101,7 @@ test.each([
       )
     )
     const result = run(root)
-    expect(result.status, result.stderr).toBe(2)
+    expect(result.status, result.stderr).toBe(1)
     expect(result.stderr).toMatch(/contradictory/i)
   },
   60_000
@@ -1259,13 +1131,13 @@ test('mutated styling bindings remain unchecked instead of freezing their initia
   )
   expect(run(root).status).toBe(0)
   expect(
-    generated(root).exports.Example.slots.className.unchecked.some((reason: string) =>
+    (generated(root).exports.Example.slots.className.unchecked ?? []).some((reason: string) =>
       /mutable|mutated/i.test(reason)
     )
   ).toBe(true)
 }, 60_000)
 
-test('generated unresolved ownership reaches the consumer CLI after regeneration', () => {
+test('unresolved ownership reaches the consumer CLI from fresh source facts', () => {
   const root = fixture()
   write(
     root,
@@ -1278,7 +1150,7 @@ test('generated unresolved ownership reaches the consumer CLI after regeneration
     "import {Example} from '@sim/emcn';export const View=()=> <Example className='rounded-full'/>"
   )
   expect(run(root).status).toBe(0)
-  expect(generated(root).exports.Example.slots.className.unchecked.join('\n')).toMatch(
+  expect((generated(root).exports.Example.slots.className.unchecked ?? []).join('\n')).toMatch(
     /styling call/i
   )
   const result = spawnSync(
@@ -1298,7 +1170,6 @@ test('generated unresolved ownership reaches the consumer CLI after regeneration
   )
   expect(result.status).not.toBe(2)
   const report = JSON.parse(result.stdout)
-  expect(report.infrastructure.fresh).toBe(true)
   expect(
     report.unchecked.some(
       (note: { file: string; reason: string }) =>

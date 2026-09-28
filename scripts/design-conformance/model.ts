@@ -2,13 +2,11 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import type { Route, SourceSummary } from '#design-conformance/source-summary'
 
-export const VERSION = '4.1.0'
+export const VERSION = '4.2.0'
 export const TOKEN_FILE = 'apps/sim/app/_styles/globals.css'
 /** Failed inspection is distinct from an unresolved styling flow. */
-export const inspectionFailure = (reason: string) =>
-  /^(?:Parser failure|Extraction failure|Source exceeds|CSS (?:colour assignments|assignment source|parse)|Artwork (?:parser failure|source exceeds|symlink\/submodule)|Native-control CSS review could not parse|Non-regular source|Symlink\/submodule is not followed)/.test(
-    reason
-  )
+export const inspectionFailure = (note: Pick<Note, 'inspection' | 'reason'>) =>
+  note.inspection === 'failed'
 export const hash = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex')
 export const canonical = (value: unknown): string => JSON.stringify(value)
 export interface Atom {
@@ -25,6 +23,8 @@ export interface Atom {
   context: string
 }
 export interface Note {
+  inspection?: 'failed'
+  relevant?: true
   deferredStyle?: { target: string; slot: string }
   reason: string
   line: number
@@ -142,9 +142,6 @@ export function introducedFindings<T extends Finding>(before: T[], after: T[]): 
   })
 }
 export interface Report {
-  infrastructure?: ReturnType<
-    typeof import('#design-conformance/generated-contracts').infrastructureStatus
-  >
   /** Changed product files whose styling could not be compared. */
   coverageFailures?: (Note & { file: string; side: 'before' | 'after' })[]
   layoutAllowances?: import('#control-analysis/layout-allowances').LayoutAllowance[]
@@ -204,6 +201,7 @@ export function implementationHash(): string {
 /** Scope is independent of the historical cases and their labels. */
 export function scope(file: string): 'check' | 'exclude' | 'unsupported' {
   if (!/^(apps\/sim\/|packages\/(emcn|workflow-renderer)\/)/.test(file)) return 'exclude'
+  if (file.startsWith('apps/sim/scripts/')) return 'exclude'
   if (
     /(?:^|\/)(?:node_modules|__tests__|__fixtures__|fixtures|dist|build|public|emails?|icons?|iso|og)(?:\/|\.)|\.(?:test|spec|generated|d)\.[cm]?[jt]sx?$/.test(
       file

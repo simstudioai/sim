@@ -5,6 +5,7 @@ import {
   type Facts,
   type Finding,
   hash,
+  inspectionFailure,
   type Surface,
   TOKEN_FILE,
 } from '#design-conformance/model'
@@ -48,11 +49,7 @@ export function appearanceDiff(
 ): { findings: Finding[]; unchecked: Facts['unchecked'] } {
   const findings: Finding[] = []
   const unchecked: Facts['unchecked'] = []
-  if (
-    [...before.unchecked, ...after.unchecked].some((n) =>
-      /^(?:Parser failure|Source exceeds)/.test(n.reason)
-    )
-  )
+  if ([...before.unchecked, ...after.unchecked].some(inspectionFailure))
     return { findings, unchecked }
   const surfaces = (facts: Facts): Surface[] => {
     const result: Surface[] = []

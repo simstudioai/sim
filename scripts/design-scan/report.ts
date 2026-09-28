@@ -51,7 +51,7 @@ export function writeResults(
       path.join(temp, 'scan.json'),
       `${JSON.stringify(
         {
-          version: 1,
+          version: 2,
           identity: {
             ...(identity as object),
             commit: inventory.commit,

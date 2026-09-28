@@ -1,19 +1,16 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: Fixtures contain proposed source text. */
-import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { inspectControlAnalysis } from '#control-analysis/analysis'
 import type { ControlSource } from '#control-analysis/model'
 import { ReviewCollector } from '#control-analysis/review'
 import { productScope } from '#control-analysis/scope'
 import { extract } from '#design-conformance/extract'
-import type { GeneratedContracts } from '#design-conformance/generated-contracts'
-import { inspectionFailure } from '#design-conformance/model'
+import { generateContracts } from '#design-conformance/generated-contracts'
+import { GitSource } from '#design-conformance/worktree-source'
 
 const globals = 'apps/sim/app/_styles/globals.css'
 const ui = 'apps/sim/components/example.tsx'
-const metadata = JSON.parse(
-  readFileSync('scripts/design-conformance/contracts.generated.json', 'utf8')
-) as GeneratedContracts
+const metadata = await generateContracts(new GitSource(process.cwd(), 'HEAD', true).central())
 function source(files: Record<string, string>): ControlSource {
   return {
     entries: Object.entries(files).map(([path, text]) => ({
@@ -34,7 +31,6 @@ const inspect = (files: Record<string, string>) =>
     }),
     'forward',
     undefined,
-    undefined,
     metadata
   )
 
@@ -49,6 +45,7 @@ test('browser desktop UI is checked while landing, docs, native desktop and API 
     'apps/sim/app/design-studio/components/page.tsx',
     'apps/desktop/src/main.tsx',
     'apps/sim/lib/desktop/appearance.ts',
+    'apps/sim/scripts/example.tsx',
     'apps/sim/tools/generated/tool-metadata.ts',
     'apps/sim/app/api/desktop/auth/route.ts',
   ])
@@ -398,15 +395,6 @@ test.each([
   expect(report.review.unchecked.some((n) => n.file === ui && n.reason.includes('style'))).toBe(
     true
   )
-})
-
-test.each([
-  'CSS assignment source is nonregular or exceeds the parsing limit',
-  'Artwork parser failure; only blob change is known',
-  'Artwork source exceeds the 2 MiB parsing limit',
-  'Artwork symlink/submodule is not followed',
-])('inspection failures are not unresolved styling: %s', (reason) => {
-  expect(inspectionFailure(reason)).toBe(true)
 })
 
 test.each(['button', 'input', 'textarea', 'select', 'section > button.action', 'button + input'])(

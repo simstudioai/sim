@@ -190,10 +190,7 @@ function componentFamily(source) {
   return path.relative(path.join(repo, 'packages/emcn/src/components'), source).split(path.sep)[0]
 }
 
-function componentInventory() {
-  const metadata = JSON.parse(
-    readFileSync(path.join(repo, 'scripts/design-conformance/contracts.generated.json'), 'utf8')
-  )
+function componentInventory(metadata) {
   const discovered = Object.entries(metadata.exports).map(([, facts]) => ({
     name: facts.exportName,
     source: path.join(repo, facts.source.file),
@@ -521,22 +518,6 @@ async function main() {
   const relativeOutput = path.relative(repo, outputRoot)
   if (!relativeOutput.startsWith('..') && !path.isAbsolute(relativeOutput))
     throw new Error('Studio output must be outside the product checkout')
-  const generation = spawnSync(
-    process.versions.bun ? bun : (process.env.DESIGN_TEST_BUN ?? 'bun'),
-    [
-      '--no-env-file',
-      path.join(toolRoot, '../generate-design-contracts.ts'),
-      '--repo',
-      repo,
-      '--check',
-    ],
-    { cwd: repo, encoding: 'utf8' }
-  )
-  if (generation.status !== 0)
-    throw new Error(
-      generation.stderr ||
-        'Design infrastructure freshness check failed; run bun run design:generate'
-    )
   const initialSourceRevision = sourceRevision()
   mkdirSync(outputRoot, { recursive: true })
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${git(['rev-parse', '--short=10', 'HEAD'])}`
@@ -567,10 +548,10 @@ async function main() {
     if (scan.code > 1) throw new Error(`Scanner failed with exit ${scan.code}`)
   }
   const scanReport = JSON.parse(readFileSync(path.join(scanDir, 'scan.json'), 'utf8'))
-  if (scanReport.version !== 1 || !scanReport.inventory || !scanReport.controls)
+  if (scanReport.version !== 2 || !scanReport.inventory?.metadata || !scanReport.controls)
     throw new Error('Invalid scanner report')
   const { identity, inventory, controls } = scanReport
-  const components = componentInventory()
+  const components = componentInventory(inventory.metadata)
   attachTracedUses(components.entries, controls)
   const extras = extraInventory(inventory.findings)
   const scannerFailures = inventory.coverageFailures

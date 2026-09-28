@@ -121,6 +121,7 @@ export class ColourAssignments {
           line: 1,
           context: 'colour assignments',
           reason: 'CSS assignment source is nonregular or exceeds the parsing limit',
+          inspection: 'failed',
         })
         continue
       }
@@ -169,6 +170,7 @@ export class ColourAssignments {
       this.notes.push({
         ...site,
         reason: `CSS colour assignments could not be parsed: ${String(error)}`,
+        inspection: 'failed',
       })
     }
   }

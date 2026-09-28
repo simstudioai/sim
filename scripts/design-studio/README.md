@@ -1,6 +1,6 @@
 # Local Studio fixtures
 
-`studio:refresh` checks generated design contracts, scans the checkout, and publishes a local manifest. Run `design:generate` after changing its source inputs. The catalog discovers public exports and finite variant values automatically; new components remain `needs-fixture` until an adapter mounts them.
+`studio:refresh` scans the checkout, reads source-derived EMCN metadata from the resulting `scan.json`, and publishes a local manifest. The catalog discovers public exports and finite variant values automatically; new components remain `needs-fixture` until an adapter mounts them.
 
 The published catalog groups exports and scanner signals into visual treatments. Each EMCN export stores its product uses once and keeps variant choices beneath it. The manifest carries diagnostic counts and short samples; the complete diagnostic lists remain in the same run's `scan/scan.json`. This keeps the Studio publication small without dropping scanner evidence.
 

@@ -633,7 +633,7 @@ export class ConformanceLinter {
       }
       const next = afterInput.snapshot.hash === old.hash ? old : await this.system(afterInput)
       report.centralSourceHashes = { before: old.hash, after: next.hash }
-      // Public API and ownership decisions are design changes even after regeneration.
+      // Public API and ownership decisions are design changes in source-derived comparisons.
       for (const name of new Set([
         ...Object.keys(old.metadata.exports),
         ...Object.keys(next.metadata.exports),
@@ -660,7 +660,7 @@ export class ConformanceLinter {
           column: 1,
           context: name,
           reason:
-            'Public design API or source ownership metadata changed; regenerate infrastructure and review the originating decision',
+            'Public design API or source ownership metadata changed; review the originating decision',
         })
       }
       const raw = new Map<Change, { before: Facts; after: Facts }>()
@@ -791,7 +791,7 @@ export class ConformanceLinter {
           )
           report.coverageFailures?.push(
             ...result.unchecked
-              .filter((note) => inspectionFailure(note.reason))
+              .filter(inspectionFailure)
               .map((note) => ({ ...note, file, side: 'after' as const }))
           )
           if (afterArtwork || !change.after) {
@@ -829,7 +829,14 @@ export class ConformanceLinter {
             return {
               atoms: [],
               surfaces: [],
-              unchecked: [{ line: 1, context: '', reason: 'Symlink/submodule is not followed' }],
+              unchecked: [
+                {
+                  line: 1,
+                  context: '',
+                  reason: 'Symlink/submodule is not followed',
+                  inspection: 'failed',
+                },
+              ],
             }
           return prepared(facts, e.path, index)
         }
@@ -893,7 +900,7 @@ export class ConformanceLinter {
                 side,
               }
               report.unchecked.push(diagnostic)
-              if (inspectionFailure(note.reason)) report.coverageFailures?.push(diagnostic)
+              if (inspectionFailure(note)) report.coverageFailures?.push(diagnostic)
             }
           const converted = (f: Facts, system: DesignSystem): Facts => ({
             ...f,
@@ -965,7 +972,7 @@ export class ConformanceLinter {
             side: 'before' as const,
           })),
           ...after.unchecked.map((n) => ({ ...n, file, side: 'after' as const })),
-        ].filter((n) => inspectionFailure(n.reason))
+        ].filter(inspectionFailure)
         if (failures.length) {
           report.coverageFailures?.push(...failures)
           continue

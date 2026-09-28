@@ -6,14 +6,12 @@ import { type ControlInventory, inspectControls } from '#control-analysis/invent
 import type { ControlSource } from '#control-analysis/model'
 import { ReviewCollector, type ReviewReport } from '#control-analysis/review'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
-import type { SourceIndex } from '#design-conformance/source-summary'
 
 /** Shared control analysis for the diff check and complete scan. */
 export function inspectControlAnalysis(
   source: ControlSource,
   order: 'forward' | 'reverse' = 'forward',
-  sourceIndex?: SourceIndex,
-  centralReference?: Parameters<typeof inspectControls>[3],
+  centralReference?: Parameters<typeof inspectControls>[2],
   metadata?: GeneratedContracts
 ): {
   controls: ControlInventory
@@ -21,9 +19,9 @@ export function inspectControlAnalysis(
   review: ReviewReport
 } {
   const colourAssignments = new ColourAssignments(source)
-  const review = new ReviewCollector(source, metadata ?? sourceIndex?.metadata)
+  const review = new ReviewCollector(source, metadata)
   let staticInputs: Parameters<typeof colourAssignments.finish>[0] | undefined
-  const controls = inspectControls(source, order, sourceIndex, centralReference, {
+  const controls = inspectControls(source, order, centralReference, {
     program(input) {
       colourAssignments.program(input)
       review.program(input)

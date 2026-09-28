@@ -167,10 +167,7 @@
       }
     },
     {
-      "includes": [
-        "scripts/design-conformance/contracts.json",
-        "scripts/design-conformance/contracts.generated.json"
-      ],
+      "includes": ["scripts/design-conformance/contracts.json"],
       "formatter": {
         "enabled": false
       }

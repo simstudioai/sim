@@ -8,8 +8,9 @@ import { ciRefs, warningExitCode } from '#design-conformance/ci'
 import { repositoryRoot } from '#design-conformance/command'
 import { ConformanceLinter } from '#design-conformance/conformance'
 import { contractsHash, isRegistry } from '#design-conformance/contracts'
+import { generateContracts } from '#design-conformance/generated-contracts'
 import { compareGit, git } from '#design-conformance/io'
-import { hash, type Report, TOKEN_FILE } from '#design-conformance/model'
+import { hash, inspectionFailure, type Report, TOKEN_FILE } from '#design-conformance/model'
 import {
   escapeAnnotation,
   githubAnnotations,
@@ -17,11 +18,11 @@ import {
   textReport,
 } from '#design-conformance/reporting'
 import { snapshotHash } from '#design-conformance/system-snapshot'
+import { GitSource } from '#design-conformance/worktree-source'
 
 const temp = mkdtempSync(path.join(os.tmpdir(), 'design-command-'))
 afterAll(() => rmSync(temp, { recursive: true, force: true }))
 const cli = fileURLToPath(new URL('./check-design-conformance.ts', import.meta.url))
-const generatorCli = fileURLToPath(new URL('./generate-design-contracts.ts', import.meta.url))
 const ci = fileURLToPath(new URL('./design-conformance/ci.ts', import.meta.url))
 const ui = 'apps/sim/components/example.tsx'
 
@@ -280,8 +281,8 @@ test.each([
   ['truthy string value', "{'bg-red-500':'text-[37px]'}", ['background-color']],
   ['dynamic value', "{'p-2':active}", ['padding']],
 ] as const)(
-  'source metadata follows class map enablement through the generator CLI: %s',
-  (_name, map, protectedProperties) => {
+  'source metadata follows class map enablement through source analysis: %s',
+  async (_name, map, protectedProperties) => {
     const { repo } = fixture()
     const write = (file: string, source: string) => {
       mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
@@ -298,11 +299,7 @@ export function Example({className,...props}:HTMLAttributes<HTMLDivElement>){ret
 throw new Error('Product source must not execute')
 `
     )
-    const result = run(['--repo', repo], generatorCli)
-    expect(result.status, result.stderr).toBe(0)
-    const metadata = JSON.parse(
-      readFileSync(path.join(repo, 'scripts/design-conformance/contracts.generated.json'), 'utf8')
-    )
+    const metadata = await generateContracts(new GitSource(repo, 'HEAD', true).central())
     expect(metadata.exports.Example.slots.className.protected).toEqual(protectedProperties)
   }
 )
@@ -1055,6 +1052,7 @@ test('unchecked diagnostics preserve both sides and safely render source-authore
       side,
       context: 'className',
       reason: 'Unknown helper: <script>& value\r\n::warning::injected',
+      relevant: true,
     })
   const original = JSON.stringify(report)
   const text = textReport(report)
@@ -1070,7 +1068,20 @@ test('unchecked diagnostics preserve both sides and safely render source-authore
   expect(JSON.stringify(report)).toBe(original)
 })
 
-test('large unchecked summaries show explicit limits while logs retain every complete diagnostic', () => {
+test('large finding messages stay bounded in logs while JSON keeps full evidence', () => {
+  const report = findingReport()
+  report.findings[0].kind = 'system-change'
+  report.findings[0].before = 'a'.repeat(3000)
+  const log = textReport(report)
+  const annotation = githubAnnotations(report)[0]
+  expect(log).toContain('[truncated; see JSON]')
+  expect(log).not.toContain('a'.repeat(3000))
+  expect(annotation).toContain('[truncated; see JSON]')
+  expect(annotation).not.toContain('a'.repeat(3000))
+  expect(JSON.stringify(report)).toContain('a'.repeat(3000))
+})
+
+test('large unchecked summaries keep complete JSON evidence and bound human output', () => {
   const report = new ConformanceLinter().report(null)
   report.unchecked = Array.from({ length: 101 }, (_, index) => ({
     file: `component-${index}.tsx`,
@@ -1078,15 +1089,24 @@ test('large unchecked summaries show explicit limits while logs retain every com
     side: 'after',
     context: '',
     reason: index === 0 ? `${'&'.repeat(2000)} complete-long-diagnostic` : `reason-${index}`,
+    relevant: true,
   }))
   const markdown = githubSummary(report)
   const text = textReport(report)
-  expect(markdown).toContain('Showing 100 of 101 diagnostics')
-  expect(markdown).toContain('[truncated; see check log]')
+  expect(markdown).toContain('Showing 20 of 101 diagnostics')
+  expect(markdown).toContain('[truncated; see JSON]')
   expect(markdown).not.toContain('complete-long-diagnostic')
   expect(markdown).not.toContain('component-100.tsx')
-  expect(text).toContain('complete-long-diagnostic')
-  expect(text).toContain('component-100.tsx:1 (after) — reason-100')
+  expect(text).toContain('101 unchecked diagnostics')
+  expect(text).not.toContain('component-100.tsx:1 (after) — reason-100')
+  expect(JSON.stringify(report)).toContain('component-100.tsx')
+})
+
+test('inspection severity is explicit and does not depend on diagnostic wording', () => {
+  expect(inspectionFailure({ reason: 'Arbitrary prose', inspection: 'failed' })).toBe(true)
+  expect(inspectionFailure({ reason: 'Parser failure in a supported but unresolved flow' })).toBe(
+    false
+  )
 })
 
 test('system edits remain flagged but are reported as design review warnings', () => {

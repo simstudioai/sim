@@ -16,7 +16,6 @@ export interface SourceEntry extends Entry {
 
 /** Files whose authored bytes participate in local design analysis. */
 export const inspectedSource = (file: string) =>
-  file === 'scripts/design-conformance/contracts.generated.json' ||
   file === 'apps/sim/components/icons.tsx' ||
   centralInventory(file) ||
   isRegistry(file) ||

@@ -22,7 +22,7 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 
 ## Public components and design behavior
 
-The current public exports, variants, defaults, styling slots, and relationships are generated from source in `scripts/design-conformance/contracts.generated.json`. Run `bun run design:generate` when EMCN or `globals.css` changes. Browse and interact with the visual exports in the local Design Studio after `bun run studio:refresh`; do not maintain an export list here.
+The current public exports, variants, defaults, styling slots, and relationships are derived directly from source by the design check and full scanner. Run `bun run check:design --base origin/staging --working-tree` when EMCN or `globals.css` changes. Browse and interact with visual exports in the local Design Studio after `bun run studio:refresh`; do not maintain an export list here.
 
 Use chip fields and triggers for product forms, and `DropdownMenu` for context and action lists. Prefer a supported prop to a `className` chrome override. A selected chip uses `active`; outer spacing belongs to its parent. A view-only value stays at full opacity and uses the read-only copy field or `ChipModalField type='copy'`, not a disabled input. `ChipModalField` owns its inner control chrome; use `type='custom'` with a title for a control it does not cover. A chip dropdown owns its chevron and supports single or multi-select through `multiple`; use chip select or combobox for searchable or grouped lists. Inline tags are labels, not pill triggers.
 
@@ -50,6 +50,6 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.
 
-## Generated design contracts
+## Source-derived design contracts
 
-Run `bun run design:generate` after public API, styling, recipe or ownership changes and commit `scripts/design-conformance/contracts.generated.json` with the source. CI checks freshness through `check:design-generated`. Ownership is derived from implementation; intentional customization belongs in component TSDoc (`@designAllow <slot> <CSS properties or policy groups>`, `@designProtect` for ownership that cannot be inferred). Review the diff findings after generation; they retain originating central changes. Browser reports and captures remain local, outside the repository.
+The diff check derives public API, styling, recipe and ownership facts from both source revisions; the full scan publishes current facts in `scan.json`. Ownership is derived from implementation; intentional customization belongs in component TSDoc (`@designAllow <slot> <CSS properties or policy groups>`, `@designProtect` for ownership that cannot be inferred). Review central source changes in the diff findings. Browser reports and captures remain local, outside the repository.

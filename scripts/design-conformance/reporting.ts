@@ -2,6 +2,8 @@ import type { Finding, Report } from '#design-conformance/model'
 
 /** Keep source-authored newlines from becoming terminal workflow commands. */
 const line = (value: string) => value.replaceAll('\r', '\\r').replaceAll('\n', '\\n')
+const bounded = (value: string) =>
+  value.length > 1000 ? `${value.slice(0, 1000)}… [truncated; see JSON]` : value
 
 export function findingCounts(report: Report) {
   return {
@@ -51,15 +53,22 @@ export function textReport(report: Report): string {
     lines.push('', title)
     for (const finding of findings) {
       lines.push(
-        `  ${line(finding.file)}:${finding.line}:${finding.column} — ${line(description(finding))}`
+        `  ${line(finding.file)}:${finding.line}:${finding.column} — ${bounded(line(description(finding)))}`
       )
     }
   }
   if (report.unchecked.length) {
-    lines.push('', 'Unchecked inputs — coverage incomplete')
-    for (const note of report.unchecked) lines.push(`  ${uncheckedDescription(note)}`)
+    const relevant = report.unchecked.filter((note) => note.relevant)
     lines.push(
-      'Unchecked inputs remain outside the result; no findings does not prove complete coverage.'
+      '',
+      `Unchecked inputs — ${relevant.length} changed or introduced; ${report.unchecked.length - relevant.length} baseline`
+    )
+    for (const note of relevant.slice(0, 20)) {
+      const description = uncheckedDescription(note)
+      lines.push(`  ${bounded(description)}`)
+    }
+    lines.push(
+      `Showing ${Math.min(relevant.length, 20)} of ${report.unchecked.length} unchecked diagnostics; complete evidence is in the JSON report. No findings does not prove complete coverage.`
     )
   }
   return `${lines.join('\n')}\n`
@@ -78,7 +87,7 @@ export function githubAnnotations(report: Report): string[] {
     ]
   return report.findings.map(
     (finding) =>
-      `::warning file=${escapeAnnotation(finding.file, true)},line=${Math.max(1, finding.line)},col=${Math.max(1, finding.column)},title=${finding.kind === 'system-change' ? 'Design system review' : 'Design conformance'}::${escapeAnnotation(description(finding))}`
+      `::warning file=${escapeAnnotation(finding.file, true)},line=${Math.max(1, finding.line)},col=${Math.max(1, finding.column)},title=${finding.kind === 'system-change' ? 'Design system review' : 'Design conformance'}::${escapeAnnotation(bounded(description(finding)))}`
   )
 }
 
@@ -99,23 +108,22 @@ export function githubSummary(report: Report): string {
     `| Checked files | ${report.coverage.checkedFiles} |`,
     `| Excluded files | ${report.coverage.excludedFiles} |`,
     '',
-    'Full findings and authoritative sources are in the check log. Unchecked inputs do not establish conformance.',
+    'Full findings and authoritative sources are in the JSON artifact. Unchecked inputs do not establish conformance.',
     '',
   ]
   if (report.unchecked.length) {
-    /** Bound summary size; the check log retains every complete diagnostic. */
-    const notes = report.unchecked.slice(0, 100)
+    const relevant = report.unchecked.filter((note) => note.relevant)
+    const notes = relevant.slice(0, 20)
     lines.push(
       '<details>',
-      `<summary>Unchecked inputs (${report.unchecked.length}) — coverage incomplete</summary>`,
+      `<summary>Unchecked inputs (${relevant.length} changed or introduced; ${report.unchecked.length - relevant.length} baseline)</summary>`,
       '',
-      `Showing ${notes.length} of ${report.unchecked.length} diagnostics. Long entries are truncated here. Full details are in the check log; these are not design violations.`,
+      `Showing ${notes.length} of ${report.unchecked.length} diagnostics. Long entries are truncated here. Full details are in the JSON artifact; these are not design violations.`,
       '',
       '<pre>',
       ...notes.map((note) => {
         const text = uncheckedDescription(note)
-        const excerpt =
-          text.length > 1000 ? `${text.slice(0, 1000)}… [truncated; see check log]` : text
+        const excerpt = text.length > 1000 ? `${text.slice(0, 1000)}… [truncated; see JSON]` : text
         /** Source text must not close the HTML block or introduce Markdown formatting. */
         return excerpt.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
       }),

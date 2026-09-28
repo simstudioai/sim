@@ -54,7 +54,7 @@ export async function addControlComparison(
       snapshot: { version: '1.0.0', commit: '', entries, hash: snapshotHash(entries) },
       read: (entry) => source.read(entry),
     })
-    return inspectControlAnalysis(source, 'forward', undefined, undefined, metadata)
+    return inspectControlAnalysis(source, 'forward', undefined, metadata)
   }
   const beforeAnalysis = await inspect(before())
   const afterAnalysis = await inspect(after())
@@ -73,7 +73,7 @@ export async function addControlComparison(
       ...analysis.colourAssignments.unchecked,
       ...analysis.review.unchecked,
     ]) {
-      if (!paths.has(note.file) || !inspectionFailure(note.reason)) continue
+      if (!paths.has(note.file) || !inspectionFailure(note)) continue
       report.coverageFailures ??= []
       if (
         !report.coverageFailures.some(

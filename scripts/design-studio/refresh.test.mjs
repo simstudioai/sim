@@ -7,6 +7,29 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'vitest'
 
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'refresh.mjs')
+const metadataScript = `
+import {generateContracts} from ${JSON.stringify(path.resolve('scripts/design-conformance/generated-contracts.ts'))}
+import {GitSource} from ${JSON.stringify(path.resolve('scripts/design-conformance/worktree-source.ts'))}
+const source = new GitSource(process.env.DESIGN_TEST_REPO, 'HEAD', true)
+process.stdout.write(JSON.stringify(await generateContracts(source.central())))
+`
+
+function updateMetadata(repo, scan) {
+  const result = spawnSync(
+    process.env.DESIGN_TEST_BUN ?? 'bun',
+    ['--no-env-file', '-e', metadataScript],
+    {
+      encoding: 'utf8',
+      env: { ...process.env, DESIGN_TEST_REPO: repo },
+    }
+  )
+  assert.equal(result.status, 0, result.stderr)
+  const file = path.join(scan, 'scan.json')
+  const report = JSON.parse(readFileSync(file, 'utf8'))
+  const { version, sourceHash, exports, diagnostics } = JSON.parse(result.stdout)
+  report.inventory.metadata = { version, sourceHash, exports, diagnostics }
+  writeFileSync(file, JSON.stringify(report))
+}
 
 function write(root, name, contents) {
   const file = path.join(root, name)
@@ -88,7 +111,7 @@ function guardedRefresh() {
     scan,
     'scan.json',
     JSON.stringify({
-      version: 1,
+      version: 2,
       identity: { commit: 'test', treeHash: 'test', scanner: {} },
       inventory: {
         findings: [],
@@ -114,12 +137,7 @@ function guardedRefresh() {
     'fixture',
   ])
   const refresh = () => {
-    command(repo, process.env.DESIGN_TEST_BUN ?? 'bun', [
-      '--no-env-file',
-      path.resolve('scripts/generate-design-contracts.ts'),
-      '--repo',
-      repo,
-    ])
+    updateMetadata(repo, scan)
     const result = spawnSync('node', [script], {
       env: {
         ...process.env,
@@ -322,7 +340,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     scan,
     'scan.json',
     JSON.stringify({
-      version: 1,
+      version: 2,
       identity: { commit: 'test-head', treeHash: 'test-tree', scanner: {} },
       inventory: {
         findings: [
@@ -350,12 +368,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   )
 
   const refresh = () => {
-    command(repo, process.env.DESIGN_TEST_BUN ?? 'bun', [
-      '--no-env-file',
-      path.resolve('scripts/generate-design-contracts.ts'),
-      '--repo',
-      repo,
-    ])
+    updateMetadata(repo, scan)
     const result = spawnSync('node', [script], {
       env: {
         ...process.env,

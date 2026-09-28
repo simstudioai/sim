@@ -1016,7 +1016,7 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
           </h1>
           <p className='mt-3 max-w-3xl text-[var(--text-body)] text-sm leading-relaxed'>
             {mode === 'extras'
-              ? 'Browse live previews of styling detected outside EMCN. Open the source and evidence panels when you want to trace a treatment back to code.'
+              ? 'Browse live previews of detected styling and design treatments, including findings in EMCN source. Open the source and evidence panels to trace a treatment back to code.'
               : 'Browse EMCN components and icons. Component options come from the latest source scan; each section links to its definition and product uses.'}
           </p>
           {stale ? (
