@@ -29,7 +29,7 @@ import { batchInsertRows, batchUpdateRows, insertRow, updateRow } from '@/lib/ta
 import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
-import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
 
 const url = readTestDatabaseUrl()
 if (process.env.DATABASE_URL !== url) {
@@ -67,7 +67,7 @@ async function createTable(columns: ColumnDefinition[]): Promise<TableDefinition
 
 async function seedRows(
   tableId: string,
-  rows: Array<{ id: string; data: Record<string, string>; orderKey: string | null }>
+  rows: Array<{ id: string; data: RowData; orderKey: string | null }>
 ) {
   await db.insert(userTableRows).values(rows.map((row) => ({ ...row, tableId, workspaceId })))
 }
@@ -177,7 +177,10 @@ describe('table row writes against real PostgreSQL', () => {
       }
     }
 
-    async function storedCount(tableId: string, match: Record<string, string | number>) {
+    async function storedCount(
+      tableId: string,
+      match: Record<string, string | number | Record<string, number>>
+    ) {
       const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
         FROM user_table_rows WHERE table_id = ${tableId} AND data @> ${control.json(match)}`
       return count
@@ -326,17 +329,21 @@ describe('table row writes against real PostgreSQL', () => {
       })
       await holding
 
-      const replace = importReplaceRows(
-        table,
-        [{ id: 'code', name: 'code', type: 'string', unique: true }],
-        { rows: [{ name: 'fresh', code: 'c-1' }], workspaceId },
-        'unique-race'
-      )
-      expect(await waitForLockWaiters(table.id, { onOrderLock: 0, onValueLock: 1 })).toEqual({
-        onOrderLock: 0,
-        onValueLock: 1,
-      })
-      release()
+      let replace: Promise<unknown> | undefined
+      try {
+        replace = importReplaceRows(
+          table,
+          [{ id: 'code', name: 'code', type: 'string', unique: true }],
+          { rows: [{ name: 'fresh', code: 'c-1' }], workspaceId },
+          'unique-race'
+        )
+        expect(await waitForLockWaiters(table.id, { onOrderLock: 0, onValueLock: 1 })).toEqual({
+          onOrderLock: 0,
+          onValueLock: 1,
+        })
+      } finally {
+        release()
+      }
 
       const results = await Promise.allSettled([writer, replace])
       expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled'])
@@ -450,6 +457,31 @@ describe('table row writes against real PostgreSQL', () => {
         )
       ).rejects.toThrow(/must be unique/)
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(0)
+    })
+
+    it('rejects a batch update that writes one JSON value to two rows in different key orders', async () => {
+      const table = await createTable([{ id: 'meta', name: 'meta', type: 'json', unique: true }])
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { meta: { n: 1 } }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { meta: { n: 2 } }, orderKey: 'a1' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { meta: { x: 1, y: 2 } } },
+              { rowId: `${table.id}-b`, data: { meta: { y: 2, x: 1 } } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-update'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { meta: { x: 1, y: 2 } })).toBe(0)
     })
   })
 

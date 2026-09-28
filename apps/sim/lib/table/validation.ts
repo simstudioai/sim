@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { canonicalJson } from '@/lib/api/cursor-binding'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
@@ -407,11 +408,12 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
 }
 
 /**
- * The key two unique-column values share exactly when the unique check treats them as equal.
- * In-batch duplicate detection and the unique-value locks both key on it.
+ * The key two unique-column values share when the unique check treats them as equal. Object keys
+ * are sorted, since the check compares JSONB, where key order carries no meaning. In-batch
+ * duplicate detection and the unique-value locks both key on it.
  */
 export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
-  return JSON.stringify(columnValueForEquality(value, column))
+  return canonicalJson(columnValueForEquality(value, column))
 }
 
 /** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
