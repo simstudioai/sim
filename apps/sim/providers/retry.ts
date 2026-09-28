@@ -24,7 +24,6 @@ import { truncate } from '@sim/utils/string'
 import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
-  consumeOrCancelBody,
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -164,7 +163,8 @@ export async function fetchWithProviderRetry(
     if (response.ok || !canRetry) return response
     const final = await nonRetryableResponse(response, options.abortSignal)
     if (final) return final
-    if (!response.bodyUsed) await consumeOrCancelBody(response)
+    /** Cancelled, not drained, as the SDKs do: draining a body that stalls would hang the loop. */
+    if (!response.bodyUsed) await response.body?.cancel().catch(() => {})
     await waitBeforeRetry(
       attempt,
       providerRetryAfterMs(response.headers),

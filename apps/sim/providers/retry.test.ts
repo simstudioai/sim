@@ -88,6 +88,22 @@ describe('fetchWithProviderRetry', () => {
     expect(await response.text()).toContain('No credit')
   })
 
+  it('discards a retryable response whose body never finishes instead of waiting on it', async () => {
+    const endless = new ReadableStream<Uint8Array>({
+      start(stream) {
+        stream.enqueue(new TextEncoder().encode('<html>'))
+      },
+    })
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(endless, { status: 503 }))
+      .mockImplementation(reply(200))
+
+    const response = await settle(fetchWithProviderRetry(send, { logger, label: 'OpenAI' }))
+
+    expect(response.status).toBe(200)
+  })
+
   it('retries a rate limit whose body is too large to classify', async () => {
     const send = vi
       .fn()
