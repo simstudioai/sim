@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { productScope } from '#control-analysis/scope'
-import { typographySource } from '#control-analysis/typography'
 import { centralInventory, isRegistry, registry } from '#design-conformance/contracts'
 import { verifiedText } from '#design-conformance/io'
 import type { Entry } from '#design-conformance/model'
@@ -18,10 +17,10 @@ export interface SourceEntry extends Entry {
 /** Files whose authored bytes participate in local design analysis. */
 export const inspectedSource = (file: string) =>
   file === 'scripts/design-conformance/contracts.generated.json' ||
+  file === 'apps/sim/components/icons.tsx' ||
   centralInventory(file) ||
   isRegistry(file) ||
-  productScope(file) === 'check' ||
-  typographySource(file)
+  productScope(file) === 'check'
 
 /** Git tree/blob reads only: no checkout, textconv, filters, hooks or application imports. */
 export class GitSource {
@@ -112,7 +111,7 @@ export class GitSource {
       )
   }
 
-  private git(args: string[]): Buffer {
+  private git(args: string[], input?: string): Buffer {
     const env = Object.fromEntries(
       Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
     )
@@ -122,8 +121,9 @@ export class GitSource {
         ['--no-pager', '--no-replace-objects', '-c', 'core.fsmonitor=false', ...args],
         {
           cwd: this.repo,
-          maxBuffer: 128 * 1024 * 1024,
-          stdio: ['ignore', 'pipe', 'pipe'],
+          maxBuffer: 210 * 1024 * 1024,
+          input,
+          stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
           env: {
             ...env,
             GIT_CONFIG_NOSYSTEM: '1',
@@ -134,6 +134,37 @@ export class GitSource {
       )
     } catch {
       throw new Error(`Read-only Git operation failed: ${args[0]}`)
+    }
+  }
+
+  /** Warm immutable product blobs with bounded Git batches for whole-graph analysis. */
+  prefetchProduct(): void {
+    if (this.mode !== 'snapshot') throw new Error('Batch prefetch requires an immutable commit')
+    const readable = this.entries.filter(
+      (entry) =>
+        regular(entry) &&
+        entry.bytes <= registry.limits.sourceBytes &&
+        /\.[cm]?[jt]sx?$|\.html?$|\.css$/.test(entry.path) &&
+        productScope(entry.path) === 'check'
+    )
+    for (let start = 0; start < readable.length; start += 100) {
+      const batch = readable.slice(start, start + 100)
+      const data = this.git(
+        ['cat-file', '--batch'],
+        `${batch.map((entry) => entry.blob).join('\n')}\n`
+      )
+      let offset = 0
+      for (const entry of batch) {
+        const newline = data.indexOf(10, offset)
+        if (newline < offset) throw new Error('Invalid product source batch')
+        const [blob, kind, bytes] = data.subarray(offset, newline).toString().split(' ')
+        if (blob !== entry.blob || kind !== 'blob' || Number(bytes) !== entry.bytes)
+          throw new Error('Invalid product source batch')
+        offset = newline + 1
+        this.textCache.set(blob, verifiedText(data.subarray(offset, offset + entry.bytes), blob))
+        offset += entry.bytes + 1
+      }
+      if (offset !== data.length) throw new Error('Unexpected product source batch data')
     }
   }
 

@@ -9,16 +9,6 @@ import type { ControlInventory } from '#control-analysis/inventory'
 import { classifyLayout, type LayoutAllowance } from '#control-analysis/layout-allowances'
 import type { ReviewReport } from '#control-analysis/review'
 import { mergeSourceFindings } from '#control-analysis/review'
-import {
-  mergeShadowFindings,
-  type ShadowExtrasReport,
-  withoutApprovedShadows,
-} from '#control-analysis/shadow-extras'
-import {
-  classifyTypography,
-  inspectTypography,
-  type TypographyReview,
-} from '#control-analysis/typography'
 import { inspectionFailure } from '#design-conformance/model'
 import { GitSource } from '#design-conformance/worktree-source'
 import { scannerIdentity } from './identity'
@@ -71,69 +61,33 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const output = validateOutput(values.output, values.repo)
     const identity = scannerIdentity()
     const source = new GitSource(values.repo, values.ref ?? 'HEAD', !!values['working-tree'])
-    const ownershipReview = inspectTypography(source)
-    const excludedPaths = new Set(
-      ownershipReview.ownership
-        .filter((owner) => owner.status === 'verified')
-        .map((owner) => owner.file)
-    )
-    const scopedSource = {
-      // The control graph needs excluded module paths to resolve product imports,
-      // but its inventory skips those sources before reading or inspecting them.
-      entries: source.entries.filter((entry) => !excludedPaths.has(entry.path)),
-      read: (entry: Parameters<typeof source.read>[0]) => source.read(entry),
-      readOwnership: (entry: Parameters<typeof source.readOwnership>[0]) =>
-        source.readOwnership(entry),
-    }
     let controls: ControlInventory | undefined
     let colourAssignments: ColourAssignmentReport | undefined
-    let shadowExtras: ShadowExtrasReport | undefined
-    let typographyReview: TypographyReview | undefined
     let layoutAllowances: LayoutAllowance[] = []
     let review: ReviewReport | undefined
     const inventory = await inspectInventory(source, {
       order: values.order,
-      excludedPaths,
       withSourceIndex: (index, findings, system) => {
         const result = inspectControlAnalysis(
-          scopedSource,
-          findings,
+          source,
           values.order as 'forward' | 'reverse',
           index,
-          system.resolve,
-          ownershipReview
+          system.resolve
         )
         controls = result.controls
         colourAssignments = result.colourAssignments
-        shadowExtras = result.shadowExtras
-        typographyReview = result.typographyReview
         review = result.review
-        const remaining = withoutVerifiedColourUsages(
-          withoutApprovedShadows(findings, shadowExtras),
-          colourAssignments
-        )
+        const remaining = withoutVerifiedColourUsages(findings, colourAssignments)
         const layout = classifyLayout(
-          classifyTypography(
-            mergeShadowFindings(
-              mergeSourceFindings([...remaining, ...colourAssignments.findings], review.findings),
-              shadowExtras.findings
-            ),
-            typographyReview
-          )
+          mergeSourceFindings([...remaining, ...colourAssignments.findings], review.findings)
         )
         const finalFindings = layout.findings
         layoutAllowances = layout.allowances
-        const findingIds = new Set(finalFindings.map((finding) => finding.id))
-        for (const record of controls.records) {
-          record.findingIds = record.findingIds.filter((id) => findingIds.has(id))
-          record.potentialFindingIds = record.potentialFindingIds.filter((id) => findingIds.has(id))
-        }
         return {
           replaceFindings: finalFindings,
           findings: [],
           unchecked: [
             ...colourAssignments.unchecked,
-            ...shadowExtras.unchecked,
             ...review.unchecked,
             ...controls.unchecked.filter((n) => inspectionFailure(n.reason)),
           ],
@@ -159,8 +113,6 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       controls,
       {
         colourAssignments: colourAssignments!,
-        shadowExtras: shadowExtras!,
-        typographyReview: typographyReview!,
         layoutAllowances,
         review: review!,
       }

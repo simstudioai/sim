@@ -16,7 +16,7 @@ The published catalog groups exports and scanner signals into visual treatments.
 - `defaultStates` opens otherwise hidden exports, such as tooltip content or a wizard step, for their default specimen.
 - `requiredElements` identifies a visible element belonging to a hidden or nested export. Use a unique fixture marker when a generic role could match its parent.
 
-Update fixture imports and switch cases when exports are renamed or removed. Product Extras require a maintained source mapping for a real component preview; automatically generated style samples are indicative.
+Update fixture imports and switch cases when exports are renamed or removed. Product Extras require a maintained source mapping for a real component preview; automatically generated style samples are indicative. A generic sample shows one detected class or value at a time, so mutually exclusive source branches are never combined into one specimen.
 
 ## Live previews
 

@@ -106,7 +106,7 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 
 ## Styling and EMCN
 
-- Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable. Never update global styles; keep styling local to the component. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
+- Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable. Keep component-specific styling local. Change tokens in `globals.css` deliberately when the shared design decision changes, then run `bun run design:generate`. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
 - Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons from `@sim/emcn/icons`; CSS modules by file path. Never deep-import other component subpaths.
 - The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch`, `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Components own their chrome: consumers pass props (`error`, `icon`, `endAdornment`, `inputClassName`) and `className` carries only layout/sizing. Every labeled field inside a `ChipModalBody` is a `ChipModalField`.
 - Consumer rules, tokens, text scale, and modal rhythm: `.claude/rules/sim-styling.md`. Authoring components in `packages/emcn`: `.claude/rules/emcn-components.md`. Product UI copy: `.claude/rules/sim-ui-copy.md`. Marketing copy and positioning: `.claude/rules/constitution.md`.

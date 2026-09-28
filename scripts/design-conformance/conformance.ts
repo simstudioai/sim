@@ -27,6 +27,7 @@ import {
   hash,
   implementationHash,
   inspectionFailure,
+  introducedFindings,
   ownsStyling,
   type Report,
   TOKEN_FILE,
@@ -974,18 +975,7 @@ export class ConformanceLinter {
          * or renaming noncompliant styling surfaces it for review under this policy.
          */
         const sameFile = change.before?.path === change.after?.path
-        const context = (f: Finding) => f.context
-        const key = (f: Finding) =>
-          canonical([f.rule, f.property, f.provenance?.input ?? f.value, context(f)])
-        const buckets = new Map<string, Finding[]>()
-        if (sameFile)
-          for (const f of b.findings) {
-            const bucket = buckets.get(key(f)) ?? []
-            bucket.push(f)
-            buckets.set(key(f), bucket)
-          }
-        const pending = a.findings.filter((f) => !buckets.get(key(f))?.shift())
-        report.findings.push(...pending)
+        report.findings.push(...introducedFindings(sameFile ? b.findings : [], a.findings))
       }
       for (const [side, index] of [
         ['before', beforeIndex],

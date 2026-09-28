@@ -12,8 +12,6 @@ import type { ColourAssignmentReport } from '#control-analysis/colour-assignment
 import type { ControlInventory } from '#control-analysis/inventory'
 import type { LayoutAllowance } from '#control-analysis/layout-allowances'
 import type { ReviewReport } from '#control-analysis/review'
-import type { ShadowExtrasReport } from '#control-analysis/shadow-extras'
-import type { TypographyReview } from '#control-analysis/typography'
 import type { Inventory } from './inventory'
 
 /** Resolve existing ancestors so a symlink cannot redirect output into the source checkout. */
@@ -41,8 +39,6 @@ export function writeResults(
   controls: ControlInventory,
   details: {
     colourAssignments: ColourAssignmentReport
-    shadowExtras: ShadowExtrasReport
-    typographyReview: TypographyReview
     layoutAllowances: LayoutAllowance[]
     review: ReviewReport
   }

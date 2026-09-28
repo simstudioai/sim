@@ -51,7 +51,6 @@ export interface StudioEntry {
   usages: StudioLocation[]
   rationale?: string
   value?: string
-  signals?: { id: string; kind: string; source: StudioLocation; value?: string }[]
   variants?: StudioVariant[]
   fixture: StudioFixture | null
   previewKind?: 'source-component' | 'source-style-sample' | 'indicative-sample'

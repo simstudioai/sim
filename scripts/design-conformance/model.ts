@@ -74,16 +74,7 @@ export interface Declaration {
   category: string
 }
 export interface Catalogue {
-  version: string
-  sourceCommit: string
-  provisional: true
-  sources: { file: string; blob: string }[]
-  theme: string
   variables: Record<string, string[]>
-  colourTokens: string[]
-  allowed: Record<string, string[]>
-  provenance: Record<string, string[]>
-  notes: string[]
 }
 export interface Entry {
   path: string
@@ -131,6 +122,25 @@ export function findingFingerprint(finding: Finding): string {
     ])
   )
 }
+/** Multiset comparison of authored treatments; source line movement is immaterial. */
+export function introducedFindings<T extends Finding>(before: T[], after: T[]): T[] {
+  const key = (finding: Finding) =>
+    canonical([
+      finding.file,
+      finding.context,
+      finding.rule,
+      finding.property,
+      finding.provenance?.input ?? finding.value,
+    ])
+  const counts = new Map<string, number>()
+  for (const finding of before) counts.set(key(finding), (counts.get(key(finding)) ?? 0) + 1)
+  return after.filter((finding) => {
+    const count = counts.get(key(finding)) ?? 0
+    if (!count) return true
+    counts.set(key(finding), count - 1)
+    return false
+  })
+}
 export interface Report {
   infrastructure?: ReturnType<
     typeof import('#design-conformance/generated-contracts').infrastructureStatus
@@ -138,8 +148,6 @@ export interface Report {
   /** Changed product files whose styling could not be compared. */
   coverageFailures?: (Note & { file: string; side: 'before' | 'after' })[]
   layoutAllowances?: import('#control-analysis/layout-allowances').LayoutAllowance[]
-  shadowExtras?: import('#control-analysis/shadow-extras').ShadowExtra[]
-  typographyReview?: import('#control-analysis/typography').TypographyReview
   colourAssignments?: {
     version: '1.0.0'
     before: { checked: number; verified: number; invalid: number; unresolved: number }

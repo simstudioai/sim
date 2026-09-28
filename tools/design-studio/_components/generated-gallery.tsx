@@ -456,11 +456,6 @@ function TreatmentDetail({
   )
   const stateUnavailable = !stateAvailable
   const sourceFileCount = isExtra ? new Set(entries.map((item) => item.source.file)).size : 0
-  const ownedSignals = [
-    ...new Map(
-      exports.flatMap((item) => item.signals ?? []).map((signal) => [signal.id, signal])
-    ).values(),
-  ]
   const fixtureQuery = entry.fixture
     ? new URLSearchParams({
         kind: entry.fixture.type,
@@ -621,25 +616,6 @@ function TreatmentDetail({
           </div>
         </section>
       )}
-
-      {!isExtra && ownedSignals.length ? (
-        <section id={`${anchor}-signals`} className='mt-12 scroll-mt-8'>
-          <h3 className='font-season text-xl'>Signals in EMCN source</h3>
-          <p className='mt-2 text-[var(--text-muted)] text-sm'>
-            Scanner signals associated with the source of this export.
-          </p>
-          <div className='mt-4 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]'>
-            {ownedSignals.map((signal) => (
-              <p
-                key={signal.id}
-                className='border-[var(--border)] border-b px-5 py-4 text-[var(--text-body)] text-xs last:border-0'
-              >
-                {signal.kind}: {signal.value} · {signal.source.file}:{signal.source.line}
-              </p>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </article>
   )
 }
@@ -718,9 +694,7 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
     mode === 'extras' && activeTreatment ? formatFamily(activeTreatment.family) : null
   const [openExtraGroup, setOpenExtraGroup] = useState<string | null>(activeExtraGroup)
   const previousActiveExtraGroup = useRef(activeExtraGroup)
-  const hasSignals = Boolean(
-    activeTreatment?.entries.some((entry) => entry.kind === 'extra' || entry.signals?.length)
-  )
+  const hasSignals = mode === 'extras' && Boolean(activeTreatment?.entries.length)
 
   useEffect(() => {
     visibleKeys.current = new Set(filtered.map((treatment) => treatment.key))
@@ -1274,7 +1248,7 @@ export function GeneratedGallery({ manifest, stale, mode }: GeneratedGalleryProp
                   href={`#${activeAnchor}-signals`}
                   className='block border-[var(--border)] border-l-2 pl-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 >
-                  {mode === 'extras' ? 'Why it was detected' : 'Scanner signals'}
+                  Why it was detected
                 </a>
               ) : null}
             </>

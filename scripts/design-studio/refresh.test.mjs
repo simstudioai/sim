@@ -531,11 +531,9 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   assert.equal(extras(central).length, 4)
   assert.equal(extras(central)[2].id, 'finding:central-one')
   assert.equal(extras(central)[3].id, 'finding:unmatched-central')
-  assert.deepEqual(
-    components(central)
-      .find((entry) => entry.id === 'component:Example')
-      ?.signals?.map((signal) => signal.id),
-    ['finding:central-one']
+  assert.equal(
+    components(central).find((entry) => entry.id === 'component:Example')?.signals,
+    undefined
   )
 
   write(
@@ -567,11 +565,36 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
     entry.source.file.endsWith('/new-action.tsx')
   )
   assert.equal(newEntries.length, 2)
-  assert.deepEqual(newEntries[0].fixture, newEntries[1].fixture)
+  assert.notDeepEqual(newEntries[0].fixture, newEntries[1].fixture)
   assert.equal(newEntries[0].fixture.type, 'sample')
   assert.equal(newEntries[0].fixture.sample.tag, 'button')
-  assert.match(newEntries[0].fixture.sample.className, /rounded-\[13px\]/)
-  assert.equal(newEntries[0].previewKind, 'source-style-sample')
+  assert.equal(newEntries[0].fixture.sample.className, '')
+  assert.equal(newEntries[1].fixture.sample.className, 'bg-[#123456]')
+  assert.equal(newEntries[0].previewKind, 'indicative-sample')
+
+  write(
+    repo,
+    'apps/sim/app/product/conditional.tsx',
+    "export const Conditional = ({active}) => <button className={active ? 'rounded-[13px]' : 'rounded-[8px]'} />\n"
+  )
+  setFindings(scan, [
+    ...findings(scan),
+    ...['rounded-[13px]', 'rounded-[8px]'].map((value, index) => ({
+      id: `conditional-${index}`,
+      file: 'apps/sim/app/product/conditional.tsx',
+      line: 1,
+      owner: 'Conditional',
+      kind: 'central-radius',
+      value,
+    })),
+  ])
+  const conditional = extras(refresh()).filter((entry) =>
+    entry.source.file.endsWith('/conditional.tsx')
+  )
+  assert.deepEqual(
+    conditional.map((entry) => entry.fixture.sample.className),
+    ['rounded-[13px]', 'rounded-[8px]']
+  )
 
   setFindings(scan, [
     ...findings(scan),
@@ -645,7 +668,7 @@ test('refresh catalogs every detected treatment and new EMCN export', () => {
   const semantic = new Map(extras(refresh()).map((entry) => [entry.id, entry]))
   assert.equal(semantic.get('finding:code-moved').fixture.id, 'rich-code')
   assert.equal(semantic.get('finding:selection-moved').fixture.id, 'rich-selection')
-  assert.equal(semantic.get('finding:other-css').fixture.type, 'sample')
+  assert.equal(semantic.get('finding:other-css').fixture.id, 'rich-type')
   assert.equal(semantic.get('finding:tile-moved').fixture.id, 'integration-tile')
   assert.equal(semantic.get('finding:showcase-moved').fixture.id, 'showcase')
   assert.equal(semantic.get('finding:other-showcase').fixture.type, 'sample')

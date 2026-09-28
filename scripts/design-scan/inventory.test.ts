@@ -560,35 +560,6 @@ test.each([
   60_000
 )
 
-test('control associations use actual frozen findings, canonical identity and the innermost slot', async () => {
-  const { inspectControls } = await import('#control-analysis/inventory')
-  const f = fixture({
-    [component]: `import {Button as Save} from '@sim/emcn'; import * as E from '@sim/emcn';
-export const A=()=> <><Save className='h-[37px]'/><E.Button className='h-[43px]' endAdornment={<span className='text-[13px]'/>}/></>`,
-  })
-  let controls: ReturnType<typeof inspectControls> | undefined
-  const inv = await inspectInventory(f.source(), {
-    withSourceIndex: (index, findings) => {
-      controls = inspectControls(f.source(), findings, 'forward', index)
-    },
-  })
-  if (!controls) throw new Error('Control callback missing')
-  const rs = controls.records.filter((r) => r.file === component)
-  expect(rs).toHaveLength(2)
-  for (const r of rs) {
-    expect(r.findingIds.length).toBeGreaterThan(0)
-    expect(r.potentialFindingIds).toEqual([])
-    expect(r.findingIds.map((id) => inv.findings.find((f) => f.id === id)?.value)).toEqual([
-      r.tag === 'Save' ? 'h-[37px]' : 'h-[43px]',
-    ])
-  }
-  const child = inv.findings.find((f) => f.value === 'text-[13px]')
-  if (!child) throw new Error('Expected child finding')
-  expect(
-    rs.every((r) => !r.findingIds.includes(child.id) && !r.potentialFindingIds.includes(child.id))
-  ).toBe(true)
-})
-
 test('full CLI connects colour assignment proof to usage and retains unsafe writers', () => {
   const css = 'apps/sim/components/shimmer.module.css'
   const f = fixture({
@@ -629,24 +600,6 @@ test('full CLI connects colour assignment proof to usage and retains unsafe writ
   )
 })
 
-test('shadowed renderers and lost location evidence never receive direct central associations', async () => {
-  const { inspectControls } = await import('#control-analysis/inventory')
-  const f = fixture({
-    [component]: `import {Button} from '@sim/emcn'; export function A({Button}){return <Button onClick={()=>{}} className='h-[37px]'/>} export const B=()=> <Button className='h-[43px]'/>`,
-  })
-  const inv = await inspectInventory(f.source())
-  const rs = inspectControls(f.source(), inv.findings).records.filter((r) => r.file === component)
-  expect(rs[0].origin).toBe('unresolved')
-  expect(rs[0].findingIds).toEqual([])
-  const moved = inv.findings
-    .filter((f) => f.context.startsWith('B /'))
-    .map((f) => ({ ...f, column: 1 }))
-  const potential = inspectControls(f.source(), moved).records.find((r) => r.owner === 'B')
-  if (!potential) throw new Error('Expected control B')
-  expect(potential.findingIds).toEqual([])
-  expect(potential.potentialFindingIds.length).toBeGreaterThan(0)
-})
-
 test('central recipe appearance never grants renderer ownership or approves later overrides', async () => {
   const { inspectControls } = await import('#control-analysis/inventory')
   const f = fixture({
@@ -655,15 +608,14 @@ test('central recipe appearance never grants renderer ownership or approves late
   })
   let records: ReturnType<typeof inspectControls>['records'] = []
   const inv = await inspectInventory(f.source(), {
-    withSourceIndex: (index, findings, system) => {
-      records = inspectControls(f.source(), findings, 'forward', index, system.resolve).records
+    withSourceIndex: (index, _findings, system) => {
+      records = inspectControls(f.source(), 'forward', index, system.resolve).records
     },
   })
   const r = records.find((r) => r.file === component)
   expect(r?.origin).toBe('local-control')
   expect(r?.appearance.centralRecipes.length).toBeGreaterThan(0)
   expect(inv.findings.length).toBeGreaterThan(0)
-  expect(r?.findingIds.length).toBeGreaterThan(0)
 })
 
 test('public scanner reports layout separately while retaining chrome and unknown spreads', () => {

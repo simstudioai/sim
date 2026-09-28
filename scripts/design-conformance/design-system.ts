@@ -606,21 +606,7 @@ export async function designSystem(input: SystemInput): Promise<DesignSystem> {
     hash: input.snapshot.hash,
     entries: input.snapshot.entries,
     catalogue: {
-      version: '1.0.0',
-      sourceCommit: input.snapshot.commit,
-      provisional: true,
-      sources: input.snapshot.entries.map((e) => ({ file: e.path, blob: e.blob })),
-      theme,
       variables,
-      colourTokens: [...variableFamilies]
-        .filter(([, v]) => v.has('colours'))
-        .map(([k]) => k)
-        .sort(),
-      allowed: {},
-      provenance: origins,
-      notes: [
-        'Conformance authority is explicit central definitions, not observed consumer values.',
-      ],
     },
     compiler: system,
     variableFamilies,

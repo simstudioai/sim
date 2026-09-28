@@ -408,7 +408,6 @@ test('landing remains excluded, source is never executed and discovery order is 
   const forward = inspectControlAnalysis(files).colourAssignments
   const reverse = inspectControlAnalysis(
     { ...files, entries: [...files.entries].reverse() },
-    [],
     'reverse'
   ).colourAssignments
   expect(reverse).toEqual(forward)

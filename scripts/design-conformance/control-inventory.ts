@@ -3,9 +3,8 @@ import { parse } from '@babel/parser'
 import traverseModule, { type NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { type DefaultTreeAdapterMap, parseFragment } from 'parse5'
-import { associateFindings } from '#control-analysis/associations'
 import { inspectImperative } from '#control-analysis/imperative'
-import type { Diagnostic, InventoryFinding } from '#control-analysis/model'
+import type { Diagnostic } from '#control-analysis/model'
 import { type ControlHooks, type ControlSource, compare, regular } from '#control-analysis/model'
 import { nonUiScript } from '#control-analysis/non-ui'
 import { productScope } from '#control-analysis/scope'
@@ -142,8 +141,6 @@ export interface ControlRecord extends RawUse {
   terminals: string[]
   authoredAt: string[]
   multiplicity: 'repeated-source' | 'single-source'
-  findingIds: string[]
-  potentialFindingIds: string[]
   review: string
   area: string
   projection: boolean
@@ -233,7 +230,6 @@ const areaOf = (file: string) =>
 /** Source-backed control discovery and root-renderer tracing; origin is not design approval. */
 export function inspectControls(
   source: ControlSource,
-  findings: InventoryFinding[],
   order: 'forward' | 'reverse' = 'forward',
   sourceIndex?: SourceIndex,
   centralReference?: (
@@ -1323,24 +1319,7 @@ export function inspectControls(
     return out
   }
   const recipeBaseTargets = new Set([...recipeBases].flatMap((r) => resolveExport(r)))
-  const rawById = new Map(raw.map((r) => [r.id, r]))
   const sourceRef = (r: string) => r.replace(/@\d+(?=\.|$)/g, '').replace(/\.[cm]?[jt]sx?(?=#)/, '')
-  const associations = associateFindings(raw, findings, (id, slot) => {
-    const use = rawById.get(id)
-    if (!use) return []
-    if (use.target.startsWith('native:')) return [use.target.slice(7)]
-    const resolved = resolveExport(use.target)
-    if (resolved.some((r) => r.startsWith('unknown:'))) return []
-    const refs = resolved.map(sourceRef)
-    const targets = refs.map((r) => sourceIndex?.canonicalTarget(r) ?? r)
-    if (sourceIndex)
-      for (const r of refs) targets.push(...sourceIndex.forwarded(r, slot).map((p) => p.target))
-    for (const r of resolved) {
-      const info = symbols.get(r)
-      if (info?.file.startsWith('packages/emcn/')) targets.push(`@sim/emcn#${info.name}`)
-    }
-    return [...new Set([...targets, use.tag])]
-  })
   const records: ControlRecord[] = []
   for (const use of raw.sort(
     (a, b) =>
@@ -1474,7 +1453,6 @@ export function inspectControls(
                   ? 'interaction-candidate'
                   : 'local-control'
     const local = origin === 'local-control' || origin === 'mixed-origin'
-    const related = associations.get(use.id) ?? { direct: [], potential: [] }
     const evidence = [...proof.central, ...proof.implementations, ...proof.unknown].sort(compare)
     if (use.constructionEvidence)
       evidence.push(
@@ -1514,8 +1492,6 @@ export function inspectControls(
       terminals: [...proof.controls].sort(compare),
       authoredAt: [...proof.implementations].sort(compare),
       multiplicity: use.repeated ? 'repeated-source' : 'single-source',
-      findingIds: related.direct,
-      potentialFindingIds: related.potential,
       review: local
         ? 'Review local implementation; not automatically a violation or Extra'
         : origin === 'unresolved'

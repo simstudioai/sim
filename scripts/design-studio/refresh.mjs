@@ -340,7 +340,7 @@ const sourceContextCache = new Map()
 function sourceContext(file, line) {
   const key = `${file}:${line}`
   if (sourceContextCache.has(key)) return sourceContextCache.get(key)
-  const result = { tag: '', className: '' }
+  const result = { tag: '' }
   if (!/\.[jt]sx$/.test(file)) return result
   try {
     let best
@@ -357,18 +357,6 @@ function sourceContext(file, line) {
     })
     if (best) {
       result.tag = jsxName(best.node.name)
-      const attribute = best.node.attributes.find(
-        (item) => item.type === 'JSXAttribute' && ['className', 'class'].includes(item.name?.name)
-      )
-      const pieces = []
-      if (attribute?.value)
-        walk(attribute.value, (node) => {
-          if (node.type === 'StringLiteral' && node.value) pieces.push(node.value)
-          if (node.type === 'TemplateElement' && node.value.raw) pieces.push(node.value.raw)
-        })
-      result.className = [...new Set(pieces.join(' ').split(/\s+/).filter(Boolean))]
-        .join(' ')
-        .slice(0, 1200)
     }
   } catch {
     // The scanner still publishes the finding; the generic value renderer handles this source.
@@ -397,69 +385,51 @@ const classFamilies = new Set([
   'stock-shadow',
 ])
 
-/** One reproducible specimen per authored element, shared by its individual scanner signals. */
-function sampleFixture(items) {
-  const first = items[0]
-  const context = sourceContext(first.file, first.line)
-  const classes = items.flatMap((item) => {
-    if (!classFamilies.has(item.rule ?? item.kind)) return []
-    const value = String(item.value ?? '').replace(/^[a-z]+:\s+(?=[a-z-]+(?:-|\[))/, '')
-    return value.length < 500 && !/[<>\n{}]/.test(value) ? value.split(/\s+/) : []
-  })
-  const className = [
-    ...new Set([context.className, ...classes].join(' ').split(/\s+/).filter(Boolean)),
-  ]
-    .join(' ')
-    .slice(0, 1200)
-  const values = items.flatMap((item) => colorValues(item.value)).slice(0, 12)
-  const families = items.map((item) => item.rule ?? item.kind)
+/** A generic specimen shows only this finding's authored input, never a union of branches. */
+function sampleFixture(item) {
+  const context = sourceContext(item.file, item.line)
+  const value = String(item.value ?? '').replace(/^[a-z]+:\s+(?=[a-z-]+(?:-|\[))/, '')
+  const className =
+    classFamilies.has(item.rule ?? item.kind) && value.length < 500 && !/[<>\n{}]/.test(value)
+      ? (value.split(/\s+/)[0] ?? '')
+      : ''
+  const values = colorValues(item.value)
+  const family = item.rule ?? item.kind ?? ''
   const kind =
-    values.length &&
-    (families.includes('central-colour') || families.includes('central-colour-assignment'))
+    values.length && (family === 'central-colour' || family === 'central-colour-assignment')
       ? 'swatch'
-      : families.some((item) => item.includes('typography'))
+      : family.includes('typography')
         ? 'text'
-        : families.some((item) => item.includes('runtime-style'))
+        : family.includes('runtime-style')
           ? 'runtime'
           : ['button', 'input', 'textarea', 'select'].includes(context.tag.toLowerCase()) ||
-              families.includes('local-control') ||
-              families.includes('component-chrome')
+              family === 'local-control' ||
+              family === 'component-chrome'
             ? 'control'
             : 'surface'
   return {
     type: 'sample',
-    id: sha(
-      JSON.stringify([first.file, first.line, first.context ?? first.owner ?? '', kind])
-    ).slice(0, 16),
+    id: sha(JSON.stringify([item.file, item.line, item.context ?? item.owner ?? '', kind])).slice(
+      0,
+      16
+    ),
     sample: {
       kind,
       tag:
-        context.tag ||
-        (first.context?.match(/#([A-Z][A-Za-z]+)/)?.[1] ?? String(first.value ?? '')),
+        context.tag || (item.context?.match(/#([A-Z][A-Za-z]+)/)?.[1] ?? String(item.value ?? '')),
       className,
       values,
-      property: first.property ?? '',
-      value: String(first.value ?? '').slice(0, 300),
+      property: item.property ?? '',
+      value: String(item.value ?? '').slice(0, 300),
     },
   }
 }
 
 function extraInventory(findings) {
   const entries = []
-  const centralSignals = []
-  const sourceGroups = new Map()
-  for (const item of findings) {
-    const key = JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
-    const group = sourceGroups.get(key) ?? []
-    group.push(item)
-    sourceGroups.set(key, group)
-  }
   function sourceFixture(item) {
     const { file, owner, context } = item
-    if (item.rule === 'local-shadow')
-      return item.value === 'browser-loading-glow' ? 'browser-loading' : 'rich-selection'
-    if (item.rule === 'specialised-typography')
-      return file.endsWith('/thinking-loader.module.css') ? 'thinking' : 'rich-type'
+    if (file.endsWith('/browser-loading-bar.module.css')) return 'browser-loading'
     if (file.endsWith('/knowledge-iso.tsx')) return 'knowledge'
     if (file.endsWith('/thinking-loader.tsx') || file.endsWith('/thinking-loader.module.css'))
       return 'thinking'
@@ -469,7 +439,7 @@ function extraInventory(findings) {
     if (file.endsWith('/rich-markdown-editor/rich-markdown-editor.css')) {
       if (context?.includes('.rich-markdown-prose code')) return 'rich-code'
       if (context?.includes('hr.rich-leaf-in-selection')) return 'rich-selection'
-      return null
+      return 'rich-type'
     }
     if (file.endsWith('/integrations-showcase.tsx')) {
       const component = owner ?? context?.split(/\s*\/\s*/)[0]
@@ -491,10 +461,7 @@ function extraInventory(findings) {
   for (const item of findings) {
     const kind = 'finding'
     const fixtureId = sourceFixture(item)
-    const sourceGroup = sourceGroups.get(
-      JSON.stringify([item.file, item.line, item.context ?? item.owner ?? ''])
-    ) ?? [item]
-    const fixture = fixtureId ? { type: 'extra', id: fixtureId } : sampleFixture(sourceGroup)
+    const fixture = fixtureId ? { type: 'extra', id: fixtureId } : sampleFixture(item)
     const entry = {
       id: `${kind}:${item.id}`,
       kind: 'extra',
@@ -512,10 +479,9 @@ function extraInventory(findings) {
           : 'indicative-sample',
       status: 'ready',
     }
-    if (item.file.startsWith('packages/emcn/')) centralSignals.push(entry)
     entries.push(entry)
   }
-  return { entries, centralSignals }
+  return { entries }
 }
 
 function run(command, args, options = {}) {
@@ -607,17 +573,6 @@ async function main() {
   const components = componentInventory()
   attachTracedUses(components.entries, controls)
   const extras = extraInventory(inventory.findings)
-  for (const signal of extras.centralSignals) {
-    const owners = components.entries.filter((entry) => entry.source.file === signal.source.file)
-    if (owners.length)
-      for (const owner of owners)
-        (owner.signals ??= []).push({
-          id: signal.id,
-          kind: signal.family,
-          source: signal.source,
-          value: signal.value,
-        })
-  }
   const scannerFailures = inventory.coverageFailures
   const fixtureSources = [
     'tools/design-studio/_components/component-fixtures.tsx',

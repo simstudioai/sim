@@ -44,6 +44,9 @@ export interface GeneratedContracts {
   version: '2.1.0'
   sourceHash: string
   exports: Record<string, VisualExport>
+  diagnostics: { file: string; line: number; reason: string }[]
+}
+interface AnalysisContracts extends GeneratedContracts {
   recipes: Record<
     string,
     {
@@ -53,9 +56,8 @@ export interface GeneratedContracts {
     }
   >
   tokens: Record<string, { definitions: { context: string; value: string }[]; aliases: string[] }>
-  diagnostics: { file: string; line: number; reason: string }[]
 }
-const caches = new LRUCache<string, Promise<GeneratedContracts>>({ max: 4 })
+const caches = new LRUCache<string, Promise<AnalysisContracts>>({ max: 4 })
 const key = (n: t.Node) =>
   t.isIdentifier(n) || t.isJSXIdentifier(n)
     ? n.name
@@ -98,12 +100,12 @@ export function generatedBytes(result: GeneratedContracts): string {
     Object.entries(value)
       .map(([name, facts]) => `    ${JSON.stringify(name)}: ${JSON.stringify(facts)}`)
       .join(',\n')
-  return `{\n  "version": "${result.version}",\n  "sourceHash": "${result.sourceHash}",\n  "exports": {\n${objectLines(result.exports)}\n  },\n  "recipes": {\n${objectLines(result.recipes)}\n  },\n  "tokens": {\n${objectLines(result.tokens)}\n  },\n  "diagnostics": ${JSON.stringify(result.diagnostics)}\n}\n`
+  return `{\n  "version": "${result.version}",\n  "sourceHash": "${result.sourceHash}",\n  "exports": {\n${objectLines(result.exports)}\n  },\n  "diagnostics": ${JSON.stringify(result.diagnostics)}\n}\n`
 }
 export async function generateContracts(
   input: SystemInput,
   compiled?: Compiler
-): Promise<GeneratedContracts> {
+): Promise<AnalysisContracts> {
   const sources = new Map(
     input.snapshot.entries
       .filter((e) => metadataSource(e.path) || e.path.endsWith('.css'))
@@ -129,8 +131,8 @@ async function generate(
   sources: Map<string, string>,
   sourceHash: string,
   compiled?: Compiler
-): Promise<GeneratedContracts> {
-  const out: GeneratedContracts = {
+): Promise<AnalysisContracts> {
+  const out: AnalysisContracts = {
     version: '2.1.0',
     sourceHash,
     exports: {},
@@ -672,7 +674,7 @@ async function generate(
           : undefined
       if (imported !== 'class-variance-authority#cva') continue
       stylingNotes = []
-      const recipe: GeneratedContracts['recipes'][string] = {
+      const recipe: AnalysisContracts['recipes'][string] = {
         classes: sorted(
           value.arguments[0] && t.isExpression(value.arguments[0])
             ? strings(file, value.arguments[0])

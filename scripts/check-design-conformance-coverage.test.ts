@@ -2,8 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { inspectControlAnalysis } from '#control-analysis/analysis'
-import { associateFindings } from '#control-analysis/associations'
-import type { ControlSource, InventoryFinding } from '#control-analysis/model'
+import type { ControlSource } from '#control-analysis/model'
 import { ReviewCollector } from '#control-analysis/review'
 import { productScope } from '#control-analysis/scope'
 import { extract } from '#design-conformance/extract'
@@ -12,6 +11,9 @@ import { inspectionFailure } from '#design-conformance/model'
 
 const globals = 'apps/sim/app/_styles/globals.css'
 const ui = 'apps/sim/components/example.tsx'
+const metadata = JSON.parse(
+  readFileSync('scripts/design-conformance/contracts.generated.json', 'utf8')
+) as GeneratedContracts
 function source(files: Record<string, string>): ControlSource {
   return {
     entries: Object.entries(files).map(([path, text]) => ({
@@ -24,18 +26,13 @@ function source(files: Record<string, string>): ControlSource {
     read: (entry) => files[entry.path],
   }
 }
-const metadata = JSON.parse(
-  readFileSync('scripts/design-conformance/contracts.generated.json', 'utf8')
-) as GeneratedContracts
 const inspect = (files: Record<string, string>) =>
   inspectControlAnalysis(
     source({
       [globals]: ':root { --caution: #f59e0b; --color-yellow-500: #eab308; --text-body: #444; }',
       ...files,
     }),
-    [],
     'forward',
-    undefined,
     undefined,
     undefined,
     metadata
@@ -403,38 +400,6 @@ test.each([
   )
 })
 
-test('conditional input branches remain directly associated with their control', () => {
-  const finding: InventoryFinding = {
-    id: 'branch',
-    rule: 'component-chrome',
-    category: 'colours',
-    property: 'color',
-    file: ui,
-    line: 1,
-    column: 10,
-    context: 'View / @sim/emcn#Button / className/then',
-    value: 'text-white',
-    reason: 'owned chrome',
-    observedFrom: [ui],
-  }
-  const uses = [
-    {
-      id: 'control',
-      file: ui,
-      line: 1,
-      column: 1,
-      endLine: 1,
-      endColumn: 40,
-      owner: 'View',
-      tag: 'Button',
-      slots: [{ name: 'className', line: 1, column: 5, endLine: 1, endColumn: 30 }],
-    },
-  ]
-  expect(associateFindings(uses, [finding], () => ['@sim/emcn#Button']).get('control')).toEqual({
-    direct: ['branch'],
-    potential: [],
-  })
-})
 test.each([
   'CSS assignment source is nonregular or exceeds the parsing limit',
   'Artwork parser failure; only blob change is known',

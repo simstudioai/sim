@@ -280,38 +280,6 @@ test('registered EMCN chrome is reported once when both analysis passes see it',
   ).toHaveLength(1)
 })
 
-test('changing a reviewed effect recipe or deleting its colour revokes approval despite unchanged shadow text', async () => {
-  const repo = mkdtempSync(path.join(temp, 'shadow-extra-'))
-  git(repo, ['init', '-q'])
-  const global = 'apps/sim/app/_styles/globals.css'
-  const css =
-    'apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
-  const tokens = ':root { --selection-bg: #add6ff; --shadow-subtle: 0 2px 4px #000; }'
-  const rule =
-    '.rich-markdown-nodes hr.rich-leaf-in-selection { box-shadow: 0 0 0 0.4em var(--selection-bg); border-radius: 1px; }'
-  put(repo, global, tokens)
-  const empty = commit(repo)
-  put(repo, css, rule)
-  const base = commit(repo)
-  const introduced = await checkComparison({ repo, base: empty, head: base })
-  expect(introduced.shadowExtras).toHaveLength(1)
-  expect(introduced.findings.some((f) => f.rule === 'local-shadow')).toBe(true)
-  expect(introduced.findings.filter((f) => f.rule === 'central-shadow')).toEqual([])
-  put(repo, css, rule.replace('border-radius: 1px', 'border-radius: 2px'))
-  const changed = commit(repo)
-  const report = await checkComparison({ repo, base, head: changed })
-  expect(report.findings.filter((f) => f.rule === 'central-shadow')).toHaveLength(1)
-  expect(report.shadowExtras).toHaveLength(0)
-  put(repo, css, rule)
-  put(repo, global, tokens.replace('--selection-bg: #add6ff;', ''))
-  const removed = commit(repo)
-  expect(
-    (await checkComparison({ repo, base, head: removed })).findings.filter(
-      (f) => f.rule === 'central-shadow'
-    )
-  ).toHaveLength(1)
-})
-
 test('public diff checks approve a verified colour usage but still flag fallbacks and removed writers', async () => {
   const repo = mkdtempSync(path.join(temp, 'colour-usage-'))
   git(repo, ['init', '-q'])

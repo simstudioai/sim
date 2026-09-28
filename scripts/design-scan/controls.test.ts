@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, test } from 'vitest'
 import { inspectControls } from '#control-analysis/inventory'
-import { inspectTypography } from '#control-analysis/typography'
 import { GitSource } from '#design-conformance/worktree-source'
 
 const dirs: string[] = []
@@ -43,7 +42,7 @@ function fixture(files: Record<string, string>) {
     git,
     write,
     source: () => new GitSource(repo, 'HEAD'),
-    scan: () => inspectControls(new GitSource(repo, 'HEAD'), []),
+    scan: () => inspectControls(new GitSource(repo, 'HEAD')),
   }
 }
 const consumer = (r: ReturnType<typeof inspectControls>) =>
@@ -171,7 +170,7 @@ test('cycles and unsupported factories remain unresolved and discovery order is 
   const r = f.scan()
   expect(consumer(r).every((v) => v.origin === 'unresolved')).toBe(true)
   expect(r.unchecked.length).toBeGreaterThan(0)
-  expect(inspectControls(f.source(), [], 'reverse')).toEqual(r)
+  expect(inspectControls(f.source(), 'reverse')).toEqual(r)
 })
 test('React createElement and literal rendered HTML are found; arbitrary strings are not controls', () => {
   const f = fixture({
@@ -224,8 +223,8 @@ test('working-tree source includes changed/untracked files and deletions; source
   f.write(location, 'export const A=()=> <button aria-label="Changed"/>')
   f.write('apps/sim/components/new.tsx', 'export const A=()=> <button/>')
   const source = new GitSource(f.repo, 'HEAD', true)
-  expect(inspectControls(source, []).records.some((v) => v.file.endsWith('/new.tsx'))).toBe(true)
-  expect(consumer(inspectControls(source, []))[0].inputs['aria-label'].values).toEqual(['Changed'])
+  expect(inspectControls(source).records.some((v) => v.file.endsWith('/new.tsx'))).toBe(true)
+  expect(consumer(inspectControls(source))[0].inputs['aria-label'].values).toEqual(['Changed'])
   expect(consumer(f.scan())[0].inputs['aria-label']).toBeUndefined()
   source.assertUnchanged()
   f.write(location, 'export const A=()=> <button aria-label="Another edit"/>')
@@ -240,7 +239,7 @@ test('EMCN test fixtures stay excluded in both snapshot and working-tree discove
     [location]: 'export const A=()=> <button/>',
   })
   for (const source of [f.source(), new GitSource(f.repo, 'HEAD', true)]) {
-    const result = inspectControls(source, [])
+    const result = inspectControls(source)
     expect(result.coverage.excludedFiles).toContain(file)
     expect(result.records.some((r) => r.file === file)).toBe(false)
   }
@@ -470,22 +469,11 @@ test('working-tree source identity notices changes in excluded marketing sources
     [landing]: 'import { components } from "@/lib/content/mdx"',
   })
   const source = new GitSource(f.repo, 'HEAD', true)
-  expect(inspectTypography(source).ownership).toEqual([])
-  expect(inspectControls(source, []).coverage.excludedFiles).toContain(landing)
-  expect(inspectControls(source, []).coverage.excludedFiles).toContain(helper)
+  expect(inspectControls(source).coverage.excludedFiles).toContain(landing)
+  expect(inspectControls(source).coverage.excludedFiles).toContain(helper)
   source.assertUnchanged()
   f.write(landing, 'export const Page = () => null')
   expect(() => source.assertUnchanged()).toThrow('changed during')
-  expect(inspectTypography(new GitSource(f.repo, 'HEAD', true)).ownership).toEqual([])
-})
-
-test('oversized nonimporting data does not cause marketing source inspection', () => {
-  const f = fixture({
-    'apps/sim/lib/content/mdx.tsx': 'export const mdxComponents = {}',
-    'apps/sim/app/(landing)/page.tsx': 'import {mdxComponents} from "@/lib/content/mdx"',
-    'apps/sim/tools/generated/tool-metadata.ts': `export const data = '${'x'.repeat(2 * 1024 * 1024)}'`,
-  })
-  expect(inspectTypography(f.source()).ownership).toEqual([])
 })
 
 test('inline DOM event attributes preserve interactivity', () => {
