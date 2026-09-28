@@ -75,6 +75,9 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
+      (provider !== 'hubspot' ||
+        data.availableMcpConnectors.includes('hubspot') ||
+        mcpAccounts(provider).length > 0) &&
       (approvals.get(provider)?.approved ||
         data.viewerAccounts?.some(
           (account) => liveSearchProviderForCredential(account.providerId) === provider

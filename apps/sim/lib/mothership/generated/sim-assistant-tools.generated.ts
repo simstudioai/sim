@@ -36,19 +36,22 @@ export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
  * Providers whose kind selects a distinct search collection. One query per kind bounds fanout
  * while retaining independently searchable collections within the per-account request limit.
  */
-const KIND_PROVIDERS: ReadonlySet<LiveSearchProvider> = new Set(['github', 'gitlab', 'hubspot'])
+const PROVIDER_KIND_SCHEMAS = {
+  github: z.enum(['issues', 'code', 'repositories', 'commits']),
+  gitlab: z.enum(['issues', 'code', 'merge_requests', 'wiki']),
+  hubspot: z.enum(['contacts', 'companies', 'deals', 'tickets']),
+} as const
+
+function hasSearchKinds(
+  provider: LiveSearchProvider
+): provider is keyof typeof PROVIDER_KIND_SCHEMAS {
+  return Object.hasOwn(PROVIDER_KIND_SCHEMAS, provider)
+}
 
 const nativeSearchKindSchema = z.enum([
-  'issues',
-  'code',
-  'repositories',
-  'commits',
-  'merge_requests',
-  'wiki',
-  'contacts',
-  'companies',
-  'deals',
-  'tickets',
+  ...PROVIDER_KIND_SCHEMAS.github.options,
+  ...PROVIDER_KIND_SCHEMAS.gitlab.options,
+  ...PROVIDER_KIND_SCHEMAS.hubspot.options,
 ])
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
@@ -66,6 +69,15 @@ export const nativeSearchQuerySchema = z
   })
   .strict()
   .superRefine((input, context) => {
+    if (input.kind && hasSearchKinds(input.provider)) {
+      const kinds = PROVIDER_KIND_SCHEMAS[input.provider]
+      if (!kinds.safeParse(input.kind).success)
+        context.addIssue({
+          code: 'custom',
+          path: ['kind'],
+          message: `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`,
+        })
+    }
     if (input.provider === 'notion' && !input.query)
       context.addIssue({
         code: 'custom',
@@ -98,7 +110,7 @@ export const nativeSearchQueriesSchema = z
     }
     /** The search a query runs, ignoring its account and any kind its provider does not use. */
     const searchKey = ({ accountId: _, kind, ...query }: NativeSearchQuery) =>
-      JSON.stringify({ ...query, kind: KIND_PROVIDERS.has(query.provider) ? kind : undefined })
+      JSON.stringify({ ...query, kind: hasSearchKinds(query.provider) ? kind : undefined })
     for (const [index, query] of queries.entries()) {
       const addIssue = (message: string) =>
         context.addIssue({ code: 'custom', path: [index], message })
@@ -106,7 +118,7 @@ export const nativeSearchQueriesSchema = z
       if (earlier.some((previous) => searchKey(previous) === searchKey(query)))
         addIssue('Duplicate native query.')
       else if (
-        KIND_PROVIDERS.has(query.provider) &&
+        hasSearchKinds(query.provider) &&
         earlier.some((previous) => !previous.kind || !query.kind || previous.kind === query.kind)
       )
         addIssue(

@@ -86,6 +86,12 @@ export function LiveSearchSettings() {
     ).map(([type, meta]) => ({
       type,
       meta,
+      availabilityStatus:
+        type !== 'hubspot' || accounts.isSuccess
+          ? undefined
+          : accounts.isError
+            ? ('error' as const)
+            : ('loading' as const),
       access: getLiveSearchAccessAvailability(type, availability.integrationAvailability, {
         memberAccessAvailable: searchAccess.memberScoped,
         availableMcpConnectors: accounts.data?.availableMcpConnectors,
@@ -301,7 +307,7 @@ export function LiveSearchSettings() {
             ])
           )}
           pending={update.isPending}
-          ready={availability.isIntegrationAvailabilityReady && accounts.isSuccess}
+          ready={availability.isIntegrationAvailabilityReady}
           feedback={
             accounts.error ? (
               <SettingsQueryErrorState

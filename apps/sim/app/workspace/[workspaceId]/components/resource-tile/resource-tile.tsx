@@ -46,7 +46,9 @@ export function BrandTile({ icon: Icon, background }: BrandTileProps) {
       className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
       style={background ? { background } : undefined}
     >
-      <Icon className={getTileIconColorClass(background)} />
+      <Icon
+        className={background ? getTileIconColorClass(background) : 'text-[var(--text-icon)]'}
+      />
     </div>
   )
 }
