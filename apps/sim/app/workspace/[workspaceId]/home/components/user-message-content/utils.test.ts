@@ -17,6 +17,11 @@ describe('computeMentionRanges', () => {
     expect(spans('(see @Workflow)', [workflow])).toEqual(['@Workflow'])
   })
 
+  it('treats a period as a boundary only when no name continues after it', () => {
+    expect(spans('see @Workflow.', [workflow])).toEqual(['@Workflow'])
+    expect(spans('open @report.pdf', [{ kind: 'file', label: 'report' }])).toEqual([])
+  })
+
   it('matches every repeat of a mention separated by one space', () => {
     expect(spans('@Workflow @Workflow', [workflow])).toEqual(['@Workflow', '@Workflow'])
   })

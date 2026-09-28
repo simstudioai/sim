@@ -31,7 +31,10 @@ export function computeMentionRanges(text: string, contexts: ChatMessageContext[
     const prefix =
       ctx.kind === 'skill' || ctx.kind === 'mcp' || ctx.kind === 'slash_command' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
-    const pattern = new RegExp(`(^|\\s)(${escapeRegExp(token)})(?=[\\s.,;:!?)\\]]|$)`, 'g')
+    const pattern = new RegExp(
+      `(^|\\s)(${escapeRegExp(token)})(?=[\\s,;:!?)\\]]|\\.(?![\\w-])|$)`,
+      'g'
+    )
     let match: RegExpExecArray | null
     while ((match = pattern.exec(text)) !== null) {
       const leadingSpace = match[1]
