@@ -127,6 +127,11 @@ export interface ResponsesProviderConfig {
   providerId: string
   providerLabel: string
   modelName: string
+  /**
+   * Catalog id used for capability lookups when the wire `modelName` is not a
+   * registered model id (e.g. a reseller's own model slug). Defaults to `modelName`.
+   */
+  capabilityModel?: string
   endpoint: string
   headers: Record<string, string>
   logger: Logger
@@ -183,8 +188,14 @@ export async function executeResponsesProviderRequest(
 
   const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
+  /**
+   * `stream` is always explicit: OpenAI defaults it to false, but Responses-compatible
+   * resellers (Kie) default it to true and would answer a non-streaming call with SSE.
+   * Streaming calls override it per request.
+   */
   const basePayload: Record<string, unknown> = {
     model: config.modelName,
+    stream: false,
   }
 
   /**
@@ -211,7 +222,7 @@ export async function executeResponsesProviderRequest(
    * organization verification; see the strip-and-retry fallback in the
    * request helpers below.
    */
-  if (supportsReasoningEffort(config.modelName)) {
+  if (supportsReasoningEffort(config.capabilityModel ?? config.modelName)) {
     if (isProviderConversationCaptureEnabled(request)) {
       basePayload.include = ['reasoning.encrypted_content']
     }

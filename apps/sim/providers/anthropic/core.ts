@@ -263,10 +263,11 @@ async function createMessage(
     )
     return stream.finalMessage()
   }
+  // Explicit `stream: false`: Anthropic-compatible proxies (Kie) treat an absent flag as true.
   return anthropic.messages.create(
-    payload as Anthropic.Messages.MessageCreateParamsNonStreaming,
+    { ...(payload as Anthropic.Messages.MessageCreateParamsNonStreaming), stream: false },
     options
-  ) as Promise<Anthropic.Messages.Message>
+  )
 }
 
 /**

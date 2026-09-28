@@ -4319,6 +4319,51 @@ export const ZaiIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export function KieIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `kie_gradient_${id}`
+
+  return (
+    <svg
+      {...props}
+      height='1em'
+      viewBox='0 0 24 24'
+      width='1em'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <title>Kie</title>
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1='3'
+          y1='3'
+          x2='21'
+          y2='21'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#38B6FF' />
+          <stop offset='1' stopColor='#1D4ED8' />
+        </linearGradient>
+      </defs>
+      <g
+        stroke={`url(#${gradientId})`}
+        strokeWidth='1.6'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      >
+        <path d='M3.5 20.5 10.2 4.1a2 2 0 0 1 3.6 0l6.7 16.4' />
+        <path d='M7.8 20.5 12 9.6l4.2 10.9' />
+        <path d='M9.4 16.4h5.2' />
+        <path d='M5.3 16.1H3.2' />
+        <path d='M18.7 16.1h2.1' />
+      </g>
+      <circle cx='2.4' cy='16.1' r='1.2' fill={`url(#${gradientId})`} />
+      <circle cx='21.6' cy='16.1' r='1.2' fill={`url(#${gradientId})`} />
+    </svg>
+  )
+}
+
 export const KimiIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} height='1em' viewBox='0 0 24 24' width='1em' xmlns='http://www.w3.org/2000/svg'>
     <title>Kimi</title>

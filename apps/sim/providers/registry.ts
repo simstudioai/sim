@@ -9,6 +9,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { kieProvider } from '@/providers/kie'
 import { kimiProvider } from '@/providers/kimi'
 import { litellmProvider } from '@/providers/litellm'
 import { metaProvider } from '@/providers/meta'
@@ -45,6 +46,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   meta: metaProvider,
   zai: zaiProvider,
   kimi: kimiProvider,
+  kie: kieProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,
