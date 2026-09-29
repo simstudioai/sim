@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
-import { BENCHMARK_SPEC_MAX_LENGTH, type BenchmarkCase } from '@/lib/benchmarks/types'
+import type { BenchmarkCase } from '@/lib/benchmarks/types'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
@@ -24,20 +24,17 @@ import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const logger = createLogger('BenchmarkWorker')
 
-function requireCompletedText(result: OrchestratorResult, maxLength: number): string {
+function requireCompletedText(result: OrchestratorResult): string {
   if (!result.success || result.cancelled) {
     throw new OrchestrationError(
       'validation',
       result.cancelled
-        ? 'Benchmark step was cancelled or timed out'
+        ? 'Benchmark step was cancelled'
         : 'Mothership could not complete this benchmark step. Check the worker logs and retry.'
     )
   }
-  if (!result.content.trim() || result.content.length > maxLength) {
-    throw new OrchestrationError(
-      'validation',
-      'Mothership returned an empty or oversized benchmark result'
-    )
+  if (!result.content.trim()) {
+    throw new OrchestrationError('validation', 'Mothership returned an empty benchmark result')
   }
   return result.content
 }
@@ -73,7 +70,6 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
   const messageId = generateId()
   const payload: ExecuteRequest = {
     protocolVersion: PROTOCOL_VERSION,
-    maxOutputTokens: 32_768,
     messageId,
     chatId: input.chatId ?? generateId(),
     benchmark: input.profile,
@@ -106,11 +102,10 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
         environmentContext,
         ...(input.profile?.stage === 'distill' ? { userPermission: 'read' as const } : {}),
         abortSignal: input.signal,
-        timeout: 10 * 60 * 1000,
         clientToolPickupExpected: false,
       }
     )
-    const text = requireCompletedText(result, 4 * BENCHMARK_SPEC_MAX_LENGTH).trim()
+    const text = requireCompletedText(result).trim()
     if (!input.profile && result.toolCalls.length)
       throw new OrchestrationError(
         'validation',
@@ -170,11 +165,10 @@ export async function executeBenchmarkPlan(input: {
       chatId: target.chatId,
       billingAttribution,
       abortSignal: input.signal,
-      timeout: 10 * 60 * 1000,
       clientToolPickupExpected: false,
     })
     return {
-      generatedSpec: requireCompletedText(result, BENCHMARK_SPEC_MAX_LENGTH),
+      generatedSpec: requireCompletedText(result),
       plannerChatId: target.chatId,
     }
   } finally {

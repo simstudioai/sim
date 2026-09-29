@@ -5,7 +5,6 @@ import { Chip, ChipInput, ChipTextarea, toast } from '@sim/emcn'
 import { Code, Plus, Trash, Upload } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BenchmarkCase, RunBenchmarkStageBody } from '@/lib/api/contracts/benchmarks'
-import { BENCHMARK_MAX_BLANKS, BENCHMARK_SPEC_MAX_LENGTH } from '@/lib/benchmarks/types'
 import { BenchmarkJson } from '@/app/o/[organizationId]/benchmark/components/benchmark-json'
 import { BenchmarkStep } from '@/app/o/[organizationId]/benchmark/components/benchmark-step'
 
@@ -40,13 +39,7 @@ export function BenchmarkReference({
   const importReference = async (file: File | undefined) => {
     if (!file) return
     try {
-      if (file.size > BENCHMARK_SPEC_MAX_LENGTH * 4) {
-        throw new Error('The reference is too large. Use a text file under 4 MB.')
-      }
       const text = await file.text()
-      if (text.length > BENCHMARK_SPEC_MAX_LENGTH) {
-        throw new Error('The reference must be at most 1,000,000 characters.')
-      }
       onChange({ referenceSpec: text })
     } catch (error) {
       toast.error(getErrorMessage(error, 'Could not import the reference'))
@@ -79,7 +72,6 @@ export function BenchmarkReference({
             value={taskBrief}
             onChange={(event) => onChange({ taskBrief: event.target.value })}
             placeholder='What should the new Mothership plan?'
-            maxLength={20_000}
             rows={4}
             resizable
           />
@@ -113,7 +105,6 @@ export function BenchmarkReference({
             value={referenceSpec}
             onChange={(event) => onChange({ referenceSpec: event.target.value })}
             placeholder='Generate a spec, paste one, or import Markdown, text, or JSON.'
-            maxLength={BENCHMARK_SPEC_MAX_LENGTH}
             rows={12}
             resizable
           />
@@ -158,7 +149,6 @@ export function BenchmarkReference({
             aria-label='Redacted reference spec'
             value={redactedSpec}
             onChange={(event) => onChange({ redactedSpec: event.target.value })}
-            maxLength={BENCHMARK_SPEC_MAX_LENGTH}
             rows={10}
             resizable
           />
@@ -188,7 +178,6 @@ export function BenchmarkReference({
                 <ChipTextarea
                   aria-label={`Expected answer for blank ${index + 1}`}
                   value={blank.answer}
-                  maxLength={10_000}
                   rows={2}
                   resizable
                   onChange={(event) =>
@@ -215,7 +204,6 @@ export function BenchmarkReference({
           <div>
             <Chip
               leftIcon={Plus}
-              disabled={blanks.length >= BENCHMARK_MAX_BLANKS}
               onClick={() => {
                 let suffix = blanks.length + 1
                 while (blanks.some((blank) => blank.id === `detail_${suffix}`)) suffix += 1

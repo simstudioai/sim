@@ -12,7 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { BenchmarkCase } from '@/lib/api/contracts/benchmarks'
 import { validateBenchmarkRedaction } from '@/lib/benchmarks/artifacts'
-import { BENCHMARK_SPEC_MAX_LENGTH, benchmarkArtifactsSchema } from '@/lib/benchmarks/types'
+import { benchmarkArtifactsSchema } from '@/lib/benchmarks/types'
 
 interface BenchmarkJsonProps {
   artifacts: BenchmarkCase['artifacts']
@@ -20,8 +20,6 @@ interface BenchmarkJsonProps {
   onApply: (patch: Pick<BenchmarkCase['artifacts'], 'redactedSpec' | 'blanks'>) => void
   onClose: () => void
 }
-
-const MAPPING_MAX_LENGTH = BENCHMARK_SPEC_MAX_LENGTH * 6 + 5_000
 
 export function BenchmarkJson({ artifacts, disabled, onApply, onClose }: BenchmarkJsonProps) {
   const [redactedSpec, setRedactedSpec] = useState(
@@ -53,7 +51,7 @@ export function BenchmarkJson({ artifacts, disabled, onApply, onClose }: Benchma
       )
       if (!parsed.success) {
         throw new Error(
-          'Use up to 50 blank IDs (letters, numbers, underscores or hyphens, at most 64 characters), each mapped to a nonempty string of at most 10,000 characters.'
+          'Use blank IDs with letters, numbers, underscores or hyphens (at most 64 characters), each mapped to a nonempty answer string.'
         )
       }
       const patch = { redactedSpec, blanks: parsed.data }
@@ -82,7 +80,6 @@ export function BenchmarkJson({ artifacts, disabled, onApply, onClose }: Benchma
             setRedactedSpec(value)
             setError(null)
           }}
-          maxLength={BENCHMARK_SPEC_MAX_LENGTH}
           rows={6}
           resizable
           disabled={disabled}
@@ -99,7 +96,6 @@ export function BenchmarkJson({ artifacts, disabled, onApply, onClose }: Benchma
           placeholder={
             '{\n  "queue": "Customer Escalations",\n  "handoff": "Engineering explicitly accepts the case"\n}'
           }
-          maxLength={MAPPING_MAX_LENGTH}
           rows={10}
           mono
           resizable

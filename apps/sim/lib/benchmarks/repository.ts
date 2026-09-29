@@ -239,7 +239,7 @@ export async function claimBenchmarkStage(
   return toBenchmark(row)
 }
 
-interface BenchmarkAttempt extends BenchmarkScope {
+export interface BenchmarkAttempt extends BenchmarkScope {
   version: number
   stage: BenchmarkStage
   attemptId: string
@@ -253,6 +253,20 @@ function attemptWhere(input: BenchmarkAttempt) {
     eq(mothershipBenchmarks.attemptId, input.attemptId),
     gt(mothershipBenchmarks.leaseExpiresAt, new Date())
   )
+}
+
+/** Renewal fences abandoned attempts without imposing a maximum duration on their live owner. */
+export async function renewBenchmarkStage(
+  input: BenchmarkAttempt & { leaseExpiresAt: Date }
+): Promise<boolean> {
+  if (input.leaseExpiresAt <= new Date())
+    throw new Error('Benchmark lease must expire in the future')
+  const [row] = await db
+    .update(mothershipBenchmarks)
+    .set({ leaseExpiresAt: input.leaseExpiresAt })
+    .where(attemptWhere(input))
+    .returning({ id: mothershipBenchmarks.id })
+  return Boolean(row)
 }
 
 /** A timed-out or replaced worker cannot overwrite a later run or user edit. */
