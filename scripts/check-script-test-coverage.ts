@@ -7,8 +7,8 @@
  * entry never runs, in CI or locally, and nothing reports it. `scripts/check-migrations-safety.test.ts`
  * sat unreferenced and green for exactly that reason. `scripts/vitest.config.ts` now collects
  * the directory by glob, so drift can only come from a file the glob does not match (a test in a
- * subdirectory, a different suffix) or from the `test` script no longer chaining `test:scripts`.
- * This guard checks both by asking Vitest which files it would run.
+ * subdirectory, a different suffix) or from the test commands no longer running that config.
+ * This guard checks the command contract and asks Vitest which files it would run.
  *
  * `run-audits.ts` derives its own list from the `check:*` namespace precisely so a new audit is
  * picked up by default, so this guard registers itself simply by being named `check:*` — it cannot
@@ -20,6 +20,8 @@ import { localBin } from './local-bin'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const SUB_SCRIPT_PATTERN = /bun run ([\w:-]+)/g
+const SCRIPTS_TEST_CONFIG = 'scripts/vitest.config.ts'
+const SCRIPTS_TEST_COMMAND = `vitest run --config ${SCRIPTS_TEST_CONFIG}`
 
 const manifest = await Bun.file(path.join(ROOT, 'package.json')).json()
 const commands = manifest.scripts as Record<string, string>
@@ -42,8 +44,14 @@ if (!reachableScripts('test').has('test:scripts')) {
   process.exit(1)
 }
 
+// Keep collection tied to the actual runner; filters or another config can silently skip tests.
+if (commands['test:scripts']?.trim() !== SCRIPTS_TEST_COMMAND) {
+  console.error(`test:scripts must run the complete scripts Vitest config: ${SCRIPTS_TEST_COMMAND}`)
+  process.exit(1)
+}
+
 const listed = Bun.spawnSync(
-  [localBin('vitest'), 'list', '--json', '--filesOnly', '--config', 'scripts/vitest.config.ts'],
+  [localBin('vitest'), 'list', '--json', '--filesOnly', '--config', SCRIPTS_TEST_CONFIG],
   {
     cwd: ROOT,
   }

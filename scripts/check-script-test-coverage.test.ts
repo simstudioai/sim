@@ -58,6 +58,25 @@ describe('script collection command', () => {
       expect(valid.status, valid.stderr).toBe(0)
       expect(valid.stdout).toContain('4 script tests collected')
 
+      const manifestPath = path.join(fixture, 'package.json')
+      const originalManifest = readFileSync(manifestPath, 'utf8')
+      for (const command of [
+        'echo tests-disabled',
+        'vitest run --config scripts/alternate.config.ts',
+        'vitest run --config scripts/vitest.config.ts scripts/nested/check.test.ts',
+      ]) {
+        writeFileSync(
+          manifestPath,
+          JSON.stringify({ scripts: { test: 'bun run test:scripts', 'test:scripts': command } })
+        )
+        const disabled = run()
+        expect.soft(disabled.status, command).toBe(1)
+        expect
+          .soft(disabled.stderr, command)
+          .toContain('test:scripts must run the complete scripts')
+      }
+      writeFileSync(manifestPath, originalManifest)
+
       const config = path.join(fixture, 'scripts/vitest.config.ts')
       writeFileSync(
         config,
