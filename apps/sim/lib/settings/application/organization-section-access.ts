@@ -7,6 +7,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { isMemorySpacesEnabled } from '@/lib/mothership/feature-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 
@@ -23,6 +24,8 @@ export async function authorizeOrganizationSettingsSection({
   section,
 }: AuthorizeOrganizationSettingsSectionInput): Promise<boolean> {
   if (!(await canOpenOrganizationSettingsSection(organizationId, userId, section))) return false
+
+  if (section === 'knowledge-graphs') return isMemorySpacesEnabled()
 
   if (section === 'connected-accounts') {
     return isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })

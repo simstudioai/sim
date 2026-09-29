@@ -157,6 +157,7 @@ export const forkChat = defineAuthorizedChatUseCase({
             resources: newChatResources,
             previewYaml: parent.previewYaml,
             config: parent.config,
+            memorySpaceId: parent.memorySpaceId,
             conversationId: null,
             updatedAt: now,
             lastSeenAt: now,

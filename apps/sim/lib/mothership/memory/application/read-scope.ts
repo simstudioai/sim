@@ -5,6 +5,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import type { MemoryScopeRequest } from '@/lib/mothership/generated/memory-scope'
+import { requireOwnedMemorySpace } from '@/lib/mothership/memory/spaces'
 
 export const MEMORY_SCOPE_AUDIENCE = 'sim:copilot-memory'
 export const readMemoryScopeOperation = defineWorkspaceOperation({
@@ -47,7 +48,16 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     if (context.mode !== 'agent' && context.mode !== 'plan') {
       throw new OrchestrationError('forbidden', 'Private memory requires an interactive agent chat')
     }
+    const organizationId = context.organizationId ?? context.workspaceOrganizationId ?? null
+    if (context.memorySpaceId) {
+      if (!organizationId) throw new OrchestrationError('not_found', 'Knowledge graph not found')
+      await requireOwnedMemorySpace(
+        { userId: context.userId, organizationId },
+        context.memorySpaceId
+      )
+    }
     return {
+      ...(context.memorySpaceId ? { spaceId: context.memorySpaceId } : {}),
       userId: context.userId,
       organizationId: context.organizationId ?? context.workspaceOrganizationId ?? null,
       workspaceId: context.workspaceId ?? null,

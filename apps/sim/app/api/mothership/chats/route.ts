@@ -1,5 +1,3 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -9,6 +7,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createWorkspaceChat } from '@/lib/mothership/chat/application/create-workspace-chat'
 import {
   ChatWorkspaceAccessError,
   listWorkspaceChats,
@@ -17,8 +16,6 @@ import {
   createOrganizationChat,
   listOrganizationChats,
 } from '@/lib/mothership/chat/organization-chats'
-import { chatPubSub } from '@/lib/mothership/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
@@ -26,10 +23,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  assertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError,
-} from '@/lib/workspaces/permissions/utils'
+import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
 
@@ -101,23 +95,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (!workspaceId) throw new Error('Conversation owner is required')
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-
-    const now = new Date()
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({
-        userId,
-        workspaceId,
-        type: 'mothership',
-        title: null,
-        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
-        updatedAt: now,
-        lastSeenAt: now,
-      })
-      .returning({ id: copilotChats.id })
-
-    chatPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
+    if (!principal) return createUnauthorizedResponse()
+    const chat = await createWorkspaceChat.execute({ principal, input: { workspaceId, mode } })
 
     captureServerEvent(
       userId,

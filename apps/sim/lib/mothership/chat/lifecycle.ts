@@ -17,6 +17,7 @@ import {
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -418,10 +419,12 @@ export async function resolveOrCreateChat(params: {
     }
   }
 
+  const memorySpaceId = await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId)
   const now = new Date()
   const [newChat] = await db
     .insert(copilotChats)
     .values({
+      memorySpaceId,
       userId,
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
