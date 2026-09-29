@@ -3937,6 +3937,38 @@ export const mothershipBenchmarks = pgTable(
   })
 )
 
+/** Immutable artifacts with separate human reviews; the parent owns access and deletion. */
+export const mothershipBenchmarkRuns = pgTable(
+  'mothership_benchmark_runs',
+  {
+    id: text('id').primaryKey(),
+    benchmarkId: text('benchmark_id')
+      .notNull()
+      .references(() => mothershipBenchmarks.id, { onDelete: 'cascade' }),
+    label: text('label').notNull().default(''),
+    evaluationKey: text('evaluation_key').notNull(),
+    reviews: jsonb('reviews').notNull().default([]),
+    version: integer('version').notNull().default(1),
+    reviewedAt: timestamp('reviewed_at'),
+    correct: integer('correct').notNull(),
+    automaticCorrect: integer('automatic_correct').notNull(),
+    total: integer('total').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    benchmarkCreatedIdx: index('mothership_benchmark_runs_benchmark_created_idx').on(
+      table.benchmarkId,
+      table.createdAt,
+      table.id
+    ),
+    scoreCheck: check(
+      'mothership_benchmark_runs_score_check',
+      sql`${table.total} > 0 AND ${table.correct} >= 0 AND ${table.correct} <= ${table.total}`
+    ),
+  })
+)
+
 /** Private graph names; memory content stays in the memory service. */
 export const mothershipMemorySpaces = pgTable(
   'mothership_memory_spaces',

@@ -1,17 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalError, ChipTextarea } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipInput, ChipModalError, ChipTextarea } from '@sim/emcn'
 import { Download, Trash } from '@sim/emcn/icons'
+import { useQueryStates } from 'nuqs'
 import type {
   BenchmarkCase,
   RunBenchmarkStageBody,
   UpdateBenchmarkBody,
 } from '@/lib/api/contracts/benchmarks'
 import { saveBlob } from '@/lib/uploads/client/download'
+import { BenchmarkHistory } from '@/app/o/[organizationId]/benchmark/components/benchmark-history'
 import { BenchmarkReference } from '@/app/o/[organizationId]/benchmark/components/benchmark-reference'
 import { BenchmarkResults } from '@/app/o/[organizationId]/benchmark/components/benchmark-results'
 import { BenchmarkStep } from '@/app/o/[organizationId]/benchmark/components/benchmark-step'
+import {
+  benchmarkParams,
+  benchmarkUrlOptions,
+} from '@/app/o/[organizationId]/benchmark/search-params'
 import {
   useBenchmark,
   useDeleteBenchmark,
@@ -34,7 +40,7 @@ interface BenchmarkEditorProps {
   saving: boolean
   stage: RunBenchmarkStageBody['stage'] | null
   onUpdate: (body: UpdateBenchmarkBody) => void
-  onRun: (stage: RunBenchmarkStageBody['stage']) => void
+  onRun: (stage: RunBenchmarkStageBody['stage'], runLabel?: string) => void
 }
 
 function BenchmarkEditor({
@@ -47,6 +53,7 @@ function BenchmarkEditor({
   onRun,
 }: BenchmarkEditorProps) {
   const [draft, setDraft] = useState(benchmark.artifacts)
+  const [runLabel, setRunLabel] = useState('')
   const { artifacts } = benchmark
   const referenceDirty =
     draft.taskBrief !== artifacts.taskBrief || draft.referenceSpec !== artifacts.referenceSpec
@@ -151,17 +158,30 @@ function BenchmarkEditor({
       <BenchmarkStep
         number={4}
         title='Grade the result'
-        description='Check each recovered answer against the expected detail and its supporting passage.'
+        description='Check each recovered answer and save the result to run history.'
         pending={stage === 'grade'}
         action={
           <Chip
             disabled={busy || dirty || !artifacts.reconstruction}
-            onClick={() => onRun('grade')}
+            onClick={() => onRun('grade', runLabel)}
           >
             {stage === 'grade' ? 'Grading…' : 'Grade'}
           </Chip>
         }
       >
+        <div className='flex flex-col gap-2'>
+          <label htmlFor='benchmark-run-label' className='text-[var(--text-body)] text-small'>
+            Run label (optional)
+          </label>
+          <ChipInput
+            id='benchmark-run-label'
+            value={runLabel}
+            maxLength={100}
+            onChange={(event) => setRunLabel(event.target.value)}
+            placeholder='e.g. Baseline or updated discovery'
+            disabled={busy}
+          />
+        </div>
         {artifacts.grade && (
           <>
             <p className='text-[var(--text-primary)] text-base'>
@@ -186,6 +206,7 @@ export function BenchmarkDetail({
   canPlan,
   onDeleted,
 }: BenchmarkDetailProps) {
+  const [{ benchmarkView }, setParams] = useQueryStates(benchmarkParams, benchmarkUrlOptions)
   const benchmarkQuery = useBenchmark(organizationId, benchmarkId)
   const updateBenchmark = useUpdateBenchmark(organizationId, benchmarkId)
   const runStage = useRunBenchmarkStage(organizationId, benchmarkId)
@@ -259,22 +280,53 @@ export function BenchmarkDetail({
           The previous attempt expired. You can run that step again.
         </p>
       )}
-      <BenchmarkEditor
-        key={`${benchmark.id}:${benchmark.version}`}
-        benchmark={benchmark}
-        canPlan={canPlan}
-        busy={busy}
-        saving={updateBenchmark.isPending}
-        stage={stage}
-        onUpdate={(body) => {
-          runStage.reset()
-          updateBenchmark.mutate(body)
-        }}
-        onRun={(nextStage) => {
-          updateBenchmark.reset()
-          runStage.mutate({ version: benchmark.version, stage: nextStage })
-        }}
-      />
+      <div className='flex gap-1' aria-label='Benchmark views'>
+        <Chip
+          variant={benchmarkView === 'current' ? 'primary' : undefined}
+          onClick={() => setParams({ benchmarkView: 'current' })}
+        >
+          Current run
+        </Chip>
+        <Chip
+          variant={benchmarkView === 'history' ? 'primary' : undefined}
+          onClick={() => setParams({ benchmarkView: 'history' })}
+        >
+          Run history
+        </Chip>
+      </div>
+      {benchmarkView === 'history' ? (
+        <BenchmarkHistory organizationId={organizationId} benchmarkId={benchmarkId} />
+      ) : (
+        <BenchmarkEditor
+          key={`${benchmark.id}:${benchmark.version}`}
+          benchmark={benchmark}
+          canPlan={canPlan}
+          busy={busy}
+          saving={updateBenchmark.isPending}
+          stage={stage}
+          onUpdate={(body) => {
+            runStage.reset()
+            updateBenchmark.mutate(body)
+          }}
+          onRun={(nextStage, runLabel) => {
+            updateBenchmark.reset()
+            runStage.mutate(
+              { version: benchmark.version, stage: nextStage, runLabel },
+              {
+                onSuccess: () => {
+                  if (nextStage === 'grade')
+                    setParams({
+                      benchmarkView: 'history',
+                      runId: null,
+                      compareRunId: null,
+                      runsCursor: null,
+                    })
+                },
+              }
+            )
+          }}
+        />
+      )}
       <ChipConfirmModal
         open={deleteOpen}
         onOpenChange={(open) => {

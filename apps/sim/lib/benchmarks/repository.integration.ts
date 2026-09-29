@@ -22,14 +22,21 @@ vi.mock('@sim/db', () => ({
 
 import { createBenchmark, getBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
 import {
+  getBenchmarkRun,
+  listBenchmarkRuns,
+  reviewBenchmarkRun,
+} from '@/lib/benchmarks/application/runs'
+import {
   claimBenchmarkStage,
   completeBenchmarkStage,
   createBenchmarkRecord,
   failBenchmarkStage,
   getBenchmarkRecord,
+  getBenchmarkRunRecord,
+  listBenchmarkRunRecords,
   updateBenchmarkRecord,
 } from '@/lib/benchmarks/repository'
-import { emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
+import { type BenchmarkArtifacts, emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
 
 describe('private benchmark persistence and attempt fencing', () => {
   const schemaName = `benchmark_test_${generateId().replaceAll('-', '')}`
@@ -52,6 +59,43 @@ describe('private benchmark persistence and attempt fencing', () => {
     sessionId: 'fixture-session',
   }
   const artifacts = emptyBenchmarkArtifacts('Plan an escalation workflow.')
+  const graded: BenchmarkArtifacts = {
+    ...artifacts,
+    referenceSpec: 'Queue: escalations. Owner: support.',
+    redactedSpec: 'Queue: [[BLANK:queue]]. Owner: [[BLANK:owner]].',
+    blanks: [
+      { id: 'queue', answer: 'escalations' },
+      { id: 'owner', answer: 'support' },
+    ],
+    generatedSpec: 'Queue: escalations.',
+    reconstruction: [
+      { id: 'queue', answer: 'escalations', support: 'Queue: escalations.' },
+      { id: 'owner', answer: '', support: '' },
+    ],
+    grade: [
+      { id: 'queue', correct: true, reason: 'Supported' },
+      { id: 'owner', correct: false, reason: 'Missing' },
+    ],
+  }
+
+  async function saveGrade(snapshot = graded, label = 'Baseline') {
+    const current = await getBenchmarkRecord(scope)
+    const attemptId = generateId()
+    const claimed = await claimBenchmarkStage({
+      ...scope,
+      expectedVersion: current.version,
+      stage: 'grade',
+      attemptId,
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    })
+    const attempt = { ...scope, version: claimed.version, stage: 'grade' as const, attemptId }
+    const completed = await completeBenchmarkStage({
+      ...attempt,
+      artifacts: snapshot,
+      runLabel: label,
+    })
+    return { attempt, completed, runId: attemptId }
+  }
 
   beforeAll(async () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
@@ -66,6 +110,7 @@ describe('private benchmark persistence and attempt fencing', () => {
       'permission_group_workspace',
       'subscription',
       'mothership_benchmarks',
+      'mothership_benchmark_runs',
     ]) {
       await connection`CREATE TABLE ${connection(table)} (LIKE ${connection(`public.${table}`)} INCLUDING ALL)`
     }
@@ -77,7 +122,7 @@ describe('private benchmark persistence and attempt fencing', () => {
   })
 
   beforeEach(async () => {
-    await connection`TRUNCATE mothership_benchmarks, permissions`
+    await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions`
     await connection`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES ('owner-read', 'owner', 'workspace', 'workspace', 'read'), ('peer-read', 'peer', 'workspace', 'workspace', 'read')`
     await createBenchmarkRecord({
       ...scope,
@@ -215,5 +260,168 @@ describe('private benchmark persistence and attempt fencing', () => {
     expect(
       (await connection`SELECT count(*)::int AS count FROM mothership_benchmarks`)[0]?.count
     ).toBe(1)
+  })
+
+  it('retains immutable graded artifacts across edits, with scores and bounded summary pagination', async () => {
+    const first = await saveGrade()
+    await updateBenchmarkRecord({
+      ...scope,
+      version: first.completed.version,
+      name: 'Changed',
+      artifacts,
+    })
+    const second = await saveGrade(
+      { ...graded, generatedSpec: 'A different generated plan.' },
+      'Improved discovery'
+    )
+    const firstRun = await getBenchmarkRunRecord({ ...scope, runId: first.runId })
+    expect(firstRun).toMatchObject({ label: 'Baseline', correct: 1, total: 2, artifacts: graded })
+    const secondRun = await getBenchmarkRunRecord({ ...scope, runId: second.runId })
+    expect(secondRun.evaluationKey).toBe(firstRun.evaluationKey)
+    const page = await listBenchmarkRunRecords({ ...scope, limit: 1 })
+    expect(page.runs.map((run) => run.id)).toEqual([second.runId])
+    expect(page.runs[0]).not.toHaveProperty('artifacts')
+    expect(page.nextCursor).toBeTypeOf('string')
+    const next = await listBenchmarkRunRecords({ ...scope, limit: 1, cursor: page.nextCursor! })
+    expect(next.runs.map((run) => run.id)).toEqual([first.runId])
+    expect(next.nextCursor).toBeNull()
+    const changed = await saveGrade({ ...graded, taskBrief: 'A different task' })
+    expect(
+      (await getBenchmarkRunRecord({ ...scope, runId: changed.runId })).evaluationKey
+    ).not.toBe(firstRun.evaluationKey)
+    await expect(
+      completeBenchmarkStage({ ...first.attempt, artifacts: graded })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect((await listBenchmarkRunRecords({ ...scope, limit: 50 })).runs).toHaveLength(3)
+  })
+
+  it('rolls back grade completion if its immutable snapshot cannot be saved', async () => {
+    const saved = await saveGrade()
+    const claimed = await claimBenchmarkStage({
+      ...scope,
+      expectedVersion: saved.completed.version,
+      stage: 'grade',
+      attemptId: saved.runId,
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    })
+    await expect(
+      completeBenchmarkStage({
+        ...scope,
+        version: claimed.version,
+        stage: 'grade',
+        attemptId: saved.runId,
+        artifacts: { ...graded, generatedSpec: 'Must not be committed' },
+      })
+    ).rejects.toThrow()
+    expect(await getBenchmarkRecord(scope)).toMatchObject({
+      version: claimed.version,
+      runningStage: 'grade',
+      artifacts: graded,
+    })
+    expect((await listBenchmarkRunRecords({ ...scope, limit: 50 })).runs).toHaveLength(1)
+  })
+
+  it('authorizes saved runs through their private parent and current source access', async () => {
+    const saved = await saveGrade()
+    const input = { organizationId: 'org', benchmarkId: 'benchmark', runId: saved.runId }
+    expect((await getBenchmarkRun.execute({ principal, input })).run.artifacts).toEqual(graded)
+    await expect(
+      getBenchmarkRun.execute({ principal: { ...principal, userId: 'peer' }, input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      getBenchmarkRun.execute({ principal, input: { ...input, organizationId: 'foreign-org' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await createBenchmarkRecord({
+      ...scope,
+      benchmarkId: 'another',
+      sourceWorkspaceId: 'workspace',
+      name: 'Other case',
+      artifacts,
+    })
+    await expect(
+      getBenchmarkRun.execute({ principal, input: { ...input, benchmarkId: 'another' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await db.delete(permissions).where(eq(permissions.id, 'owner-read'))
+    await expect(getBenchmarkRun.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    await expect(
+      listBenchmarkRuns.execute({ principal, input: { ...input, limit: 20 } })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(
+      reviewBenchmarkRun.execute({
+        principal,
+        input: { ...input, version: 1, blankId: 'owner', correct: true, note: 'Reviewed' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('keeps AI judgments intact while human corrections update scores and can be undone', async () => {
+    const saved = await saveGrade()
+    const input = {
+      organizationId: 'org',
+      benchmarkId: 'benchmark',
+      runId: saved.runId,
+      blankId: 'owner',
+      correct: true,
+      note: 'The support team is clearly implied by the surrounding plan.',
+    }
+    await expect(
+      reviewBenchmarkRun.execute({
+        principal: { ...principal, userId: 'peer' },
+        input: { ...input, version: 1 },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    const reviewed = (
+      await reviewBenchmarkRun.execute({ principal, input: { ...input, version: 1 } })
+    ).run
+    expect(reviewed).toMatchObject({
+      correct: 2,
+      automaticCorrect: 1,
+      reviewedCount: 1,
+      version: 2,
+      artifacts: graded,
+      reviews: [{ id: 'owner', correct: true, note: input.note }],
+    })
+    expect((await listBenchmarkRunRecords({ ...scope, limit: 20 })).runs[0]).toMatchObject({
+      correct: 2,
+      automaticCorrect: 1,
+      reviewedCount: 1,
+    })
+    const races = await Promise.allSettled([
+      reviewBenchmarkRun.execute({
+        principal,
+        input: { ...input, version: 2, blankId: 'queue', correct: false },
+      }),
+      reviewBenchmarkRun.execute({ principal, input: { ...input, version: 2, correct: false } }),
+    ])
+    expect(races.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(races.filter((result) => result.status === 'rejected')).toMatchObject([
+      { reason: { code: 'conflict' } },
+    ])
+    let current = await getBenchmarkRunRecord({ ...scope, runId: saved.runId })
+    expect(current.correct).toBe(1)
+    expect(current.artifacts.grade).toEqual(graded.grade)
+    for (const review of current.reviews) {
+      current = (
+        await reviewBenchmarkRun.execute({
+          principal,
+          input: { ...input, version: current.version, blankId: review.id, correct: null },
+        })
+      ).run
+    }
+    expect(current).toMatchObject({
+      correct: 1,
+      automaticCorrect: 1,
+      reviewedCount: 0,
+      reviews: [],
+      artifacts: graded,
+    })
+    await expect(
+      reviewBenchmarkRun.execute({
+        principal,
+        input: { ...input, version: current.version, blankId: 'unknown' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

@@ -17,6 +17,21 @@ export const benchmarkOperations = {
     capability: 'copilot.use',
     ...policy,
   }),
+  listRuns: defineOrganizationOperation({
+    id: 'benchmarks.runs.list',
+    capability: 'copilot.use',
+    ...policy,
+  }),
+  readRun: defineOrganizationOperation({
+    id: 'benchmarks.runs.read',
+    capability: 'copilot.use',
+    ...policy,
+  }),
+  reviewRun: defineOrganizationOperation({
+    id: 'benchmarks.runs.review',
+    capability: 'copilot.use',
+    ...policy,
+  }),
   create: defineOrganizationOperation({
     id: 'benchmarks.create',
     capability: 'copilot.use',
