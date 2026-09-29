@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ForkWorkspaceBody,
@@ -60,13 +66,20 @@ export function useForkResources(workspaceId?: string, enabled = true) {
   })
 }
 
-export function useForkLineage(workspaceId?: string, enabled = true) {
-  return useQuery({
+export function forkLineageQueryOptions(workspaceId: string) {
+  return queryOptions({
     queryKey: forkKeys.lineage(workspaceId),
     queryFn: ({ signal }) =>
-      requestJson(getForkLineageContract, { params: { id: workspaceId as string }, signal }),
-    enabled: Boolean(workspaceId) && enabled,
+      requestJson(getForkLineageContract, { params: { id: workspaceId }, signal }),
     staleTime: WORKSPACE_FORK_LINEAGE_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
+export function useForkLineage(workspaceId?: string, enabled = true) {
+  return useQuery({
+    ...forkLineageQueryOptions(workspaceId ?? ''),
+    enabled: Boolean(workspaceId) && enabled,
     placeholderData: keepPreviousData,
   })
 }

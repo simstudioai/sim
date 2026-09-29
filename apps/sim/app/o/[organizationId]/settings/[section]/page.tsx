@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
@@ -82,12 +81,13 @@ export default async function OrganizationSettingsSectionPage({
     return <OrganizationSettings section={resolved.section} />
   }
 
-  /** Account sections read URL params via nuqs, so the renderer sits under a boundary; nothing stands in for it. */
+  /**
+   * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
+   * under every switch (see the workspace section layout).
+   */
   const content = (
     <SettingsSectionProvider plane='account' section={resolved.section}>
-      <Suspense fallback={null}>
-        <AccountSettingsRenderer section={resolved.section} />
-      </Suspense>
+      <AccountSettingsRenderer section={resolved.section} />
     </SettingsSectionProvider>
   )
 

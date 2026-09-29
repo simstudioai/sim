@@ -24,6 +24,7 @@ import {
   ORGANIZATION_PLANE_UNIFIED_SECTIONS,
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
+import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -294,10 +295,11 @@ export function SettingsSidebar({
 
   const segments = pathname?.split('/') ?? []
   const settingsIndex = segments.indexOf('settings')
-  const activeSection: SettingsSection =
+  const routeSection: SettingsSection =
     settingsIndex !== -1 && segments[settingsIndex + 1]
       ? (segments[settingsIndex + 1] as SettingsSection)
       : 'general'
+  const { activeSection, navigateToSection } = usePendingSettingsSelection(routeSection)
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
@@ -488,9 +490,12 @@ export function SettingsSidebar({
                             event.preventDefault()
                             return
                           }
-                          if (!useSettingsDirtyStore.getState().isDirty) return
                           event.preventDefault()
-                          requestLeave(() => router.replace(href, { scroll: false }))
+                          if (!useSettingsDirtyStore.getState().isDirty) {
+                            navigateToSection(section, href)
+                            return
+                          }
+                          requestLeave(() => navigateToSection(section, href))
                         }}
                       >
                         {content}

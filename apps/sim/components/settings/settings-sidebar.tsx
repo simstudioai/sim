@@ -23,6 +23,7 @@ import {
   type StandaloneSettingsPlane,
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
+import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
@@ -91,6 +92,8 @@ export function SettingsSidebar<Section extends SettingsSection>({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const { activeSection: selectedSection, navigateToSection } =
+    usePendingSettingsSelection(activeSection)
 
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const confirmLeave = useSettingsDirtyStore((state) => state.confirmLeave)
@@ -167,7 +170,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {group.items.map((item) => {
                     const Icon = item.icon
-                    const active = activeSection === item.id
+                    const active = selectedSection === item.id
                     const href = hrefForSection(item.id)
                     return (
                       <SidebarTooltip
@@ -192,10 +195,13 @@ export function SettingsSidebar<Section extends SettingsSection>({
                               event.preventDefault()
                               return
                             }
-                            const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
-                            if (!isDirty && !navigationBlocked) return
                             event.preventDefault()
-                            requestLeave(() => router.replace(href, { scroll: false }))
+                            const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+                            if (!isDirty && !navigationBlocked) {
+                              navigateToSection(item.id, href)
+                              return
+                            }
+                            requestLeave(() => navigateToSection(item.id, href))
                           }}
                         >
                           <Icon className={chipContentIconClass} />
