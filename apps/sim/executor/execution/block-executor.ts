@@ -379,14 +379,15 @@ export class BlockExecutor {
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
-      normalizedOutput = (await compactBlockOutput(normalizedOutput, {
+      const compacted = await compactBlockOutput(normalizedOutput, {
         workspaceId: blockCtx.workspaceId,
         workflowId: blockCtx.workflowId,
         executionId: blockCtx.executionId,
         userId: blockCtx.userId,
         preserveUserFileBase64: blockCtx.includeFileBase64 === true,
         requireDurable: true,
-      })) as NormalizedBlockOutput
+      })
+      normalizedOutput = compacted.output
 
       const endedAt = new Date().toISOString()
       const duration = performance.now() - startTime
@@ -396,8 +397,8 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
-          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+        if (Array.isArray(compacted.childTraceSpans)) {
+          blockLog.childTraceSpans = compacted.childTraceSpans
         }
         const childExecutionId = normalizedOutput[CHILD_EXECUTION_ID_OUTPUT_KEY]
         if (typeof childExecutionId === 'string' && childExecutionId) {
@@ -409,7 +410,6 @@ export class BlockExecutor {
       }
 
       const {
-        childTraceSpans: _traces,
         [CHILD_EXECUTION_ID_OUTPUT_KEY]: _childExecutionId,
         [CHILD_TRACE_DISABLED_OUTPUT_KEY]: _childTraceDisabled,
         ...outputForState

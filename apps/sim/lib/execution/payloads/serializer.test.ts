@@ -360,12 +360,23 @@ describe('compacting span trees', () => {
     mockRegisterLargeValueOwner.mockResolvedValue(true)
   })
 
-  it('keeps a block output child span tree shaped as a tree', async () => {
+  const childWorkflowLog = (overrides: Partial<BlockLog>): BlockLog => ({
+    blockId: 'child-workflow',
+    blockType: 'workflow',
+    startedAt: '2026-09-29T00:00:00.000Z',
+    endedAt: '2026-09-29T00:00:00.002Z',
+    durationMs: 2,
+    success: true,
+    ...overrides,
+  })
+
+  it('splits a block output child span tree off shaped as a tree', async () => {
     const compacted = await compactBlockOutput(
       { result: 'done', childTraceSpans: childWorkflowSpans() },
       options
     )
 
+    expect(compacted.output).toEqual({ result: 'done' })
     expectSpanTree(compacted.childTraceSpans)
   })
 
@@ -380,32 +391,44 @@ describe('compacting span trees', () => {
     expect(isLargeValueRef(spilled?.output?.result)).toBe(true)
   })
 
-  it('keeps block log child span trees shaped as trees', async () => {
-    const log = {
-      blockId: 'child-workflow',
-      blockType: 'workflow',
-      startedAt: '2026-09-29T00:00:00.000Z',
-      endedAt: '2026-09-29T00:00:00.002Z',
-      durationMs: 2,
-      success: true,
-      childTraceSpans: childWorkflowSpans(),
-    } as BlockLog
-
-    const [compacted] = (await compactBlockLogs([log], options)) ?? []
-
-    expectSpanTree(compacted?.childTraceSpans)
-  })
-
-  it('keeps the output a record when its other fields together exceed the threshold', async () => {
+  it('still spills a block output whose fields together exceed the threshold', async () => {
     const compacted = await compactBlockOutput(
       { first: 'a'.repeat(600), second: 'b'.repeat(600), childTraceSpans: childWorkflowSpans() },
       options
     )
 
-    expect(isLargeValueRef(compacted)).toBe(false)
-    expect(compacted.first).toBe('a'.repeat(600))
-    expect(compacted.second).toBe('b'.repeat(600))
+    expect(isLargeValueRef(compacted.output)).toBe(true)
     expectSpanTree(compacted.childTraceSpans)
+  })
+
+  it('keeps block log child span trees shaped as trees', async () => {
+    const [compacted] =
+      (await compactBlockLogs(
+        [childWorkflowLog({ childTraceSpans: childWorkflowSpans() })],
+        options
+      )) ?? []
+
+    expectSpanTree(compacted?.childTraceSpans)
+  })
+
+  it('keeps a block log output carrying child spans a record', async () => {
+    const [compacted] =
+      (await compactBlockLogs(
+        [
+          childWorkflowLog({
+            output: {
+              first: 'a'.repeat(600),
+              second: 'b'.repeat(600),
+              childTraceSpans: childWorkflowSpans(),
+            },
+          }),
+        ],
+        options
+      )) ?? []
+
+    expect(isLargeValueRef(compacted?.output)).toBe(false)
+    expect(compacted?.output?.first).toBe('a'.repeat(600))
+    expectSpanTree(compacted?.output?.childTraceSpans)
   })
 
   it('keeps a nested child workflow span tree shaped as a tree', async () => {
@@ -416,16 +439,33 @@ describe('compacting span trees', () => {
       duration: 2,
       startTime: '2026-09-29T00:00:00.000Z',
       endTime: '2026-09-29T00:00:00.002Z',
-      output: { result: 'done', childTraceSpans: childWorkflowSpans() },
+      output: {
+        first: 'a'.repeat(600),
+        second: 'b'.repeat(600),
+        childTraceSpans: childWorkflowSpans(),
+      },
     }
 
-    const compacted = await compactBlockOutput(
-      { result: 'done', childTraceSpans: [nestedWorkflowSpan] },
-      options
-    )
+    const compacted = await compactBlockOutput({ childTraceSpans: [nestedWorkflowSpan] }, options)
 
     const [nested] = compacted.childTraceSpans as TraceSpan[]
-    expect(nested.output?.result).toBe('done')
+    expect(nested.output?.first).toBe('a'.repeat(600))
     expectSpanTree(nested.output?.childTraceSpans)
+  })
+
+  it('terminates on a cyclic span tree', async () => {
+    const span: TraceSpan = {
+      id: 'cyclic',
+      name: 'Cyclic',
+      type: 'function',
+      duration: 1,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.001Z',
+    }
+    span.children = [span]
+
+    const compacted = await compactBlockOutput({ childTraceSpans: [span] }, options)
+
+    expect((compacted.childTraceSpans as TraceSpan[])[0].id).toBe('cyclic')
   })
 })
