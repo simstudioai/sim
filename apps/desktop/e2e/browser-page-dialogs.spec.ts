@@ -27,6 +27,7 @@ const FORM_FIXTURE = `<!doctype html><title>form</title>
 type Bridge = typeof globalThis & {
   simDesktop: SimDesktopApi
   pageDialog?: BrowserPageDialog | null
+  boundsTimer?: number
 }
 
 /**
@@ -79,7 +80,7 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
     response.end(
       !isSite
         ? SHELL_FIXTURE
-        : path === '/form'
+        : path === '/form' || path === '/agent'
           ? FORM_FIXTURE
           : '<!doctype html><title>next</title>'
     )
@@ -117,7 +118,7 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
           scope
         )
       updateBounds()
-      window.setInterval(updateBounds, 200)
+      bridge.boundsTimer = window.setInterval(updateBounds, 200)
       bridge.pageDialog = null
       api.onPageState((state) => {
         bridge.pageDialog = state.dialog ?? null
@@ -258,6 +259,53 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       const dialog = await pageDialog()
       await panelAction({ action: 'respond-dialog', requestId: dialog?.requestId, allowed: true })
       await expect.poll(pageUrl).toBe(`${site}/next`)
+      expect(await pageDialog()).toBeNull()
+    })
+    /** Opens a page-initiated confirm (no user gesture) on the tab at `path`. */
+    const confirmFromPage = (path: string) =>
+      shellApp.evaluate(({ webContents }, url) => {
+        const contents = webContents.getAllWebContents().find((c) => c.getURL() === url)
+        if (!contents) throw new Error(`No page at ${url}`)
+        void contents.executeJavaScript(
+          "setTimeout(() => { document.title = 'confirm:' + confirm('Continue?') })"
+        )
+      }, `${site}${path}`)
+    const titleAt = (path: string) =>
+      shellApp.evaluate(
+        ({ webContents }, url) =>
+          webContents
+            .getAllWebContents()
+            .find((c) => c.getURL() === url)
+            ?.getTitle() ?? null,
+        `${site}${path}`
+      )
+
+    await check(
+      "a dialog on the agent's page stays automatic until the user takes it",
+      async () => {
+        await execute('browser_open_tab', { url: `${site}/agent` })
+        const tabs = await shell.evaluate(
+          async (scope) =>
+            (await (globalThis as Bridge).simDesktop.browserAgent.activateScope(scope)).tabs,
+          SCOPE
+        )
+        const agentTabId = tabs.find((tab) => tab.url === `${site}/agent`)?.tabId
+        // The resource strip mirrors the agent's tab on screen without the user claiming it.
+        await panelAction({ action: 'switch-tab', tabId: agentTabId, claim: false })
+        await confirmFromPage('/agent')
+        await expect.poll(() => titleAt('/agent')).toBe('confirm:false')
+        expect(await pageDialog()).toBeNull()
+      }
+    )
+
+    await check('a dialog while the browser is off screen stays automatic', async () => {
+      await shell.evaluate((scope) => {
+        const bridge = globalThis as Bridge
+        window.clearInterval(bridge.boundsTimer)
+        bridge.simDesktop.browserAgent.setPanelBounds(null, null, scope)
+      }, SCOPE)
+      await confirmFromPage('/agent')
+      await expect.poll(() => titleAt('/agent')).toBe('confirm:false')
       expect(await pageDialog()).toBeNull()
     })
     passed = true
