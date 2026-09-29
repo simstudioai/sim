@@ -2,7 +2,7 @@ import type { ScriptMigration } from '@sim/db/script-migrations/types'
 
 /** SQL pages preserve content revisions, storage keys, and ownership, including archived uploads. */
 export const backfillFileDiscoveryMigration: ScriptMigration = {
-  name: '0026_backfill_file_discovery',
+  name: '0027_backfill_file_discovery',
   async up(sql) {
     let afterId = ''
     for (;;) {

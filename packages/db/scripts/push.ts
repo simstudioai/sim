@@ -9,6 +9,7 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0025_scope_keyword_projections.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0026_user_table_schema_for_write.ts'],
 ]
 
 /**

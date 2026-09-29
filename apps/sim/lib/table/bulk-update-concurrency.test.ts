@@ -1,4 +1,5 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { tableRowsLiveSchemaMock } from '@sim/testing/mocks/table-rows-live-schema.mock'
 import {
   tableRowsSecretProvenanceMock,
   tableRowsSecretProvenanceMockFns,
@@ -22,21 +23,25 @@ vi.mock('@/lib/table/rows/ordering', () => ({
 
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 
+vi.mock('@/lib/table/rows/live-schema', () => tableRowsLiveSchemaMock)
+
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildPredicateClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
   escapeLikePattern: vi.fn((value: string) => value),
-  fieldPredicate: vi.fn(() => sql`true`),
+  uniqueValuePredicate: vi.fn(() => sql`true`),
 }))
 
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
-vi.mock('@/lib/table/validation', () => ({
+vi.mock('@/lib/table/validation', async (importOriginal) => ({
+  cellOf: (await importOriginal<typeof import('@/lib/table/validation')>()).cellOf,
   validateRowSize: hoisted.validateRowSize,
   coerceRowToSchema: hoisted.coerceRowToSchema,
   coerceRowValues: vi.fn(),
   getUniqueColumns: vi.fn(() => []),
+  uniqueColumnsInPatch: vi.fn(() => []),
   checkUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))

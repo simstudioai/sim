@@ -378,6 +378,8 @@ describe('script migration registry', () => {
       '0023_projection_acl_skip_unfilled',
       '0024_knowledge_projection_async',
       '0025_scope_keyword_projections',
+      '0026_user_table_schema_for_write',
+      '0027_backfill_file_discovery',
     ])
   })
 })

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0026_backfill_file_discovery'
+import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0027_backfill_file_discovery'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
@@ -37,7 +37,7 @@ describe('file discovery migration in PostgreSQL', () => {
       SELECT 'upload-' || lpad(n::text, 5, '0'), 'mothership',
         CASE WHEN n % 2 = 0 THEN timestamp '2026-02-01' END FROM generate_series(1, 1005) n`
     const source = readFileSync(
-      path.join(__dirname, '../migrations/0385_file_discovery.sql'),
+      path.join(__dirname, '../migrations/0392_file_discovery.sql'),
       'utf8'
     ).replaceAll('"public".', `"${schema}".`)
     for (const statement of source.split('--> statement-breakpoint')) {

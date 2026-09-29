@@ -9,7 +9,8 @@ import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/
 import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
 import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
-import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0026_backfill_file_discovery'
+import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
+import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0027_backfill_file_discovery'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -56,6 +57,9 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   knowledgeProjectionAsyncMigration,
   /** 0025 keeps the keyword projections for search indexes only. */
   scopeKeywordProjectionsMigration,
+  /** 0026 installs the schema guard every table row write takes before it validates. */
+  userTableSchemaForWriteMigration,
+  /** 0027 classifies existing non-workspace uploads as unlisted. */
   backfillFileDiscoveryMigration,
 ]
 
