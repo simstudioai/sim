@@ -924,18 +924,22 @@ export class PauseResumeManager {
       })
 
       if (result.status === 'paused') {
+        /**
+         * A pause that cannot be saved fails the execution. Fail the log with the
+         * reason, then throw so the attempt settles as failed below.
+         */
         const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
-        if (!result.snapshotSeed) {
-          logger.error('Missing snapshot seed for paused resume execution', {
-            resumeExecutionId,
-          })
+        const failPause = async (message: string, cause?: unknown): Promise<never> => {
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
-            'Missing snapshot seed for paused execution',
+            message,
             undefined,
             pausedExecution.workflowId
           )
-          await releaseExecutionSlot(resumeEntryId)
+          throw new Error(message, { cause })
+        }
+        if (!result.snapshotSeed) {
+          await failPause('Missing snapshot seed for paused execution')
         } else {
           try {
             await PauseResumeManager.persistPauseResult({
@@ -947,19 +951,10 @@ export class PauseResumeManager {
               executorUserId: result.metadata?.userId,
             })
           } catch (pauseError) {
-            logger.error(
-              'Failed to persist pause result for resumed execution',
-              projectResolvedSecretDiagnosticError(pauseError, undefined, {
-                resumeExecutionId,
-              })
-            )
-            await LoggingSession.markExecutionAsFailed(
-              effectiveExecutionId,
+            await failPause(
               `Failed to persist pause state: ${toError(pauseError).message}`,
-              undefined,
-              pausedExecution.workflowId
+              pauseError
             )
-            await releaseExecutionSlot(resumeEntryId)
           }
         }
       } else {
@@ -2268,6 +2263,9 @@ export class PauseResumeManager {
         return false
       }
 
+      /** The run completed before a later step threw; its outcome stands. */
+      if (executionLog?.status === 'completed') return false
+
       await tx
         .update(pausedExecutions)
         .set({
@@ -2278,15 +2276,17 @@ export class PauseResumeManager {
 
       if (pausedExecution?.status === 'cancelling') return false
 
-      await tx
-        .update(workflowExecutionLogs)
-        .set(terminalExecutionLogFields('failed', now))
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, args.parentExecutionId),
-            sql`${workflowExecutionLogs.status} != 'cancelled'`
+      if (executionLog?.status !== 'failed') {
+        await tx
+          .update(workflowExecutionLogs)
+          .set(terminalExecutionLogFields('failed', now))
+          .where(
+            and(
+              eq(workflowExecutionLogs.executionId, args.parentExecutionId),
+              sql`${workflowExecutionLogs.status} != 'cancelled'`
+            )
           )
-        )
+      }
 
       return true
     })
