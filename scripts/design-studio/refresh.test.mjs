@@ -283,6 +283,18 @@ test('refresh tracks source changes in imported stylesheets', () => {
   assert.notEqual(changed.sourceRevision, first.sourceRevision)
 }, 60000)
 
+test('fixture edits invalidate the published checkout revision', () => {
+  const { repo, refresh } = guardedRefresh()
+  const first = refresh()
+  const file = 'tools/design-studio/_components/component-fixtures.tsx'
+  write(repo, file, `${readFileSync(path.join(repo, file), 'utf8')}\n// revised fixture`)
+  const changedRevision = workingTreeRevision(repo)
+  assert.notEqual(changedRevision, first.sourceRevision)
+  const changed = refresh()
+  assert.equal(changed.sourceRevision, changedRevision)
+  assert.notEqual(changed.fixtureHash, first.fixtureHash)
+}, 60000)
+
 test('refresh requires a fixture mapping for each variant axis', () => {
   const { refresh } = guardedRefresh()
   const manifest = refresh()

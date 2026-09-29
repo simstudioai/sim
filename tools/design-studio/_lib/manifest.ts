@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { workingTreeRevision } from '../../../scripts/design-conformance/shared/source-revision'
+import { workingTreeRevision } from '#design-conformance/shared/source-revision'
 
 export interface StudioLocation {
   file: string
@@ -122,6 +122,7 @@ export function getStudioPageManifest(mode: 'components' | 'extras'): {
       cwd: process.env.SIM_STUDIO_REPO ?? process.cwd(),
       encoding: 'utf8',
     }).trim()
+    // This revision includes fixture adapters and contracts as well as product source.
     stale = workingTreeRevision(repo) !== manifest.sourceRevision
   } catch {
     stale = true
