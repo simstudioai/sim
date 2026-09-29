@@ -458,9 +458,7 @@ export function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
     } else if (!Array.isArray(span.children)) {
       nextSpan.children = undefined
     }
-    if (span.output && 'childTraceSpans' in span.output) {
-      nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
-    }
+    nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
 
     flattened.push(nextSpan)
   }

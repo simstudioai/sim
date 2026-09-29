@@ -397,7 +397,7 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-        if (Array.isArray(compacted.childTraceSpans)) {
+        if (compacted.childTraceSpans) {
           blockLog.childTraceSpans = compacted.childTraceSpans
         }
         const childExecutionId = normalizedOutput[CHILD_EXECUTION_ID_OUTPUT_KEY]

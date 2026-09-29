@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
@@ -10,7 +11,10 @@ import {
   LARGE_VALUE_THRESHOLD_BYTES,
 } from '@/lib/execution/payloads/large-value-ref'
 import { type LargeValueStoreContext, storeLargeValue } from '@/lib/execution/payloads/store'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockLog } from '@/executor/types'
+
+const logger = createLogger('ExecutionPayloadSerializer')
 
 export interface CompactExecutionPayloadOptions extends LargeValueStoreContext {
   thresholdBytes?: number
@@ -255,11 +259,22 @@ export async function compactSubflowResults<T>(
   return compactedResults
 }
 
+/** Maps each entry of a record concurrently, keeping its keys. */
+async function mapEntriesAsync(
+  record: Record<string, unknown>,
+  mapValue: (key: string, value: unknown) => Promise<unknown>
+): Promise<Record<string, unknown>> {
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(record).map(async ([key, value]) => [key, await mapValue(key, value)])
+    )
+  )
+}
+
 /**
- * Compacts a trace span tree without collapsing its structure. Readers walk
- * `children` and `output.childTraceSpans` as arrays, so those stay arrays and
- * only each span's payload fields are spilled when oversized. Spans are log
- * data: the tree as a whole is bounded where the log is stored, not here.
+ * Compacts a trace span tree without collapsing its structure: `children` and
+ * `output.childTraceSpans` stay arrays and only each span's payload fields
+ * spill when oversized. See {@link compactChildTraceSpans} for the size bound.
  */
 async function compactTraceSpanTree(
   spans: unknown,
@@ -284,25 +299,19 @@ async function compactTraceSpan(
     return span
   }
   seen.add(span)
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(span).map(async ([key, value]) => [
-        key,
-        key === 'children'
-          ? await compactTraceSpanTree(value, options, seen)
-          : key === 'output'
-            ? await compactLoggedOutput(value, options, seen)
-            : await compactExecutionPayload(value, options),
-      ])
-    )
-  )
+  return mapEntriesAsync(span, (key, value) => {
+    if (key === 'children') return compactTraceSpanTree(value, options, seen)
+    if (key === 'output') return compactSpanOutput(value, options, seen)
+    return compactExecutionPayload(value, options)
+  })
 }
 
 /**
- * Compacts a span or block log output. One carrying `childTraceSpans` keeps its
- * root so the spans stay attached; its other fields spill individually.
+ * Compacts a span's output. One carrying a nested child workflow's
+ * `childTraceSpans` keeps its root so the spans stay attached; its other
+ * fields spill individually.
  */
-async function compactLoggedOutput(
+async function compactSpanOutput(
   output: unknown,
   options: CompactExecutionPayloadOptions,
   seen: WeakSet<object>
@@ -310,30 +319,57 @@ async function compactLoggedOutput(
   if (!isRecordLike(output) || !('childTraceSpans' in output)) {
     return compactExecutionPayload(output, options)
   }
-  return Object.fromEntries(
-    await Promise.all(
-      Object.entries(output).map(async ([key, value]) => [
-        key,
-        key === 'childTraceSpans'
-          ? await compactTraceSpanTree(value, options, seen)
-          : await compactExecutionPayload(value, options),
-      ])
-    )
+  return mapEntriesAsync(output, (key, value) =>
+    key === 'childTraceSpans'
+      ? compactTraceSpanTree(value, options, seen)
+      : compactExecutionPayload(value, options)
   )
+}
+
+/**
+ * Compacts a block's child span tree for its log. Readers walk span trees as
+ * arrays, so a tree is kept whole or not at all: payload fields spill
+ * individually (see {@link compactTraceSpanTree}), and a tree still over the
+ * threshold as a whole is dropped, bounding it as generic compaction did.
+ */
+async function compactChildTraceSpans(
+  spans: unknown,
+  options: CompactExecutionPayloadOptions
+): Promise<TraceSpan[] | undefined> {
+  if (!Array.isArray(spans)) {
+    if (spans !== undefined) {
+      logger.warn('Dropping child trace spans that are not a list', { shape: typeof spans })
+    }
+    return undefined
+  }
+  const compacted = await compactTraceSpanTree(spans, options, new WeakSet<object>())
+  const measured = getJsonAndSize(compacted)
+  const maxBytes = options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES
+  if (measured && measured.size <= maxBytes) {
+    return compacted as TraceSpan[]
+  }
+  if (measured && options.rejectLargeValues) {
+    throw largeValueLimitError(options, measured.size)
+  }
+  logger.warn('Dropping child trace spans too large to keep', {
+    observedBytes: measured?.size,
+    maxBytes,
+  })
+  return undefined
 }
 
 export interface CompactedBlockOutput<T> {
   /** The output without `childTraceSpans`, compacted as execution state. */
   output: T
-  /** The output's child span tree, compacted as log data. */
-  childTraceSpans?: unknown
+  /** The output's child span tree for the block log (see {@link compactChildTraceSpans}). */
+  childTraceSpans?: TraceSpan[]
 }
 
 /**
  * Compacts a block output for execution state and splits off its
  * `childTraceSpans`, which belong to the block log rather than state. The
  * output compacts as any execution payload, so an oversized one still spills
- * whole; the spans compact as a tree (see {@link compactTraceSpanTree}).
+ * whole.
  */
 export async function compactBlockOutput<T>(
   output: T,
@@ -345,7 +381,7 @@ export async function compactBlockOutput<T>(
   const { childTraceSpans, ...rest } = output
   const [compactedOutput, compactedSpans] = await Promise.all([
     compactExecutionPayload(rest, options),
-    compactTraceSpanTree(childTraceSpans, options, new WeakSet<object>()),
+    compactChildTraceSpans(childTraceSpans, options),
   ])
   return { output: compactedOutput as T, childTraceSpans: compactedSpans }
 }
@@ -372,18 +408,13 @@ export async function compactBlockLogs(
         compactedLog.input = await compactExecutionPayload(compactedLog.input, options)
       }
       if ('output' in compactedLog) {
-        compactedLog.output = (await compactLoggedOutput(
-          compactedLog.output,
-          options,
-          new WeakSet<object>()
-        )) as BlockLog['output']
+        compactedLog.output = await compactExecutionPayload(compactedLog.output, options)
       }
       if ('childTraceSpans' in compactedLog) {
-        compactedLog.childTraceSpans = (await compactTraceSpanTree(
+        compactedLog.childTraceSpans = await compactChildTraceSpans(
           compactedLog.childTraceSpans,
-          options,
-          new WeakSet<object>()
-        )) as BlockLog['childTraceSpans']
+          options
+        )
       }
       compactedLogs[index] = compactedLog
     }
