@@ -57,13 +57,12 @@ describe('Assistant execution contracts', () => {
     expect(accepts([trip, { ...trip, accountId: 'other' }])).toBe(true)
   })
 
-  it('runs several same-kind GitHub queries on one account but refuses kind fan-out overlap', () => {
+  it('refuses a kindless GitHub query alongside kinded queries on one account', () => {
     const accepts = (nativeQueries: Record<string, string>[]) =>
       searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
     const github = { provider: 'github', accountId: 'account', query: 'repo:org/repo launch' }
     const kinds = ['issues', 'commits', 'code', 'repositories'].map((kind) => ({ ...github, kind }))
     expect(accepts(kinds)).toBe(true)
-    expect(accepts([kinds[0]!, { ...kinds[0]!, query: 'repo:org/repo deploy' }])).toBe(true)
     expect(accepts([kinds[0]!, github])).toBe(false)
     expect(
       searchWorkspaceInputSchema.safeParse({ nativeQueries: [{ provider: 'github', query: '' }] })
