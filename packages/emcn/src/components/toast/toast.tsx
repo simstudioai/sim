@@ -100,6 +100,7 @@ interface ToastData {
   duration: number
   persistAcrossRoutes: boolean
   onDismiss?: () => void
+  onUserDismiss?: () => void
 }
 
 interface ToastRemoval {
@@ -174,6 +175,8 @@ type ToastInput = {
   action?: ToastAction
   /** Called once when the toast leaves the stack, regardless of how it was dismissed. */
   onDismiss?: () => void
+  /** Called directly when the user closes the toast or selects its action, before removal. */
+  onUserDismiss?: () => void
   duration?: number
   /**
    * Keep the toast across navigation. The stack is otherwise cleared on every
@@ -374,7 +377,10 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     return () => observer.disconnect()
   }, [t.id, onMeasure])
 
-  const dismiss = useCallback(() => onDismiss(t.id), [onDismiss, t.id])
+  const dismiss = () => {
+    t.onUserDismiss?.()
+    onDismiss(t.id)
+  }
 
   const { y, scale, height, zIndex } = geometry
   const cornerRadius = height <= COMPACT_CARD_HEIGHT_PX ? COMPACT_RADIUS_PX : CONCENTRIC_RADIUS_PX
@@ -539,6 +545,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
       persistAcrossRoutes: input.persistAcrossRoutes ?? false,
       onDismiss: input.onDismiss,
+      onUserDismiss: input.onUserDismiss,
     }
     dispatch({ type: 'add', toast: data })
     return id
