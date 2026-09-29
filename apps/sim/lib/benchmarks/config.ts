@@ -2,6 +2,7 @@ import { env } from '@/lib/core/config/env'
 import { isMothershipBenchmarkEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
+/** Restart Sim after changing the benchmark flag in the deployment secret. */
 export function isBenchmarkEnabled(): boolean {
   return isMothershipBenchmarkEnabled
 }
