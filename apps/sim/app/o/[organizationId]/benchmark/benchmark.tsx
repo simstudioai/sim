@@ -40,13 +40,32 @@ export function Benchmark({ organizationId, canPlan }: BenchmarkProps) {
               className='min-w-[200px] flex-1'
               value={benchmarkId}
               options={records.map((record) => ({ value: record.id, label: record.name }))}
-              onChange={(value) => setParams({ benchmarkId: value })}
+              onChange={(value) =>
+                setParams({
+                  benchmarkId: value,
+                  benchmarkView: null,
+                  runId: null,
+                  compareRunId: null,
+                  runsCursor: null,
+                })
+              }
               placeholder='Saved benchmarks'
               searchable
               isLoading={benchmarks.isLoading}
               error={benchmarks.error?.message}
             />
-            <Chip leftIcon={Plus} onClick={() => setParams({ benchmarkId: null })}>
+            <Chip
+              leftIcon={Plus}
+              onClick={() =>
+                setParams({
+                  benchmarkId: null,
+                  benchmarkView: null,
+                  runId: null,
+                  compareRunId: null,
+                  runsCursor: null,
+                })
+              }
+            >
               New benchmark
             </Chip>
             {benchmarks.hasNextPage && (
@@ -64,7 +83,18 @@ export function Benchmark({ organizationId, canPlan }: BenchmarkProps) {
               organizationId={organizationId}
               benchmarkId={benchmarkId}
               canPlan={canPlan}
-              onDeleted={() => setParams({ benchmarkId: null }, { history: 'replace' })}
+              onDeleted={() =>
+                setParams(
+                  {
+                    benchmarkId: null,
+                    benchmarkView: null,
+                    runId: null,
+                    compareRunId: null,
+                    runsCursor: null,
+                  },
+                  { history: 'replace' }
+                )
+              }
             />
           ) : (
             <CreateBenchmark

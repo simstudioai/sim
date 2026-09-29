@@ -7,8 +7,12 @@ import {
   type DeleteBenchmarkBody,
   deleteBenchmarkContract,
   getBenchmarkContract,
+  getBenchmarkRunContract,
+  listBenchmarkRunsContract,
   listBenchmarksContract,
+  type ReviewBenchmarkRunBody,
   type RunBenchmarkStageBody,
+  reviewBenchmarkRunContract,
   runBenchmarkStageContract,
   type UpdateBenchmarkBody,
   updateBenchmarkContract,
@@ -21,6 +25,14 @@ export const benchmarkKeys = {
   details: () => [...benchmarkKeys.all, 'detail'] as const,
   detail: (organizationId: string, benchmarkId: string) =>
     [...benchmarkKeys.details(), organizationId, benchmarkId] as const,
+  runLists: () => [...benchmarkKeys.all, 'runs', 'list'] as const,
+  runList: (organizationId: string, benchmarkId: string) =>
+    [...benchmarkKeys.runLists(), organizationId, benchmarkId] as const,
+  runPage: (organizationId: string, benchmarkId: string, cursor: string) =>
+    [...benchmarkKeys.runList(organizationId, benchmarkId), cursor] as const,
+  runs: () => [...benchmarkKeys.all, 'runs', 'detail'] as const,
+  run: (organizationId: string, benchmarkId: string, runId: string) =>
+    [...benchmarkKeys.runs(), organizationId, benchmarkId, runId] as const,
 }
 
 export const BENCHMARK_STALE_TIME = 10_000
@@ -56,6 +68,53 @@ export function useBenchmark(organizationId: string, benchmarkId: string) {
       const benchmark = query.state.data?.benchmark
       if (!benchmark?.runningStage || !benchmark.leaseExpiresAt) return false
       return Date.parse(benchmark.leaseExpiresAt) > Date.now() ? BENCHMARK_POLL_INTERVAL : false
+    },
+  })
+}
+
+export function useBenchmarkRuns(organizationId: string, benchmarkId: string, cursor: string) {
+  return useQuery({
+    queryKey: benchmarkKeys.runPage(organizationId, benchmarkId, cursor),
+    queryFn: ({ signal }) =>
+      requestJson(listBenchmarkRunsContract, {
+        params: { id: organizationId, benchmarkId },
+        query: { cursor: cursor || undefined, limit: BENCHMARK_PAGE_SIZE },
+        signal,
+      }),
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useBenchmarkRun(organizationId: string, benchmarkId: string, runId: string) {
+  return useQuery({
+    queryKey: benchmarkKeys.run(organizationId, benchmarkId, runId),
+    queryFn: ({ signal }) =>
+      requestJson(getBenchmarkRunContract, {
+        params: { id: organizationId, benchmarkId, runId },
+        signal,
+      }),
+    enabled: Boolean(runId),
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useReviewBenchmarkRun(organizationId: string, benchmarkId: string, runId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ReviewBenchmarkRunBody) =>
+      requestJson(reviewBenchmarkRunContract, {
+        params: { id: organizationId, benchmarkId, runId },
+        body,
+      }),
+    onSuccess: (data) =>
+      queryClient.setQueryData(benchmarkKeys.run(organizationId, benchmarkId, runId), data),
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: benchmarkKeys.run(organizationId, benchmarkId, runId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: benchmarkKeys.runList(organizationId, benchmarkId),
+      })
     },
   })
 }
@@ -111,6 +170,9 @@ export function useRunBenchmarkStage(organizationId: string, benchmarkId: string
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: benchmarkKeys.list(organizationId) })
+      queryClient.invalidateQueries({
+        queryKey: benchmarkKeys.runList(organizationId, benchmarkId),
+      })
     },
   })
 }

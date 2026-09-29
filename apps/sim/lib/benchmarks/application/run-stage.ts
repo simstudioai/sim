@@ -59,6 +59,7 @@ interface RunBenchmarkStageInput {
   benchmarkId: string
   version: number
   stage: BenchmarkStage
+  runLabel?: string
 }
 
 function requireStageInputs(stage: BenchmarkStage, artifacts: BenchmarkArtifacts): void {
@@ -188,7 +189,13 @@ export const runBenchmarkStage = defineAuthorizedOrganizationUseCase({
       const output = await performStage(principal, claimed, input.stage, signal)
       signal.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)
-      return { benchmark: await completeBenchmarkStage({ ...attempt, ...output }) }
+      return {
+        benchmark: await completeBenchmarkStage({
+          ...attempt,
+          ...output,
+          runLabel: input.runLabel,
+        }),
+      }
     } catch (error) {
       const message = signal.aborted
         ? 'This step was interrupted or exceeded ten minutes. Retry it.'

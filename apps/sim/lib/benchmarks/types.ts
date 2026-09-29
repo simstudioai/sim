@@ -72,11 +72,40 @@ export const benchmarkCaseSchema = benchmarkSummarySchema.extend({
   artifacts: benchmarkArtifactsSchema,
 })
 
+export const benchmarkRunLabelSchema = z.string().trim().max(100)
+export const benchmarkHumanReviewSchema = z.object({
+  id: benchmarkBlankSchema.shape.id,
+  correct: z.boolean(),
+  note: z.string().trim().max(2_000),
+})
+export const benchmarkRunSummarySchema = z.object({
+  id: z.string().min(1).max(128),
+  benchmarkId: z.string().min(1).max(128),
+  label: benchmarkRunLabelSchema,
+  evaluationKey: z.string().length(64),
+  correct: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
+  automaticCorrect: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
+  total: z.number().int().min(1).max(BENCHMARK_MAX_BLANKS),
+  version: z.number().int().min(1),
+  reviewedCount: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
+  reviewedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+})
+export const benchmarkRunSchema = benchmarkRunSummarySchema.extend({
+  reviews: z.array(benchmarkHumanReviewSchema).max(BENCHMARK_MAX_BLANKS),
+  artifacts: benchmarkArtifactsSchema.extend({
+    generatedSpec: benchmarkSpecSchema.min(1),
+    reconstruction: z.array(benchmarkReconstructionSchema).min(1).max(BENCHMARK_MAX_BLANKS),
+    grade: z.array(benchmarkGradeSchema).min(1).max(BENCHMARK_MAX_BLANKS),
+  }),
+})
+
 export type BenchmarkStage = z.infer<typeof benchmarkStageSchema>
 export type BenchmarkArtifacts = z.infer<typeof benchmarkArtifactsSchema>
 export type BenchmarkEditablePatch = z.infer<typeof benchmarkEditablePatchSchema>
 export type BenchmarkSummary = z.infer<typeof benchmarkSummarySchema>
 export type BenchmarkCase = z.infer<typeof benchmarkCaseSchema>
+export type BenchmarkRun = z.infer<typeof benchmarkRunSchema>
 
 export function emptyBenchmarkArtifacts(taskBrief = ''): BenchmarkArtifacts {
   return {

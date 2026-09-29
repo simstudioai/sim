@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
-import { mothershipBenchmarks } from '@sim/db/schema'
-import { truncate } from '@sim/utils/string'
+import { mothershipBenchmarkRuns, mothershipBenchmarks } from '@sim/db/schema'
+import { omit } from '@sim/utils/object'
+import { compareStrings, truncate } from '@sim/utils/string'
 import { and, desc, eq, gt, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
@@ -9,6 +11,8 @@ import {
   type BenchmarkStage,
   benchmarkArtifactsSchema,
   benchmarkCaseSchema,
+  benchmarkRunSchema,
+  benchmarkRunSummarySchema,
   benchmarkSummarySchema,
 } from '@/lib/benchmarks/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -59,22 +63,31 @@ const cursorSchema = z
   .object({ id: z.string().min(1).max(128), createdAt: z.string().datetime() })
   .strict()
 
+function readCursor(value?: string) {
+  if (!value) return undefined
+  try {
+    return cursorSchema.parse(JSON.parse(Buffer.from(value, 'base64url').toString('utf8')))
+  } catch {
+    throw new OrchestrationError('validation', 'Invalid benchmark cursor')
+  }
+}
+
+function nextCursor(rows: { id: string; createdAt: Date }[], limit: number) {
+  const last = rows[limit - 1]
+  return rows.length > limit && last
+    ? Buffer.from(
+        JSON.stringify({ id: last.id, createdAt: last.createdAt.toISOString() })
+      ).toString('base64url')
+    : null
+}
+
 export async function listBenchmarkRecords(input: {
   organizationId: string
   userId: string
   limit: number
   cursor?: string
 }) {
-  let cursor: z.infer<typeof cursorSchema> | undefined
-  if (input.cursor) {
-    try {
-      cursor = cursorSchema.parse(
-        JSON.parse(Buffer.from(input.cursor, 'base64url').toString('utf8'))
-      )
-    } catch {
-      throw new OrchestrationError('validation', 'Invalid benchmark cursor')
-    }
-  }
+  const cursor = readCursor(input.cursor)
   const rows = await db
     .select(summaryColumns)
     .from(mothershipBenchmarks)
@@ -96,15 +109,9 @@ export async function listBenchmarkRecords(input: {
     .orderBy(desc(mothershipBenchmarks.createdAt), desc(mothershipBenchmarks.id))
     .limit(input.limit + 1)
   const page = rows.slice(0, input.limit)
-  const last = page.at(-1)
   return {
     benchmarks: page.map((row) => benchmarkSummarySchema.parse({ ...row, ...dateFields(row) })),
-    nextCursor:
-      rows.length > input.limit && last
-        ? Buffer.from(
-            JSON.stringify({ id: last.id, createdAt: last.createdAt.toISOString() })
-          ).toString('base64url')
-        : null,
+    nextCursor: nextCursor(rows, input.limit),
   }
 }
 
@@ -236,24 +243,201 @@ function attemptWhere(input: BenchmarkAttempt) {
 
 /** A timed-out or replaced worker cannot overwrite a later run or user edit. */
 export async function completeBenchmarkStage(
-  input: BenchmarkAttempt & { artifacts: BenchmarkArtifacts; plannerChatId?: string | null }
+  input: BenchmarkAttempt & {
+    artifacts: BenchmarkArtifacts
+    plannerChatId?: string | null
+    runLabel?: string
+  }
 ) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(mothershipBenchmarks)
+      .set({
+        artifacts: benchmarkArtifactsSchema.parse(input.artifacts),
+        ...(input.plannerChatId !== undefined ? { plannerChatId: input.plannerChatId } : {}),
+        version: sql`${mothershipBenchmarks.version} + 1`,
+        runningStage: null,
+        attemptId: null,
+        leaseExpiresAt: null,
+        error: null,
+        updatedAt: new Date(),
+      })
+      .where(attemptWhere(input))
+      .returning()
+    if (!row) conflict()
+    const benchmark = toBenchmark(row)
+    if (input.stage === 'grade') {
+      const artifacts = benchmark.artifacts
+      const snapshot = benchmarkRunSchema.parse({
+        id: input.attemptId,
+        benchmarkId: benchmark.id,
+        label: input.runLabel ?? '',
+        evaluationKey: createHash('sha256')
+          .update(
+            JSON.stringify([
+              1,
+              benchmark.sourceWorkspaceId,
+              artifacts.taskBrief,
+              artifacts.referenceSpec,
+              artifacts.redactedSpec,
+              [...artifacts.blanks].sort((a, b) => compareStrings(a.id, b.id)),
+            ])
+          )
+          .digest('hex'),
+        correct: artifacts.grade?.filter((result) => result.correct).length ?? 0,
+        automaticCorrect: artifacts.grade?.filter((result) => result.correct).length ?? 0,
+        total: artifacts.blanks.length,
+        version: 1,
+        reviewedCount: 0,
+        reviewedAt: null,
+        reviews: [],
+        artifacts,
+        createdAt: row.updatedAt.toISOString(),
+      })
+      await tx.insert(mothershipBenchmarkRuns).values({
+        ...omit(snapshot, ['reviewedCount']),
+        createdAt: row.updatedAt,
+        reviewedAt: null,
+      })
+    }
+    return benchmark
+  })
+}
+
+const runSummaryColumns = {
+  id: mothershipBenchmarkRuns.id,
+  benchmarkId: mothershipBenchmarkRuns.benchmarkId,
+  label: mothershipBenchmarkRuns.label,
+  evaluationKey: mothershipBenchmarkRuns.evaluationKey,
+  correct: mothershipBenchmarkRuns.correct,
+  automaticCorrect: mothershipBenchmarkRuns.automaticCorrect,
+  total: mothershipBenchmarkRuns.total,
+  version: mothershipBenchmarkRuns.version,
+  reviewedCount: sql<number>`jsonb_array_length(${mothershipBenchmarkRuns.reviews})`,
+  reviewedAt: mothershipBenchmarkRuns.reviewedAt,
+  createdAt: mothershipBenchmarkRuns.createdAt,
+}
+
+export async function listBenchmarkRunRecords(
+  input: BenchmarkScope & { limit: number; cursor?: string }
+) {
+  const cursor = readCursor(input.cursor)
+  const limit = Math.max(1, Math.min(input.limit, 50))
+  const rows = await db
+    .select(runSummaryColumns)
+    .from(mothershipBenchmarkRuns)
+    .innerJoin(
+      mothershipBenchmarks,
+      eq(mothershipBenchmarks.id, mothershipBenchmarkRuns.benchmarkId)
+    )
+    .where(
+      and(
+        scopeWhere(input),
+        cursor
+          ? or(
+              lt(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+              and(
+                eq(mothershipBenchmarkRuns.createdAt, new Date(cursor.createdAt)),
+                lt(mothershipBenchmarkRuns.id, cursor.id)
+              )
+            )
+          : undefined
+      )
+    )
+    .orderBy(desc(mothershipBenchmarkRuns.createdAt), desc(mothershipBenchmarkRuns.id))
+    .limit(limit + 1)
+  return {
+    runs: rows.slice(0, limit).map((row) =>
+      benchmarkRunSummarySchema.parse({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+        reviewedAt: row.reviewedAt?.toISOString() ?? null,
+      })
+    ),
+    nextCursor: nextCursor(rows, limit),
+  }
+}
+
+export async function getBenchmarkRunRecord(input: BenchmarkScope & { runId: string }) {
   const [row] = await db
-    .update(mothershipBenchmarks)
-    .set({
-      artifacts: benchmarkArtifactsSchema.parse(input.artifacts),
-      ...(input.plannerChatId !== undefined ? { plannerChatId: input.plannerChatId } : {}),
-      version: sql`${mothershipBenchmarks.version} + 1`,
-      runningStage: null,
-      attemptId: null,
-      leaseExpiresAt: null,
-      error: null,
-      updatedAt: new Date(),
+    .select({
+      ...runSummaryColumns,
+      artifacts: mothershipBenchmarkRuns.artifacts,
+      reviews: mothershipBenchmarkRuns.reviews,
     })
-    .where(attemptWhere(input))
-    .returning()
-  if (!row) conflict()
-  return toBenchmark(row)
+    .from(mothershipBenchmarkRuns)
+    .innerJoin(
+      mothershipBenchmarks,
+      eq(mothershipBenchmarks.id, mothershipBenchmarkRuns.benchmarkId)
+    )
+    .where(and(scopeWhere(input), eq(mothershipBenchmarkRuns.id, input.runId)))
+    .limit(1)
+  if (!row) throw new OrchestrationError('not_found', 'Benchmark run not found')
+  return benchmarkRunSchema.parse({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  })
+}
+
+export async function reviewBenchmarkRunRecord(
+  input: BenchmarkScope & {
+    runId: string
+    version: number
+    blankId: string
+    correct: boolean | null
+    note: string
+  }
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        ...runSummaryColumns,
+        artifacts: mothershipBenchmarkRuns.artifacts,
+        reviews: mothershipBenchmarkRuns.reviews,
+      })
+      .from(mothershipBenchmarkRuns)
+      .innerJoin(
+        mothershipBenchmarks,
+        eq(mothershipBenchmarks.id, mothershipBenchmarkRuns.benchmarkId)
+      )
+      .where(and(scopeWhere(input), eq(mothershipBenchmarkRuns.id, input.runId)))
+      .limit(1)
+      .for('update', { of: mothershipBenchmarkRuns })
+    if (!row) throw new OrchestrationError('not_found', 'Benchmark run not found')
+    if (row.version !== input.version)
+      throw new OrchestrationError('conflict', 'This review changed. Refresh it before saving.')
+    const current = benchmarkRunSchema.parse({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      reviewedAt: row.reviewedAt?.toISOString() ?? null,
+    })
+    if (!current.artifacts.blanks.some((blank) => blank.id === input.blankId))
+      throw new OrchestrationError('validation', 'This detail does not belong to the saved run')
+    const reviews = current.reviews.filter((review) => review.id !== input.blankId)
+    if (input.correct !== null)
+      reviews.push({ id: input.blankId, correct: input.correct, note: input.note })
+    const overrides = new Map(reviews.map((review) => [review.id, review.correct]))
+    const next = benchmarkRunSchema.parse({
+      ...current,
+      reviews,
+      reviewedCount: reviews.length,
+      correct: current.artifacts.grade.filter((grade) => overrides.get(grade.id) ?? grade.correct)
+        .length,
+      version: current.version + 1,
+      reviewedAt: new Date().toISOString(),
+    })
+    await tx
+      .update(mothershipBenchmarkRuns)
+      .set({
+        reviews: next.reviews,
+        correct: next.correct,
+        version: next.version,
+        reviewedAt: new Date(next.reviewedAt!),
+      })
+      .where(eq(mothershipBenchmarkRuns.id, input.runId))
+    return next
+  })
 }
 
 export async function failBenchmarkStage(
