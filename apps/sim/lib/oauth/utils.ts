@@ -86,6 +86,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/apps.groups.settings':
+    'View and manage Google Workspace group settings',
   'https://www.googleapis.com/auth/chat.spaces.readonly':
     'View Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/chat.messages.readonly':
@@ -207,7 +209,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:issue-type:jira': 'Read Jira issue types',
   'read:issue-meta:jira': 'Read Jira issue meta',
   'read:issue-security-level:jira': 'Read Jira issue security level',
-  'read:issue.vote:jira': 'Read Jira issue votes',
   'read:issue.changelog:jira': 'Read Jira issue changelog',
   'read:avatar:jira': 'Read Jira avatar',
   'read:issue:jira': 'Read Jira issues',
@@ -219,18 +220,13 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:jql:jira': 'Use JQL to filter Jira issues',
   'read:comment.property:jira': 'Read Jira comment properties',
   'read:issue.property:jira': 'Read Jira issue properties',
-  'delete:issue:jira': 'Delete Jira issues',
   'write:comment:jira': 'Add and update comments on Jira issues',
   'read:comment:jira': 'Read comments on Jira issues',
-  'delete:comment:jira': 'Delete comments from Jira issues',
   'read:attachment:jira': 'Read attachments from Jira issues',
   'write:attachment:jira': 'Add attachments to Jira issues',
-  'delete:attachment:jira': 'Delete attachments from Jira issues',
   'write:issue-worklog:jira': 'Add and update worklog entries on Jira issues',
   'read:issue-worklog:jira': 'Read worklog entries from Jira issues',
-  'delete:issue-worklog:jira': 'Delete worklog entries from Jira issues',
   'write:issue-link:jira': 'Create links between Jira issues',
-  'delete:issue-link:jira': 'Delete links between Jira issues',
 
   // Jira Service Management scopes
   'read:servicedesk-request': 'View service desk requests',
@@ -332,11 +328,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   privatemessages: 'Access inbox and send private messages',
   account: 'Update account preferences and settings',
   mysubreddits: 'Access subscribed and moderated subreddits',
-  flair: 'Select your user flair and change flair on your posts',
   report: 'Report content and hide or show posts',
   modposts: 'Approve, remove, and moderate posts in moderated subreddits',
-  modflair: 'Manage flair in moderated subreddits',
-  modmail: 'Access and respond to moderator mail',
 
   // Wealthbox scopes
   login: 'Access Wealthbox account',
@@ -467,6 +460,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'cloud_recording:read:list_user_recordings': 'List Zoom cloud recordings',
   'cloud_recording:read:list_recording_files': 'View recording files',
   'cloud_recording:delete:recording_file': 'Delete individual cloud recording files',
+  'cloud_recording:delete:meeting_recording': 'Delete all cloud recordings of a meeting',
 
   // Dropbox scopes
   'account_info.read': 'View Dropbox account information',
@@ -522,6 +516,15 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read webhook subscriptions',
   'webhooks:write': 'Create and manage webhook subscriptions',
   'me:read': 'Read your user profile',
+
+  // Cal.com scopes
+  PROFILE_READ: 'View your Cal.com profile',
+  BOOKING_READ: 'View bookings',
+  BOOKING_WRITE: 'Create, edit, and delete bookings',
+  EVENT_TYPE_READ: 'View event types',
+  EVENT_TYPE_WRITE: 'Create, edit, and delete event types',
+  SCHEDULE_READ: 'View availability schedules',
+  SCHEDULE_WRITE: 'Create, edit, and delete availability schedules',
 }
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */

@@ -11,7 +11,8 @@ export const linearDeleteProjectStatusTool: ToolConfig<
 > = {
   id: 'linear_delete_project_status',
   name: 'Linear Delete Project Status',
-  description: 'Delete a project status in Linear',
+  description:
+    'Archive a project status in Linear. The status must have no active projects and must not be the last status of its type.',
   version: '1.0.0',
 
   oauth: {
@@ -24,7 +25,7 @@ export const linearDeleteProjectStatusTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project status ID to delete',
+      description: 'Project status ID to archive',
     },
   },
 
@@ -42,8 +43,8 @@ export const linearDeleteProjectStatusTool: ToolConfig<
     },
     body: (params) => ({
       query: `
-        mutation ProjectStatusDelete($id: String!) {
-          projectStatusDelete(id: $id) {
+        mutation ProjectStatusArchive($id: String!) {
+          projectStatusArchive(id: $id) {
             success
           }
         }
@@ -60,12 +61,12 @@ export const linearDeleteProjectStatusTool: ToolConfig<
     if (data.errors) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to delete project status',
+        error: data.errors[0]?.message || 'Failed to archive project status',
         output: {},
       }
     }
 
-    const result = data.data.projectStatusDelete
+    const result = data.data.projectStatusArchive
     return {
       success: result.success,
       output: {
@@ -77,7 +78,7 @@ export const linearDeleteProjectStatusTool: ToolConfig<
   outputs: {
     success: {
       type: 'boolean',
-      description: 'Whether the deletion was successful',
+      description: 'Whether the archive operation was successful',
     },
   },
 }

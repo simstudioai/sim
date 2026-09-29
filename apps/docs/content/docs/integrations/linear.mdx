@@ -828,7 +828,7 @@ Update an existing label in Linear
 
 ### Linear Archive Label
 
-Archive a label in Linear
+Archive (retire) a label in Linear. Retired labels stay on existing issues but cannot be applied to new ones.
 
 #### Input
 
@@ -2128,19 +2128,19 @@ Update a project status in Linear
 
 ### Linear Delete Project Status
 
-Delete a project status in Linear
+Archive a project status in Linear. The status must have no active projects and must not be the last status of its type.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `statusId` | string | Yes | Project status ID to delete |
+| `statusId` | string | Yes | Project status ID to archive |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the deletion was successful |
+| `success` | boolean | Whether the archive operation was successful |
 
 ### Linear List Project Statuses
 

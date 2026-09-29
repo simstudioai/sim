@@ -291,7 +291,7 @@ describe('userinfo-backed managed OAuth connectors', () => {
     })
   })
 
-  it.each(['notion', 'clickup', 'calcom'])(
+  it.each(['notion', 'clickup'])(
     'declares %s scopeless so an empty scope policy is not read as a misconfiguration',
     (providerId) => {
       expect(policyFor(providerId).scopeless).toBe(true)

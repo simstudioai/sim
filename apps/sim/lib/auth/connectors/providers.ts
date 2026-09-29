@@ -2798,7 +2798,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'calcom',
       clientId: env.CALCOM_CLIENT_ID as string,
       authorizationUrl: 'https://app.cal.com/auth/oauth2/authorize',
-      tokenUrl: 'https://app.cal.com/api/auth/oauth/token',
+      tokenUrl: 'https://api.cal.com/v2/auth/oauth2/token',
       scopes: getCanonicalScopesForProvider('calcom'),
       responseType: 'code',
       pkce: true,

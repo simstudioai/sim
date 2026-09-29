@@ -56,7 +56,7 @@ export interface ManagedOAuthConnectorConfig {
   requiresRefreshToken: boolean
   pkce: boolean
   /**
-   * Set when the provider takes no scopes at all (Notion, ClickUp, Cal.com all authorize with an
+   * Set when the provider takes no scopes at all (Notion and ClickUp both authorize with an
    * empty scope list). Without it the empty scope policy is indistinguishable from a
    * misconfigured connector, which is what the policy guard exists to catch.
    */
@@ -940,8 +940,6 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
     () =>
       createUserInfoManagedOAuthConnector({
         providerId: 'calcom',
-        /** Cal.com's OAuth app authorizes without a scope list. */
-        scopeless: true,
         pkce: true,
         requiresRefreshToken: true,
         scopes: { from: 'token_response' },

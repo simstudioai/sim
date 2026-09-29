@@ -2,6 +2,7 @@ import type {
   GoogleGroupsListAliasesParams,
   GoogleGroupsListAliasesResponse,
 } from '@/tools/google_groups/types'
+import { GOOGLE_GROUPS_DIRECTORY_SCOPES } from '@/tools/google_groups/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAliasesTool: ToolConfig<
@@ -16,6 +17,7 @@ export const listAliasesTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'google-groups',
+    requiredScopes: GOOGLE_GROUPS_DIRECTORY_SCOPES,
   },
 
   params: {

@@ -2,6 +2,7 @@ import type {
   GoogleGroupsGetSettingsParams,
   GoogleGroupsGetSettingsResponse,
 } from '@/tools/google_groups/types'
+import { GOOGLE_GROUPS_SETTINGS_SCOPES } from '@/tools/google_groups/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSettingsTool: ToolConfig<
@@ -17,6 +18,7 @@ export const getSettingsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'google-groups',
+    requiredScopes: GOOGLE_GROUPS_SETTINGS_SCOPES,
   },
 
   params: {

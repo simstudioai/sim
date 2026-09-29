@@ -14106,7 +14106,7 @@
         },
         {
           "name": "Archive Label",
-          "description": "Archive a label in Linear"
+          "description": "Archive (retire) a label in Linear. Retired labels stay on existing issues but cannot be applied to new ones."
         },
         {
           "name": "List Workflow States",
@@ -14309,8 +14309,8 @@
           "description": "Update a project status in Linear"
         },
         {
-          "name": "Delete Project Status",
-          "description": "Delete a project status in Linear"
+          "name": "Archive Project Status",
+          "description": "Archive a project status in Linear. The status must have no active projects and must not be the last status of its type."
         },
         {
           "name": "List Project Statuses",

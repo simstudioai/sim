@@ -8,7 +8,8 @@ export const linearArchiveLabelTool: ToolConfig<
 > = {
   id: 'linear_archive_label',
   name: 'Linear Archive Label',
-  description: 'Archive a label in Linear',
+  description:
+    'Archive (retire) a label in Linear. Retired labels stay on existing issues but cannot be applied to new ones.',
   version: '1.0.0',
 
   oauth: {
@@ -39,8 +40,8 @@ export const linearArchiveLabelTool: ToolConfig<
     },
     body: (params) => ({
       query: `
-        mutation ArchiveLabel($id: String!) {
-          issueLabelArchive(id: $id) {
+        mutation RetireLabel($id: String!) {
+          issueLabelRetire(id: $id) {
             success
           }
         }
@@ -63,9 +64,9 @@ export const linearArchiveLabelTool: ToolConfig<
     }
 
     return {
-      success: data.data.issueLabelArchive.success,
+      success: data.data.issueLabelRetire.success,
       output: {
-        success: data.data.issueLabelArchive.success,
+        success: data.data.issueLabelRetire.success,
         labelId: params?.labelId,
       },
     }

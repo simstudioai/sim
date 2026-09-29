@@ -388,7 +388,7 @@ describe('OAuth Token Refresh', () => {
       expect(bodyParams.get('client_id')).toBeNull()
     })
 
-    it.concurrent('should preserve Cal.com bearer refresh authentication', async () => {
+    it.concurrent('should send the Cal.com refresh token in the v2 request body', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
@@ -400,12 +400,12 @@ describe('OAuth Token Refresh', () => {
       ]
       const bodyParams = new URLSearchParams(requestOptions.body)
 
-      expect(endpoint).toBe('https://app.cal.com/api/auth/oauth/refreshToken')
-      expect(requestOptions.headers.Authorization).toBe(`Bearer ${refreshToken}`)
+      expect(endpoint).toBe('https://api.cal.com/v2/auth/oauth2/token')
+      expect(requestOptions.headers.Authorization).toBeUndefined()
       expect(bodyParams.get('grant_type')).toBe('refresh_token')
       expect(bodyParams.get('client_id')).toBe('calcom_client_id')
       expect(bodyParams.get('client_secret')).toBeNull()
-      expect(bodyParams.get('refresh_token')).toBeNull()
+      expect(bodyParams.get('refresh_token')).toBe(refreshToken)
     })
 
     it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
