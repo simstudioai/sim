@@ -11,6 +11,7 @@ import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/002
 import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import { retireSearchEmbeddingsMigration } from '@sim/db/script-migrations/0027_retire_search_embeddings'
+import { maintainSearchRetirementMigration } from '@sim/db/script-migrations/0028_maintain_search_retirement'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -60,6 +61,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   /** 0026 installs the schema guard every table row write takes before it validates. */
   userTableSchemaForWriteMigration,
   retireSearchEmbeddingsMigration,
+  maintainSearchRetirementMigration,
 ]
 
 /**
