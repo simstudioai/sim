@@ -100,7 +100,7 @@ function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
     <div className='mx-auto flex w-full max-w-[1120px] flex-col gap-6'>
       <header className='grid @min-[1000px]/dashboard:grid-cols-[minmax(0,1fr)_auto] grid-cols-1 items-start gap-4'>
         <div className='flex min-w-0 flex-col gap-1'>
-          <h1 className='@min-[1000px]/dashboard:text-[32px] text-[28px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
+          <h1 className='@min-[1000px]/dashboard:text-3xl text-2xl text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
             {spec.title}
           </h1>
           {description && (

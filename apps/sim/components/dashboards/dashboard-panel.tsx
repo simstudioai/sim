@@ -147,7 +147,7 @@ export function DashboardPanel({ block, defaults, workspaceId, range, now }: Das
       ) : (
         <h2
           className={cn(
-            '@min-[1000px]/dashboard:text-[24px] text-[20px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]',
+            '@min-[1000px]/dashboard:text-2xl text-[var(--text-primary)] text-xl leading-tight tracking-[-0.02em]',
             timeSeries ? 'mb-3' : 'mb-5'
           )}
         >

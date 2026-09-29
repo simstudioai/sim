@@ -49,8 +49,6 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -163,11 +161,7 @@ function useResourceNameLookup(
   workspaceId: string | undefined,
   resources: MothershipResource[]
 ): Map<string, string> {
-  const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = resources.length > 0
-  const { data: dashboardData } = useWorkspaceDashboard(workspaceId ?? '', {
-    enabled: dashboardsEnabled && resources.some((resource) => resource.type === 'dashboard'),
-  })
   const owners = [
     ...new Set(
       resources
@@ -210,22 +204,10 @@ function useResourceNameLookup(
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
     for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
-    if (dashboardData?.dashboard)
-      map.set(`dashboard:${dashboardData.dashboard.id}`, dashboardData.dashboard.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
-  }, [
-    enabled,
-    workflows,
-    tables,
-    files,
-    dashboardData,
-    knowledgeBases,
-    folders,
-    ownedWorkflows,
-    owners,
-  ])
+  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
 }
 
 interface ResourceTabsProps {

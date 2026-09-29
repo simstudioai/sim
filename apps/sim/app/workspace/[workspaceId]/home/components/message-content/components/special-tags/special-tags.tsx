@@ -95,7 +95,6 @@ import type {
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -105,7 +104,6 @@ import {
   useWorkspaceCredential,
   useWorkspaceCredentials,
 } from '@/hooks/queries/credentials'
-import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -1995,10 +1993,6 @@ function WorkspaceResourceDisplayContent({
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
-  const dashboardsEnabled = useFeatureFlag('dashboards')
-  const { data: dashboardData } = useWorkspaceDashboard(workspaceId, {
-    enabled: dashboardsEnabled && data.type === 'dashboard',
-  })
 
   const resource = useMemo<WorkspaceResourceRef>(() => {
     const fileFromPath =
@@ -2011,11 +2005,7 @@ function WorkspaceResourceDisplayContent({
           ? (tables.find((table) => table.id === data.id)?.name ??
             fallbackWorkspaceResourceTitle(data.type))
           : data.type === 'dashboard'
-            ? ((dashboardData?.dashboard?.id === data.id
-                ? dashboardData?.dashboard?.name
-                : undefined) ??
-              data.title ??
-              fallbackWorkspaceResourceTitle(data.type))
+            ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
             : data.type === 'file'
               ? (files.find((file) => file.id === data.id)?.name ??
                 fileFromPath?.name ??
@@ -2037,7 +2027,6 @@ function WorkspaceResourceDisplayContent({
     data.path,
     data.title,
     data.type,
-    dashboardData,
     files,
     knowledgeBases,
     tables,
