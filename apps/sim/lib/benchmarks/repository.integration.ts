@@ -22,6 +22,7 @@ vi.mock('@sim/db', () => ({
 
 import { createBenchmark, getBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
+import { prepareBenchmarkReference } from '@/lib/benchmarks/application/prepare-reference'
 import {
   getBenchmarkRun,
   listBenchmarkRuns,
@@ -231,6 +232,21 @@ describe('private benchmark persistence and attempt fencing', () => {
       },
     })
     expect(benchmark).toMatchObject({ userId: 'owner', runAsUserId: 'target' })
+    const reference = await prepareBenchmarkReference.execute({
+      principal,
+      input: { organizationId: 'org', benchmarkId: benchmark.id },
+    })
+    const [referenceChat] =
+      await connection`SELECT user_id, workspace_id, organization_id, config FROM copilot_chats WHERE id = ${reference.chatId}`
+    expect(referenceChat).toMatchObject({
+      user_id: 'target',
+      workspace_id: 'workspace',
+      organization_id: null,
+      config: {
+        conversationMode: 'agent',
+        benchmark: { id: benchmark.id, operatorUserId: 'owner' },
+      },
+    })
     const target = await prepareBenchmarkPlan.execute({
       principal,
       input: { organizationId: 'org', benchmarkId: benchmark.id },
@@ -269,7 +285,13 @@ describe('private benchmark persistence and attempt fencing', () => {
         input: { organizationId: 'org', benchmarkId: benchmark.id },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(await connection`SELECT id FROM copilot_chats`).toHaveLength(2)
+    await expect(
+      prepareBenchmarkReference.execute({
+        principal,
+        input: { organizationId: 'org', benchmarkId: benchmark.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(await connection`SELECT id FROM copilot_chats`).toHaveLength(3)
   })
 
   it('refuses a target outside the organization or with revoked membership, disabled account, or workspace access', async () => {

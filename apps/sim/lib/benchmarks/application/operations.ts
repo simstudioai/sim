@@ -2,6 +2,12 @@ import { defineOperation } from '@/lib/core/application/operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export const benchmarkOperations = {
+  /** permission-group-exempt: platform superusers administer benchmarks; source access is checked for the selected user. */
+  prepareReference: defineOperation({
+    id: 'benchmarks.reference.prepare',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
   /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
   preparePlan: defineOperation({
     id: 'benchmarks.plan.prepare',

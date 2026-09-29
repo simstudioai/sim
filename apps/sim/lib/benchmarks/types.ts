@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const BENCHMARK_SPEC_MAX_LENGTH = 100_000
+export const BENCHMARK_SPEC_MAX_LENGTH = 1_000_000
 export const BENCHMARK_MAX_BLANKS = 50
 export const benchmarkStageSchema = z.enum(['distill', 'redact', 'plan', 'reconstruct', 'grade'])
 export const benchmarkNameSchema = z.string().trim().min(1, 'A benchmark name is required').max(200)

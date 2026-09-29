@@ -481,10 +481,18 @@ export interface ProtocolMismatch {
 /**
  * POST /api/mothership/execute — headless execution, with optional conversation replay.
  * The caller supplies the conversation and authorized catalog selectors. The worker
- * runs one bounded loop and streams mothership-stream-v1 frames. No skills or CLI;
- * discovery and execution resolve selected operations through Sim.
+ * runs one loop and streams mothership-stream-v1 frames. Ordinary executions resolve
+ * selected integrations through Sim; benchmark profiles expose only their stage's reads.
  */
+/** Restricted, fresh-conversation benchmark stages; the supplied spec never enters the prompt wholesale. */
+export const BenchmarkExecution = z.discriminatedUnion("stage", [
+  z.strictObject({ stage: z.literal("distill") }),
+  z.strictObject({ stage: z.literal("reconstruct"), spec: z.string().min(1).max(1_000_000) }),
+]);
+export type BenchmarkExecution = z.infer<typeof BenchmarkExecution>;
+
 export interface ExecuteRequest extends StreamResponseReceipt {
+  benchmark?: BenchmarkExecution | undefined;
   /** Optional per-call output bound for stateless structured stages (1–32768 tokens). */
   maxOutputTokens?: number | undefined;
   simConnection?: SimConnection | undefined;

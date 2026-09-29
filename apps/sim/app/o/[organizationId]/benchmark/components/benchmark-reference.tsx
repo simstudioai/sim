@@ -41,11 +41,11 @@ export function BenchmarkReference({
     if (!file) return
     try {
       if (file.size > BENCHMARK_SPEC_MAX_LENGTH * 4) {
-        throw new Error('The reference is too large. Use a text file under 400 KB.')
+        throw new Error('The reference is too large. Use a text file under 4 MB.')
       }
       const text = await file.text()
       if (text.length > BENCHMARK_SPEC_MAX_LENGTH) {
-        throw new Error('The reference must be at most 100,000 characters.')
+        throw new Error('The reference must be at most 1,000,000 characters.')
       }
       onChange({ referenceSpec: text })
     } catch (error) {

@@ -43,12 +43,18 @@ export async function executeTool(
 ): Promise<ToolExecutionResult> {
   if (
     context.benchmark &&
-    (context.benchmark === 'tool-free' ||
-      !['search_workspace', 'read_document'].includes(toolId) ||
-      !context.organizationId ||
-      context.workspaceId ||
-      context.workflowId ||
-      context.targetWorkspaceId)
+    !(context.benchmark === 'distill'
+      ? toolId === 'sim_cli' &&
+        context.workspaceId &&
+        !context.organizationId &&
+        !context.targetWorkspaceId &&
+        !context.workflowId
+      : context.benchmark === 'plan' &&
+        ['search_workspace', 'read_document'].includes(toolId) &&
+        context.organizationId &&
+        !context.workspaceId &&
+        !context.workflowId &&
+        !context.targetWorkspaceId)
   ) {
     return { success: false, error: 'This tool is unavailable in this benchmark stage.' }
   }
