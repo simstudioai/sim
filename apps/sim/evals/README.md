@@ -126,6 +126,25 @@ Add a case to `EXECUTOR_SCENARIOS` in `executor-harness.ts`:
 
 Both suites write one report, so executor rows appear alongside loop rows.
 
+## Context evals
+
+[`agent-context/`](./agent-context/) drives the Agent block through the executor
+with conversation memory on. The memory read is stubbed per conversation id, so
+the provider request shows exactly what the handler assembled: prior history,
+then the new user prompt, with the system prompt preserved, and the conversation
+id must match. Windowing inside the memory service (`sliding_window`, token
+budgets) is covered by its unit tests; this suite covers the assembly the model
+sees.
+
+```sh
+cd apps/sim
+bun run test:evals:context   # writes test-results/evals/agent-context.{json,md}
+```
+
+Scenarios live in [`agent-context/scenarios.ts`](./agent-context/scenarios.ts)
+and reuse the executor harness, so a case is the same shape as an executor case
+plus `agent.memory`.
+
 ## Report shape
 
 `report.json` is machine-readable for dashboards and trend tracking; `report.md`

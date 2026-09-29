@@ -3,7 +3,9 @@ import {
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
 import { providersMockFns } from '@sim/testing/mocks/providers.mock'
+import { vi } from 'vitest'
 import { DAGExecutor } from '@/executor/execution/executor'
+import { memoryService } from '@/executor/handlers/agent/memory'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { type EvalRunMode, type ScoredToolCall, scoreExpectations } from './harness'
 import type {
@@ -58,6 +60,14 @@ export interface ExecutorScenario {
     retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
     /** Ordered models the Agent handler tries after the primary fails. */
     fallbackModels?: Array<{ model: string }>
+    /**
+     * Turns on conversation memory. `history` is what the mocked memory read
+     * returns for `conversationId`, so a wrong id surfaces as a failed check.
+     */
+    memory?: {
+      conversationId: string
+      history: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+    }
   }
   /** One entry per model call; the last entry serves any extra/retry calls. */
   providerResponse: ExecutorProviderResponse | ExecutorProviderResponse[]
@@ -71,6 +81,13 @@ export interface ExecutorScenario {
     /** Model id sent on the final provider call (proves which candidate served). */
     lastRequestModel?: string
   }
+}
+
+function lastMatchingIndex(contents: string[], needle: string): number {
+  for (let index = contents.length - 1; index >= 0; index--) {
+    if (contents[index].includes(needle)) return index
+  }
+  return -1
 }
 
 function buildWorkflow(scenario: ExecutorScenario): SerializedWorkflow {
@@ -95,6 +112,9 @@ function buildWorkflow(scenario: ExecutorScenario): SerializedWorkflow {
       ? { temperature: scenario.agent.temperature }
       : {}),
     ...(scenario.agent.fallbackModels ? { fallbackModels: scenario.agent.fallbackModels } : {}),
+    ...(scenario.agent.memory
+      ? { memoryType: 'conversation', conversationId: scenario.agent.memory.conversationId }
+      : {}),
   }
   if (scenario.agent.retry) agent.retry = scenario.agent.retry
 
@@ -132,6 +152,17 @@ export async function runExecutorScenario(
       }
     }
   )
+
+  const fetchedConversationIds: unknown[] = []
+  if (scenario.agent.memory) {
+    const memory = scenario.agent.memory
+    vi.spyOn(memoryService, 'fetchMemoryMessages').mockImplementation(async (_ctx, inputs) => {
+      fetchedConversationIds.push(inputs.conversationId)
+      return inputs.conversationId === memory.conversationId
+        ? memory.history.map((message) => ({ ...message }))
+        : [{ role: 'user', content: '__WRONG_CONVERSATION__' }]
+    })
+  }
 
   const executor = new DAGExecutor({
     workflow: buildWorkflow(scenario),
@@ -209,6 +240,59 @@ export async function runExecutorScenario(
       name: 'last-request-model',
       passed: lastModel === scenario.expect.lastRequestModel,
       detail: `expected ${scenario.expect.lastRequestModel}, got ${String(lastModel)}`,
+    })
+  }
+
+  if (scenario.agent.memory) {
+    const memory = scenario.agent.memory
+    const requestMessages = ((requests[0] as { messages?: unknown[] } | undefined)?.messages ??
+      []) as Array<{ role?: string; content?: unknown }>
+    const contents = requestMessages.map((message) =>
+      typeof message.content === 'string' ? message.content : ''
+    )
+
+    const missingHistory = memory.history.filter(
+      (message) => !contents.some((content) => content.includes(message.content))
+    )
+    checks.push({
+      name: 'memory-history-in-request',
+      passed: missingHistory.length === 0,
+      detail:
+        missingHistory.length === 0
+          ? `all ${memory.history.length} history messages reached the provider`
+          : `missing [${missingHistory.map((message) => message.content).join(', ')}]`,
+    })
+
+    const lastHistoryIndex =
+      memory.history.length === 0
+        ? -1
+        : Math.max(...memory.history.map((message) => lastMatchingIndex(contents, message.content)))
+    const promptIndex = scenario.agent.userPrompt
+      ? lastMatchingIndex(contents, scenario.agent.userPrompt)
+      : -1
+    checks.push({
+      name: 'memory-before-user-prompt',
+      passed: promptIndex >= 0 && promptIndex > lastHistoryIndex,
+      detail: `history ends at ${lastHistoryIndex}, user prompt at ${promptIndex}`,
+    })
+
+    if (scenario.agent.systemPrompt) {
+      const systemPrompt = scenario.agent.systemPrompt
+      checks.push({
+        name: 'system-prompt-in-request',
+        passed: requestMessages.some(
+          (message) => message.role === 'system' && String(message.content).includes(systemPrompt)
+        ),
+        detail: 'configured system prompt reached the provider',
+      })
+    }
+
+    checks.push({
+      name: 'conversation-id',
+      passed:
+        fetchedConversationIds.length > 0 &&
+        fetchedConversationIds.every((id) => id === memory.conversationId),
+      detail: `expected ${memory.conversationId}, got [${fetchedConversationIds.join(', ')}]`,
     })
   }
 
