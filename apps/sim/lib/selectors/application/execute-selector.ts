@@ -12,7 +12,10 @@ import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.ser
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizePersonalSearchSetup } from '@/lib/knowledge/application/personal-search-account'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
-import { selectorOperations } from '@/lib/selectors/application/operations'
+import {
+  SELECTOR_DELEGATION_AUDIENCE,
+  selectorOperations,
+} from '@/lib/selectors/application/operations'
 import {
   resolveSelectorApplicationContext,
   type SelectorApplicationContext,
@@ -327,7 +330,9 @@ const executeWorkspaceSelector = defineAuthorizedWorkspaceUseCase<
     if (context.workspaceId === undefined) throw new SelectorContextUnavailableError()
     return context
   },
-  authorizationOptions: { delegation: { audience: 'sim:selectors', isWithinScope: () => true } },
+  authorizationOptions: {
+    delegation: { audience: SELECTOR_DELEGATION_AUDIENCE, isWithinScope: () => true },
+  },
   authorizeResource: ({ input, context }) => validateAuthorizedInput(input, context),
   execute: executeAuthorizedSelector,
 })

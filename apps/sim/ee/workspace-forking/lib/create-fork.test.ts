@@ -1,7 +1,11 @@
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
-import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingLineageRootMock } from '@sim/testing/mocks/workspace-forking-lineage-root.mock'
 import {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
@@ -19,6 +23,7 @@ const {
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
   mockCollectReferencedFileFolderPaths,
+  mockLockForkRevision,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
@@ -29,6 +34,7 @@ const {
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
+  mockLockForkRevision: vi.fn(async () => {}),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
@@ -72,6 +78,17 @@ vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
+vi.mock('@/ee/workspace-forking/application/revision', () => ({
+  lockForkRevision: mockLockForkRevision,
+  assertForkPreviewFresh: vi.fn(async () => {}),
+  assertForkSourceVersions: vi.fn(async () => {}),
+}))
+vi.mock('@/lib/workspaces/operations/receipts', () => ({
+  findWorkspaceOperationReceipt: vi.fn(async () => null),
+  insertWorkspaceOperationReceipt: vi.fn(async () => {}),
+  lockWorkspaceOperationRequest: vi.fn(async () => {}),
+}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage-root', () => workspaceForkingLineageRootMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   reconcileForkBlockPairs: vi.fn(),
   toForkBlockPairs: vi.fn(() => []),
@@ -209,13 +226,55 @@ describe('createFork storage headroom gate', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('preserves the source workspace personal API-key policy in the child', async () => {
+  /**
+   * Both inherited workspace policies in one fork. `forkSyncNewWorkflowsExcluded` is set
+   * to `true` (not the default) so the assertion cannot pass on a hardcoded `false`: the
+   * new-workflow fork-sync default is lineage-uniform, and a child that did not inherit it
+   * would disagree with its parent from the moment it exists.
+   */
+  it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
+    resetDbChainMock()
+    queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])
+
     const result = await createFork(forkParams())
 
     expect(result.workspace.allowPersonalApiKeys).toBe(false)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ allowPersonalApiKeys: false })
+      expect.objectContaining({
+        allowPersonalApiKeys: false,
+        forkSyncNewWorkflowsExcluded: true,
+      })
     )
+  })
+
+  /**
+   * The deadlock guard, asserted where the order actually lives. `fork-lock-order.integration.ts`
+   * proves this ORDER is the correct one against real Postgres; this proves `createFork`
+   * follows it. Without this, reordering these two calls would leave every check green:
+   * the integration suite drives the helpers itself and never calls `createFork`.
+   *
+   * `lockForkRevision` takes `FOR UPDATE` on the source `workspace` row, which
+   * `unlinkForkEdge` updates while holding the lineage key. Taking it first closes a
+   * genuine cycle. Ranks 2 then 5 in the table on `acquireForkLineageLock`.
+   */
+  it('takes the lineage lock before the revision lock, closing the unlink deadlock', async () => {
+    await createFork({
+      ...forkParams(),
+      admission: {
+        workspaceId: 'src-ws',
+        requestId: 'req-1',
+        requestHash: 'hash-1',
+        previewFingerprint: 'fp-1',
+        choices: {},
+      },
+    })
+
+    const lineageAt =
+      workspaceForkingLineageMockFns.mockAcquireForkLineageLock.mock.invocationCallOrder[0]
+    const revisionAt = mockLockForkRevision.mock.invocationCallOrder[0]
+    expect(lineageAt).toBeDefined()
+    expect(revisionAt).toBeDefined()
+    expect(lineageAt).toBeLessThan(revisionAt)
   })
 
   it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {

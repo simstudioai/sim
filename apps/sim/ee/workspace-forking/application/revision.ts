@@ -140,7 +140,12 @@ export async function loadForkPreviewRevision(
   }
 }
 
-/** Locks normalized graph rows as well as workflow metadata, including realtime-only writes. */
+/**
+ * Locks normalized graph rows as well as workflow metadata, including realtime-only writes.
+ *
+ * Rank 5 - see the rank table on `acquireForkLineageLock`. Takes `FOR UPDATE` on `workspace`
+ * rows, so a caller needing the rank-2 lineage lock must take it first.
+ */
 export async function lockForkRevision(tx: DbTransaction, scope: ForkRevisionScope): Promise<void> {
   const workspaceIds = [
     ...new Set([

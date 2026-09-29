@@ -1,9 +1,12 @@
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   folder,
   outboxEvent,
   permissions,
   user,
+  userTableDefinitions,
   workflow,
   workflowBlocks,
   workflowDeploymentOperation,
@@ -14,10 +17,14 @@ import {
   workspaceSandbox,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
+import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceOperation } from '@/lib/workspaces/operations/application'
 import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
@@ -29,6 +36,7 @@ import {
   syncWorkspace,
 } from '@/ee/workspace-forking/application/create-and-sync'
 import { assertForkSourceVersions } from '@/ee/workspace-forking/application/revision'
+import { setForkSyncDefault } from '@/ee/workspace-forking/application/sync-default'
 import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -91,8 +99,8 @@ async function finishDeployments(report: WorkspaceOperationReport) {
   })
 }
 
-async function createChild() {
-  const input = { workspaceId: sourceWorkspaceId, name: `Edge ${generateId()}` }
+async function createChild(parentWorkspaceId = sourceWorkspaceId) {
+  const input = { workspaceId: parentWorkspaceId, name: `Edge ${generateId()}` }
   const preview = await previewWorkspaceFork.execute({ principal, input })
   const result = await forkWorkspace.execute({
     principal,
@@ -517,6 +525,99 @@ describe('authorized fork and sync against PostgreSQL', () => {
     }
   })
 
+  it('validates a mapped table dependent through a Copilot CLI push preview', async () => {
+    const childId = await createChild()
+    const [sourceVersion] = await db
+      .select()
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, sourceWorkflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+    const sourceTableId = generateId()
+    const childTableId = generateId()
+    const schema = { columns: [{ id: 'col_key', name: 'key', type: 'string', unique: true }] }
+    await db.insert(userTableDefinitions).values([
+      {
+        id: sourceTableId,
+        workspaceId: sourceWorkspaceId,
+        name: `Source table ${sourceTableId}`,
+        schema,
+        createdBy: userId,
+      },
+      { id: childTableId, workspaceId: childId, name: 'Child table', schema, createdBy: userId },
+    ])
+    const sourceState = structuredClone(sourceVersion.state) as WorkflowState
+    sourceState.blocks.upsert = {
+      id: 'upsert',
+      type: 'table',
+      name: 'Upsert',
+      enabled: true,
+      position: { x: 400, y: 0 },
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'upsert_row' },
+        tableSelector: { id: 'tableSelector', type: 'table-selector', value: sourceTableId },
+        conflictColumnSelector: {
+          id: 'conflictColumnSelector',
+          type: 'column-selector',
+          value: 'col_key',
+        },
+      },
+      outputs: {},
+    }
+    const transport = createScopedCliTransport('http://localhost:3000', {
+      userId,
+      workspaceId: sourceWorkspaceId,
+      chatId: generateId(),
+    })
+    try {
+      await db
+        .update(workflowDeploymentVersion)
+        .set({ state: sourceState })
+        .where(eq(workflowDeploymentVersion.id, sourceVersion.id))
+      const response = await withWorkspaceInvocationScope({ workspaceId: sourceWorkspaceId }, () =>
+        transport(
+          `http://localhost:3000/api/v2/workspaces/${sourceWorkspaceId}/fork/push/preview`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              otherWorkspaceId: childId,
+              mappings: [
+                { resourceType: 'table', sourceId: sourceTableId, targetId: childTableId },
+              ],
+              dependentValues: [
+                {
+                  sourceWorkflowId,
+                  sourceBlockId: 'upsert',
+                  subBlockKey: 'conflictColumnSelector',
+                  value: 'col_key',
+                },
+              ],
+            }),
+          }
+        )
+      )
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      expect(body.data.configuration).toContainEqual(
+        expect.objectContaining({
+          sourceBlockId: 'upsert',
+          subBlockKey: 'conflictColumnSelector',
+          currentValue: 'col_key',
+          discoveryWorkspaceId: childId,
+        })
+      )
+    } finally {
+      await db
+        .update(workflowDeploymentVersion)
+        .set({ state: sourceVersion.state })
+        .where(eq(workflowDeploymentVersion.id, sourceVersion.id))
+    }
+  })
+
   it('refuses inherited folder locks with no committed mutation', async () => {
     const childId = await createChild()
     const [target] = await db.select().from(workflow).where(eq(workflow.workspaceId, childId))
@@ -662,5 +763,158 @@ describe('authorized fork and sync against PostgreSQL', () => {
         .from(workspaceOperationReceipt)
         .where(eq(workspaceOperationReceipt.requestId, refusedId))
     ).toHaveLength(0)
+  })
+
+  /**
+   * The opt-in policy end to end: set from a fork, it reaches the parent and changes only
+   * what differs, filing one audit entry in each changed workspace's own log; a genuinely
+   * new workflow (created, duplicated, or a fork's starter) and a new fork take it; a forked
+   * copy stays synced; no existing workflow moves; and an archived member is walked through
+   * for the lineage root but never written.
+   */
+  it('gives new workflows the lineage fork-sync default while copies stay synced', async () => {
+    const childId = await createChild()
+    const excludedFor = async (workflowId: string) =>
+      (
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.id, workflowId))
+      )[0]?.excluded
+    const policyOf = async (workspaceId: string) =>
+      (
+        await db
+          .select({ excluded: workspace.forkSyncNewWorkflowsExcluded })
+          .from(workspace)
+          .where(eq(workspace.id, workspaceId))
+      )[0]?.excluded
+    const setDefault = (workspaceId: string, excludeNewWorkflows: boolean) =>
+      setForkSyncDefault.execute({ principal, input: { workspaceId, excludeNewWorkflows } })
+    /** Every audit entry a change issued from `originId` filed, whichever workspace it named. */
+    const auditedFrom = (originId: string) =>
+      db
+        .select({
+          workspaceId: auditLog.workspaceId,
+          resourceId: auditLog.resourceId,
+          resourceName: auditLog.resourceName,
+          metadata: auditLog.metadata,
+        })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, AuditAction.WORKSPACE_FORK_SYNC_DEFAULT_CHANGED),
+            sql`${auditLog.metadata} ->> 'originWorkspaceId' = ${originId}`
+          )
+        )
+    try {
+      const first = await setDefault(childId, true)
+      expect(first.changedWorkspaces.map((member) => member.id)).toEqual(
+        expect.arrayContaining([sourceWorkspaceId, childId])
+      )
+      expect((await setDefault(childId, true)).changedWorkspaces).toEqual([])
+      expect(await policyOf(sourceWorkspaceId)).toBe(true)
+
+      // Each changed member's admins see the change in their own log, under that workspace's name.
+      const changed = new Map(
+        (
+          await db
+            .select({ id: workspace.id, name: workspace.name })
+            .from(workspace)
+            .where(
+              inArray(
+                workspace.id,
+                first.changedWorkspaces.map((member) => member.id)
+              )
+            )
+        ).map((member) => [member.id, member.name])
+      )
+      await vi.waitFor(
+        async () => {
+          const entries = await auditedFrom(childId)
+          // Exactly the changed members, once each: no missing, duplicate, or extra entry,
+          // including from the no-op repeat issued from the same workspace.
+          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(
+            [...changed.keys()].sort()
+          )
+          for (const entry of entries) {
+            expect(entry.workspaceId).toBe(entry.resourceId)
+            expect(entry.resourceName).toBe(changed.get(entry.resourceId!))
+            expect(entry.metadata).toMatchObject({
+              forkSyncNewWorkflowsExcluded: true,
+              originWorkspaceId: childId,
+              originWorkspaceName: changed.get(childId),
+            })
+          }
+        },
+        { timeout: 5000 }
+      )
+      expect(await excludedFor(sourceWorkflowId)).toBe(false)
+
+      const [copy] = await db
+        .select({ id: workflow.id, excluded: workflow.forkSyncExcluded })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, childId))
+      expect(copy.excluded).toBe(false)
+
+      const created = await performCreateWorkflowTransition({
+        userId,
+        workspaceId: childId,
+        name: `New ${generateId()}`,
+      })
+      expect(await excludedFor(created.workflow!.id)).toBe(true)
+
+      // Duplicating a SYNCED workflow still yields a new, excluded one.
+      const duplicated = await duplicateWorkflow({
+        sourceWorkflowId: copy.id,
+        userId,
+        name: `Duplicate ${generateId()}`,
+        workspaceId: childId,
+      })
+      expect(await excludedFor(duplicated.id)).toBe(true)
+
+      const newForkId = await createChild()
+      expect(await policyOf(newForkId)).toBe(true)
+      expect(
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.workspaceId, newForkId))
+      ).toEqual([{ excluded: false }])
+
+      // The child has nothing deployed, so its fork gets a starter workflow, written in the
+      // same transaction that created the grandchild and its inherited policy.
+      const grandchildId = await createChild(childId)
+      expect(
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.workspaceId, grandchildId))
+      ).toEqual([{ excluded: true }])
+
+      await db.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, childId))
+      const fromGrandchild = await setDefault(grandchildId, false)
+      // Every live member flips back - the ones the first change covered and the two forks
+      // created since - while the archived child is neither written nor audited.
+      const expectedFromGrandchild = [
+        ...[...changed.keys()].filter((id) => id !== childId),
+        newForkId,
+        grandchildId,
+      ].sort()
+      expect(fromGrandchild.changedWorkspaces.map((member) => member.id).sort()).toEqual(
+        expectedFromGrandchild
+      )
+      for (const id of expectedFromGrandchild) expect(await policyOf(id)).toBe(false)
+      expect(await policyOf(childId)).toBe(true)
+      await vi.waitFor(
+        async () => {
+          const entries = await auditedFrom(grandchildId)
+          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(expectedFromGrandchild)
+        },
+        { timeout: 5000 }
+      )
+    } finally {
+      await db.update(workspace).set({ archivedAt: null }).where(eq(workspace.id, childId))
+      await setDefault(sourceWorkspaceId, false)
+    }
   })
 })

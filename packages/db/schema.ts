@@ -2004,6 +2004,17 @@ export const workspace = pgTable(
       (): AnyPgColumn => workspace.id,
       { onDelete: 'set null' }
     ),
+    /**
+     * Whether a newly created workflow in this workspace starts outside fork sync.
+     * `false` (default): new workflows join sync once deployed. `true`: they land with
+     * `workflow.forkSyncExcluded` set and are opted in on the Forks page.
+     *
+     * Uniform across a fork lineage (written to every member, inherited by new forks) and
+     * forward-only: flipping it never rewrites an existing workflow's `forkSyncExcluded`.
+     */
+    forkSyncNewWorkflowsExcluded: boolean('fork_sync_new_workflows_excluded')
+      .notNull()
+      .default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

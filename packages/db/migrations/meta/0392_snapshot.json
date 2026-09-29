@@ -1,6 +1,6 @@
 {
-  "id": "f5143982-6b94-4ff0-a859-e0efb9dc444a",
-  "prevId": "8ba962c0-fc46-4201-bbc6-00e64bf95bdd",
+  "id": "0298810e-9c92-437e-a731-1411b5b8580b",
+  "prevId": "4bf7c7c5-a022-4a87-9d13-b889c5ba86f0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26132,6 +26132,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "fork_sync_new_workflows_excluded": {
+          "name": "fork_sync_new_workflows_excluded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -27843,14 +27850,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "discovery": {
-          "name": "discovery",
-          "type": "file_discovery",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'listed'"
-        },
         "chat_id": {
           "name": "chat_id",
           "type": "uuid",
@@ -29234,11 +29233,6 @@
       "name": "execution_large_value_reference_source",
       "schema": "public",
       "values": ["execution_log", "paused_snapshot"]
-    },
-    "public.file_discovery": {
-      "name": "file_discovery",
-      "schema": "public",
-      "values": ["listed", "unlisted"]
     },
     "public.folder_resource_type": {
       "name": "folder_resource_type",

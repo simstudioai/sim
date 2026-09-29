@@ -42,6 +42,15 @@ import {
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
 
+/**
+ * A three-page budget keeps the budget-boundary tests near two thousand documents; the production
+ * budget made them seed over ten thousand and run past the timeout on slower CI Postgres.
+ */
+vi.mock('@/lib/knowledge/connectors/sync-limits', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN: 3,
+}))
+
 describe('member document lifecycle in PostgreSQL', () => {
   let ids: ReturnType<typeof createKnowledgeAclFixtureIds>
   let members: Awaited<ReturnType<typeof seedKnowledgeMemberFixture>>
@@ -360,6 +369,15 @@ describe('member document lifecycle in PostgreSQL', () => {
     expect((await tombstonedIds()).size).toBe(0)
   })
 
+  /**
+   * Seeds `MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN * 500 + 500` documents so the pass
+   * genuinely exceeds one run's budget - that volume is the assertion, not incidental - then
+   * observes and re-lists all of it. ~4s locally, but the inserts and the table-wide re-list
+   * are contention-bound, so a loaded CI runner has pushed it past the shared 30s default
+   * (seen green on the `push` job and timing out on `migrate` for the same commit). Given its
+   * own budget rather than trimmed, since trimming the row count would stop proving the
+   * multi-run path.
+   */
   it('finishes a pass within its page budget while listings re-stamp every observed document', async () => {
     const pageBudget = MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN * 500
     const total = pageBudget + 500
@@ -404,7 +422,7 @@ describe('member document lifecycle in PostgreSQL', () => {
       await run()
     }
     expect(await tombstonedIds()).toEqual(new Set([firstInEveryOrder.id]))
-  })
+  }, 120_000)
 
   it('resumes a resurrection walk from where the deadline stopped it, not from the first document', async () => {
     const observedAgain = Array.from({ length: 700 }, (_, index) => ({

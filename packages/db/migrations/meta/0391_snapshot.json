@@ -1,5 +1,5 @@
 {
-  "id": "8ba962c0-fc46-4201-bbc6-00e64bf95bdd",
+  "id": "4bf7c7c5-a022-4a87-9d13-b889c5ba86f0",
   "prevId": "ec1a0202-f006-4e59-bf4c-b322b4e93d18",
   "version": "7",
   "dialect": "postgresql",
@@ -26132,6 +26132,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "fork_sync_new_workflows_excluded": {
+          "name": "fork_sync_new_workflows_excluded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -29230,7 +29237,7 @@
     "public.folder_resource_type": {
       "name": "folder_resource_type",
       "schema": "public",
-      "values": ["dashboard", "workflow", "file", "knowledge_base", "table"]
+      "values": ["workflow", "file", "knowledge_base", "table"]
     },
     "public.invitation_kind": {
       "name": "invitation_kind",

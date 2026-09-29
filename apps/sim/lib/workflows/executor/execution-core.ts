@@ -290,6 +290,28 @@ async function recordSettledRun(workflowId: string, requestId: string): Promise<
   }
 }
 
+/**
+ * Builds a run's trace spans for its log. Spans are diagnostics: a failure to
+ * build them is logged and the run is finalized without them, so the log,
+ * pause, billing, and run counts still settle.
+ */
+function buildTraceSpansForLog(
+  result: ExecutionResult,
+  loggingSession: LoggingSession,
+  requestId: string,
+  executionId: string
+): ReturnType<typeof buildTraceSpans> {
+  try {
+    return buildTraceSpans(result)
+  } catch (error) {
+    logger.error(
+      `[${requestId}] Failed to build trace spans; finalizing without them`,
+      loggingSession.projectDiagnosticError(error, { executionId })
+    )
+    return { traceSpans: [], totalDuration: result.metadata?.duration ?? 0 }
+  }
+}
+
 async function finalizeExecutionOutcome(params: {
   result: ExecutionResult
   loggingSession: LoggingSession
@@ -301,7 +323,12 @@ async function finalizeExecutionOutcome(params: {
 }): Promise<void> {
   const { result, loggingSession, workflowId, executionId, requestId, workflowInput, abortSignal } =
     params
-  const { traceSpans, totalDuration } = buildTraceSpans(result)
+  const { traceSpans, totalDuration } = buildTraceSpansForLog(
+    result,
+    loggingSession,
+    requestId,
+    executionId
+  )
   const endedAt = new Date().toISOString()
 
   try {
@@ -372,7 +399,9 @@ async function finalizeExecutionError(params: {
 }): Promise<boolean> {
   const { error, loggingSession, workflowId, executionId, requestId } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-  const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+  const { traceSpans } = executionResult
+    ? buildTraceSpansForLog(executionResult, loggingSession, requestId, executionId)
+    : { traceSpans: [] }
 
   let finalized = false
   try {
