@@ -708,6 +708,30 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
+    {
+      id: 'starting_after',
+      title: 'Starting After',
+      type: 'short-input',
+      placeholder: 'Last subscription ID from the previous page',
+      condition: { field: 'operation', value: 'list_subscriptions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ending_before',
+      title: 'Ending Before',
+      type: 'short-input',
+      placeholder: 'First subscription ID from the current page',
+      condition: { field: 'operation', value: 'list_subscriptions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'page',
+      title: 'Search Page',
+      type: 'short-input',
+      placeholder: 'Token from metadata.next_page; omit for the first page',
+      condition: { field: 'operation', value: 'search_subscriptions' },
+      mode: 'advanced',
+    },
     // Additional filters for specific list operations
     {
       id: 'status',
@@ -976,6 +1000,9 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
     recurring: { type: 'json', description: 'Recurring billing configuration' },
     // List/Search inputs
     limit: { type: 'number', description: 'Maximum results to return' },
+    starting_after: { type: 'string', description: 'Next-page subscription ID cursor' },
+    ending_before: { type: 'string', description: 'Previous-page subscription ID cursor' },
+    page: { type: 'string', description: 'Subscription search token from metadata.next_page' },
     query: { type: 'string', description: 'Search query' },
     status: { type: 'string', description: 'Status filter' },
     type: { type: 'string', description: 'Event type filter' },
@@ -1096,19 +1123,20 @@ export const StripeBlockMeta = {
       description:
         'Create and confirm a Stripe payment intent to collect a charge from a customer.',
       content:
-        '# Collect Payment\n\nCharge a customer by creating and confirming a payment intent.\n\n## Steps\n1. Run Create Payment Intent with the amount, currency, and customer.\n2. Confirm the intent with Confirm Payment Intent, or Capture Payment Intent if it was created for manual capture.\n3. If a charge needs to be aborted, run Cancel Payment Intent instead.\n\n## Output\nReturn the payment intent ID, its status (succeeded, requires action, or canceled), and the captured amount.',
+        '# Collect Payment\n\nCharge a customer by creating and confirming a payment intent.\n\n## Steps\n1. Run Create Payment Intent with the amount, currency, and customer.\n2. Confirm the intent with Confirm Payment Intent and a payment method. If the confirmed intent has status requires_capture, run Capture Payment Intent to collect the authorized funds.\n3. If a charge needs to be aborted, run Cancel Payment Intent instead.\n\n## Output\nReturn the payment intent ID, its status (succeeded, requires action, or canceled), and the captured amount.',
     },
     {
       name: 'manage-subscription',
-      description: 'Create, update, pause, or cancel a Stripe subscription for a customer.',
+      description:
+        'Create a Stripe subscription, manage its cancellation, or resume a paused subscription.',
       content:
-        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. To change a plan, run Update Subscription with the new items. To pause and later restart, use Cancel Subscription or Resume Subscription as appropriate.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, current period end, and the plan items, and note exactly what changed.',
+        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. Use Update Subscription with cancel_at_period_end to schedule or reverse a cancellation before it takes effect. Use Cancel Subscription only for immediate cancellation. Resume Subscription applies only to a paused subscription; it does not restart a canceled subscription.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, and the returned subscription items, and note exactly what changed.',
     },
     {
       name: 'issue-invoice',
       description: 'Create, finalize, and send a Stripe invoice to a customer, then track payment.',
       content:
-        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer with the line items.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
+        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer. This tool does not add line items; add them in Stripe and verify the draft with Retrieve Invoice before finalizing.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
     },
     {
       name: 'find-customer-activity',

@@ -9,6 +9,8 @@ import {
   permissions,
   user,
   workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
   workspace,
   workspaceOperationReceipt,
 } from '@sim/db/schema'
@@ -17,6 +19,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { GET as logGet } from '@/app/api/v2/logs/[runId]/route'
 import { POST as importPreview } from '@/app/api/v2/workflows/import/preview/route'
 import { POST as importApply } from '@/app/api/v2/workflows/import/route'
 import { POST as forkPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/preview/route'
@@ -29,6 +32,10 @@ const userId = generateId()
 const workspaceId = generateId()
 const personalKey = `sk-sim-fixture-${generateId()}`
 const workspaceKey = `sk-sim-fixture-${generateId()}`
+const logRunId = generateId()
+const logSnapshotId = generateId()
+const foreignWorkspaceId = generateId()
+const logSnapshot = { blocks: {}, edges: [], variables: { fixture: 'configuration'.repeat(2000) } }
 const childWorkspaceIds: string[] = []
 let endpoint: string
 let directory: string
@@ -118,6 +125,29 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       entityId: workspaceId,
       permissionType: 'admin',
     })
+    await db.insert(workspace).values({
+      id: foreignWorkspaceId,
+      name: 'Inaccessible log fixture',
+      ownerId: userId,
+      billedAccountUserId: userId,
+    })
+    await db.insert(workflowExecutionSnapshots).values({
+      id: logSnapshotId,
+      stateHash: generateId(),
+      stateData: logSnapshot,
+    })
+    await db.insert(workflowExecutionLogs).values({
+      id: generateId(),
+      workspaceId,
+      executionId: logRunId,
+      stateSnapshotId: logSnapshotId,
+      level: 'info',
+      status: 'completed',
+      trigger: 'manual',
+      startedAt: now,
+      endedAt: now,
+      executionData: { finalOutput: { delivered: false }, traceSpans: [] },
+    })
     await db.insert(apiKey).values([
       {
         id: generateId(),
@@ -160,8 +190,10 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
         const path = new URL(request.url).pathname
         const match = path.match(/^\/api\/v2\/workspaces\/([^/]+)\/(.*)$/)
         const context = { params: Promise.resolve({ workspaceId: match?.[1] ?? workspaceId }) }
-        const response =
-          path === '/api/v2/workflows/import/preview'
+        const logMatch = path.match(/^\/api\/v2\/logs\/([^/]+)$/)
+        const response = logMatch
+          ? await logGet(request, { params: Promise.resolve({ runId: logMatch[1] }) })
+          : path === '/api/v2/workflows/import/preview'
             ? await importPreview(request, { params: Promise.resolve({}) })
             : path === '/api/v2/workflows/import'
               ? await importApply(request, { params: Promise.resolve({}) })
@@ -207,9 +239,61 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       })
     for (const id of childWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await db.delete(workspace).where(eq(workspace.id, foreignWorkspaceId))
+    await db
+      .delete(workflowExecutionSnapshots)
+      .where(eq(workflowExecutionSnapshots.id, logSnapshotId))
     await db.delete(user).where(eq(user.id, userId))
     await rm(directory, { recursive: true, force: true })
     await db.$client.end()
+  })
+
+  it('omits only the requested log snapshot through the CLI and preserves the default read', async () => {
+    const args = ['logs', 'get', logRunId]
+    const before = await cli(args)
+    expect(before.code, before.stderr).toBe(0)
+    const original = JSON.parse(before.stdout)
+    expect(original.workflowState.variables).toEqual(logSnapshot.variables)
+
+    const explicit = await cli([...args, '--include-workflow-state'])
+    expect(explicit.code, explicit.stderr).toBe(0)
+    expect(JSON.parse(explicit.stdout)).toEqual(original)
+    const compact = await cli([...args, '--no-include-workflow-state'])
+    expect(compact.code, compact.stderr).toBe(0)
+    expect(JSON.parse(compact.stdout)).toEqual({ ...original, workflowState: null })
+    expect(Buffer.byteLength(compact.stdout)).toBeLessThan(Buffer.byteLength(before.stdout) / 2)
+    const after = await cli(args)
+    expect(after.code, after.stderr).toBe(0)
+    expect(JSON.parse(after.stdout)).toEqual(original)
+  })
+
+  it('validates log query flags and retains authorization for compact reads over HTTP', async () => {
+    const path = `${endpoint}/api/v2/logs/${logRunId}`
+    const headers = { 'X-API-Key': workspaceKey }
+    const invalid = await fetch(`${path}?includeWorkflowState=invalid`, { headers })
+    expect(invalid.status).toBe(400)
+    expect(await invalid.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
+    const unknown = await fetch(`${path}?includeWorkflowState=false&unknown=true`, { headers })
+    expect(unknown.status).toBe(400)
+    const unauthenticated = await fetch(`${path}?includeWorkflowState=false`)
+    expect(unauthenticated.status).toBe(401)
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ workspaceId: foreignWorkspaceId })
+      .where(eq(workflowExecutionLogs.executionId, logRunId))
+    try {
+      for (const query of ['', '?includeWorkflowState=false']) {
+        const concealed = await fetch(`${path}${query}`, { headers })
+        expect(concealed.status).toBe(404)
+        expect(await concealed.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+      }
+    } finally {
+      await db
+        .update(workflowExecutionLogs)
+        .set({ workspaceId })
+        .where(eq(workflowExecutionLogs.executionId, logRunId))
+    }
   })
 
   it('previews stdin JSON, applies @file input, waits, and returns the same receipt on retry', async () => {
