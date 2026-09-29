@@ -23,18 +23,22 @@ vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 vi.mock('@/lib/table/rows/live-schema', () => tableRowsLiveSchemaMock)
 
-vi.mock('@/lib/table/validation', async (importOriginal) => ({
-  uniqueValueKey: (await importOriginal<typeof import('@/lib/table/validation')>()).uniqueValueKey,
-  validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
-  validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
-  coerceRowToSchema: vi.fn(() => ({ valid: true, errors: [] })),
-  coerceRowValues: vi.fn(),
-  validateTableName: vi.fn(() => ({ valid: true, errors: [] })),
-  validateTableSchema: vi.fn(() => ({ valid: true, errors: [] })),
-  getUniqueColumns: vi.fn(() => []),
-  checkUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
-  checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
-}))
+vi.mock('@/lib/table/validation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/table/validation')>()
+  return {
+    cellOf: actual.cellOf,
+    uniqueValueKey: actual.uniqueValueKey,
+    validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
+    validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
+    coerceRowToSchema: vi.fn(() => ({ valid: true, errors: [] })),
+    coerceRowValues: vi.fn(),
+    validateTableName: vi.fn(() => ({ valid: true, errors: [] })),
+    validateTableSchema: vi.fn(() => ({ valid: true, errors: [] })),
+    getUniqueColumns: vi.fn(() => []),
+    checkUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
+    checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
+  }
+})
 
 /**
  * Inspects the queued `trx.execute(...)` calls for SQL containing `substring`.

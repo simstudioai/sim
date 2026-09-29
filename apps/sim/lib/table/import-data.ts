@@ -326,7 +326,7 @@ export async function importAppendRows(
         generateId().slice(0, 8),
         { uniqueColumnsLocked: true }
       )
-      inserted.push(...batchInserted)
+      inserted.push(...batchInserted.rows)
     }
     return { inserted, table: working }
   })

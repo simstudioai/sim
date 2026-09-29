@@ -1,7 +1,9 @@
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
+import { and, eq, inArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { Filter, RowData, TableDefinition, TableSchema } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -21,6 +23,7 @@ import {
   TableLockedError,
 } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
+import { withLiveSchema } from '@/lib/table/rows/live-schema'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { deriveBulkUpdatePatch } from '@/lib/table/rows/service'
@@ -71,7 +74,9 @@ function deriveJobPatch(patch: RowData, previous: TableSchema, live: TableDefini
   }
   const cleared = live.schema.columns.filter((column) => {
     const columnId = getColumnId(column)
-    return column.required && columnId in derived && (derived[columnId] ?? null) === null
+    return (
+      column.required && Object.hasOwn(derived, columnId) && (derived[columnId] ?? null) === null
+    )
   })
   if (cleared.length > 0) {
     throw new UpdatePatchRejectedError(
@@ -85,6 +90,38 @@ function deriveJobPatch(patch: RowData, previous: TableSchema, live: TableDefini
     )
   }
   return derived
+}
+
+/** Refuses a row that `patch`, merged over it, would leave oversized or invalid under `schema`. */
+function assertMergedRowFits(
+  schema: TableSchema,
+  row: { id: string; data: RowData },
+  patch: RowData
+): void {
+  const merged = { ...row.data, ...patch }
+  const sizeValidation = validateRowSize(merged)
+  if (!sizeValidation.valid) {
+    throw new UpdatePatchRejectedError(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
+  }
+  const schemaValidation = coerceRowToSchema(merged, schema)
+  if (!schemaValidation.valid) {
+    throw new UpdatePatchRejectedError(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
+  }
+}
+
+/** Reads a batch's rows in its transaction and refuses any `patch` would not fit under `live`. */
+async function validateMergedRows(
+  trx: DbTransaction,
+  live: TableDefinition,
+  rowIds: string[],
+  patch: RowData
+): Promise<void> {
+  const rows = await trx
+    .select({ id: userTableRows.id, data: userTableRows.data })
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, live.id), inArray(userTableRows.id, rowIds)))
+  for (const row of rows)
+    assertMergedRowFits(live.schema, { id: row.id, data: row.data as RowData }, patch)
 }
 
 export interface TableUpdatePayload {
@@ -220,26 +257,20 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
 
       // Validate each merged result before writing the page — a row that would overflow the size
       // cap or violate the schema fails the job (earlier pages stay applied; best-effort).
-      for (const row of page) {
-        const merged = { ...row.data, ...pagePatch }
-        const sizeValidation = validateRowSize(merged)
-        if (!sizeValidation.valid) {
-          throw new UpdatePatchRejectedError(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
-        }
-        const schemaValidation = coerceRowToSchema(merged, current.schema)
-        if (!schemaValidation.valid) {
-          throw new UpdatePatchRejectedError(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
-        }
-      }
+      for (const row of page) assertMergedRowFits(current.schema, row, pagePatch)
 
       try {
         processed += await updatePageByIds(
           tableId,
           workspaceId,
           page.map((r) => r.id),
-          (fresh) => {
-            const batchPatch = deriveJobPatch(data, table.schema, fresh ?? current)
+          async (trx, fresh, batch) => {
+            const live = fresh ? withLiveSchema(current, fresh.schema) : current
+            const batchPatch = deriveJobPatch(data, table.schema, live)
             if (Object.keys(batchPatch).length === 0) return null
+            // The page was checked against `current`; a batch under a schema that moved since is
+            // checked again, against the rows as they stand, before it writes.
+            if (live !== current) await validateMergedRows(trx, live, batch, batchPatch)
             return {
               patchJson: JSON.stringify(batchPatch),
               secretProvenance: createExactEmptyTableRowSecretProvenance(batchPatch),

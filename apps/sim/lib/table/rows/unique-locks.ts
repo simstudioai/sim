@@ -17,7 +17,7 @@ import { type AdvisoryXactLockRequest, acquireAdvisoryXactLocks } from '@/lib/db
 import { getColumnId } from '@/lib/table/column-keys'
 import type { DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableDefinition } from '@/lib/table/types'
-import { getUniqueColumns, uniqueValueKey } from '@/lib/table/validation'
+import { cellOf, getUniqueColumns, uniqueValueKey } from '@/lib/table/validation'
 
 const UNIQUE_LOCK_TAG = 'user_table_unique_value'
 
@@ -63,7 +63,7 @@ export async function lockUniqueValues(
     const columnId = getColumnId(column)
     if (columnIds && !columnIds.has(columnId)) continue
     for (const row of rows) {
-      const value = row[columnId]
+      const value = cellOf(row, columnId)
       if (value === null || value === undefined) continue
       const key = `${tableKey}:${columnId}:${uniqueValueKey(value, column)}`
       if (!valueKeys.has(key) && valueKeys.size === MAX_VALUE_LOCKS) {

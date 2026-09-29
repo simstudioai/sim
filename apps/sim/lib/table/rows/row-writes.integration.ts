@@ -9,7 +9,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
-import { tableTriggerMock } from '@sim/testing/mocks/table-trigger.mock'
+import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -96,6 +96,27 @@ async function rowsVersion(tableId: string): Promise<number> {
 
 const textColumns = (...ids: string[]): ColumnDefinition[] =>
   ids.map((id) => ({ id, name: id, type: 'string' }))
+
+/** Sessions waiting on the table's schema lock, matched by the key's hash as `pg_locks` shows it. */
+async function schemaLockWaiters(tableId: string): Promise<number> {
+  const [{ waiting }] = await control<{ waiting: number }[]>`
+    WITH lock AS (SELECT hashtextextended(${`user_table_schema:${tableId}`}, 0) AS key)
+    SELECT count(*)::int AS waiting FROM pg_locks l CROSS JOIN lock
+    WHERE l.locktype = 'advisory' AND NOT l.granted
+      AND l.classid = ((lock.key >> 32) & 4294967295)::oid
+      AND l.objid = (lock.key & 4294967295)::oid`
+  return waiting
+}
+
+/** Polls until exactly `expected` sessions wait on the table's schema lock, and asserts it. */
+async function untilSchemaLockWaiters(tableId: string, expected: number) {
+  let waiting = 0
+  for (let attempt = 0; attempt < 400 && waiting !== expected; attempt++) {
+    await sleep(5)
+    waiting = await schemaLockWaiters(tableId)
+  }
+  expect(waiting).toBe(expected)
+}
 
 describe('table row writes against real PostgreSQL', () => {
   beforeAll(async () => {
@@ -1050,6 +1071,61 @@ describe('table row writes against real PostgreSQL', () => {
       }
     )
 
+    it('fires the insert trigger of a batch insert with the column names of the live schema', async () => {
+      const table = await seededTable()
+      const stale: TableDefinition = {
+        ...table,
+        schema: {
+          columns: table.schema.columns.map((column) =>
+            column.id === 'note' ? { ...column, name: 'old_note' } : column
+          ),
+        },
+      }
+      tableTriggerMockFns.mockFireTableTrigger.mockClear()
+
+      await batchInsertRows(
+        {
+          tableId: table.id,
+          workspaceId,
+          rows: [{ key: 'k3', note: 'n' }],
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+        },
+        stale,
+        'stale-schema'
+      )
+
+      const [trigger] = tableTriggerMockFns.mockFireTableTrigger.mock.calls
+      const schema = trigger?.[6] as { columns: ColumnDefinition[] }
+      expect(schema.columns.map((column) => column.name)).toContain('note')
+    })
+
+    it('does not count a legacy unique column named after an object prototype key as patched', async () => {
+      const table = await createTable([
+        { name: 'constructor', type: 'string', unique: true },
+        { id: 'note', name: 'note', type: 'string' },
+      ])
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { constructor: 'a', note: 'n' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { constructor: 'b', note: 'n' }, orderKey: 'a1' },
+      ])
+
+      const result = await updateRowsByFilter(
+        table,
+        {
+          filter: { note: 'n' },
+          data: { note: 'patched' },
+          // The limited path: the paged one skips rows created after its JS-clock cutoff.
+          limit: 10,
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+        },
+        'prototype-key'
+      )
+
+      expect(result.affectedCount).toBe(2)
+    })
+
     it('refuses a bulk update writing one value to rows of a column made unique since its snapshot', async () => {
       const table = await seededTable()
       await updateColumnConstraints(
@@ -1120,17 +1196,7 @@ describe('table row writes against real PostgreSQL', () => {
           () => 'rejected'
         )
 
-        let waiting = 0
-        for (let attempt = 0; attempt < 400 && waiting === 0; attempt++) {
-          await sleep(5)
-          ;[{ waiting }] = await control<{ waiting: number }[]>`
-            WITH lock AS (SELECT hashtextextended(${schemaLockKey}, 0) AS key)
-            SELECT count(*)::int AS waiting FROM pg_locks l CROSS JOIN lock
-            WHERE l.locktype = 'advisory' AND NOT l.granted
-              AND l.classid = ((lock.key >> 32) & 4294967295)::oid
-              AND l.objid = (lock.key & 4294967295)::oid`
-        }
-        expect(waiting).toBe(1)
+        await untilSchemaLockWaiters(table.id, 1)
         expect(await Promise.race([settled, sleep(50).then(() => 'pending')])).toBe('pending')
 
         await holder`COMMIT`
@@ -1143,7 +1209,7 @@ describe('table row writes against real PostgreSQL', () => {
 
     /**
      * Holds the table's schema lock exclusively, starts `write`, and commits once `write` is seen
-     * waiting and `holdMs` has passed. Settles as `write` does.
+     * waiting on it and `holdMs` more has passed. Settles as `write` does.
      */
     async function writeBehindSchemaLock(
       table: TableDefinition,
@@ -1156,6 +1222,7 @@ describe('table row writes against real PostgreSQL', () => {
         await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${table.id}`}, 0))`
         const pending = write()
         pending.catch(() => {})
+        await untilSchemaLockWaiters(table.id, 1)
         await sleep(holdMs)
         await holder`COMMIT`
         return await pending
@@ -1299,25 +1366,6 @@ describe('table row writes against real PostgreSQL', () => {
         return run()
       }
       return { table, run, retry }
-    }
-
-    async function schemaLockWaiters(tableId: string): Promise<number> {
-      const [{ waiting }] = await control<{ waiting: number }[]>`
-        WITH lock AS (SELECT hashtextextended(${`user_table_schema:${tableId}`}, 0) AS key)
-        SELECT count(*)::int AS waiting FROM pg_locks l CROSS JOIN lock
-        WHERE l.locktype = 'advisory' AND NOT l.granted
-          AND l.classid = ((lock.key >> 32) & 4294967295)::oid
-          AND l.objid = (lock.key & 4294967295)::oid`
-      return waiting
-    }
-
-    async function untilSchemaLockWaiters(tableId: string, expected: number) {
-      let waiting = 0
-      for (let attempt = 0; attempt < 400 && waiting !== expected; attempt++) {
-        await sleep(5)
-        waiting = await schemaLockWaiters(tableId)
-      }
-      expect(waiting).toBe(expected)
     }
 
     /**
@@ -1475,6 +1523,28 @@ describe('table row writes against real PostgreSQL', () => {
       expect(await countEmail(table.id, 'y@example.test')).toBe(ROWS)
       const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
         FROM user_table_rows WHERE table_id = ${table.id} AND data->>'note' = 'x'`
+      expect(count).toBe(TABLE_LIMITS.UPDATE_BATCH_SIZE)
+    })
+
+    it('refuses a batch whose re-derived patch grows a row past the size limit', async () => {
+      const { table, run } = await seededJob({ note: 7 })
+      await changeSchemaUnderLock(table.id, `jsonb_set(schema, '{columns,3,type}', '"number"')`)
+      const bigRowId = `${table.id}-${String(TABLE_LIMITS.UPDATE_BATCH_SIZE + 1).padStart(4, '0')}`
+      // Stored jsonb orders keys by length, so a merged row reads kind, email, filler, then note.
+      const email = `e${TABLE_LIMITS.UPDATE_BATCH_SIZE + 1}@example.test`
+      const base = Buffer.byteLength(JSON.stringify({ kind: 'seed', email, filler: '', note: 7 }))
+      await control`UPDATE user_table_rows
+        SET data = data || jsonb_build_object('filler', repeat('x', ${getMaxRowSizeBytes() - base}))
+        WHERE id = ${bigRowId}`
+
+      const [job, change] = await changeBetweenBatches(table.id, run, () =>
+        changeSchemaUnderLock(table.id, `jsonb_set(schema, '{columns,3,type}', '"string"')`)
+      )
+
+      expect(change.status).toBe('fulfilled')
+      expect(job.status === 'rejected' && job.reason).toBeInstanceOf(UpdatePatchRejectedError)
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id} AND data ? 'note'`
       expect(count).toBe(TABLE_LIMITS.UPDATE_BATCH_SIZE)
     })
 

@@ -310,17 +310,17 @@ export async function batchInsertRows(
     addedRows: data.rows.length,
   })
 
-  const result = await db.transaction((trx) =>
+  const { rows, table: written } = await db.transaction((trx) =>
     batchInsertRowsWithTx(trx, data, table, requestId, { ...options, lockSchema: true })
   )
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
-    addedRows: result.length,
+    addedRows: rows.length,
     limit: rowLimit,
   })
-  dispatchAfterBatchInsert(table, result, requestId, data.userId, data.capabilityGovernedUserId)
-  return result
+  dispatchAfterBatchInsert(written, rows, requestId, data.userId, data.capabilityGovernedUserId)
+  return rows
 }
 
 /** Options for the transaction-bound whole-row writers. */
@@ -345,7 +345,8 @@ export interface BatchInsertOptions extends TxRowWriteOptions {
  * Transaction-bound variant of `batchInsertRows`. Validates rows and unique
  * constraints, then performs INSERTs inside the provided transaction. Caller
  * is responsible for opening the transaction. Use when row inserts must be
- * atomic with other writes (e.g., schema mutations) on the same tx.
+ * atomic with other writes (e.g., schema mutations) on the same tx. Returns the inserted rows and
+ * the definition they were validated against, for the caller's post-commit dispatch.
  *
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
@@ -361,7 +362,7 @@ export async function batchInsertRowsWithTx(
   snapshot: TableDefinition,
   requestId: string,
   options: BatchInsertOptions = {}
-): Promise<TableRow[]> {
+): Promise<{ rows: TableRow[]; table: TableDefinition }> {
   assertRowInsert(snapshot)
   const timeouts = { statementMs: 60_000 }
   const table = options.lockSchema ? await lockLiveTableSchema(trx, snapshot, timeouts) : snapshot
@@ -456,7 +457,7 @@ export async function batchInsertRowsWithTx(
   }))
 
   await options.readProvenance?.capture(trx, result)
-  return result
+  return { rows: result, table }
 }
 
 /**
@@ -1913,7 +1914,7 @@ export async function updateRow(
         mergedExecutions = applyExecutionsPatch(existingRow.executions, effectiveExecutionsPatch)
       }
       const persistedData = jsonbMergePatch(
-        Object.keys(data.data).filter((columnId) => columnId in mergedData),
+        Object.keys(data.data).filter((columnId) => Object.hasOwn(mergedData, columnId)),
         mergedData
       )
       const patchedUniqueColumns = getUniqueColumns(live.schema).filter((column) =>
@@ -2188,8 +2189,8 @@ async function assertBulkUpdateUnique(
   rows: BulkUpdateMatch[],
   patch: RowData
 ): Promise<void> {
-  const uniqueColumnsInUpdate = getUniqueColumns(table.schema).filter(
-    (column) => getColumnId(column) in patch
+  const uniqueColumnsInUpdate = getUniqueColumns(table.schema).filter((column) =>
+    Object.hasOwn(patch, getColumnId(column))
   )
   if (uniqueColumnsInUpdate.length === 0 || rows.length === 0) return
   if (rows.length > 1) {
@@ -2723,8 +2724,8 @@ export async function batchUpdateRows(
             `Row ${update.rowId}: ${refit.errors.join(', ')}`
           )
         }
-        update.changedColumnIds = update.changedColumnIds.filter(
-          (columnId) => columnId in update.mergedData
+        update.changedColumnIds = update.changedColumnIds.filter((columnId) =>
+          Object.hasOwn(update.mergedData, columnId)
         )
         const cleared = deriveExecClearsForDataPatch(
           request.data,

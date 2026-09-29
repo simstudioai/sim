@@ -681,15 +681,20 @@ export interface PagePatch {
 /**
  * Applies a JSONB-merge patch (`data || patchJson`) to a page of row ids, committed in
  * UPDATE_BATCH_SIZE chunks (each its own transaction, 60s timeout) so a large background update
- * makes incremental, resumable progress. Each batch takes its patch from `patchFor`, called inside
- * the batch's transaction with the definition `revalidate` read there, so a caller can derive it
- * from the live schema. Returns the number of rows updated.
+ * makes incremental, resumable progress. Each batch takes its patch from `prepare`, called inside
+ * the batch's transaction with the definition `revalidate` read there and the batch's row ids, so a
+ * caller can derive it, and check the rows it merges into, against the live schema. Returns the
+ * number of rows updated.
  */
 export async function updatePageByIds(
   tableId: string,
   workspaceId: string,
   rowIds: string[],
-  patchFor: (table: TableDefinition | undefined) => PagePatch | null,
+  prepare: (
+    trx: DbTransaction,
+    table: TableDefinition | undefined,
+    batch: string[]
+  ) => Promise<PagePatch | null>,
   /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
   _proof: MutationProof<'update'>,
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
@@ -701,7 +706,7 @@ export async function updatePageByIds(
     const batch = rowIds.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      const patch = patchFor(await guardBatch(trx, tableId, revalidate))
+      const patch = await prepare(trx, await guardBatch(trx, tableId, revalidate), batch)
       if (!patch) return []
       return mutateTableRowsWithSecretProvenance(trx, {
         rows: batch.map((rowId) => ({ rowId, provenance: patch.secretProvenance })),

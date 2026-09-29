@@ -252,12 +252,20 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   return { valid: errors.length === 0, errors }
 }
 
+/**
+ * The cell `row` holds for `columnId`, read as an own property: a legacy column keyed by its name
+ * can be called `constructor`, which a plain index would find on every row's prototype.
+ */
+export function cellOf(row: RowData, columnId: string): JsonValue | undefined {
+  return Object.hasOwn(row, columnId) ? row[columnId] : undefined
+}
+
 /** Validates row data matches schema column types and required fields. */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
   for (const column of schema.columns) {
-    const value = data[getColumnId(column)]
+    const value = cellOf(data, getColumnId(column))
 
     if (column.required && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
@@ -348,7 +356,7 @@ export function coerceRowValues(
   const policyFor = policyResolver(policy, patchedKeys)
   for (const column of schema.columns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
     const coerced = coerceValueToColumnType(value, column)
@@ -412,7 +420,7 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
  * without storing a duplicate.
  */
 export function uniqueColumnsInPatch(schema: TableSchema, patch: RowData): ColumnDefinition[] {
-  return getUniqueColumns(schema).filter((column) => getColumnId(column) in patch)
+  return getUniqueColumns(schema).filter((column) => Object.hasOwn(patch, getColumnId(column)))
 }
 
 /**
@@ -436,13 +444,13 @@ export function validateUniqueConstraints(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
     const duplicate = existingRows.find((row) => {
       if (excludeRowId && row.id === excludeRowId) return false
       // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
-      const existing = row.data[key]
+      const existing = cellOf(row.data, key)
       return (
         existing !== undefined &&
         columnValueForEquality(value, column) === columnValueForEquality(existing, column)
@@ -489,7 +497,7 @@ export async function checkUniqueConstraintsDb(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
     conditions.push({
@@ -609,7 +617,7 @@ export async function checkBatchUniqueConstraintsDb(
 
     for (const column of uniqueColumns) {
       const key = getColumnId(column)
-      const value = rowData[key]
+      const value = cellOf(rowData, key)
       if (value === null || value === undefined) continue
 
       const normalizedValue = uniqueValueKey(value, column)
@@ -670,14 +678,14 @@ export async function checkBatchUniqueConstraintsDb(
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
         const conflictData = conflict.data as RowData
-        const conflictValue = conflictData[columnId]
+        const conflictValue = cellOf(conflictData, columnId)
         if (conflictValue === null || conflictValue === undefined) continue
         // Keyed like the batch, since stored jsonb comes back with its keys reordered.
         const normalizedConflictValue = uniqueValueKey(conflictValue, column)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
-          const rowValue = rows[i][columnId]
+          const rowValue = cellOf(rows[i], columnId)
           if (rowValue === null || rowValue === undefined) continue
 
           if (uniqueValueKey(rowValue, column) === normalizedConflictValue) {
