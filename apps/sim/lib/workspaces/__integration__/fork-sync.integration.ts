@@ -893,21 +893,22 @@ describe('authorized fork and sync against PostgreSQL', () => {
 
       await db.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, childId))
       const fromGrandchild = await setDefault(grandchildId, false)
-      expect(await policyOf(sourceWorkspaceId)).toBe(false)
-      expect(await policyOf(grandchildId)).toBe(false)
-      expect(await policyOf(childId)).toBe(true)
-      // The archived member was neither written nor audited.
-      const expectedFromGrandchild = fromGrandchild.changedWorkspaces.map((member) => member.id)
-      expect(expectedFromGrandchild).toEqual(
-        expect.arrayContaining([sourceWorkspaceId, grandchildId])
+      // Every live member flips back - the ones the first change covered and the two forks
+      // created since - while the archived child is neither written nor audited.
+      const expectedFromGrandchild = [
+        ...[...changed.keys()].filter((id) => id !== childId),
+        newForkId,
+        grandchildId,
+      ].sort()
+      expect(fromGrandchild.changedWorkspaces.map((member) => member.id).sort()).toEqual(
+        expectedFromGrandchild
       )
-      expect(expectedFromGrandchild).not.toContain(childId)
+      for (const id of expectedFromGrandchild) expect(await policyOf(id)).toBe(false)
+      expect(await policyOf(childId)).toBe(true)
       await vi.waitFor(
         async () => {
           const entries = await auditedFrom(grandchildId)
-          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(
-            [...expectedFromGrandchild].sort()
-          )
+          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(expectedFromGrandchild)
         },
         { timeout: 5000 }
       )
