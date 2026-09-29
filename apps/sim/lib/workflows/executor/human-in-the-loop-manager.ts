@@ -38,6 +38,7 @@ import {
   terminalExecutionLogFields,
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -88,8 +89,19 @@ const execDb = dbFor('exec')
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
-/** Statuses of a finished execution's log; a resume can never claim a log in one of them. */
-const TERMINAL_EXECUTION_LOG_STATUSES: readonly string[] = ['cancelled', 'failed', 'completed']
+/**
+ * Statuses of a finished execution's log, the same set the attempt-failure
+ * `CASE` preserves; a resume can never claim a log in one of them.
+ */
+const TERMINAL_EXECUTION_LOG_STATUSES = [
+  'cancelled',
+  'failed',
+  'completed',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+function isTerminalExecutionLogStatus(status: string): boolean {
+  return (TERMINAL_EXECUTION_LOG_STATUSES as readonly string[]).includes(status)
+}
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
 const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
@@ -2405,7 +2417,7 @@ export class PauseResumeManager {
         pausedExecution !== undefined &&
         isResumablePausedStatus(pausedExecution.status) &&
         executionLog !== undefined &&
-        !TERMINAL_EXECUTION_LOG_STATUSES.includes(executionLog.status)
+        !isTerminalExecutionLogStatus(executionLog.status)
       )
     })
   }
