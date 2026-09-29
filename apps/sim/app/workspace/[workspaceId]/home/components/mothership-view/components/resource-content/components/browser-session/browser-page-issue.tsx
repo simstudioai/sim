@@ -125,13 +125,27 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
   }
 }
 
+function isEditingOutside(heading: HTMLElement | null): boolean {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !document.hasFocus()) return false
+  const section = heading?.closest('section')
+  if (section?.contains(active)) return false
+  return (
+    active.isContentEditable ||
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement
+  )
+}
+
 /** Replaces a hidden native page and optionally claims renderer focus for keyboard recovery. */
 export function BrowserPageIssueView({ issue, onReload, focusRecovery }: BrowserPageIssueProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const copy = browserPageIssueCopy(issue)
 
   useEffect(() => {
-    if (focusRecovery) headingRef.current?.focus()
+    // Keyboard recovery for someone who was in the page; a caret in chat or
+    // any other Sim field stays where it is.
+    if (focusRecovery && !isEditingOutside(headingRef.current)) headingRef.current?.focus()
   }, [focusRecovery, issue])
 
   const Icon = issue.kind === 'load-error' ? Globe : CircleAlert

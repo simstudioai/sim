@@ -5399,6 +5399,7 @@ export async function handlePanelAction(
         )
         session.prepareExplicitNavigation(contents)
         void contents.loadURL(action.url).catch(() => {})
+        session.focusPageForUser(contents)
       }
       return
     }
