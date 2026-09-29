@@ -394,7 +394,7 @@ export const selectorManifest = {
     ['serviceTokenId', 'serviceToken', 'organization', 'database', 'branch'],
     {
       sourceFields: { branch: ['branch', 'parentBranch'] },
-      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database', 'branch'] },
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
       sensitive: ['serviceTokenId', 'serviceToken'],
       listMode: 'paginated',
       search: false,

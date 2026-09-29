@@ -138,7 +138,7 @@ export const planetScaleCreateBranchTool: ToolConfig<
         backup_id: optionalPlanetScaleString(params.backupId, 'backupId'),
         region: optionalPlanetScaleString(params.region, 'region'),
         restore_point: optionalPlanetScaleString(params.restorePoint, 'restorePoint'),
-        replicas: optionalPlanetScaleInteger(params.replicas, 'replicas', 0),
+        replicas: optionalPlanetScaleInteger(params.replicas, 'replicas', 0, 8),
         seed_data: optionalPlanetScaleEnum(params.seedData, 'seedData', ['last_successful_backup']),
         cluster_size: optionalPlanetScaleString(params.clusterSize, 'clusterSize'),
         major_version: optionalPlanetScaleString(params.majorVersion, 'majorVersion'),

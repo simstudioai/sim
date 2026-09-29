@@ -353,10 +353,7 @@ export const PlanetScaleBlock: BlockConfig = {
       type: 'file-selector',
       canonicalParamId: 'backupId',
       selectorKey: 'planetscale.backups',
-      dependsOn: {
-        all: ['serviceTokenId', 'serviceToken', 'organization', 'databaseSelector'],
-        any: ['branchSelector', 'parentBranchSelector'],
-      },
+      dependsOn: ['serviceTokenId', 'serviceToken', 'organization', 'databaseSelector'],
       placeholder: 'Select backup',
       mode: 'basic',
       required: { field: 'operation', value: ['get_backup'] },

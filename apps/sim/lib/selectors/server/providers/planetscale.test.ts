@@ -110,6 +110,56 @@ describe('PlanetScale server selectors', () => {
     ).resolves.toEqual({ kind: 'list', items: [option] })
   })
 
+  it.each([undefined, ''])(
+    'discovers backups from the default branch when parent is %s',
+    async (branch) => {
+      fetchMock.mockResolvedValueOnce(Response.json({ default_branch: 'production' }))
+      fetchMock.mockResolvedValueOnce(page([{ id: 'backup-id', name: 'Before migration' }]))
+      const input = args({ selectorKey: 'planetscale.backups' })
+      input.context.branch = branch
+      await expect(
+        planetScaleSelectorAttachments['planetscale.backups'].execute(input)
+      ).resolves.toEqual({
+        kind: 'list',
+        items: [{ id: 'backup-id', label: 'Before migration' }],
+      })
+      expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+        '/v1/organizations/example/databases/test-db',
+        '/v1/organizations/example/databases/test-db/branches/production/backups',
+      ])
+    }
+  )
+
+  it('rejects malformed default-branch metadata without fetching backups', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ default_branch: '' }))
+    const input = args({ selectorKey: 'planetscale.backups' })
+    input.context.branch = undefined
+    await expect(
+      planetScaleSelectorAttachments['planetscale.backups'].execute(input)
+    ).rejects.toMatchObject({
+      name: 'SelectorOptionsUnavailableError',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves cancellation while discovering the default backup branch', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementationOnce(async (_url, init) => {
+      controller.abort()
+      expect(init?.signal?.aborted).toBe(true)
+      init?.signal?.throwIfAborted()
+      return Response.json({ default_branch: 'production' })
+    })
+    const input = args({ selectorKey: 'planetscale.backups', signal: controller.signal })
+    input.context.branch = undefined
+    await expect(
+      planetScaleSelectorAttachments['planetscale.backups'].execute(input)
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('uses the deploy-request number for selected-item detail', async () => {
     fetchMock.mockResolvedValueOnce(
       Response.json({ id: 'opaque-id', number: 42, branch: 'dev', into_branch: 'main' })

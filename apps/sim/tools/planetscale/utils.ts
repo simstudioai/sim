@@ -213,11 +213,13 @@ export function optionalPlanetScaleBoolean(value: unknown, name: string): boolea
 export function optionalPlanetScaleInteger(
   value: unknown,
   name: string,
-  minimum = 1
+  minimum = 1,
+  maximum = Number.MAX_SAFE_INTEGER
 ): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum)
     throw new Error(`${name} must be an integer of at least ${minimum}`)
+  if (value > maximum) throw new Error(`${name} must be at most ${maximum}`)
   return value
 }
 export function planetScaleNumber(value: unknown, name: string): number {

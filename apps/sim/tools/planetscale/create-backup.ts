@@ -101,7 +101,12 @@ export const planetScaleCreateBackupTool: ToolConfig<
           'month',
           'year',
         ]),
-        retention_value: optionalPlanetScaleInteger(params.retentionValue, 'retentionValue'),
+        retention_value: optionalPlanetScaleInteger(
+          params.retentionValue,
+          'retentionValue',
+          1,
+          1000
+        ),
         emergency: optionalPlanetScaleBoolean(params.emergency, 'emergency'),
       }),
   },

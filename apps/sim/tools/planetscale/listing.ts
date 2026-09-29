@@ -44,6 +44,7 @@ export async function listPlanetScaleOptions(input: {
   let path: string
   let headers: Record<string, string>
   let page: number | undefined
+  let detailPath = ''
   try {
     headers = planetScaleHeaders(scope)
     path =
@@ -52,14 +53,33 @@ export async function listPlanetScaleOptions(input: {
         : kind === 'branches'
           ? `${planetScaleDatabasePath(scope)}/branches`
           : kind === 'backups'
-            ? `${planetScaleBranchPath(scope)}/backups`
+            ? scope.branch
+              ? `${planetScaleBranchPath(scope)}/backups`
+              : planetScaleDatabasePath(scope)
             : `${planetScaleDatabasePath(scope)}/deploy-requests`
     if (request.kind === 'detail') {
-      path += `/${kind === 'deployRequests' ? numericPage(request.id) : safeUrlPathSegment(request.id, 'id')}`
+      detailPath = `/${kind === 'deployRequests' ? numericPage(request.id) : safeUrlPathSegment(request.id, 'id')}`
     } else page = numericPage(request.cursor)
   } catch {
     throw new SelectorContextUnavailableError()
   }
+  if (kind === 'backups' && !scope.branch) {
+    const database = await fetchProviderJsonWithStatus<unknown>(
+      planetScaleApiUrl(path),
+      { headers, signal },
+      { passthroughStatuses: request.kind === 'detail' ? [404] : [] }
+    )
+    if (!database.ok) return detailSelectorResult(null)
+    try {
+      const { default_branch } = z
+        .object({ default_branch: z.string().min(1) })
+        .parse(database.data)
+      path += `/branches/${safeUrlPathSegment(default_branch, 'default branch')}/backups`
+    } catch {
+      throw new SelectorOptionsUnavailableError()
+    }
+  }
+  path += detailPath
   const result = await fetchProviderJsonWithStatus<unknown>(
     planetScaleApiUrl(
       path,
