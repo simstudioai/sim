@@ -66,6 +66,7 @@ Useful knobs:
 | `EVAL_MODEL` | `deepseek-chat` | Model id sent to the provider. |
 | `EVAL_TIMEOUT_MS` | `180000` | Per-request timeout. |
 | `EVAL_REPORT_PATH` | `test-results/evals/agent-tool-use-live.json` | Report location. |
+| `EVAL_RECORD` | `0` | Set to `1` to also write the first trial's transcript to `fixtures/`. |
 
 Live runs relax exact assertions: `toolCallSequence` becomes an ordered
 subsequence, `successfulToolCalls` becomes a minimum, and scripted-only cases
@@ -74,6 +75,24 @@ overrides the scripted expectation where a real model cannot reproduce it (for
 example, an exact retry count). The report is at
 `test-results/evals/agent-tool-use-live.{json,md}` with pass rates, average
 iterations, latency, and the failed check names.
+
+### Record and replay
+
+A live run is nondeterministic and needs a key; a fixture is neither. Record one
+trial, then replay it forever through the real loop with no network:
+
+```sh
+cd apps/sim
+EVAL_RECORD=1 DEEPSEEK_API_KEY=... bun run test:evals:live   # writes fixtures/*.json
+bun run test:evals                                           # replays them, no key
+```
+
+`fixtures/<scenario>.json` holds the raw streamed chunks per model call, so a
+diff shows a behavior change exactly as the model produced it. Fixtures are
+committed and reviewed like snapshots. `agent-tool-use.replay.test.ts` replays
+each one through `createOpenAICompatStreamingToolLoopStream` and scores it with
+the same checks; the suite skips until at least one fixture exists. Re-record a
+fixture when the scenario, prompt, or model intentionally changes.
 
 ## Add a case
 
