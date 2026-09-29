@@ -194,20 +194,40 @@ mountUpdateNotificationFixture(DesktopUpdateNotification);`,
       }
     )
 
+    await check('stack eviction does not count as dismissing the update offer', async () => {
+      await publish({ status: 'checking', version: '2.4.0' })
+      await expect(restart).toHaveCount(0)
+      await publish({ status: 'ready', version: '2.4.0' })
+      await expect(restart).toHaveCount(1)
+      await page.getByRole('button', { name: 'Fill notification stack' }).click()
+      await expect(restart).toHaveCount(0)
+      await page.getByRole('button', { name: 'Clear notifications' }).click()
+      await expect(notice).toHaveCount(0)
+      await publish({ status: 'checking', version: '2.4.0' })
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          )
+      )
+      await publish({ status: 'ready', version: '2.4.0' })
+      await expect(restart).toBeVisible()
+    })
+
     await check('actions reach the real preload IPC with the correct operation', async () => {
       for (const { state, action, channel } of [
         {
-          state: { status: 'ready', version: '2.1.0' },
+          state: { status: 'ready', version: '2.4.0' },
           action: restart,
           channel: 'desktop:updates:install',
         },
         {
-          state: { status: 'available', version: '2.2.0' },
+          state: { status: 'available', version: '2.5.0' },
           action: download,
           channel: 'desktop:updates:check',
         },
         {
-          state: { status: 'available', version: '2.3.0', manual: true },
+          state: { status: 'available', version: '2.6.0', manual: true },
           action: download,
           channel: 'desktop:updates:install',
         },

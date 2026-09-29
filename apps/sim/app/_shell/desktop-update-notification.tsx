@@ -6,8 +6,12 @@ import { getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
+interface DesktopUpdateNotificationProps {
+  [key: string]: never
+}
+
 /** Keeps optional desktop updates actionable across routes for the current window session. */
-export function DesktopUpdateNotification() {
+export function DesktopUpdateNotification(_props: DesktopUpdateNotificationProps) {
   const { status, version, manual } = useDesktopUpdateState()
   const { toast, dismiss } = useToast()
   const dismissedOffer = useRef<string | null>(null)
@@ -38,13 +42,13 @@ export function DesktopUpdateNotification() {
         },
       },
       persistAcrossRoutes: true,
-      onDismiss: () => {
+      onUserDismiss: () => {
         if (active) dismissedOffer.current = offer
       },
     })
 
     return () => {
-      // State changes and StrictMode cleanup withdraw the toast without dismissing the offer.
+      // Ignore clicks while a withdrawn toast finishes its exit animation.
       active = false
       dismiss(id)
     }
