@@ -157,9 +157,12 @@ export const internalSelectorAttachments = {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
       if (!args.workspaceId) throw new SelectorContextUnavailableError()
+      const tableId = args.context.tableId!
       const { table } = await readTableUseCase.execute({
-        principal: nestedSelectorPrincipal(args.principal, args.workspaceId, readTableUseCase),
-        input: { tableId: args.context.tableId!, workspaceId: args.workspaceId },
+        principal: nestedSelectorPrincipal(args.principal, args.workspaceId, readTableUseCase, {
+          tableId,
+        }),
+        input: { tableId, workspaceId: args.workspaceId },
       })
       const options = (table.schema?.columns ?? [])
         .filter((column) => column.unique)
@@ -175,9 +178,12 @@ export const internalSelectorAttachments = {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
       if (!args.workspaceId) throw new SelectorContextUnavailableError()
+      const tableId = args.context.tableId!
       const { table } = await readTableUseCase.execute({
-        principal: nestedSelectorPrincipal(args.principal, args.workspaceId, readTableUseCase),
-        input: { tableId: args.context.tableId!, workspaceId: args.workspaceId },
+        principal: nestedSelectorPrincipal(args.principal, args.workspaceId, readTableUseCase, {
+          tableId,
+        }),
+        input: { tableId, workspaceId: args.workspaceId },
       })
       const options = (table.schema?.columns ?? []).map((column) => ({
         id: getColumnId(column),
