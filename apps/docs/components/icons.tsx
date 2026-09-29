@@ -10012,3 +10012,18 @@ export function OtterIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function PlanetScaleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 454 454' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M0 227C0 101.631 101.631 0 227 0C319.178 0 398.524 54.942 434.076 133.865L133.865 434.076C120.983 428.273 108.739 421.302 97.268 413.3L283.568 227H227L66.487 387.513C25.408 346.434 0 289.684 0 227Z'
+        fill='currentColor'
+      />
+      <path
+        d='M454 227.078L227.078 454C352.385 453.958 453.958 352.385 454 227.078Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}

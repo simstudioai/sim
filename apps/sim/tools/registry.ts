@@ -3750,6 +3750,23 @@ import {
   pitchbookUsageReportTool,
 } from '@/tools/pitchbook'
 import {
+  planetScaleCloseDeployRequestTool,
+  planetScaleCreateBackupTool,
+  planetScaleCreateBranchTool,
+  planetScaleCreateDeployRequestTool,
+  planetScaleDeleteBranchTool,
+  planetScaleGetBackupTool,
+  planetScaleGetBranchTool,
+  planetScaleGetDatabaseTool,
+  planetScaleGetDeployRequestTool,
+  planetScaleListBackupsTool,
+  planetScaleListBranchesTool,
+  planetScaleListDatabasesTool,
+  planetScaleListDeployRequestsTool,
+  planetScaleQueueDeployRequestTool,
+  planetScaleReviewDeployRequestTool,
+} from '@/tools/planetscale'
+import {
   polymarketGetActivityTool,
   polymarketGetEventsTool,
   polymarketGetEventTool,
@@ -6081,6 +6098,21 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ExecutableToolConfig> = {
+  planetscale_list_databases: planetScaleListDatabasesTool,
+  planetscale_get_database: planetScaleGetDatabaseTool,
+  planetscale_list_branches: planetScaleListBranchesTool,
+  planetscale_get_branch: planetScaleGetBranchTool,
+  planetscale_create_branch: planetScaleCreateBranchTool,
+  planetscale_delete_branch: planetScaleDeleteBranchTool,
+  planetscale_list_backups: planetScaleListBackupsTool,
+  planetscale_get_backup: planetScaleGetBackupTool,
+  planetscale_create_backup: planetScaleCreateBackupTool,
+  planetscale_list_deploy_requests: planetScaleListDeployRequestsTool,
+  planetscale_get_deploy_request: planetScaleGetDeployRequestTool,
+  planetscale_create_deploy_request: planetScaleCreateDeployRequestTool,
+  planetscale_review_deploy_request: planetScaleReviewDeployRequestTool,
+  planetscale_queue_deploy_request: planetScaleQueueDeployRequestTool,
+  planetscale_close_deploy_request: planetScaleCloseDeployRequestTool,
   a2a_cancel_task: a2aCancelTaskTool,
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,
