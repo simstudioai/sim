@@ -41,7 +41,7 @@ These measures take a condition rather than a numeric field, so tables do not ne
 axis formatting. Pie/donut distributions can continue grouping by outcome and
 counting rows; their slice percentages are computed by ECharts.
 
-Queries reuse the table predicate compiler and the existing read-only repeatable-read transaction guards, including statement/lock timeouts and tenant index planning. The built-in timestamp predicate leaves the indexed column uncast. Custom date extraction requires scanning matching table rows. There is no background polling. Migration 0384 adds `dashboard` to the existing folder resource enum; it does not create a dashboard table.
+Queries reuse the table predicate compiler and the existing read-only repeatable-read transaction guards, including statement/lock timeouts and tenant index planning. The built-in timestamp predicate leaves the indexed column uncast. Custom date extraction requires scanning matching table rows. There is no background polling. Migration 0391 adds `dashboard` to the existing folder resource enum; it does not create a dashboard table.
 
 Bounds: 128 KB source, 48 blocks, 4 layout levels, 2 grouping fields, 8 measures, 12 projected columns, 500 result rows and 8 KB per returned row. Limits apply after aggregation. An explicit limit yields a labeled top-N result; unrequested group overflow is an error. API rate admission is per viewer. Errors are never turned into successful zeros. Only visible tabs mount their query observers; identical queries share React Query cache entries for one minute, and Refresh requests fresh data.
 
@@ -89,8 +89,8 @@ New dashboard definitions are unlisted workspace files. Dashboard APIs select th
 content type explicitly, and the resource picker requests dashboards separately from Files.
 Versions, billing, cleanup, and complete workspace copies still include unlisted resources.
 
-Migration 0385 adds the defaulted discovery column and a temporary bridge for old upload
-writers during rollout. Script migration 0025 backfills non-workspace uploads in id-keyed
+Migration 0392 adds the defaulted discovery column and a temporary bridge for old upload
+writers during rollout. Script migration 0027 backfills non-workspace uploads in id-keyed
 pages of 1,000, including archived uploads, without changing content revisions or ownership.
 It contains no dashboard backfill: dashboards have not shipped. Remove the bridge in a
 later migration after all discovery-aware writers are deployed.

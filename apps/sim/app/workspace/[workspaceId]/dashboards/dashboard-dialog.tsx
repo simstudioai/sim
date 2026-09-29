@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import type { DashboardRecord } from '@/lib/api/contracts/dashboards'
 import type { FolderApi } from '@/lib/api/contracts/folders'
+import { encodeFolderPathSegment } from '@/lib/folders/paths'
 import { useDashboardMutation } from '@/hooks/queries/dashboards'
 
 export type DashboardDialogState =
@@ -62,7 +63,7 @@ export function DashboardDialog({
   function pathFor(id: string): string {
     const row = folders.find((folder) => folder.id === id)
     if (!row) return ''
-    return `${row.parentId ? pathFor(row.parentId) : ''}/${encodeURIComponent(row.name)}`
+    return `${row.parentId ? pathFor(row.parentId) : ''}/${encodeFolderPathSegment(row.name)}`
   }
   function save() {
     const callbacks = {
@@ -90,7 +91,7 @@ export function DashboardDialog({
         break
       case 'createFolder':
         mutation.mutate(
-          { operation: 'createFolder', path: `${folderPath}/${encodeURIComponent(name)}` },
+          { operation: 'createFolder', path: `${folderPath}/${encodeFolderPathSegment(name)}` },
           callbacks
         )
         break
@@ -99,7 +100,7 @@ export function DashboardDialog({
           {
             operation: 'moveFolder',
             path: state.path,
-            destinationPath: `${pathFor(target)}/${encodeURIComponent(name)}`,
+            destinationPath: `${pathFor(target)}/${encodeFolderPathSegment(name)}`,
           },
           callbacks
         )

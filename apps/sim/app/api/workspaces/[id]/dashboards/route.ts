@@ -14,7 +14,11 @@ export const GET = defineInternalJsonRoute({
   operation: dashboardOperations.list,
   rateLimit: internalRateLimits.user({ bucketName: 'dashboards' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params, query }) => ({ workspaceId: params.id, ...query }),
+  mapInput: ({ params, query }) => ({
+    workspaceId: params.id,
+    search: query.search,
+    folderId: query.folder === 'root' ? null : query.folder,
+  }),
   useCase: listDashboards,
 })
 

@@ -118,9 +118,13 @@ export function useAvailableResources(
   const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
   })
-  const { data: dashboardData, isPending: dashboardsPending } = useDashboards(workspaceId, '', {
-    enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
-  })
+  const { data: dashboardData, isPending: dashboardsPending } = useDashboards(
+    workspaceId,
+    {},
+    {
+      enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
+    }
+  )
   const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
   })

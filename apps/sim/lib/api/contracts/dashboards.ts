@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { folderSchema } from '@/lib/api/contracts/folders'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 
 export const dashboardParamsSchema = z.object({
   id: workspaceIdSchema,
@@ -44,11 +44,16 @@ export const moveDashboardBodySchema = z
     folderId: z.string().min(1).nullable().optional(),
   })
   .strict()
+export const listDashboardsQuerySchema = z.object({
+  search: z.string().max(255).optional(),
+  /** A folder id, or `root` for dashboards outside any folder. Omit to list every folder. */
+  folder: z.union([z.literal('root'), folderIdSchema]).optional(),
+})
 export const listDashboardsContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/dashboards',
   params: workspaceParams,
-  query: z.object({ search: z.string().max(255).optional() }),
+  query: listDashboardsQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({ dashboards: z.array(dashboardRecordSchema), truncated: z.boolean() }),
@@ -123,6 +128,7 @@ export const deleteDashboardFolderContract = defineRouteContract({
   response: { mode: 'json', schema: deletedResponse },
 })
 export type DashboardRecord = z.output<typeof dashboardRecordSchema>
+export type ListDashboardsQuery = z.input<typeof listDashboardsQuerySchema>
 export type CreateDashboardBody = z.input<typeof createDashboardBodySchema>
 export type UpdateDashboardBody = z.input<typeof updateDashboardBodySchema>
 export type MoveDashboardBody = z.input<typeof moveDashboardBodySchema>

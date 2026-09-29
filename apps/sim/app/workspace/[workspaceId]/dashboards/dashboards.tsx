@@ -12,6 +12,7 @@ import {
 import { ChartColumn, Folder, Loader, MoreHorizontal, Pencil, Trash } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { encodeFolderPathSegment } from '@/lib/folders/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import {
@@ -72,7 +73,10 @@ export function Dashboards({ workspaceId }: DashboardsProps) {
   useWorkspaceFilesRoom(workspaceId)
   const setSearch = useDebouncedSearchSetter((search, options) => setState({ search }, options))
   const search = useSearchFilterValue(state.search, SEARCH_DEBOUNCE_MS).trim()
-  const query = useDashboards(workspaceId, search)
+  const query = useDashboards(
+    workspaceId,
+    search ? { search } : { folder: state.folderId ?? 'root' }
+  )
   const folderQuery = useDashboardFolders(workspaceId)
   const folders = folderQuery.data?.folders ?? []
   const dashboards = query.data?.dashboards ?? []
@@ -90,7 +94,7 @@ export function Dashboards({ workspaceId }: DashboardsProps) {
     current = folders.find((item) => item.id === current?.parentId)
   }
   const folderPath = breadcrumbs.length
-    ? `/${breadcrumbs.map((item) => encodeURIComponent(item.label)).join('/')}`
+    ? `/${breadcrumbs.map((item) => encodeFolderPathSegment(item.label)).join('/')}`
     : ''
   const open = (id: string) => router.push(`/workspace/${workspaceId}/dashboards/${id}`)
   const folderMissing = state.folderId !== null && folderQuery.isSuccess && !folder
@@ -153,7 +157,7 @@ export function Dashboards({ workspaceId }: DashboardsProps) {
                 (!search || item.name.toLowerCase().includes(search.toLowerCase()))
             )
             .map((item) => {
-              const path = `${folderPath}/${encodeURIComponent(item.name)}`
+              const path = `${folderPath}/${encodeFolderPathSegment(item.name)}`
               return {
                 id: item.id,
                 cells: {
@@ -171,24 +175,22 @@ export function Dashboards({ workspaceId }: DashboardsProps) {
                 },
               }
             }),
-          ...dashboards
-            .filter((item) => search || item.folderId === state.folderId)
-            .map((item) => ({
-              id: item.id,
-              cells: {
-                name: { icon: <ChartColumn />, label: item.name },
-                updated: { label: new Date(item.updatedAt).toLocaleDateString() },
-                actions: {
-                  content: canEdit && (
-                    <DashboardRowActions
-                      label={item.name}
-                      onEdit={() => setDialog({ kind: 'edit', dashboard: item })}
-                      onDelete={() => setDialog({ kind: 'delete', dashboard: item })}
-                    />
-                  ),
-                },
+          ...dashboards.map((item) => ({
+            id: item.id,
+            cells: {
+              name: { icon: <ChartColumn />, label: item.name },
+              updated: { label: new Date(item.updatedAt).toLocaleDateString() },
+              actions: {
+                content: canEdit && (
+                  <DashboardRowActions
+                    label={item.name}
+                    onEdit={() => setDialog({ kind: 'edit', dashboard: item })}
+                    onDelete={() => setDialog({ kind: 'delete', dashboard: item })}
+                  />
+                ),
               },
-            })),
+            },
+          })),
         ]}
         onRowClick={(id) => {
           if (folders.some((item) => item.id === id)) {

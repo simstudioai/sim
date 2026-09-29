@@ -6,6 +6,7 @@ import {
   createDashboardFolderContract,
   deleteDashboardContract,
   deleteDashboardFolderContract,
+  type ListDashboardsQuery,
   listDashboardFoldersContract,
   listDashboardsContract,
   type MoveDashboardBody,
@@ -21,20 +22,24 @@ export const DASHBOARD_STALE_TIME = 30_000
 export const dashboardKeys = {
   all: ['dashboards'] as const,
   lists: () => [...dashboardKeys.all, 'list'] as const,
-  list: (workspaceId: string, search = '') =>
-    [...dashboardKeys.lists(), workspaceId, search] as const,
+  list: (workspaceId: string, query: ListDashboardsQuery = {}) =>
+    [...dashboardKeys.lists(), workspaceId, query.search ?? '', query.folder ?? ''] as const,
   details: () => [...dashboardKeys.all, 'detail'] as const,
   detail: (workspaceId: string, id: string) =>
     [...dashboardKeys.details(), workspaceId, id] as const,
   folders: (workspaceId: string) => [...dashboardKeys.all, 'folders', workspaceId] as const,
 }
-export function useDashboards(workspaceId: string, search = '', options?: { enabled?: boolean }) {
+export function useDashboards(
+  workspaceId: string,
+  query: ListDashboardsQuery = {},
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: dashboardKeys.list(workspaceId, search),
+    queryKey: dashboardKeys.list(workspaceId, query),
     queryFn: ({ signal }) =>
       requestJson(listDashboardsContract, {
         params: { id: workspaceId },
-        query: { search },
+        query,
         signal,
       }),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),

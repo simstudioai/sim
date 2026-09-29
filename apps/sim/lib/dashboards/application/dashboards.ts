@@ -83,14 +83,18 @@ function storageName(name: string) {
 
 export const listDashboards = defineAuthorizedWorkspaceFileUseCase({
   operation: dashboardOperations.list,
-  resolveContext: ({ input }: { input: { workspaceId: string; search?: string } }) =>
-    dashboardWorkspace(input.workspaceId),
+  resolveContext: ({
+    input,
+  }: {
+    input: { workspaceId: string; search?: string; folderId?: string | null }
+  }) => dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context }) {
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       discovery: 'unlisted',
       contentType: DASHBOARD_CONTENT_TYPE,
       search: input.search,
+      folderId: input.folderId,
       sortBy: 'name',
       sortOrder: 'asc',
       limit: 500,

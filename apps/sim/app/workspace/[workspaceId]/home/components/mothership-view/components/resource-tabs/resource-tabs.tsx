@@ -165,9 +165,13 @@ function useResourceNameLookup(
 ): Map<string, string> {
   const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = resources.length > 0
-  const { data: dashboardData } = useDashboards(workspaceId ?? '', '', {
-    enabled: enabled && dashboardsEnabled,
-  })
+  const { data: dashboardData } = useDashboards(
+    workspaceId ?? '',
+    {},
+    {
+      enabled: enabled && dashboardsEnabled,
+    }
+  )
   const owners = [
     ...new Set(
       resources
