@@ -715,6 +715,13 @@ function shouldSkipPreviewBlockRender(
   /** Skip subBlockValues comparison in lightweight mode */
   if (nextProps.data.lightweight) return true
 
+  if (
+    prevProps.data.workflowMap !== nextProps.data.workflowMap ||
+    prevProps.data.workflowLabelsReady !== nextProps.data.workflowLabelsReady
+  ) {
+    return false
+  }
+
   const prevValues = prevProps.data.subBlockValues
   const nextValues = nextProps.data.subBlockValues
 
