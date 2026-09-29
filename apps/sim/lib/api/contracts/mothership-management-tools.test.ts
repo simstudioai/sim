@@ -33,18 +33,24 @@ const examples = {
     { action: 'approve', connectorType: 'google_drive', approved: true },
   ],
   dashboards: [
-    { action: 'list', search: 'support' },
+    { action: 'list', search: 'support', folder: '/Operations' },
     { action: 'get', dashboardId: 'dash-1' },
-    { action: 'create', name: 'Support', content: 'title: Support\nblocks: []', folderId: null },
-    { action: 'update', dashboardId: 'dash-1', content: 'title: Support', expectedRevision: 'r1' },
-    { action: 'move', dashboardId: 'dash-1', folderId: null },
+    { action: 'create', name: 'Support', content: 'title: Support\nblocks: []', folder: '/' },
+    {
+      action: 'set-content',
+      dashboardId: 'dash-1',
+      content: 'title: Support',
+      expectedRevision: 'r1',
+    },
+    { action: 'rename', dashboardId: 'dash-1', name: 'Support' },
+    { action: 'move', dashboardId: 'dash-1', to: '/' },
     { action: 'delete', dashboardId: 'dash-1' },
   ],
   dashboard_folders: [
     { action: 'list' },
     { action: 'create', path: '/Operations' },
-    { action: 'move', path: '/Operations', destinationPath: '/Ops' },
-    { action: 'delete', path: '/Operations' },
+    { action: 'move', path: '/Operations', destination: '/Ops' },
+    { action: 'delete', path: '/Operations', recursive: true },
   ],
 }
 

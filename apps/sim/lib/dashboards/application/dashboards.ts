@@ -5,6 +5,12 @@ import { dashboardOperations } from '@/lib/dashboards/application/operations'
 import { requireDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
 import { MAX_DASHBOARD_SOURCE_BYTES, parseDashboardSpec } from '@/lib/dashboards/spec'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import {
+  loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
+  resolveFolderPathFromIndex,
+} from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   ContentVersionConflictError,
@@ -65,6 +71,16 @@ export function dashboardRecord(file: WorkspaceFileRecord) {
   }
 }
 
+/** A mutation into a path that names no dashboard folder fails; `/` is the root. */
+async function resolveDashboardFolder(workspaceId: string, path: string): Promise<string | null> {
+  const index = await loadActiveFolderPathIndex(workspaceId, 'dashboard', undefined, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
+  const folderId = resolveFolderPathFromIndex(index, path)
+  if (folderId === undefined) throw new OrchestrationError('not_found', 'Target folder not found')
+  return folderId
+}
+
 function validateContent(content: string) {
   const parsed = parseDashboardSpec(content)
   if (parsed.error) throw new OrchestrationError('validation', parsed.error)
@@ -86,15 +102,28 @@ export const listDashboards = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({
     input,
   }: {
-    input: { workspaceId: string; search?: string; folderId?: string | null }
+    input: { workspaceId: string; search?: string; folderId?: string | null; folderPath?: string }
   }) => dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context }) {
+    if (input.folderId !== undefined && input.folderPath !== undefined)
+      throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
+    let folderId = input.folderId
+    if (input.folderPath !== undefined) {
+      const filter = resolveFolderPathFilter(
+        await loadActiveFolderPathIndex(context.workspaceId, 'dashboard', undefined, {
+          maxRows: MAX_FOLDERS_PER_WORKSPACE,
+        }),
+        input.folderPath
+      )
+      if (filter.kind === 'noMatch') return { dashboards: [], truncated: false }
+      if (filter.kind === 'folder') folderId = filter.folderId
+    }
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       discovery: 'unlisted',
       contentType: DASHBOARD_CONTENT_TYPE,
       search: input.search,
-      folderId: input.folderId,
+      folderId,
       sortBy: 'name',
       sortOrder: 'asc',
       limit: 500,
@@ -119,7 +148,13 @@ export const createDashboard = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({
     input,
   }: {
-    input: { workspaceId: string; name: string; content: string; folderId?: string | null }
+    input: {
+      workspaceId: string
+      name: string
+      content: string
+      folderId?: string | null
+      folderPath?: string
+    }
   }) => dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context, principal }) {
@@ -132,6 +167,7 @@ export const createDashboard = defineAuthorizedWorkspaceFileUseCase({
       DASHBOARD_CONTENT_TYPE,
       {
         folderId: input.folderId,
+        folderPath: input.folderPath,
         exactName: true,
         discovery: 'unlisted',
         secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -199,16 +235,27 @@ export const moveDashboard = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({
     input,
   }: {
-    input: DashboardTarget & { name?: string; folderId?: string | null }
+    input: DashboardTarget & { name?: string; folderId?: string | null; targetFolderPath?: string }
   }) => dashboardContext(input),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context }) {
+    if (input.folderId !== undefined && input.targetFolderPath !== undefined)
+      throw new OrchestrationError(
+        'validation',
+        'Specify either folderId or targetFolderPath, not both'
+      )
     const file = await requireDashboardFile(context.workspaceId, context.fileId)
+    const targetFolderId =
+      input.targetFolderPath !== undefined
+        ? await resolveDashboardFolder(context.workspaceId, input.targetFolderPath)
+        : input.folderId === undefined
+          ? (file.folderId ?? null)
+          : input.folderId
     const result = await moveRenameWorkspaceFile({
       workspaceId: context.workspaceId,
       fileId: context.fileId,
       newName: input.name === undefined ? file.name : storageName(input.name),
-      targetFolderId: input.folderId === undefined ? (file.folderId ?? null) : input.folderId,
+      targetFolderId,
     })
     return { dashboard: dashboardRecord(result.file), changed: result.renamed || result.moved }
   },

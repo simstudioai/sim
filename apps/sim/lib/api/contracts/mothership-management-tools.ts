@@ -18,7 +18,7 @@ export const managementToolContracts = [
     route: 'sim',
     scope: 'all',
     description:
-      'Create, list, read, edit, move, rename and delete dashboards in the selected workspace. Dashboards are separate resources with validated YAML source. Load the create-dashboard skill for the actual schema. get returns content and revision; update requires expectedRevision to avoid overwriting concurrent edits. move changes name and/or folderId. Use open_resource with type dashboard to show the result. Sharing is not supported by this tool.',
+      'Create, list, read, edit, move, rename and delete dashboards in the selected workspace, with the same folder paths as files: `/` is the root. Dashboards are separate resources with validated YAML source. Load the create-dashboard skill for the actual schema. get returns content and revision; set-content requires expectedRevision to avoid overwriting concurrent edits. Use open_resource with type dashboard to show the result. Sharing is not supported by this tool.',
     inputSchema: mothershipDashboardsInputSchema,
   },
   {
@@ -26,7 +26,7 @@ export const managementToolContracts = [
     route: 'sim',
     scope: 'all',
     description:
-      'Manage the selected workspace’s dashboard folders. Paths are slash-separated under the Dashboards root. Create requires existing ancestors; move also renames via destinationPath. Delete archives the folder and its dashboards recursively. Folders are separate from Files.',
+      'Manage the selected workspace’s dashboard folders with the same paths as file folders. Create requires existing ancestors; move also renames via the destination path. Delete of a non-empty folder requires recursive, which archives the folder and its dashboards. Folders are separate from Files.',
     inputSchema: mothershipDashboardFoldersInputSchema,
   },
   {

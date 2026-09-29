@@ -54,6 +54,6 @@ export const DELETE = defineInternalJsonRoute({
   operation: dashboardOperations.deleteFolder,
   rateLimit: internalRateLimits.user({ bucketName: 'dashboards' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params, body }) => ({ workspaceId: params.id, ...body }),
+  mapInput: ({ params, body }) => ({ workspaceId: params.id, ...body, recursive: true }),
   useCase: deleteDashboardFolder,
 })

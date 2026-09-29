@@ -55,6 +55,7 @@ export const dashboardsServerTool: BaseServerTool = {
         return executeDashboardUseCase(context, listDashboards, {
           workspaceId,
           search: input.search,
+          folderPath: input.folder,
         })
       case 'get':
         return executeDashboardUseCase(context, readDashboard, {
@@ -63,22 +64,28 @@ export const dashboardsServerTool: BaseServerTool = {
         })
       case 'create': {
         const result = await executeDashboardUseCase(context, createDashboard, {
-          ...input,
           workspaceId,
+          name: input.name,
+          content: input.content,
+          folderPath: input.folder,
         })
         return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
       }
-      case 'update': {
+      case 'set-content': {
         const result = await executeDashboardUseCase(context, updateDashboard, {
-          ...input,
           workspaceId,
+          dashboardId: input.dashboardId,
+          content: input.content,
+          expectedRevision: input.expectedRevision,
         })
         return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
       }
+      case 'rename':
       case 'move': {
         const result = await executeDashboardUseCase(context, moveDashboard, {
-          ...input,
           workspaceId,
+          dashboardId: input.dashboardId,
+          ...(input.action === 'rename' ? { name: input.name } : { targetFolderPath: input.to }),
         })
         return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
       }
@@ -114,12 +121,13 @@ export const dashboardFoldersServerTool: BaseServerTool = {
         return executeDashboardUseCase(context, moveDashboardFolder, {
           workspaceId,
           path: input.path,
-          destinationPath: input.destinationPath,
+          destinationPath: input.destination,
         })
       case 'delete':
         return executeDashboardUseCase(context, deleteDashboardFolder, {
           workspaceId,
           path: input.path,
+          recursive: input.recursive ?? false,
         })
     }
   },

@@ -1,7 +1,7 @@
 /** The built-in authoring skill ships alongside the parser, so models can learn the actual format. */
 export const DASHBOARD_AUTHORING_CONTENT = `# Create a dashboard
 
-A dashboard is YAML over live table rows. Inspect the table's columns first, then call dashboards.create with name and content. dashboards.get returns content and revision; dashboards.update needs expectedRevision. Open it with open_resource (type dashboard). Folders are dashboard_folders. Never write HTML, JS, CSS, or a custom chart grammar; log queries are not supported.
+A dashboard is YAML over live table rows. Inspect the table's columns first, then run \`dashboards create --name --content\` (add \`--folder <path>\` for a folder). \`dashboards get\` returns content and revision; \`dashboards set-content\` needs \`--expected-revision\`. Open it with open_resource (type dashboard). Folders work like file folders: \`dashboards folders create|move|delete <path>\`. Never write HTML, JS, CSS, or a custom chart grammar; log queries are not supported.
 
 \`\`\`yaml
 title: Support

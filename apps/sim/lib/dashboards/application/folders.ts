@@ -98,7 +98,8 @@ export const moveDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
 
 export const deleteDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
   operation: dashboardOperations.deleteFolder,
-  resolveContext: ({ input }: { input: FolderTarget }) => dashboardWorkspace(input.workspaceId),
+  resolveContext: ({ input }: { input: FolderTarget & { recursive: boolean } }) =>
+    dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ context, input, principal }) {
     const result = await deleteFolderByPathTransition({
@@ -106,7 +107,7 @@ export const deleteDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
       resourceType: 'dashboard',
       userId: requirePrincipalSubjectUserId(principal),
       path: input.path,
-      recursive: true,
+      recursive: input.recursive,
       maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       effects: false,
       throwInfrastructure: true,
