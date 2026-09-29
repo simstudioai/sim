@@ -274,30 +274,31 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
   })
 
-  it('resolves a caller-chosen job id through its tag without retrieving the id itself', async () => {
-    mockList.mockReturnValueOnce(createListPage([{ id: 'run_1', tags: ['jobId:schedule_abc'] }]))
-    mockRetrieve.mockResolvedValueOnce({
-      id: 'run_1',
-      payload: {},
-      status: 'QUEUED',
-      taskIdentifier: 'schedule-execution',
+  /** Trigger.dev can only retrieve its own run ids; anything else fails, and slowly. */
+  function retrieveOnlyRunIds() {
+    mockRetrieve.mockImplementation(async (id: string) => {
+      if (!id.startsWith('run_')) throw new Error(`Retrieved a caller-chosen job id: ${id}`)
+      return { id, payload: {}, status: 'QUEUED', taskIdentifier: 'schedule-execution' }
     })
+  }
+
+  it('resolves a caller-chosen job id through its tag', async () => {
+    retrieveOnlyRunIds()
+    mockList.mockReturnValueOnce(createListPage([{ id: 'run_1', tags: ['jobId:schedule_abc'] }]))
     const queue = new TriggerDevJobQueue()
 
     await expect(queue.getJob('schedule_abc')).resolves.toMatchObject({
       id: 'run_1',
       status: 'pending',
     })
-    expect(mockRetrieve).toHaveBeenCalledTimes(1)
-    expect(mockRetrieve).toHaveBeenCalledWith('run_1')
   })
 
   it('returns null for a caller-chosen job id with no tagged run', async () => {
+    retrieveOnlyRunIds()
     mockList.mockReturnValueOnce(createListPage([]))
     const queue = new TriggerDevJobQueue()
 
     await expect(queue.getJob('schedule_abc')).resolves.toBeNull()
-    expect(mockRetrieve).not.toHaveBeenCalled()
   })
 
   it('falls back to the tag lookup when a run id is not found', async () => {

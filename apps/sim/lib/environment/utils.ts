@@ -538,12 +538,15 @@ export async function getExecutionEnvironment(
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
-  const [suspended, actorAccess, personalAccess] = await Promise.all([
+  const personalAccessRead = checkWorkspaceAccess(workspaceId, personalUserId)
+  personalAccessRead.catch(() => {})
+  const [suspended, actorAccess] = await Promise.all([
     personalIdentitySuspended,
     checkWorkspaceAccess(workspaceId, workspaceUserId),
-    checkWorkspaceAccess(workspaceId, personalUserId),
   ])
+  // A suspended identity's access is never consulted, so its read cannot fail the run.
   if (suspended) return resolveSuspendedIdentity()
+  const personalAccess = await personalAccessRead
 
   /**
    * A workspace that no longer exists and one an identity may not read are

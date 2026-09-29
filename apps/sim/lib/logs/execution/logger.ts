@@ -8,7 +8,12 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  describeError,
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
@@ -95,6 +100,8 @@ const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
 // (favor waiting over dropping a charge); only trips on a pathological lock hold.
 const USAGE_RECONCILE_LOCK_TIMEOUT_MS = 10_000
 const FOREIGN_KEY_VIOLATION = '23503'
+/** The log's snapshot foreign key as Postgres names it (identifiers are cut at 63 bytes). */
+const STATE_SNAPSHOT_FOREIGN_KEY = 'workflow_execution_logs_state_snapshot_id_workflow_execution_sn'
 
 type ExecutionData = WorkflowExecutionLog['executionData']
 
@@ -667,7 +674,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
     try {
       inserted = await insertRunningLog(snapshot.id)
     } catch (error) {
-      if (getPostgresErrorCode(error) !== FOREIGN_KEY_VIOLATION) throw error
+      if (
+        getPostgresErrorCode(error) !== FOREIGN_KEY_VIOLATION ||
+        getPostgresConstraintName(error) !== STATE_SNAPSHOT_FOREIGN_KEY
+      ) {
+        throw error
+      }
       /**
        * A snapshot resolved before the insert can be deleted underneath it by
        * orphan cleanup when no log references it yet. Resolve it again from the

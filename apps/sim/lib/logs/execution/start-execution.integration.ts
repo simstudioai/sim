@@ -102,11 +102,12 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, ids.workspace))
+  // Snapshots outlive their workflow (workflow_id is set null), so remove them first.
+  await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workflowId, ids.workflow))
   await db
     .delete(workflowExecutionSnapshots)
     .where(eq(workflowExecutionSnapshots.workflowId, ids.workflow))
-  await db.delete(workflow).where(eq(workflow.id, ids.workflow))
+  await db.delete(workspace).where(eq(workspace.id, ids.workspace))
   await db.delete(user).where(eq(user.id, ids.owner))
 })
 
