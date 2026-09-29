@@ -24693,7 +24693,7 @@
         },
         {
           "name": "Resume Subscription",
-          "description": "Resume a subscription that was scheduled for cancellation"
+          "description": "Resume a paused subscription"
         },
         {
           "name": "List Subscriptions",

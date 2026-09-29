@@ -23,7 +23,7 @@ export const stripeSearchSubscriptionsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Search query (e.g., \"status:'active' AND customer:'cus_xxx'\")",
+      description: "Search query (e.g., \"status:'active' AND metadata['order_id']:'6735'\")",
     },
     page: {
       type: 'string',

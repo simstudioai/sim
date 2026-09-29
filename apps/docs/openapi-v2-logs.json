@@ -388,9 +388,9 @@
             "name": "includeWorkflowState",
             "in": "query",
             "required": false,
-            "description": "Include the saved workflow snapshot. Set false to omit block configuration from a log read. Other run fields are unchanged.",
+            "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
             "schema": {
-              "description": "Include the saved workflow snapshot. Set false to omit block configuration from a log read. Other run fields are unchanged.",
+              "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
               "type": "boolean"
             }
           }

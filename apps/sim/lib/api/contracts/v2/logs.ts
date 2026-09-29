@@ -720,7 +720,7 @@ export const v2GetLogContract = defineRouteContract({
       includeWorkflowState: booleanQueryFlagSchema
         .default(true)
         .describe(
-          'Include the saved workflow snapshot. Set false to omit block configuration from a log read. Other run fields are unchanged.'
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.'
         ),
     })
     .strict()
