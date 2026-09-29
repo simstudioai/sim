@@ -132,6 +132,7 @@ const RESOURCE_TO_CONTEXT: Record<
     label: r.title,
     ...(r.viewId ? { viewId: r.viewId } : {}),
   }),
+  dashboard: (r) => ({ kind: 'dashboard', fileId: r.id, label: r.title }),
   file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
   filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),

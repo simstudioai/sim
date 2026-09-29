@@ -152,6 +152,7 @@ export const ChatPayloadSchema = z
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
     integrationCatalog: IntegrationCatalogContext.optional(),
+    dashboardsEnabled: z.boolean().optional(),
     /** Accepted for wire compatibility with current sim builds; unused — the CLI now
      * executes on the sim side under sim's own authentication, so no credential crosses. */
     delegationToken: z.string().optional(),
@@ -262,6 +263,7 @@ export interface ChatRequest extends StreamResponseReceipt {
   workflowId?: string | undefined;
   /** Authorized discovery selectors; schemas stay in Sim's catalog. */
   integrationCatalog?: IntegrationCatalogContext | undefined;
+  dashboardsEnabled?: boolean | undefined;
   /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
    * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;

@@ -244,7 +244,6 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'text/plain': 'Text',
   'text/html': 'HTML',
   'text/x-sim-page': 'Page',
-  'text/x-sim-dashboard': 'Dashboard',
   'text/markdown': 'Markdown',
 }
 

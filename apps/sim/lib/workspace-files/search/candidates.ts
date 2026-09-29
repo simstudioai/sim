@@ -5,6 +5,7 @@ import {
 } from '@sim/db/schema'
 import { and, asc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
+import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 import {
   FILE_SEARCH_CANDIDATE_PAGE_SIZE,
   FILE_SEARCH_CANDIDATE_PROBE_SIZE,
@@ -93,6 +94,7 @@ export async function probeFileSearchCandidates(
         eq(workspaceFileSearchChunk.workspaceId, workspaceId),
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.context, 'workspace'),
+        fileDiscoveryCondition(),
         isNull(workspaceFiles.deletedAt),
         folderPredicate,
         candidatePredicate(pattern)
@@ -136,6 +138,7 @@ export async function readOrderedFileSearchCandidates(
       and(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.context, 'workspace'),
+        fileDiscoveryCondition(),
         isNull(workspaceFiles.deletedAt),
         folderPredicate,
         after

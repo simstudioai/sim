@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Database, File as FileIcon, Table as TableIcon } from '@sim/emcn/icons'
+import { ChartColumn, Database, File as FileIcon, Table as TableIcon } from '@sim/emcn/icons'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { folderListHref } from '@/app/workspace/[workspaceId]/components/folders/search-params'
 
@@ -10,7 +10,7 @@ import { folderListHref } from '@/app/workspace/[workspaceId]/components/folders
  */
 export type FolderedHeaderResourceType = Extract<
   FolderResourceType,
-  'file' | 'knowledge_base' | 'table'
+  'file' | 'knowledge_base' | 'table' | 'dashboard'
 >
 
 export interface FolderedResourceHeaderMeta {
@@ -36,6 +36,7 @@ export const FOLDERED_RESOURCE_HEADERS: Record<
   file: { rootLabel: 'Files', rootIcon: FileIcon, listSegment: 'files' },
   knowledge_base: { rootLabel: 'Knowledge bases', rootIcon: Database, listSegment: 'knowledge' },
   table: { rootLabel: 'Tables', rootIcon: TableIcon, listSegment: 'tables' },
+  dashboard: { rootLabel: 'Dashboards', rootIcon: ChartColumn, listSegment: 'dashboards' },
 }
 
 /**

@@ -37,7 +37,8 @@ export function WorkspaceFolderSelector({
 }: WorkspaceFolderSelectorProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const resourceType = (subBlock.resourceType as FolderResourceType | undefined) ?? 'file'
+  const resourceType =
+    (subBlock.resourceType as Exclude<FolderResourceType, 'dashboard'> | undefined) ?? 'file'
 
   const [storeValue, setStoreValue] = useSubBlockValue<unknown>(blockId, subBlock.id)
   const value = isPreview ? previewValue : storeValue

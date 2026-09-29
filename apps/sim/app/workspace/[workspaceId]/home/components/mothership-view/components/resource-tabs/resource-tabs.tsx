@@ -29,6 +29,7 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
+import { dashboardDisplayName } from '@/lib/dashboards/resource'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
@@ -48,6 +49,8 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useDashboards } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -159,8 +162,12 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
 function useResourceNameLookup(
   workspaceId: string | undefined,
   resources: MothershipResource[]
-): { names: Map<string, string>; fileTypes: Map<string, string> } {
+): Map<string, string> {
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = resources.length > 0
+  const { data: dashboardData } = useDashboards(workspaceId ?? '', '', {
+    enabled: enabled && dashboardsEnabled,
+  })
   const owners = [
     ...new Set(
       resources
@@ -193,9 +200,8 @@ function useResourceNameLookup(
   })
 
   return useMemo(() => {
-    if (!enabled) return { names: NO_RESOURCE_NAMES, fileTypes: NO_RESOURCE_NAMES }
+    if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    const fileTypes = new Map<string, string>()
     for (const w of workflows ?? []) if (w.name.trim()) map.set(`workflow:${w.id}`, w.name)
     for (const [index, result] of ownedWorkflows.entries()) {
       for (const workflow of result.data ?? [])
@@ -203,14 +209,23 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) {
-      map.set(`file:${f.id}`, f.name)
-      fileTypes.set(f.id, f.type)
-    }
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
+    for (const dashboard of dashboardData?.dashboards ?? [])
+      map.set(`dashboard:${dashboard.id}`, dashboard.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
-    return { names: map, fileTypes }
-  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
+    return map
+  }, [
+    enabled,
+    workflows,
+    tables,
+    files,
+    dashboardData,
+    knowledgeBases,
+    folders,
+    ownedWorkflows,
+    owners,
+  ])
 }
 
 interface ResourceTabsProps {
@@ -254,7 +269,7 @@ export function ResourceTabs({
   onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
-  const { names: nameLookup, fileTypes } = useResourceNameLookup(workspaceId, resources)
+  const nameLookup = useResourceNameLookup(workspaceId, resources)
   const {
     selectResource,
     addResource: onAddResource,
@@ -311,7 +326,9 @@ export function ResourceTabs({
               ? terminalTabTitle(terminal, settledCommands)
               : nameLookup.get(`${resource.type}:${resource.id}`)
           )?.trim() ||
-          resource.title.trim() ||
+          (resource.type === 'dashboard'
+            ? dashboardDisplayName(resource.title).trim()
+            : resource.title.trim()) ||
           getResourceConfig(resource.type).label,
         // A shell's label is a basename, and it may be running something it is
         // not naming yet, so hovering identifies the directory and program.
@@ -319,8 +336,7 @@ export function ResourceTabs({
         icon: getResourceConfig(resource.type).renderTabIcon(
           resource,
           'size-[16px] shrink-0',
-          desktopScopeId,
-          resource.type === 'file' ? fileTypes.get(resource.id) : undefined
+          desktopScopeId
         ),
         active: activeId === getChatResourceSelectionId(resource),
         selected: selectedIds.size > 1 && selectedIds.has(getChatResourceSelectionId(resource)),
@@ -330,7 +346,6 @@ export function ResourceTabs({
   }, [
     resources,
     nameLookup,
-    fileTypes,
     browserTabs,
     terminalTabs,
     settledCommands,

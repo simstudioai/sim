@@ -10,6 +10,7 @@ import {
   type StorageContext,
 } from '@/lib/uploads/shared/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { defaultFileDiscovery } from '@/lib/workspace-files/discovery'
 
 const logger = createLogger('FileMetadata')
 
@@ -157,6 +158,10 @@ async function insertFileMetadataWithExecutor(
         organizationId: organizationId || null,
         folderId: folderId ?? null,
         context,
+        discovery:
+          existingDeleted.context === context
+            ? existingDeleted.discovery
+            : defaultFileDiscovery(context),
         originalName,
         displayName: originalName,
         contentType,
@@ -188,6 +193,7 @@ async function insertFileMetadataWithExecutor(
         organizationId: organizationId || null,
         folderId: folderId ?? null,
         context,
+        discovery: defaultFileDiscovery(context),
         originalName,
         displayName: originalName,
         contentType,
@@ -244,6 +250,7 @@ async function insertImmutableFileMetadataWithExecutor(
       organizationId: organizationId || null,
       folderId: folderId ?? null,
       context,
+      discovery: defaultFileDiscovery(context),
       originalName,
       displayName: originalName,
       contentType,
@@ -326,6 +333,7 @@ export async function insertFileMetadataMany(
         organizationId: row.organizationId || null,
         folderId: row.folderId ?? null,
         context: row.context,
+        discovery: defaultFileDiscovery(row.context),
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,

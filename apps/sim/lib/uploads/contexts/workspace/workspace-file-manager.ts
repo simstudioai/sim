@@ -1,3 +1,6 @@
+import { DASHBOARD_CONTENT_TYPE, fileBackedResourceType } from '@/lib/dashboards/resource'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { type FileDiscovery, fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 /**
  * Workspace file storage system
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
@@ -48,7 +51,6 @@ import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestrati
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { DASHBOARD_CONTENT_TYPE, stripDashboardSuffix } from '@/lib/dashboards/file'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -117,7 +119,6 @@ import {
   getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
-  resolveWorkspaceFileFolderTarget,
   workspaceFileNameFolderCondition,
 } from './workspace-file-folder-manager'
 
@@ -206,6 +207,9 @@ export interface ActiveWorkspaceContext {
 }
 
 interface ListWorkspaceFilesOptions {
+  discovery?: FileDiscovery
+  contentType?: string
+
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
@@ -273,6 +277,7 @@ const MAX_NUMBERED_COPY_SUFFIX = 20
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
+  discovery?: FileDiscovery
   id: string
   key: string
   userId: string
@@ -439,6 +444,7 @@ export async function uploadWorkspaceFile(
     folderId?: string | null
     folderPath?: string
     exactName?: boolean
+    discovery?: FileDiscovery
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
   }
@@ -449,11 +455,12 @@ export async function uploadWorkspaceFile(
     throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
   }
 
+  const resourceType = fileBackedResourceType(contentType)
   let folderId: string | null
   let folderPath: string | null
   if (options?.folderPath !== undefined) {
     const folderPathSegments = parseFolderPath(options.folderPath)
-    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file')
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, resourceType)
     const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
     if (resolvedFolderId === undefined) {
       throw new OrchestrationError('not_found', 'Target folder not found')
@@ -461,20 +468,20 @@ export async function uploadWorkspaceFile(
     folderId = resolvedFolderId
     folderPath = resolvedFolderId ? folderPathSegments.join('/') : null
   } else {
-    const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
-    folderId = folderTarget?.id ?? null
-    folderPath = folderTarget?.path ?? null
+    folderId = await assertWorkspaceFileFolderTarget(
+      workspaceId,
+      options?.folderId,
+      db,
+      resourceType
+    )
+    const index = folderId ? await loadActiveFolderPathIndex(workspaceId, resourceType) : null
+    folderPath = folderId ? (index?.pathById.get(folderId) ?? null) : null
   }
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
   const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
-  const dashboardName = pageRestore ? null : stripDashboardSuffix(normalizedFileName)
-  const effectiveName = pageRestore?.name ?? dashboardName ?? normalizedFileName
-  const effectiveContentType = pageRestore
-    ? SIM_PAGE_CONTENT_TYPE
-    : dashboardName
-      ? DASHBOARD_CONTENT_TYPE
-      : contentType
+  const effectiveName = pageRestore?.name ?? normalizedFileName
+  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
@@ -521,17 +528,22 @@ export async function uploadWorkspaceFile(
       }
       try {
         finalized = await db.transaction(async (tx) => {
-          await acquireFolderMutationLock(tx, workspaceId, 'file')
+          await acquireFolderMutationLock(tx, workspaceId, resourceType)
           let activeFolderId: string | null
           if (options?.folderPath !== undefined) {
-            const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
+            const folderIndex = await loadActiveFolderPathIndex(workspaceId, resourceType, tx)
             const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
             if (resolvedFolderId === undefined) {
               throw new OrchestrationError('not_found', 'Target folder not found')
             }
             activeFolderId = resolvedFolderId
           } else {
-            activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
+            activeFolderId = await assertWorkspaceFileFolderTarget(
+              workspaceId,
+              folderId,
+              tx,
+              resourceType
+            )
           }
           const inserted = await insertWorkspaceFileMetadataInTx(tx, {
             id: fileId,
@@ -542,6 +554,7 @@ export async function uploadWorkspaceFile(
             originalName: uniqueName,
             contentType: effectiveContentType,
             size: effectiveBuffer.length,
+            discovery: options?.discovery ?? 'listed',
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
@@ -708,10 +721,8 @@ export async function registerUploadedWorkspaceFile(params: {
     name: normalizedOriginalName,
     size: verifiedSize,
   })
-  const dashboardName = pageRestore ? null : stripDashboardSuffix(normalizedOriginalName)
-  const effectiveContentType =
-    pageRestore?.contentType ?? (dashboardName ? DASHBOARD_CONTENT_TYPE : contentType)
-  const effectiveName = pageRestore?.name ?? dashboardName ?? normalizedOriginalName
+  const effectiveContentType = pageRestore?.contentType ?? contentType
+  const effectiveName = pageRestore?.name ?? normalizedOriginalName
   const effectiveSize = pageRestore?.size ?? verifiedSize
   /**
    * Swaps the compiled bytes for the extracted page source, strictly after the
@@ -1056,6 +1067,7 @@ export async function trackChatUpload(
               chatId,
               messageId: messageId ?? null,
               context: 'mothership',
+              discovery: 'unlisted',
               displayName: candidate,
             })
             .where(
@@ -1103,6 +1115,7 @@ export async function trackChatUpload(
             userId,
             workspaceId,
             context: 'mothership',
+            discovery: 'unlisted',
             chatId,
             messageId: messageId ?? null,
             originalName: fileName,
@@ -1228,9 +1241,12 @@ async function mapSingleWorkspaceFileRecord(
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
 
-  const folderPath = await getWorkspaceFileFolderPath(workspaceId, file.folderId, {
-    includeDeleted: true,
-  })
+  const folderPath =
+    file.contentType === DASHBOARD_CONTENT_TYPE
+      ? buildWorkspaceFileFolderPathMap(
+          await listFoldersForWorkspace(workspaceId, 'active', 'dashboard')
+        ).get(file.folderId)
+      : await getWorkspaceFileFolderPath(workspaceId, file.folderId, { includeDeleted: true })
   return mapWorkspaceFileRecord(
     file,
     workspaceId,
@@ -1300,8 +1316,8 @@ export async function getWorkspaceFileByName(
 }
 
 /**
- * Chat uploads (`context = 'mothership'`) are hidden from every listing and closed to
- * writes. A read may opt in to one by explicit reference only — its `uploads/<name>`
+ * Chat uploads are created unlisted; their `mothership` ownership context also closes
+ * them to writes. A read may opt in by explicit reference only — its `uploads/<name>`
  * VFS path or its own id — which is what this option grants.
  */
 export interface WorkspaceFileLookupOptions {
@@ -1368,7 +1384,13 @@ async function hydrateWorkspaceFilePaths(
   const folders = needsFolderPaths
     ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
     : []
-  const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
+  const dashboardFolders =
+    needsFolderPaths && files.some((file) => file.contentType === DASHBOARD_CONTENT_TYPE)
+      ? await listFoldersForWorkspace(workspaceId, 'active', 'dashboard')
+      : []
+  const folderPaths = needsFolderPaths
+    ? buildWorkspaceFileFolderPathMap([...folders, ...dashboardFolders])
+    : new Map()
   return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
 }
 
@@ -1384,7 +1406,13 @@ export async function listWorkspaceFiles(
     const query = db
       .select(workspaceFileListColumns)
       .from(workspaceFiles)
-      .where(workspaceFileScopeCondition(workspaceId, scope))
+      .where(
+        and(
+          workspaceFileScopeCondition(workspaceId, scope),
+          fileDiscoveryCondition(options?.discovery),
+          options?.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined
+        )
+      )
       .orderBy(workspaceFiles.uploadedAt)
     const files = await (limit === undefined ? query : query.limit(limit))
 
@@ -1418,6 +1446,9 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
+  discovery?: FileDiscovery
+  contentType?: string
+
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
   /** `undefined` lists every folder, `null` lists only root files. */
@@ -1507,6 +1538,8 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
+    fileDiscoveryCondition(options.discovery),
+    options.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined,
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
     searchFilter(workspaceFiles.originalName, search),
@@ -2016,9 +2049,13 @@ export async function updateWorkspaceFileContent(
   }
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
-  // The dashboard type is metadata set at creation; name-inferred types must not erase it.
-  const nextContentType =
-    fileRecord.type === DASHBOARD_CONTENT_TYPE ? fileRecord.type : contentType || fileRecord.type
+  const nextContentType = contentType || fileRecord.type
+  if (fileBackedResourceType(nextContentType) !== fileBackedResourceType(fileRecord.type)) {
+    throw new OrchestrationError(
+      'validation',
+      'Cannot change a file into a dashboard or a dashboard into a file; create the resource instead'
+    )
+  }
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
   const contentHash = sha256Hex(content)
 
@@ -2395,54 +2432,53 @@ export async function moveRenameWorkspaceFile(params: {
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  const targetFolderId = await assertWorkspaceFileFolderTarget(
-    params.workspaceId,
-    params.targetFolderId
-  )
-  const currentFolderId = fileRecord.folderId ?? null
-  const renamed = fileRecord.name !== normalizedName
-  const moved = currentFolderId !== targetFolderId
-  if (!renamed && !moved) {
-    return { file: fileRecord, renamed, moved }
-  }
-
-  const exists = await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)
-  if (exists) {
-    throw new FileConflictError(normalizedName)
-  }
-
-  let updated: { id: string }[]
+  const resourceType = fileBackedResourceType(fileRecord.type)
+  let result: { row: WorkspaceFileRow; renamed: boolean; moved: boolean }
   try {
-    updated = await db
-      .update(workspaceFiles)
-      .set({ originalName: normalizedName, folderId: targetFolderId, updatedAt: new Date() })
-      .where(
-        and(
-          eq(workspaceFiles.id, params.fileId),
-          eq(workspaceFiles.workspaceId, params.workspaceId),
-          eq(workspaceFiles.context, 'workspace')
-        )
+    result = await db.transaction(async (tx) => {
+      await acquireFolderMutationLock(tx, params.workspaceId, resourceType)
+      const targetFolderId = await assertWorkspaceFileFolderTarget(
+        params.workspaceId,
+        params.targetFolderId,
+        tx,
+        resourceType
       )
-      .returning({ id: workspaceFiles.id })
-  } catch (error: unknown) {
-    if (getPostgresErrorCode(error) === '23505') {
-      throw new FileConflictError(normalizedName)
-    }
+      const [current] = await tx
+        .select()
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.id, params.fileId),
+            eq(workspaceFiles.workspaceId, params.workspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .for('update')
+      if (!current) throw new OrchestrationError('not_found', 'File not found')
+      const renamed = current.originalName !== normalizedName
+      const moved = current.folderId !== targetFolderId
+      if (!renamed && !moved) return { row: current, renamed, moved }
+      const [row] = await tx
+        .update(workspaceFiles)
+        .set({
+          originalName: normalizedName,
+          folderId: targetFolderId,
+          updatedAt: new Date(),
+        })
+        .where(eq(workspaceFiles.id, current.id))
+        .returning()
+      if (!row) throw new OrchestrationError('not_found', 'File not found')
+      return { row, renamed, moved }
+    })
+  } catch (error) {
+    if (getPostgresErrorCode(error) === '23505') throw new FileConflictError(normalizedName)
     throw error
   }
-
-  if (updated.length === 0) {
-    throw new OrchestrationError('not_found', 'File not found or could not be moved')
-  }
-
   return {
-    file: {
-      ...fileRecord,
-      name: normalizedName,
-      folderId: targetFolderId,
-    },
-    renamed,
-    moved,
+    file: await mapSingleWorkspaceFileRecord(result.row, params.workspaceId),
+    renamed: result.renamed,
+    moved: result.moved,
   }
 }
 

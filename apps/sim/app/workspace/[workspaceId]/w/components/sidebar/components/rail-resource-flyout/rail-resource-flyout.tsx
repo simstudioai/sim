@@ -12,6 +12,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
+import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import {
   buildFlyoutEntries,
   FOLDERED_RESOURCE_HEADERS,
@@ -85,7 +86,7 @@ export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
     () =>
       buildFlyoutEntries({
         folders: folders ?? [],
-        items: files ?? [],
+        items: (files ?? []).filter((file) => file.type !== DASHBOARD_CONTENT_TYPE),
         pinnedFolderIds,
         pinnedItemIds: pinnedFileIds,
         hrefForItem: (file) => `/workspace/${workspaceId}/${FILE_META.listSegment}/${file.id}`,

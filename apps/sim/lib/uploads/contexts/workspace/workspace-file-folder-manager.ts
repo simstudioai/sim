@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
@@ -488,7 +489,8 @@ export async function resolveWorkspaceFileFolderTarget(
 export async function assertWorkspaceFileFolderTarget(
   workspaceId: string,
   folderId?: string | null,
-  executor: DbOrTx = db
+  executor: DbOrTx = db,
+  resourceType: 'file' | 'dashboard' = 'file'
 ): Promise<string | null> {
   const normalized = normalizeParentId(folderId)
   if (!normalized) return null
@@ -500,7 +502,7 @@ export async function assertWorkspaceFileFolderTarget(
       and(
         eq(folderTable.id, normalized),
         eq(folderTable.workspaceId, workspaceId),
-        isFileFolder,
+        eq(folderTable.resourceType, resourceType),
         isNull(folderTable.deletedAt)
       )
     )
@@ -1015,6 +1017,7 @@ export async function moveWorkspaceFileItems(params: {
                 inArray(workspaceFiles.id, fileIds),
                 eq(workspaceFiles.workspaceId, params.workspaceId),
                 eq(workspaceFiles.context, 'workspace'),
+                sql`${workspaceFiles.contentType} <> ${DASHBOARD_CONTENT_TYPE}`,
                 isNull(workspaceFiles.deletedAt)
               )
             )

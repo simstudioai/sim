@@ -22,6 +22,7 @@ import {
 import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { UploadSessionError, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { readWorkspaceFileUploadProvenance } from '@/lib/uploads/upload-session/workspace-file-provenance'
+import { defaultFileDiscovery } from '@/lib/workspace-files/discovery'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export interface UploadActor {
@@ -376,6 +377,7 @@ async function insertOrLoadFileMetadata(
       userId: input.userId,
       workspaceId: input.workspaceId,
       context: input.context,
+      discovery: defaultFileDiscovery(input.context),
       originalName: input.originalName,
       displayName: input.originalName,
       contentType: input.contentType,

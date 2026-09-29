@@ -24,6 +24,7 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import type { ForkMcpServerMeta, ForkRemapKind } from '@/lib/workflows/references/remap-references'
+import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope'
 
 export interface ForkResourceCandidate {
@@ -240,6 +241,7 @@ const fileCandidatesQuery = (executor: DbOrTx, workspaceId: string, keys?: strin
     .where(
       and(
         ...activeWorkspaceFileConditions([workspaceId]),
+        keys ? undefined : fileDiscoveryCondition(),
         keys ? inArray(workspaceFiles.key, keys) : undefined
       )
     )
@@ -300,6 +302,7 @@ const fileCandidatesWithFolderQuery = (
     .where(
       and(
         ...activeWorkspaceFileConditions([workspaceId]),
+        keys ? undefined : fileDiscoveryCondition(),
         page?.after ? gt(workspaceFiles.id, page.after) : undefined,
         keys ? inArray(workspaceFiles.key, keys) : undefined
       )

@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { dashboardDiagnostics } from '@/lib/dashboards/diagnostics'
 import {
   ContentVersionConflictError,
   updateWorkspaceFileContent as updateStoredWorkspaceFileContent,
@@ -41,8 +40,6 @@ export interface UpdateWorkspaceFileContentInput {
 export interface UpdateWorkspaceFileContentResult {
   /** The updated record, carrying the number of the version this write recorded. */
   file: VersionedWorkspaceFileRecord
-  /** Dashboard parse errors for the written content; absent for other file types. */
-  diagnostics?: string[]
 }
 
 export interface UpdateWorkspaceFileContentBufferInput
@@ -102,8 +99,7 @@ async function updateAuthorizedWorkspaceFileContent({
     size: content.length,
     principalKind: principal.kind,
   })
-  const diagnostics = dashboardDiagnostics(file.type, content)
-  return diagnostics ? { file, diagnostics } : { file }
+  return { file }
 }
 
 function projectUpdateWorkspaceFileContentAudit(result: UpdateWorkspaceFileContentResult) {

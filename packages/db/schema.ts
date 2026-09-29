@@ -198,6 +198,7 @@ export const verification = pgTable(
 )
 
 export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
+  'dashboard',
   'workflow',
   'file',
   'knowledge_base',
@@ -2322,6 +2323,9 @@ export const workspaceFile = pgTable(
   })
 )
 
+/** contract-pending(after discovery-aware writers are fully deployed): drop workspace_files_discovery_legacy_writer and its function. */
+export const fileDiscoveryEnum = pgEnum('file_discovery', ['listed', 'unlisted'])
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -2336,6 +2340,8 @@ export const workspaceFiles = pgTable(
     }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
+    /** Listing/search membership; ownership, authorization, and storage still follow context. */
+    discovery: fileDiscoveryEnum('discovery').notNull().default('listed'),
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     /**
      * Logical id of the copilot message this file was born in (the user message the

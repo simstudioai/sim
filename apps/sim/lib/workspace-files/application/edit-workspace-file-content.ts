@@ -7,7 +7,6 @@ import { generateShortId } from '@sim/utils/id'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { dashboardDiagnostics } from '@/lib/dashboards/diagnostics'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,
@@ -53,8 +52,6 @@ export interface EditWorkspaceFileContentResult {
   file: VersionedWorkspaceFileRecord
   /** Lines in the file after the edit, so a caller can re-anchor without re-reading. */
   lineCount: number
-  /** Dashboard parse errors for the written content; absent for other file types. */
-  diagnostics?: string[]
 }
 
 /**
@@ -222,12 +219,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         size: content.length,
         principalKind: principal.kind,
       })
-      const diagnostics = dashboardDiagnostics(updated.type, content)
-      return {
-        file: updated,
-        lineCount: countLines(after),
-        ...(diagnostics ? { diagnostics } : {}),
-      }
+      return { file: updated, lineCount: countLines(after) }
     } finally {
       /*
        * A release failure is never the caller's problem: the edit has either

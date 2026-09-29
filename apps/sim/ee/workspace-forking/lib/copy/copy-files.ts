@@ -22,6 +22,7 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import type { FileDiscovery } from '@/lib/workspace-files/discovery'
 import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope'
 import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import {
@@ -49,6 +50,8 @@ function isMarkdownBlob(task: Pick<BlobCopyTask, 'contentType' | 'fileName'>): b
 export interface BlobCopyTask {
   /** Added after persisted fork jobs shipped; absence marks only copied-file provenance unknown. */
   sourceFileId?: string
+  /** Jobs queued before discovery existed contain only listed workspace files. */
+  discovery?: FileDiscovery
   /** Added after persisted fork jobs shipped; absence marks only copied-file provenance unknown. */
   sourceContentUpdatedAtMs?: number
   sourceKey: string
@@ -235,6 +238,7 @@ export async function planForkFileCopies(params: {
       sourceKey: meta.key,
       targetKey,
       context: meta.context as StorageContext,
+      discovery: meta.discovery,
       fileName: meta.originalName,
       contentType: meta.contentType,
       size: getWorkspaceFileSize(meta),
@@ -369,6 +373,7 @@ export async function executeForkFileBlobCopies(
               workspaceId: task.workspaceId,
               folderId: task.targetFolderId ?? null,
               context: task.context,
+              discovery: task.discovery ?? 'listed',
               chatId: null,
               originalName: targetOriginalName,
               displayName: targetDisplayName,
@@ -417,6 +422,7 @@ export async function executeForkFileBlobCopies(
                 userId: task.userId,
                 folderId: task.targetFolderId ?? null,
                 context: task.context,
+                discovery: task.discovery ?? 'listed',
                 chatId: null,
                 originalName: targetOriginalName,
                 displayName: targetDisplayName,

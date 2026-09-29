@@ -94,12 +94,7 @@ export function getDocumentIcon(
     return ZipIcon
   }
 
-  if (
-    mimeType === 'text/x-sim-chart' ||
-    mimeType === 'text/x-sim-dashboard' ||
-    extension === 'chart' ||
-    extension === 'dashboard'
-  ) {
+  if (mimeType === 'text/x-sim-chart' || extension === 'chart') {
     return ChartFileIcon
   }
 

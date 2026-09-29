@@ -40,11 +40,10 @@ export const PUT = defineV2JsonRoute({
     expectedRevision: body.expectedRevision,
   }),
   useCase: updateWorkspaceFileContent,
-  present: async ({ file, diagnostics }) => ({
+  present: async ({ file }) => ({
     data: {
       ...(await toV2File(file)),
       ...workspaceFileRevisionField(file),
-      ...(diagnostics ? { diagnostics } : {}),
     },
   }),
 })
@@ -81,12 +80,11 @@ export const PATCH = defineV2JsonRoute({
     expectedRevision: body.expectedRevision,
   }),
   useCase: editWorkspaceFileContent,
-  present: async ({ file, lineCount, diagnostics }) => ({
+  present: async ({ file, lineCount }) => ({
     data: {
       file: await toV2File(file),
       lineCount,
       ...workspaceFileRevisionField(file),
-      ...(diagnostics ? { diagnostics } : {}),
     },
   }),
 })

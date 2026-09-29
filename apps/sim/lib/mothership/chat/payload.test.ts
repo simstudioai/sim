@@ -27,7 +27,8 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockSecretNames } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames } = vi.hoisted(() => ({
+  mockDashboardAvailability: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
 }))
@@ -49,6 +50,9 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     secrets: [],
     truncated: [],
   })),
+}))
+vi.mock('@/lib/dashboards/application/availability', () => ({
+  readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 const mockGetHighestPrioritySubscription =
@@ -347,6 +351,24 @@ describe('buildIntegrationToolSchemas', () => {
 })
 
 describe('buildCopilotRequestPayload', () => {
+  it.each([true, false])('passes server-authorized dashboard availability: %s', async (enabled) => {
+    const principal = { kind: 'session' as const, userId: 'actor' }
+    mockDashboardAvailability.mockResolvedValueOnce(enabled)
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Show my dashboard',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        workspaceId: 'workspace-1',
+        principal,
+        mode: 'agent',
+        model: '',
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.dashboardsEnabled).toBe(enabled)
+  })
+
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })

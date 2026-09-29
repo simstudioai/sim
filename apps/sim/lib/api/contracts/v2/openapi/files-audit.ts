@@ -210,7 +210,7 @@ const declaredRoutes = [
         v2CreateFileContract.response.schema,
         'V2CreatedFileResponse',
         'Created file response',
-        'A newly created workspace file, with the revision it produced and any dashboard parse errors.',
+        'A newly created workspace file, with the revision it produced.',
         [{ data: FILE_EXAMPLE }]
       ),
     }

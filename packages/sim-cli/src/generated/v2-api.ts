@@ -1703,7 +1703,6 @@ type CreateFileResponseRef0 = {
   updatedAt: string
   deletedAt: string | null
   revision?: string
-  diagnostics?: Array<string>
 }
 
 export type CreateFileResponse = {
@@ -4700,7 +4699,6 @@ type EditFileContentResponseRef1 = {
   file: EditFileContentResponseRef0
   lineCount: number
   revision?: string
-  diagnostics?: Array<string>
 }
 
 export type EditFileContentResponse = {
@@ -12633,7 +12631,6 @@ type UpdateFileContentResponseRef0 = {
   updatedAt: string
   deletedAt: string | null
   revision?: string
-  diagnostics?: Array<string>
 }
 
 export type UpdateFileContentResponse = {
