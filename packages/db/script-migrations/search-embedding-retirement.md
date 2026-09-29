@@ -1,40 +1,35 @@
 # Retiring one legacy Search index
 
-`0027_retire_search_embeddings` is an opt-in entry in the existing script-migration registry.
-It retires the documents and deletes the embeddings of **one explicitly selected** knowledge base
-whose persisted `is_search_index` marker is true. It preserves other Search indexes, ordinary KBs,
-the selected KB's source/credential configuration, document metadata, and backing files.
+`0027_retire_search_embeddings` runs through the existing script-migration registry without
+cleanup flags. On its first invocation it discovers the sole knowledge base whose persisted
+`is_search_index` marker is true and saves that target. No Search KB is a completed no-op;
+multiple Search KBs defer without changing content because the target is ambiguous. Once saved,
+the target stays fixed even if another Search KB is created. Ordinary KBs and the target's live
+source/credential configuration, document metadata, and backing files are preserved.
 
 ## Deployment and execution
 
-1. Deploy the current live-search indexing guards to every app, scheduler and Trigger worker.
-   Drain/cancel jobs on older deployments. Do not enable this cleanup during that first rollout:
-   migrations run before the app switches over. Stop direct/manual writes to the selected KB too.
-2. Confirm the app and workers use live Search. `SIM_SEARCH_LIVE=true` (the default) makes
-   `isIndexedOrgSearchEnabled()` false. **`SIM_SEARCH_LIVE=false` enables indexed Search again.**
-   Live source setup may still create a Search KB to store source configuration; it is not content
-   indexing. Document dispatch and old queued document workers also honor the indexed-search gate.
-3. Verify the selected KB's ownership and marker on the writer, and confirm backup/recovery coverage.
-4. On a separate maintenance run, set `SIM_SEARCH_LIVE=true`,
-   `SIM_SEARCH_PURGE_LEGACY_EMBEDDINGS=true`, and
-   `SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID=<reviewed-search-kb-id>`. These are an operator attestation
-   that the deployment and writer prerequisites hold, not a remote inspection of worker settings.
-5. Run `bun run packages/db/script-migrations/0027_retire_search_embeddings.ts` with the writer
-   supplied through the normal `MIGRATION_DATABASE_URL`/`DATABASE_URL` configuration. The standalone
-   entry uses the existing migration journal. The ordinary migration runner can run it too.
-6. Repeat until `script_migrations` records `0027_retire_search_embeddings`. A budget deferral exits
-   normally without recording completion; it is **not** a completed purge. Remove the opt-in when done.
+The app and workers must already use live Search, and older indexing jobs must be drained before
+this cleanup ships: deployment migrations run before the new app switches over. `SIM_SEARCH_LIVE=true`
+(the default) makes `isIndexedOrgSearchEnabled()` false. **`SIM_SEARCH_LIVE=false` enables indexed
+Search again.** The cleanup does not inspect this flag. Live source setup may still create a Search
+KB for configuration; it does not index content. Document uploads, dispatch and queued processing
+also honor the indexed-search gate.
 
-Each invocation handles at most 100 pages by default, at most 500 IDs per page, with a 60-second
-budget between pages, a 15-second statement timeout, a one-second lock timeout and 100 ms pacing.
-`SIM_SEARCH_CLEANUP_MAX_BATCHES` accepts 1–1000 to tune the per-run cap. One in-flight statement
+The ordinary migration runner starts the cleanup automatically. For subsequent maintenance passes,
+run `bun run packages/db/script-migrations/0027_retire_search_embeddings.ts` with the writer supplied
+through the normal `MIGRATION_DATABASE_URL`/`DATABASE_URL` configuration. Repeat until
+`script_migrations` records `0027_retire_search_embeddings`. A budget deferral exits normally without
+recording completion; it is **not** a completed purge.
+
+Each invocation handles at most 100 pages of 500 IDs, with a 60-second budget between pages,
+a 15-second statement timeout, a one-second lock timeout and 100 ms pacing. One in-flight statement
 can finish after the run budget. Keep one maintenance worker and monitor primary latency, WAL,
 replica lag and available disk. Lock/query failures stop the invocation; rerun after resolving them.
 
 The runner-owned `search_embedding_cleanup_progress` table stores the selected KB, phase and ID
-cursor. Page mutations and cursor advancement commit together. Changing the selected KB on resume
-is rejected. The one-off migration journal records only completion, so this entry is intentionally
-not a bulk purge command for arbitrary KBs. `db:push` excludes this progress table from schema diffing.
+cursor. Page mutations and cursor advancement commit together. The one-off migration journal
+records only completion. `db:push` excludes the progress table from schema diffing.
 
 The documents phase fences queued and in-flight processing by marking only target documents
 excluded/disabled and clearing their dispatch stamps. The embeddings phase deletes only target
@@ -43,7 +38,9 @@ The existing foreign keys cascade to vector/keyword projections and chunk proven
 walk the primary key in bounded pages; unrelated rows are read only as IDs and are never updated.
 This avoids sorting a whole KB or repeatedly scanning earlier pages when no suitable composite
 cleanup index exists. Resumption continues the saved scan, including across pages containing only
-unrelated rows. Do not create new target documents, chunks, or change its marker during the pass.
+unrelated rows. Before completion, the cleanup checks for unretired documents and remaining chunks
+behind either cursor and restarts the affected phase if needed. Keep target writers stopped and
+do not change its marker during the pass.
 
 Inspect progress with:
 

@@ -3,7 +3,7 @@ import { ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /** Proves destructive scope, cascading integrity, and atomic restart against real PostgreSQL. */
 describe('retiring dormant Search embeddings', () => {
@@ -34,7 +34,6 @@ describe('retiring dormant Search embeddings', () => {
   })
 
   afterAll(async () => {
-    vi.unstubAllEnvs()
     await sql?.end()
     await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`)
     await admin.end()
@@ -44,19 +43,13 @@ describe('retiring dormant Search embeddings', () => {
     await sql`TRUNCATE knowledge_base, document, embedding, embedding_search,
       embedding_keyword_search, embedding_keyword_tin, embedding_secret_provenance`
     await sql`DROP TABLE IF EXISTS search_embedding_cleanup_progress`
-    vi.stubEnv('SIM_SEARCH_LIVE', 'true')
-    vi.stubEnv('SIM_SEARCH_PURGE_LEGACY_EMBEDDINGS', 'true')
-    vi.stubEnv('SIM_SEARCH_CLEANUP_MAX_BATCHES', '1')
-    vi.stubEnv('SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID', 'search')
-    await sql`INSERT INTO knowledge_base VALUES ('search', true), ('ordinary', false), ('other-search', true)`
+    await sql`INSERT INTO knowledge_base VALUES ('search', true), ('ordinary', false)`
     await sql`INSERT INTO document (id, knowledge_base_id, processing_queue_token)
-      VALUES ('search-doc', 'search', 'old-dispatch'), ('ordinary-doc', 'ordinary', 'keep-dispatch'),
-        ('other-search-doc', 'other-search', 'keep-other-dispatch')`
+      VALUES ('search-doc', 'search', 'old-dispatch'), ('ordinary-doc', 'ordinary', 'keep-dispatch')`
     await sql`INSERT INTO embedding
       SELECT lpad(i::text, 5, '0'), CASE WHEN i % 2 = 0 THEN 'search' ELSE 'ordinary' END,
         CASE WHEN i % 2 = 0 THEN 'search-doc' ELSE 'ordinary-doc' END
       FROM generate_series(1, 1002) i`
-    await sql`INSERT INTO embedding VALUES ('other-search-chunk', 'other-search', 'other-search-doc')`
     await sql`INSERT INTO embedding_search SELECT id FROM embedding`
     await sql`INSERT INTO embedding_keyword_search SELECT id FROM embedding`
     await sql`INSERT INTO embedding_keyword_tin SELECT id FROM embedding`
@@ -73,32 +66,24 @@ describe('retiring dormant Search embeddings', () => {
     }
   }
 
-  it('requires explicit live mode and operator opt-in before changing any data', async () => {
-    for (const [live, enabled] of [
-      ['false', 'true'],
-      ['', 'true'],
-      ['true', 'false'],
-    ]) {
-      vi.stubEnv('SIM_SEARCH_LIVE', live)
-      vi.stubEnv('SIM_SEARCH_PURGE_LEGACY_EMBEDDINGS', enabled)
-      expect(await pass()).toBe(false)
-      expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(1003)
-      expect(
-        (await sql`SELECT user_excluded FROM document WHERE id = 'search-doc'`)[0].user_excluded
-      ).toBe(false)
-    }
+  it('does nothing without Search data and defers an ambiguous target without changing data', async () => {
+    await sql`UPDATE knowledge_base SET is_search_index = false`
+    expect(await pass()).toBe(true)
+    await sql`UPDATE knowledge_base SET is_search_index = true`
+    expect(await pass()).toBe(false)
+    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(1002)
+    expect(
+      (await sql`SELECT user_excluded FROM document WHERE id = 'search-doc'`)[0].user_excluded
+    ).toBe(false)
   })
 
-  it('resumes bounded pages, cascades only Search chunks, and preserves configuration and ordinary documents', async () => {
-    expect(await pass()).toBe(false)
+  it('cascades only Search chunks and preserves configuration and ordinary documents', async () => {
+    expect(await pass()).toBe(true)
     expect(
       (
         await sql`SELECT user_excluded, processing_queue_token FROM document WHERE id = 'search-doc'`
       )[0]
     ).toEqual({ user_excluded: true, processing_queue_token: null })
-    let completed = false
-    for (let attempt = 0; attempt < 10 && !completed; attempt++) completed = await pass()
-    expect(completed).toBe(true)
     expect(
       (await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`)[0].n
     ).toBe(0)
@@ -112,14 +97,9 @@ describe('retiring dormant Search embeddings', () => {
       'embedding_keyword_tin',
       'embedding_secret_provenance',
     ]) {
-      expect((await sql.unsafe(`SELECT count(*)::int AS n FROM ${table}`))[0].n).toBe(502)
+      expect((await sql.unsafe(`SELECT count(*)::int AS n FROM ${table}`))[0].n).toBe(501)
     }
-    expect((await sql`SELECT count(*)::int AS n FROM knowledge_base`)[0].n).toBe(3)
-    expect(
-      (
-        await sql`SELECT user_excluded, processing_queue_token FROM document WHERE id = 'other-search-doc'`
-      )[0]
-    ).toEqual({ user_excluded: false, processing_queue_token: 'keep-other-dispatch' })
+    expect((await sql`SELECT count(*)::int AS n FROM knowledge_base`)[0].n).toBe(2)
     expect(
       (
         await sql`SELECT user_excluded, processing_queue_token FROM document WHERE id = 'ordinary-doc'`
@@ -128,27 +108,42 @@ describe('retiring dormant Search embeddings', () => {
     expect(await pass()).toBe(true)
   })
 
-  it('does not advance the durable cursor when a deletion fails', async () => {
-    await pass()
-    await pass()
+  it('rolls back failed pages and resumes the frozen target, retiring documents inserted behind the cursor', async () => {
     await sql`CREATE TABLE deletion_blocker (id text REFERENCES embedding(id))`
     await sql`INSERT INTO deletion_blocker VALUES ('00002')`
+    await expect(pass()).rejects.toThrow()
     const before = await sql`SELECT * FROM search_embedding_cleanup_progress`
     await expect(pass()).rejects.toThrow()
     expect(await sql`SELECT * FROM search_embedding_cleanup_progress`).toEqual(before)
-    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(1003)
+    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(1002)
     await sql`DROP TABLE deletion_blocker`
-    expect(await pass()).toBe(false)
-    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(753)
+    await sql`INSERT INTO document (id, knowledge_base_id) VALUES ('aaa-late-document', 'search')`
+    await sql`INSERT INTO knowledge_base VALUES ('other-search', true)`
+    await sql`INSERT INTO document (id, knowledge_base_id, processing_queue_token)
+      VALUES ('other-search-doc', 'other-search', 'keep-dispatch')`
+    await sql`INSERT INTO embedding VALUES ('other-search-chunk', 'other-search', 'other-search-doc')`
+    expect(await pass()).toBe(true)
+    expect(
+      (await sql`SELECT user_excluded FROM document WHERE id = 'aaa-late-document'`)[0]
+        .user_excluded
+    ).toBe(true)
+    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(502)
+    expect(
+      (
+        await sql`SELECT user_excluded, processing_queue_token FROM document WHERE id = 'other-search-doc'`
+      )[0]
+    ).toEqual({ user_excluded: false, processing_queue_token: 'keep-dispatch' })
   })
 
-  it('rejects ordinary KB targets and refuses to switch targets on resume', async () => {
-    vi.stubEnv('SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID', 'ordinary')
-    await expect(pass()).rejects.toThrow('existing Search knowledge base')
-    vi.stubEnv('SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID', 'search')
-    await pass()
-    vi.stubEnv('SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID', 'other-search')
-    await expect(pass()).rejects.toThrow('Cannot change')
-    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(1003)
-  })
+  it('defers at the page budget and resumes without skipping remaining chunks', async () => {
+    await sql`INSERT INTO embedding
+      SELECT lpad(i::text, 5, '0'), 'search', 'search-doc' FROM generate_series(1003, 51002) i`
+    expect(await pass()).toBe(false)
+    const [remaining] =
+      await sql`SELECT count(*)::int AS n FROM embedding WHERE knowledge_base_id = 'search'`
+    expect(remaining.n).toBeGreaterThan(0)
+    expect(remaining.n).toBeLessThan(50501)
+    expect(await pass()).toBe(true)
+    expect((await sql`SELECT count(*)::int AS n FROM embedding`)[0].n).toBe(501)
+  }, 60_000)
 })

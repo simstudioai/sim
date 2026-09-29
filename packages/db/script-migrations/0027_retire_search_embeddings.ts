@@ -6,6 +6,7 @@ import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('RetireSearchEmbeddings')
 const BATCH_SIZE = 500
+const MAX_BATCHES = 100
 const RUN_BUDGET_MS = 60_000
 
 interface Progress {
@@ -15,40 +16,39 @@ interface Progress {
 }
 
 /**
- * Operator-enabled retirement of one explicitly selected Search KB, after all app and worker
- * deployments use live Search. Each page commits with its durable cursor. Other KBs are traversed
- * without modification. The runner owns bookkeeping, as it owns `script_migrations`.
+ * Retires the sole legacy Search KB after the move to live Search. Each page commits with its
+ * durable cursor. Other KBs are traversed without modification. The runner owns bookkeeping, as it owns `script_migrations`.
  */
 export const retireSearchEmbeddingsMigration: ScriptMigration = {
   name: '0027_retire_search_embeddings',
   async up(sql) {
-    const knowledgeBaseId = process.env.SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID?.trim()
-    if (
-      process.env.SIM_SEARCH_LIVE !== 'true' ||
-      process.env.SIM_SEARCH_PURGE_LEGACY_EMBEDDINGS !== 'true' ||
-      !knowledgeBaseId
-    ) {
-      throw new ScriptMigrationDeferred(
-        'Requires explicit live mode, SIM_SEARCH_PURGE_LEGACY_EMBEDDINGS=true, and one SIM_SEARCH_CLEANUP_KNOWLEDGE_BASE_ID after all workers are upgraded'
-      )
-    }
-    const maxBatches = Number(process.env.SIM_SEARCH_CLEANUP_MAX_BATCHES ?? 100)
-    if (!Number.isInteger(maxBatches) || maxBatches < 1 || maxBatches > 1000) {
-      throw new Error('SIM_SEARCH_CLEANUP_MAX_BATCHES must be an integer between 1 and 1000')
-    }
-    const [target] =
-      await sql`SELECT id FROM knowledge_base WHERE id = ${knowledgeBaseId} AND is_search_index`
-    if (!target) throw new Error('Cleanup target must be an existing Search knowledge base')
     await sql`CREATE TABLE IF NOT EXISTS search_embedding_cleanup_progress (
       id integer PRIMARY KEY CHECK (id = 1), knowledge_base_id text NOT NULL,
       phase text NOT NULL CHECK (phase IN ('documents', 'embeddings', 'done')),
       after_id text NOT NULL
     )`
-    await sql`INSERT INTO search_embedding_cleanup_progress VALUES (1, ${knowledgeBaseId}, 'documents', '')
-      ON CONFLICT (id) DO NOTHING`
+    const existing = await sql<
+      Progress[]
+    >`SELECT * FROM search_embedding_cleanup_progress WHERE id = 1`
+    if (existing.length === 0) {
+      const targets = await sql<{ id: string }[]>`
+        SELECT id FROM knowledge_base WHERE is_search_index LIMIT 2`
+      if (targets.length === 0) return
+      if (targets.length > 1) {
+        throw new ScriptMigrationDeferred(
+          'Multiple Search knowledge bases found; cleanup target is ambiguous'
+        )
+      }
+      await sql`INSERT INTO search_embedding_cleanup_progress VALUES (1, ${targets[0].id}, 'documents', '')
+        ON CONFLICT (id) DO NOTHING`
+    }
+    const [progress] = await sql<
+      Progress[]
+    >`SELECT * FROM search_embedding_cleanup_progress WHERE id = 1`
+    const knowledgeBaseId = progress.knowledge_base_id
 
     const deadline = Date.now() + RUN_BUDGET_MS
-    for (let batch = 0; batch < maxBatches && Date.now() < deadline; batch++) {
+    for (let batch = 0; batch < MAX_BATCHES && Date.now() < deadline; batch++) {
       if (await retirePage(sql, knowledgeBaseId)) {
         logger.info('Selected Search knowledge base embeddings retired')
         return
@@ -95,6 +95,21 @@ async function retirePage(sql: Sql, knowledgeBaseId: string): Promise<boolean> {
     const rows = await tx<{ id: string }[]>`
       SELECT id FROM embedding WHERE id > ${progress.after_id} ORDER BY id LIMIT ${BATCH_SIZE}`
     if (rows.length === 0) {
+      /** A late insert may sort behind either UUID cursor; completion must recheck the target. */
+      const [unretired] =
+        await tx`SELECT id FROM document WHERE knowledge_base_id = ${knowledgeBaseId}
+        AND (NOT user_excluded OR enabled OR processing_queue_token IS NOT NULL
+             OR processing_queued_at IS NOT NULL OR processing_deferred_until IS NOT NULL) LIMIT 1`
+      if (unretired) {
+        await tx`UPDATE search_embedding_cleanup_progress SET phase = 'documents', after_id = '' WHERE id = 1`
+        return false
+      }
+      const [remaining] =
+        await tx`SELECT id FROM embedding WHERE knowledge_base_id = ${knowledgeBaseId} LIMIT 1`
+      if (remaining) {
+        await tx`UPDATE search_embedding_cleanup_progress SET after_id = '' WHERE id = 1`
+        return false
+      }
       await tx`UPDATE search_embedding_cleanup_progress SET phase = 'done' WHERE id = 1`
       return true
     }

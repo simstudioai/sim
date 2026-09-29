@@ -2443,6 +2443,7 @@ async function resolveDocumentStorageAdmission(
 ): Promise<DocumentStorageAdmission> {
   const [kb] = await db
     .select({
+      isSearchIndex: knowledgeBase.isSearchIndex,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       userId: knowledgeBase.userId,
@@ -2454,6 +2455,9 @@ async function resolveDocumentStorageAdmission(
     throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
+  if (!requiresConnectorIndexing(kb.isSearchIndex)) {
+    throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+  }
   if (kb.organizationId)
     throw new OrchestrationError(
       'validation',
@@ -2512,6 +2516,7 @@ export async function createDocumentRecords(
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -2522,6 +2527,9 @@ export async function createDocumentRecords(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (kb[0].workspaceId !== admission.workspaceId) {
@@ -3180,6 +3188,7 @@ export async function createSingleDocument(
     const kb = await tx
       .select({
         id: knowledgeBase.id,
+        isSearchIndex: knowledgeBase.isSearchIndex,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
@@ -3190,6 +3199,9 @@ export async function createSingleDocument(
 
     if (kb.length === 0) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+    if (!requiresConnectorIndexing(kb[0].isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
 
     if (

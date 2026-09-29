@@ -29,7 +29,7 @@ The dormant UI sits in `indexed/` folders next to the component that picks it fr
 
 1. Set `SIM_SEARCH_LIVE=false` in both the app and the Trigger.dev environment, and deploy. The container entrypoint (`apps/sim/bootstrap.ts`) mirrors it to `NEXT_PUBLIC_SIM_SEARCH_LIVE` for the client; crawling, processing, and projection read it in whichever process runs them.
 2. Confirm the keyword projection objects exist (`0019_tin_keyword_projection`, `0024_knowledge_projection_async`, `0025_scope_keyword_projections`). Both keyword projections, `embedding_keyword_search` and `embedding_keyword_tin`, hold only search-index rows, written by the chunk triggers and by the trigger on `knowledge_base.is_search_index`. Backfill both for every search-index knowledge base whose rows were removed while dormant, and build the Tin index.
-3. If the operator-enabled `0027_retire_search_embeddings` cleanup ran for a base, deliberately restore its retired documents' eligibility before resyncing. Its deleted embeddings cannot be recovered by changing the backend flag alone. See `packages/db/script-migrations/search-embedding-retirement.md` for the cleanup lifecycle.
+3. If the `0027_retire_search_embeddings` cleanup ran for a base, deliberately restore its retired documents' eligibility before resyncing. Its deleted embeddings cannot be recovered by changing the backend flag alone. See `packages/db/script-migrations/search-embedding-retirement.md` for the cleanup lifecycle.
 4. Resume and fully resync the connectors of search-index knowledge bases, so content that went stale while dormant is indexed again.
 
 Projection rows written before projections carried their document's source and ACL are decided on their document until they are rewritten.

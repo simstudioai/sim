@@ -1,13 +1,23 @@
 import { db } from '@sim/db'
-import { document, knowledgeBase, user, workspace } from '@sim/db/schema'
+import { document, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import {
+  createDocumentRecords,
+  createSingleDocument,
+  processDocumentAsync,
+  processDocumentsWithQueue,
+} from '@/lib/knowledge/documents/service'
+
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isLiveEnterpriseSearchEnabled: true,
+}))
 
 /** Queued work cannot revive dormant Search before retirement reaches its documents. */
 describe('dormant Search document processing', () => {
@@ -32,8 +42,24 @@ describe('dormant Search document processing', () => {
   })
 
   afterAll(async () => {
+    await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+  })
+
+  it('rejects uploads before creating documents in a dormant Search KB', async () => {
+    await expect(
+      createDocumentRecords([source], ids.knowledgeBaseId, generateId())
+    ).rejects.toThrow('inactive')
+    await expect(createSingleDocument(source, ids.knowledgeBaseId, generateId())).rejects.toThrow(
+      'inactive'
+    )
+    const documents = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
+    expect(documents).toEqual([{ id: documentId }])
   })
 
   it('refuses dispatch before stamping or charging a pending Search document', async () => {
