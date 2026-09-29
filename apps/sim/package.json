@@ -24,6 +24,7 @@
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:evals": "EVAL_REPORT_PATH=test-results/evals/agent-tool-use.json vitest run evals/agent-tool-use",
     "email:dev": "email dev --dir components/emails",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
