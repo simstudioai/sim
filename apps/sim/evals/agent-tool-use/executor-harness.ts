@@ -56,6 +56,8 @@ export interface ExecutorScenario {
     temperature?: number
     /** Enables the executor's per-block retry policy for the Agent block. */
     retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
+    /** Ordered models the Agent handler tries after the primary fails. */
+    fallbackModels?: Array<{ model: string }>
   }
   /** One entry per model call; the last entry serves any extra/retry calls. */
   providerResponse: ExecutorProviderResponse | ExecutorProviderResponse[]
@@ -66,6 +68,8 @@ export interface ExecutorScenario {
     succeeds?: boolean
     /** Exact number of provider calls the executor made. */
     providerCalls?: number
+    /** Model id sent on the final provider call (proves which candidate served). */
+    lastRequestModel?: string
   }
 }
 
@@ -90,6 +94,7 @@ function buildWorkflow(scenario: ExecutorScenario): SerializedWorkflow {
     ...(scenario.agent.temperature !== undefined
       ? { temperature: scenario.agent.temperature }
       : {}),
+    ...(scenario.agent.fallbackModels ? { fallbackModels: scenario.agent.fallbackModels } : {}),
   }
   if (scenario.agent.retry) agent.retry = scenario.agent.retry
 
@@ -195,6 +200,15 @@ export async function runExecutorScenario(
       name: 'provider-calls',
       passed: requests.length === scenario.expect.providerCalls,
       detail: `expected ${scenario.expect.providerCalls}, got ${requests.length}`,
+    })
+  }
+
+  if (scenario.expect.lastRequestModel !== undefined) {
+    const lastModel = (requests.at(-1) as { model?: string } | undefined)?.model
+    checks.push({
+      name: 'last-request-model',
+      passed: lastModel === scenario.expect.lastRequestModel,
+      detail: `expected ${scenario.expect.lastRequestModel}, got ${String(lastModel)}`,
     })
   }
 
@@ -305,6 +319,33 @@ export const EXECUTOR_SCENARIOS: ExecutorScenario[] = [
       succeeds: true,
       finalContent: '100 requests per minute',
       providerCalls: 2,
+    },
+  },
+  {
+    id: 'executor-falls-back-to-secondary-model',
+    name: 'falls back to the secondary model when the primary fails',
+    category: 'recovery',
+    description:
+      'The primary model call rejects and the Agent block has a fallback model. The handler must serve the answer from the fallback and the run must complete.',
+    workflowInput: { message: 'What is the API rate limit?' },
+    agent: {
+      model: 'gpt-4o',
+      userPrompt: 'What is the API rate limit?',
+      fallbackModels: [{ model: 'gpt-4o-mini' }],
+    },
+    providerResponse: [
+      { reject: '429 rate limited', content: '' },
+      {
+        content: 'The API rate limit is 100 requests per minute.',
+        model: 'gpt-4o-mini',
+        tokens: { input: 10, output: 20, total: 30 },
+      },
+    ],
+    expect: {
+      succeeds: true,
+      finalContent: '100 requests per minute',
+      providerCalls: 2,
+      lastRequestModel: 'gpt-4o-mini',
     },
   },
 ]

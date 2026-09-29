@@ -119,8 +119,10 @@ Add a case to `EXECUTOR_SCENARIOS` in `executor-harness.ts`:
 - `expect` uses the loop's checks plus `resolvedInput` (a substring that must
   reach the provider messages), `succeeds` (expected `ExecutionResult.success`),
   and `providerCalls` (exact provider call count).
-- Set `agent.retry` to exercise the executor's per-block retry policy; make the
-  first `providerResponse` a `reject` and the retry lands on the next one.
+- Set `agent.retry` to exercise the executor's per-block retry policy, or
+  `agent.fallbackModels` to exercise model fallback. Make the first
+  `providerResponse` a `reject` and the next one succeeds; assert
+  `providerCalls` and `lastRequestModel` to prove which path recovered.
 
 Both suites write one report, so executor rows appear alongside loop rows.
 
@@ -135,8 +137,7 @@ model/tool time, first-response time, and token usage.
 ## Scope and next steps
 
 Two harnesses share one result shape and report: the tool loop and the
-`DAGExecutor`. The executor suite covers block retry —
-`executor-retries-failed-block` makes the first provider call reject, the block
-is replayed, and the run completes. Model fallback (`fallbackModels`) is not
-asserted yet. Further expansion (context/memory, model routing, subagent
-orchestration) is tracked as follow-up work.
+`DAGExecutor`. The executor suite covers both recovery paths — block retry
+(`executor-retries-failed-block`) and model fallback
+(`executor-falls-back-to-secondary-model`). Further expansion (context/memory,
+model routing, subagent orchestration) is tracked as follow-up work.
