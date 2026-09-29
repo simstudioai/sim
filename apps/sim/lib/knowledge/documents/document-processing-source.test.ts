@@ -1084,6 +1084,7 @@ describe('in-process quota continuation dispatch', () => {
     Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: undefined })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
+      .mockResolvedValueOnce([{ isSearchIndex: false }])
       .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
