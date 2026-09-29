@@ -390,8 +390,20 @@ describe('Assistant retrieval tools', () => {
         }),
       })
     )
-    expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
-    ).toMatchObject({ success: true })
+    mocks.read.mockImplementationOnce(async ({ input }: { input: { limit: number } }) => ({
+      knowledgeBaseId: 'index',
+      documentId: 'doc',
+      documentName: 'Title',
+      sourceUrl: 'https://source.test/doc',
+      chunks: Array.from({ length: input.limit }, (_, chunkIndex) => ({
+        content: 'body',
+        chunkIndex,
+      })),
+      hasMore: true,
+      next: null,
+    }))
+    const capped = await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
+    expect(capped).toMatchObject({ success: true })
+    expect((capped as { data: { chunks: unknown[] } }).data.chunks).toHaveLength(8)
   })
 })
