@@ -50,6 +50,11 @@ import {
 } from '@/lib/logs/execution/progress-markers'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/handled-errors'
+import {
+  stripLegacyToolCallContent,
+  stripModelToolCallArguments,
+  summarizeTraceSpansWithoutIo,
+} from '@/lib/logs/execution/trace-spans/summarize'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   copyTraceSpansWithoutCosts,
@@ -195,12 +200,6 @@ function retainBoundedTraceContent<T>(value: T, maxBytes = MAX_TRACE_IO_BYTES): 
   return size !== undefined && size <= maxBytes ? value : undefined
 }
 
-function stripModelToolCallArguments(
-  calls: NonNullable<TraceSpan['modelToolCalls']>
-): NonNullable<TraceSpan['modelToolCalls']> {
-  return calls.map(({ arguments: _arguments, ...call }) => call as (typeof calls)[number])
-}
-
 function compactModelToolCalls(
   calls: NonNullable<TraceSpan['modelToolCalls']>
 ): NonNullable<TraceSpan['modelToolCalls']> | undefined {
@@ -226,12 +225,6 @@ function compactLegacyToolCalls(
   return retainBoundedTraceContent(compacted)
 }
 
-function stripLegacyToolCallContent(
-  calls: NonNullable<TraceSpan['toolCalls']>
-): NonNullable<TraceSpan['toolCalls']> {
-  return calls.map(({ input: _input, output: _output, error: _error, ...call }) => call)
-}
-
 function compactProviderTiming(
   providerTiming: NonNullable<TraceSpan['providerTiming']>
 ): NonNullable<TraceSpan['providerTiming']> {
@@ -248,26 +241,6 @@ function compactProviderTiming(
               toolCalls: compactModelToolCalls(toolCalls) ?? stripModelToolCallArguments(toolCalls),
             }
           : {}),
-      })
-    ),
-  }
-}
-
-function stripProviderTimingContent(
-  providerTiming: NonNullable<TraceSpan['providerTiming']>
-): NonNullable<TraceSpan['providerTiming']> {
-  return {
-    ...providerTiming,
-    segments: providerTiming.segments.map(
-      ({
-        assistantContent: _assistantContent,
-        thinkingContent: _thinkingContent,
-        errorMessage: _errorMessage,
-        toolCalls,
-        ...segment
-      }) => ({
-        ...segment,
-        ...(toolCalls ? { toolCalls: stripModelToolCallArguments(toolCalls) } : {}),
       })
     ),
   }
@@ -314,33 +287,6 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
     if (providerTiming) summarized.providerTiming = compactProviderTiming(providerTiming)
 
     return summarized
-  })
-}
-
-function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
-  if (!traceSpans) {
-    return traceSpans
-  }
-
-  return traceSpans.map((span) => {
-    const {
-      input: _input,
-      output: _output,
-      children,
-      thinking: _thinking,
-      errorMessage: _errorMessage,
-      modelToolCalls,
-      toolCalls,
-      providerTiming,
-      ...rest
-    } = span
-    return {
-      ...rest,
-      ...(modelToolCalls ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) } : {}),
-      ...(toolCalls ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
-      ...(providerTiming ? { providerTiming: stripProviderTimingContent(providerTiming) } : {}),
-      ...(children?.length ? { children: summarizeTraceSpansWithoutIo(children) } : {}),
-    }
   })
 }
 

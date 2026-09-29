@@ -7,7 +7,7 @@ import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { compactBlockOutput } from '@/lib/execution/payloads/serializer'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -379,14 +379,15 @@ export class BlockExecutor {
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
-      normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
+      const compacted = await compactBlockOutput(normalizedOutput, {
         workspaceId: blockCtx.workspaceId,
         workflowId: blockCtx.workflowId,
         executionId: blockCtx.executionId,
         userId: blockCtx.userId,
         preserveUserFileBase64: blockCtx.includeFileBase64 === true,
         requireDurable: true,
-      })) as NormalizedBlockOutput
+      })
+      normalizedOutput = compacted.output
 
       const endedAt = new Date().toISOString()
       const duration = performance.now() - startTime
@@ -396,8 +397,8 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
-          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+        if (compacted.childTraceSpans) {
+          blockLog.childTraceSpans = compacted.childTraceSpans
         }
         const childExecutionId = normalizedOutput[CHILD_EXECUTION_ID_OUTPUT_KEY]
         if (typeof childExecutionId === 'string' && childExecutionId) {
@@ -409,7 +410,6 @@ export class BlockExecutor {
       }
 
       const {
-        childTraceSpans: _traces,
         [CHILD_EXECUTION_ID_OUTPUT_KEY]: _childExecutionId,
         [CHILD_TRACE_DISABLED_OUTPUT_KEY]: _childTraceDisabled,
         ...outputForState
