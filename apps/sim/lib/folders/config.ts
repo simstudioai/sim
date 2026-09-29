@@ -8,14 +8,13 @@ import {
   workflowSchedule,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, eq, type SQL } from 'drizzle-orm'
+import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import {
   FOLDER_RESOURCE_LABELS,
   FOLDER_RESOURCE_SUPPORTS_LOCKING,
 } from '@/lib/folders/resource-traits'
-import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 
 /**
  * Counts of cascaded resources returned by a folder delete/restore, keyed per resource
@@ -511,7 +510,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
      * `workspace_files` also stores copilot/chat/execution artifacts and profile pictures;
      * only files surfaced on the Files page live in folders.
      */
-    scope: and(eq(workspaceFiles.context, 'workspace'), fileDiscoveryCondition()),
+    scope: eq(workspaceFiles.context, 'workspace'),
   },
   knowledge_base: {
     resourceType: 'knowledge_base',

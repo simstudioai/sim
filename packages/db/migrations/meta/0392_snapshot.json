@@ -1,5 +1,5 @@
 {
-  "id": "0f8c9615-3419-493b-96e5-c9990c74c50c",
+  "id": "bcf3420e-f0bf-461a-9a54-0816a7e234b1",
   "prevId": "4bf7c7c5-a022-4a87-9d13-b889c5ba86f0",
   "version": "7",
   "dialect": "postgresql",
@@ -27850,14 +27850,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "discovery": {
-          "name": "discovery",
-          "type": "file_discovery",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'listed'"
-        },
         "chat_id": {
           "name": "chat_id",
           "type": "uuid",
@@ -27953,6 +27945,22 @@
           ],
           "isUnique": true,
           "where": "\"workspace_files\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_files_workspace_dashboard_unique": {
+          "name": "workspace_files_workspace_dashboard_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_files\".\"content_type\" = 'text/x-sim-dashboard' AND \"workspace_files\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -29241,11 +29249,6 @@
       "name": "execution_large_value_reference_source",
       "schema": "public",
       "values": ["execution_log", "paused_snapshot"]
-    },
-    "public.file_discovery": {
-      "name": "file_discovery",
-      "schema": "public",
-      "values": ["listed", "unlisted"]
     },
     "public.folder_resource_type": {
       "name": "folder_resource_type",

@@ -1,5 +1,4 @@
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
-import { type FileDiscovery, fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 /**
  * Workspace file storage system
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
@@ -103,6 +102,7 @@ import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/sha
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { workspaceFileContentTypeCondition } from '@/lib/workspace-files/query-scope'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,
@@ -207,7 +207,6 @@ export interface ActiveWorkspaceContext {
 }
 
 interface ListWorkspaceFilesOptions {
-  discovery?: FileDiscovery
   contentType?: string
 
   scope?: WorkspaceFileScope
@@ -277,7 +276,6 @@ const MAX_NUMBERED_COPY_SUFFIX = 20
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
-  discovery?: FileDiscovery
   id: string
   key: string
   userId: string
@@ -444,7 +442,6 @@ export async function uploadWorkspaceFile(
     folderId?: string | null
     folderPath?: string
     exactName?: boolean
-    discovery?: FileDiscovery
     /** Only the workspace dashboard use case writes dashboard content; it lives at the root. */
     dashboard?: true
     secretProvenance?: WorkspaceFileSecretProvenance
@@ -554,7 +551,6 @@ export async function uploadWorkspaceFile(
             originalName: uniqueName,
             contentType: effectiveContentType,
             size: effectiveBuffer.length,
-            discovery: options?.discovery ?? 'listed',
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
@@ -1067,7 +1063,6 @@ export async function trackChatUpload(
               chatId,
               messageId: messageId ?? null,
               context: 'mothership',
-              discovery: 'unlisted',
               displayName: candidate,
             })
             .where(
@@ -1115,7 +1110,6 @@ export async function trackChatUpload(
             userId,
             workspaceId,
             context: 'mothership',
-            discovery: 'unlisted',
             chatId,
             messageId: messageId ?? null,
             originalName: fileName,
@@ -1400,8 +1394,7 @@ export async function listWorkspaceFiles(
       .where(
         and(
           workspaceFileScopeCondition(workspaceId, scope),
-          fileDiscoveryCondition(options?.discovery),
-          options?.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined
+          workspaceFileContentTypeCondition(options?.contentType)
         )
       )
       .orderBy(workspaceFiles.uploadedAt)
@@ -1437,7 +1430,6 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
-  discovery?: FileDiscovery
   contentType?: string
 
   scope?: WorkspaceFileScope
@@ -1529,8 +1521,7 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    fileDiscoveryCondition(options.discovery),
-    options.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined,
+    workspaceFileContentTypeCondition(options.contentType),
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
     searchFilter(workspaceFiles.originalName, search),

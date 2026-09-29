@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { fileDiscoveryEnum, workspaceOperationReceipt } from '@sim/db/schema'
+import { workspaceOperationReceipt } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -107,7 +107,6 @@ const contentPayloadSchema = z
                   'logs',
                   'workspace-logos',
                 ]),
-                discovery: z.enum(fileDiscoveryEnum.enumValues).optional(),
                 fileName: z.string().max(4096),
                 contentType: z.string().max(1024),
                 size: z.number().min(0),

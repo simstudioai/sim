@@ -1,6 +1,6 @@
 # Table-backed dashboards
 
-Each workspace has at most one dashboard, a separate resource with its own sidebar page, resource tab, and Mothership `dashboards get` / `dashboards set` commands. Sim builds it: the page shows an empty state until the first save, and there is no create, rename, move, or folder operation. A partial unique index (migration 0393) keeps one live dashboard per workspace; lifting the limit means dropping it. Storage reuses workspace files with MIME type `text/x-sim-dashboard`; the backing `.dashboard` suffix is hidden from display names. The built-in **create-dashboard** skill documents the syntax without example dashboards or prescribed layouts. Sharing is deferred.
+Each workspace has at most one dashboard, a separate resource with its own sidebar page, resource tab, and Mothership `dashboards get` / `dashboards set` commands. Sim builds it: the page shows an empty state until the first save, and there is no create, rename, move, or folder operation. A partial unique index (migration 0392) keeps one live dashboard per workspace; lifting the limit means dropping it. Storage reuses workspace files with MIME type `text/x-sim-dashboard`; the backing `.dashboard` suffix is hidden from display names. The built-in **create-dashboard** skill documents the syntax without example dashboards or prescribed layouts. Sharing is deferred.
 
 The implementation has three boundaries:
 
@@ -78,19 +78,10 @@ before enabling the flag. Sharing and a tool for capturing the user's displayed
 data are deferred.
 
 
-## File discovery
+## Storage
 
-`workspace_files.discovery` separates listing/search membership (`listed` or `unlisted`)
-from storage and ownership (`context`). Files listings, Mothership file discovery, resource
-pickers, and content search apply this rule in SQL before pagination. Explicit-reference
-reads retain their existing authorization; unlisted is not a permission boundary.
-
-The workspace dashboard is an unlisted workspace file at the root. Only the dashboard use case
-may write its content type, and the resource picker requests it separately from Files.
-Versions, billing, cleanup, and complete workspace copies still include unlisted resources.
-
-Migration 0392 adds the defaulted discovery column and a temporary bridge for old upload
-writers during rollout. Script migration 0028 backfills non-workspace uploads in id-keyed
-pages of 1,000, including archived uploads, without changing content revisions or ownership.
-It contains no dashboard backfill: dashboards have not shipped. Remove the bridge in a
-later migration after all discovery-aware writers are deployed.
+The workspace dashboard is a workspace file at the root with content type
+`text/x-sim-dashboard`. Files listings, file search, and workflow file pickers exclude that
+content type, and only the dashboard use case may write it, so the backing file never appears
+or changes as an ordinary file. Versions, billing, cleanup, and complete workspace copies
+still include it.

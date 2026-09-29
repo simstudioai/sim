@@ -46,7 +46,6 @@ export function dashboardRecord(file: WorkspaceFileRecord) {
 /** The unique index guarantees at most one live dashboard per workspace. */
 async function findWorkspaceDashboard(workspaceId: string): Promise<WorkspaceFileRecord | null> {
   const { files } = await queryWorkspaceFiles(workspaceId, {
-    discovery: 'unlisted',
     contentType: DASHBOARD_CONTENT_TYPE,
     sortBy: 'name',
     sortOrder: 'asc',
@@ -105,7 +104,6 @@ export const saveWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
           {
             dashboard: true,
             exactName: true,
-            discovery: 'unlisted',
             secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
             notifyWorkspaceChange: false,
           }

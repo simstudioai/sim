@@ -45,7 +45,6 @@ async function lockCurrentFile(tx: DbTransaction, revision: FileSearchRevision):
     .select({
       workspaceId: workspaceFiles.workspaceId,
       context: workspaceFiles.context,
-      discovery: workspaceFiles.discovery,
       deletedAt: workspaceFiles.deletedAt,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
@@ -57,7 +56,6 @@ async function lockCurrentFile(tx: DbTransaction, revision: FileSearchRevision):
     file &&
       file.workspaceId === revision.workspaceId &&
       file.context === 'workspace' &&
-      file.discovery === 'listed' &&
       file.deletedAt === null &&
       file.contentUpdatedAt.getTime() === revision.sourceContentUpdatedAt.getTime()
   )

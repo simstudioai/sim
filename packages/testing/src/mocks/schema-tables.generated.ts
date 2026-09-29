@@ -583,7 +583,6 @@ export const GENERATED_SCHEMA_TABLES = {
     'organizationId',
     'folderId',
     'context',
-    'discovery',
     'chatId',
     'messageId',
     'originalName',
@@ -2044,7 +2043,6 @@ export const GENERATED_SCHEMA_ENUMS = {
     'completed_with_warnings',
     'failed',
   ],
-  fileDiscoveryEnum: ['listed', 'unlisted'],
   workspaceFileSearchIndexStatusEnum: ['pending', 'ready', 'skipped', 'failed'],
   uploadSessionStatusEnum: [
     'uploading',
