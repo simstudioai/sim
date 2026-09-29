@@ -14,3 +14,8 @@ export function isPlanModeEnabled(): Promise<boolean> {
 export function isSearchIntegrationToolsEnabled(): Promise<boolean> {
   return isFeatureEnabled('mothership-search-integration-tools')
 }
+
+/** Graph management is enabled only through AppConfig. */
+export function isMemorySpacesEnabled(): Promise<boolean> {
+  return isFeatureEnabled('mothership-memory-spaces')
+}

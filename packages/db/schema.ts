@@ -4102,6 +4102,44 @@ export const mothershipBenchmarks = pgTable(
   })
 )
 
+/** Private graph names; memory content stays in the memory service. */
+export const mothershipMemorySpaces = pgTable(
+  'mothership_memory_spaces',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdx: index('mothership_memory_spaces_owner_idx').on(table.userId, table.organizationId),
+  })
+)
+
+/** Null selects the implicit Default, whose original namespace never changes. */
+export const mothershipMemorySelections = pgTable(
+  'mothership_memory_selections',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    spaceId: uuid('space_id').references(() => mothershipMemorySpaces.id, {
+      onDelete: 'no action',
+    }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.organizationId] }),
+  })
+)
+
 export const copilotChats = pgTable(
   'copilot_chats',
   {
@@ -4114,6 +4152,8 @@ export const copilotChats = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    /** Bound once, without an FK: workspace chats can outlive their organization; missing graph ownership fails closed. */
+    memorySpaceId: uuid('memory_space_id'),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),

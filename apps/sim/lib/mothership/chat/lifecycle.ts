@@ -22,6 +22,7 @@ import {
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -453,10 +454,12 @@ export async function resolveOrCreateChat(params: {
     return { chatId, chat, isNew: false }
   }
 
+  const memorySpaceId = await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId)
   const now = new Date()
   const [newChat] = await db
     .insert(copilotChats)
     .values({
+      memorySpaceId,
       userId,
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),

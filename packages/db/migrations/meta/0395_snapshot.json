@@ -1,5 +1,5 @@
 {
-  "id": "615d0f9a-68b5-4730-adb9-71eb82f4d9db",
+  "id": "b56944c0-1202-4f6a-9a8f-6d37a6845515",
   "prevId": "c95b8d67-0668-4a2d-9498-50eee5842244",
   "version": "7",
   "dialect": "postgresql",
@@ -1830,6 +1830,12 @@
         "organization_id": {
           "name": "organization_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "memory_space_id": {
+          "name": "memory_space_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
@@ -13404,204 +13410,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.mothership_benchmarks": {
-      "name": "mothership_benchmarks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_workspace_id": {
-          "name": "source_workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "artifacts": {
-          "name": "artifacts",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "running_stage": {
-          "name": "running_stage",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempt_id": {
-          "name": "attempt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lease_expires_at": {
-          "name": "lease_expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "planner_chat_id": {
-          "name": "planner_chat_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "mothership_benchmarks_owner_created_idx": {
-          "name": "mothership_benchmarks_owner_created_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "mothership_benchmarks_workspace_idx": {
-          "name": "mothership_benchmarks_workspace_idx",
-          "columns": [
-            {
-              "expression": "source_workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "mothership_benchmarks_organization_id_organization_id_fk": {
-          "name": "mothership_benchmarks_organization_id_organization_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mothership_benchmarks_user_id_user_id_fk": {
-          "name": "mothership_benchmarks_user_id_user_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mothership_benchmarks_source_workspace_id_workspace_id_fk": {
-          "name": "mothership_benchmarks_source_workspace_id_workspace_id_fk",
-          "tableFrom": "mothership_benchmarks",
-          "tableTo": "workspace",
-          "columnsFrom": [
-            "source_workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "mothership_benchmarks_version_check": {
-          "name": "mothership_benchmarks_version_check",
-          "value": "\"mothership_benchmarks\".\"version\" > 0"
-        },
-        "mothership_benchmarks_attempt_check": {
-          "name": "mothership_benchmarks_attempt_check",
-          "value": "(\"mothership_benchmarks\".\"running_stage\" IS NULL AND \"mothership_benchmarks\".\"attempt_id\" IS NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NULL) OR (\"mothership_benchmarks\".\"running_stage\" IS NOT NULL AND \"mothership_benchmarks\".\"running_stage\" IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND \"mothership_benchmarks\".\"attempt_id\" IS NOT NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.mothership_inbox_allowed_sender": {
       "name": "mothership_inbox_allowed_sender",
       "schema": "",
@@ -14017,6 +13825,178 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_memory_selections": {
+      "name": "mothership_memory_selections",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mothership_memory_selections_user_id_user_id_fk": {
+          "name": "mothership_memory_selections_user_id_user_id_fk",
+          "tableFrom": "mothership_memory_selections",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_memory_selections_organization_id_organization_id_fk": {
+          "name": "mothership_memory_selections_organization_id_organization_id_fk",
+          "tableFrom": "mothership_memory_selections",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_memory_selections_space_id_mothership_memory_spaces_id_fk": {
+          "name": "mothership_memory_selections_space_id_mothership_memory_spaces_id_fk",
+          "tableFrom": "mothership_memory_selections",
+          "tableTo": "mothership_memory_spaces",
+          "columnsFrom": [
+            "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mothership_memory_selections_user_id_organization_id_pk": {
+          "name": "mothership_memory_selections_user_id_organization_id_pk",
+          "columns": [
+            "user_id",
+            "organization_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_memory_spaces": {
+      "name": "mothership_memory_spaces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mothership_memory_spaces_owner_idx": {
+          "name": "mothership_memory_spaces_owner_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mothership_memory_spaces_user_id_user_id_fk": {
+          "name": "mothership_memory_spaces_user_id_user_id_fk",
+          "tableFrom": "mothership_memory_spaces",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_memory_spaces_organization_id_organization_id_fk": {
+          "name": "mothership_memory_spaces_organization_id_organization_id_fk",
+          "tableFrom": "mothership_memory_spaces",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

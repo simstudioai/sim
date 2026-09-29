@@ -68,6 +68,10 @@ const FEATURE_FLAGS = {
       'models. Global on/off only; disabled uses Astra with simplified effort labels.',
     fallback: 'MSHIP_MODEL_SELECTOR',
   },
+  'mothership-memory-spaces': {
+    description: 'Create and select private knowledge graphs for new Mothership chats.',
+    fallback: null,
+  },
   'mothership-plan-mode': {
     description:
       'Show and admit Mothership Plan conversations. Global on/off only, shared by organization ' +
