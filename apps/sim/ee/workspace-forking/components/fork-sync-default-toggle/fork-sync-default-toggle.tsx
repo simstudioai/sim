@@ -1,8 +1,14 @@
 'use client'
 
-import { Label, Switch, toast } from '@sim/emcn'
+import { ChipSwitch, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useUpdateForkSyncDefault } from '@/ee/workspace-forking/hooks/workspace-fork'
+
+/** Both outcomes named, so "off" does not have to be inferred from the label. */
+const FORK_SYNC_DEFAULT_OPTIONS = [
+  { value: 'sync', label: 'Sync' },
+  { value: 'exclude', label: "Don't sync" },
+] as const
 
 interface ForkSyncDefaultToggleProps {
   workspaceId: string
@@ -40,26 +46,29 @@ export function ForkSyncDefaultToggle({
   const updateDefault = useUpdateForkSyncDefault()
 
   // Render nothing until the lineage resolves, matching the workflow list below. A
-  // placeholder would have to guess a value, and guessing `false` renders the switch ON -
-  // the opposite of the truth for an opt-in lineage, which then visibly snaps once the
-  // real value lands. Disabled-but-wrong is worse than absent for a cross-workspace policy.
+  // placeholder would have to guess a value, and guessing `false` selects "Sync" - the
+  // opposite of the truth for an opt-in lineage, which then visibly snaps once the real
+  // value lands. Disabled-but-wrong is worse than absent for a cross-workspace policy.
   if (loading) return null
 
   return (
     <div className='flex items-center justify-between'>
       <div className='flex flex-col gap-1'>
-        <Label htmlFor='fork-sync-new-workflows'>Sync new workflows by default</Label>
+        {/* No `htmlFor`: `ChipSwitch` is a radio group and takes no id, so the group
+            carries its own `aria-label`. Matches `inbox-enable-toggle.tsx`. */}
+        <Label>Sync new workflows by default</Label>
         <p className='text-[var(--text-muted)] text-caption'>
           Applies to every workspace in this fork lineage.
         </p>
       </div>
-      <Switch
-        id='fork-sync-new-workflows'
-        checked={!excludeNewWorkflows}
+      <ChipSwitch
+        aria-label='Sync new workflows by default'
+        options={FORK_SYNC_DEFAULT_OPTIONS}
+        value={excludeNewWorkflows ? 'exclude' : 'sync'}
         disabled={updateDefault.isPending}
-        onCheckedChange={(syncNewWorkflows) =>
+        onChange={(value) =>
           updateDefault.mutate(
-            { workspaceId, body: { excludeNewWorkflows: !syncNewWorkflows } },
+            { workspaceId, body: { excludeNewWorkflows: value === 'exclude' } },
             {
               onError: (error) =>
                 toast.error(getErrorMessage(error, 'Failed to update the fork sync default')),
