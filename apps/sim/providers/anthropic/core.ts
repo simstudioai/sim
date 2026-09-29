@@ -144,6 +144,7 @@ const ANTHROPIC_THINKING_OUTPUT_HEADROOM = 4096
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
  * Fable 5, Fable 5.1, and Opus 5.5 support ONLY adaptive thinking (always on; type: "disabled" is rejected).
+ * Sonnet 5.5 is adaptive by default and rejects type: "disabled"; its lowest setting is "between_tools".
  * Sonnet 5 supports ONLY adaptive thinking (manual budget_tokens returns a 400 error).
  * Opus 5, Opus 4.8, and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
@@ -169,9 +170,14 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Fable 5.1, Fable 5, Sonnet 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Fable 5.1, Fable 5, Sonnet 5.5, Sonnet 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
+ *
+ * The `none` level returns null (send no thinking config) unless the model
+ * declares `capabilities.thinking.noneMode`: Sonnet 5.5 rejects
+ * `type: "disabled"`, so `none` becomes `type: "between_tools"`, which turns
+ * off up-front thinking and takes no effort or display field.
  *
  * The newest Claude generations default `thinking.display` to `omitted`
  * (empty thinking blocks, no thinking deltas). Their registry entries mark
@@ -190,7 +196,19 @@ export function buildThinkingConfig(
   outputConfig?: Anthropic.Messages.OutputConfig
 } | null {
   const capability = getThinkingCapability(modelId)
-  if (!capability || !capability.levels.includes(thinkingLevel)) {
+  if (!capability) {
+    return null
+  }
+
+  if (thinkingLevel === 'none') {
+    if (capability.noneMode !== 'between_tools') return null
+    return {
+      // double-cast-allowed: @anthropic-ai/sdk 0.115 predates the between_tools thinking type (typed from 0.129)
+      thinking: { type: 'between_tools' } as unknown as Anthropic.Messages.ThinkingConfigParam,
+    }
+  }
+
+  if (!capability.levels.includes(thinkingLevel)) {
     return null
   }
 
@@ -245,10 +263,11 @@ async function createMessage(
     )
     return stream.finalMessage()
   }
+  // Explicit `stream: false`: Anthropic-compatible proxies (Kie) treat an absent flag as true.
   return anthropic.messages.create(
-    payload as Anthropic.Messages.MessageCreateParamsNonStreaming,
+    { ...(payload as Anthropic.Messages.MessageCreateParamsNonStreaming), stream: false },
     options
-  ) as Promise<Anthropic.Messages.Message>
+  )
 }
 
 /**
@@ -358,9 +377,8 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
-  // Add extended thinking configuration if supported and requested
-  // The 'none' sentinel means "disable thinking" — skip configuration entirely.
-  if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+  // The 'none' sentinel means "disable thinking": no config, unless the model declares a noneMode.
+  if (request.thinkingLevel) {
     const thinkingConfig = buildThinkingConfig(
       request.model,
       request.thinkingLevel,
@@ -405,11 +423,15 @@ export async function executeAnthropicProviderRequest(
       // Per Anthropic docs: thinking is not compatible with temperature or top_k modifications.
       payload.temperature = undefined
 
-      const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
-      logger.info(
-        `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
-      )
-    } else {
+      if (request.thinkingLevel === 'none') {
+        logger.info(`Using between_tools thinking for model: ${modelId}`)
+      } else {
+        const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
+        logger.info(
+          `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
+        )
+      }
+    } else if (request.thinkingLevel !== 'none') {
       logger.warn(
         `Thinking level "${describeModelLevel(request.thinkingLevel)}" not supported for model: ${modelId}, ignoring`
       )

@@ -10,6 +10,7 @@ function client(rows: Record<string, unknown>): NativeClient {
       return rows[path]
     }),
     text: vi.fn(),
+    bytes: vi.fn(),
   }
 }
 const selected = (included: string[], excluded: string[] = []) => ({

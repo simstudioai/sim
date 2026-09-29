@@ -138,7 +138,7 @@ describe('canonical search knowledge-base policy', () => {
           (
             await listInternalKnowledgeBases.execute({
               principal,
-              input: { workspaceId: ids.workspaceId, scope: 'active' },
+              input: { workspaceId: ids.workspaceId, scope: 'active', includeCounts: true },
             })
           ).knowledgeBases[0]
         ).toMatchObject({ isSearchIndex: true, docCount, tokenCount })

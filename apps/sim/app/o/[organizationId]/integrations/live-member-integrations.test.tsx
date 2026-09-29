@@ -66,6 +66,7 @@ const group = {
 }
 const inventory = (overrides = {}) => ({
   credentialGroup: group,
+  availableMcpConnectors: [],
   viewerAccounts: [],
   viewerMcpAccounts: [],
   canManage: false,

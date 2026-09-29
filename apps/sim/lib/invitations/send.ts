@@ -22,7 +22,7 @@ import {
 } from '@/components/emails'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
 import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -54,7 +54,7 @@ export interface CreatePendingInvitationInput {
    * and re-authorize stale preflight decisions.
    */
   validateLockedContext?: (context: {
-    tx: DbOrTx
+    tx: DbTransaction
     organizationId: string | null
     workspaceIds: string[]
   }) => Promise<void>

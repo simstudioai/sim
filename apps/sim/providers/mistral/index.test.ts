@@ -12,9 +12,7 @@ import type { ProviderToolConfig } from '@/providers/types'
 vi.mock('openai', () => openaiMock)
 vi.mock('@/providers', () => providersMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
-vi.mock('@/providers/mistral/utils', () => ({
-  createReadableStreamFromMistralStream: vi.fn(),
-}))
+
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)

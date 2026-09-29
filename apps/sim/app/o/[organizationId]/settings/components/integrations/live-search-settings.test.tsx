@@ -250,6 +250,7 @@ describe('live search administration', () => {
     mockAccounts.mockReturnValue({
       data: {
         credentialGroup: {
+          status: 'active',
           options: [{ provider: 'jira', status: 'active', configurationStatus: 'ready' }],
         },
       },

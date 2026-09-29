@@ -2,8 +2,10 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeConnector, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord } from '@sim/utils/object'
+import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import {
@@ -137,6 +139,16 @@ async function explain(label: string, query: SQL, iterative = false) {
     })
   } else await run(db)
   saveReport()
+}
+
+/** Every index a reported plan scans, at any depth. */
+function planIndexNames(label: string): string[] {
+  const walk = (node: unknown): string[] => {
+    const record = toRecord(node)
+    const name = toStringOrNull(record['Index Name'])
+    return [...(name ? [name] : []), ...toArray(record.Plans).flatMap(walk)]
+  }
+  return toArray(report[`${label}.plan`]).flatMap((root) => walk(toRecord(root).Plan))
 }
 
 async function snapshot(label: string) {
@@ -287,6 +299,8 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
     await db.execute(
       sql`UPDATE document SET source_seen_at = CASE WHEN external_id::integer <= ${rows - absentCount / 2} THEN NULL ELSE '2000-01-01 00:00:00.000123'::timestamp END, deleted_at = NULL, user_excluded = false WHERE connector_id = ${ids.connectorId} AND external_id::integer > ${rows - absentCount}`
     )
+    /** Plans the walks from statistics that see the rewritten absence, as autovacuum would. */
+    await db.execute(sql`ANALYZE document`)
     await db
       .update(knowledgeConnector)
       .set({ listingCheckpoint: checkpoint })
@@ -309,35 +323,7 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
       sql`SELECT id FROM document WHERE connector_id = ${ids.connectorId} AND user_excluded = false AND archived_at IS NULL
       AND (source_seen_at IS NULL OR source_seen_at < ${startedAt.toISOString()}::timestamp) AND cardinality(acl) > 0 LIMIT 500`
     )
-    const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
-    const absent = sql`connector_id = ${ids.connectorId} AND user_excluded = false AND archived_at IS NULL
-      AND ${seenOrder} < ${startedAt.toISOString()}::timestamp AND cardinality(acl) > 0`
-    const firstPage = db
-      .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
-      .from(document)
-      .where(absent)
-      .orderBy(asc(seenOrder), asc(document.id))
-      .limit(PAGE_SIZE)
-    await explain('reconciliation.keyset.first', firstPage.getSQL())
-    const firstCandidates = await firstPage
-    expect(firstCandidates).toHaveLength(PAGE_SIZE)
-    const nextPage = db
-      .select({ id: document.id })
-      .from(document)
-      .where(
-        and(
-          absent,
-          sql`(${seenOrder}, ${document.id}) > (${firstCandidates.at(-1)!.seenAt}::timestamp, ${firstCandidates.at(-1)!.id})`
-        )
-      )
-      .orderBy(asc(seenOrder), asc(document.id))
-      .limit(PAGE_SIZE)
-    await explain('reconciliation.keyset.next', nextPage.getSQL())
-    const nextCandidates = await nextPage
-    expect(nextCandidates).toHaveLength(PAGE_SIZE)
-    expect(new Set([...firstCandidates, ...nextCandidates].map((row) => row.id)).size).toBe(
-      2 * PAGE_SIZE
-    )
+    const statements = vi.spyOn(db.$client, 'unsafe')
     const outcome = await measure('reconciliation.actual', async () =>
       runConnectorContentPass({
         connectorId: ids.connectorId,
@@ -368,8 +354,29 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
         deadlineAt: Date.now() + 300_000,
       })
     )
+    /** Plans the first window scan the pass actually issued, so the plan follows the production SQL. */
+    const [windowScan] = statements.mock.calls.filter(([query]) =>
+      /^\s*with "document" as materialized/i.test(query)
+    )
+    statements.mockRestore()
     expect(outcome.complete).toBe(true)
     expect(outcome.holdNotice).toBeNull()
+    expect(windowScan).toBeDefined()
+    const [scanned] = await db.$client.unsafe(
+      `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${windowScan[0]}`,
+      windowScan[1]
+    )
+    report['reconciliation.window.scan.plan'] = scanned['QUERY PLAN']
+    saveReport()
+    /**
+     * Every keyset step is an ordered index probe: through the v2 index, or the primary key when
+     * this fixture's single connector is nearly the whole table. Either is a valid plan.
+     */
+    const walkIndexes = new Set(planIndexNames('reconciliation.window.scan'))
+    expect(walkIndexes.size).toBeGreaterThan(0)
+    for (const name of walkIndexes) {
+      expect(['doc_connector_reconciliation_v2_idx', 'document_pkey']).toContain(name)
+    }
     const [removed] = await db.execute(
       sql`SELECT count(*)::int AS count FROM document WHERE connector_id = ${ids.connectorId} AND external_id::integer > ${rows - absentCount} AND deleted_at IS NOT NULL AND cardinality(acl) = 0`
     )

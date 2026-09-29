@@ -1,9 +1,16 @@
-export const MANAGED_MCP_CONNECTOR_IDS = ['fireflies', 'granola', 'databricks', 'coda'] as const
+export const MANAGED_MCP_CONNECTOR_IDS = [
+  'fireflies',
+  'granola',
+  'databricks',
+  'coda',
+  'notion',
+  'hubspot',
+] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
 interface FixedManagedMcpConnector {
-  id: Exclude<ManagedMcpConnectorId, 'databricks'>
+  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot'>
   name: string
   description: string
   url: string
@@ -17,14 +24,39 @@ interface DatabricksManagedMcpConnector {
   oauthClientRegistration: 'preregistered'
 }
 
-export type ManagedMcpConnector = FixedManagedMcpConnector | DatabricksManagedMcpConnector
+interface HubSpotManagedMcpConnector {
+  id: 'hubspot'
+  name: string
+  description: string
+  url: string
+  oauthClientRegistration: 'preregistered'
+}
+
+export type ManagedMcpConnector =
+  | FixedManagedMcpConnector
+  | DatabricksManagedMcpConnector
+  | HubSpotManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  hubspot: {
+    id: 'hubspot',
+    name: 'HubSpot',
+    description: 'Search CRM records using each person’s HubSpot permissions',
+    url: 'https://mcp.hubspot.com',
+    oauthClientRegistration: 'preregistered',
+  },
   coda: {
     id: 'coda',
     name: 'Coda',
     description: 'Search and read Superhuman Docs (Coda) using each person’s OAuth account',
     url: 'https://docs.superhuman.com/apis/mcp',
+    oauthClientRegistration: 'dynamic',
+  },
+  notion: {
+    id: 'notion',
+    name: 'Notion',
+    description: 'Search and read Notion using each person’s OAuth account',
+    url: 'https://mcp.notion.com/mcp',
     oauthClientRegistration: 'dynamic',
   },
   fireflies: {

@@ -1,25 +1,24 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getEmailPreferencesMock } = vi.hoisted(() => ({
-  getEmailPreferencesMock: vi.fn(() => Promise.resolve(null as unknown)),
-}))
-
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  getEmailPreferences: getEmailPreferencesMock,
-}))
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
 vi.mock('@/components/emails', () => emailTemplatesMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { maybeSendLimitThresholdEmail } from '@/lib/billing/core/limit-notifications'
 
+const getEmailPreferencesMock = emailUnsubscribeMockFns.mockGetEmailPreferences
 const sendEmailSpy = emailMailerMockFns.mockSendEmail
 const renderMock = emailTemplatesMockFns.mockRenderLimitThresholdEmail
 const subjectMock = emailTemplatesMockFns.mockGetLimitEmailSubject

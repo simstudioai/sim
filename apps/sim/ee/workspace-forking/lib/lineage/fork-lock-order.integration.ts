@@ -33,7 +33,7 @@ import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { lockForkRevision } from '@/ee/workspace-forking/application/revision'
 import {
   acquireForkLineageLock,
@@ -164,8 +164,8 @@ describe('fork lock ordering in PostgreSQL', () => {
     let failure: string | null = null
 
     // The two locks `createFork` takes, as production takes them: rank 2 then rank 5.
-    const takeLineageLock = (tx: DbOrTx) => acquireForkLineageLock(tx, SOURCE_WORKSPACE_ID)
-    const takeRevisionLock = (tx: DbOrTx) =>
+    const takeLineageLock = (tx: DbTransaction) => acquireForkLineageLock(tx, SOURCE_WORKSPACE_ID)
+    const takeRevisionLock = (tx: DbTransaction) =>
       lockForkRevision(tx, { sourceWorkspaceId: SOURCE_WORKSPACE_ID })
 
     const forkSession = forkDb

@@ -36,6 +36,9 @@ export const MAX_PDF_TEXT_CHARS = 10_000_000
 /** Complete extraction shares the ingestion pipeline's bounded text-output envelope. */
 export const MAX_COMPLETE_PDF_TEXT_BYTES = 20 * 1024 * 1024
 
+/** Independent retained-text ceiling, including conservative layout overhead. */
+const MAX_COMPLETE_PDF_RETAINED_TEXT_BYTES = MAX_COMPLETE_PDF_TEXT_BYTES
+
 /** Bounds expansion on one page independently of a long document's output budget. */
 export const MAX_COMPLETE_PDF_PAGE_CHARS = 250_000
 
@@ -43,10 +46,8 @@ export const MAX_COMPLETE_PDF_PAGE_CHARS = 250_000
 const PDF_EXTRACTION_TIMEOUT_MS = 60_000
 
 /**
- * Upper bound on what line reconstruction adds per line after the budget is
- * spent: a two-character paragraph break plus a three-character heading marker.
- * The complete-mode byte ceiling therefore trips slightly earlier than it did
- * when pages were flattened to one line, by at most this many bytes per line.
+ * Conservative retained-text allowance for a paragraph break and heading marker.
+ * This protects parser state independently of the caller's rendered-output budget.
  */
 const MAX_LINE_DECORATION_BYTES = 5
 
@@ -249,8 +250,8 @@ function readPageHeight(page: PDFPageProxy): number | undefined {
   }
 }
 
-/** Bytes a page's lines can occupy in the output once joined and decorated. */
-function estimatePageBytes(lines: readonly PdfLine[]): number {
+/** Conservative text storage for retained lines and their possible decorations. */
+function estimateRetainedPageBytes(lines: readonly PdfLine[]): number {
   let bytes = 0
   for (const line of lines) {
     bytes += Buffer.byteLength(line.text, 'utf8') + MAX_LINE_DECORATION_BYTES
@@ -267,7 +268,8 @@ function estimatePageBytes(lines: readonly PdfLine[]): number {
 async function assemblePages(
   pages: readonly PdfPageLines[],
   complete: boolean,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  maxTextBytes: number
 ): Promise<string> {
   signal?.throwIfAborted()
   const filteredPages = suppressFurniture(pages)
@@ -280,6 +282,7 @@ async function assemblePages(
     headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
   }
   const pageTexts: string[] = []
+  let outputBytes = 0
   for (const [index, lines] of filteredPages.entries()) {
     if (index > 0 && index % ASSEMBLY_YIELD_EVERY_PAGES === 0) {
       await sleep(0)
@@ -287,7 +290,17 @@ async function assemblePages(
     }
     const joined = joinLines(lines, options)
     const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
-    if (text.length > 0) pageTexts.push(text)
+    if (text.length > 0) {
+      if (complete) {
+        outputBytes +=
+          Buffer.byteLength(text, 'utf8') + (pageTexts.length > 0 ? PAGE_SEPARATOR.length : 0)
+        if (outputBytes > maxTextBytes)
+          throw completeExtractionLimit(
+            `PDF text exceeds the safe ${maxTextBytes.toLocaleString()}-byte output limit.`
+          )
+      }
+      pageTexts.push(text)
+    }
   }
   const text = pageTexts.join(PAGE_SEPARATOR)
   return complete ? text : normalizePdfWhitespace(text).trim()
@@ -295,6 +308,13 @@ async function assemblePages(
 
 function completeExtractionLimit(message: string): FileParserError {
   return new FileParserError('complexity_limit', `${message} Split or simplify the PDF and retry.`)
+}
+
+function completeBudget(value: number | undefined, ceiling: number): number {
+  if (value === undefined) return ceiling
+  if (!Number.isSafeInteger(value) || value < 1)
+    throw completeExtractionLimit('PDF extraction limits must be positive safe integers.')
+  return Math.min(value, ceiling)
 }
 
 async function extractTextWithinBudget(
@@ -305,17 +325,21 @@ async function extractTextWithinBudget(
   const { signal } = options
   const complete = options.pdfTextMode === 'complete'
   const totalPages = pdf.numPages
-  const pageLimit = Math.min(totalPages, MAX_PDF_PAGES)
+  const maxPages = complete ? completeBudget(options.pdfMaxPages, MAX_PDF_PAGES) : MAX_PDF_PAGES
+  const maxTextBytes = complete
+    ? completeBudget(options.maxTextBytes, MAX_COMPLETE_PDF_TEXT_BYTES)
+    : MAX_COMPLETE_PDF_TEXT_BYTES
+  const pageLimit = Math.min(totalPages, maxPages)
   const pages: PdfPageLines[] = []
 
   let remainingChars = MAX_PDF_TEXT_CHARS
-  let outputBytes = 0
+  let retainedTextBytes = 0
   let pagesRead = 0
   let truncated = totalPages > pageLimit
 
   if (complete && truncated) {
     throw completeExtractionLimit(
-      `PDF exceeds the safe limit of ${MAX_PDF_PAGES.toLocaleString()} pages.`
+      `PDF exceeds the safe limit of ${maxPages.toLocaleString()} pages.`
     )
   }
 
@@ -341,13 +365,9 @@ async function extractTextWithinBudget(
     const page = pageResult
     const pageHeight = readPageHeight(page)
     let extraction: PageExtraction
+    const pageCharLimit = complete ? MAX_COMPLETE_PDF_PAGE_CHARS : remainingChars
     try {
-      extraction = await readPageWithinBudget(
-        page,
-        complete ? MAX_COMPLETE_PDF_PAGE_CHARS : remainingChars,
-        deadline,
-        signal
-      )
+      extraction = await readPageWithinBudget(page, pageCharLimit, deadline, signal)
     } finally {
       page.cleanup()
     }
@@ -361,10 +381,11 @@ async function extractTextWithinBudget(
       pagesRead++
       if (complete) {
         if (lines.length > 0) {
-          outputBytes += estimatePageBytes(lines) + (pages.length > 0 ? PAGE_SEPARATOR.length : 0)
-          if (outputBytes > MAX_COMPLETE_PDF_TEXT_BYTES) {
+          retainedTextBytes +=
+            estimateRetainedPageBytes(lines) + (pages.length > 0 ? PAGE_SEPARATOR.length : 0)
+          if (retainedTextBytes > MAX_COMPLETE_PDF_RETAINED_TEXT_BYTES) {
             throw completeExtractionLimit(
-              `PDF text exceeds the safe ${MAX_COMPLETE_PDF_TEXT_BYTES.toLocaleString()}-byte output limit.`
+              `PDF text exceeds the safe ${MAX_COMPLETE_PDF_RETAINED_TEXT_BYTES.toLocaleString()}-byte output limit.`
             )
           }
           pages.push({ lines, pageHeight })
@@ -387,7 +408,7 @@ async function extractTextWithinBudget(
     }
   }
 
-  let text = await assemblePages(pages, complete, signal)
+  let text = await assemblePages(pages, complete, signal, maxTextBytes)
 
   /** Paragraph breaks land after the budget is spent; trimming that overflow is a truncation too. */
   if (!complete && text.length > MAX_PDF_TEXT_CHARS) {

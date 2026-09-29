@@ -82,6 +82,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/send-handoff'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
@@ -1820,5 +1821,82 @@ describe('useChat remount send recovery', () => {
     await act(async () => {})
     expect(getResult().messageQueue.map((entry) => entry.id)).toEqual(['unsent-entry'])
     expect(state.postBodies).toHaveLength(0)
+  })
+
+  it('loads the saved transcript once when its own stream completes', async () => {
+    const chatId = 'chat-own-completion'
+    const history: MothershipChatHistory = {
+      id: chatId,
+      mode: 'agent',
+      title: 'Own stream',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const saved = [
+      { id: 'saved-user', role: 'user', content: 'Summarize the run' },
+      { id: 'saved-assistant', role: 'assistant', content: 'Done.' },
+    ]
+    const detailRequests: string[] = []
+    mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+      if (contract.path !== '/api/mothership/chats/[chatId]') {
+        return Promise.resolve({ chats: [] })
+      }
+      detailRequests.push(chatId)
+      return Promise.resolve({ chat: { ...history, messages: saved } })
+    })
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined
+    let streamId: string | undefined
+    const emit = (event: Omit<MothershipStreamV1EventEnvelope, 'v' | 'ts' | 'stream'>) =>
+      stream?.enqueue(
+        new TextEncoder().encode(
+          `data: ${JSON.stringify({ v: 1, ts: '', stream: { streamId }, ...event })}\n\n`
+        )
+      )
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+        return fetchStub(input, init)
+      }
+      streamId = JSON.parse(String(init.body)).userMessageId
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            stream = controller
+          },
+        }),
+        { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+      )
+    })
+    const { getResult } = renderUseChatInChat(chatId, history)
+
+    await act(async () => {
+      void getResult().sendMessage('Summarize the run')
+    })
+    await waitFor(() => stream !== undefined)
+    emit({ seq: 1, type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
+    await waitFor(
+      () =>
+        queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+          ?.activeStreamId === streamId
+    )
+    /** The server publishes `completed` after persisting and before closing the stream. */
+    handleMothershipChatStatusEvent(queryClient, 'ws-1', {
+      chatId,
+      type: 'completed',
+      streamId,
+    })
+    emit({ seq: 2, type: 'complete', payload: { status: 'complete' } })
+    stream?.close()
+
+    await waitFor(() => !getResult().isSending && detailRequests.length > 0)
+    await act(async () => {
+      await sleep(50)
+    })
+    expect(detailRequests).toHaveLength(1)
+    expect(
+      queryClient
+        .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+        ?.messages.map((message) => message.id)
+    ).toEqual(['saved-user', 'saved-assistant'])
   })
 })

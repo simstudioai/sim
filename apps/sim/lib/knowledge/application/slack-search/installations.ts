@@ -2,8 +2,9 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { credential, slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   SlackSearchConfigurationError,
   SlackSearchProviderError,
@@ -134,9 +135,7 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
     }
     return db.transaction(async (tx) => {
       if (identity)
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-search:${identity.teamId}`}, 0))`
-        )
+        await acquireAdvisoryXactLock(tx, 'slack_search', `slack-search:${identity.teamId}`)
       const [current] = await tx
         .select()
         .from(credential)

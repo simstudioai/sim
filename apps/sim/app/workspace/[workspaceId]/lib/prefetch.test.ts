@@ -208,7 +208,7 @@ describe('workspace list prefetches', () => {
       await prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID)
 
       expect(mockListInternalKnowledgeBases).not.toHaveBeenCalled()
-      expect(client.getQueryData(knowledgeKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
+      expect(client.getQueryData(knowledgeKeys.countedList(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
   })
 

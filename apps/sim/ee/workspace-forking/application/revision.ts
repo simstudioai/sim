@@ -23,7 +23,7 @@ import {
   workspaceSandbox,
 } from '@sim/db/schema'
 import { and, type SQL, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope'
 import {
@@ -149,7 +149,7 @@ export async function loadForkPreviewRevision(
  * the other way round deadlocks against `unlinkForkEdge`, which holds the lineage key and
  * then updates the same `workspace` row.
  */
-export async function lockForkRevision(tx: DbOrTx, scope: ForkRevisionScope): Promise<void> {
+export async function lockForkRevision(tx: DbTransaction, scope: ForkRevisionScope): Promise<void> {
   const workspaceIds = [
     ...new Set([
       scope.sourceWorkspaceId,

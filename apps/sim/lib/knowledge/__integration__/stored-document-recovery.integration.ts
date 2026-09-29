@@ -97,6 +97,7 @@ import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
   KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   recoverKnowledgeDocumentProcessing,
+  recoveryCandidatesQuery,
 } from '@/lib/knowledge/documents/processing-recovery'
 import {
   processDocumentAsync,
@@ -106,6 +107,11 @@ import {
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 import { searchScopedKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 import type { SyncResult } from '@/connectors/types'
+
+interface QueryPlan {
+  'Shared Hit Blocks': number
+  'Shared Read Blocks': number
+}
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const old = () => new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS - 60_000)
@@ -954,6 +960,80 @@ describe('independent recovery of retained connector documents', () => {
         .set({ status: 'paused' })
         .where(inArray(knowledgeConnector.id, [blocked.connectorId, healthy.connectorId]))
     }
+  })
+
+  it('reads a bounded page however many older documents belong to paused sources', async () => {
+    const paused = await seed()
+    const file = await failedFile(paused)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    const backlogStart = original.uploadedAt.getTime() - 60 * 60_000
+    for (let offset = 0; offset < 5_000; offset += 1_000) {
+      await db.insert(document).values(
+        Array.from({ length: 1_000 }, (_, index) => ({
+          ...original,
+          id: generateId(),
+          externalId: generateId(),
+          secretProvenanceVersion: null,
+          uploadedAt: new Date(backlogStart + offset + index),
+        }))
+      )
+    }
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(eq(knowledgeConnector.id, paused.connectorId))
+    const healthy = await seed()
+    const recoverable = await failedFile(healthy)
+    await db.execute(sql`ANALYZE ${document}`)
+
+    const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(sql`
+      EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${recoveryCandidatesQuery(db, new Date(), {
+        limit: DOCUMENT_RECOVERY_BATCH_SIZE,
+        attemptedConnectors: new Set(),
+        blockedKnowledgeBases: new Set(),
+      })}
+    `)
+    const plan = plans[0]['QUERY PLAN'][0].Plan
+    /** Buffer work, unlike wall-clock time, catches a walk through the paused backlog. */
+    expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(1_000)
+
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+    const [event] = await eventsFor(healthy)
+    expect(event.payload).toMatchObject({ documentId: recoverable.documentId })
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(eq(knowledgeConnector.id, healthy.connectorId))
+  })
+
+  it('recovers a sibling source in the same call when a full batch of older work is live', async () => {
+    const live = await seed()
+    const file = await failedFile(live)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    await db.insert(document).values(
+      Array.from({ length: DOCUMENT_RECOVERY_BATCH_SIZE - 1 }, () => ({
+        ...original,
+        id: generateId(),
+        externalId: generateId(),
+        secretProvenanceVersion: null,
+      }))
+    )
+    const sibling = await seed()
+    const siblingFile = await failedFile(sibling)
+    fixture.useTrigger = true
+    fixture.listRuns.mockImplementation(async ({ tag }: { tag: string }) => ({
+      data: tag === `documentId:${siblingFile.documentId}` ? [] : [{ status: 'QUEUED' }],
+      hasNextPage: () => false,
+    }))
+
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+    expect(await eventsFor(live)).toHaveLength(0)
+    const [event] = await eventsFor(sibling)
+    expect(event.payload).toMatchObject({ documentId: siblingFile.documentId })
+    await db
+      .update(knowledgeConnector)
+      .set({ status: 'paused' })
+      .where(inArray(knowledgeConnector.id, [live.connectorId, sibling.connectorId]))
   })
 
   it('recovers another document while an index transaction holds the same KB foreign-key lock', async () => {

@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 export interface ForkLineageNode {
   id: string
@@ -109,10 +110,11 @@ export async function setForkLockTimeout(tx: DbOrTx): Promise<void> {
  * between distinct keys astronomically unlikely; a collision would only cause
  * unnecessary serialization, never a correctness issue.
  */
-export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-edge:${childWorkspaceId}`}, 0))`
-  )
+export async function acquireForkEdgeLock(
+  tx: DbTransaction,
+  childWorkspaceId: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(tx, 'fork_edge', `fork-edge:${childWorkspaceId}`)
 }
 
 /**
@@ -150,10 +152,11 @@ export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string):
  * MCP server lock re-sets it to 3s. Pre-existing and wider than forks; recorded here so
  * the contract does not assert something false.
  */
-export async function acquireForkLineageLock(tx: DbOrTx, rootWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-lineage:${rootWorkspaceId}`}, 0))`
-  )
+export async function acquireForkLineageLock(
+  tx: DbTransaction,
+  rootWorkspaceId: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(tx, 'fork_lineage', `fork-lineage:${rootWorkspaceId}`)
 }
 
 /**
@@ -163,8 +166,9 @@ export async function acquireForkLineageLock(tx: DbOrTx, rootWorkspaceId: string
  * interleaving and keeping rollback's "newest sync" check race-free. Always acquire
  * this BEFORE {@link acquireForkEdgeLock} so the two are taken in a consistent order.
  */
-export async function acquireForkTargetLock(tx: DbOrTx, targetWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-target:${targetWorkspaceId}`}, 0))`
-  )
+export async function acquireForkTargetLock(
+  tx: DbTransaction,
+  targetWorkspaceId: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(tx, 'fork_target', `fork-target:${targetWorkspaceId}`)
 }

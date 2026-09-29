@@ -43,6 +43,7 @@ import {
   enqueueOutboxEvents,
   patchOutboxEventPayload,
 } from '@/lib/core/outbox/service'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -173,8 +174,10 @@ async function reconcileManualEnterpriseSubscription(
 
   const coreResult = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, referenceId)
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`stripe-subscription:${stripeSubscription.id}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'stripe_subscription',
+      `stripe-subscription:${stripeSubscription.id}`
     )
     // The authoritative Stripe read happened under a durable subscription
     // lease. Fence the write before touching billing state so a crashed holder

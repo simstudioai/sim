@@ -1357,7 +1357,11 @@ export const userStats = pgTable('user_stats', {
    * Highest usage-limit threshold already emailed per category (e.g.
    * `{ storage: 80, tables: 100 }`). Prevents re-spamming the same warning;
    * re-arms when usage drops back below the re-arm band. Keyed by limit
-   * category ('storage' | 'tables'); seats live on `organization`.
+   * category ('storage' | 'tables'); seats live on `organization`. `credits`
+   * instead holds the threshold emailed for the billing period and limit in
+   * `creditsPeriod` (start, epoch seconds) and `creditsLimit` (cents), so a new
+   * period or a changed limit re-arms it without a reset (see
+   * `claimCreditsThreshold`).
    *
    * Dedup granularity is per billing account per category — intentionally NOT
    * per table, so a user hitting the row limit on several tables gets one
@@ -1719,7 +1723,9 @@ export const organization = pgTable('organization', {
   /**
    * Highest usage-limit threshold already emailed per category for this org
    * (e.g. `{ seats: 80, storage: 100 }`). Mirrors `user_stats.limitNotifications`
-   * for org-scoped (pooled) limits. Re-arms when usage drops below the re-arm band.
+   * for org-scoped (pooled) limits. Re-arms when usage drops below the re-arm band;
+   * `credits` instead re-arms with a new billing period or a changed limit (see
+   * `claimCreditsThreshold`).
    */
   limitNotifications: jsonb('limit_notifications')
     .$type<Record<string, number>>()
@@ -3422,12 +3428,22 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    /** Bounded oldest-first recovery scans only retained, live connector processing inputs. */
+    /** Superseded by the per-source recovery index; drop in a follow-up migration once that deploy has shipped. */
     processingRecoveryIdx: index('doc_processing_recovery_idx')
       .on(table.uploadedAt, table.id)
       .where(
         sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
       ),
+    /**
+     * Oldest-first recovery pages per eligible source. Recovery walks only the sources it may
+     * admit, so retained inputs of paused or federated sources are never read.
+     */
+    connectorProcessingRecoveryIdx: index('doc_connector_processing_recovery_idx')
+      .on(table.connectorId, table.uploadedAt, table.id)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      )
+      .concurrently(),
     /**
      * Per-source processing probes (any failed, pending or processing document) behind the
      * source status, progress and overview reads. Partial on the rare non-terminal states so a
@@ -3447,9 +3463,22 @@ export const document = pgTable(
       table.connectorId,
       table.externalId
     ),
-    /** Ordered absence reconciliation includes tombstones and skips excluded or archived rows. */
+    /**
+     * Superseded by `doc_connector_reconciliation_v2_idx`; drop it concurrently once the id-keyset
+     * walks are fully deployed. Nothing orders by `source_seen_at` any more, and keying it makes
+     * every listing's seen stamp a non-HOT update.
+     */
     connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
       .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
+      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
+    /**
+     * Id-keyset absence reconciliation and resurrection walks, including tombstones and skipping
+     * excluded or archived rows. `source_seen_at` stays out of the key so the per-listing seen
+     * stamp can be a HOT update.
+     */
+    connectorReconciliationV2Idx: index('doc_connector_reconciliation_v2_idx')
+      .on(table.connectorId, table.id)
+      .concurrently()
       .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
     activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
       .on(table.knowledgeBaseId, table.tokenCount)
@@ -3500,9 +3529,9 @@ export const document = pgTable(
     number3Idx: index('doc_number3_idx').on(table.number3),
     number4Idx: index('doc_number4_idx').on(table.number4),
     number5Idx: index('doc_number5_idx').on(table.number5),
-    // Date tag indexes (2 slots)
-    date1Idx: index('doc_date1_idx').on(table.date1),
-    date2Idx: index('doc_date2_idx').on(table.date2),
+    /** Date tag filters compile to half-open ranges on the raw column, which these serve. */
+    date1Idx: index('doc_date1_idx').on(table.date1).concurrently(),
+    date2Idx: index('doc_date2_idx').on(table.date2).concurrently(),
     // Boolean tag indexes (3 slots)
     boolean1Idx: index('doc_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('doc_boolean2_idx').on(table.boolean2),
@@ -3640,12 +3669,6 @@ export const embedding = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary vector search pattern
-    kbIdIdx: index('emb_kb_id_idx').on(table.knowledgeBaseId),
-
-    // Document-level access
-    docIdIdx: index('emb_doc_id_idx').on(table.documentId),
-
     // Chunk ordering within documents
     docChunkIdx: uniqueIndex('emb_doc_chunk_idx').on(table.documentId, table.chunkIndex),
 
@@ -3685,9 +3708,9 @@ export const embedding = pgTable(
     number3Idx: index('emb_number3_idx').on(table.number3),
     number4Idx: index('emb_number4_idx').on(table.number4),
     number5Idx: index('emb_number5_idx').on(table.number5),
-    // Date tag indexes (2 slots)
-    date1Idx: index('emb_date1_idx').on(table.date1),
-    date2Idx: index('emb_date2_idx').on(table.date2),
+    /** Date tag filters compile to half-open ranges on the raw column, which these serve. */
+    date1Idx: index('emb_date1_idx').on(table.date1).concurrently(),
+    date2Idx: index('emb_date2_idx').on(table.date2).concurrently(),
     // Boolean tag indexes (3 slots)
     boolean1Idx: index('emb_boolean1_idx').on(table.boolean1),
     boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
@@ -4251,7 +4274,6 @@ export const copilotRuns = pgTable(
     error: text('error'),
   },
   (table) => ({
-    executionIdIdx: index('copilot_runs_execution_id_idx').on(table.executionId),
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
     chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
     chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
@@ -5303,7 +5325,6 @@ export const usageLog = pgTable(
   (table) => ({
     userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
     sourceIdx: index('usage_log_source_idx').on(table.source),
-    workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
     eventKeyUnique: uniqueIndex('usage_log_event_key_unique')
       .on(table.eventKey)
@@ -6154,6 +6175,11 @@ export const knowledgeConnector = pgTable(
      */
     memberTombstoneCursor: jsonb('member_tombstone_cursor').$type<{ externalId: string }>(),
     /**
+     * Where the members-mode resurrection walk resumes: the last document id
+     * it covered. NULL starts a new walk from the connector's first document.
+     */
+    memberResurrectionCursor: text('member_resurrection_cursor'),
+    /**
      * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
      *
      * `pending` and `syncing` are the two halves of a sync in flight: `pending`
@@ -6776,10 +6802,12 @@ export const userTableDefinitions = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     /**
      * @remarks
-     * Monotonic counter bumped by a statement-level trigger on `user_table_rows`
-     * (INSERT/UPDATE/DELETE). Keys the versioned table-snapshot cache so a stored
-     * CSV under `v{rows_version}` is reused until the table mutates. Never written
-     * from application code — the trigger is the only writer (bypass-proof).
+     * Monotonic counter bumped by triggers on `user_table_rows`: statement-level
+     * on INSERT/DELETE, and a deferred constraint trigger that bumps once per
+     * transaction at COMMIT when an UPDATE changes `data` or `order_key`. Keys the
+     * versioned table-snapshot cache so a stored CSV under `v{rows_version}` is
+     * reused until the table mutates. Never written from application code — the
+     * triggers are the only writers (bypass-proof).
      */
     rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     /**
@@ -6825,6 +6853,11 @@ export const userTableRows = pgTable(
   'user_table_rows',
   {
     id: text('id').primaryKey(),
+    /**
+     * The foreign key is `DEFERRABLE INITIALLY DEFERRED` (the `table_rows_version_at_commit`
+     * migration), so a row updated twice in one transaction does not key-share the definition row
+     * mid-transaction. drizzle can't express deferrability, so it lives only in the migration.
+     */
     tableId: text('table_id')
       .notNull()
       .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),

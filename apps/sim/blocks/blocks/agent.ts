@@ -34,7 +34,7 @@ import type { ToolResponse } from '@/tools/types'
 const logger = createLogger('AgentBlock')
 
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
-const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
+const AGENT_FALLBACK_MODEL = 'claude-sonnet-5-5'
 
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
@@ -154,7 +154,7 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-5-5',
       options: getAgentModelOptions,
       commandSearchable: true,
     },

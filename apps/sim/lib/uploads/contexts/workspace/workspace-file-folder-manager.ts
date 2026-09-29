@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import {
@@ -224,12 +224,16 @@ function folderParentCondition(parentId?: string | null) {
   return normalized ? eq(folderTable.parentId, normalized) : isNull(folderTable.parentId)
 }
 
-function fileFolderCondition(folderId?: string | null) {
-  const normalized = normalizeParentId(folderId)
-  return normalized ? eq(workspaceFiles.folderId, normalized) : isNull(workspaceFiles.folderId)
+/**
+ * Folder predicate for active-name lookups, spelled exactly as the
+ * `workspace_files_workspace_folder_name_active_unique` index expression so the
+ * planner can use the index as a point lookup at the root as well as in a folder.
+ */
+export function workspaceFileNameFolderCondition(folderId?: string | null) {
+  return sql`coalesce(${workspaceFiles.folderId}, '') = ${folderId ?? ''}`
 }
 
-async function acquireWorkspaceFileFolderMutationLock(tx: DbOrTx, workspaceId: string) {
+async function acquireWorkspaceFileFolderMutationLock(tx: DbTransaction, workspaceId: string) {
   await acquireFolderMutationLock(tx, workspaceId, FILE_FOLDER_RESOURCE_TYPE)
 }
 
@@ -884,7 +888,7 @@ export async function fileNameExistsInWorkspaceFolder(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.originalName, fileName),
         eq(workspaceFiles.context, 'workspace'),
-        fileFolderCondition(folderId),
+        workspaceFileNameFolderCondition(folderId),
         isNull(workspaceFiles.deletedAt)
       )
     )
@@ -1050,7 +1054,7 @@ export async function moveWorkspaceFileItems(params: {
             eq(workspaceFiles.workspaceId, params.workspaceId),
             eq(workspaceFiles.originalName, file.name),
             eq(workspaceFiles.context, 'workspace'),
-            fileFolderCondition(targetFolderId),
+            workspaceFileNameFolderCondition(targetFolderId),
             isNull(workspaceFiles.deletedAt)
           )
         )

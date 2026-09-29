@@ -1,5 +1,6 @@
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { sha256Hex } from '@sim/security/hash'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { CredentialGroupMcpOAuthContext } from '@/lib/credential-groups/enrollments'
 import { createCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
@@ -45,6 +46,7 @@ export async function startCredentialGroupMcpOAuth(
       const attempt = provider.requireAuthorizationAttempt()
       await createCredentialGroupMcpOAuthAttempt({
         oauthConfigVersion: context.server.oauthConfigVersion,
+        configurationFingerprint: preregistered?.configurationFingerprint,
         ...attempt,
         userId: context.userId,
         ...resourceScopeFields(resourceScopeFromOwner(context)),
@@ -63,7 +65,8 @@ export async function completeCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
   codeVerifier: string,
   authorizationCode: string,
-  invitationToken: string
+  invitationToken: string,
+  expectedConfigurationFingerprint?: string
 ) {
   assertSafeOauthServerUrl(context.server.url)
   const clientRow = await getOrCreateOauthRow({
@@ -71,6 +74,8 @@ export async function completeCredentialGroupMcpOAuth(
     ...resourceScopeFields(resourceScopeFromOwner(context)),
   })
   const preregistered = await loadPreregisteredClient(context.server.id)
+  if (expectedConfigurationFingerprint !== preregistered?.configurationFingerprint)
+    throw new OrchestrationError('conflict', 'MCP setup changed. Start authorization again.')
   let grantedTokens: OAuthTokens | undefined
   const provider = new ManagedMcpOauthProvider({
     clientRow,
@@ -102,6 +107,7 @@ export async function completeCredentialGroupMcpOAuth(
   const completion = await persistManagedMcpCredential({
     invitationTokenHash: sha256Hex(invitationToken),
     oauthConfigVersion: context.server.oauthConfigVersion,
+    configurationFingerprint: preregistered?.configurationFingerprint,
     enrollmentId: context.enrollmentId,
     credentialGroupId: context.credentialGroupId,
     email: context.email,

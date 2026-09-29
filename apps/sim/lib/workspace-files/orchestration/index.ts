@@ -35,4 +35,3 @@ export {
   performRestoreWorkspaceFileFolder,
   performUpdateWorkspaceFileFolder,
 } from './file-folder-lifecycle'
-export {} from './share'

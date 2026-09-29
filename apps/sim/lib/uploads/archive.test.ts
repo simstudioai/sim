@@ -114,7 +114,7 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
   return buffer
 }
 
-/** Mirrors `allocateUniqueWorkspaceFileName`'s " (n)" suffixing. */
+/** Numbered " (n)" suffixing in the style of `allocateUniqueWorkspaceFileName`'s first candidates. */
 function allocateUniqueName(folderKey: string, name: string): string {
   const dot = name.lastIndexOf('.')
   const base = dot > 0 ? name.slice(0, dot) : name

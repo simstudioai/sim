@@ -11,6 +11,7 @@ import {
   OUTBOX_PROCESSOR_MAX_RUNTIME_MS,
   OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS,
 } from '@/lib/core/outbox/constants'
+import { pruneCompletedOutboxEvents } from '@/lib/core/outbox/retention'
 import { type ProcessOutboxResult, processOutboxEvents } from '@/lib/core/outbox/service'
 import { DeadlineExceededError } from '@/lib/core/utils/deadline'
 import { directGrantOutboxHandlers } from '@/lib/invitations/direct-grant'
@@ -56,6 +57,7 @@ export interface OutboxProcessorResult {
   result: ProcessOutboxResult
   recoveredDocuments: number
   reapedBackgroundWork: number
+  prunedEvents: number
 }
 
 /** Processes one bounded batch and its recovery work in either the worker or self-hosted cron. */
@@ -92,11 +94,19 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     logger.error('Background-work reap failed', { error: toError(error).message })
   }
 
-  const output = { result, reapedBackgroundWork, recoveredDocuments }
+  let prunedEvents = 0
+  try {
+    prunedEvents = await pruneCompletedOutboxEvents()
+  } catch (error) {
+    logger.error('Completed outbox pruning failed', { error: toError(error).message })
+  }
+
+  const output = { result, reapedBackgroundWork, recoveredDocuments, prunedEvents }
   logger.info('Outbox processing completed', {
     ...result,
     reapedBackgroundWork,
     recoveredDocuments,
+    prunedEvents,
     durationMs: Date.now() - startedAt,
   })
   return output

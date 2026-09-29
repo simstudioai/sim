@@ -98,10 +98,11 @@ export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export async function fetchKnowledgeBases(
   workspaceId?: string,
   scope: KnowledgeQueryScope = 'active',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeCounts = false
 ): Promise<KnowledgeBaseData[]> {
   const result = await requestJson(listKnowledgeBasesContract, {
-    query: { workspaceId, scope },
+    query: { workspaceId, scope, includeCounts },
     signal,
   })
 
@@ -238,12 +239,17 @@ export function useKnowledgeBasesQuery(
   options?: {
     enabled?: boolean
     scope?: KnowledgeQueryScope
+    /** Adds each base's `docCount` and `tokenCount`, for the one surface that renders them. */
+    includeCounts?: boolean
   }
 ) {
   const scope = options?.scope ?? 'active'
+  const includeCounts = options?.includeCounts ?? false
   return useQuery({
-    queryKey: knowledgeKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
+    queryKey: includeCounts
+      ? knowledgeKeys.countedList(workspaceId, scope)
+      : knowledgeKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal, includeCounts),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
   })
@@ -590,9 +596,9 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      /** The counted list rows carry `docCount`, so removing a document changes them too. */
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.lists(),
+        queryKey: knowledgeKeys.countedLists(),
       })
     },
   })
@@ -632,10 +638,10 @@ export function useBulkDocumentOperation() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      /** Only a bulk delete changes the `docCount` the counted list rows render. */
       if (operation === 'delete') {
         queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.lists(),
+          queryKey: knowledgeKeys.countedLists(),
         })
       }
     },

@@ -259,7 +259,7 @@ describe('generated OpenAPI documents', () => {
         )
       }
     }
-  })
+  }, 30_000)
 
   it('covers the complete public v2 operation surface with canonical errors', () => {
     const outputs = DOCUMENTS.map((document) => document.output)

@@ -8,7 +8,6 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { escapeRegExp } from '@sim/utils/string'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
 import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
@@ -87,6 +86,7 @@ import {
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { MAX_FUNCTION_REFERENCES } from '@/lib/function-execution/limits'
 import type { SandboxExportedFile } from '@/lib/function-execution/output'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
 import {
@@ -750,38 +750,33 @@ function scrubInternalIdentifiers(message: string, identifiers: readonly string[
 
 function resolveWorkflowVariables(
   code: string,
-  workflowVariables: Record<string, any>,
-  contextVariables: Record<string, any>
+  workflowVariables: Record<string, unknown>,
+  contextVariables: Record<string, unknown>
 ): string {
-  let resolvedCode = code
+  const variablesByName = new Map<string, Record<string, unknown>>()
+  for (const value of Object.values(workflowVariables)) {
+    const variable = toRecord(value)
+    if (typeof variable.name !== 'string') continue
+    const name = normalizeName(variable.name)
+    if (!variablesByName.has(name)) variablesByName.set(name, variable)
+  }
+  const replacements = new Map<string, string>()
+  const boundNames = new Set<string>()
 
-  const regex = createWorkflowVariablePattern()
-  let match: RegExpExecArray | null
-  const replacements: Array<{
-    match: string
-    index: number
-    variableName: string
-    variableValue: unknown
-  }> = []
+  return code.replace(createWorkflowVariablePattern(), (_match, name: string) => {
+    const variableName = name.trim()
+    const cached = replacements.get(variableName)
+    if (cached !== undefined) return cached
 
-  while ((match = regex.exec(code)) !== null) {
-    const variableName = match[1].trim()
-
-    const foundVariable = Object.entries(workflowVariables).find(
-      ([_, variable]) => normalizeName(variable.name || '') === variableName
-    )
-
-    if (!foundVariable) {
-      const availableVars = Object.values(workflowVariables)
-        .map((v) => v.name)
-        .filter(Boolean)
+    const variable = variablesByName.get(variableName)
+    if (!variable) {
+      const availableVars = [...variablesByName.values()].map((value) => value.name).filter(Boolean)
       throw new Error(
         `Variable "${variableName}" doesn't exist.` +
           (availableVars.length > 0 ? ` Available: ${availableVars.join(', ')}` : '')
       )
     }
 
-    const variable = foundVariable[1]
     let variableValue: unknown = variable.value
 
     if (variable.value !== undefined && variable.value !== null) {
@@ -805,24 +800,15 @@ function resolveWorkflowVariables(
       }
     }
 
-    replacements.push({
-      match: match[0],
-      index: match.index,
-      variableName,
-      variableValue,
-    })
-  }
-
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const { match: matchStr, index, variableName, variableValue } = replacements[i]
-
     const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-    contextVariables[safeVarName] = variableValue
-    resolvedCode =
-      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-  }
-
-  return resolvedCode
+    // The original reverse rewrite gave the first reference precedence on binding-name collisions.
+    if (!boundNames.has(safeVarName)) {
+      contextVariables[safeVarName] = variableValue
+      boundNames.add(safeVarName)
+    }
+    replacements.set(variableName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -869,13 +855,12 @@ function resolveTagVariables(
   contextVariables: Record<string, unknown>,
   language = 'javascript'
 ): string {
-  let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
+  const replacements = new Map<string, string | undefined>()
 
-  const tagMatches = resolvedCode.match(TAG_PATTERN) || []
-
-  for (const match of tagMatches) {
+  return code.replace(TAG_PATTERN, (match) => {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+    if (replacements.has(tagName)) return replacements.get(tagName) ?? match
     const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
     const blockName = pathParts[0]
     const fieldPath = pathParts.slice(1)
@@ -887,14 +872,15 @@ function resolveTagVariables(
     })
 
     if (!result) {
-      continue
+      replacements.set(tagName, undefined)
+      return match
     }
 
     let tagValue = result.value
 
     if (tagValue === undefined) {
-      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), undefinedLiteral)
-      continue
+      replacements.set(tagName, undefinedLiteral)
+      return undefinedLiteral
     }
 
     if (typeof tagValue === 'string') {
@@ -910,10 +896,9 @@ function resolveTagVariables(
 
     const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
-    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
-  }
-
-  return resolvedCode
+    replacements.set(tagName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -2280,6 +2265,23 @@ export async function executeFunctionRequest(
       req.headers
     )
     includePrivateResolvedSecretNames = privateResolvedSecretNamesMetadataType !== undefined
+
+    let referenceCount = 0
+    for (const _match of body.code.matchAll(TAG_PATTERN)) {
+      if (++referenceCount > MAX_FUNCTION_REFERENCES) {
+        return appendPrivateResolvedSecretNames(
+          NextResponse.json(
+            {
+              success: false,
+              error: `Function code exceeds the maximum of ${MAX_FUNCTION_REFERENCES} references`,
+            },
+            { status: 400 }
+          ),
+          includePrivateResolvedSecretNames ? [] : null,
+          privateResolvedSecretNamesMetadataType
+        )
+      }
+    }
 
     const mountedWorkspaceFileProvenance = inspectMountedWorkspaceFileProvenance(req.headers, body)
     if (mountedWorkspaceFileProvenance.status === 'invalid') {

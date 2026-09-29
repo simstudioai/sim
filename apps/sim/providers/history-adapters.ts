@@ -3,6 +3,7 @@ import type {
   CapturedConversationStep,
   ConversationProtocol,
 } from '@/lib/memory/conversation-types'
+import { getKieConversationProtocol, isKieClaudeModel } from '@/providers/kie/utils'
 import type { ProviderId } from '@/providers/types'
 
 export interface ProviderHistoryAdapter {
@@ -80,7 +81,15 @@ export const providerHistoryAdapters: Record<ConversationProtocol, ProviderHisto
   bedrock: { protocol: 'bedrock', capture: (value) => capture('bedrock', value) },
 }
 
-export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol | null> = {
+/**
+ * Native history protocol per provider. `null` marks evaluation-only providers; a function
+ * resolves per model for providers that proxy more than one wire protocol. Read it through
+ * {@link getProviderHistoryProtocol}.
+ */
+export const providerHistoryProtocols: Record<
+  ProviderId,
+  ConversationProtocol | null | ((model: string) => ConversationProtocol)
+> = {
   openai: 'responses',
   'azure-openai': 'responses',
   anthropic: 'anthropic',
@@ -98,6 +107,7 @@ export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol |
   meta: 'chat-completions',
   zai: 'chat-completions',
   kimi: 'chat-completions',
+  kie: getKieConversationProtocol,
   mistral: 'chat-completions',
   ollama: 'chat-completions',
   'ollama-cloud': 'chat-completions',
@@ -109,9 +119,25 @@ export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol |
   litellm: 'chat-completions',
 }
 
+export function isHistoryProviderId(value: string): value is ProviderId {
+  return Object.hasOwn(providerHistoryProtocols, value)
+}
+
+export function getProviderHistoryProtocol(
+  providerId: ProviderId,
+  model: string
+): ConversationProtocol | null {
+  const protocol = providerHistoryProtocols[providerId]
+  return typeof protocol === 'function' ? protocol(model) : protocol
+}
+
 /** Bedrock is treated conservatively because its Claude models also require signed thinking. */
-export function requiresNativeToolHistory(providerId: ProviderId | undefined): boolean {
+export function requiresNativeToolHistory(
+  providerId: ProviderId | undefined,
+  model: string
+): boolean {
   return (
+    (providerId === 'kie' && isKieClaudeModel(model)) ||
     providerId === 'anthropic' ||
     providerId === 'azure-anthropic' ||
     providerId === 'bedrock' ||

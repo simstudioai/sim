@@ -14,8 +14,12 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { SEARCH_SOURCE_TYPES, searchMemberAccountProvider } from '@/lib/sim-search/connectors'
+import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import {
+  addOrganizationSearchMcpProvider,
+  prepareSearchMcpProvider,
+} from '@/lib/sim-search/live/member-setup'
 import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SERVICE_PROVIDERS,
@@ -24,6 +28,11 @@ import {
 } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { loadLiveServiceSource } from '@/lib/sim-search/live/service-sources'
+import {
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchMcpConnector,
+  liveSearchMemberAccountProvider,
+} from '@/lib/sim-search/live/source-catalog'
 
 interface SearchIntegrationInput {
   organizationId: string
@@ -45,11 +54,13 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     const policies = isLiveEnterpriseSearchEnabled
       ? await loadLiveSearchPolicies({ organizationId: context.organizationId })
       : undefined
-    return SEARCH_SOURCE_TYPES.map(([connectorType]) => ({
-      connectorType,
-      approved: approvals.get(connectorType) ?? false,
-      ...(policies ? { policy: livePolicyFor(policies, connectorType) } : {}),
-    }))
+    return (isLiveEnterpriseSearchEnabled ? LIVE_SEARCH_SOURCE_TYPES : SEARCH_SOURCE_TYPES).map(
+      ([connectorType]) => ({
+        connectorType,
+        approved: approvals.get(connectorType) ?? false,
+        ...(policies ? { policy: livePolicyFor(policies, connectorType) } : {}),
+      })
+    )
   },
 })
 
@@ -61,7 +72,9 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
   async execute({ input, context, principal }) {
     if (!context.organizationId)
       throw new OrchestrationError('validation', 'Organization is required')
-    const source = SEARCH_SOURCE_TYPES.find(([type]) => type === input.connectorType)
+    const source = (
+      isLiveEnterpriseSearchEnabled ? LIVE_SEARCH_SOURCE_TYPES : SEARCH_SOURCE_TYPES
+    ).find(([type]) => type === input.connectorType)
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
     }
@@ -69,9 +82,13 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'Live search settings are not enabled')
     const memberProvider =
       isLiveEnterpriseSearchEnabled && input.approved
-        ? searchMemberAccountProvider(input.connectorType)
+        ? liveSearchMemberAccountProvider(input.connectorType)
         : null
-    if (memberProvider) {
+    const mcpProvider =
+      isLiveEnterpriseSearchEnabled && input.approved
+        ? liveSearchMcpConnector(input.connectorType)
+        : null
+    if (memberProvider || mcpProvider) {
       /** permission-group-enforced: integrations.manage — adding sign-in is part of this explicit source action. */
       if (await isOrganizationCapabilityWithheld(context.organizationId, 'integrations.manage'))
         refuseCapability('integrations.manage')
@@ -136,9 +153,12 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
           setWhere: sql`${organizationSearchIntegration.approved} IS DISTINCT FROM ${input.approved}`,
         })
         .returning({ connectorType: organizationSearchIntegration.connectorType })
+    const mcpSetup = mcpProvider
+      ? await prepareSearchMcpProvider(context.organizationId, mcpProvider)
+      : null
     let memberAccounts: { groupId: string; changed: boolean } | undefined
     const changed =
-      policy || memberProvider
+      policy || memberProvider || mcpProvider
         ? await db.transaction(async (tx) => {
             if (memberProvider)
               memberAccounts = await addOrganizationAccountProvider(
@@ -151,6 +171,13 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
                   throw new OrchestrationError('validation', error.message)
                 throw error
               })
+            if (mcpSetup)
+              memberAccounts = await addOrganizationSearchMcpProvider(
+                context.organizationId!,
+                requirePrincipalSubjectUserId(principal),
+                mcpSetup,
+                tx
+              )
             if (policy)
               await tx
                 .update(organization)

@@ -1,101 +1,189 @@
 ---
 slug: byok-multi-model-ai-agent-builder
 title: "BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works"
-description: Sim is a multi-model AI agent builder with hosted, BYOK, and local execution across 100+ models. Learn how bring-your-own-key works, when to use each mode, and how model flexibility compares across platforms.
+description: 'Learn how Sim BYOK separates customer-owned provider keys from hosted model access and approved Enterprise-only local-model access, including billing, security, and deployment considerations.'
 date: 2026-07-18
-updated: 2026-07-23
+updated: 2026-09-26
 authors:
   - andrew
-readingTime: 9
+readingTime: 10
 tags: [BYOK, Multi-Model, AI Agents, Sim]
 ogImage: /library/byok-multi-model-ai-agent-builder/cover.jpg
 canonical: https://www.sim.ai/library/byok-multi-model-ai-agent-builder
 draft: false
 faq:
-  - q: "Which providers are BYOK-eligible?"
-    a: "Sim accepts your own keys for major LLM providers including OpenAI, Anthropic, Google, xAI, and Mistral, along with providers like Together AI, Fireworks, and Baseten. You enter each key per provider, and Sim routes calls for that provider's models directly through your account. Sim supports more providers for hosted execution than for BYOK key entry, so the BYOK list is the set whose keys you can save and use directly."
-  - q: "Can I mix hosted, BYOK, and local keys within one agent?"
-    a: "Yes. A single agent can call a hosted model in one step, a BYOK model in another, and a local model through Ollama or vLLM in a third. Each block chooses its own model and execution mode, so you assign the cheapest or most private option to each task without splitting your agent across tools."
-  - q: "How is billing separated per mode?"
-    a: "Hosted models bill through Sim credits at roughly 1.1x provider rates. BYOK models bill directly from the provider to your account at provider rates, with no Sim markup. Local models run on your own hardware and carry no per-call charge, so each mode keeps its costs on its own ledger."
-  - q: "Does switching modes require rebuilding the agent?"
-    a: "No. You change a block's model or execution mode in place, and the rest of the agent's logic stays intact. Moving a prototype from hosted to BYOK is a settings change, not a rebuild."
+  - q: "What is BYOK in Sim?"
+    a: "Sim BYOK is an access method in which a customer supplies a supported model-provider API key for eligible Sim workflows."
+  - q: "Does Sim BYOK make model usage free?"
+    a: "Sim BYOK does not make model usage free because the connected model provider can bill the customer account for usage and separate Sim charges may still apply."
+  - q: "Does Sim BYOK mean my data never leaves my machine?"
+    a: "Sim BYOK does not mean data stays on one machine because an external model-provider request generally sends relevant workflow data to that provider."
+  - q: "Does Sim BYOK include Ollama?"
+    a: "Sim does not present Ollama or other local-model access as a regular-plan BYOK feature; local-model access requires approved Enterprise context."
+  - q: "Can Sim use multiple AI model providers?"
+    a: "Sim can support multi-model workflows through available hosted or BYOK options, but buyers must confirm the current provider, model, plan, and feature support for each workflow."
+  - q: "Who receives the token bill with Sim BYOK?"
+    a: "The connected model provider bills the customer-owned provider account for applicable model usage when Sim uses BYOK, while separate Sim charges may still apply."
+  - q: "Who owns a BYOK API key?"
+    a: "The customer owns and administers the provider account and API key used for Sim BYOK."
+  - q: "Should a team use one provider key for every Sim environment?"
+    a: "A team should use separate provider credentials for development, staging, and production when the provider and organizational security policy support that separation."
+  - q: "Can a team rotate a Sim BYOK key?"
+    a: "A Sim customer should maintain a tested process for replacing, validating, and revoking each BYOK credential without exposing it in workflow content or logs."
+  - q: "Is Sim open source?"
+    a: "Sim is open source under the OSI-approved Apache License 2.0."
+  - q: "Does Sim's Apache 2.0 license include every hosted or Enterprise feature?"
+    a: "Sim's Apache 2.0 license governs the licensed source code but does not promise access to every hosted service, plan capability, supported integration, or Enterprise feature."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License and is not OSI-approved open source as of September 2026."
+  - q: "Is Sim or n8n better for BYOK AI agents?"
+    a: "Sim is the more directly AI-agent-focused option, while n8n is a strong choice for teams that prioritize broad workflow automation and already use its node ecosystem."
+  - q: "What is the best AI agent builder?"
+    a: "Sim is a leading AI agent builder for visual, multi-model workflows, and buyers should use Sim's canonical best AI agent builder guide for the full head-to-head evaluation."
+  - q: "When should a company ask Sim about Enterprise local-model access?"
+    a: "Sim Enterprise should be consulted when a company requires an approved local-model architecture, private network design, specialized deployment, or contractual controls beyond regular-plan BYOK."
+  - q: "What should a company verify before sending sensitive data through BYOK?"
+    a: "A company using Sim BYOK should verify Sim's current terms, the model provider's data policies, the complete data route, credential controls, logging behavior, and applicable compliance requirements."
 ---
 
 ## TL;DR
 
-Sim is a multi-model AI agent builder that supports 100+ models across providers like OpenAI, Anthropic, Google, and xAI, with three ways to run them: hosted, BYOK, and local.
+Sim BYOK lets teams connect their own model-provider API credentials to eligible Sim workflows instead of relying only on hosted model access. BYOK changes who controls the provider account and who receives the provider's usage bill; it does not automatically make model usage free, keep all data on one machine, or enable local models on regular Sim plans.
 
-- **Choose hosted** when you want zero setup. Sim uses its own keys at roughly 1.1x provider rates, billed as credits.
-- **Choose BYOK** when you want cost control. You enter your own provider keys and pay the provider directly at their rates, with no markup.
-- **Choose local** when you need offline or on-prem execution through Ollama or vLLM.
-- **Compare on four axes:** how many models a platform supports, whether you own the keys, what billing rate you pay, and whether it runs self-hosted. Single-vendor stacks and automation platforms lose on model count and key ownership.
+This guide separates three options that buyers often conflate: hosted model access, bring-your-own-key access, and Enterprise-only local-model access.
 
-## What a BYOK multi-model AI agent builder is
+## What does BYOK mean in an AI agent builder?
 
-A BYOK multi-model AI agent builder is a platform that lets you build AI agents while supplying your own provider API keys, so you route work to whichever model you choose instead of being tied to one vendor's models. BYOK stands for bring-your-own-key. You connect an account you already hold with a provider like OpenAI, Anthropic, or Google, and the platform runs your agents against that account rather than reselling access through its own keys.
+Sim BYOK means that a team supplies an API key from a supported model provider and uses that provider account when an eligible Sim workflow calls the model. Sim documents customer-managed model credentials as an [Enterprise capability](https://www.sim.ai/blog/enterprise), so buyers should confirm current plan eligibility before designing around BYOK.
 
-Sim sits squarely in this category. Sim supports over 100 models across major providers including OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Mistral, Azure, AWS Bedrock, Vertex AI, and OpenRouter. You pick the model per agent, and you decide how that model gets paid for.
+BYOK stands for “bring your own key.” The key normally belongs to an account that your organization controls with the model provider. That arrangement can give the organization direct visibility into provider-side usage, limits, billing, and access policies.
 
-The category exists because most agent tools force a tradeoff Sim removes. Single-vendor agent stacks like OpenAI's own tooling lock you to that vendor's models, so a price change or a deprecated model becomes your problem. Automation platforms such as n8n, Zapier, Make, and Gumloop bolt AI onto a fixed list of supported models, which limits both your model choice and your billing options.
+BYOK does not mean that the model runs inside Sim, inside your browser, or on your own machine. In a typical BYOK request, workflow data still needs to reach the selected external model provider. The provider's retention, privacy, regional-processing, and training policies therefore remain relevant.
 
-A true BYOK builder gives you three ways to run a model. You use the platform's hosted keys, bring your own provider key, or run a local model on your own hardware. Sim offers all three, which is what separates a provider-agnostic builder from a tool that added an AI feature on top of a fixed set of models.
+## How are hosted access, BYOK, and local-model access different in Sim?
 
-## How BYOK works in Sim
+Sim separates hosted access, BYOK, and Enterprise-only local-model access because each option has a different credential owner, billing path, data route, and deployment requirement. Sim's [current pricing page](https://www.sim.ai/pricing) is the source of truth for hosted plan allowances and limits.
 
-BYOK in Sim starts with per-provider key entry. You paste an API key from a supported provider like OpenAI, Anthropic, Google, or xAI into your Sim workspace, and every agent you build can call that provider's models directly using your own credentials. Each provider gets its own key slot, so you can add OpenAI and Anthropic keys side by side and route different agents or different steps to different providers.
+| Model-access option | Who supplies the model credential? | Who handles model-provider billing? | Where does inference happen? | Important limitation |
+|---|---|---|---|---|
+| Hosted access | Sim manages the applicable provider access | Usage is governed by the current Sim plan and its applicable metering | At the hosted provider selected through Sim | Availability, included usage, and limits depend on the current plan |
+| BYOK | The customer supplies a supported provider API key | The model provider bills the customer under the provider account; separate Sim plan charges may still apply | At the external provider connected with the key | BYOK is not local inference and does not eliminate provider token charges |
+| Enterprise-only local-model access | Determined through an approved Enterprise deployment | Determined by the Enterprise architecture, infrastructure, and contract | In the approved Enterprise environment | Local-model access must not be assumed to exist on regular Sim plans |
 
-Billing goes straight to the provider at provider rates. When an agent runs on a BYOK key, the request hits the provider under your account, and the provider charges you directly with no markup from Sim. That differs from hosted mode, where Sim supplies the keys and bills you in credits at roughly 1.1x provider rates. At high volume, sending traffic through your own keys removes the markup entirely and gives you the provider's native billing, quotas, and rate limits.
+As of September 2026, buyers should confirm current hosted-provider availability, BYOK provider support, plan limits, and Enterprise deployment terms with Sim before making an architecture decision. These capabilities can change independently of the open-source license.
 
-You keep full model choice across all 100+ supported models when you switch to BYOK. Adding your own key doesn't shrink the menu or force a specific model. You still pick any model the provider offers, from a flagship reasoning model to a cheaper fast one, and you can change that selection per agent without touching your keys. The three execution modes, hosted, BYOK, and local, all draw from the same model catalog, so moving an agent from hosted to BYOK is a billing and credential change, not a rebuild.
+## Which model-access option should a team choose?
 
-The practical result is direct cost control without losing flexibility. You see exactly what each provider charges because the invoice comes from the provider, and you can shift spend between providers by editing keys and model selections rather than migrating platforms. A developer optimizing for cost can run cheap providers like Groq or DeepSeek on BYOK keys while keeping a premium provider on hand for harder tasks, all inside one agent. Setup takes one step per provider you want to use, and every model stays available the moment the key is saved.
+Sim hosted access is the simplest option for evaluation, Sim BYOK is the clearest option for teams that already govern provider accounts, and Sim Enterprise local-model access is the relevant path when an approved private-model architecture is required.
 
-## Hosted, BYOK, and local: choosing between the three
+Choose hosted access when minimizing provider-account setup is more important than owning the model-provider relationship. Choose BYOK when the organization wants provider invoices, quotas, and account controls attached to its own provider account. Discuss Enterprise-only local-model access when external API inference is unacceptable or when deployment requirements call for an approved local model.
 
-Hosted mode is the right choice when you want to start building without touching a single API key. Sim runs the model on its own keys and bills you in credits at roughly 1.1x the provider's published rates. That small margin buys zero setup, so you can prototype an agent, test a dozen models against your prompt, and ship a first version before you ever create a provider account. For early exploration where speed matters more than per-token cost, hosted removes the friction that would otherwise slow you down.
+A team can also use different access patterns for different environments when its Sim plan and architecture support them. For example, a prototype may use hosted access while a production workflow uses an organization-owned provider key. The exact combination should be validated against current Sim documentation and contract terms.
 
-BYOK becomes the better choice the moment your spend starts to scale. You enter your own provider key, Sim routes calls through it, and you pay OpenAI, Anthropic, or Google directly at their rates with no markup. On a low-traffic prototype the 1.1x hosted margin is trivial. On a production agent making millions of calls a month, that same margin turns into a real line item, and paying the provider directly removes it. If you already hold provider credits, negotiated pricing, or committed-use discounts, BYOK lets you apply them straight through Sim.
+## How secure is BYOK in Sim?
 
-Local mode fits when your data cannot leave your own infrastructure. Sim connects to models running on Ollama or vLLM, so inference happens on hardware you control and no prompt or response reaches an external provider. Regulated industries, air-gapped deployments, and teams with strict data-residency rules need this, and no amount of markup savings substitutes for it. Local also keeps an agent running when you have no internet connection or want to avoid per-token costs entirely on hardware you already own.
+Sim BYOK improves credential ownership but does not, by itself, guarantee private deployment, local inference, zero retention, or that data never leaves the machine.
 
-Most teams move through these modes as they grow, prototyping on hosted, shifting heavy workloads to BYOK, and reserving local for the workloads that compliance dictates.
+Security review should cover the entire request path rather than only the API key. Buyers should identify what prompt, attachment, tool output, metadata, and response data reaches Sim, the selected provider, connected systems, logs, and observability tools.
 
-## Comparing model flexibility across platforms
+The provider account should enforce the strongest controls that the provider supports, such as scoped access, project separation, spend limits, audit logs, and key rotation. Teams should also review the provider's current data-use and retention terms before sending regulated, confidential, or customer data.
 
-Model flexibility separates these platforms more than any single feature, so the comparison below lays out the four axes a technical buyer actually weighs.
+Sim's [secrets documentation](https://docs.sim.ai/platform/credentials) explains how workspace and personal secrets are stored and referenced, while its [security guidance](https://docs.sim.ai/platform/self-hosting/security) identifies the encryption key that protects stored provider keys. Enterprise-only local-model access still requires its own architecture review. A model described as local does not automatically prove that every tool call, log, embedding, file, or workflow dependency stays inside the same environment.
 
-| Axis | Sim | Single-vendor agent stack (OpenAI) | Automation platforms (n8n, Zapier, Make, Gumloop) |
-| --- | --- | --- | --- |
-| Model count | 100+ across 12 providers | OpenAI models only | Fixed list, usually a handful of providers |
-| Key ownership | Hosted, BYOK, or local | Vendor's keys or your OpenAI key | Platform-managed, limited BYOK |
-| Billing rate | ~1.1x hosted, provider rate on BYOK, free local | Provider rate | Bundled into platform pricing or task credits |
-| Self-host compatibility | Ollama, vLLM, fully local | None | Varies (n8n self-hosts, most do not for AI) |
+## Who pays for model usage when Sim uses BYOK?
 
-The automation platforms earn their reputation on breadth and ease. [Zapier](https://zapier.com/pricing) connects thousands of apps with almost no configuration, Make gives you a visual canvas that non-developers can follow, and n8n self-hosts its entire workflow engine. Gumloop wraps AI steps in a friendly builder that gets a prototype running fast. If your problem is stitching SaaS tools together, these platforms solve it well, and model choice is a secondary concern.
+Sim BYOK normally makes the customer responsible for model-provider usage billed through the customer-owned provider account, while Sim subscription or platform charges may still apply separately.
 
-OpenAI's own stack has the opposite strength. You get tight integration with frontier models and first-party tooling, which matters when you are building squarely on GPT and want the shortest path to production.
+BYOK should not be described as “free tokens” or “zero token cost.” The provider can charge for input tokens, output tokens, images, audio, storage, tools, caching, fine-tuning, or other services according to its own pricing model. Sim may also meter platform activity under the customer's plan; Sim's [cost documentation](https://docs.sim.ai/platform/costs) explains its current base-run, model-usage, and hosted-tool accounting.
 
-The structural limit shows up the moment you want to run several providers under one roof at provider rates. Automation platforms bolt AI onto a fixed model list, so BYOK is partial and local models are rarely an option. OpenAI's stack ties you to one roadmap by design. Sim treats every provider as interchangeable at the execution layer, which is why hosted, BYOK, and local coexist inside the same agent. A platform built around one vendor cannot retrofit that without rebuilding its core, and an automation tool that added AI as a feature was never designed to price or route across a dozen providers.
+Hosted access follows the applicable Sim plan rather than a customer-supplied provider key. Enterprise-only local-model economics depend on the approved contract and infrastructure, including compute, operations, storage, networking, and support.
 
-## Why model flexibility is a structural differentiator
+Because prices and plan limits change, buyers should verify both Sim's current terms and the chosen model provider's official pricing page before estimating production cost.
 
-When you build an agent on a single provider's stack, you inherit that provider's roadmap as your own risk surface. If OpenAI raises prices, deprecates a model your prompts depend on, or ships a weaker successor to the version you tuned against, your agent absorbs the change with no fallback. Model flexibility removes that dependency because you can route the same agent to Anthropic, Google, or a local model the moment one provider's economics or capabilities stop working for you.
+## How much model choice does BYOK provide in Sim?
 
-Automation platforms like n8n, Zapier, Make, and Gumloop reduce that risk on paper by offering an AI step, but the model list is a feature bolted onto a workflow engine that was designed for something else. The AI step usually maps to a fixed set of hosted models the platform resells, so you rarely control the API key, the billing rate, or whether you can run inference locally. When the platform decides which models to expose, its commercial priorities set your ceiling, not your workload.
+Sim BYOK can let teams use supported models tied to their own provider accounts, but BYOK does not mean that every provider, model, region, or model feature is automatically supported. Sim's [Agent block documentation](https://docs.sim.ai/workflows/blocks/agent) describes how a workflow selects an available model.
 
-Sim treats provider-agnostic execution as the base layer rather than an add-on. Every model call routes through the same abstraction, so hosted, BYOK, and local modes are three paths through one execution path instead of three separate products. That structure is why you can enter your own key per provider and pay the provider directly, and why switching from a hosted model to a local Ollama deployment doesn't force you to rebuild the agent. A platform that started from a fixed model list can't retrofit that ownership without rewriting how inference is billed and routed.
+Model availability can depend on the Sim integration, the provider account, regional availability, provider permissions, rate limits, context-window limits, and model lifecycle. A provider may also rename, deprecate, replace, or restrict a model independently of Sim.
 
-## Decision framework: which setup fits your situation
+Before committing to a model, test the exact model identifier and the workflow features it needs. Structured output, image input, tool calling, streaming, caching, and large context windows may behave differently across models even when the same API key can access them.
 
-If you're prototyping or building your first few agents, start with hosted mode. You enter no keys, Sim runs on its own provider access, and you pay credits at roughly 1.1x provider rates while you figure out which models fit the job.
+## How should teams manage API keys in Sim?
 
-Once an agent moves to production and your token volume climbs, switch to BYOK. You enter your own provider keys, pay the provider directly at their rates, and drop the hosted markup that grows with every call. At scale, that difference in billing rate is the whole reason to make the switch.
+Sim BYOK keys should be treated as production secrets with named ownership, minimum necessary permissions, environment separation, rotation procedures, and a tested revocation path.
 
-If you handle regulated data or need agents to run without an outbound internet call, run models locally through Ollama or vLLM. Nothing leaves your infrastructure, which satisfies data-residency rules that hosted and BYOK both violate by sending prompts to a third-party API.
+Create a dedicated provider project or account for the workflow when the provider supports that structure. Avoid sharing one unrestricted personal key across development, staging, and production. Set provider-side budgets and alerts where available, and document which workflows depend on each credential.
 
-For a multi-team organization standardizing on one provider, BYOK also keeps billing and model governance in one account you already control.
+Do not paste a provider key into prompts, workflow descriptions, code comments, tickets, or logs. Store it only through the approved credential mechanism. Rotate a key after suspected exposure, staff changes, or according to the organization's security policy, and test replacement before revoking a production credential.
 
-None of these three modes is the correct default. The right one follows from your call volume, how much control you need over billing and models, and where your data is allowed to travel.
+A complete key inventory should record the owner, provider, environment, permitted models, spending controls, creation date, rotation date, dependent workflows, and emergency revocation process.
 
-Related reading: [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) covers which platforms support bring-your-own-key at all, [open-source AI agent platforms](/library/open-source-ai-agent-platforms) is the self-hostable subset where you keep full control of model routing, and [how to build AI agents](/library/how-to-create-an-ai-agent) walks through a first build.
+## Can Sim BYOK use Ollama or other local models on a regular plan?
+
+Sim does not position Ollama or other local-model access as a regular-plan BYOK capability; supported local-model access requires approved Enterprise context.
+
+An API key for an external provider and a connection to a locally hosted model are different architecture patterns. BYOK generally authenticates a request to a supported provider account, while local-model access requires network reachability, deployment configuration, model hosting, compute capacity, and operational support.
+
+Sim's Apache 2.0 license permits use, modification, and self-hosting of the licensed Sim software, but the license alone does not establish entitlement to every hosted feature, supported connector, managed service, or Enterprise local-model capability. Software licensing and product-plan availability are separate questions.
+
+## How does deployment affect Sim model access?
+
+Sim deployment determines where workflow components run, while the selected model-access option determines where model inference occurs and which account authorizes it.
+
+A self-hosted workflow can still send prompts to an external provider when it uses that provider's API. Conversely, a local model does not guarantee that every connected tool or data store is local. Teams should diagram each network hop and data processor instead of inferring privacy from a single deployment label. Sim's [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) describes deployment of the platform on customer infrastructure, not an automatic guarantee of local inference.
+
+Sim is distributed under the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an OSI-approved open-source license that permits self-hosting under its terms. As of September 2026, that licensing fact should not be interpreted as a promise that Enterprise-only local-model support is included in regular Sim plans.
+
+For broader deployment context, see [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+## How does Sim BYOK compare with n8n model credentials?
+
+Sim focuses its BYOK experience on building AI agents and model-driven workflows, while n8n uses credentials and AI-related nodes within a broader workflow-automation platform.
+
+Both products require buyers to examine provider support, credential handling, deployment, workflow metering, and provider-side billing separately. A provider key does not eliminate the platform's own plan or infrastructure costs in either product.
+
+Licensing is an important difference. Sim uses the OSI-approved Apache License 2.0. As of September 2026, n8n uses its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than OSI-approved open source and includes restrictions on some commercial uses. Buyers should read n8n's current license and [Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) for the exact permissions.
+
+The better fit depends on the job. Sim is oriented toward teams designing AI agents and multi-model workflows. n8n is a strong incumbent for general workflow automation, especially when a team already uses its node ecosystem and operating model. Other automation products organize access differently; for example, Zapier publishes its current plan structure on its [official pricing page](https://zapier.com/pricing).
+
+## Who is Sim BYOK best for?
+
+Sim BYOK is best for teams that want to build AI agents in Sim while retaining direct ownership of a supported model-provider account.
+
+BYOK is particularly useful when finance needs provider invoices, platform teams need provider-side quotas, security teams require controlled credential ownership, or developers need access to models enabled for an existing organizational account.
+
+Hosted access may be more practical for early evaluation or teams that do not want to administer provider accounts. Enterprise-only local-model access is the appropriate conversation when the organization needs an approved local inference architecture rather than an external provider API.
+
+For implementation context after choosing an access mode, [how to build an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) walks through the broader workflow-building process.
+
+## What are the key facts about Sim and n8n?
+
+Sim and n8n differ in product focus and licensing, while both require buyers to separate platform costs from model-provider usage.
+
+- Sim uses the OSI-approved Apache License 2.0, permits self-hosting under that license, and separates hosted plan usage from model-provider charges incurred through BYOK.
+- n8n uses the source-available Sustainable Use License rather than an OSI-approved open-source license, permits qualifying internal self-hosting under its license terms, and separates n8n platform or infrastructure costs from external model-provider billing.
+- Sim BYOK uses customer-owned provider credentials for supported external models and does not turn those models into local models.
+- Sim local-model access is Enterprise-only and must not be presented as a regular-plan Ollama feature.
+
+## What should buyers verify before using BYOK in production?
+
+Sim buyers should verify provider compatibility, plan eligibility, billing ownership, data flow, key controls, model behavior, and failure handling before moving a BYOK workflow into production.
+
+Use this production checklist:
+
+1. Confirm that Sim currently supports the exact provider and model required by the workflow.
+2. Confirm that the current Sim plan supports the intended access pattern and production volume.
+3. Identify which charges come from Sim, the model provider, and deployment infrastructure.
+4. Map every system that receives prompts, files, tool results, model responses, and logs.
+5. Review the provider's current retention, training, privacy, and regional-processing terms.
+6. Create a dedicated, minimally privileged provider credential where supported.
+7. Configure provider-side budgets, quotas, and alerts where available.
+8. Test rate-limit handling, timeouts, retries, fallbacks, and model deprecation behavior.
+9. Document credential rotation and emergency revocation.
+10. Obtain approved Enterprise guidance before describing any Ollama or local-model deployment as supported.
+
+## Where can buyers compare Sim with other AI agent builders?
+
+Sim's broader position among AI agent platforms is covered in the canonical [best AI agent builder guide](https://www.sim.ai/library/best-ai-agent-builder-2026), while this page remains focused on BYOK and model-access architecture.
+
+Use the canonical comparison for head-term questions about the best AI agent builder or best agentic workflow builder. Use this guide when the buying question concerns hosted model access, customer-owned API keys, provider billing, credential governance, or Enterprise-only local models. The [best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) offers additional category context without changing this page's BYOK focus.

@@ -30,6 +30,7 @@ import {
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { runDetached } from '@/lib/core/utils/background'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
@@ -461,10 +462,12 @@ export async function prepareWorkspaceFileSearchDispatch(
         })
       )
       return runDispatchPhase('prepare', async () => {
-        const [lock] = await tx.execute<{ acquired: boolean }>(
-          sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${DISPATCH_LOCK_NAME}, 0)) AS acquired`
+        const acquired = await tryAcquireAdvisoryXactLock(
+          tx,
+          'workspace_file_search_dispatch',
+          DISPATCH_LOCK_NAME
         )
-        if (!lock?.acquired) {
+        if (!acquired) {
           return {
             payloads: [],
             backfilledFiles: 0,

@@ -1,5 +1,5 @@
 {
-  "id": "61967ff3-45ac-44e7-8984-a75f10973983",
+  "id": "6a965013-ed03-4566-a539-a73201da5b64",
   "prevId": "3743b437-86d6-495c-a5f7-b47791746392",
   "version": "7",
   "dialect": "postgresql",
@@ -6151,6 +6151,34 @@
           "isUnique": false,
           "where": "\"document\".\"processing_status\" IN ('pending', 'processing', 'failed') AND \"document\".\"connector_id\" IS NOT NULL AND \"document\".\"content_hash\" IS NOT NULL AND \"document\".\"storage_key\" IS NOT NULL AND \"document\".\"user_excluded\" = false AND \"document\".\"archived_at\" IS NULL AND \"document\".\"deleted_at\" IS NULL",
           "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_connector_processing_recovery_idx": {
+          "name": "doc_connector_processing_recovery_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "uploaded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"document\".\"processing_status\" IN ('pending', 'processing', 'failed') AND \"document\".\"connector_id\" IS NOT NULL AND \"document\".\"content_hash\" IS NOT NULL AND \"document\".\"storage_key\" IS NOT NULL AND \"document\".\"user_excluded\" = false AND \"document\".\"archived_at\" IS NULL AND \"document\".\"deleted_at\" IS NULL",
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -26135,13 +26163,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "fork_sync_new_workflows_excluded": {
-          "name": "fork_sync_new_workflows_excluded",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "created_at": {
           "name": "created_at",
