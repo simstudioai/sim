@@ -866,6 +866,7 @@ async function runWorkflowAndWriteTerminal(
               triggerType: 'workflow',
               checkDeployment: false,
               checkRateLimit: false,
+              includeActorSubscription: true,
               skipConcurrencyReservation: true,
               logPreprocessingErrors: false,
               billingAttribution,

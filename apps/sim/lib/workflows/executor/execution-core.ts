@@ -22,7 +22,10 @@ import {
 import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
-import { getExecutionEnvironment } from '@/lib/environment/utils'
+import {
+  type EnvironmentResolutionSnapshot,
+  getExecutionEnvironment,
+} from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { getStoredFileReferenceScope, processInputFileFields } from '@/lib/execution/files'
@@ -114,6 +117,14 @@ function describeErrorCause(error: unknown): Record<string, unknown> | undefined
   }
 }
 
+/** An execution environment together with the identities it was resolved for. */
+export interface PreloadedExecutionEnvironment {
+  personalUserId: string | undefined
+  workspaceUserId: string
+  workspaceId: string
+  snapshot: EnvironmentResolutionSnapshot
+}
+
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
@@ -129,6 +140,12 @@ export interface ExecuteWorkflowCoreOptions {
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
   resumeDeploymentVersionId?: string
+  /**
+   * Environment the caller already resolved for this run, reused instead of loading
+   * and decrypting it again. Used only when it was resolved for exactly the
+   * identities and workspace this run resolves its environment for.
+   */
+  preloadedEnvironment?: PreloadedExecutionEnvironment
   /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
   runFromBlock?: {
     startBlockId: string
@@ -432,6 +449,126 @@ async function finalizeExecutionError(params: {
   return finalized
 }
 
+interface ExecutionEnvironmentIdentities {
+  /** Undefined for an anonymous public-API run, which lends no personal namespace. */
+  personalEnvUserId: string | undefined
+  workspaceEnvUserId: string
+}
+
+/** Whose personal and workspace variables this run resolves; throws on incomplete metadata. */
+function resolveExecutionEnvironmentIdentities(
+  metadata: ExecutionSnapshot['metadata']
+): ExecutionEnvironmentIdentities {
+  /**
+   * Personal variables belong to whoever is running, whenever that is knowable.
+   * `enforceCredentialAccess` is the principal layer's own answer to "is there
+   * an identifiable caller": it is set from `principal.kind !== 'workspace_api_key'`,
+   * so a session, personal API key, or delegated run reads its own personal
+   * variables rather than borrowing the workflow owner's.
+   *
+   * The workflow owner remains the fallback for a workspace API key, schedule,
+   * or webhook. Someone in the workspace configured each of those, and a
+   * deployed workflow is routinely authored against its owner's personal keys.
+   *
+   * An anonymous public-API run resolves no personal variables at all. Anyone
+   * can call that endpoint, so there is no caller to read as and no person whose
+   * private namespace it would be reasonable to lend — such a workflow runs on
+   * workspace secrets alone.
+   */
+  const identifiedCallerUserId =
+    (metadata.isClientSession && metadata.sessionUserId) ||
+    (metadata.enforceCredentialAccess ? metadata.userId : undefined)
+
+  const personalEnvUserId = metadata.isPublicApiAccess
+    ? undefined
+    : identifiedCallerUserId || metadata.workflowUserId
+
+  if (!metadata.isPublicApiAccess && !personalEnvUserId) {
+    throw new Error('Missing workflowUserId in execution metadata')
+  }
+
+  /**
+   * The actor already carries the identity each trigger kind should authorize
+   * workspace secrets against: the caller for a session, personal API key, or
+   * delegated principal, and the workspace billing account for a workspace API
+   * key, schedule, webhook, or anonymous public-API call, where no caller is
+   * identifiable. Deriving it again here would only risk disagreeing with the
+   * principal layer.
+   */
+  const workspaceEnvUserId = metadata.userId || personalEnvUserId
+  if (!workspaceEnvUserId) {
+    throw new Error('Missing execution actor in execution metadata')
+  }
+
+  return { personalEnvUserId, workspaceEnvUserId }
+}
+
+function readPiiPolicyRow(workspaceId: string) {
+  return db
+    .select({ orgSettings: organization.dataRetentionSettings })
+    .from(workspace)
+    .leftJoin(organization, eq(organization.id, workspace.organizationId))
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+    .then(([row]) => row)
+}
+
+/**
+ * Reads that depend only on who the run is and which workspace it runs in, so they
+ * can start before the custom-block overlay is resolved.
+ */
+interface ExecutionReads {
+  environment: Promise<EnvironmentResolutionSnapshot>
+  /**
+   * The org/workspace PII redaction policy, resolved once for both the input stage
+   * and the block-outputs stage. Stored rules are the source of truth; absence
+   * yields the disabled default.
+   */
+  piiPolicyRow: Promise<Awaited<ReturnType<typeof readPiiPolicyRow>>>
+}
+
+function startExecutionReads(
+  options: ExecuteWorkflowCoreOptions,
+  workspaceId: string,
+  { personalEnvUserId, workspaceEnvUserId }: ExecutionEnvironmentIdentities
+): ExecutionReads {
+  const { preloadedEnvironment } = options
+  const environment =
+    preloadedEnvironment &&
+    preloadedEnvironment.personalUserId === personalEnvUserId &&
+    preloadedEnvironment.workspaceUserId === workspaceEnvUserId &&
+    preloadedEnvironment.workspaceId === workspaceId
+      ? Promise.resolve(preloadedEnvironment.snapshot)
+      : withDatabaseReadRetry(
+          () => getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, workspaceId),
+          { label: 'getExecutionEnvironment' }
+        )
+  const piiPolicyRow = withDatabaseReadRetry(() => readPiiPolicyRow(workspaceId), {
+    label: 'resolvePiiRedactionPolicy',
+  })
+  // Awaited later by the run; a run that fails first must not leave them unhandled.
+  environment.catch(() => {})
+  piiPolicyRow.catch(() => {})
+  return { environment, piiPolicyRow }
+}
+
+/**
+ * Starts the run's identity-scoped reads ahead of the overlay. Metadata that cannot
+ * name those identities starts nothing here: the run itself rejects it, inside its
+ * own error handling.
+ */
+function prefetchExecutionReads(options: ExecuteWorkflowCoreOptions): ExecutionReads | undefined {
+  const { metadata } = options.snapshot
+  if (!metadata.workspaceId) return undefined
+  let identities: ExecutionEnvironmentIdentities
+  try {
+    identities = resolveExecutionEnvironmentIdentities(metadata)
+  } catch {
+    return undefined
+  }
+  return startExecutionReads(options, metadata.workspaceId, identities)
+}
+
 /**
  * Establish the custom-block registry overlay for the execution's organization,
  * then run the core. Wrapping here — the shared choke point for the sync route and
@@ -452,22 +589,29 @@ export async function executeWorkflowCore(
 ): Promise<ExecutionResult> {
   connectExecutionSignalHub()
   const workspaceId = options.snapshot.metadata.workspaceId
-  const rows = workspaceId
-    ? await withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {
-        label: 'getCustomBlockRowsForWorkspace',
-      })
-    : []
-  const execute = () => withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
-  if (!isOutboundRoutingEnabled()) return execute()
-  const context = await resolveActiveWorkflowApplicationContext({
-    workflowId: options.snapshot.metadata.workflowId,
-    assertedWorkspaceId: workspaceId,
-  })
-  return runWithOutboundOrganization(context.workspaceOrganizationId, execute)
+  const prefetchedReads = prefetchExecutionReads(options)
+  const [rows, outboundContext] = await Promise.all([
+    workspaceId
+      ? withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {
+          label: 'getCustomBlockRowsForWorkspace',
+        })
+      : [],
+    isOutboundRoutingEnabled()
+      ? resolveActiveWorkflowApplicationContext({
+          workflowId: options.snapshot.metadata.workflowId,
+          assertedWorkspaceId: workspaceId,
+        })
+      : undefined,
+  ])
+  const execute = () =>
+    withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options, prefetchedReads))
+  if (!outboundContext) return execute()
+  return runWithOutboundOrganization(outboundContext.workspaceOrganizationId, execute)
 }
 
 async function executeWorkflowCoreImpl(
-  options: ExecuteWorkflowCoreOptions
+  options: ExecuteWorkflowCoreOptions,
+  prefetchedReads: ExecutionReads | undefined
 ): Promise<ExecutionResult> {
   const {
     snapshot,
@@ -529,46 +673,9 @@ async function executeWorkflowCoreImpl(
   }
 
   try {
-    /**
-     * Personal variables belong to whoever is running, whenever that is knowable.
-     * `enforceCredentialAccess` is the principal layer's own answer to "is there
-     * an identifiable caller": it is set from `principal.kind !== 'workspace_api_key'`,
-     * so a session, personal API key, or delegated run reads its own personal
-     * variables rather than borrowing the workflow owner's.
-     *
-     * The workflow owner remains the fallback for a workspace API key, schedule,
-     * or webhook. Someone in the workspace configured each of those, and a
-     * deployed workflow is routinely authored against its owner's personal keys.
-     *
-     * An anonymous public-API run resolves no personal variables at all. Anyone
-     * can call that endpoint, so there is no caller to read as and no person whose
-     * private namespace it would be reasonable to lend — such a workflow runs on
-     * workspace secrets alone.
-     */
-    const identifiedCallerUserId =
-      (metadata.isClientSession && metadata.sessionUserId) ||
-      (metadata.enforceCredentialAccess ? metadata.userId : undefined)
-
-    const personalEnvUserId = metadata.isPublicApiAccess
-      ? undefined
-      : identifiedCallerUserId || metadata.workflowUserId
-
-    if (!metadata.isPublicApiAccess && !personalEnvUserId) {
-      throw new Error('Missing workflowUserId in execution metadata')
-    }
-
-    /**
-     * The actor already carries the identity each trigger kind should authorize
-     * workspace secrets against: the caller for a session, personal API key, or
-     * delegated principal, and the workspace billing account for a workspace API
-     * key, schedule, webhook, or anonymous public-API call, where no caller is
-     * identifiable. Deriving it again here would only risk disagreeing with the
-     * principal layer.
-     */
-    const workspaceEnvUserId = metadata.userId || personalEnvUserId
-    if (!workspaceEnvUserId) {
-      throw new Error('Missing execution actor in execution metadata')
-    }
+    const identities = resolveExecutionEnvironmentIdentities(metadata)
+    const reads = prefetchedReads ?? startExecutionReads(options, providedWorkspaceId, identities)
+    const { personalEnvUserId, workspaceEnvUserId } = identities
 
     /**
      * Resolves the workflow state from the override, the draft tables, or the
@@ -640,12 +747,10 @@ async function executeWorkflowCoreImpl(
       }
     }
 
-    const [workflowState, env] = await Promise.all([
+    const [workflowState, env, piiPolicyRow] = await Promise.all([
       withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
-      withDatabaseReadRetry(
-        () => getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
-        { label: 'getExecutionEnvironment' }
-      ),
+      reads.environment,
+      reads.piiPolicyRow,
     ])
 
     const { blocks, loops, parallels } = workflowState
@@ -954,22 +1059,8 @@ async function executeWorkflowCoreImpl(
       allowLargeValueWorkflowScope,
     })
 
-    // Resolve the org/workspace PII redaction policy once; serves both the input
-    // stage (below) and the block-outputs stage (threaded into the executor).
-    // Stored rules are the source of truth; absence yields the disabled default
-    // with one indexed lookup and no masking cost for non-PII organizations.
-    const [row] = await withDatabaseReadRetry(
-      () =>
-        db
-          .select({ orgSettings: organization.dataRetentionSettings })
-          .from(workspace)
-          .leftJoin(organization, eq(organization.id, workspace.organizationId))
-          .where(eq(workspace.id, providedWorkspaceId))
-          .limit(1),
-      { label: 'resolvePiiRedactionPolicy' }
-    )
     const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
-      orgSettings: row?.orgSettings,
+      orgSettings: piiPolicyRow?.orgSettings,
       workspaceId: providedWorkspaceId,
     })
 
