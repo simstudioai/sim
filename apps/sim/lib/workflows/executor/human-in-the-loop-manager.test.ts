@@ -64,6 +64,7 @@ import {
   PauseResumeManager,
   requireResumeDeploymentVersion,
   updateResumeOutputInAggregationBuffers,
+  wasPausedExecutionRetained,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
@@ -207,6 +208,72 @@ describe('queued resume attempt deadlines', () => {
     controller.cleanup()
     upstream.cleanup()
     vi.useRealTimers()
+  })
+})
+
+describe('which failed resumes keep the pause resumable', () => {
+  type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+  const pausedExecution = {
+    id: 'paused-execution-1',
+    workflowId: 'workflow-1',
+    executionId: 'parent-execution-1',
+    pausePoints: {
+      'context-1': { contextId: 'context-1', blockId: 'hitl-1' },
+    },
+    executionSnapshot: createSnapshotSeed(),
+    metadata: {},
+  } as StartResumeArgs['pausedExecution']
+  const resumeArgs: StartResumeArgs = {
+    resumeEntryId: 'resume-entry-1',
+    resumeExecutionId: 'resume-execution-1',
+    pausedExecution,
+    contextId: 'context-1',
+    resumeInput: { approved: true },
+    userId: 'user-1',
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('keeps the pause resumable when the paused log can no longer be claimed', async () => {
+    const markResumeAttemptFailedSpy = vi
+      .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+      .mockResolvedValueOnce()
+
+    try {
+      const thrown = await PauseResumeManager.startResumeExecution(resumeArgs).catch(
+        (error: unknown) => error
+      )
+
+      expect(thrown).toMatchObject({ name: 'ResumeAdmissionError' })
+      expect(wasPausedExecutionRetained(thrown)).toBe(true)
+    } finally {
+      markResumeAttemptFailedSpy.mockRestore()
+    }
+  })
+
+  it('does not keep the pause when the resumed run itself failed', async () => {
+    const rawError = new Error('Block failed')
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const runResumeExecutionSpy = vi
+      .spyOn(managerInternals, 'runResumeExecution')
+      .mockRejectedValueOnce(rawError)
+    const markResumeFailedSpy = vi
+      .spyOn(managerInternals, 'markResumeFailed')
+      .mockResolvedValueOnce()
+    const processQueuedResumesSpy = vi
+      .spyOn(PauseResumeManager, 'processQueuedResumes')
+      .mockResolvedValueOnce()
+
+    try {
+      await expect(PauseResumeManager.startResumeExecution(resumeArgs)).rejects.toBe(rawError)
+      expect(wasPausedExecutionRetained(rawError)).toBe(false)
+    } finally {
+      runResumeExecutionSpy.mockRestore()
+      markResumeFailedSpy.mockRestore()
+      processQueuedResumesSpy.mockRestore()
+    }
   })
 })
 

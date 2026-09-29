@@ -57,6 +57,7 @@ const mocks = {
   ...hoisted,
   getPausedExecutionById: humanInTheLoopManagerMockFns.mockGetPausedExecutionById,
   startResumeExecution: humanInTheLoopManagerMockFns.mockStartResumeExecution,
+  wasPausedExecutionRetained: humanInTheLoopManagerMockFns.mockWasPausedExecutionRetained,
   createResumeAttemptTimeoutController:
     humanInTheLoopManagerMockFns.mockCreateResumeAttemptTimeoutController,
   findCellContextByExecutionId: tableWorkflowColumnsMockFns.mockFindCellContextByExecutionId,
@@ -217,4 +218,47 @@ describe('resuming a paused table cell', () => {
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
   }, 20_000)
+
+  describe('when the resume throws', () => {
+    /** The execution state the last cell write persisted. */
+    function lastCellExecutionState() {
+      const [, payload] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
+      return payload?.executionState
+    }
+
+    it('marks the cell failed when the resumed run itself failed', async () => {
+      const runFailure = new Error('writeLedger: Unique constraint violation')
+      mocks.startResumeExecution.mockRejectedValueOnce(runFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'error',
+        executionId: 'parent-execution-1',
+        error: 'writeLedger: Unique constraint violation',
+      })
+    }, 20_000)
+
+    it('puts the cell back to paused when the pause stayed resumable', async () => {
+      const admissionRefusal = new Error('Execution can no longer be resumed')
+      mocks.startResumeExecution.mockRejectedValueOnce(admissionRefusal)
+      mocks.wasPausedExecutionRetained.mockReturnValueOnce(true)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(admissionRefusal)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'pending',
+        executionId: 'parent-execution-1',
+        jobId: 'paused-parent-execution-1',
+      })
+    }, 20_000)
+
+    it('still reports the resume failure when the cell write also fails', async () => {
+      const runFailure = new Error('Block failed')
+      mocks.startResumeExecution.mockRejectedValueOnce(runFailure)
+      mocks.writeWorkflowGroupState.mockRejectedValueOnce(new Error('Database unavailable'))
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+    }, 20_000)
+  })
 })

@@ -134,6 +134,26 @@ class ResumeAdmissionError extends Error {
   }
 }
 
+/**
+ * Errors from resume attempts that failed without consuming their pause: the
+ * attempt was refused or could not start, so the paused execution stays
+ * resumable. Every other failed resume leaves the execution terminal.
+ */
+const pauseRetainingFailures = new WeakSet<object>()
+
+/**
+ * Whether `error` was thrown by a resume attempt that left its paused execution
+ * resumable, so a caller mirroring the run's state (a table cell) keeps it paused
+ * rather than failed.
+ */
+export function wasPausedExecutionRetained(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && pauseRetainingFailures.has(error)
+}
+
+function retainPausedExecution(error: unknown): void {
+  if (typeof error === 'object' && error !== null) pauseRetainingFailures.add(error)
+}
+
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
 export function requireResumeDeploymentVersion(
   useDraftState: unknown,
@@ -987,6 +1007,7 @@ export class PauseResumeManager {
       const message = toError(error).message
       await releaseExecutionSlot(resumeEntryId)
       if (error instanceof ResumeAdmissionError) {
+        retainPausedExecution(error)
         await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -997,6 +1018,7 @@ export class PauseResumeManager {
           retryable: error.retryable,
         })
       } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR) {
+        retainPausedExecution(error)
         await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
