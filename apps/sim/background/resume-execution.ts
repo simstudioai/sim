@@ -178,13 +178,36 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       cellContext.rowId,
       parentExecutionId,
       async () => {
+        let completedBeforeFailure = false
         const result = await runResumeAndCellTerminal(
           payload,
           pausedExecution,
           writers,
           attemptSignal,
-          attemptTimeoutController
-        )
+          attemptTimeoutController,
+          () => {
+            completedBeforeFailure = true
+          }
+        ).catch(async (error: unknown) => {
+          /**
+           * The run completed and only a later step of the attempt threw, so its
+           * cell is completed: continue the cascade as a completed run would, and
+           * still surface the failure.
+           */
+          if (completedBeforeFailure) {
+            await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal).catch(
+              (cascadeError: unknown) => {
+                logger.error(
+                  'Failed to continue the cascade after a completed resume',
+                  projectResolvedSecretDiagnosticError(cascadeError, undefined, {
+                    resumeExecutionId,
+                  })
+                )
+              }
+            )
+          }
+          throw error
+        })
         if (result.status === 'paused' || result.status === 'cancelled') return result
         await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal)
         return result
@@ -364,19 +387,26 @@ async function buildResumeCellWriters(
 /**
  * A resume that throws never reaches the terminal write in
  * {@link runResumeAndCellTerminal}, which would leave the cell showing its last
- * partial `running` state. Mirror what the failed attempt did to the execution:
- * a pause that stayed resumable goes back to paused, and a failed execution
- * fails the cell.
+ * partial `running` state. Mirror what the failed attempt left the execution
+ * as: a pause that stayed resumable goes back to paused, a failed execution
+ * fails the cell, and a run that completed before a later step threw
+ * completes it.
  */
 async function writeFailedResumeCellTerminal(
   writers: CellWriters,
   outcome: FailedResumeOutcome,
   error: unknown
 ): Promise<void> {
-  if (outcome === 'pause_retained') {
-    await writers.writeCellTerminal('paused', null)
-  } else {
-    await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
+  switch (outcome) {
+    case 'pause_retained':
+      await writers.writeCellTerminal('paused', null)
+      return
+    case 'execution_completed':
+      await writers.writeCellTerminal('completed', null)
+      return
+    case 'execution_failed':
+      await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
+      return
   }
 }
 
@@ -385,7 +415,8 @@ async function runResumeAndCellTerminal(
   pausedExecution: Awaited<ReturnType<typeof PauseResumeManager.getPausedExecutionById>>,
   writers: CellWriters,
   signal: AbortSignal | undefined,
-  timeoutController: ReturnType<typeof createTimeoutAbortController>
+  timeoutController: ReturnType<typeof createTimeoutAbortController>,
+  onCompletedBeforeFailure?: () => void
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
   const result = await PauseResumeManager.startResumeExecution({
@@ -396,7 +427,11 @@ async function runResumeAndCellTerminal(
     resumeInput: payload.resumeInput,
     userId: payload.userId,
     onBlockComplete: writers.cellOnBlockComplete,
-    onAttemptFailed: (outcome, error) => writeFailedResumeCellTerminal(writers, outcome, error),
+    onAttemptFailed: async (outcome, error) => {
+      await writeFailedResumeCellTerminal(writers, outcome, error)
+      /** Only a cell saved as completed may start its downstream groups. */
+      if (outcome === 'execution_completed') onCompletedBeforeFailure?.()
+    },
     abortSignal: signal,
   })
 
