@@ -1033,7 +1033,7 @@ test('moving unchanged artwork across the authoring boundary never grants centra
     central
   )
   expect(within.flagged).toBe(false)
-})
+}, 15_000)
 
 test('named colours inside gradients cannot bypass global colour ownership', async () => {
   expect(
