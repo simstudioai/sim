@@ -38,6 +38,11 @@ committed and the failed page is retried from its saved cursor. The standalone c
 retirement and maintenance through the same journal. Keep one maintenance worker and monitor primary
 latency, WAL, replica lag and available disk.
 
+Both entry points require a direct or session-pooled PostgreSQL connection, as the deployment
+migration runner already does for its session advisory lock and settings. `DATABASE_URL` is a valid
+fallback only when it provides that session affinity. PgBouncer transaction pooling is unsupported;
+reserving a postgres.js client connection does not pin a backend through a transaction pooler.
+
 The runner-owned `search_embedding_cleanup_progress` table stores the selected KB, phase and ID
 cursor. Page mutations and cursor advancement commit together. The one-off migration journal
 records only completion. `db:push` excludes the progress table from schema diffing.
