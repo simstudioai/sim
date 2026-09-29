@@ -423,8 +423,6 @@ interface PopoverContentProps
 
 /**
  * Popover content with automatic positioning and collision detection.
- * @designAllow className dimensions
- * @designAllow style dimensions
  */
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,

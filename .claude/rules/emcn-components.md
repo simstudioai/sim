@@ -51,4 +51,4 @@ Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styli
 
 ## Source-derived design contracts
 
-The diff check derives public API, styling, recipe and ownership facts from both source revisions; the full scan publishes current facts in `scan.json`. Ownership is derived from implementation; intentional customization belongs in component TSDoc (`@designAllow <slot> <CSS properties or policy groups>`, `@designProtect` for ownership that cannot be inferred). Review central source changes in the diff findings. Browser reports and captures remain local, outside the repository.
+The diff check derives public API, styling, recipe and ownership facts from both source revisions; the full scan publishes current facts in `scan.json`. Ownership is derived from implementation; exceptional customization and protection decisions belong in `packages/emcn/src/design-ownership.json` with a reason. Review central source changes in the diff findings. Browser reports and captures remain local, outside the repository.

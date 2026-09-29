@@ -8,6 +8,7 @@ import ts from '@typescript/typescript6'
 import { LRUCache } from 'lru-cache'
 import postcss from 'postcss'
 import { classMapTruth } from '#design-conformance/class-map'
+import { OWNERSHIP_FILE } from '#design-conformance/contracts'
 import { centralCompiler, centralCompilerDiagnostics } from '#design-conformance/design-system'
 import { canonical, category, family, hash, TOKEN_FILE } from '#design-conformance/model'
 import {
@@ -40,9 +41,10 @@ export interface VisualExport {
   relationships: string[]
 }
 export interface GeneratedContracts {
-  version: '2.1.0'
+  version: '2.2.0'
   sourceHash: string
   exports: Record<string, VisualExport>
+  ownership: OwnershipDecision[]
   diagnostics: { file: string; line: number; reason: string }[]
 }
 interface AnalysisContracts extends GeneratedContracts {
@@ -84,10 +86,80 @@ interface ModuleFacts {
 export const metadataSource = (file: string) =>
   /^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) && !/\.(?:test|spec|generated)\./.test(file)
 
+export interface OwnershipDecision {
+  target: string
+  slot: string
+  allow: string[]
+  protect: string[]
+  reason: string
+}
+
+/** Missing means a historical source revision predating the ownership file. */
+function ownershipDecisions(source: string | undefined): OwnershipDecision[] {
+  if (source === undefined) return []
+  let document: unknown
+  try {
+    document = JSON.parse(source)
+  } catch {
+    throw new Error(`Invalid JSON in ${OWNERSHIP_FILE}`)
+  }
+  const record = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && !Array.isArray(value)
+  if (
+    !record(document) ||
+    Object.keys(document).sort().join(',') !== 'decisions,version' ||
+    document.version !== 1 ||
+    !Array.isArray(document.decisions)
+  )
+    throw new Error(`Invalid ownership document in ${OWNERSHIP_FILE}`)
+  const seen = new Set<string>()
+  return document.decisions.map((value: unknown, index: number) => {
+    const where = `${OWNERSHIP_FILE} decision ${index + 1}`
+    if (
+      !record(value) ||
+      Object.keys(value).some(
+        (key) => !['target', 'slot', 'allow', 'protect', 'reason'].includes(key)
+      )
+    )
+      throw new Error(`Invalid ${where}`)
+    const properties = (name: 'allow' | 'protect') => {
+      const list = value[name]
+      if (list === undefined) return []
+      if (
+        !Array.isArray(list) ||
+        !list.length ||
+        list.some((item) => typeof item !== 'string' || !item.trim() || item !== item.trim())
+      )
+        throw new Error(`Invalid ${name} properties in ${where}`)
+      if (new Set(list).size !== list.length)
+        throw new Error(`Duplicate ${name} property in ${where}`)
+      return list as string[]
+    }
+    const allow = properties('allow')
+    const protect = properties('protect')
+    if (
+      typeof value.target !== 'string' ||
+      !/^@sim\/emcn(?:\/icons)?#[A-Za-z][\w.]*$/.test(value.target) ||
+      typeof value.slot !== 'string' ||
+      !value.slot ||
+      typeof value.reason !== 'string' ||
+      !value.reason.trim() ||
+      (!allow.length && !protect.length)
+    )
+      throw new Error(`Invalid ${where}`)
+    const key = `${value.target}.${value.slot}`
+    if (seen.has(key)) throw new Error(`Duplicate ownership decision for ${key}`)
+    seen.add(key)
+    return { target: value.target, slot: value.slot, allow, protect, reason: value.reason }
+  })
+}
+
 export async function generateContracts(
   input: SystemInput,
   compiled?: Compiler
 ): Promise<AnalysisContracts> {
+  const ownershipEntry = input.snapshot.entries.find((entry) => entry.path === OWNERSHIP_FILE)
+  const ownershipSource = ownershipEntry ? input.read(ownershipEntry) : undefined
   const sources = new Map(
     input.snapshot.entries
       .filter((e) => metadataSource(e.path) || e.path.endsWith('.css'))
@@ -97,13 +169,14 @@ export async function generateContracts(
   const identity = hash(
     canonical({
       sources: [...sources].sort(([a], [b]) => compareStrings(a, b)),
+      ownership: ownershipSource ?? null,
       compiler: compilerIdentity(system),
     })
   )
   const cacheKey = `${identity}:${hash(readFileSync(new URL('./generated-contracts.ts', import.meta.url)))}`
   const cached = caches.get(cacheKey)
   if (cached) return cached
-  const pending = generate(sources, identity, system)
+  const pending = generate(sources, identity, system, ownershipSource)
   caches.set(cacheKey, pending)
   pending.catch(() => caches.delete(cacheKey))
   return pending
@@ -112,12 +185,15 @@ export async function generateContracts(
 async function generate(
   sources: Map<string, string>,
   sourceHash: string,
-  compiled?: Compiler
+  compiled?: Compiler,
+  ownershipSource?: string
 ): Promise<AnalysisContracts> {
+  const explicitOwnership = ownershipDecisions(ownershipSource)
   const out: AnalysisContracts = {
-    version: '2.1.0',
+    version: '2.2.0',
     sourceHash,
     exports: {},
+    ownership: explicitOwnership,
     recipes: {},
     tokens: {},
     diagnostics: compiled ? [...centralCompilerDiagnostics(compiled)] : [],
@@ -192,6 +268,8 @@ async function generate(
     } catch (error) {
       throw new Error(`Extraction failure: ${file}: ${String(error)}`)
     }
+    if (ast.comments?.some((comment) => /@design(?:Allow|Protect)\b/.test(comment.value)))
+      throw new Error(`Ownership annotations in ${file} must move to ${OWNERSHIP_FILE}`)
     const facts: ModuleFacts = {
       ast,
       bindings: new Map(),
@@ -965,7 +1043,6 @@ async function generate(
       file: string
       name: string
       fn?: t.Function
-      docs: string
       props?: ts.Type
       defaults: Record<string, string | boolean | number>
     }
@@ -1033,10 +1110,6 @@ async function generate(
             slots[prop.name] = { protected: [], allowed: [], recipes: [], forwards: [] }
         }
       const defaults: Record<string, string | boolean | number> = {}
-      const docParts = [ts.displayPartsToString(symbol.getDocumentationComment(checker))]
-      for (const tag of symbol.getJsDocTags(checker))
-        if (/^design(?:Allow|Protect)$/.test(tag.name))
-          docParts.push(`@${tag.name} ${ts.displayPartsToString(tag.text)}`)
       if (fn) {
         const objectParams = new Set(
           fn.params.flatMap((param) =>
@@ -1122,7 +1195,6 @@ async function generate(
         file: sourceFile,
         name,
         fn,
-        docs: docParts.join('\n'),
         props,
         defaults,
       })
@@ -1180,7 +1252,7 @@ async function generate(
         slots,
         relationships: [],
       }
-      metadataByExport.set(privateName, { file, name, fn, docs: '', defaults: {} })
+      metadataByExport.set(privateName, { file, name, fn, defaults: {} })
     }
   for (const [publicName, meta] of metadataByExport) {
     const entry = out.exports[publicName]
@@ -1818,45 +1890,43 @@ async function generate(
           ...(fallback !== undefined && supported.includes(fallback) ? { default: fallback } : {}),
         }
       }
-    const declarationsBySlot = new Map<string, { allow: Set<string>; protect: Set<string> }>()
-    const metadataLines = meta.docs
-      .split('\n')
-      .filter((line) => /@design(?:Allow|Protect)/.test(line))
-    if (metadataLines.some((line) => !/@design(?:Allow|Protect)\s+[^\s]+\s+[^\s]+/.test(line)))
-      throw new Error(`Malformed design ownership metadata on ${publicName}`)
-    for (const match of meta.docs.matchAll(/@design(Allow|Protect)\s+([^\s]+)\s+([^\n@]+)/g)) {
-      const [, mode, name, properties] = match
+    for (const decision of explicitOwnership.filter(
+      (item) => item.target === `${entry.importSource}#${publicName}`
+    )) {
+      const { slot: name, allow, protect } = decision
       if (!entry.slots[name])
-        throw new Error(`Invalid @design${mode} on ${publicName}: nonexistent styling slot ${name}`)
-      const decision = declarationsBySlot.get(name) ?? {
-        allow: new Set<string>(),
-        protect: new Set<string>(),
-      }
-      for (const property of properties.trim().split(/[\s,]+/)) {
-        if (
-          ![
-            '*',
-            'colours',
-            'borders',
-            'typography',
-            'dimensions',
-            'effects',
-            'spacing',
-            'radii',
-            'visibility',
-            'layout',
-          ].includes(property) &&
-          !cssProperties.has(property) &&
-          !(category(property.replace(/^-(?:webkit|moz|ms)-/, '')) && !cssProperties.size)
+        throw new Error(
+          `Ownership decision references nonexistent styling slot ${decision.target}.${name}`
         )
-          throw new Error(`Invalid @design${mode} property ${property} on ${publicName}`)
-        decision[mode === 'Allow' ? 'allow' : 'protect'].add(property)
-      }
-      declarationsBySlot.set(name, decision)
-    }
-    for (const [name, decision] of declarationsBySlot) {
-      const overlap = [...decision.allow].some((a) =>
-        [...decision.protect].some(
+      for (const [mode, properties] of [
+        ['allow', allow],
+        ['protect', protect],
+      ] as const)
+        for (const property of properties) {
+          if (
+            ![
+              '*',
+              'colours',
+              'borders',
+              'typography',
+              'dimensions',
+              'effects',
+              'spacing',
+              'radii',
+              'visibility',
+              'layout',
+            ].includes(property) &&
+            !cssProperties.has(property) &&
+            !(category(property.replace(/^-(?:webkit|moz|ms)-/, '')) && !cssProperties.size)
+          )
+            throw new Error(`Invalid ${mode} property ${property} on ${decision.target}.${name}`)
+          if (entry.slots[name][mode === 'allow' ? 'allowed' : 'protected'].includes(property))
+            throw new Error(
+              `Ineffective ${mode} property ${property} on ${decision.target}.${name}`
+            )
+        }
+      const overlap = allow.some((a) =>
+        protect.some(
           (p) =>
             a === p ||
             a === '*' ||
@@ -1866,10 +1936,9 @@ async function generate(
             category(p) === a
         )
       )
-      if (overlap)
-        throw new Error(`Contradictory design ownership metadata on ${publicName}.${name}`)
-      entry.slots[name].allowed.push(...decision.allow)
-      entry.slots[name].protected.push(...decision.protect)
+      if (overlap) throw new Error(`Contradictory ownership decision on ${decision.target}.${name}`)
+      entry.slots[name].allowed.push(...allow)
+      entry.slots[name].protected.push(...protect)
     }
     entry.relationships = sorted(entry.relationships)
     for (const slot of Object.values(entry.slots)) {
@@ -1880,6 +1949,13 @@ async function generate(
         (a, b) => compareStrings(canonical(a), canonical(b))
       )
     }
+  }
+  for (const decision of explicitOwnership) {
+    const key = decision.target.startsWith('@sim/emcn/icons#')
+      ? `icons:${decision.target.slice('@sim/emcn/icons#'.length)}`
+      : decision.target.slice('@sim/emcn#'.length)
+    if (!out.exports[key])
+      throw new Error(`Ownership decision references nonexistent public export ${decision.target}`)
   }
   // Resolve slot forwarding to a fixed point. Unknown routes stay diagnostics, never permission.
   const targetCache = new Map<string, string | undefined>()

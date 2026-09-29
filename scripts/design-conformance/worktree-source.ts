@@ -3,7 +3,12 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { productScope } from '#control-analysis/scope'
-import { centralInventory, isRegistry, registry } from '#design-conformance/contracts'
+import {
+  centralInventory,
+  isRegistry,
+  OWNERSHIP_FILE,
+  registry,
+} from '#design-conformance/contracts'
 import { verifiedText } from '#design-conformance/io'
 import type { Entry } from '#design-conformance/model'
 import { TOKEN_FILE } from '#design-conformance/model'
@@ -197,6 +202,11 @@ export class GitSource {
 
   central(): SystemInput {
     const entries = this.entries.filter((entry) => centralInventory(entry.path))
+    if (
+      !entries.some((entry) => entry.path === OWNERSHIP_FILE) &&
+      this.git(['log', '-1', '--format=%H', this.commit, '--', OWNERSHIP_FILE]).length
+    )
+      throw new Error(`Established ownership file was removed: ${OWNERSHIP_FILE}`)
     if (!entries.some((entry) => entry.path === TOKEN_FILE))
       throw new Error('Required central globals.css is missing')
     for (const entry of entries) {

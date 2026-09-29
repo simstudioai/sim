@@ -27,8 +27,8 @@ function updateMetadata(repo, scan) {
   assert.equal(result.status, 0, result.stderr)
   const file = path.join(scan, 'scan.json')
   const report = JSON.parse(readFileSync(file, 'utf8'))
-  const { version, sourceHash, exports, diagnostics } = JSON.parse(result.stdout)
-  report.inventory.metadata = { version, sourceHash, exports, diagnostics }
+  const { version, sourceHash, exports, ownership, diagnostics } = JSON.parse(result.stdout)
+  report.inventory.metadata = { version, sourceHash, exports, ownership, diagnostics }
   report.inventory.mode = 'working-tree'
   report.identity.sourceRevision = workingTreeRevision(repo)
   writeFileSync(file, JSON.stringify(report))
@@ -204,6 +204,7 @@ test('Studio consumes the unmodified report written by the scanner CLI', () => {
   const report = JSON.parse(reportBytes.toString())
   assert.equal(report.version, 3)
   assert.ok(report.inventory.metadata.exports.Example)
+  assert.deepEqual(report.inventory.metadata.ownership, [])
   assert.ok(report.inventory.findings.some((finding) => finding.value === '#123456'))
 
   const output = path.join(root, 'real-studio')

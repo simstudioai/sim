@@ -531,6 +531,7 @@ test('a central relative import retains its target when styling becomes wholly c
   const inventory = {
     'packages/emcn/src/index.ts': 'export {ChipInput} from "./components/input/input"',
     'packages/emcn/src/components/input/input.tsx': 'export const ChipInput=()=> <input/>',
+    'packages/emcn/src/design-ownership.json': JSON.stringify({ version: 1, decisions: [] }),
   }
   const before =
     'import {ChipInput} from "../input/input";const Frame=({className})=> <ChipInput className={cn("w-fit",className)}/>'

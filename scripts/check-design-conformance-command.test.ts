@@ -115,11 +115,29 @@ test('longhand ownership and permissions preserve sibling properties through the
     `
 import type {HTMLAttributes} from 'react'
 declare function cn(...args:unknown[]):string
-/** @designAllow className padding-left */
 export function AllowedLeft({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={cn('p-2',className)}/>}
-/** @designProtect className padding-left */
 export function ProtectedLeft({className,...props}:HTMLAttributes<HTMLDivElement>){return <div {...props} className={className}/>}
 `
+  )
+  write(
+    'packages/emcn/src/design-ownership.json',
+    JSON.stringify({
+      version: 1,
+      decisions: [
+        {
+          target: '@sim/emcn#AllowedLeft',
+          slot: 'className',
+          allow: ['padding-left'],
+          reason: 'The left inset follows its containing layout.',
+        },
+        {
+          target: '@sim/emcn#ProtectedLeft',
+          slot: 'className',
+          protect: ['padding-left'],
+          reason: 'The left inset is component-owned.',
+        },
+      ],
+    })
   )
   const base = commit(repo)
   for (const [name, classes, expected] of [

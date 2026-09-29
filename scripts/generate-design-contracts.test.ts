@@ -19,6 +19,23 @@ function write(root: string, file: string, source: string) {
   mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
   writeFileSync(path.join(root, file), source)
 }
+function ownership(
+  root: string,
+  decisions: Array<{
+    target: string
+    slot: string
+    allow?: string[]
+    protect?: string[]
+    reason: string
+  }>
+) {
+  write(root, 'packages/emcn/src/design-ownership.json', JSON.stringify({ version: 1, decisions }))
+}
+const decision = (
+  slot: string,
+  changes: { allow?: string[]; protect?: string[] },
+  target = '@sim/emcn#Example'
+) => ({ target, slot, ...changes, reason: 'Explicit public component styling decision' })
 function git(root: string, ...args: string[]) {
   const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
   expect(result.status, result.stderr).toBe(0)
@@ -39,12 +56,12 @@ function fixture() {
   git(root, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'base')
   return root
 }
-function component(annotation = '', colour = 'bg-[var(--brand)]') {
+function component(colour = 'bg-[var(--brand)]') {
   return `import { cva } from 'class-variance-authority'
 import type { HTMLAttributes } from 'react'
 const recipe=cva('rounded-md ${colour}',{variants:{variant:{plain:'border-0',filled:'border-2',private:'border-4'},size:{sm:'h-6',lg:'h-10'}},defaultVariants:{variant:'plain',size:'sm'}})
 interface Props extends HTMLAttributes<HTMLButtonElement>{variant?:'plain'|'filled';size?:'sm'|'lg'}
-/** Example. ${annotation} */
+/** Example. */
 export function Example({className,variant='plain',size='sm',...props}:Props){return <button {...props} className={cn(recipe({variant,size}),className)} />}
 declare function cn(...args:unknown[]):string
 throw new Error('Do not execute product modules')`
@@ -176,7 +193,7 @@ test('API lifecycle and immutable snapshots never read proposed implementations'
     'packages/emcn/src/index.ts',
     "export {Example as Renamed} from './components/example'\n"
   )
-  write(root, 'packages/emcn/src/components/example.tsx', component('', 'bg-black'))
+  write(root, 'packages/emcn/src/components/example.tsx', component('bg-black'))
   expect(run(root, '--ref', 'HEAD').status).toBe(0)
   expect(generated(root).exports).toEqual(old)
   expect(run(root).status).toBe(0)
@@ -187,24 +204,112 @@ test('API lifecycle and immutable snapshots never read proposed implementations'
   expect(Object.keys(generated(root).exports)).toHaveLength(0)
 }, 60_000)
 
-test('validated source ownership allows customization and rejects invalid or contradictory metadata', () => {
+test('central ownership permits customization and rejects invalid decisions', () => {
   const root = fixture()
+  ownership(root, [decision('className', { allow: ['border-radius'] })])
+  expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Example.slots.className.allowed).toContain('border-radius')
+  for (const entries of [
+    [decision('className', { allow: [] })],
+    [decision('missing', { protect: ['color'] })],
+    [decision('className', { allow: ['nonsense'] })],
+    [decision('className', { allow: ['color'], protect: ['colours'] })],
+    [
+      decision('className', { allow: ['border-radius'] }),
+      decision('className', { protect: ['height'] }),
+    ],
+    [decision('className', { allow: ['border-radius'] }, '@sim/emcn#Removed')],
+    [{ ...decision('className', { allow: ['border-radius'] }), reason: '  ' }],
+    [decision('className', { protect: ['border-radius'] })],
+  ]) {
+    ownership(root, entries)
+    expect(run(root).status).toBe(1)
+  }
+  write(root, 'packages/emcn/src/design-ownership.json', '{bad json')
+  expect(run(root).status).toBe(1)
+  ownership(root, [])
   write(
     root,
     'packages/emcn/src/components/example.tsx',
-    component('\n * @designAllow className border-radius\n')
+    `/** @designAllow className width */\n${component()}`
   )
+  expect(run(root).status).toBe(1)
+}, 60_000)
+
+test('ownership decisions follow public exports and fail when an established file is removed', () => {
+  const root = fixture()
+  ownership(root, [decision('className', { allow: ['border-radius'] })])
+  git(root, 'add', '.')
+  git(
+    root,
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.com',
+    'commit',
+    '-qm',
+    'ownership'
+  )
+  const base = git(root, 'rev-parse', 'HEAD')
+  expect(run(root, '--ref', base).status).toBe(0)
+  write(
+    root,
+    'packages/emcn/src/index.ts',
+    "export { Example as Renamed } from './components/example'"
+  )
+  expect(run(root).status).toBe(1)
+  ownership(root, [decision('className', { allow: ['border-radius'] }, '@sim/emcn#Renamed')])
   expect(run(root).status).toBe(0)
+  expect(generated(root).exports.Renamed.slots.className.allowed).toContain('border-radius')
+  expect(run(root, '--ref', base).status).toBe(0)
   expect(generated(root).exports.Example.slots.className.allowed).toContain('border-radius')
-  for (const annotation of [
-    '\n * @designAllow className\n',
-    '\n * @designProtect missing color\n',
-    '\n * @designAllow className nonsense\n',
-    '\n * @designAllow className color\n * @designProtect className colours\n',
-  ]) {
-    write(root, 'packages/emcn/src/components/example.tsx', component(annotation))
-    expect(run(root).status).toBe(1)
-  }
+  write(
+    root,
+    'packages/emcn/src/components/example.tsx',
+    'export function Example(){return <button/>}'
+  )
+  expect(run(root).status).toBe(1)
+  rmSync(path.join(root, 'packages/emcn/src/design-ownership.json'))
+  expect(run(root).status).toBe(1)
+}, 60_000)
+
+test('deleting established ownership fails the immutable diff check', () => {
+  const root = fixture()
+  ownership(root, [decision('className', { allow: ['border-radius'] })])
+  git(root, 'add', '.')
+  git(
+    root,
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.com',
+    'commit',
+    '-qm',
+    'ownership'
+  )
+  const base = git(root, 'rev-parse', 'HEAD')
+  rmSync(path.join(root, 'packages/emcn/src/design-ownership.json'))
+  git(root, 'add', '-u')
+  git(root, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'remove')
+  const result = spawnSync(
+    bun,
+    [
+      '--no-env-file',
+      checkCli,
+      '--repo',
+      root,
+      '--base',
+      base,
+      '--head',
+      'HEAD',
+      '--format',
+      'json',
+    ],
+    { encoding: 'utf8', timeout: 60000 }
+  )
+  expect(result.status).toBe(2)
+  expect(JSON.parse(result.stdout).error).toMatch(/ownership file was removed/i)
+  expect(run(root, '--ref', 'HEAD').status).toBe(1)
 }, 60_000)
 
 test('broken public imports, parse failures, token cycles and unresolved references remain visible', () => {
@@ -267,11 +372,7 @@ test('real working-tree and immutable checks discover ownership without registra
         f.rule === 'component-chrome' && f.context.includes('NewControl')
     )
   ).toBe(true)
-  write(
-    root,
-    'packages/emcn/src/components/new.tsx',
-    component('\n * @designAllow className border-radius\n').replaceAll('Example', 'NewControl')
-  )
+  ownership(root, [decision('className', { allow: ['border-radius'] }, '@sim/emcn#NewControl')])
   expect(run(root).status).toBe(0)
   const permitted = check('--working-tree')
   expect(
@@ -280,6 +381,14 @@ test('real working-tree and immutable checks discover ownership without registra
   expect(
     permitted.report.findings.some((f: { rule: string }) => f.rule === 'central-definition')
   ).toBe(true)
+  expect(
+    permitted.report.findings.some(
+      (f: { file: string; rule: string }) =>
+        f.file === 'packages/emcn/src/design-ownership.json' && f.rule === 'central-definition'
+    )
+  ).toBe(true)
+  git(root, 'add', 'packages/emcn/src/design-ownership.json')
+  expect(check('--working-tree').report.findings).toEqual(permitted.report.findings)
   git(root, 'add', '.')
   git(
     root,
@@ -872,16 +981,17 @@ test('rendered props precedence avoids false consumer chrome warnings', () => {
   ).toBe(false)
 }, 60_000)
 
-test.each(['inferred', 'annotated'])(
+test.each(['inferred', 'protected'])(
   'rendered props precedence keeps optional public spreads unchecked with %s default ownership',
   (mode) => {
     const root = fixture()
     write(
       root,
       'packages/emcn/src/components/example.tsx',
-      `${mode === 'annotated' ? '/** @designProtect className border-radius */' : ''}
-export function Example(props:{className?:string}){return <button className="rounded-md" {...props}/>} `
+      'export function Example(props:{className?:string}){return <button className="rounded-md" {...props}/>} '
     )
+    if (mode === 'protected')
+      ownership(root, [decision('className', { protect: ['border-radius'] })])
     write(
       root,
       'apps/sim/components/use-example.tsx',
@@ -890,7 +1000,7 @@ export function Example(props:{className?:string}){return <button className="rou
     expect(run(root).status).toBe(0)
     const slot = generated(root).exports.Example.slots.className
     expect((slot.unchecked ?? []).join('\n')).toMatch(/props.*override/i)
-    if (mode === 'annotated') expect(slot.protected).toContain('border-radius')
+    if (mode === 'protected') expect(slot.protected).toContain('border-radius')
     const result = spawnSync(
       bun,
       [
@@ -1056,29 +1166,19 @@ test('unresolved styling calls remain explicit unchecked evidence', () => {
   ).toBe(true)
 }, 60_000)
 
-test('ownership metadata rejects longhand permissions overlapping a protected family', () => {
+test('ownership file rejects longhand permissions overlapping a protected family', () => {
   const root = fixture()
-  write(
-    root,
-    'packages/emcn/src/components/example.tsx',
-    component(
-      '\n * @designAllow className border-top-color\n * @designProtect className border-color\n'
-    )
-  )
+  ownership(root, [
+    decision('className', { allow: ['border-top-color'], protect: ['border-color'] }),
+  ])
   const result = run(root)
   expect(result.status).toBe(1)
   expect(result.stderr).toMatch(/contradictory/i)
 }, 60_000)
 
-test('ownership metadata permits independent physical longhands', () => {
+test('ownership file permits independent physical longhands', () => {
   const root = fixture()
-  write(
-    root,
-    'packages/emcn/src/components/example.tsx',
-    component(
-      '\n * @designAllow className padding-left\n * @designProtect className padding-right\n'
-    )
-  )
+  ownership(root, [decision('className', { allow: ['padding-left'], protect: ['padding-right'] })])
   const result = run(root)
   expect(result.status, result.stderr).toBe(0)
   const slot = generated(root).exports.Example.slots.className
@@ -1090,16 +1190,10 @@ test.each([
   ['font-size', 'font'],
   ['border-top-color', 'border'],
 ])(
-  'ownership metadata rejects %s permission overlapping %s shorthand',
+  'ownership file rejects %s permission overlapping %s shorthand',
   (allowed, protectedProperty) => {
     const root = fixture()
-    write(
-      root,
-      'packages/emcn/src/components/example.tsx',
-      component(
-        `\n * @designAllow className ${allowed}\n * @designProtect className ${protectedProperty}\n`
-      )
-    )
+    ownership(root, [decision('className', { allow: [allowed], protect: [protectedProperty] })])
     const result = run(root)
     expect(result.status, result.stderr).toBe(1)
     expect(result.stderr).toMatch(/contradictory/i)

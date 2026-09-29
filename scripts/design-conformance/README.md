@@ -1,6 +1,6 @@
 # Design conformance
 
-Diff report **4.2.0**, full scan **2**, policy **design-conformance/2.0.0**, source-derived facts **2.1.0**.
+Diff report **4.2.0**, full scan **3**, policy **design-conformance/2.0.0**, source-derived facts **2.2.0**.
 
 The diff check, full scanner and local Studio share the maintained analysis and source-derived contracts. They produce one `findings` list: detected styling and design decisions to review. Findings are warnings in CI. Unresolved inputs stay in `unchecked`; parsing/extraction failures are errors, not a clean check.
 
@@ -25,6 +25,7 @@ CI uses immutable event base/head revisions. It publishes file/line warnings, a 
 ## Files and source facts
 
 - `contracts.json`: general design rules, scope, exclusions, static-analysis limits, adopted utility policy and explicitly central external recipes. It has no component registration or handwritten component inheritance.
+- `packages/emcn/src/design-ownership.json`: the small, explicit list of exceptional permissions and protections. It is read from each source revision, validated against discovered public exports and slots, and included in the scan's effective ownership inventory.
 - `generated-contracts.ts`: one TypeScript compatibility program per source snapshot discovers public APIs, aliases and compound exports. Babel traces implementation classes, CVA/imported recipes, slots and forwarding. Existing CSS/Tailwind analysis identifies owned properties and global token definitions, contexts and aliases. Bounded caches share the result. Snapshot hosts can read pinned dependency types but cannot read current workspace implementations while inspecting historical source.
 - `scan.json`: external versioned report containing findings, unchecked diagnostics, inspection failures, product uses, and compact EMCN export/variant/default/slot/relationship facts. Component and icon namespaces remain distinct. Token definitions and recipe bodies are analyzed from source but are not duplicated in the report's metadata.
 - `conformance.ts`, `extract.ts`, `normalize.ts`, `source-summary.ts`, `control-*.ts`: shared styling, composition, control, artwork and provenance analysis. `command.ts` and `reporting.ts` handle local comparisons; `ci.ts` handles warning-only CI publication.
@@ -35,21 +36,18 @@ Each component's supported finite design props come from its public type and its
 
 Finite nested object lookups retain the selected recipe's properties. Barrel imports resolve to their implementation, and destructured inputs are excluded from rest forwarding. Studio fixture coverage follows each export separately: a family's adapter supports a variant only when that export actually receives the variant props. Nonvisual constants remain in the inventory without preview cards.
 
-Source discovery updates automatically when supported public components or global definitions are added, removed or changed. It is static analysis, so unsupported implementation paths retain a per-slot diagnostic rather than becoming permission to override chrome. Intentional ownership rules and fixture data/providers still require source metadata or an adapter; a newly discovered entry without an adapter remains visible as needing a fixture.
+Source discovery updates automatically when supported public components or global definitions are added, removed or changed. It is static analysis, so unsupported implementation paths retain a per-slot diagnostic rather than becoming permission to override chrome. Exceptional ownership decisions live in the validated ownership file; fixture data/providers still require an adapter, and a newly discovered entry without one remains visible as needing a fixture.
 
 ## Ownership metadata
 
-Ordinary layout remains local. Consumer changes to component-authored colours, typography, borders, radius, spacing, dimensions or effects are findings, including newly added components without registration. Use a supported component prop/variant first. Deliberate customization or ownership that cannot be inferred belongs in the component's existing TSDoc:
+Ordinary layout remains local. Consumer changes to component-authored colours, typography, borders, radius, spacing, dimensions or effects are findings, including newly added components without registration. Use a supported component prop/variant first. When source cannot express an intentional exception, add a decision to `packages/emcn/src/design-ownership.json`:
 
-```ts
-/**
- * A surface whose shape is chosen by the caller.
- * @designAllow className border-radius dimensions
- * @designAllow style border-radius dimensions
- */
+```json
+{"target":"@sim/emcn#Button","slot":"className","allow":["width"],"reason":"A button may stretch to fit its containing layout."}
 ```
 
-`@designProtect <slot> <properties>` adds explicit ownership. Properties are CSS property names or policy groups (`colours`, `typography`, `borders`, `dimensions`, `effects`, `spacing`, `radii`, `visibility`, `layout`); `*` means all properties. Nonexistent slots, malformed tags, invalid properties and contradictory allow/protect declarations fail analysis. Permissions do not prove global-token provenance or suppress independent rules. Source and metadata changes remain design-system findings.
+`protect` adds explicit ownership; `allow` permits customization of the named slot. Properties are CSS property names or policy groups (`colours`, `typography`, `borders`, `dimensions`, `effects`, `spacing`, `radii`, `visibility`, `layout`); `*` means all properties. Duplicate, stale, invalid, contradictory and provably ineffective decisions fail inspection. A historical revision before the file existed has no explicit decisions; removing an established file fails inspection. Permissions do not prove global-token provenance or suppress independent rules. Source and ownership-file changes remain design-system findings.
+Legacy `@designAllow` and `@designProtect` component comments fail inspection so the ownership file remains the sole handwritten decision list.
 
 Permissions for longhands remain specific: allowing `padding-left` does not permit `padding-right` or a `padding` shorthand that also changes other sides. The check inspects declared style channels such as `gutterStyle`, as well as `className` and `style`; similarly named data-only props do not become styling inputs.
 

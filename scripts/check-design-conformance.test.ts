@@ -21,6 +21,10 @@ const realCentralSources = Object.fromEntries(
 )
 const centralSources: Record<string, string> = {
   ...realCentralSources,
+  'packages/emcn/src/design-ownership.json': readFileSync(
+    path.join(emcnRoot, 'design-ownership.json'),
+    'utf8'
+  ),
   [TOKEN_FILE]: globals,
   'packages/emcn/src/components/index.ts': `${realCentralSources['packages/emcn/src/components/index.ts']}\nexport * from './button/button'`,
   'packages/emcn/src/index.ts': `export * from './components'`,

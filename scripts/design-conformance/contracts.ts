@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import type { GeneratedContracts } from '#design-conformance/generated-contracts'
 import { hash } from '#design-conformance/model'
 
+export const OWNERSHIP_FILE = 'packages/emcn/src/design-ownership.json'
+
 export interface ComponentContract {
   slots?: string[]
   protected?: string[]
@@ -55,6 +57,7 @@ export function componentContract(
   }
 }
 export const isRegistry = (file: string) =>
+  file === OWNERSHIP_FILE ||
   file === 'scripts/design-conformance/contracts.json' ||
   /(?:^|\/)token-lint\/contracts\.json$/.test(file)
 /** Fixed authoring inventory; application usage does not create authority. */
@@ -68,6 +71,7 @@ export function centralFile(file: string): boolean {
   )
 }
 export const centralInventory = (file: string) =>
+  file === OWNERSHIP_FILE ||
   centralFile(file) ||
   registry.sources.includes(file) ||
   (/^packages\/emcn\/src\/.*\.[cm]?[jt]sx?$/.test(file) &&

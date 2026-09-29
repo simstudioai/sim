@@ -7,3 +7,4 @@ Applies to `packages/emcn/**`. Read `.claude/rules/emcn-components.md` before ch
 - TSDoc for public components and APIs.
 
 Central component, recipe and icon changes are design-system decisions. Run `bun run check:design --base origin/staging --working-tree` (using the actual PR target as the base) and explain intended shared changes in the PR. Review warnings remain visible. See `scripts/design-conformance/README.md`.
+Exceptional styling permissions and protections belong in `packages/emcn/src/design-ownership.json`, not in component TSDoc. Ordinary component facts are discovered from source.

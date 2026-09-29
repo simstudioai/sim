@@ -72,11 +72,31 @@ test('scan publishes source-derived public export facts without a committed arti
   expect(Object.keys(report.metadata).sort()).toEqual([
     'diagnostics',
     'exports',
+    'ownership',
     'sourceHash',
     'version',
   ])
   expect(report.metadata.exports.Button.kind).toBe('component')
   expect(report.metadata.exports.Button.slots.className.protected).toContain('background-color')
+  expect(report.metadata.ownership).toEqual([])
+})
+
+test('scan publishes validated ownership decisions with their reasons', async () => {
+  const decision = {
+    target: '@sim/emcn#Button',
+    slot: 'className',
+    allow: ['width'],
+    reason: 'Button width follows its containing layout.',
+  }
+  const f = fixture({
+    'packages/emcn/src/design-ownership.json': JSON.stringify({
+      version: 1,
+      decisions: [decision],
+    }),
+  })
+  const report = await inspectInventory(f.source())
+  expect(report.metadata.ownership).toEqual([{ ...decision, protect: [] }])
+  expect(report.metadata.exports.Button.slots.className.allowed).toContain('width')
 })
 
 test('build scripts are excluded while browser desktop screens remain checked', async () => {

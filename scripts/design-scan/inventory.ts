@@ -269,6 +269,7 @@ export async function inspectInventory(
       version: system.metadata.version,
       sourceHash: system.metadata.sourceHash,
       exports: system.metadata.exports,
+      ownership: system.metadata.ownership,
       diagnostics: system.metadata.diagnostics,
     },
     findings: ordered,

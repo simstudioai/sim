@@ -9,6 +9,7 @@ import {
   componentContract,
   contractsHash,
   isRegistry,
+  OWNERSHIP_FILE,
   registry,
 } from '#design-conformance/contracts'
 import { type DesignSystem, designSystem } from '#design-conformance/design-system'
@@ -603,6 +604,8 @@ export class ConformanceLinter {
     try {
       if (input.snapshot.commit !== commits.mergeBase)
         throw new Error('Central snapshot does not match merge-base')
+      if (changes.some((change) => change.before?.path === OWNERSHIP_FILE && !change.after))
+        throw new Error(`Established ownership file was removed: ${OWNERSHIP_FILE}`)
       assertRecipeSnapshot(
         input.snapshot,
         changes.flatMap((c) => (c.before ? [c.before] : []))
