@@ -1,11 +1,9 @@
 import { z } from 'zod'
 
-export const BENCHMARK_SPEC_MAX_LENGTH = 1_000_000
-export const BENCHMARK_MAX_BLANKS = 50
 export const benchmarkStageSchema = z.enum(['distill', 'redact', 'plan', 'reconstruct', 'grade'])
 export const benchmarkNameSchema = z.string().trim().min(1, 'A benchmark name is required').max(200)
-export const benchmarkBriefSchema = z.string().max(20_000)
-export const benchmarkSpecSchema = z.string().max(BENCHMARK_SPEC_MAX_LENGTH)
+export const benchmarkBriefSchema = z.string()
+export const benchmarkSpecSchema = z.string()
 export const benchmarkBlankSchema = z
   .object({
     id: z
@@ -14,21 +12,21 @@ export const benchmarkBlankSchema = z
         /^[A-Za-z0-9_-]{1,64}$/,
         'Blank IDs must contain letters, numbers, underscores, or hyphens'
       ),
-    answer: z.string().min(1, 'A blank must have an answer').max(10_000),
+    answer: z.string().min(1, 'A blank must have an answer'),
   })
   .strict()
 export const benchmarkReconstructionSchema = z
   .object({
     id: benchmarkBlankSchema.shape.id,
-    answer: z.string().max(10_000),
-    support: z.string().max(20_000),
+    answer: z.string(),
+    support: z.string(),
   })
   .strict()
 export const benchmarkGradeSchema = z
   .object({
     id: benchmarkBlankSchema.shape.id,
     correct: z.boolean(),
-    reason: z.string().max(5_000),
+    reason: z.string(),
   })
   .strict()
 export const benchmarkArtifactsSchema = z
@@ -36,10 +34,10 @@ export const benchmarkArtifactsSchema = z
     taskBrief: benchmarkBriefSchema,
     referenceSpec: benchmarkSpecSchema,
     redactedSpec: benchmarkSpecSchema,
-    blanks: z.array(benchmarkBlankSchema).max(BENCHMARK_MAX_BLANKS),
+    blanks: z.array(benchmarkBlankSchema),
     generatedSpec: benchmarkSpecSchema.nullable(),
-    reconstruction: z.array(benchmarkReconstructionSchema).max(BENCHMARK_MAX_BLANKS).nullable(),
-    grade: z.array(benchmarkGradeSchema).max(BENCHMARK_MAX_BLANKS).nullable(),
+    reconstruction: z.array(benchmarkReconstructionSchema).nullable(),
+    grade: z.array(benchmarkGradeSchema).nullable(),
   })
   .strict()
 
@@ -49,7 +47,7 @@ export const benchmarkEditablePatchSchema = z
     taskBrief: benchmarkBriefSchema.optional(),
     referenceSpec: benchmarkSpecSchema.optional(),
     redactedSpec: benchmarkSpecSchema.optional(),
-    blanks: z.array(benchmarkBlankSchema).max(BENCHMARK_MAX_BLANKS).optional(),
+    blanks: z.array(benchmarkBlankSchema).optional(),
   })
   .strict()
 
@@ -84,11 +82,11 @@ export const benchmarkRunSummarySchema = z.object({
   benchmarkId: z.string().min(1).max(128),
   label: benchmarkRunLabelSchema,
   evaluationKey: z.string().length(64),
-  correct: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
-  automaticCorrect: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
-  total: z.number().int().min(1).max(BENCHMARK_MAX_BLANKS),
+  correct: z.number().int().min(0),
+  automaticCorrect: z.number().int().min(0),
+  total: z.number().int().min(1),
   version: z.number().int().min(1),
-  reviewedCount: z.number().int().min(0).max(BENCHMARK_MAX_BLANKS),
+  reviewedCount: z.number().int().min(0),
   reviewedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
 })
@@ -99,11 +97,11 @@ export const benchmarkRunSchema = benchmarkRunSummarySchema.extend({
     operatorUserId: z.string().min(1).max(128),
     runAsUserId: z.string().min(1).max(128),
   }),
-  reviews: z.array(benchmarkHumanReviewSchema).max(BENCHMARK_MAX_BLANKS),
+  reviews: z.array(benchmarkHumanReviewSchema),
   artifacts: benchmarkArtifactsSchema.extend({
     generatedSpec: benchmarkSpecSchema.min(1),
-    reconstruction: z.array(benchmarkReconstructionSchema).min(1).max(BENCHMARK_MAX_BLANKS),
-    grade: z.array(benchmarkGradeSchema).min(1).max(BENCHMARK_MAX_BLANKS),
+    reconstruction: z.array(benchmarkReconstructionSchema).min(1),
+    grade: z.array(benchmarkGradeSchema).min(1),
   }),
 })
 

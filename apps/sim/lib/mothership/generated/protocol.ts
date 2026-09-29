@@ -487,7 +487,7 @@ export interface ProtocolMismatch {
 /** Restricted, fresh-conversation benchmark stages; the supplied spec never enters the prompt wholesale. */
 export const BenchmarkExecution = z.discriminatedUnion("stage", [
   z.strictObject({ stage: z.literal("distill") }),
-  z.strictObject({ stage: z.literal("reconstruct"), spec: z.string().min(1).max(1_000_000) }),
+  z.strictObject({ stage: z.literal("reconstruct"), spec: z.string().min(1) }),
 ]);
 export type BenchmarkExecution = z.infer<typeof BenchmarkExecution>;
 

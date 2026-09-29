@@ -6,6 +6,10 @@ import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/a
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { prepareBenchmarkReference } from '@/lib/benchmarks/application/prepare-reference'
+import {
+  BENCHMARK_LEASE_MS,
+  withBenchmarkStageLease,
+} from '@/lib/benchmarks/application/stage-lease'
 import { applyBenchmarkPatch, validateBenchmarkRedaction } from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
@@ -21,7 +25,6 @@ import {
   failBenchmarkStage,
 } from '@/lib/benchmarks/repository'
 import {
-  BENCHMARK_MAX_BLANKS,
   type BenchmarkArtifacts,
   type BenchmarkCase,
   type BenchmarkStage,
@@ -35,8 +38,6 @@ import { executeBenchmarkJson, executeBenchmarkPlan } from '@/lib/benchmarks/wor
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const logger = createLogger('BenchmarkStage')
-const STAGE_TIMEOUT_MS = 10 * 60 * 1000
-const STAGE_LEASE_MS = STAGE_TIMEOUT_MS + 2 * 60 * 1000
 
 const distillationSchema = z
   .object({ taskBrief: benchmarkBriefSchema.min(1), referenceSpec: benchmarkSpecSchema.min(1) })
@@ -44,15 +45,13 @@ const distillationSchema = z
 const redactionSchema = z
   .object({
     redactedSpec: benchmarkSpecSchema.min(1),
-    blanks: z.array(benchmarkBlankSchema).min(1).max(BENCHMARK_MAX_BLANKS),
+    blanks: z.array(benchmarkBlankSchema).min(1),
   })
   .strict()
 const reconstructionSchema = z
-  .object({ answers: z.array(benchmarkReconstructionSchema).min(1).max(BENCHMARK_MAX_BLANKS) })
+  .object({ answers: z.array(benchmarkReconstructionSchema).min(1) })
   .strict()
-const gradingSchema = z
-  .object({ judgments: z.array(benchmarkGradeSchema).min(1).max(BENCHMARK_MAX_BLANKS) })
-  .strict()
+const gradingSchema = z.object({ judgments: z.array(benchmarkGradeSchema).min(1) }).strict()
 
 interface RunBenchmarkStageInput {
   organizationId: string
@@ -186,7 +185,7 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       expectedVersion: input.version,
       stage: input.stage,
       attemptId,
-      leaseExpiresAt: new Date(Date.now() + STAGE_LEASE_MS),
+      leaseExpiresAt: new Date(Date.now() + BENCHMARK_LEASE_MS),
     })
     const attempt = { ...scope, version: claimed.version, stage: input.stage, attemptId }
     logger.info('Benchmark step started', {
@@ -194,11 +193,11 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
       operatorUserId: current.userId,
       runAsUserId: current.runAsUserId ?? current.userId,
     })
-    const timeout = AbortSignal.timeout(STAGE_TIMEOUT_MS)
-    const signal = request?.signal ? AbortSignal.any([request.signal, timeout]) : timeout
     try {
-      const output = await performStage(principal, claimed, input.stage, signal)
-      signal.throwIfAborted()
+      const output = await withBenchmarkStageLease(attempt, request?.signal, (signal) =>
+        performStage(principal, claimed, input.stage, signal)
+      )
+      request?.signal?.throwIfAborted()
       await requireBenchmarkCaseAccess(principal, input)
       return {
         benchmark: await completeBenchmarkStage({
@@ -208,8 +207,8 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
         }),
       }
     } catch (error) {
-      const message = signal.aborted
-        ? 'This step was interrupted or exceeded ten minutes. Retry it.'
+      const message = request?.signal?.aborted
+        ? 'This step was interrupted. Retry it.'
         : error instanceof OrchestrationError
           ? error.message
           : 'This benchmark step failed. Retry it or inspect the server logs.'
@@ -229,8 +228,8 @@ export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
           errorType: persistenceError instanceof Error ? persistenceError.name : 'UnknownError',
         })
       }
-      if (!signal.aborted && error instanceof OrchestrationError) throw error
-      throw new OrchestrationError(signal.aborted ? 'validation' : 'internal', message)
+      if (!request?.signal?.aborted && error instanceof OrchestrationError) throw error
+      throw new OrchestrationError(request?.signal?.aborted ? 'validation' : 'internal', message)
     }
   },
 })

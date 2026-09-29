@@ -82,7 +82,6 @@ export function CreateBenchmark({ organizationId, runAsUserId, onCreated }: Crea
           onChange={(event) => setTaskBrief(event.target.value)}
           placeholder='Paste the original request, or generate a brief from the workspace in step 1.'
           rows={4}
-          maxLength={20_000}
           resizable
           disabled={createBenchmark.isPending}
         />

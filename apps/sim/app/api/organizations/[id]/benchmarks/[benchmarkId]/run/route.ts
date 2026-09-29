@@ -9,8 +9,6 @@ import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { runBenchmarkStage } from '@/lib/benchmarks/application/run-stage'
 
-export const maxDuration = 660
-
 export const POST = defineInternalJsonRoute({
   contract: runBenchmarkStageContract,
   auth: internalSessionAuth,

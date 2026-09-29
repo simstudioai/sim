@@ -42,6 +42,7 @@ import {
   getBenchmarkRecord,
   getBenchmarkRunRecord,
   listBenchmarkRunRecords,
+  renewBenchmarkStage,
   updateBenchmarkRecord,
 } from '@/lib/benchmarks/repository'
 import { type BenchmarkArtifacts, emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
@@ -359,6 +360,15 @@ describe('private benchmark persistence and attempt fencing', () => {
       attemptId: 'next',
       leaseExpiresAt: new Date(Date.now() + 60_000),
     })
+    expect(
+      await renewBenchmarkStage({
+        ...scope,
+        version: old.version,
+        stage: 'plan',
+        attemptId: 'old',
+        leaseExpiresAt: new Date(Date.now() + 120_000),
+      })
+    ).toBe(false)
     await expect(
       completeBenchmarkStage({
         ...scope,
@@ -386,6 +396,29 @@ describe('private benchmark persistence and attempt fencing', () => {
     })
     expect(completed.artifacts.generatedSpec).toBe('Current plan')
     expect(completed.runningStage).toBeNull()
+  })
+
+  it('extends only the current live lease without invalidating the attempt version', async () => {
+    const claimed = await claimBenchmarkStage({
+      ...scope,
+      expectedVersion: 1,
+      stage: 'distill',
+      attemptId: 'long-inspection',
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    })
+    const attempt = {
+      ...scope,
+      version: claimed.version,
+      stage: 'distill' as const,
+      attemptId: 'long-inspection',
+    }
+    const leaseExpiresAt = new Date(Date.now() + 120_000)
+    expect(await renewBenchmarkStage({ ...attempt, leaseExpiresAt })).toBe(true)
+    const current = await getBenchmarkRecord(scope)
+    expect(current.version).toBe(claimed.version)
+    expect(current.leaseExpiresAt).toBe(leaseExpiresAt.toISOString())
+    await completeBenchmarkStage({ ...attempt, artifacts })
+    expect(await renewBenchmarkStage({ ...attempt, leaseExpiresAt })).toBe(false)
   })
 
   it('keeps artifacts private even from another member who can read the same workspace', async () => {
