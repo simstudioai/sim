@@ -27,7 +27,7 @@ import {
   updateColumnConstraints,
   updateColumnOptions,
 } from '@/lib/table/columns/service'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { getMaxRowSizeBytes, TABLE_LIMITS } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importReplaceRows } from '@/lib/table/import-data'
 import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -920,6 +920,135 @@ describe('table row writes against real PostgreSQL', () => {
         FROM table_row_executions WHERE row_id = ${rowId}`
       expect(count).toBe(0)
     })
+
+    /** A table whose `code` column is text, and a snapshot from when it was a number. */
+    async function retypedTable(): Promise<{ table: TableDefinition; stale: TableDefinition }> {
+      const table = await createTable([
+        { id: 'key', name: 'key', type: 'string', unique: true },
+        { id: 'code', name: 'code', type: 'string' },
+        { id: 'filler', name: 'filler', type: 'string' },
+      ])
+      await seedRows(table.id, [
+        { id: `${table.id}-2`, data: { key: 'k2', filler: '' }, orderKey: 'a0' },
+      ])
+      const stale: TableDefinition = {
+        ...table,
+        schema: {
+          columns: table.schema.columns.map((column) =>
+            column.id === 'code' ? { ...column, type: 'number' as const } : column
+          ),
+        },
+      }
+      return { table, stale }
+    }
+
+    /** Writes `row` (a new row, or a patch to row `k2`) through each writer holding `stale`. */
+    const retypeWriters: Array<
+      [string, (table: TableDefinition, row: RowData) => Promise<unknown>]
+    > = [
+      [
+        'insertRow',
+        (table, row) =>
+          insertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', ...row },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'retype'
+          ),
+      ],
+      [
+        'upsertRow',
+        (table, row) =>
+          upsertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', ...row },
+              conflictTarget: 'key',
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'retype'
+          ),
+      ],
+      [
+        'bulkInsertImportBatch',
+        (table, row) =>
+          bulkInsertImportBatch(
+            { tableId: table.id, workspaceId, rows: [{ key: 'k3', ...row }], startPosition: 1 },
+            table,
+            'retype'
+          ),
+      ],
+      [
+        'updateRow',
+        (table, row) =>
+          updateRow(
+            {
+              tableId: table.id,
+              rowId: `${table.id}-2`,
+              workspaceId,
+              data: row,
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'retype'
+          ),
+      ],
+      [
+        'batchUpdateRows',
+        (table, row) =>
+          batchUpdateRows(
+            {
+              tableId: table.id,
+              workspaceId,
+              updates: [{ rowId: `${table.id}-2`, data: row }],
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'retype'
+          ),
+      ],
+    ]
+
+    it.each(retypeWriters)(
+      '%s stores the value it was sent in a column retyped since its snapshot',
+      async (_, write) => {
+        const { table, stale } = await retypedTable()
+
+        await write(stale, { code: '007' })
+
+        const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+          FROM user_table_rows WHERE table_id = ${table.id} AND data->'code' = '"007"'`
+        expect(count).toBe(1)
+      }
+    )
+
+    it.each(retypeWriters)(
+      '%s refuses a row a retype since its snapshot grows past the size limit',
+      async (writer, write) => {
+        const { table, stale } = await retypedTable()
+        // Exactly at the limit with `code` a number; the live text column stores it with quotes.
+        const inserting = writer !== 'updateRow' && writer !== 'batchUpdateRows'
+        const shape = (filler: string) =>
+          inserting ? { key: 'k3', code: 7, filler } : { key: 'k2', filler, code: 7 }
+        const filler = 'x'.repeat(
+          getMaxRowSizeBytes() - Buffer.byteLength(JSON.stringify(shape('')))
+        )
+
+        await expect(write(stale, { code: 7, filler })).rejects.toThrow(/Row size exceeds limit/)
+        const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+          FROM user_table_rows WHERE table_id = ${table.id} AND data->>'code' = '7'`
+        expect(count).toBe(0)
+      }
+    )
 
     it('refuses a bulk update writing one value to rows of a column made unique since its snapshot', async () => {
       const table = await seededTable()

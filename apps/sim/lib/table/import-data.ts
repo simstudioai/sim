@@ -84,6 +84,7 @@ export async function bulkInsertImportBatch(
   // the caller's snapshot too would reject a since-cleared lock.
   if (!revalidate) assertRowInsert(table)
 
+  const rawRows = data.rows.map((row) => ({ ...row }))
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
@@ -125,7 +126,7 @@ export async function bulkInsertImportBatch(
     const live = fresh ? withLiveSchema(table, fresh.schema) : await lockLiveTableSchema(trx, table)
     if (live !== table) {
       for (let i = 0; i < data.rows.length; i++) {
-        const refit = refitRowToSchema(data.rows[i], table.schema, live.schema, 'null')
+        const refit = refitRowToSchema(data.rows[i], rawRows[i], table.schema, live.schema, 'null')
         if (!refit.valid) {
           throw new OrchestrationError('validation', `Row ${i + 1}: ${refit.errors.join(', ')}`)
         }

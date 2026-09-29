@@ -178,6 +178,7 @@ export async function insertRow(
   }
 
   // Validate against schema
+  const raw = { ...data.data }
   const schemaValidation = coerceRowToSchema(data.data, table.schema, options.uncoercibleValues)
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
@@ -216,6 +217,7 @@ export async function insertRow(
       if (live !== table) {
         const refit = refitRowToSchema(
           data.data,
+          raw,
           table.schema,
           live.schema,
           options.uncoercibleValues
@@ -794,6 +796,7 @@ export async function upsertRow(
     throw new OrchestrationError('validation', sizeValidation.errors.join(', '))
   }
 
+  const raw = { ...data.data }
   const schemaValidation = coerceRowToSchema(data.data, table.schema, options.uncoercibleValues)
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
@@ -821,6 +824,7 @@ export async function upsertRow(
     if (live !== table) {
       const refit = refitRowToSchema(
         data.data,
+        raw,
         table.schema,
         live.schema,
         options.uncoercibleValues
@@ -1886,6 +1890,7 @@ export async function updateRow(
       if (live !== table) {
         const refit = refitRowToSchema(
           mergedData,
+          { ...(existingRow.data as RowData), ...data.data },
           table.schema,
           live.schema,
           options.uncoercibleValues,
@@ -2706,6 +2711,7 @@ export async function batchUpdateRows(
         const existing = existingMap.get(update.rowId)!
         const refit = refitRowToSchema(
           update.mergedData,
+          { ...existing.data, ...request.data },
           table.schema,
           live.schema,
           options.uncoercibleValues,

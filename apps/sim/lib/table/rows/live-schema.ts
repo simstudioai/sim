@@ -23,6 +23,7 @@ import {
   coerceRowToSchema,
   type PatchedKeys,
   type UncoercibleValuePolicy,
+  validateRowSize,
 } from '@/lib/table/validation'
 
 /** Compares schemas by content, whatever order their columns are listed in. */
@@ -44,9 +45,9 @@ export function withLiveSchema(table: TableDefinition, schema: TableSchema): Tab
  * the live schema. Call it first in the transaction, before its other locks, passing the
  * transaction's `timeouts` (see `setTableTxTimeouts`) in place of a separate timeouts statement.
  *
- * One statement: `user_table_schema_for_write` (migration 0391) takes the lock and then reads the
- * schema. It is VOLATILE, so under READ COMMITTED its read takes a fresh snapshot and sees a schema
- * change that committed while the lock waited. The timeouts are applied in a subquery the call
+ * One statement: `user_table_schema_for_write` (script migration 0026) takes the lock and then
+ * reads the schema. It is VOLATILE, so under READ COMMITTED its read takes a fresh snapshot and sees
+ * a schema change that committed while the lock waited. The timeouts are applied in a subquery the call
  * reads from, first. The lock waits as long as the transaction's `statement_timeout` allows, not
  * its shorter `lock_timeout`, which the function leaves as it found it for the locks that follow.
  */
@@ -81,18 +82,23 @@ export function dropDeletedColumns(
 }
 
 /**
- * Re-validates, in place, a row prepared against `snapshot` once the schema has moved to `live`:
- * drops the cells of deleted columns, then coerces and validates against `live` exactly as the
- * write first did. Coercion leaves a value it already produced unchanged, the property every
- * merged-row write relies on when it re-coerces stored cells.
+ * Rebuilds `row`, in place, for `live` once the schema has moved since `snapshot`: from `raw`, the
+ * row as the caller wrote it before coercing it against `snapshot`, so a value that schema would
+ * have reshaped (`"007"` read as a number) reaches the live column as it was sent. Then drops the
+ * cells of deleted columns, coerces and validates against `live` exactly as the write first did,
+ * and re-checks the row's size, which a coercion to a wider type can grow.
  */
 export function refitRowToSchema(
   row: RowData,
+  raw: RowData,
   snapshot: TableSchema,
   live: TableSchema,
   policy?: UncoercibleValuePolicy,
   patchedKeys?: PatchedKeys
 ): ValidationResult {
+  for (const key of Object.keys(row)) delete row[key]
+  Object.assign(row, raw)
   dropDeletedColumns([row], snapshot, live)
-  return coerceRowToSchema(row, live, policy, patchedKeys)
+  const result = coerceRowToSchema(row, live, policy, patchedKeys)
+  return result.valid ? validateRowSize(row) : result
 }
