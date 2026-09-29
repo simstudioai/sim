@@ -62,6 +62,7 @@ import type {
   WorkspaceImportRequest,
   WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
+import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 
 const logger = createLogger('AdminWorkspaceImportAPI')
 
@@ -363,6 +364,10 @@ async function importSingleWorkflow(
       isDeployed: false,
       runCount: 0,
       variables: {},
+      // An imported workflow is a NEW workflow in this workspace, so it takes the
+      // workspace's fork-sync policy. Without this it lands on the column default and
+      // silently joins fork sync in a workspace that opted out.
+      forkSyncExcluded: await resolveForkSyncExclusionForNewWorkflow(db, workspaceId),
     })
 
     /**

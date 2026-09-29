@@ -114,6 +114,12 @@ export const getForkLineageContract = defineRouteContract({
           direction: forkDirectionSchema,
         })
         .nullable(),
+      /**
+       * Whether a newly created workflow here starts outside fork sync. Uniform across the
+       * lineage, so this workspace's own value is the lineage's value. Defaulted so a new
+       * client tolerates an old server's response during rollout.
+       */
+      forkSyncNewWorkflowsExcluded: z.boolean().default(false),
     }),
   },
 })
@@ -954,6 +960,33 @@ export const updateForkExcludedWorkflowsContract = defineRouteContract({
     }),
   },
 })
+export const updateForkSyncDefaultBodySchema = z.object({
+  /**
+   * True makes newly created workflows start outside fork sync (participation is opt-in);
+   * false restores the default, where a workflow joins sync as soon as it is deployed.
+   * Applies to the whole fork lineage and never changes an existing workflow.
+   */
+  excludeNewWorkflows: z.boolean(),
+})
+export const updateForkSyncDefaultContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/fork/sync-default',
+  params: workspaceIdParamsSchema,
+  body: updateForkSyncDefaultBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      excludeNewWorkflows: z.boolean(),
+      /** Lineage members whose value changed; 0 when it already matched everywhere. */
+      workspacesUpdated: z.number().int(),
+    }),
+  },
+})
+export type UpdateForkSyncDefaultBody = z.input<typeof updateForkSyncDefaultBodySchema>
+export type UpdateForkSyncDefaultResponse = z.output<
+  typeof updateForkSyncDefaultContract.response.schema
+>
+
 export type UpdateForkExcludedWorkflowsBody = z.input<typeof updateForkExcludedWorkflowsBodySchema>
 export type UpdateForkExcludedWorkflowsResponse = z.output<
   typeof updateForkExcludedWorkflowsContract.response.schema

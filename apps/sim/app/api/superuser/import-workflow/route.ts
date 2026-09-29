@@ -18,6 +18,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 
 const logger = createLogger('SuperUserImportWorkflow')
 
@@ -149,6 +150,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       isDeployed: false, // Never copy deployment status
       runCount: 0,
       variables: sourceWorkflow.variables || {},
+      // An imported workflow is a NEW workflow in the target workspace, so it takes that
+      // workspace's fork-sync policy rather than the column default.
+      forkSyncExcluded: await resolveForkSyncExclusionForNewWorkflow(db, targetWorkspaceId),
     })
 
     // Save using existing persistence logic

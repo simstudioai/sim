@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { getEffectiveWorkspacePermission } from '@/lib/workspaces/permissions/utils'
 import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { getUndoableRunForTarget } from '@/ee/workspace-forking/lib/promote/promote-run-store'
+import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 
 /**
  * Annotates a lineage node with whether the viewer holds any access to it (explicit
@@ -34,10 +35,12 @@ export const getWorkspaceForkLineageDetails = defineForkUseCase({
     context: { userId: string }
   }) {
     const { workspaceId } = input
-    const [rawParent, rawChildren, run] = await Promise.all([
+    const [rawParent, rawChildren, run, forkSyncNewWorkflowsExcluded] = await Promise.all([
       getForkParent(workspaceId),
       getForkChildren(workspaceId),
       getUndoableRunForTarget(db, workspaceId),
+      // Lineage-uniform, so this workspace's own value is the lineage's value.
+      resolveForkSyncExclusionForNewWorkflow(db, workspaceId),
     ])
 
     const [parent, children] = await Promise.all([
@@ -71,6 +74,7 @@ export const getWorkspaceForkLineageDetails = defineForkUseCase({
         createdAt: child.createdAt.toISOString(),
       })),
       undoableRun,
+      forkSyncNewWorkflowsExcluded,
     }
   },
 })

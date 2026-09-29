@@ -31,12 +31,13 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
-import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {
   ARCHIVED_PREVIEW_LIMIT,
   useForkSync,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
+import { ForkSyncDefaultToggle } from '@/ee/workspace-forking/components/fork-sync-default-toggle/fork-sync-default-toggle'
+import { ForkSyncedWorkflows } from '@/ee/workspace-forking/components/fork-synced-workflows/fork-synced-workflows'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
 import { useForkingAvailability } from '@/ee/workspace-forking/hooks/use-forking-available'
 import {
@@ -546,8 +547,15 @@ export function Forks() {
                   </SettingsEmptyState>
                 )}
               </SettingsSection>
-              <SettingsSection label='Excluded workflows'>
-                <ForkExcludedWorkflows workspaceId={workspaceId} />
+              <SettingsSection label='Synced workflows'>
+                <div className='flex flex-col gap-4'>
+                  <ForkSyncDefaultToggle
+                    workspaceId={workspaceId}
+                    excludeNewWorkflows={lineage.data?.forkSyncNewWorkflowsExcluded ?? false}
+                    loading={lineage.isLoading || lineage.isPlaceholderData}
+                  />
+                  <ForkSyncedWorkflows workspaceId={workspaceId} />
+                </div>
               </SettingsSection>
             </div>
           )}

@@ -14,6 +14,7 @@ import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 
 const logger = createLogger('WorkflowLifecycle')
 
@@ -206,6 +207,7 @@ export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCre
     isDeployed: false,
     runCount: 0,
     variables: {},
+    forkSyncExcluded: await resolveForkSyncExclusionForNewWorkflow(tx, params.workspaceId),
   }
   if (!params.deduplicate) {
     await tx.insert(workflow).values(row)
@@ -269,6 +271,14 @@ export async function performCreateWorkflowTransition(
 
     try {
       await db.transaction(async (tx) => {
+        // Read inside the insert transaction, not before it. The policy is forward-only and
+        // governs a default the owner can see and change in the Forks list, so this does not
+        // need the lineage lock that `setForkSyncDefault` takes - but snapshotting it before
+        // the transaction widened the window for no reason.
+        const forkSyncExcluded = await resolveForkSyncExclusionForNewWorkflow(
+          tx,
+          params.workspaceId
+        )
         await tx.insert(workflow).values({
           id: workflowId,
           userId: params.userId,
@@ -283,6 +293,7 @@ export async function performCreateWorkflowTransition(
           isDeployed: false,
           runCount: 0,
           variables: {},
+          forkSyncExcluded,
         })
 
         await saveWorkflowToNormalizedTables(

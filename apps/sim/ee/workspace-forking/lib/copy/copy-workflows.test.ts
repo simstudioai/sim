@@ -653,3 +653,57 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     expect(subBlocks.text?.value).toBe('true')
   })
 })
+
+describe('copyWorkflowStateIntoTarget fork-sync inheritance', () => {
+  const sourceState = {
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  } as never
+
+  /** `create` mode inserts the target row; capture exactly what it writes. */
+  function stubCreateTx(captured: Record<string, unknown>[]) {
+    return {
+      insert: () => ({
+        values: (row: Record<string, unknown>) => {
+          captured.push(row)
+          return Promise.resolve()
+        },
+      }),
+    } as unknown as DbOrTx
+  }
+
+  const createParams = (forkSyncExcluded: boolean) => ({
+    targetWorkflowId: 'wf-new',
+    targetWorkspaceId: 'ws-target',
+    userId: 'target-user',
+    mode: 'create' as const,
+    now: new Date('2026-07-01'),
+    sourceState,
+    sourceMeta: {
+      name: 'Prod',
+      description: null,
+      folderId: null,
+      sortOrder: 0,
+      forkSyncExcluded,
+    },
+    workflowIdMap: new Map(),
+    folderIdMap: new Map(),
+    nameRegistry: buildWorkflowNameRegistry([]),
+    resolveBlockId: (_targetWorkflowId: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
+  })
+
+  /**
+   * The regression the whole opt-in feature hinges on. A copy is not a new workflow, so it
+   * must never take the TARGET workspace's new-workflow default. In an opt-out lineage that
+   * default is "excluded", so taking it here would land a deliberately synced workflow's
+   * copy already excluded, and sync would never update it again.
+   */
+  it('writes a synced copy rather than taking the target workspace default', async () => {
+    const rows: Record<string, unknown>[] = []
+    await copyWorkflowStateIntoTarget({ ...createParams(false), tx: stubCreateTx(rows) } as never)
+    expect(rows[0].forkSyncExcluded).toBe(false)
+  })
+})
