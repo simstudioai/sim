@@ -1,6 +1,6 @@
 ---
 slug: how-to-turn-a-workflow-into-a-reusable-mcp-tool
-title: 'How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n, Gumloop, and Zapier)'
+title: 'How to Turn a Workflow Into a Reusable MCP Tool (Sim vs n8n)'
 description: 'Learn how to turn a workflow into a reusable MCP tool, publish it through Sim, connect clients securely, and compare Sim with n8n.'
 date: 2026-08-14
 updated: 2026-09-29
@@ -27,7 +27,7 @@ faq:
   - q: "How should a Sim MCP tool be authenticated?"
     a: "A Sim MCP tool should use the authentication configuration generated or supported by the active Sim deployment and should never rely on secrets embedded in prompts or ordinary tool inputs."
   - q: "Can Sim MCP tools be self-hosted?"
-    a: "Sim is Apache 2.0 software and can be self-hosted, but buyers should verify that the current self-hosted release supports the required MCP deployment, networking, authentication, and operational controls."
+    a: "Sim can be self-hosted, but buyers should verify that the current self-hosted release supports the required MCP deployment, networking, authentication, and operational controls. Sim’s core code uses Apache License 2.0, while features under apps/sim/ee have separate Sim Enterprise License terms that require an active Enterprise subscription for production use."
   - q: "Do you need to code to create an MCP tool in Sim?"
     a: "Sim can reduce the coding required through visual workflow construction, although custom transformations, unsupported services, validation, and production infrastructure may still require code."
   - q: "How do you make an MCP workflow reusable?"
@@ -35,7 +35,7 @@ faq:
   - q: "How do you test a Sim MCP tool?"
     a: "A Sim MCP tool should be tested for discovery, valid execution, invalid inputs, rejected credentials, upstream failures, duplicate requests, and sensitive-data handling."
   - q: "Is Sim open source?"
-    a: "Sim is licensed under the Apache License 2.0 according to its official repository as of September 2026, and buyers should confirm the current repository license before making legal or procurement decisions."
+    a: "Sim’s core code is licensed under Apache License 2.0 according to its official repository as of September 2026. Features under apps/sim/ee use the separate Sim Enterprise License, which requires an active Enterprise subscription for production use. Buyers should confirm both current licenses before making legal or procurement decisions."
   - q: "Is n8n open source?"
     a: "n8n is source-available under its Sustainable Use License rather than OSI-approved open source as of September 2026, with separate terms applying to some enterprise and commercial uses."
   - q: "Is Sim or n8n better for MCP workflows?"
@@ -227,7 +227,7 @@ Ask each vendor:
 - How are endpoint and schema changes communicated to callers?
 - What happens to in-flight calls during a redeployment?
 
-As of September 2026, Sim's [official repository license](https://github.com/simstudioai/sim/blob/main/LICENSE) is Apache License 2.0. Confirm the repository's current license before making procurement or redistribution decisions.
+As of September 2026, Sim's [core repository license](https://github.com/simstudioai/sim/blob/main/LICENSE) is Apache License 2.0. Features under `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use and restricts modification and redistribution. Confirm both current licenses before making procurement or redistribution decisions.
 
 ## How much coding is required?
 
@@ -252,7 +252,7 @@ Sim emphasizes visually building AI workflows that become reusable tools. n8n is
 | MCP server model | Add deployed workflows as tools on workspace MCP servers | Use MCP Server Trigger or instance-level MCP capabilities |
 | Coding requirement | Visual construction with code available for custom logic | Visual construction with code nodes available for custom logic |
 | Deployment decision | Compare Sim Cloud with Sim self-hosting requirements | Compare n8n Cloud with n8n self-hosting requirements |
-| License | Apache License 2.0 in the official repository as of September 2026 | Sustainable Use License for covered source and separate Enterprise License terms as of September 2026 |
+| License | Apache License 2.0 for core code and separate Sim Enterprise License terms for features under `apps/sim/ee` as of September 2026 | Sustainable Use License for covered source and separate Enterprise License terms as of September 2026 |
 | Strongest fit | Teams prioritizing AI workflow composition and reusable agent tools | Teams prioritizing broad workflow automation and explicit node-based integration |
 
 n8n's server trigger can be the better fit when you want to curate a graph of connected tool nodes behind one endpoint. Its [instance-level MCP server](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/) serves a broader agent-operating-the-platform use case. Sim's model is stronger when the unit you want to publish and maintain is a deployed workflow added to one or more workspace servers. For a wider incumbent comparison, see these [n8n alternatives](https://www.sim.ai/library/n8n-alternatives).
@@ -263,7 +263,7 @@ As of September 2026, n8n states that covered source uses its [Sustainable Use L
 
 > **Key facts**
 >
-> - Sim's official repository uses Apache License 2.0 as of September 2026, and Sim supports cloud and self-hosted deployment.
+> - Sim's core code uses [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while features under `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), as of September 2026; Sim supports cloud and self-hosted deployment.
 > - n8n's covered source uses its Sustainable Use License, with separate Enterprise License terms, as of September 2026.
 > - MCP client support means a platform can consume tools; MCP server support means it can publish tools for external clients.
 > - Sim workflow MCP servers currently use Streamable HTTP at a generated `/api/mcp/serve/<server-id>` route.
