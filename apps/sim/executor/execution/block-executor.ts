@@ -7,7 +7,7 @@ import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { compactBlockOutput } from '@/lib/execution/payloads/serializer'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -379,7 +379,7 @@ export class BlockExecutor {
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
-      normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
+      normalizedOutput = (await compactBlockOutput(normalizedOutput, {
         workspaceId: blockCtx.workspaceId,
         workflowId: blockCtx.workflowId,
         executionId: blockCtx.executionId,
