@@ -220,7 +220,7 @@ export function ToolActivityGroup({
   autoScrollActivity = true,
   isLive = false,
 }: ToolActivityGroupProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
@@ -236,6 +236,7 @@ export function ToolActivityGroup({
   const attentionKey = getActivityAttentionKey(tools)
   const entries = tools.map((tool) => ({ tool, sources: getSearchActivitySources(tool) }))
   const hasSearchDetails = entries.some(({ sources }) => sources !== undefined)
+  const expanded = manualExpanded ?? (isLive && hasSearchDetails)
 
   return (
     <ToolCallComponent
@@ -262,7 +263,7 @@ export function ToolActivityGroup({
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
           collapsible={tools.length > 1 || hasSearchDetails}
           expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
+          onToggle={() => setManualExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
           unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
