@@ -12,6 +12,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import type {
+  BenchmarkExecution,
   ChatRequest,
   ExecuteMessage,
   ExecuteRequest,
@@ -58,21 +59,24 @@ async function stopIncompleteRun(
   }
 }
 
-/** Each invocation uses a fresh conversation and omits catalogs, tools, attachments, and history. */
+/** Each invocation uses a fresh conversation; optional profiles expose only the stage's permitted reads. */
 export async function executeBenchmarkJson<S extends z.ZodType>(input: {
   benchmark: BenchmarkCase
   messages: ExecuteMessage[]
   schema: S
   signal: AbortSignal
+  profile?: BenchmarkExecution
+  chatId?: string
 }): Promise<z.output<S>> {
   getBenchmarkMothershipUrl()
   const executionUserId = input.benchmark.runAsUserId ?? input.benchmark.userId
   const messageId = generateId()
   const payload: ExecuteRequest = {
     protocolVersion: PROTOCOL_VERSION,
-    maxOutputTokens: 16_384,
+    maxOutputTokens: 32_768,
     messageId,
-    chatId: generateId(),
+    chatId: input.chatId ?? generateId(),
+    benchmark: input.profile,
     userId: executionUserId,
     workspaceId: input.benchmark.sourceWorkspaceId,
     messages: input.messages,
@@ -93,19 +97,21 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
     result = await runHeadlessCopilotLifecycle(
       { ...payload },
       {
-        benchmark: 'tool-free',
+        benchmark: input.profile?.stage ?? 'tool-free',
         goRoute: '/api/mothership/execute',
         userId: executionUserId,
         workspaceId: input.benchmark.sourceWorkspaceId,
+        chatId: payload.chatId,
         billingAttribution,
         environmentContext,
+        ...(input.profile?.stage === 'distill' ? { userPermission: 'read' as const } : {}),
         abortSignal: input.signal,
         timeout: 10 * 60 * 1000,
         clientToolPickupExpected: false,
       }
     )
-    const text = requireCompletedText(result, 400_000).trim()
-    if (result.toolCalls.length)
+    const text = requireCompletedText(result, 4 * BENCHMARK_SPEC_MAX_LENGTH).trim()
+    if (!input.profile && result.toolCalls.length)
       throw new OrchestrationError(
         'validation',
         'The isolated benchmark reader attempted a tool call'

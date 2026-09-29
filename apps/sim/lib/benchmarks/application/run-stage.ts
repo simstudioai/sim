@@ -2,13 +2,10 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
-import {
-  benchmarkSourcePrincipal,
-  defineAuthorizedBenchmarkUseCase,
-} from '@/lib/benchmarks/application/access'
+import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
-import { readBenchmarkWorkspace } from '@/lib/benchmarks/application/source'
+import { prepareBenchmarkReference } from '@/lib/benchmarks/application/prepare-reference'
 import { applyBenchmarkPatch, validateBenchmarkRedaction } from '@/lib/benchmarks/artifacts'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { gradeReconstruction, validateReconstruction } from '@/lib/benchmarks/evaluation'
@@ -92,18 +89,18 @@ async function performStage(
   const artifacts = benchmark.artifacts
   switch (stage) {
     case 'distill': {
-      const sourcePrincipal = await benchmarkSourcePrincipal(principal, {
-        organizationId: benchmark.organizationId,
-        runAsUserId: benchmark.runAsUserId ?? benchmark.userId,
-        sourceWorkspaceId: benchmark.sourceWorkspaceId,
+      const target = await prepareBenchmarkReference.execute({
+        principal,
+        input: { organizationId: benchmark.organizationId, benchmarkId: benchmark.id },
       })
-      const source = await readBenchmarkWorkspace(sourcePrincipal, benchmark.sourceWorkspaceId)
       signal.throwIfAborted()
       const result = await executeBenchmarkJson({
         benchmark,
         signal,
         schema: distillationSchema,
-        messages: distillationMessages(source, artifacts.taskBrief),
+        messages: distillationMessages(artifacts.taskBrief),
+        profile: { stage: 'distill' },
+        chatId: target.chatId,
       })
       return { artifacts: applyBenchmarkPatch(artifacts, result), plannerChatId: null }
     }
@@ -133,7 +130,8 @@ async function performStage(
         benchmark,
         signal,
         schema: reconstructionSchema,
-        messages: reconstructionMessages(artifacts.generatedSpec!, artifacts.redactedSpec),
+        messages: reconstructionMessages(artifacts.redactedSpec),
+        profile: { stage: 'reconstruct', spec: artifacts.generatedSpec! },
       })
       validateReconstruction(artifacts.blanks, result.answers)
       return { artifacts: { ...artifacts, reconstruction: result.answers, grade: null } }

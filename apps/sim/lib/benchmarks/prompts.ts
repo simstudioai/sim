@@ -11,10 +11,10 @@ function messages(instruction: string, data: unknown): ExecuteMessage[] {
   ]
 }
 
-export function distillationMessages(workflows: string, taskBrief: string): ExecuteMessage[] {
+export function distillationMessages(taskBrief: string): ExecuteMessage[] {
   return messages(
-    'Describe the implemented business behavior of these workflow exports as a self-contained reference specification. Cover triggers, conditions, ownership, mappings, actions, destinations and failure behavior. Do not invent intent, requirements or missing values. Omit layout, internal block IDs, credential IDs and implementation trivia. Also draft a short taskBrief expressing the business goal a user would originally request, without disclosing the enterprise-specific answers. If a taskBrief was supplied, preserve it. The reference is for human review before evaluation.',
-    { workflows, taskBrief }
+    'Explore the selected workspace using the read-only workspace CLI and describe its implemented behavior as a detailed, self-contained reference specification. Begin by listing all active workflows, follow list pagination, inspect each workflow and its referenced workspace resources, and follow large-output continuations. Cover exact triggers and input shapes, conditions, ownership, field mappings, prompts and code behavior, actions, destinations, cross-workflow relationships, outputs and failure/recovery behavior. Preserve concrete names, values and business rules; do not compress them into a high-level overview. Distinguish implemented behavior from unresolved configuration or inferred intent. Do not invent missing values. Omit editor layout and credential values. Also draft a short taskBrief expressing the business goal a user would originally request, without disclosing the enterprise-specific answers. If a taskBrief was supplied, preserve it. The reference is for human review before evaluation. Use tools to inspect; return the final JSON only when inspection is complete.',
+    { taskBrief }
   )
 }
 
@@ -26,13 +26,10 @@ export function redactionMessages(referenceSpec: string): ExecuteMessage[] {
 }
 
 /** This projection is the reader's complete input; reference answers and enterprise history have no path into it. */
-export function reconstructionMessages(
-  generatedSpec: string,
-  redactedSpec: string
-): ExecuteMessage[] {
+export function reconstructionMessages(redactedSpec: string): ExecuteMessage[] {
   return messages(
-    'Fill every [[BLANK:id]] in redactedSpec using generatedSpec as your only evidence. For each distinct id return answer and support, where support is an exact contiguous quote from generatedSpec that establishes the answer. Use an empty answer and empty support when the generated spec does not establish it or contradicts itself. Do not use background knowledge, surviving reference text, or guesses to supply missing facts.',
-    { generatedSpec, redactedSpec }
+    'Fill every [[BLANK:id]] in redactedSpec using generated-spec.md as your only evidence. Read or search that file with read_spec. For each distinct id return answer and support, where support is an exact contiguous quote from the file that establishes the answer. Use an empty answer and empty support when the generated spec does not establish it or contradicts itself. Do not use background knowledge, surviving reference text, or guesses to supply missing facts.',
+    { redactedSpec }
   )
 }
 

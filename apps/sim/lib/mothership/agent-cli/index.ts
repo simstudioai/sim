@@ -6,6 +6,7 @@ import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engi
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
+import { isReadOnlyCliRequest, readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
@@ -30,6 +31,7 @@ import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/appli
 
 export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abortSignal'> {
   signal?: AbortSignal
+  readOnly?: boolean
 }
 
 /**
@@ -43,6 +45,13 @@ export async function executeAgentCliRequest(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   context.signal?.throwIfAborted()
+  if (context.readOnly && !isReadOnlyCliRequest(request)) {
+    return {
+      exitCode: 1,
+      stdout: '',
+      stderr: 'This operation is unavailable during benchmark reference generation.',
+    }
+  }
   if (
     request.invocation.kind === 'service' ||
     (request.invocation.kind === 'stdout' &&
@@ -119,6 +128,7 @@ async function executeBoundAgentCliRequest(
     ),
     ...(context.signal ? { signal: context.signal } : {}),
   }
+  if (context.readOnly) identity.transport = readOnlyCliTransport(identity.transport!)
 
   const { invocation, sink } = request
   let result: AgentCliRawResult
