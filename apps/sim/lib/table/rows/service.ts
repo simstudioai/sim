@@ -67,6 +67,7 @@ import {
   mutateTableRowsWithSecretProvenance,
   type TableRowProvenanceReader,
 } from '@/lib/table/rows/secret-provenance'
+import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import {
   buildFilterClause,
   buildPredicateClause,
@@ -109,6 +110,7 @@ import {
   coerceRowValues,
   getUniqueColumns,
   type UncoercibleValuePolicy,
+  uniqueValueKey,
   validateRowSize,
 } from '@/lib/table/validation'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
@@ -177,15 +179,6 @@ export async function insertRow(
     )
   }
 
-  // Check unique constraints using optimized database query
-  const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
-    const uniqueValidation = await checkUniqueConstraintsDb(data.tableId, data.data, table.schema)
-    if (!uniqueValidation.valid) {
-      throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
-    }
-  }
-
   // Best-effort capacity check against the workspace's current plan limit.
   const rowLimit = await assertRowCapacity({
     workspaceId: table.workspaceId,
@@ -209,6 +202,22 @@ export async function insertRow(
     secretProvenance: data.secretProvenance,
     proof: insertProof,
     readProvenance: options.readProvenance,
+    assertUnique:
+      getUniqueColumns(table.schema).length > 0
+        ? async (trx) => {
+            await lockUniqueValues(trx, table, [data.data])
+            const uniqueValidation = await checkUniqueConstraintsDb(
+              data.tableId,
+              data.data,
+              table.schema,
+              undefined,
+              trx
+            )
+            if (!uniqueValidation.valid) {
+              throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
+            }
+          }
+        : undefined,
   })
 
   notifyTableRowUsage({
@@ -290,6 +299,14 @@ export async function batchInsertRows(
   return result
 }
 
+export interface BatchInsertOptions extends RowWriteOptions {
+  /**
+   * The caller already holds `lockUniqueColumns` for the table in this transaction (bulk imports,
+   * which take it before the row-order lock), so the batch takes no per-value locks of its own.
+   */
+  uniqueColumnsLocked?: boolean
+}
+
 /**
  * Transaction-bound variant of `batchInsertRows`. Validates rows and unique
  * constraints, then performs INSERTs inside the provided transaction. Caller
@@ -298,13 +315,17 @@ export async function batchInsertRows(
  *
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
+ *
+ * Takes the rows' unique-value locks (see `unique-locks.ts`) before the unique check and the
+ * row-order lock, so a caller must not already hold the row-order lock unless it passes
+ * `uniqueColumnsLocked`.
  */
 export async function batchInsertRowsWithTx(
   trx: DbTransaction,
   data: BatchInsertData,
   table: TableDefinition,
   requestId: string,
-  options: RowWriteOptions = {}
+  options: BatchInsertOptions = {}
 ): Promise<TableRow[]> {
   assertRowInsert(table)
 
@@ -330,6 +351,7 @@ export async function batchInsertRowsWithTx(
 
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
+    if (!options.uniqueColumnsLocked) await lockUniqueValues(trx, table, data.rows)
     const uniqueResult = await checkBatchUniqueConstraintsDb(
       data.tableId,
       data.rows,
@@ -485,6 +507,9 @@ export async function replaceTableRows(
  *
  * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
  * Callers gate it before opening the tx — see `replaceTableRows` and `importReplaceRows`.
+ *
+ * Takes the table's unique lock before its row-order lock, so a caller already holding the
+ * row-order lock must take `lockUniqueColumns` first.
  */
 export async function replaceTableRowsWithTx(
   trx: DbTransaction,
@@ -561,6 +586,10 @@ export async function replaceTableRowsWithTx(
   })
 
   await setTableTxTimeouts(trx, { statementMs })
+
+  // Every current row is about to go, so any concurrent write of a unique value conflicts with the
+  // replacement set: hold the unique columns exclusively, ahead of the row-order lock.
+  await lockUniqueColumns(trx, table)
 
   // Serialize concurrent replaces (and concurrent auto-position inserts) on the
   // same table. Without this, two concurrent replaces each see their own MVCC
@@ -752,6 +781,9 @@ export async function upsertRow(
     // insert-path upsert (no existing match) can't exit early, so the planner
     // would seq-scan the whole shared relation. See withSeqscanOff.
     await trx.execute(sql`SET LOCAL enable_seqscan = off`)
+    // Holds every unique value this row writes, the conflict target included, before the lookup
+    // and the unique check below: concurrent upserts and inserts of the same value serialize here.
+    await lockUniqueValues(trx, table, [data.data])
 
     // Find existing row by single conflict target column
     const [existingRow] = await trx
@@ -1768,36 +1800,19 @@ export async function updateRow(
   // Scoped to the columns this patch actually writes. A merge cannot newly
   // violate uniqueness on a column it leaves alone: that value is the one
   // already stored, and it satisfied the constraint when it was written. The
-  // probe opens its own transaction and queries once per unique column, so on a
-  // table that has any unique column this was several round trips on every
-  // edit, including edits nowhere near one.
+  // probe queries once per unique column, so on a table that has any unique
+  // column this was several round trips on every edit, including edits nowhere
+  // near one.
   //
-  // What this does not cover is a duplicate that already exists — either from a
-  // constraint added to a column that already held one, or from two concurrent
-  // inserts both passing this probe, since uniqueness here is advisory (a
-  // SELECT, not a DB constraint). Such a row is no longer blocked from edits
-  // elsewhere in it. That is the intended outcome: an unrelated cell edit
-  // should not fail on data it did not write, and blocking it was never a
-  // repair mechanism.
+  // What this does not cover is a duplicate that already exists, from a
+  // constraint added to a column that already held one. Such a row is no longer
+  // blocked from edits elsewhere in it. That is the intended outcome: an
+  // unrelated cell edit should not fail on data it did not write, and blocking
+  // it was never a repair mechanism.
   const patchedColumnIds = new Set(Object.keys(data.data))
   const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
     patchedColumnIds.has(getColumnId(column))
   )
-  if (patchedUniqueColumns.length > 0) {
-    const uniqueValidation = await checkUniqueConstraintsDb(
-      data.tableId,
-      mergedData,
-      // Narrowed to the patched unique columns, not just used as a gate: the
-      // probe issues one SELECT per unique column it is given, so a table with
-      // several would otherwise re-check all of them to validate a patch that
-      // touched one. `schema` is read only for its unique columns here.
-      { ...table.schema, columns: patchedUniqueColumns },
-      data.rowId // Exclude current row
-    )
-    if (!uniqueValidation.valid) {
-      throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
-    }
-  }
 
   const now = new Date()
   const persistedData = jsonbMergePatch(Object.keys(data.data), mergedData)
@@ -1813,6 +1828,25 @@ export async function updateRow(
   let persistedRow: typeof userTableRows.$inferSelect
   try {
     persistedRow = await db.transaction(async (trx) => {
+      if (patchedUniqueColumns.length > 0) {
+        // The value locks come first in the transaction, so a concurrent write of the same value
+        // commits before this check runs, or waits for this edit to commit.
+        await lockUniqueValues(trx, table, [mergedData], patchedColumnIds)
+        const uniqueValidation = await checkUniqueConstraintsDb(
+          data.tableId,
+          mergedData,
+          // Narrowed to the patched unique columns, not just used as a gate: the
+          // probe issues one SELECT per unique column it is given, so a table with
+          // several would otherwise re-check all of them to validate a patch that
+          // touched one. `schema` is read only for its unique columns here.
+          { ...table.schema, columns: patchedUniqueColumns },
+          data.rowId, // Exclude current row
+          trx
+        )
+        if (!uniqueValidation.valid) {
+          throw new OrchestrationError('validation', uniqueValidation.errors.join(', '))
+        }
+      }
       const mutate = async () => {
         const condition = and(
           eq(userTableRows.id, data.rowId),
@@ -2043,6 +2077,8 @@ async function persistBulkUpdateBatch(params: {
   secretProvenance: BulkUpdateData['secretProvenance']
   requestId: string
   uncoercibleValues: UncoercibleValuePolicy | undefined
+  /** Runs first in the write transaction: the unique-value locks and check of a unique patch. */
+  assertUnique?: (trx: DbTransaction) => Promise<void>
 }): Promise<{ rows: BulkUpdateMatch[]; affectedRowIds: string[] }> {
   const {
     table,
@@ -2054,11 +2090,13 @@ async function persistBulkUpdateBatch(params: {
     secretProvenance,
     requestId,
     uncoercibleValues,
+    assertUnique,
   } = params
   const ids = rows.map((row) => row.id)
   const persistedRows: BulkUpdateMatch[] = []
   const affectedRowIds = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    await assertUnique?.(trx)
     return mutateTableRowsWithSecretProvenance(trx, {
       rows: ids.map((rowId) => ({ rowId, provenance: secretProvenance })),
       rowState: 'existing',
@@ -2204,6 +2242,28 @@ export async function updateRowsByFilter(
   const patchJson = JSON.stringify(data.data)
   const now = new Date()
   const limit = data.limit
+  /**
+   * A unique patch reaches exactly one row. Its value locks and check run first in the write
+   * transaction, so a concurrent write of the same value is committed and visible to the check.
+   */
+  const uniqueGuard =
+    (row: BulkUpdateMatch) =>
+    async (trx: DbTransaction): Promise<void> => {
+      await lockUniqueValues(trx, table, [data.data])
+      const uniqueValidation = await checkUniqueConstraintsDb(
+        table.id,
+        { ...row.data, ...data.data },
+        table.schema,
+        row.id,
+        trx
+      )
+      if (!uniqueValidation.valid) {
+        throw new OrchestrationError(
+          'validation',
+          `Unique constraint violation: ${uniqueValidation.errors.join(', ')}`
+        )
+      }
+    }
 
   if (limit === undefined) {
     const cutoff = new Date()
@@ -2245,19 +2305,11 @@ export async function updateRowsByFilter(
       if (!singleMatchingRow) {
         throw new Error('Bulk update lost its selected row')
       }
-      const uniqueValidation = await checkUniqueConstraintsDb(
-        table.id,
-        { ...singleMatchingRow.data, ...data.data },
-        table.schema,
-        singleMatchingRow.id
-      )
-      if (!uniqueValidation.valid) {
-        throw new OrchestrationError(
-          'validation',
-          `Unique constraint violation: ${uniqueValidation.errors.join(', ')}`
-        )
-      }
     }
+    const assertUnique =
+      uniqueColumnsInUpdate.length > 0 && singleMatchingRow
+        ? uniqueGuard(singleMatchingRow)
+        : undefined
 
     const affectedRowIds: string[] = []
     afterId = undefined
@@ -2283,6 +2335,7 @@ export async function updateRowsByFilter(
         secretProvenance: data.secretProvenance,
         requestId,
         uncoercibleValues: options.uncoercibleValues,
+        assertUnique,
       })
       affectedRowIds.push(...persisted.affectedRowIds)
       dispatchBulkUpdateEffects(
@@ -2326,20 +2379,6 @@ export async function updateRowsByFilter(
           `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`
       )
     }
-    const row = matchingRows[0]
-    const mergedData = { ...row.data, ...data.data }
-    const uniqueValidation = await checkUniqueConstraintsDb(
-      table.id,
-      mergedData,
-      table.schema,
-      row.id
-    )
-    if (!uniqueValidation.valid) {
-      throw new OrchestrationError(
-        'validation',
-        `Unique constraint violation: ${uniqueValidation.errors.join(', ')}`
-      )
-    }
   }
 
   const persisted = await persistBulkUpdateBatch({
@@ -2352,6 +2391,7 @@ export async function updateRowsByFilter(
     secretProvenance: data.secretProvenance,
     requestId,
     uncoercibleValues: options.uncoercibleValues,
+    assertUnique: uniqueColumnsInUpdate.length > 0 ? uniqueGuard(matchingRows[0]) : undefined,
   })
   const { affectedRowIds } = persisted
 
@@ -2492,20 +2532,32 @@ export async function batchUpdateRows(
     })
   }
 
+  // Like `updateRow`, each update locks and checks only the unique columns it changes: a value it
+  // leaves alone is the one already stored. Updates that change none cost nothing extra here.
   const uniqueColumns = getUniqueColumns(table.schema)
+  const uniqueChecks: Array<{ rowId: string; mergedData: RowData; columns: ColumnDefinition[] }> =
+    []
   if (uniqueColumns.length > 0) {
-    for (const { rowId, mergedData } of mergedUpdates) {
-      const uniqueValidation = await checkUniqueConstraintsDb(
-        data.tableId,
-        mergedData,
-        table.schema,
-        rowId
-      )
-      if (!uniqueValidation.valid) {
-        throw new OrchestrationError(
-          'validation',
-          `Row ${rowId}: ${uniqueValidation.errors.join(', ')}`
-        )
+    // The DB check runs before any write and the value locks are deduplicated, so two updates in
+    // this batch writing the same value would both pass it; catch them here, keyed like the locks.
+    const firstWriter = new Map<string, string>()
+    for (const { rowId, changedColumnIds, mergedData } of mergedUpdates) {
+      const changed = new Set(changedColumnIds)
+      const columns = uniqueColumns.filter((column) => changed.has(getColumnId(column)))
+      if (columns.length === 0) continue
+      uniqueChecks.push({ rowId, mergedData, columns })
+      for (const column of columns) {
+        const value = mergedData[getColumnId(column)]
+        if (value === null || value === undefined) continue
+        const key = `${getColumnId(column)}:${uniqueValueKey(value, column)}`
+        const otherRowId = firstWriter.get(key)
+        if (otherRowId !== undefined && otherRowId !== rowId) {
+          throw new OrchestrationError(
+            'validation',
+            `Row ${rowId}: Column "${column.name}" must be unique. Value "${String(value)}" duplicates row ${otherRowId} in batch`
+          )
+        }
+        firstWriter.set(key, rowId)
       }
     }
   }
@@ -2514,6 +2566,32 @@ export async function batchUpdateRows(
 
   const affectedRowIds = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    if (uniqueChecks.length > 0) {
+      await lockUniqueValues(
+        trx,
+        table,
+        uniqueChecks.map(({ mergedData, columns }) =>
+          Object.fromEntries(
+            columns.map((column) => [getColumnId(column), mergedData[getColumnId(column)]])
+          )
+        )
+      )
+      for (const { rowId, mergedData, columns } of uniqueChecks) {
+        const uniqueValidation = await checkUniqueConstraintsDb(
+          data.tableId,
+          mergedData,
+          { ...table.schema, columns },
+          rowId,
+          trx
+        )
+        if (!uniqueValidation.valid) {
+          throw new OrchestrationError(
+            'validation',
+            `Row ${rowId}: ${uniqueValidation.errors.join(', ')}`
+          )
+        }
+      }
+    }
     return mutateTableRowsWithSecretProvenance(trx, {
       rows: mergedUpdates.map((update) => ({
         rowId: update.rowId,

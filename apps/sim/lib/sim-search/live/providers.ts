@@ -1,4 +1,3 @@
-import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { MAX_NATIVE_QUERIES_PER_ACCOUNT } from '@/lib/api/contracts/mothership-assistant-tools'
 import { readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { readCoda, searchCoda } from '@/lib/sim-search/live/coda'
@@ -14,7 +13,6 @@ import {
 } from '@/lib/sim-search/live/google'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { readLinear, searchLinear } from '@/lib/sim-search/live/linear'
-import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import {
   LIVE_SEARCH_PROVIDER_IDS,
   type LiveSearchProviderId,
@@ -24,6 +22,7 @@ import type {
   NativeClient,
   NativeDocument,
   NativePage,
+  NativeReadOptions,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
 
@@ -49,8 +48,7 @@ interface NativeProvider {
   read(
     client: NativeClient,
     reference: Pick<NativeDocument, 'id' | 'container' | 'kind' | 'revision' | 'threadId'>,
-    policy?: LiveSearchPolicy,
-    filters?: WorkspaceSearchFilters
+    options: NativeReadOptions
   ): Promise<NativeDocument>
 }
 
@@ -69,10 +67,10 @@ export const LIVE_SEARCH_PROVIDERS = {
         "'person@example.com' in owners (or writers, readers), mimeType = 'application/vnd.google-apps.document' (or spreadsheet, presentation, folder) and 'FOLDER_ID' in parents; project drive:DRIVE_ID searches one shared drive, whose files have no owners.",
       example: "fullText contains 'roadmap' and 'jane@example.com' in owners",
       avoid:
-        'bare words without a term and operator, which Drive rejects, and trashed or modifiedTime clauses, which the server adds from startDate/endDate. Drive search does not search comments or replies; find the file by title/content, then read it to retrieve its discussion.',
+        'bare words without a term and operator, which Drive rejects, and trashed or modifiedTime clauses, which the server adds from startDate/endDate. Drive search does not search comments or replies; find the file by title/content, then read it to retrieve its discussion. PDF and DOCX reads extract text within download and parsing limits; scanned PDFs need OCR and unsupported binaries provide metadata only.',
     },
     search: searchDrive,
-    read: (client, reference) => readDrive(client, reference.id),
+    read: (client, reference, options) => readDrive(client, reference.id, options.signal),
   },
   gmail: {
     guide: {
@@ -82,10 +80,10 @@ export const LIVE_SEARCH_PROVIDERS = {
         'from:, to:, cc:, subject:, label:, has:attachment, filename:, in:sent, from:me and is:unread; spam and trash are not searched.',
       example: 'from:jane@example.com subject:(budget OR forecast)',
       avoid:
-        'listing alternatives with spaces, which requires all of them, or lowercase or; join alternatives with uppercase OR.',
+        'listing alternatives with spaces, which requires all of them, or lowercase or; join alternatives with uppercase OR. Search matches individual messages. Reading a match includes up to eight independently authorized messages from its conversation, with per-message dates and URLs. Context can fall outside the search dates or keywords; use the message timestamps and incomplete notices, and never claim the entire thread was searched.',
     },
     search: searchGmail,
-    read: (client, reference) => readGmail(client, reference.id),
+    read: (client, reference, options) => readGmail(client, reference.id, options),
   },
   google_calendar: {
     guide: {
@@ -98,13 +96,13 @@ export const LIVE_SEARCH_PROVIDERS = {
         'OR, quotes or field operators, which q does not support; run alternatives as separate native queries.',
     },
     search: searchCalendar,
-    read: (client, reference, policy, filters) =>
+    read: (client, reference, options) =>
       readCalendar(
         client,
         reference.id,
         reference.container,
-        policy?.includeAttendees,
-        Boolean(filters?.startDate || filters?.endDate)
+        options.policy.includeAttendees,
+        Boolean(options.filters?.startDate || options.filters?.endDate)
       ),
   },
   slack: {
@@ -188,6 +186,18 @@ export const LIVE_SEARCH_PROVIDERS = {
     search: searchLinear,
     read: (client, reference) => readLinear(client, reference.id),
   },
+  hubspot: {
+    transport: 'managed_mcp',
+    guide: {
+      syntax:
+        'Plain text, at most 200 characters, searched in default CRM properties. Use a company name, domain, contact email, deal name, ticket subject, or concise keywords. Empty queries list records and require sortBy newest/oldest or a date bound. Search is lexical, not semantic; remove common stop words if no matches.',
+      scope:
+        'kind selects contacts, companies, deals, or tickets; omitted searches all four. Dates and newest/oldest sorting use record modification time. Continue only an explicit kind with its returned cursor and unchanged query/filters. Read matches for CRM properties, including custom properties returned by HubSpot.',
+      example: 'example.com',
+      avoid:
+        'Boolean/field operators, project, inferred ownership, pipeline/lifecycle filters, custom object types, association or activity-history claims, and totals or revenue aggregation from a bounded result set. "My deals" requires an owner filter this adapter does not support; do not silently treat it as all visible deals.',
+    },
+  },
   fireflies: {
     transport: 'managed_mcp',
     guide: {
@@ -257,8 +267,7 @@ export function readNativeProvider(
   provider: LiveSearchProviderId,
   client: NativeClient,
   reference: Pick<NativeDocument, 'id' | 'container' | 'kind' | 'revision' | 'threadId'>,
-  policy?: LiveSearchPolicy,
-  filters?: WorkspaceSearchFilters
+  options: NativeReadOptions
 ): Promise<NativeDocument> {
   const adapter = LIVE_SEARCH_PROVIDERS[provider]
   if (!('read' in adapter))
@@ -266,7 +275,7 @@ export function readNativeProvider(
       'unavailable',
       `${provider} requires a connected member MCP account`
     )
-  return adapter.read(client, reference, policy, filters)
+  return adapter.read(client, reference, options)
 }
 
 /** Rules for every provider, ahead of the query cards of the providers in play. */

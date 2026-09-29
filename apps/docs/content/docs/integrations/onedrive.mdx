@@ -234,4 +234,22 @@ Delete a file or folder from OneDrive
 | `deleted` | boolean | Confirmation that the file was deleted |
 | `fileId` | string | The ID of the deleted file |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an OneDrive account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/onedrive` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Files.Read` | Read OneDrive files |
+| `Files.ReadWrite` | Read and write OneDrive files |
+| `offline_access` | Access account when not using the application |
+
 

@@ -28,6 +28,7 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import { getSharedHubSpotMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 
 export class ManagedMcpConnectorError extends Error {
@@ -143,6 +144,11 @@ export interface ValidatedManagedMcpConnectorInput {
 export async function validateManagedMcpConnectorInput(
   input: CreateManagedMcpConnectorInput
 ): Promise<ValidatedManagedMcpConnectorInput> {
+  if (input.connectorId === 'hubspot' && !getSharedHubSpotMcpClient())
+    throw new ManagedMcpConnectorError(
+      'HubSpot sign-in is not configured. Ask your Sim administrator to configure the HubSpot MCP OAuth client.',
+      'validation'
+    )
   const url = resolveManagedMcpConnectorUrl(
     input.connectorId,
     input.connectorId === 'databricks' ? input.url : undefined

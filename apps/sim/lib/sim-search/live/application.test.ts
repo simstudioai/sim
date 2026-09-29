@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   resolveAccount: vi.fn(),
   search: vi.fn(),
+  mcpCall: vi.fn(),
   read: vi.fn(),
   admin: vi.fn(),
   adminSearch: vi.fn(),
@@ -30,12 +31,19 @@ vi.mock('@/lib/sim-search/live/service-session', () => ({
 }))
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
-  createNativeClient: () => ({ json: mocks.json, text: vi.fn() }),
+  createNativeClient: () => ({
+    json: mocks.json,
+    text: vi.fn(async () => 'Original document text'),
+    bytes: vi.fn(),
+  }),
 }))
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession: mocks.admin }))
 vi.mock('@/lib/sim-search/live/policy-store', () => ({
   loadLiveSearchPolicies: vi.fn(async () => ({})),
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
+}))
+vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   createCodaMcpClient: vi.fn(),
@@ -72,6 +80,7 @@ import { readDrive } from '@/lib/sim-search/live/google'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
@@ -103,6 +112,8 @@ const document = {
 describe('authorized live retrieval', () => {
   beforeEach(() => {
     resetDbChainMock()
+    vi.mocked(livePolicyFor).mockReset()
+    vi.mocked(livePolicyFor).mockReturnValue(defaultLiveSearchPolicy())
     mocks.service.mockResolvedValue(undefined)
     knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
       workspaceId: 'workspace',
@@ -124,6 +135,157 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
+  })
+  describe('HubSpot continuation context', () => {
+    const connected = {
+      ...account,
+      provider: 'hubspot' as const,
+      providerId: 'mcp:hubspot',
+      type: 'managed_mcp' as const,
+      displayName: 'Fixture CRM',
+    }
+    const native = {
+      provider: 'hubspot' as const,
+      accountId: connected.id,
+      kind: 'contacts' as const,
+      query: 'launch',
+    }
+    const filters = { startDate: '2026-08-01T00:00:00Z', endDate: '2026-10-01T00:00:00Z' }
+    const row = (id: number, date: string) => ({
+      id,
+      displayName: `Fixture ${id}`,
+      properties: { name: `Fixture ${id}`, lastmodifieddate: date, hs_lastmodifieddate: date },
+    })
+    const response = (args: Record<string, unknown>, rows: unknown[], total: number) => ({
+      results: rows,
+      total,
+      offset: Number(args.offset ?? 0) + rows.length,
+      urlTemplate: `https://app.hubspot.com/contacts/12345/record/${args.objectType === 'COMPANY' ? '0-2' : '0-1'}/{id}`,
+    })
+    const details = {
+      accountId: 12345,
+      toolInformation: {
+        crmObjectTypeAvailability: {
+          CONTACT: { read: 'AVAILABLE' },
+          COMPANY: { read: 'AVAILABLE' },
+        },
+      },
+    }
+    beforeEach(() => {
+      mocks.accounts.mockResolvedValue([connected, { ...connected, id: 'another-account' }])
+      mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+        if (name === 'get_user_details') return details
+        if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+        return response(args, [row(args.offset ? 43 : 42, '2026-09-01T00:00:00Z')], 2)
+      })
+    })
+    it.each([
+      { name: 'query', native: { ...native, query: 'release' }, filters },
+      { name: 'kind', native: { ...native, kind: 'companies' as const }, filters },
+      { name: 'date', native, filters: { ...filters, endDate: '2026-09-30T00:00:00Z' } },
+      { name: 'sort', native, filters: { ...filters, sortBy: 'oldest' as const } },
+      { name: 'account', native: { ...native, accountId: 'another-account' }, filters },
+    ])(
+      'rejects a cursor replayed after changing $name while the fresh search remains valid',
+      async (changed) => {
+        const first = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters, nativeQueries: [native] },
+        })
+        const cursor = first.live?.accounts[0]?.nextCursor
+        expect(cursor).toBeTruthy()
+        const fresh = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters: changed.filters, nativeQueries: [changed.native] },
+        })
+        expect(fresh.results).toHaveLength(1)
+        const replay = await searchLiveKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            topK: 1,
+            filters: changed.filters,
+            nativeQueries: [{ ...changed.native, cursor }],
+          },
+        })
+        expect(replay.results).toEqual([])
+        expect(replay.live?.accounts[0]).toMatchObject({
+          status: 'unavailable',
+          message: expect.stringMatching(/cursor|continuation|restart/i),
+        })
+      }
+    )
+    it.each(['remove implicit cutoff', 'override explicit cutoff'] as const)(
+      'rejects a continuation that would %s',
+      async (mode) => {
+        const query = mode === 'remove implicit cutoff' ? '' : 'launch'
+        const searchInput = {
+          ...input,
+          query,
+          topK: 1,
+          filters: mode === 'remove implicit cutoff' ? { sortBy: 'newest' as const } : filters,
+          nativeQueries: [{ ...native, query }],
+        }
+        const first = await searchLiveKnowledge.execute({ principal, input: searchInput })
+        expect(first.results).toHaveLength(1)
+        const cursor = first.live?.accounts[0]?.nextCursor
+        expect(cursor).toBeTruthy()
+        const payload = JSON.parse(Buffer.from(cursor!.slice(8), 'base64url').toString('utf8'))
+        if (mode === 'remove implicit cutoff') payload.listingEndDate = undefined
+        else payload.listingEndDate = '2026-11-01T00:00:00Z'
+        const altered = `hubspot:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+        const result = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...searchInput, nativeQueries: [{ ...native, query, cursor: altered }] },
+        })
+        expect(result.results).toEqual([])
+        expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+      }
+    )
+    it.each(['provider window', 'local date filtering'] as const)(
+      'keeps the original implicit listing boundary after time advances: %s',
+      async (stage) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const old = row(43, '2026-09-01T11:30:00Z')
+          const later = row(44, '2026-09-01T12:30:00Z')
+          mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+            if (name === 'get_user_details') return details
+            if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+            if (!args.offset) return response(args, [row(42, '2026-09-01T11:45:00Z')], 3)
+            if (stage === 'local date filtering') return response(args, [old, later], 3)
+            const groups = args.filterGroups as { filters: { operator: string; value: string }[] }[]
+            const upper = Number(
+              groups[0].filters.find((filter) => filter.operator === 'LT')?.value
+            )
+            return response(args, [upper <= Date.parse('2026-09-01T12:00:00Z') ? old : later], 2)
+          })
+          const listing = {
+            ...input,
+            query: '',
+            topK: 1,
+            filters: { sortBy: 'newest' as const },
+            nativeQueries: [{ ...native, query: '' }],
+          }
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(first.results).toHaveLength(1)
+          expect(cursor).toBeTruthy()
+          vi.setSystemTime(new Date('2026-09-01T13:00:00Z'))
+          const continued = await searchLiveKnowledge.execute({
+            principal,
+            input: { ...listing, topK: 2, nativeQueries: [{ ...native, query: '', cursor }] },
+          })
+          expect(
+            continued.results.map((result) => decodeLiveReference(result.documentId).id)
+          ).toEqual(['hubspot:12345:contacts:43'])
+          expect(continued.live?.accounts[0]?.status).not.toBe('unavailable')
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
   })
   it.each([
     { startDate: '2026-08-01T00:00:00Z' },
@@ -393,6 +555,73 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow('outside your organization')
     expect(mocks.read).toHaveBeenCalledOnce()
   })
+  it('suppresses conversation content when a sibling leaves the current service source', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.read.mockResolvedValue({
+      ...document,
+      content: 'Anchor evidence. Restricted sibling evidence.',
+      accessDependencies: [{ id: 'sibling' }],
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async () => true,
+      partial: false,
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async ({ id }: { id: string }) => id !== 'sibling',
+      partial: false,
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
+  it('ignores stale message labels when rechecking member access after a read', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    vi.mocked(livePolicyFor).mockReturnValue({
+      ...defaultLiveSearchPolicy('gmail'),
+      mode: 'selected',
+      included: ['INBOX'],
+    })
+    let readCompleted = false
+    mocks.json.mockImplementation(async (path: string) => {
+      if (path === '/gmail/v1/users/me/labels') return { labels: [{ id: 'INBOX', name: 'INBOX' }] }
+      if (path === '/gmail/v1/users/me/messages/doc')
+        return { id: 'doc', labelIds: readCompleted ? ['SENT'] : ['INBOX'] }
+      throw new Error(`Unexpected Gmail resource: ${path}`)
+    })
+    mocks.read.mockImplementation(async () => {
+      readCompleted = true
+      return { ...document, accessMetadata: { id: 'doc', labelIds: ['INBOX'] } }
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
   it('rejects nonmembers before account discovery or provider calls', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(searchLiveKnowledge.execute({ principal, input })).rejects.toThrow(
@@ -448,7 +677,7 @@ describe('authorized live retrieval', () => {
           return {
             id: 'doc',
             name: 'Launch',
-            mimeType: 'application/pdf',
+            mimeType: 'application/vnd.google-apps.document',
             webViewLink: document.url,
           }
         controller.abort(reason)
@@ -518,7 +747,7 @@ describe('authorized live retrieval', () => {
       verify: createPolicyVerifier(
         'google_drive',
         policy,
-        { json: mocks.json, text: vi.fn() },
+        { json: mocks.json, text: vi.fn(), bytes: vi.fn() },
         'https://www.googleapis.com'
       ),
       partial: false,

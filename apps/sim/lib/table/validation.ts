@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { canonicalJson } from '@/lib/api/cursor-binding'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
@@ -406,6 +407,15 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
+/**
+ * The key two unique-column values share when the unique check treats them as equal. Object keys
+ * are sorted, since the check compares JSONB, where key order carries no meaning. In-batch
+ * duplicate detection and the unique-value locks both key on it.
+ */
+export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
+  return canonicalJson(columnValueForEquality(value, column))
+}
+
 /** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
 export function validateUniqueConstraints(
   data: RowData,
@@ -488,9 +498,10 @@ export async function checkUniqueConstraintsDb(
   // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
   // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
   // bounded) defensively for the small-table / cold-stats case. With an external
-  // transaction the flag is set on it directly — opening our own transaction
-  // inside the caller's would be the nested pool checkout the migration-
-  // hardening work eliminated (self-deadlock under pool exhaustion).
+  // transaction the flag is set on it for the check only (see withSeqscanOffOn)
+  // — opening our own transaction inside the caller's would be the nested pool
+  // checkout the migration-hardening work eliminated (self-deadlock under pool
+  // exhaustion).
   const checkConditions = async (ex: UniqueCheckExecutor) => {
     for (const condition of conditions) {
       const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
@@ -516,11 +527,28 @@ export async function checkUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkConditions(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkConditions(executor)
+    await withSeqscanOffOn(executor, () => checkConditions(executor))
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Runs `check` on the caller's open transaction with seq scans penalized, then puts back the
+ * transaction's previous setting. Unique checks now run inside write transactions ahead of the
+ * row-order lock, and leaving the flag off for the rest of the transaction slowed the locked
+ * position and INSERT statements that follow. Reading the previous value and setting the new one
+ * in one statement keeps it one round trip each way; a caller that set the flag itself keeps it.
+ */
+async function withSeqscanOffOn(
+  executor: UniqueCheckExecutor,
+  check: () => Promise<void>
+): Promise<void> {
+  const [{ previous }] = await executor.execute<{ previous: string }>(sql`
+    SELECT current_setting('enable_seqscan') AS previous, set_config('enable_seqscan', 'off', true)
+  `)
+  await check()
+  await executor.execute(sql`SELECT set_config('enable_seqscan', ${previous}, true)`)
 }
 
 /**
@@ -575,7 +603,7 @@ export async function checkBatchUniqueConstraintsDb(
       const value = rowData[key]
       if (value === null || value === undefined) continue
 
-      const normalizedValue = JSON.stringify(columnValueForEquality(value, column))
+      const normalizedValue = uniqueValueKey(value, column)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -598,9 +626,8 @@ export async function checkBatchUniqueConstraintsDb(
   // Now check against database for all unique values at once. Tenant-bounded
   // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)
   // predicates are unestimatable and otherwise trigger whole-relation seq
-  // scans. With an external transaction the flag is set on it directly (SET
-  // LOCAL dies at its commit; it only penalizes plan shape, and the statements
-  // that follow in those transactions are tenant-scoped writes).
+  // scans. With an external transaction the flag is set on it for the check
+  // only (see withSeqscanOffOn).
   const checkColumns = async (ex: UniqueCheckExecutor) => {
     for (const [columnId, { values, column }] of valuesByColumn) {
       if (values.size === 0) continue
@@ -681,8 +708,7 @@ export async function checkBatchUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkColumns(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkColumns(executor)
+    await withSeqscanOffOn(executor, () => checkColumns(executor))
   }
 
   // Sort errors by row index

@@ -241,7 +241,7 @@ function createWebContentsMock() {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       setUserAgent: vi.fn(),
-      webRequest: { onBeforeRequest: vi.fn() },
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
       on: vi.fn(),
     },
   }

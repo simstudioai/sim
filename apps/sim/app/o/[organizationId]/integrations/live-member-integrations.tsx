@@ -75,6 +75,9 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
+      (provider !== 'hubspot' ||
+        data.availableMcpConnectors.includes('hubspot') ||
+        mcpAccounts(provider).length > 0) &&
       (approvals.get(provider)?.approved ||
         data.viewerAccounts?.some(
           (account) => liveSearchProviderForCredential(account.providerId) === provider
@@ -130,7 +133,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           group?.status === 'active' &&
           Boolean(option || server) &&
           approved &&
-          (!option || option.configurationStatus === 'ready')
+          (!option || option.configurationStatus === 'ready') &&
+          (provider !== 'hubspot' || data.availableMcpConnectors.includes('hubspot'))
         const scope =
           approval?.policy?.accessMode === 'service_account'
             ? 'Selected resources you can access'

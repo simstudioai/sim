@@ -45,6 +45,7 @@ export const getOrganizationAccountsContract = defineRouteContract({
     schema: z.object({
       credentialGroup: organizationCredentialGroupSchema.nullable(),
       availableProviders: z.array(credentialGroupProviderSchema),
+      availableMcpConnectors: z.array(managedMcpConnectorIdSchema),
       canManage: z.boolean(),
       indexingAvailable: z.boolean(),
       viewerMcpAccounts: z

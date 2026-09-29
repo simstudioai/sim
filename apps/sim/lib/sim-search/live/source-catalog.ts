@@ -1,5 +1,8 @@
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnector,
+  type ManagedMcpConnectorId,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   findCredentialGroupProviderFromProviderId,
   isCredentialGroupStandardOAuthProvider,
@@ -49,7 +52,9 @@ export function liveSearchMemberAccountProvider(type: string) {
 export function getLiveSearchAccessAvailability(
   type: LiveSearchProviderId,
   integrationAvailability: Parameters<typeof getConnectorAccessAvailability>[1],
-  context: Parameters<typeof getConnectorAccessAvailability>[2]
+  context: Parameters<typeof getConnectorAccessAvailability>[2] & {
+    availableMcpConnectors?: readonly ManagedMcpConnectorId[]
+  }
 ) {
   const meta = CONNECTOR_META_REGISTRY[type]
   const access = meta
@@ -60,7 +65,9 @@ export function getLiveSearchAccessAvailability(
     members:
       supportsLiveSearchMode(type, 'member') &&
       (liveSearchMcpConnector(type)
-        ? context.isIntegrationAvailabilityReady && context.memberAccessAvailable
+        ? context.isIntegrationAvailabilityReady &&
+          context.memberAccessAvailable &&
+          (type !== 'hubspot' || context.availableMcpConnectors?.includes('hubspot') === true)
         : access.members),
   }
 }

@@ -163,6 +163,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   meta: buildProviderMetadata('meta'),
   zai: buildProviderMetadata('zai'),
   kimi: buildProviderMetadata('kimi'),
+  kie: buildProviderMetadata('kie'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),

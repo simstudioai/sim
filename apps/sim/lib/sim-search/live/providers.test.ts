@@ -5,7 +5,11 @@ import { searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
 function client() {
-  return { json: vi.fn<NativeClient['json']>(), text: vi.fn<NativeClient['text']>() }
+  return {
+    json: vi.fn<NativeClient['json']>(),
+    text: vi.fn<NativeClient['text']>(),
+    bytes: vi.fn<NativeClient['bytes']>(),
+  }
 }
 const input = { query: 'launch', limit: 20, scopes: [] }
 

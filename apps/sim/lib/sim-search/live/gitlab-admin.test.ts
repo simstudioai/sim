@@ -48,7 +48,7 @@ const grant = groupToken({
   tenantId: 'gitlab.example.com%3A8443/42',
   groupId: 'repository',
 })!
-const client = { json: vi.fn(), text: vi.fn() }
+const client = { json: vi.fn(), text: vi.fn(), bytes: vi.fn() }
 const session = (config = source.config) =>
   createAdminGitLabSession({
     owner: { organizationId: 'org' },

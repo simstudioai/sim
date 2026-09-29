@@ -49,7 +49,7 @@ import {
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { providerHistoryProtocols } from '@/providers/history-adapters'
+import { getProviderHistoryProtocol, isHistoryProviderId } from '@/providers/history-adapters'
 
 const logger = createLogger('AgentMemory')
 const MAX_CACHED_AGENT_TURNS = 32
@@ -183,7 +183,7 @@ function validState(value: unknown): value is AgentTurnState {
       if (
         !isRecordLike(native) ||
         typeof native.providerId !== 'string' ||
-        !Object.hasOwn(providerHistoryProtocols, native.providerId) ||
+        !isHistoryProviderId(native.providerId) ||
         typeof native.model !== 'string' ||
         !native.model ||
         typeof native.binding !== 'string' ||
@@ -193,8 +193,7 @@ function validState(value: unknown): value is AgentTurnState {
           (typeof native.prefixHash !== 'string' || !/^[a-f0-9]{64}$/.test(native.prefixHash)))
       )
         return false
-      const protocol =
-        providerHistoryProtocols[native.providerId as keyof typeof providerHistoryProtocols]
+      const protocol = getProviderHistoryProtocol(native.providerId, native.model)
       if (
         native.protocol !== protocol &&
         !(native.providerId === 'azure-openai' && native.protocol === 'chat-completions')

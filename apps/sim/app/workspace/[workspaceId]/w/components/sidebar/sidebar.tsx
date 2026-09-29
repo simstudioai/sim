@@ -115,6 +115,7 @@ import {
   compareByOrder,
   createSidebarDragGhost,
   groupWorkflowsByFolder,
+  isSidebarBackgroundClick,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
@@ -124,6 +125,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
+  MothershipChatDeleteError,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -247,15 +249,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
           }),
           rowActionsGroupClass
         )}
-        onClick={(e) => {
-          if (e.metaKey || e.ctrlKey) return
-          if (e.shiftKey) {
-            e.preventDefault()
-            onMultiSelectClick(chat.id, true)
-          } else {
-            useFolderStore.getState().selectChatOnly(chat.id)
-          }
-        }}
+        onSelectChat={onMultiSelectClick}
         onContextMenu={(e) => onContextMenu(e, chat.id)}
         draggable
         onDragStart={handleDragStart}
@@ -894,7 +888,19 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     if (chatIdsToDelete.length === 1) {
       deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
     } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
+      deleteChatsMutation.mutate(chatIdsToDelete, {
+        onSuccess: onDeleteSuccess,
+        onError: (error) => {
+          if (
+            error instanceof MothershipChatDeleteError &&
+            error.deletedChatIds.some(
+              (id) => window.location.pathname === `/workspace/${workspaceId}/chat/${id}`
+            )
+          ) {
+            router.push(`/workspace/${workspaceId}/home`)
+          }
+        },
+      })
     }
     setIsChatDeleteModalOpen(false)
   }
@@ -1109,10 +1115,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement
-    if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
-      return
-    }
+    if (!isSidebarBackgroundClick(e)) return
     const { selectOnly, clearAllSelection } = useFolderStore.getState()
     workflowId ? selectOnly(workflowId) : clearAllSelection()
   }
@@ -1455,6 +1458,8 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                     key={chat.id}
                                     chat={chat}
                                     isCurrentRoute={pathname === chat.href}
+                                    isSelected={hasChatMultiSelection && selectedChats.has(chat.id)}
+                                    onSelectChat={handleChatClick}
                                     isMenuOpen={menuOpenChatId === chat.id}
                                     isEditing={chat.id === chatFlyoutRename.editingId}
                                     editValue={chatFlyoutRename.value}

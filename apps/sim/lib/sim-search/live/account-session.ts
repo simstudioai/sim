@@ -11,6 +11,7 @@ import {
   NATIVE_SEARCH_REQUEST_BUDGET,
   NativeSearchError,
 } from '@/lib/sim-search/live/http'
+import { readHubSpotMcp, searchHubSpotMcp } from '@/lib/sim-search/live/hubspot-mcp'
 import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
@@ -110,6 +111,8 @@ export async function openLiveAccountSession(
         return searchGranolaMcp(mcp, search)
       case 'notion':
         return searchNotionMcp(mcp, search)
+      case 'hubspot':
+        return searchHubSpotMcp(mcp, search)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
@@ -125,6 +128,8 @@ export async function openLiveAccountSession(
         return readGranolaMcp(mcp, id)
       case 'notion':
         return readNotionMcp(mcp, id)
+      case 'hubspot':
+        return readHubSpotMcp(mcp, id)
       default:
         throw new NativeSearchError('unavailable', 'Unsupported managed MCP provider.')
     }
@@ -172,7 +177,13 @@ export async function openLiveAccountSession(
     },
     read(reference, filters) {
       if (admin) return admin.read(reference)
-      if (client) return readNativeProvider(provider, client, reference, boundary.policy, filters)
+      if (client)
+        return readNativeProvider(provider, client, reference, {
+          policy: boundary.policy,
+          filters,
+          signal,
+          verify: boundary.verify,
+        })
       return readMcp(reference.id)
     },
     async verifyCurrent(document) {
@@ -180,7 +191,13 @@ export async function openLiveAccountSession(
         livePolicyFor(await loadLiveSearchPolicies(owner), provider),
         true
       )
-      return current.verify(document)
+      const { id, container, kind } = document
+      if (!(await current.verify({ id, container, kind }))) return false
+      for (const dependency of document.accessDependencies ?? []) {
+        signal.throwIfAborted()
+        if (!(await current.verify(dependency))) return false
+      }
+      return true
     },
   }
 }
