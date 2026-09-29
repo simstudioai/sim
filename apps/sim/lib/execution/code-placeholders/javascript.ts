@@ -2,7 +2,6 @@ import ts from '@typescript/typescript6'
 import {
   applySourceEdits,
   CodePlaceholderCompileError,
-  CodePlaceholderInvariantError,
   createCodePlaceholderCompilationContext,
   isOffsetInRanges,
   type SourceEdit,
@@ -262,7 +261,7 @@ function createSentinel(
       return sentinel
     }
   }
-  throw new CodePlaceholderInvariantError('Unable to allocate a collision-free parser sentinel')
+  throw new CodePlaceholderCompileError('Unable to allocate a collision-free parser sentinel')
 }
 
 function createSentinelSource(

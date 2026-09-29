@@ -1549,20 +1549,28 @@ describe('python true positives survive the dot guard', () => {
   })
 })
 
-describe('compiler invariant failures', () => {
+describe('compiler failure classification', () => {
   it('reports overlapping source edits as a compiler invariant, not a user compile error', () => {
-    const thrown = (() => {
-      try {
-        applySourceEdits('return value', [
-          { start: 0, end: 6, text: 'yield' },
-          { start: 3, end: 9, text: 'x' },
-        ])
-      } catch (error) {
-        return error
-      }
-    })()
+    const applyOverlappingEdits = () =>
+      applySourceEdits('return value', [
+        { start: 0, end: 6, text: 'yield' },
+        { start: 3, end: 9, text: 'x' },
+      ])
 
-    expect(thrown).toBeInstanceOf(CodePlaceholderInvariantError)
-    expect(thrown).not.toBeInstanceOf(CodePlaceholderCompileError)
+    expect(applyOverlappingEdits).toThrow(CodePlaceholderInvariantError)
+    expect(applyOverlappingEdits).not.toThrow(CodePlaceholderCompileError)
+  })
+
+  it('reports an exhausted JavaScript sentinel space as a user compile error', async () => {
+    /** Every `$xyz$` sentinel a five-character `{{a}}` could take, packed under the code cap. */
+    const alphabet = [...'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ']
+    const payloads = alphabet.flatMap((a) =>
+      alphabet.flatMap((b) => alphabet.map((c) => `${a}${b}${c}`))
+    )
+    const code = `const taken = '$${payloads.join('$')}$'\nreturn {{a}}`
+
+    await expect(
+      compileCodePlaceholders({ code, language: CodeLanguage.JavaScript, params: { a: 1 } })
+    ).rejects.toBeInstanceOf(CodePlaceholderCompileError)
   })
 })
