@@ -17,7 +17,7 @@ import {
   workspaceSandbox,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
@@ -790,6 +790,22 @@ describe('authorized fork and sync against PostgreSQL', () => {
       )[0]?.excluded
     const setDefault = (workspaceId: string, excludeNewWorkflows: boolean) =>
       setForkSyncDefault.execute({ principal, input: { workspaceId, excludeNewWorkflows } })
+    /** Every audit entry a change issued from `originId` filed, whichever workspace it named. */
+    const auditedFrom = (originId: string) =>
+      db
+        .select({
+          workspaceId: auditLog.workspaceId,
+          resourceId: auditLog.resourceId,
+          resourceName: auditLog.resourceName,
+          metadata: auditLog.metadata,
+        })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, AuditAction.WORKSPACE_FORK_SYNC_DEFAULT_CHANGED),
+            sql`${auditLog.metadata} ->> 'originWorkspaceId' = ${originId}`
+          )
+        )
     try {
       const first = await setDefault(childId, true)
       expect(first.changedWorkspaces.map((member) => member.id)).toEqual(
@@ -814,21 +830,12 @@ describe('authorized fork and sync against PostgreSQL', () => {
       )
       await vi.waitFor(
         async () => {
-          const entries = await db
-            .select({
-              workspaceId: auditLog.workspaceId,
-              resourceId: auditLog.resourceId,
-              resourceName: auditLog.resourceName,
-              metadata: auditLog.metadata,
-            })
-            .from(auditLog)
-            .where(
-              and(
-                eq(auditLog.action, AuditAction.WORKSPACE_FORK_SYNC_DEFAULT_CHANGED),
-                inArray(auditLog.resourceId, [...changed.keys()])
-              )
-            )
-          expect(entries).toHaveLength(changed.size)
+          const entries = await auditedFrom(childId)
+          // Exactly the changed members, once each: no missing, duplicate, or extra entry,
+          // including from the no-op repeat issued from the same workspace.
+          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(
+            [...changed.keys()].sort()
+          )
           for (const entry of entries) {
             expect(entry.workspaceId).toBe(entry.resourceId)
             expect(entry.resourceName).toBe(changed.get(entry.resourceId!))
@@ -885,10 +892,25 @@ describe('authorized fork and sync against PostgreSQL', () => {
       ).toEqual([{ excluded: true }])
 
       await db.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, childId))
-      await setDefault(grandchildId, false)
+      const fromGrandchild = await setDefault(grandchildId, false)
       expect(await policyOf(sourceWorkspaceId)).toBe(false)
       expect(await policyOf(grandchildId)).toBe(false)
       expect(await policyOf(childId)).toBe(true)
+      // The archived member was neither written nor audited.
+      const expectedFromGrandchild = fromGrandchild.changedWorkspaces.map((member) => member.id)
+      expect(expectedFromGrandchild).toEqual(
+        expect.arrayContaining([sourceWorkspaceId, grandchildId])
+      )
+      expect(expectedFromGrandchild).not.toContain(childId)
+      await vi.waitFor(
+        async () => {
+          const entries = await auditedFrom(grandchildId)
+          expect(entries.map((entry) => entry.resourceId).sort()).toEqual(
+            [...expectedFromGrandchild].sort()
+          )
+        },
+        { timeout: 5000 }
+      )
     } finally {
       await db.update(workspace).set({ archivedAt: null }).where(eq(workspace.id, childId))
       await setDefault(sourceWorkspaceId, false)
