@@ -6,6 +6,11 @@ import {
   type CodePlaceholderRuntimeBinding,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import {
+  applySourceEdits,
+  CodePlaceholderCompileError,
+  CodePlaceholderInvariantError,
+} from '@/lib/execution/code-placeholders/shared'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const installedGlobals = new Set<string>()
@@ -1541,5 +1546,23 @@ describe('python true positives survive the dot guard', () => {
     ['double quotes', 'x = environmentVariables["API_KEY"]'],
   ])('%s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})
+
+describe('compiler invariant failures', () => {
+  it('reports overlapping source edits as a compiler invariant, not a user compile error', () => {
+    const thrown = (() => {
+      try {
+        applySourceEdits('return value', [
+          { start: 0, end: 6, text: 'yield' },
+          { start: 3, end: 9, text: 'x' },
+        ])
+      } catch (error) {
+        return error
+      }
+    })()
+
+    expect(thrown).toBeInstanceOf(CodePlaceholderInvariantError)
+    expect(thrown).not.toBeInstanceOf(CodePlaceholderCompileError)
   })
 })
