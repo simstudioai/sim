@@ -1,38 +1,35 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { useCallback, useOptimistic, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 /**
- * The settings row a sidebar click is navigating to, shown as selected until the route commits.
+ * Settings sidebar navigation whose clicked row shows as selected until the route settles.
  *
  * Section routes have no loading boundary (see the workspace section layout), so a navigation
  * keeps the outgoing section on screen until the incoming one is ready. Moving the selection on
  * click keeps the click acknowledged while the route resolves.
  *
- * The pending row is dropped whenever the pathname changes — on commit, and on any navigation the
- * sidebar did not start, such as the browser's back button.
+ * The selection is optimistic state set inside the navigation's own transition, so React drops it
+ * the moment that transition settles — on commit, and equally when the server redirects back to
+ * the current section or the navigation fails. It never outlives the navigation that set it.
  */
 export function usePendingSettingsSelection<TSection extends string>(
   routeSection: TSection
-): { activeSection: TSection; selectPending: (section: TSection) => void } {
-  const pathname = usePathname()
-  const [pending, setPending] = useState<{ section: TSection; pathname: string | null } | null>(
-    null
+): { activeSection: TSection; navigateToSection: (section: TSection, href: string) => void } {
+  const router = useRouter()
+  const [activeSection, setOptimisticSection] = useOptimistic(routeSection)
+  const [, startTransition] = useTransition()
+
+  const navigateToSection = useCallback(
+    (section: TSection, href: string) => {
+      startTransition(() => {
+        setOptimisticSection(section)
+        router.replace(href, { scroll: false })
+      })
+    },
+    [router, setOptimisticSection]
   )
 
-  // Cleared, not just compared: returning to this pathname later (back after the commit) must
-  // not resurrect a settled selection.
-  if (pending !== null && pending.pathname !== pathname) setPending(null)
-
-  const selectPending = useCallback(
-    (section: TSection) => setPending({ section, pathname }),
-    [pathname]
-  )
-
-  return {
-    activeSection:
-      pending !== null && pending.pathname === pathname ? pending.section : routeSection,
-    selectPending,
-  }
+  return { activeSection, navigateToSection }
 }

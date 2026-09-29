@@ -299,7 +299,7 @@ export function SettingsSidebar({
     settingsIndex !== -1 && segments[settingsIndex + 1]
       ? (segments[settingsIndex + 1] as SettingsSection)
       : 'general'
-  const { activeSection, selectPending } = usePendingSettingsSelection(routeSection)
+  const { activeSection, navigateToSection } = usePendingSettingsSelection(routeSection)
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
@@ -490,15 +490,12 @@ export function SettingsSidebar({
                             event.preventDefault()
                             return
                           }
+                          event.preventDefault()
                           if (!useSettingsDirtyStore.getState().isDirty) {
-                            selectPending(section)
+                            navigateToSection(section, href)
                             return
                           }
-                          event.preventDefault()
-                          requestLeave(() => {
-                            selectPending(section)
-                            router.replace(href, { scroll: false })
-                          })
+                          requestLeave(() => navigateToSection(section, href))
                         }}
                       >
                         {content}

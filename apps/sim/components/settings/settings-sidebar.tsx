@@ -92,7 +92,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const { activeSection: selectedSection, selectPending } =
+  const { activeSection: selectedSection, navigateToSection } =
     usePendingSettingsSelection(activeSection)
 
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
@@ -195,16 +195,13 @@ export function SettingsSidebar<Section extends SettingsSection>({
                               event.preventDefault()
                               return
                             }
+                            event.preventDefault()
                             const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
                             if (!isDirty && !navigationBlocked) {
-                              selectPending(item.id)
+                              navigateToSection(item.id, href)
                               return
                             }
-                            event.preventDefault()
-                            requestLeave(() => {
-                              selectPending(item.id)
-                              router.replace(href, { scroll: false })
-                            })
+                            requestLeave(() => navigateToSection(item.id, href))
                           }}
                         >
                           <Icon className={chipContentIconClass} />
