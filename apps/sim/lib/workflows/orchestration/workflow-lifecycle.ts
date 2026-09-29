@@ -222,50 +222,61 @@ export async function performCreateWorkflowTransition(
   params: PerformCreateWorkflowParams
 ): Promise<PerformCreateWorkflowResult> {
   const requestId = params.requestId ?? generateRequestId()
+  const workflowId = params.id || generateId()
   const folderId = params.folderId || null
 
   if (!(await isFolderInWorkspace(folderId, params.workspaceId))) {
     return { success: false, error: 'Target folder not found', errorCode: 'validation' }
   }
 
+  let name = params.name
+
   if (!params.deduplicate) {
     const duplicate = await workflowNameExistsInFolder({
       workspaceId: params.workspaceId,
-      name: params.name,
+      name,
       folderId,
     })
     if (duplicate) {
       return {
         success: false,
-        error: `A workflow named "${params.name}" already exists in this folder`,
+        error: `A workflow named "${name}" already exists in this folder`,
         errorCode: 'conflict',
       }
     }
   }
 
-  const row = await buildNewWorkflowRow(db, {
-    id: params.id || generateId(),
-    userId: params.userId,
-    workspaceId: params.workspaceId,
-    folderId,
-    name: params.name,
-    description: params.description ?? null,
-    sortOrder: params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId)),
-  })
+  const sortOrder =
+    params.sortOrder !== undefined
+      ? params.sortOrder
+      : await nextWorkflowSortOrder(params.workspaceId, folderId)
+  const now = new Date()
   const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
   const maxAttempts = params.deduplicate ? WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS : 1
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (params.deduplicate) {
-      row.name = await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
+      name = await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
     }
 
     try {
       await db.transaction(async (tx) => {
+        // Built per attempt inside the insert transaction, so the fork-sync policy is read
+        // with the write rather than carried across retries.
+        const row = await buildNewWorkflowRow(tx, {
+          id: workflowId,
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          folderId,
+          name,
+          description: params.description ?? null,
+          sortOrder,
+          now,
+        })
         await tx.insert(workflow).values(row)
 
         await saveWorkflowToNormalizedTables(
-          row.id,
+          workflowId,
           workflowState,
           {
             /**
@@ -297,31 +308,31 @@ export async function performCreateWorkflowTransition(
       if (!params.deduplicate || attempt === maxAttempts - 1) {
         return {
           success: false,
-          error: `A workflow named "${row.name}" already exists in this folder`,
+          error: `A workflow named "${name}" already exists in this folder`,
           errorCode: 'conflict',
         }
       }
 
       logger.warn(`[${requestId}] Workflow name was claimed during creation; retrying`, {
-        name: row.name,
+        name,
         attempt: attempt + 1,
       })
     }
   }
 
-  logger.info(`[${requestId}] Successfully created workflow ${row.id}`)
+  logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)
 
   return {
     success: true,
     workflow: {
-      id: row.id,
-      name: row.name,
+      id: workflowId,
+      name,
       description: params.description,
       workspaceId: params.workspaceId,
       folderId,
-      sortOrder: row.sortOrder,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
       startBlockId,
       subBlockValues,
     },
