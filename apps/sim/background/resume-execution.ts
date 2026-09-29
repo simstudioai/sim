@@ -428,8 +428,9 @@ async function runResumeAndCellTerminal(
     userId: payload.userId,
     onBlockComplete: writers.cellOnBlockComplete,
     onAttemptFailed: async (outcome, error) => {
-      if (outcome === 'execution_completed') onCompletedBeforeFailure?.()
       await writeFailedResumeCellTerminal(writers, outcome, error)
+      /** Only a cell saved as completed may start its downstream groups. */
+      if (outcome === 'execution_completed') onCompletedBeforeFailure?.()
     },
     abortSignal: signal,
   })

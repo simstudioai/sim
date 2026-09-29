@@ -226,7 +226,10 @@ describe('resuming a paused table cell', () => {
       return payload?.executionState
     }
 
-    /** Fails the resume the way the manager does: settle, report the outcome, rethrow. */
+    /**
+     * Fails the resume the way the manager does: settle, report the outcome (a
+     * failing handler is logged, never rethrown), rethrow the attempt's error.
+     */
     function failResume(outcome: FailedResumeOutcome, error: Error) {
       mocks.startResumeExecution.mockImplementationOnce(
         async ({
@@ -234,7 +237,7 @@ describe('resuming a paused table cell', () => {
         }: {
           onAttemptFailed?: (outcome: FailedResumeOutcome, error: unknown) => Promise<void>
         }) => {
-          await onAttemptFailed?.(outcome, error)
+          await onAttemptFailed?.(outcome, error).catch(() => undefined)
           throw error
         }
       )
@@ -265,6 +268,16 @@ describe('resuming a paused table cell', () => {
         error: null,
       })
       expect(mocks.runRowCascadeLoop).toHaveBeenCalledTimes(1)
+    }, 20_000)
+
+    it('does not continue the cascade when the completed cell could not be saved', async () => {
+      const bookkeepingFailure = new Error('Database unavailable')
+      failResume('execution_completed', bookkeepingFailure)
+      mocks.writeWorkflowGroupState.mockRejectedValueOnce(new Error('Cell write failed'))
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(bookkeepingFailure)
+
+      expect(mocks.runRowCascadeLoop).not.toHaveBeenCalled()
     }, 20_000)
 
     it('does not continue the cascade when the resume failed the execution', async () => {
