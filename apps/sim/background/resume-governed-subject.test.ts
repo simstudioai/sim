@@ -220,6 +220,16 @@ describe('resuming a paused table cell', () => {
   }, 20_000)
 
   describe('when the resume throws', () => {
+    /** Downstream groups the row's cascade started after the resume. */
+    let startedGroups: string[]
+
+    beforeEach(() => {
+      startedGroups = []
+      mocks.runRowCascadeLoop.mockImplementation(async (payload: { groupId: string }) => {
+        startedGroups.push(payload.groupId)
+      })
+    })
+
     /** The execution state the last cell write persisted. */
     function lastCellExecutionState() {
       const [, payload] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
@@ -267,7 +277,7 @@ describe('resuming a paused table cell', () => {
         executionId: 'parent-execution-1',
         error: null,
       })
-      expect(mocks.runRowCascadeLoop).toHaveBeenCalledTimes(1)
+      expect(startedGroups).toEqual([NEXT_GROUP.id])
     }, 20_000)
 
     it('does not continue the cascade when the completed cell could not be saved', async () => {
@@ -277,7 +287,7 @@ describe('resuming a paused table cell', () => {
 
       await expect(executeResumeJob(PAYLOAD)).rejects.toBe(bookkeepingFailure)
 
-      expect(mocks.runRowCascadeLoop).not.toHaveBeenCalled()
+      expect(startedGroups).toEqual([])
     }, 20_000)
 
     it('does not continue the cascade when the resume failed the execution', async () => {
@@ -286,7 +296,7 @@ describe('resuming a paused table cell', () => {
 
       await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
 
-      expect(mocks.runRowCascadeLoop).not.toHaveBeenCalled()
+      expect(startedGroups).toEqual([])
     }, 20_000)
 
     it('puts the cell back to paused when the pause stayed resumable', async () => {
