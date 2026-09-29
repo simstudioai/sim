@@ -8,10 +8,10 @@ import {
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
-import type { ColourAssignmentReport } from '#control-analysis/colour-assignments'
-import type { ControlInventory } from '#control-analysis/inventory'
-import type { LayoutAllowance } from '#control-analysis/layout-allowances'
-import type { ReviewReport } from '#control-analysis/review'
+import type { ColourAssignmentReport } from '#design-conformance/controls/colour-assignments'
+import type { ControlInventory } from '#design-conformance/controls/inventory'
+import type { LayoutAllowance } from '#design-conformance/controls/layout-allowances'
+import type { ReviewReport } from '#design-conformance/controls/review'
 import type { Inventory } from './inventory'
 
 /** Resolve existing ancestors so a symlink cannot redirect output into the source checkout. */

@@ -1,15 +1,4 @@
-import { productScope } from '#control-analysis/scope'
-import { artworkFile, localArtworkDiff } from '#design-conformance/artwork'
-import { inspectSnapshotFacts, prepareSnapshotFacts } from '#design-conformance/conformance'
-import {
-  centralInventory,
-  componentContract,
-  isRegistry,
-  registry,
-} from '#design-conformance/contracts'
-import { designSystem } from '#design-conformance/design-system'
-import { extract } from '#design-conformance/extract'
-import type { GeneratedContracts } from '#design-conformance/generated-contracts'
+import { productScope } from '#design-conformance/controls/scope'
 import {
   canonical,
   type Facts,
@@ -17,14 +6,25 @@ import {
   findingFingerprint,
   hash,
   inspectionFailure,
-} from '#design-conformance/model'
-import { SourceIndex } from '#design-conformance/source-summary'
+} from '#design-conformance/shared/model'
 import {
   compare,
   type GitSource,
   regular,
   type SourceEntry,
-} from '#design-conformance/worktree-source'
+} from '#design-conformance/shared/worktree-source'
+import { artworkFile, localArtworkDiff } from '#design-conformance/styling/artwork'
+import { inspectSnapshotFacts, prepareSnapshotFacts } from '#design-conformance/styling/conformance'
+import { extract } from '#design-conformance/styling/extract'
+import { SourceIndex } from '#design-conformance/styling/source-summary'
+import {
+  centralInventory,
+  componentContract,
+  isRegistry,
+  registry,
+} from '#design-conformance/system/contracts'
+import { designSystem } from '#design-conformance/system/design-system'
+import type { GeneratedContracts } from '#design-conformance/system/generated-contracts'
 
 export interface Diagnostic {
   inspection?: 'failed'

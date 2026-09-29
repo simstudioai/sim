@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'vitest'
-import { workingTreeRevision } from '../design-conformance/source-revision.ts'
+import { workingTreeRevision } from '../design-conformance/shared/source-revision.ts'
 
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'refresh.mjs')
 const metadataScript = `
-import {generateContracts} from ${JSON.stringify(path.resolve('scripts/design-conformance/generated-contracts.ts'))}
-import {GitSource} from ${JSON.stringify(path.resolve('scripts/design-conformance/worktree-source.ts'))}
+import {generateContracts} from ${JSON.stringify(path.resolve('scripts/design-conformance/system/generated-contracts.ts'))}
+import {GitSource} from ${JSON.stringify(path.resolve('scripts/design-conformance/shared/worktree-source.ts'))}
 const source = new GitSource(process.env.DESIGN_TEST_REPO, 'HEAD', true)
 process.stdout.write(JSON.stringify(await generateContracts(source.central())))
 `

@@ -16,8 +16,8 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { groupComponents, groupExtras } from '../../tools/design-studio/_lib/catalog.ts'
-import { productScope } from '../design-conformance/control-scope.ts'
-import { workingTreeRevision } from '../design-conformance/source-revision.ts'
+import { productScope } from '../design-conformance/controls/scope.ts'
+import { workingTreeRevision } from '../design-conformance/shared/source-revision.ts'
 
 const toolRoot = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(process.env.SIM_STUDIO_REPO ?? path.join(toolRoot, '../..'))

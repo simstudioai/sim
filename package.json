@@ -218,7 +218,6 @@
     "postgres@3.4.9": "patches/postgres@3.4.9.patch"
   },
   "imports": {
-    "#design-conformance/*": "./scripts/design-conformance/*.ts",
-    "#control-analysis/*": "./scripts/design-conformance/control-*.ts"
+    "#design-conformance/*": "./scripts/design-conformance/*.ts"
   }
 }

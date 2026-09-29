@@ -24,11 +24,15 @@ CI uses immutable event base/head revisions. It publishes file/line warnings, a 
 
 ## Files and source facts
 
-- `contracts.json`: general design rules, scope, exclusions, static-analysis limits, adopted utility policy and explicitly central external recipes. It has no component registration or handwritten component inheritance.
+- `system/contracts.json`: general design rules, scope, exclusions, static-analysis limits, adopted utility policy and explicitly central external recipes. It has no component registration or handwritten component inheritance.
 - `packages/emcn/src/design-ownership.json`: the small, explicit list of exceptional permissions and protections. It is read from each source revision, validated against discovered public exports and slots, and included in the scan's effective ownership inventory.
-- `generated-contracts.ts`: one TypeScript compatibility program per source snapshot discovers public APIs, aliases and compound exports. Babel traces implementation classes, CVA/imported recipes, slots and forwarding. Existing CSS/Tailwind analysis identifies owned properties and global token definitions, contexts and aliases. Bounded caches share the result. Snapshot hosts can read pinned dependency types but cannot read current workspace implementations while inspecting historical source.
+- `system/generated-contracts.ts`: one TypeScript compatibility program per source snapshot discovers public APIs, aliases and compound exports. Babel traces implementation classes, CVA/imported recipes, slots and forwarding. Existing CSS/Tailwind analysis identifies owned properties and global token definitions, contexts and aliases. Bounded caches share the result. Snapshot hosts can read pinned dependency types but cannot read current workspace implementations while inspecting historical source.
 - `scan.json`: external versioned report containing findings, unchecked diagnostics, inspection failures, product uses, and compact EMCN export/variant/default/slot/relationship facts. Component and icon namespaces remain distinct. Token definitions and recipe bodies are analyzed from source but are not duplicated in the report's metadata.
-- `conformance.ts`, `extract.ts`, `normalize.ts`, `source-summary.ts`, `control-*.ts`: shared styling, composition, control, artwork and provenance analysis. `command.ts` and `reporting.ts` handle local comparisons; `ci.ts` handles warning-only CI publication.
+- `shared/`: source readers, revision identity, report types, CSS normalization and rendered-HTML helpers used across the analyzers.
+- `system/`: central EMCN and global-style facts, generated export/slot metadata, recipes and policy.
+- `styling/`: class, CSS, artwork and component-ownership extraction and conformance rules.
+- `controls/`: rendered UI inventory, value and colour tracing, local-control review and product scope.
+- `diff/`: base/head comparison, local command, reporting and warning-only CI publication.
 - `scripts/design-scan/`: whole-tree inventory and external reports using that same analysis.
 - `scripts/design-studio/refresh.mjs`, `tools/design-studio/`: explicit local refresh and separate local-only Next app. The deployed Sim app has no Studio route.
 

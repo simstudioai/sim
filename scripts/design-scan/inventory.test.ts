@@ -12,8 +12,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, expect, test } from 'vitest'
-import { testComponents } from '#design-conformance/test-source'
-import { GitSource } from '#design-conformance/worktree-source'
+import { testComponents } from '#design-conformance/shared/test-source'
+import { GitSource } from '#design-conformance/shared/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
 import { validateOutput } from './report'
@@ -645,7 +645,7 @@ test('full CLI connects colour assignment proof to usage and retains unsafe writ
 })
 
 test('central recipe appearance never grants renderer ownership or approves later overrides', async () => {
-  const { inspectControls } = await import('#control-analysis/inventory')
+  const { inspectControls } = await import('#design-conformance/controls/inventory')
   const f = fixture({
     'packages/emcn/src/components/button/button.tsx': `import {cva} from 'class-variance-authority';export const buttonVariants=cva('rounded-lg',{variants:{size:{sm:'h-5'}},defaultVariants:{size:'sm'}});export const Button=()=> <button/>`,
     [component]: `import {buttonVariants as style} from '@sim/emcn';export const A=()=> <button className={style({size:'sm'})} style={{backgroundColor:'#123456'}}/>`,

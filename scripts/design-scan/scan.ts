@@ -1,17 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { inspectControlAnalysis } from '#control-analysis/analysis'
+import { inspectControlAnalysis } from '#design-conformance/controls/analysis'
 import {
   type ColourAssignmentReport,
   withoutVerifiedColourUsages,
-} from '#control-analysis/colour-assignments'
-import type { ControlInventory } from '#control-analysis/inventory'
-import { classifyLayout, type LayoutAllowance } from '#control-analysis/layout-allowances'
-import type { ReviewReport } from '#control-analysis/review'
-import { mergeSourceFindings } from '#control-analysis/review'
-import { inspectionFailure } from '#design-conformance/model'
-import { workingTreeRevision } from '#design-conformance/source-revision'
-import { GitSource } from '#design-conformance/worktree-source'
+} from '#design-conformance/controls/colour-assignments'
+import type { ControlInventory } from '#design-conformance/controls/inventory'
+import {
+  classifyLayout,
+  type LayoutAllowance,
+} from '#design-conformance/controls/layout-allowances'
+import type { ReviewReport } from '#design-conformance/controls/review'
+import { mergeSourceFindings } from '#design-conformance/controls/review'
+import { inspectionFailure } from '#design-conformance/shared/model'
+import { workingTreeRevision } from '#design-conformance/shared/source-revision'
+import { GitSource } from '#design-conformance/shared/worktree-source'
 import { scannerIdentity } from './identity'
 import { inspectInventory } from './inventory'
 import { validateOutput, writeResults } from './report'

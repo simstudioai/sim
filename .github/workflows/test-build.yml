@@ -310,7 +310,7 @@ jobs:
       # The same base covers the complete push for migration and block-registry checks.
       - name: Resolve base ref for diff-based audits
         id: audit_base
-        run: bun --no-env-file scripts/design-conformance/ci.ts --resolve-refs
+        run: bun --no-env-file scripts/design-conformance/diff/ci.ts --resolve-refs
 
       - name: Check block registry invariants
         run: bun run apps/sim/scripts/check-block-registry.ts "${{ steps.audit_base.outputs.ref }}"
@@ -334,7 +334,7 @@ jobs:
           DESIGN_BASE: ${{ steps.audit_base.outputs.ref }}
           DESIGN_HEAD: ${{ steps.audit_base.outputs.head }}
           DESIGN_REPORT_PATH: ${{ runner.temp }}/design-conformance.json
-        run: bun --no-env-file scripts/design-conformance/ci.ts --base "$DESIGN_BASE" --head "$DESIGN_HEAD"
+        run: bun --no-env-file scripts/design-conformance/diff/ci.ts --base "$DESIGN_BASE" --head "$DESIGN_HEAD"
 
       - name: Save design conformance report
         if: always()

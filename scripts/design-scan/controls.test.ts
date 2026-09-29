@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, test } from 'vitest'
-import { inspectControls } from '#control-analysis/inventory'
-import { GitSource } from '#design-conformance/worktree-source'
+import { inspectControls } from '#design-conformance/controls/inventory'
+import { GitSource } from '#design-conformance/shared/worktree-source'
 
 const dirs: string[] = []
 afterEach(() => {

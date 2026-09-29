@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { workingTreeRevision } from '../../../scripts/design-conformance/source-revision'
+import { workingTreeRevision } from '../../../scripts/design-conformance/shared/source-revision'
 
 export interface StudioLocation {
   file: string
