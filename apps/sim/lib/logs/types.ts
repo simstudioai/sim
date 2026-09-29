@@ -101,17 +101,6 @@ export interface ExecutionLastCompletedBlock {
   success: boolean
 }
 
-export interface WorkflowExecutionSnapshot {
-  id: string
-  workflowId: string | null
-  stateHash: string
-  stateData: WorkflowState
-  createdAt: string
-}
-
-export type WorkflowExecutionSnapshotInsert = Omit<WorkflowExecutionSnapshot, 'createdAt'>
-export type WorkflowExecutionSnapshotSelect = WorkflowExecutionSnapshot
-
 export interface WorkflowExecutionLog {
   id: string
   workflowId: string | null
@@ -515,15 +504,14 @@ export interface BatchInsertResult<T> {
 }
 
 export interface SnapshotService {
-  createSnapshot(workflowId: string, state: WorkflowState): Promise<WorkflowExecutionSnapshot>
-  getSnapshot(id: string): Promise<WorkflowExecutionSnapshot | null>
+  resolveSnapshot(
+    workflowId: string,
+    state: WorkflowState,
+    options?: { fresh?: boolean }
+  ): Promise<{ id: string; cacheKey: string }>
+  rememberReferencedSnapshot(snapshot: { id: string; cacheKey: string }): void
   computeStateHash(state: WorkflowState): string
   cleanupOrphanedSnapshots(olderThanDays: number): Promise<number>
-}
-
-export interface SnapshotCreationResult {
-  snapshot: WorkflowExecutionSnapshot
-  isNew: boolean
 }
 
 export interface ExecutionLoggerService {
@@ -552,10 +540,7 @@ export interface ExecutionLoggerService {
     actorUserId?: string | null
     billingAttribution?: BillingAttributionSnapshot
     workflowState: WorkflowState
-  }): Promise<{
-    workflowLog: WorkflowExecutionLog
-    snapshot: WorkflowExecutionSnapshot
-  }>
+  }): Promise<void>
 
   completeWorkflowExecution(params: {
     executionId: string

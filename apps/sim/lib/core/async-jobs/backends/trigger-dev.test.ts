@@ -227,19 +227,19 @@ describe('TriggerDevJobQueue status mapping', () => {
     ['WAITING', 'processing'],
   ])('maps active Trigger.dev status %s to %s', async (triggerStatus, jobStatus) => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: triggerStatus,
       taskIdentifier: 'workflow-execution',
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({ status: jobStatus })
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({ status: jobStatus })
   })
 
   it('dates a run cancelled before it was dequeued by its last transition', async () => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: 'CANCELED',
       taskIdentifier: 'workflow-execution',
@@ -248,7 +248,7 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({
       status: 'cancelled',
       startedAt: undefined,
       completedAt: new Date('2026-08-05T12:00:02.000Z'),
@@ -257,7 +257,7 @@ describe('TriggerDevJobQueue status mapping', () => {
 
   it('prefers the reported finish over the last transition once the run has drained', async () => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: 'COMPLETED',
       taskIdentifier: 'workflow-execution',
@@ -268,9 +268,52 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({
       status: 'completed',
       completedAt: new Date('2026-08-05T12:00:04.000Z'),
+    })
+  })
+
+  it('resolves a caller-chosen job id through its tag without retrieving the id itself', async () => {
+    mockList.mockReturnValueOnce(createListPage([{ id: 'run_1', tags: ['jobId:schedule_abc'] }]))
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run_1',
+      payload: {},
+      status: 'QUEUED',
+      taskIdentifier: 'schedule-execution',
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('schedule_abc')).resolves.toMatchObject({
+      id: 'run_1',
+      status: 'pending',
+    })
+    expect(mockRetrieve).toHaveBeenCalledTimes(1)
+    expect(mockRetrieve).toHaveBeenCalledWith('run_1')
+  })
+
+  it('returns null for a caller-chosen job id with no tagged run', async () => {
+    mockList.mockReturnValueOnce(createListPage([]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('schedule_abc')).resolves.toBeNull()
+    expect(mockRetrieve).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the tag lookup when a run id is not found', async () => {
+    mockRetrieve.mockRejectedValueOnce(new MockApiError(404, 'Not found'))
+    mockList.mockReturnValueOnce(createListPage([{ id: 'run_2', tags: ['jobId:run_missing'] }]))
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run_2',
+      payload: {},
+      status: 'EXECUTING',
+      taskIdentifier: 'workflow-execution',
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('run_missing')).resolves.toMatchObject({
+      id: 'run_2',
+      status: 'processing',
     })
   })
 })

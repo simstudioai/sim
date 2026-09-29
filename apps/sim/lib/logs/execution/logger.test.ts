@@ -127,27 +127,10 @@ vi.mock('@/lib/logs/execution/progress-markers', () => ({
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
-    createSnapshotWithDeduplication: vi.fn(() =>
-      Promise.resolve({
-        snapshot: {
-          id: 'snapshot-123',
-          workflowId: 'workflow-123',
-          stateHash: 'hash-123',
-          stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-        isNew: true,
-      })
+    resolveSnapshot: vi.fn(() =>
+      Promise.resolve({ id: 'snapshot-123', cacheKey: 'workflow:hash' })
     ),
-    getSnapshot: vi.fn(() =>
-      Promise.resolve({
-        id: 'snapshot-123',
-        workflowId: 'workflow-123',
-        stateHash: 'hash-123',
-        stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-        createdAt: '2024-01-01T00:00:00.000Z',
-      })
-    ),
+    rememberReferencedSnapshot: vi.fn(),
   },
 }))
 
@@ -161,7 +144,6 @@ describe('ExecutionLogger', () => {
 
   describe('interface implementation', () => {
     test('marks new execution rows as contract-aware before any provenance is available', async () => {
-      dbChainMockFns.limit.mockResolvedValueOnce([])
       dbChainMockFns.returning.mockResolvedValueOnce([
         {
           id: 'log-1',

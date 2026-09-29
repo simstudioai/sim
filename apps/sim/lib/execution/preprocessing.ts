@@ -72,6 +72,11 @@ export interface PreprocessExecutionOptions {
    * for every surface, including async-queued v1 runs.
    */
   rateLimitCounter?: 'sync' | 'async'
+  /**
+   * Also resolve the actor's highest-priority subscription for a caller that paces
+   * its own rate limiting. The rate-limit gate resolves it whenever it runs.
+   */
+  includeActorSubscription?: boolean
   checkDeployment?: boolean
   skipUsageLimits?: boolean
   /**
@@ -163,7 +168,8 @@ export interface PreprocessExecutionSuccess {
   success: true
   actorUserId: string
   workflowRecord: WorkflowRecord
-  actorSubscription: SubscriptionInfo
+  /** Resolved when the rate-limit gate ran or the caller asked for it. */
+  actorSubscription?: SubscriptionInfo
   billingAttribution: BillingAttributionSnapshot
   executionTimeout: {
     sync: number
@@ -181,6 +187,44 @@ export type PreprocessExecutionResult = PreprocessExecutionSuccess | PreprocessE
 type WorkflowRecord = typeof workflow.$inferSelect
 type SubscriptionInfo = HighestPrioritySubscription
 
+/**
+ * The admission gates' lookups. They depend only on the acting identity and the
+ * payer, so they start as soon as both are known — alongside the workflow read
+ * when the payer is — while the gates still apply the results in fixed order.
+ */
+interface GateReads {
+  actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
+  bannedUserIds: Promise<string[]>
+  actorSubscription: Promise<SubscriptionInfo> | undefined
+  usage: Promise<Awaited<ReturnType<typeof checkExecutionUsageLimits>>> | undefined
+}
+
+function startGateReads(params: {
+  actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
+  banCandidateIds: string[]
+  includeSubscription: boolean
+  includeUsage: boolean
+}): GateReads {
+  const { actorUserId, billingAttribution, banCandidateIds } = params
+  const bannedUserIds = withDatabaseReadRetry(() => getActivelyBannedUserIds(banCandidateIds), {
+    label: 'getActivelyBannedUserIds',
+  })
+  const actorSubscription = params.includeSubscription
+    ? getHighestPrioritySubscription(actorUserId)
+    : undefined
+  const usage = params.includeUsage
+    ? withDatabaseReadRetry(() => checkExecutionUsageLimits(billingAttribution), {
+        label: 'checkExecutionUsageLimits',
+      })
+    : undefined
+  // The gates await these inside their own error handling; a run rejected before
+  // it reaches them must not leave them unhandled.
+  for (const read of [bannedUserIds, actorSubscription, usage]) read?.catch(() => {})
+  return { actorUserId, billingAttribution, bannedUserIds, actorSubscription, usage }
+}
+
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
 ): Promise<PreprocessExecutionResult> {
@@ -193,6 +237,7 @@ export async function preprocessExecution(
     requestId,
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     rateLimitCounter = 'sync',
+    includeActorSubscription = false,
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
     skipConcurrencyReservation = false,
@@ -234,6 +279,89 @@ export async function preprocessExecution(
       `Prefetched workflow record ID mismatch: expected ${workflowId}, got ${prefetchedWorkflowRecord.id}`
     )
   }
+
+  const resolveAttribution = (targetWorkspaceId: string) =>
+    useAuthenticatedUserAsActor && userId
+      ? withDatabaseReadRetry(
+          () => resolveBillingAttribution({ actorUserId: userId, workspaceId: targetWorkspaceId }),
+          { label: 'resolveBillingAttribution' }
+        )
+      : withDatabaseReadRetry(() => resolveSystemBillingAttribution(targetWorkspaceId), {
+          label: 'resolveSystemBillingAttribution',
+        })
+  /**
+   * When the caller already knows the workspace, the payer read needs nothing from
+   * the workflow read below, so it starts alongside it. It is used only when the
+   * workflow confirms that workspace; any other workspace is resolved on its own.
+   */
+  const knownWorkspaceId = prefetchedWorkflowRecord?.workspaceId || providedWorkspaceId
+  const earlyAttribution =
+    !providedBillingAttribution && knownWorkspaceId
+      ? { workspaceId: knownWorkspaceId, attribution: resolveAttribution(knownWorkspaceId) }
+      : undefined
+  earlyAttribution?.attribution.catch(() => {})
+  const attributionFor = (targetWorkspaceId: string) =>
+    earlyAttribution?.workspaceId === targetWorkspaceId
+      ? earlyAttribution.attribution
+      : resolveAttribution(targetWorkspaceId)
+
+  /**
+   * Blocks when an identity this run actually acts as has an active ban or
+   * blocked email domain.
+   *
+   * `userId` is a candidate unless the caller declares it a stored reference.
+   * The default is deliberately the blocking one: callers overload the
+   * parameter, and only the caller knows which kind it passed, so a call site
+   * that forgets to say must fail closed rather than silently admit a
+   * suspended account.
+   *
+   * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
+   * an earlier revision of this gate assumed. Resume passes the live
+   * authenticated resumer as `userId` and leaves that flag false on purpose —
+   * attribution is captured before the pause and must not move — so keying on
+   * it excluded exactly the person who just acted.
+   *
+   * A stored reference being banned must not take down work their teammates
+   * still depend on — but it must not lend that person's credentials either,
+   * which is why {@link getExecutionEnvironment} drops a suspended identity's
+   * personal namespace rather than this gate blocking the whole run.
+   */
+  const banCandidatesFor = (actor: string) =>
+    !userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actor
+      ? [actor, userId]
+      : [actor]
+  const gateReadsFor = (actor: string, attribution: BillingAttributionSnapshot) =>
+    startGateReads({
+      actorUserId: actor,
+      billingAttribution: attribution,
+      banCandidateIds: banCandidatesFor(actor),
+      includeSubscription: checkRateLimit || includeActorSubscription,
+      includeUsage: !skipUsageLimits,
+    })
+
+  /** A serialized attribution is validated once; a failure surfaces in its place below. */
+  let providedAttribution: { snapshot: BillingAttributionSnapshot } | { error: unknown } | undefined
+  if (providedBillingAttribution) {
+    try {
+      providedAttribution = {
+        snapshot: assertBillingAttributionSnapshot(providedBillingAttribution),
+      }
+    } catch (error) {
+      providedAttribution = { error }
+    }
+  }
+  const earlyGateReads: Promise<GateReads | undefined> = (
+    providedAttribution && 'snapshot' in providedAttribution
+      ? Promise.resolve(
+          gateReadsFor(providedAttribution.snapshot.actorUserId, providedAttribution.snapshot)
+        )
+      : earlyAttribution
+        ? earlyAttribution.attribution.then((attribution) =>
+            attribution.actorUserId ? gateReadsFor(attribution.actorUserId, attribution) : undefined
+          )
+        : Promise.resolve(undefined)
+  ).catch(() => undefined)
+
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
     try {
@@ -349,8 +477,9 @@ export async function preprocessExecution(
   let billingAttribution: BillingAttributionSnapshot | null = null
 
   try {
-    if (providedBillingAttribution) {
-      const validatedAttribution = assertBillingAttributionSnapshot(providedBillingAttribution)
+    if (providedAttribution) {
+      if ('error' in providedAttribution) throw providedAttribution.error
+      const validatedAttribution = providedAttribution.snapshot
       if (validatedAttribution.workspaceId !== workspaceId) {
         throw new Error(
           `Billing attribution workspace mismatch: expected ${workspaceId}, received ${validatedAttribution.workspaceId}`
@@ -370,10 +499,7 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      billingAttribution = await withDatabaseReadRetry(
-        () => resolveSystemBillingAttribution(workspaceId),
-        { label: 'resolveSystemBillingAttribution' }
-      )
+      billingAttribution = await attributionFor(workspaceId)
       actorUserId = billingAttribution.actorUserId
       logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
         actorUserId,
@@ -410,11 +536,7 @@ export async function preprocessExecution(
     }
 
     if (!billingAttribution) {
-      const attributionInput = { actorUserId, workspaceId }
-      billingAttribution = await withDatabaseReadRetry(
-        () => resolveBillingAttribution(attributionInput),
-        { label: 'resolveBillingAttribution' }
-      )
+      billingAttribution = await attributionFor(workspaceId)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
@@ -472,37 +594,15 @@ export async function preprocessExecution(
     }
   }
 
+  const earlyReads = await earlyGateReads
+  const gateReads =
+    earlyReads?.actorUserId === actorUserId && earlyReads.billingAttribution === billingAttribution
+      ? earlyReads
+      : gateReadsFor(actorUserId, billingAttribution)
+
   const banCheck = (async (): Promise<GateFailure | null> => {
-    /**
-     * Blocks when an identity this run actually acts as has an active ban or
-     * blocked email domain.
-     *
-     * `userId` is a candidate unless the caller declares it a stored reference.
-     * The default is deliberately the blocking one: callers overload the
-     * parameter, and only the caller knows which kind it passed, so a call site
-     * that forgets to say must fail closed rather than silently admit a
-     * suspended account.
-     *
-     * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
-     * an earlier revision of this gate assumed. Resume passes the live
-     * authenticated resumer as `userId` and leaves that flag false on purpose —
-     * attribution is captured before the pause and must not move — so keying on
-     * it excluded exactly the person who just acted.
-     *
-     * A stored reference being banned must not take down work their teammates
-     * still depend on — but it must not lend that person's credentials either,
-     * which is why {@link getExecutionEnvironment} drops a suspended identity's
-     * personal namespace rather than this gate blocking the whole run.
-     */
-    const banCandidateIds = [actorUserId]
-    if (!userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actorUserId) {
-      banCandidateIds.push(userId)
-    }
     try {
-      const bannedUserIds = await withDatabaseReadRetry(
-        () => getActivelyBannedUserIds(banCandidateIds),
-        { label: 'getActivelyBannedUserIds' }
-      )
+      const bannedUserIds = await gateReads.bannedUserIds
       if (bannedUserIds.length > 0) {
         logger.warn(`[${requestId}] Execution blocked: banned account`, {
           workflowId,
@@ -560,8 +660,6 @@ export async function preprocessExecution(
     }
   })()
 
-  const subscriptionFetch = getHighestPrioritySubscription(actorUserId)
-
   /**
    * Returns the usage failure and reservation snapshot together so concurrent
    * read gates do not communicate through mutable outer state.
@@ -570,13 +668,10 @@ export async function preprocessExecution(
     failure: GateFailure | null
     snapshot: UsageSnapshot | null
   }> => {
-    if (skipUsageLimits) return { failure: null, snapshot: null }
+    if (!gateReads.usage) return { failure: null, snapshot: null }
     let snapshot: UsageSnapshot | null = null
     try {
-      const usageCheck = await withDatabaseReadRetry(
-        () => checkExecutionUsageLimits(billingAttribution),
-        { label: 'checkExecutionUsageLimits' }
-      )
+      const usageCheck = await gateReads.usage
       snapshot = usageCheck.payerUsage
         ? {
             ...usageCheck.payerUsage,
@@ -670,7 +765,7 @@ export async function preprocessExecution(
    */
   const [banFailure, actorSubscription, usageResult] = await Promise.all([
     banCheck,
-    subscriptionFetch,
+    gateReads.actorSubscription,
     usageCheckTask,
   ])
 
@@ -684,7 +779,7 @@ export async function preprocessExecution(
       const rateLimiter = new RateLimiter()
       const info = await rateLimiter.checkRateLimitWithSubscription(
         actorUserId,
-        actorSubscription,
+        actorSubscription ?? null,
         triggerType,
         rateLimitCounter === 'async'
       )
