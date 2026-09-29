@@ -15,8 +15,8 @@ import {
 } from '@/lib/knowledge/api/route-policies'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 
-function quotaError(isBYOK: boolean) {
-  return new EmbeddingQuotaExhaustedError('openai', undefined, isBYOK)
+function quotaError(isBYOK: boolean, providerId: 'openai' | 'ollama' = 'openai') {
+  return new EmbeddingQuotaExhaustedError(providerId, undefined, isBYOK)
 }
 
 describe('internal knowledge search error policy', () => {
@@ -26,6 +26,18 @@ describe('internal knowledge search error policy', () => {
     [
       'every fallback provider out of quota',
       new AggregateError([quotaError(false), quotaError(false)]),
+      503,
+      /^Knowledge search is temporarily/,
+    ],
+    [
+      'a workspace key out of quota ahead of an exhausted platform fallback',
+      new AggregateError([quotaError(true), quotaError(false)]),
+      503,
+      /this workspace's embedding API key/,
+    ],
+    [
+      'a keyless Ollama server out of quota',
+      quotaError(true, 'ollama'),
       503,
       /^Knowledge search is temporarily/,
     ],

@@ -215,7 +215,8 @@ export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
   /**
    * `isBYOK` must be passed when there is no provider response to read it from — an
    * already-open quota pause or an admission refusal — so a workspace key's exhaustion
-   * is never reported as the platform's.
+   * is never reported as the platform's. Ollama takes no credential: its provider-level
+   * `isBYOK` only marks its tokens non-billable, so it never attributes to a customer key.
    */
   constructor(
     providerId: EmbeddingProviderKind,
@@ -226,7 +227,7 @@ export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
     super(
       `The ${providerId} embedding credential has exhausted its available quota. Add credit or replace the credential before retrying.`,
       status,
-      isBYOK
+      isBYOK && providerId !== 'ollama'
     )
     this.name = 'EmbeddingQuotaExhaustedError'
     this.providerId = providerId
@@ -249,8 +250,15 @@ export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
   return false
 }
 
-/** True when a customer-managed embedding credential has no remaining credit. */
-export function isBYOKEmbeddingQuotaExhaustion(error: unknown): error is EmbeddingAPIError {
+/**
+ * True when the operation failed on quota and a customer-managed credential is among
+ * the exhausted ones: adding credit to that key is what lets it run again, even when a
+ * platform fallback behind it is exhausted too.
+ */
+export function isBYOKEmbeddingQuotaExhaustion(error: unknown): boolean {
+  if (error instanceof AggregateError) {
+    return isEmbeddingQuotaExhaustion(error) && error.errors.some(isBYOKEmbeddingQuotaExhaustion)
+  }
   return error instanceof EmbeddingAPIError && error.isBYOK && error.quotaExhausted === true
 }
 
