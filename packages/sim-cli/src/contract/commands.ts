@@ -153,7 +153,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status and current-period spend, cost and credit usage (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },

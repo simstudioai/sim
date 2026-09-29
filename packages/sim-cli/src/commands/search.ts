@@ -132,7 +132,7 @@ export function searchCommand(): Command {
     .addHelpText(
       'after',
       `
-Runs locally against the commands this CLI ships; nothing is sent anywhere.
+Ranks the commands this CLI ships, locally; your query is never sent anywhere.
 Returns the ${MAX_RESULTS} best matches. Run \`<command> --help\` on one for its flags.
 
 Examples:

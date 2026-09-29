@@ -198,8 +198,8 @@ sim workflows --help
 sim tables rows query --help
 ```
 
-Or describe the task and let the CLI find the command. Search runs locally over
-the commands this version ships and sends nothing:
+Or describe the task and let the CLI find the command. Search ranks the commands
+this version ships, locally; your query is never sent anywhere:
 
 ```bash
 sim cli search "cancel a running workflow"
