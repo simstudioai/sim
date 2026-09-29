@@ -128,7 +128,7 @@ vi.mock('@/lib/logs/execution/progress-markers', () => ({
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
     resolveSnapshot: vi.fn(() =>
-      Promise.resolve({ id: 'snapshot-123', cacheKey: 'workflow:hash' })
+      Promise.resolve({ id: 'snapshot-123', workflowId: 'workflow-123', stateHash: 'hash' })
     ),
     rememberReferencedSnapshot: vi.fn(),
   },

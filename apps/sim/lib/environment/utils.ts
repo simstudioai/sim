@@ -494,12 +494,12 @@ export async function getExecutionEnvironment(
    * A suspended account lends nothing, from any path.
    *
    * Applied on every path, including the single-identity shortcut below, because
-   * "the caller already cleared this identity" does not hold everywhere: a custom-block child is admitted by
-   * `admitCustomBlockChildExecution`, which checks usage limits and nothing
-   * else, and a provider URL-validation challenge resolves with no admission at
-   * all. Behind the shortcut, a publisher who is also their workspace's billing
-   * account made both identities equal and skipped the gate entirely — the one
-   * arrangement where suspension was silently ignored.
+   * "the caller already cleared this identity" does not hold everywhere: a
+   * custom-block child is admitted by `admitCustomBlockChildExecution`, which checks
+   * usage limits and nothing else, and a provider URL-validation challenge resolves
+   * with no admission at all. Behind the shortcut, a publisher who is also their
+   * workspace's billing account made both identities equal and skipped the gate
+   * entirely — the one arrangement where suspension was silently ignored.
    *
    * Only the personal namespace is withheld. Workspace variables belong to the
    * workspace rather than to a person, so they keep resolving and the runs a
@@ -514,15 +514,13 @@ export async function getExecutionEnvironment(
   const personalIdentitySuspended = getActivelyBannedUserIds([personalUserId]).then(
     (bannedUserIds) => bannedUserIds.length > 0
   )
-  const resolveSuspendedIdentity = async (sameIdentitySnapshot?: EnvironmentResolutionSnapshot) => {
+  const withholdPersonalSlice = (snapshot: EnvironmentResolutionSnapshot) => {
     logger.error('Personal-environment identity is suspended; resolving workspace variables only', {
       personalUserId,
       workspaceUserId,
       workspaceId,
     })
-    return toWorkspaceOnlySnapshot(
-      sameIdentitySnapshot ?? (await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
-    )
+    return toWorkspaceOnlySnapshot(snapshot)
   }
 
   if (workspaceUserId === personalUserId) {
@@ -530,11 +528,13 @@ export async function getExecutionEnvironment(
       personalIdentitySuspended,
       getPersonalAndWorkspaceEnv(personalUserId, workspaceId),
     ])
-    return suspended ? resolveSuspendedIdentity(snapshot) : snapshot
+    return suspended ? withholdPersonalSlice(snapshot) : snapshot
   }
 
   if (!workspaceId) {
-    if (await personalIdentitySuspended) return resolveSuspendedIdentity()
+    if (await personalIdentitySuspended) {
+      return withholdPersonalSlice(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+    }
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
@@ -545,7 +545,9 @@ export async function getExecutionEnvironment(
     checkWorkspaceAccess(workspaceId, workspaceUserId),
   ])
   // A suspended identity's access is never consulted, so its read cannot fail the run.
-  if (suspended) return resolveSuspendedIdentity()
+  if (suspended) {
+    return withholdPersonalSlice(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+  }
   const personalAccess = await personalAccessRead
 
   /**

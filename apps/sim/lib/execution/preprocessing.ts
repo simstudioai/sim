@@ -187,11 +187,7 @@ export type PreprocessExecutionResult = PreprocessExecutionSuccess | PreprocessE
 type WorkflowRecord = typeof workflow.$inferSelect
 type SubscriptionInfo = HighestPrioritySubscription
 
-/**
- * The admission gates' lookups. They depend only on the acting identity and the
- * payer, so they start as soon as both are known — alongside the workflow read
- * when the payer is — while the gates still apply the results in fixed order.
- */
+/** The admission gates' lookups for one acting identity and payer. */
 interface GateReads {
   actorUserId: string
   billingAttribution: BillingAttributionSnapshot
@@ -200,29 +196,141 @@ interface GateReads {
   usage: Promise<Awaited<ReturnType<typeof checkExecutionUsageLimits>>> | undefined
 }
 
-function startGateReads(params: {
-  actorUserId: string
-  billingAttribution: BillingAttributionSnapshot
-  banCandidateIds: string[]
+/**
+ * Blocks when an identity this run actually acts as has an active ban or
+ * blocked email domain.
+ *
+ * `userId` is a candidate unless the caller declares it a stored reference.
+ * The default is deliberately the blocking one: callers overload the
+ * parameter, and only the caller knows which kind it passed, so a call site
+ * that forgets to say must fail closed rather than silently admit a
+ * suspended account.
+ *
+ * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
+ * an earlier revision of this gate assumed. Resume passes the live
+ * authenticated resumer as `userId` and leaves that flag false on purpose —
+ * attribution is captured before the pause and must not move — so keying on
+ * it excluded exactly the person who just acted.
+ *
+ * A stored reference being banned must not take down work their teammates
+ * still depend on — but it must not lend that person's credentials either,
+ * which is why {@link getExecutionEnvironment} drops a suspended identity's
+ * personal namespace rather than this gate blocking the whole run.
+ */
+function banCandidateIds(
+  actorUserId: string,
+  userId: string,
+  userIdIsStoredReference: boolean
+): string[] {
+  return !userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actorUserId
+    ? [actorUserId, userId]
+    : [actorUserId]
+}
+
+/**
+ * The payer and admission-gate reads of one preprocessing pass. None of them
+ * depends on the workflow read, so each starts as soon as its own inputs are
+ * known — the payer when the caller already knows the workspace, the gates once
+ * the actor and payer are known — and runs alongside the workflow read. Callers
+ * still consume the results in preprocessing's fixed order, and a read started
+ * for inputs the run does not end up using is simply resolved again.
+ */
+function startAdmissionReads(params: {
+  userId: string
+  useAuthenticatedUserAsActor: boolean
+  userIdIsStoredReference: boolean
+  providedBillingAttribution: BillingAttributionSnapshot | undefined
+  knownWorkspaceId: string | undefined
   includeSubscription: boolean
   includeUsage: boolean
-}): GateReads {
-  const { actorUserId, billingAttribution, banCandidateIds } = params
-  const bannedUserIds = withDatabaseReadRetry(() => getActivelyBannedUserIds(banCandidateIds), {
-    label: 'getActivelyBannedUserIds',
-  })
-  const actorSubscription = params.includeSubscription
-    ? getHighestPrioritySubscription(actorUserId)
-    : undefined
-  const usage = params.includeUsage
-    ? withDatabaseReadRetry(() => checkExecutionUsageLimits(billingAttribution), {
-        label: 'checkExecutionUsageLimits',
-      })
-    : undefined
-  // The gates await these inside their own error handling; a run rejected before
-  // it reaches them must not leave them unhandled.
-  for (const read of [bannedUserIds, actorSubscription, usage]) read?.catch(() => {})
-  return { actorUserId, billingAttribution, bannedUserIds, actorSubscription, usage }
+}) {
+  const { userId, useAuthenticatedUserAsActor, providedBillingAttribution, knownWorkspaceId } =
+    params
+
+  const resolveAttribution = (workspaceId: string) =>
+    useAuthenticatedUserAsActor && userId
+      ? withDatabaseReadRetry(
+          () => resolveBillingAttribution({ actorUserId: userId, workspaceId }),
+          {
+            label: 'resolveBillingAttribution',
+          }
+        )
+      : withDatabaseReadRetry(() => resolveSystemBillingAttribution(workspaceId), {
+          label: 'resolveSystemBillingAttribution',
+        })
+
+  const startGateReads = (
+    actorUserId: string,
+    billingAttribution: BillingAttributionSnapshot
+  ): GateReads => {
+    const ids = banCandidateIds(actorUserId, userId, params.userIdIsStoredReference)
+    const bannedUserIds = withDatabaseReadRetry(() => getActivelyBannedUserIds(ids), {
+      label: 'getActivelyBannedUserIds',
+    })
+    const actorSubscription = params.includeSubscription
+      ? getHighestPrioritySubscription(actorUserId)
+      : undefined
+    const usage = params.includeUsage
+      ? withDatabaseReadRetry(() => checkExecutionUsageLimits(billingAttribution), {
+          label: 'checkExecutionUsageLimits',
+        })
+      : undefined
+    // The gates await these inside their own error handling; a run rejected before
+    // it reaches them must not leave them unhandled.
+    for (const read of [bannedUserIds, actorSubscription, usage]) read?.catch(() => {})
+    return { actorUserId, billingAttribution, bannedUserIds, actorSubscription, usage }
+  }
+
+  /** A serialized attribution is validated once; a failure surfaces where the payer is read. */
+  let providedAttribution: { snapshot: BillingAttributionSnapshot } | { error: unknown } | undefined
+  if (providedBillingAttribution) {
+    try {
+      providedAttribution = {
+        snapshot: assertBillingAttributionSnapshot(providedBillingAttribution),
+      }
+    } catch (error) {
+      providedAttribution = { error }
+    }
+  }
+
+  const earlyAttribution =
+    !providedBillingAttribution && knownWorkspaceId
+      ? { workspaceId: knownWorkspaceId, attribution: resolveAttribution(knownWorkspaceId) }
+      : undefined
+  earlyAttribution?.attribution.catch(() => {})
+
+  const earlyGateReads: Promise<GateReads | undefined> = (
+    providedAttribution && 'snapshot' in providedAttribution
+      ? Promise.resolve(
+          startGateReads(providedAttribution.snapshot.actorUserId, providedAttribution.snapshot)
+        )
+      : earlyAttribution
+        ? earlyAttribution.attribution.then((attribution) =>
+            attribution.actorUserId
+              ? startGateReads(attribution.actorUserId, attribution)
+              : undefined
+          )
+        : Promise.resolve(undefined)
+  ).catch(() => undefined)
+
+  return {
+    providedAttribution,
+    /** The workspace payer, reusing the early read when it was for this workspace. */
+    attributionFor: (workspaceId: string) =>
+      earlyAttribution?.workspaceId === workspaceId
+        ? earlyAttribution.attribution
+        : resolveAttribution(workspaceId),
+    /** The gate reads, reusing the early ones when they were for this actor and payer. */
+    gateReadsFor: async (
+      actorUserId: string,
+      billingAttribution: BillingAttributionSnapshot
+    ): Promise<GateReads> => {
+      const early = await earlyGateReads
+      return early?.actorUserId === actorUserId && early.billingAttribution === billingAttribution
+        ? early
+        : startGateReads(actorUserId, billingAttribution)
+    },
+  }
 }
 
 export async function preprocessExecution(
@@ -280,87 +388,15 @@ export async function preprocessExecution(
     )
   }
 
-  const resolveAttribution = (targetWorkspaceId: string) =>
-    useAuthenticatedUserAsActor && userId
-      ? withDatabaseReadRetry(
-          () => resolveBillingAttribution({ actorUserId: userId, workspaceId: targetWorkspaceId }),
-          { label: 'resolveBillingAttribution' }
-        )
-      : withDatabaseReadRetry(() => resolveSystemBillingAttribution(targetWorkspaceId), {
-          label: 'resolveSystemBillingAttribution',
-        })
-  /**
-   * When the caller already knows the workspace, the payer read needs nothing from
-   * the workflow read below, so it starts alongside it. It is used only when the
-   * workflow confirms that workspace; any other workspace is resolved on its own.
-   */
-  const knownWorkspaceId = prefetchedWorkflowRecord?.workspaceId || providedWorkspaceId
-  const earlyAttribution =
-    !providedBillingAttribution && knownWorkspaceId
-      ? { workspaceId: knownWorkspaceId, attribution: resolveAttribution(knownWorkspaceId) }
-      : undefined
-  earlyAttribution?.attribution.catch(() => {})
-  const attributionFor = (targetWorkspaceId: string) =>
-    earlyAttribution?.workspaceId === targetWorkspaceId
-      ? earlyAttribution.attribution
-      : resolveAttribution(targetWorkspaceId)
-
-  /**
-   * Blocks when an identity this run actually acts as has an active ban or
-   * blocked email domain.
-   *
-   * `userId` is a candidate unless the caller declares it a stored reference.
-   * The default is deliberately the blocking one: callers overload the
-   * parameter, and only the caller knows which kind it passed, so a call site
-   * that forgets to say must fail closed rather than silently admit a
-   * suspended account.
-   *
-   * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
-   * an earlier revision of this gate assumed. Resume passes the live
-   * authenticated resumer as `userId` and leaves that flag false on purpose —
-   * attribution is captured before the pause and must not move — so keying on
-   * it excluded exactly the person who just acted.
-   *
-   * A stored reference being banned must not take down work their teammates
-   * still depend on — but it must not lend that person's credentials either,
-   * which is why {@link getExecutionEnvironment} drops a suspended identity's
-   * personal namespace rather than this gate blocking the whole run.
-   */
-  const banCandidatesFor = (actor: string) =>
-    !userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actor
-      ? [actor, userId]
-      : [actor]
-  const gateReadsFor = (actor: string, attribution: BillingAttributionSnapshot) =>
-    startGateReads({
-      actorUserId: actor,
-      billingAttribution: attribution,
-      banCandidateIds: banCandidatesFor(actor),
-      includeSubscription: checkRateLimit || includeActorSubscription,
-      includeUsage: !skipUsageLimits,
-    })
-
-  /** A serialized attribution is validated once; a failure surfaces in its place below. */
-  let providedAttribution: { snapshot: BillingAttributionSnapshot } | { error: unknown } | undefined
-  if (providedBillingAttribution) {
-    try {
-      providedAttribution = {
-        snapshot: assertBillingAttributionSnapshot(providedBillingAttribution),
-      }
-    } catch (error) {
-      providedAttribution = { error }
-    }
-  }
-  const earlyGateReads: Promise<GateReads | undefined> = (
-    providedAttribution && 'snapshot' in providedAttribution
-      ? Promise.resolve(
-          gateReadsFor(providedAttribution.snapshot.actorUserId, providedAttribution.snapshot)
-        )
-      : earlyAttribution
-        ? earlyAttribution.attribution.then((attribution) =>
-            attribution.actorUserId ? gateReadsFor(attribution.actorUserId, attribution) : undefined
-          )
-        : Promise.resolve(undefined)
-  ).catch(() => undefined)
+  const admission = startAdmissionReads({
+    userId,
+    useAuthenticatedUserAsActor,
+    userIdIsStoredReference,
+    providedBillingAttribution,
+    knownWorkspaceId: prefetchedWorkflowRecord?.workspaceId || providedWorkspaceId,
+    includeSubscription: checkRateLimit || includeActorSubscription,
+    includeUsage: !skipUsageLimits,
+  })
 
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
@@ -477,6 +513,7 @@ export async function preprocessExecution(
   let billingAttribution: BillingAttributionSnapshot | null = null
 
   try {
+    const { providedAttribution } = admission
     if (providedAttribution) {
       if ('error' in providedAttribution) throw providedAttribution.error
       const validatedAttribution = providedAttribution.snapshot
@@ -499,7 +536,7 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      billingAttribution = await attributionFor(workspaceId)
+      billingAttribution = await admission.attributionFor(workspaceId)
       actorUserId = billingAttribution.actorUserId
       logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
         actorUserId,
@@ -536,7 +573,7 @@ export async function preprocessExecution(
     }
 
     if (!billingAttribution) {
-      billingAttribution = await attributionFor(workspaceId)
+      billingAttribution = await admission.attributionFor(workspaceId)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
@@ -594,11 +631,7 @@ export async function preprocessExecution(
     }
   }
 
-  const earlyReads = await earlyGateReads
-  const gateReads =
-    earlyReads?.actorUserId === actorUserId && earlyReads.billingAttribution === billingAttribution
-      ? earlyReads
-      : gateReadsFor(actorUserId, billingAttribution)
+  const gateReads = await admission.gateReadsFor(actorUserId, billingAttribution)
 
   const banCheck = (async (): Promise<GateFailure | null> => {
     try {

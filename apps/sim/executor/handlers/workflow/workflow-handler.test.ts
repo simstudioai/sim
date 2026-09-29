@@ -395,7 +395,11 @@ describe('WorkflowBlockHandler', () => {
             },
           }),
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, mockBlock, inputs)
@@ -463,7 +467,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -557,7 +565,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -642,7 +654,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, customBlock, {})
@@ -706,7 +722,11 @@ describe('WorkflowBlockHandler', () => {
             },
           }),
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
 
       await handler.execute(ctx, mockBlock, inputs)
@@ -818,7 +838,11 @@ describe('WorkflowBlockHandler', () => {
             }),
         }
       })
-      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', cacheKey: 'workflow:hash' })
+      mockResolveSnapshot.mockResolvedValue({
+        id: 'snapshot-1',
+        workflowId: 'workflow-1',
+        stateHash: 'hash',
+      })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
     })
 

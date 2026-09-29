@@ -508,8 +508,8 @@ export interface SnapshotService {
     workflowId: string,
     state: WorkflowState,
     options?: { fresh?: boolean }
-  ): Promise<{ id: string; cacheKey: string }>
-  rememberReferencedSnapshot(snapshot: { id: string; cacheKey: string }): void
+  ): Promise<{ id: string; workflowId: string; stateHash: string }>
+  rememberReferencedSnapshot(snapshot: { id: string; workflowId: string; stateHash: string }): void
   computeStateHash(state: WorkflowState): string
   cleanupOrphanedSnapshots(olderThanDays: number): Promise<number>
 }

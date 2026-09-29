@@ -27,11 +27,15 @@ const snapshotIdCache = new LRUCache<string, string>({
   ttl: SNAPSHOT_ID_CACHE_TTL_MS,
 })
 
-/** A snapshot row id, plus the key it is remembered under once a log references it. */
+/** The snapshot row holding one workflow's state, identified by the state's hash. */
 export interface ResolvedSnapshot {
   id: string
-  cacheKey: string
+  workflowId: string
+  stateHash: string
 }
+
+const snapshotCacheKey = ({ workflowId, stateHash }: Omit<ResolvedSnapshot, 'id'>) =>
+  `${workflowId}:${stateHash}`
 
 export class SnapshotService implements ISnapshotService {
   /**
@@ -44,10 +48,9 @@ export class SnapshotService implements ISnapshotService {
     options: { fresh?: boolean } = {}
   ): Promise<ResolvedSnapshot> {
     const stateHash = this.computeStateHash(state)
-    const cacheKey = `${workflowId}:${stateHash}`
     if (!options.fresh) {
-      const cachedId = snapshotIdCache.get(cacheKey)
-      if (cachedId) return { id: cachedId, cacheKey }
+      const cachedId = snapshotIdCache.get(snapshotCacheKey({ workflowId, stateHash }))
+      if (cachedId) return { id: cachedId, workflowId, stateHash }
     }
 
     const [existing] = await dbFor('exec')
@@ -62,12 +65,12 @@ export class SnapshotService implements ISnapshotService {
       .limit(1)
 
     const id = existing?.id ?? (await this.insertSnapshot(workflowId, stateHash, state))
-    return { id, cacheKey }
+    return { id, workflowId, stateHash }
   }
 
   /** Remembers a snapshot once a log row referencing it has been inserted. */
   rememberReferencedSnapshot(snapshot: ResolvedSnapshot): void {
-    snapshotIdCache.set(snapshot.cacheKey, snapshot.id)
+    snapshotIdCache.set(snapshotCacheKey(snapshot), snapshot.id)
   }
 
   /**
