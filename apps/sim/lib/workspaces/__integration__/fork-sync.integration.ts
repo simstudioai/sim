@@ -1,5 +1,7 @@
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  auditLog,
   folder,
   outboxEvent,
   permissions,
@@ -15,8 +17,8 @@ import {
   workspaceSandbox,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { and, eq, inArray } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
@@ -765,9 +767,10 @@ describe('authorized fork and sync against PostgreSQL', () => {
 
   /**
    * The opt-in policy end to end: set from a fork, it reaches the parent and changes only
-   * what differs; a genuinely new workflow (created, duplicated, or a fork's starter) and a
-   * new fork take it; a forked copy stays synced; no existing workflow moves; and an archived
-   * member is walked through for the lineage root but never written.
+   * what differs, filing one audit entry in each changed workspace's own log; a genuinely
+   * new workflow (created, duplicated, or a fork's starter) and a new fork take it; a forked
+   * copy stays synced; no existing workflow moves; and an archived member is walked through
+   * for the lineage root but never written.
    */
   it('gives new workflows the lineage fork-sync default while copies stay synced', async () => {
     const childId = await createChild()
@@ -794,6 +797,50 @@ describe('authorized fork and sync against PostgreSQL', () => {
       )
       expect((await setDefault(childId, true)).changedWorkspaces).toEqual([])
       expect(await policyOf(sourceWorkspaceId)).toBe(true)
+
+      // Each changed member's admins see the change in their own log, under that workspace's name.
+      const changed = new Map(
+        (
+          await db
+            .select({ id: workspace.id, name: workspace.name })
+            .from(workspace)
+            .where(
+              inArray(
+                workspace.id,
+                first.changedWorkspaces.map((member) => member.id)
+              )
+            )
+        ).map((member) => [member.id, member.name])
+      )
+      await vi.waitFor(
+        async () => {
+          const entries = await db
+            .select({
+              workspaceId: auditLog.workspaceId,
+              resourceId: auditLog.resourceId,
+              resourceName: auditLog.resourceName,
+              metadata: auditLog.metadata,
+            })
+            .from(auditLog)
+            .where(
+              and(
+                eq(auditLog.action, AuditAction.WORKSPACE_FORK_SYNC_DEFAULT_CHANGED),
+                inArray(auditLog.resourceId, [...changed.keys()])
+              )
+            )
+          expect(entries).toHaveLength(changed.size)
+          for (const entry of entries) {
+            expect(entry.workspaceId).toBe(entry.resourceId)
+            expect(entry.resourceName).toBe(changed.get(entry.resourceId!))
+            expect(entry.metadata).toMatchObject({
+              forkSyncNewWorkflowsExcluded: true,
+              originWorkspaceId: childId,
+              originWorkspaceName: changed.get(childId),
+            })
+          }
+        },
+        { timeout: 5000 }
+      )
       expect(await excludedFor(sourceWorkflowId)).toBe(false)
 
       const [copy] = await db
