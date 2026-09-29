@@ -90,7 +90,7 @@ may write its content type, and the resource picker requests it separately from 
 Versions, billing, cleanup, and complete workspace copies still include unlisted resources.
 
 Migration 0392 adds the defaulted discovery column and a temporary bridge for old upload
-writers during rollout. Script migration 0027 backfills non-workspace uploads in id-keyed
+writers during rollout. Script migration 0028 backfills non-workspace uploads in id-keyed
 pages of 1,000, including archived uploads, without changing content revisions or ownership.
 It contains no dashboard backfill: dashboards have not shipped. Remove the bridge in a
 later migration after all discovery-aware writers are deployed.

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0027_backfill_file_discovery'
+import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0028_backfill_file_discovery'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'

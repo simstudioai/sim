@@ -108,7 +108,7 @@ export async function dispatchSlackWebhooks(
   return mapWithConcurrency(
     webhooks,
     SLACK_WEBHOOK_DISPATCH_CONCURRENCY,
-    async ({ webhook: foundWebhook, workflow: foundWorkflow }) => {
+    async ({ webhook: foundWebhook, workflow: foundWorkflow, triggerBlockDeployed }) => {
       const result = await dispatchResolvedWebhookTarget(
         foundWebhook,
         foundWorkflow,
@@ -119,6 +119,7 @@ export async function dispatchSlackWebhooks(
           receivedAt,
           triggerTimestampMs,
           subject,
+          triggerBlockDeployed,
         }
       )
 

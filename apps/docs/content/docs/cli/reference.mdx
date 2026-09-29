@@ -26,7 +26,7 @@ These apply to every command, and may be written before or after it.
 
 ## sim login
 
-Sign in through the browser and store the login for the profile
+Log in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -84,7 +84,7 @@ sim whoami [options]
 
 ## sim configure
 
-Set a profile's endpoint, default workspace, or output format
+Switch a profile's default workspace, or set its endpoint or output format
 
 ```bash
 sim configure [options]
@@ -215,6 +215,26 @@ Turn usage reporting off for this machine
 sim telemetry disable
 ```
 
+## sim cli
+
+### sim cli search
+
+Find the command for a task, described in plain words
+
+```bash
+sim cli search <query...>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `query...` | Yes | What you want to do, e.g. "cancel a workflow run" |
+
+</CommandTable>
+
 ## sim audit-logs
 
 Also spelled `sim audit-log`.
@@ -280,7 +300,7 @@ sim audit-logs list [options]
 
 ### sim billing status
 
-Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)
+Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)
 
 ```bash
 sim billing status [options]
@@ -1424,7 +1444,7 @@ sim files upload <path> [options]
 
 ### sim files get
 
-Get a file’s content
+Download a file’s content to stdout or a local file
 
 ```bash
 sim files get <fileId> [options]
@@ -1952,7 +1972,7 @@ sim knowledge documents batch-update <knowledgeBaseId> [options]
 
 ### sim knowledge documents delete
 
-Delete Document
+Delete a document from a knowledge base
 
 ```bash
 sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
@@ -2731,6 +2751,8 @@ sim logs get <runId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--include-workflow-state` | No | Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged. |
+| `--no-include-workflow-state` | No | Send --include-workflow-state as false. |
 | `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
 
 </CommandTable>
@@ -2764,7 +2786,7 @@ sim logs stats [options]
 
 ### sim logs list
 
-List Logs
+List run logs, such as failed or errored runs, by workflow, trigger or time
 
 ```bash
 sim logs list [options]
@@ -2806,7 +2828,7 @@ sim logs list [options]
 
 ### sim logs follow
 
-Watch runs as they arrive, printing each new run once
+Watch runs live as they arrive, printing each new run once
 
 ```bash
 sim logs follow [options]
@@ -4074,7 +4096,7 @@ sim secrets list [options]
 
 ### sim secrets set
 
-Create or replace a named secret (OAuth login or personal API key required)
+Create or replace a named secret, such as an API key or environment variable (OAuth login or personal API key required)
 
 ```bash
 sim secrets set <name> [options]
@@ -4763,7 +4785,7 @@ sim tables rows list <tableId> [options]
 
 ### sim tables rows query
 
-Query Rows
+Query rows with a filter and sort
 
 ```bash
 sim tables rows query <tableId> [options]
@@ -6048,7 +6070,7 @@ sim workflows activate create <workflowId> <version> [options]
 
 ### sim workflows operations apply
 
-Apply Workflow Operations (OAuth login or personal API key required)
+Edit a workflow’s blocks, connections and settings with a batch of operations (OAuth login or personal API key required)
 
 ```bash
 sim workflows operations apply <workflowId> [options]

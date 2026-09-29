@@ -372,6 +372,40 @@ describe('preprocessExecution ban gate', () => {
     expect(loggingSession.safeStart).toHaveBeenCalled()
   })
 
+  it('keeps the 404 for a missing workflow when the gates it overlaps would reject', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce(null)
+    mockGetActivelyBannedUserIds.mockResolvedValue(['actor-1'])
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      payerUsage: { currentUsage: 11, limit: 10 },
+    })
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      workflowRecord: undefined,
+      billingAttribution: ORGANIZATION_ATTRIBUTION,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 404, message: 'Workflow not found' },
+    })
+  })
+
+  it('reports a serialized attribution for another workspace before any gate result', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['actor-1'])
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, workspaceId: 'workspace-2' },
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, message: 'Error resolving billing account' },
+    })
+  })
+
   it('returns 403 (ban precedence) when ban, usage, and rate limit all fail simultaneously', async () => {
     mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
     mockCheckAttributedUsageLimits.mockResolvedValue({

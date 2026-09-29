@@ -51,6 +51,7 @@ import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
   addTab,
   findInActiveTab,
+  focusPageForUser,
   getBrowserDownloadsState,
   peekTabsState,
   reorderTab,
@@ -959,6 +960,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             return peekTabsState()
           }
           void tab.view.webContents.loadURL(destination).catch(() => {})
+          focusPageForUser(tab.view.webContents)
           return peekTabsState()
         })
       },

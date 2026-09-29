@@ -339,10 +339,6 @@
       "modules": 8,
       "gateways": {}
     },
-    "app/workspace/[workspaceId]/settings/[section]/loading.tsx": {
-      "modules": 1,
-      "gateways": {}
-    },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
       "modules": 2451,
       "gateways": {

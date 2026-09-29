@@ -49,6 +49,13 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
+/**
+ * JSON unless the flag, `SIM_OUTPUT`, or the profile says otherwise: agents and
+ * scripts are the main callers and parse it directly, and a person who prefers
+ * tables saves that once with `sim configure --set-output table`.
+ */
+export const DEFAULT_OUTPUT_FORMAT: OutputFormat = 'json'
+
 export { FORBIDDEN_IN_VALUE, ProfileConfigError } from './ini'
 
 /** {@link FORBIDDEN_IN_VALUE}, for redacting every match out of an error message. */
@@ -788,7 +795,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
       ['env', process.env.SIM_OUTPUT],
       ['config', config.output],
     ],
-    'table',
+    DEFAULT_OUTPUT_FORMAT,
     'default'
   )
   if (!(OUTPUT_FORMATS as readonly string[]).includes(output.value as string)) {

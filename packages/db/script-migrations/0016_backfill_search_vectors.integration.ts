@@ -385,20 +385,11 @@ describe('search projection upgrade in PostgreSQL', () => {
     }
     await runScriptMigrations(sql)
     expect(
-      await sql`SELECT name FROM script_migrations WHERE name >= '0015' ORDER BY name`
+      await sql`SELECT name FROM script_migrations
+        WHERE name IN ('0015_backfill_embedding_search', '0016_backfill_search_vectors') ORDER BY name`
     ).toEqual([
       { name: '0015_backfill_embedding_search' },
       { name: '0016_backfill_search_vectors' },
-      { name: '0017_index_search_documents' },
-      { name: '0018_repair_workspace_file_content_revision' },
-      { name: '0019_tin_keyword_projection' },
-      { name: '0021_embedding_search_connector' },
-      { name: '0022_projection_source_acl_backfill' },
-      { name: '0023_projection_acl_skip_unfilled' },
-      { name: '0024_knowledge_projection_async' },
-      { name: '0025_scope_keyword_projections' },
-      { name: '0026_user_table_schema_for_write' },
-      { name: '0027_backfill_file_discovery' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id

@@ -23,6 +23,7 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
+import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -363,7 +364,9 @@ export function ResourceTabs({
       if (resource.type === 'browser') {
         void openBrowserTab(desktopScopeId)
           .then((state) => {
-            if (state?.activeTabId) selectResource(state.activeTabId)
+            if (!state?.activeTabId) return
+            requestBrowserOmniboxFocus(state.activeTabId, state.scopeId)
+            selectResource(state.activeTabId)
           })
           .catch(() => toast.error('Could not open a new browser tab. Please try again.'))
         return

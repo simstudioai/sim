@@ -75,6 +75,8 @@ import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
+import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -183,6 +185,8 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  stripe_list_subscriptions: stripeListSubscriptionsTool,
+  stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_issues_v2: searchIssuesV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -2859,6 +2863,163 @@ describe('executeTool Function', () => {
 
     expect(mockExecuteFunction).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
+  })
+})
+
+describe('Stripe subscription pagination through tool execution', () => {
+  beforeEach(() => {
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockReset()
+  })
+
+  it('retains first-page filters and returns one page even when more subscriptions exist', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(
+        Response.json({
+          object: 'list',
+          data: [{ id: 'sub_first' }, { id: 'sub_last' }],
+          has_more: true,
+        })
+      )
+    )
+
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      limit: 100,
+      customer: 'cus_example',
+      status: 'active',
+      price: 'price_example',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }, { id: 'sub_last' }],
+        metadata: { count: 2, has_more: true },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledExactlyOnceWith(
+      'https://api.stripe.com/v1/subscriptions?limit=100&customer=cus_example&status=active&price=price_example',
+      '93.184.216.34',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ authorization: 'Bearer sk_test_pagination' }),
+      })
+    )
+  })
+
+  it.each(['starting_after', 'ending_before'] as const)(
+    'retrieves the requested %s page without interpreting cursor characters as filters',
+    async (direction) => {
+      const cursor = 'sub_cursor&status=canceled'
+      mockSecureFetchWithPinnedIP.mockImplementationOnce(async (url) => {
+        const request = new URL(url)
+        const valid =
+          request.pathname === '/v1/subscriptions' &&
+          request.searchParams.get(direction) === cursor &&
+          request.searchParams.get('status') === 'active'
+        return toSecureFetchResponse(
+          valid
+            ? Response.json({ object: 'list', data: [{ id: 'sub_next' }], has_more: false })
+            : Response.json(
+                { error: { message: 'Unexpected pagination request' } },
+                { status: 400 }
+              )
+        )
+      })
+
+      const result = await executeTool('stripe_list_subscriptions', {
+        apiKey: 'sk_test_pagination',
+        status: 'active',
+        [direction]: cursor,
+      })
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { subscriptions: [{ id: 'sub_next' }], metadata: { count: 1, has_more: false } },
+      })
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('rejects conflicting list cursors before contacting Stripe', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ object: 'list', data: [], has_more: false }))
+    )
+
+    const result = await executeTool('stripe_list_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      starting_after: 'sub_last',
+      ending_before: 'sub_first',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Provide either starting_after or ending_before, not both'),
+    })
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('round-trips the search continuation token and exposes the terminal page', async () => {
+    const query = "status:'active'"
+    const nextPage = 'opaque/search+cursor=='
+    mockSecureFetchWithPinnedIP.mockImplementation(async (url) => {
+      const request = new URL(url)
+      if (
+        request.pathname !== '/v1/subscriptions/search' ||
+        request.searchParams.get('query') !== query ||
+        request.searchParams.get('limit') !== '100'
+      ) {
+        return toSecureFetchResponse(
+          Response.json({ error: { message: 'Search filters changed' } }, { status: 400 })
+        )
+      }
+      const page = request.searchParams.get('page')
+      if (page === null) {
+        return toSecureFetchResponse(
+          Response.json({
+            object: 'search_result',
+            data: [{ id: 'sub_first' }],
+            has_more: true,
+            next_page: nextPage,
+          })
+        )
+      }
+      return toSecureFetchResponse(
+        page === nextPage
+          ? Response.json({ object: 'search_result', data: [{ id: 'sub_last' }], has_more: false })
+          : Response.json({ error: { message: 'Invalid search page' } }, { status: 400 })
+      )
+    })
+
+    const first = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+    })
+    expect(first).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_first' }],
+        metadata: { count: 1, has_more: true, next_page: nextPage },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+
+    const last = await executeTool('stripe_search_subscriptions', {
+      apiKey: 'sk_test_pagination',
+      query,
+      limit: 100,
+      page: first.output.metadata.next_page,
+    })
+    expect(last).toMatchObject({
+      success: true,
+      output: {
+        subscriptions: [{ id: 'sub_last' }],
+        metadata: { count: 1, has_more: false, next_page: null },
+      },
+    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
   })
 })
 
