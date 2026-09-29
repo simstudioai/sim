@@ -707,6 +707,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     [workspaces, workspaceId]
   )
 
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const topNavItems = useMemo(
     () =>
       [
@@ -722,6 +723,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
             (!chatEnabled && !permissionsLoading && !canEdit) ||
             (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
           restricted: chatEnabled && permissionConfig.hideCopilot,
+        },
+        {
+          id: 'dashboards',
+          label: 'Dashboard',
+          icon: ChartColumn,
+          href: `/workspace/${workspaceId}/dashboards`,
+          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'integrations',
@@ -740,12 +749,13 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
       permissionConfig.hideCopilot,
+      permissionConfig.hideFilesTab,
       accessRequestsEnabled,
       chatEnabled,
+      dashboardsEnabled,
     ]
   )
 
-  const dashboardsEnabled = useFeatureFlag('dashboards')
   const workspaceNavItems = useMemo(
     () =>
       [
@@ -756,14 +766,6 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
           href: `/workspace/${workspaceId}/tables`,
           hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
           restricted: permissionConfig.hideTablesTab,
-        },
-        {
-          id: 'dashboards',
-          label: 'Dashboards',
-          icon: ChartColumn,
-          href: `/workspace/${workspaceId}/dashboards`,
-          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
-          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'files',
@@ -791,7 +793,6 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       ].filter((item) => !item.hidden),
     [
       workspaceId,
-      dashboardsEnabled,
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,

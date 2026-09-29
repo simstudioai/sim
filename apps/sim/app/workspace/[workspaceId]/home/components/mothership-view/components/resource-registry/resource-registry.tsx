@@ -297,10 +297,10 @@ export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
  * surface them lands in the right place.
  */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
+  'dashboard',
   'integration',
   'task',
   'table',
-  'dashboard',
   'file',
   'filefolder',
   'knowledgebase',
