@@ -110,6 +110,7 @@ import type {
   UpsertRowData,
 } from '@/lib/table/types'
 import {
+  cellOf,
   checkBatchUniqueConstraintsDb,
   checkUniqueConstraintsDb,
   coerceRowToSchema,
@@ -611,7 +612,7 @@ export async function replaceTableRowsWithTx(
         // Coerced rows are keyed by column id, not display name — reading
         // `row[col.name]` silently misses renamed columns and lets dupes through.
         const colId = getColumnId(col)
-        const value = row[colId]
+        const value = cellOf(row, colId)
         if (value === null || value === undefined) continue
         const normalized = uniqueValueKey(value, col)
         const map = seen.get(colId)!
@@ -756,7 +757,7 @@ function resolveUpsertTarget(
  * matches a stored `123`).
  */
 function upsertConflictProbe(target: ColumnDefinition, row: RowData): SQL {
-  const targetValue = row[getColumnId(target)]
+  const targetValue = cellOf(row, getColumnId(target))
   if (targetValue === undefined || targetValue === null) {
     // Surface the display name, not the internal id — v1 callers pass a name.
     throw new OrchestrationError(
@@ -2130,7 +2131,7 @@ function validateBulkUpdatePatch(
   policy: UncoercibleValuePolicy | undefined
 ): void {
   const suppliedColumns = table.schema.columns.filter((column) => {
-    const value = patch[getColumnId(column)]
+    const value = cellOf(patch, getColumnId(column))
     return value !== null && value !== undefined
   })
   if (suppliedColumns.length === 0) return

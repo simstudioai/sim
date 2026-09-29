@@ -31,13 +31,16 @@ vi.mock('@/lib/table/rows/ordering', () => ({
 }))
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
-vi.mock('@/lib/table/validation', async (importOriginal) => ({
-  uniqueColumnsInPatch: (await importOriginal<typeof import('@/lib/table/validation')>())
-    .uniqueColumnsInPatch,
-  validateRowSize: mockValidateRowSize,
-  coerceRowToSchema: mockCoerceRowToSchema,
-  coerceRowValues: mockCoerceRowValues,
-}))
+vi.mock('@/lib/table/validation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/table/validation')>()
+  return {
+    cellOf: actual.cellOf,
+    uniqueColumnsInPatch: actual.uniqueColumnsInPatch,
+    validateRowSize: mockValidateRowSize,
+    coerceRowToSchema: mockCoerceRowToSchema,
+    coerceRowValues: mockCoerceRowValues,
+  }
+})
 vi.mock('@/lib/table/constants', () => ({
   ...tableConstantsMock,
   TABLE_LIMITS: { ...tableConstantsMock.TABLE_LIMITS, DELETE_PAGE_SIZE: 2, UPDATE_BATCH_SIZE: 100 },

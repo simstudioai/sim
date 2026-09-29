@@ -35,7 +35,8 @@ vi.mock('@/lib/table/sql', () => ({
 
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
-vi.mock('@/lib/table/validation', () => ({
+vi.mock('@/lib/table/validation', async (importOriginal) => ({
+  cellOf: (await importOriginal<typeof import('@/lib/table/validation')>()).cellOf,
   validateRowSize: hoisted.validateRowSize,
   coerceRowToSchema: hoisted.coerceRowToSchema,
   coerceRowValues: vi.fn(),

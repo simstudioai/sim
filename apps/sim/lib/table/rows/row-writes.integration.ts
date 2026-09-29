@@ -1126,6 +1126,74 @@ describe('table row writes against real PostgreSQL', () => {
       expect(result.affectedCount).toBe(2)
     })
 
+    it('does not count a required legacy column named after a prototype key as supplied', async () => {
+      const table = await createTable([
+        { name: 'constructor', type: 'string', required: true },
+        { id: 'note', name: 'note', type: 'string' },
+      ])
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { constructor: 'a', note: 'n' }, orderKey: 'a0' },
+      ])
+
+      const result = await updateRowsByFilter(
+        table,
+        {
+          filter: { note: 'n' },
+          data: { note: 'patched' },
+          limit: 10,
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+        },
+        'prototype-key'
+      )
+
+      expect(result.affectedCount).toBe(1)
+    })
+
+    it('replaces rows that leave a unique legacy column named after a prototype key empty', async () => {
+      const table = await createTable([
+        { name: 'constructor', type: 'string', unique: true },
+        { id: 'note', name: 'note', type: 'string' },
+      ])
+
+      await replaceTableRows(
+        {
+          tableId: table.id,
+          workspaceId,
+          rows: [{ note: 'a' }, { note: 'b' }],
+          secretProvenance: undefined,
+        },
+        table,
+        'prototype-key'
+      )
+
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id}`
+      expect(count).toBe(2)
+    })
+
+    it('refuses an upsert missing its conflict target named after a prototype key', async () => {
+      const table = await createTable([
+        { name: 'constructor', type: 'string', unique: true },
+        { id: 'note', name: 'note', type: 'string' },
+      ])
+
+      await expect(
+        upsertRow(
+          {
+            tableId: table.id,
+            workspaceId,
+            data: { note: 'a' },
+            conflictTarget: 'constructor',
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'prototype-key'
+        )
+      ).rejects.toThrow(/requires a value for the conflict target/)
+    })
+
     it('refuses a bulk update writing one value to rows of a column made unique since its snapshot', async () => {
       const table = await seededTable()
       await updateColumnConstraints(
