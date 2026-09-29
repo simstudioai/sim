@@ -3,12 +3,16 @@
   // Gate reachability and dependency ownership. Export/type pruning needs review
   // of public package contracts and test-only consumers, not a blanket threshold.
   "include": ["files", "dependencies", "unlisted", "unresolved"],
+  "ignore": ["tools/design-studio/.next/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/**/*.{ts,tsx}", "vitest.shared.ts"],
-      "paths": { "@/*": ["./apps/sim/*"] },
-      // This alias selects the native tsc binary; see check-native-typecheck.ts.
-      "ignoreDependencies": ["@typescript/native"]
+      "entry": [
+        "scripts/**/*.{ts,tsx}",
+        "vitest.shared.ts",
+        // Next loads this config by filename for the local Studio.
+        "tools/design-studio/postcss.config.mjs"
+      ],
+      "paths": { "@/*": ["./apps/sim/*"] }
     },
     "apps/sim": {
       "entry": [
@@ -53,7 +57,6 @@
         // Imported inside the generated source string in sandbox/bundles/build.ts.
         "pptxgenjs",
         // Next aliases this marker to its bundled server-only module.
-        "server-only",
         // Knip's email CLI plugin infers this transitive preview implementation.
         "@react-email/ui"
       ],
@@ -87,8 +90,6 @@
     },
     "packages/ts-sdk": { "entry": ["examples/*.ts"] },
     // The contract audit reads this snapshot by filename.
-    "packages/desktop-bridge": { "entry": ["contract-snapshot.ts"] },
-    // This shared config is consumed by apps that own the Next dependency.
-    "packages/tsconfig": { "ignoreUnresolved": ["next"] }
+    "packages/desktop-bridge": { "entry": ["contract-snapshot.ts"] }
   }
 }

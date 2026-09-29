@@ -1,0 +1,37 @@
+# Local Studio fixtures
+
+`studio:refresh` scans the checkout, reads source-derived EMCN metadata from the resulting `scan.json`, and publishes a local manifest. The catalog discovers public exports and finite variant values automatically; new components remain `needs-fixture` until an adapter mounts them.
+
+The published catalog groups exports and scanner signals into visual treatments. Each EMCN export stores its product uses once and keeps variant choices beneath it. The manifest carries diagnostic counts and short samples; the complete diagnostic lists remain in the same run's `scan/scan.json`. This keeps the Studio publication small without dropping scanner evidence.
+
+## Adapter coverage
+
+`tools/design-studio/_components/component-fixtures.tsx` supplies fixed props, data, and providers. The matching switch case must render each supported export by its actual JSX name. Icons use the generic namespace adapter.
+
+`fixture-contracts.json` declares coverage separately for each public export:
+
+- `variants` lists the axes that the adapter forwards to that export. New values on a covered axis appear automatically. A new axis requires review and a mapping; spreading variant props does not establish coverage. Axes requiring different data shapes need their own fixture data before being listed.
+- `states` lists supported focus, disabled, error, and open states.
+- Disabled variants omit open and focus states; explicitly closed variants omit open states. Both retain their default preview, and combined live selections apply the same restrictions.
+- `defaultStates` opens otherwise hidden exports, such as tooltip content or a wizard step, for their default specimen.
+- `requiredElements` identifies a visible element belonging to a hidden or nested export. Use a unique fixture marker when a generic role could match its parent.
+
+Update fixture imports and switch cases when exports are renamed or removed. Product Extras require a maintained source mapping for a real component preview; automatically generated style samples are indicative. A generic sample shows one detected class or value at a time, so mutually exclusive source branches are never combined into one specimen.
+
+An entry is `ready` when its preview can render. The preview provenance distinguishes live product or EMCN source from an indicative sample; `ready` does not imply a source-backed fixture.
+
+## Live previews
+
+Studio previews render the current checkout. Their catalog entries and fixture coverage come from the last published refresh. Source mismatches are shown beside the preview and above the catalog. Unresolved styling/control analysis and scanner limits remain separate from fixture coverage.
+
+## Focused browser verification
+
+Start the isolated fixture app on an unused loopback port, then run:
+
+```sh
+SIM_STUDIO_E2E_URL=http://127.0.0.1:3002 \
+SIM_STUDIO_E2E_REPORT_PATH=/absolute/external/report.json \
+bun --no-env-file scripts/design-studio/test-fixtures-e2e.mjs
+```
+
+The optional browser test records each result and screenshot for both themes and 16px/20px root sizes. `SIM_STUDIO_E2E_CASE` optionally selects comma-separated fixture IDs.

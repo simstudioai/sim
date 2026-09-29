@@ -10,6 +10,8 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
 - **Logging**: `createLogger` from `@sim/logger`; `logger.info` / `logger.warn` / `logger.error`, never `console.log`. Inside `withRouteHandler` the logger already carries the request ID — no manual `withMetadata({ requestId })`.
 - **Comments**: TSDoc for documentation. An inline `//` only for a terse, non-obvious why, or for a script-enforced `// <tag>: <reason>` annotation (`boundary-raw-fetch`, `double-cast-allowed`, `boundary-raw-json`, `untyped-response`, `rq-lint-allow`, `client-boundary-allow`, …). No `====` separators.
 - **ID generation**: `generateId()` (UUID v4, the default) or `generateShortId(size?)` (URL-safe, 21 chars by default) from `@sim/utils/id` — never `crypto.randomUUID()`, `nanoid`, or `uuid`. Both use `crypto.getRandomValues()`, so they also work in non-secure (HTTP) browsers.
+- **Design conformance**: Run `bun run check:design --base origin/staging --working-tree` while editing product UI. Reuse suitable EMCN components and global tokens; explain intentional Extras in the PR. Design findings are advisory, while an incomplete check is an error. See `scripts/design-conformance/README.md`.
+- **Styling**: Derive product styling from central tokens, component props and recipes where they fit. Keep product composition local. Explain intentional changes to shared standards. Landing and docs are outside the product design check.
 - **Common utilities**: use the shared helpers from `@sim/utils` instead of inline implementations:
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
   - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`; never `e instanceof Error ? e : new Error(String(e))`
@@ -104,7 +106,7 @@ The `'use client'` server boundary, the app/worker runtime env split, and featur
 
 ## Styling and EMCN
 
-- Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable. Never update global styles; keep styling local to the component. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
+- Tailwind only. Inline `style` only for a genuinely dynamic value or a CSS variable. Keep component-specific styling local. Change tokens in `globals.css` deliberately when the shared design decision changes, then run `bun run check:design --base origin/staging --working-tree`. `cn()` from `@sim/emcn` for conditional classes. `size-*` for equal height and width (icons default `size-[14px]`), never `h-N w-N`.
 - Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons from `@sim/emcn/icons`; CSS modules by file path. Never deep-import other component subpaths.
 - The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch`, `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Components own their chrome: consumers pass props (`error`, `icon`, `endAdornment`, `inputClassName`) and `className` carries only layout/sizing. Every labeled field inside a `ChipModalBody` is a `ChipModalField`.
 - Consumer rules, tokens, text scale, and modal rhythm: `.claude/rules/sim-styling.md`. Authoring components in `packages/emcn`: `.claude/rules/emcn-components.md`. Product UI copy: `.claude/rules/sim-ui-copy.md`. Marketing copy and positioning: `.claude/rules/constitution.md`.

@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "decisions": [
+    {
+      "target": "@sim/emcn#Banner",
+      "slot": "textClassName",
+      "allow": ["typography"],
+      "reason": "Banner copy may follow the type hierarchy of its containing surface."
+    },
+    {
+      "target": "@sim/emcn#Button",
+      "slot": "className",
+      "allow": ["width"],
+      "reason": "A button may stretch to fit its containing layout."
+    },
+    {
+      "target": "@sim/emcn#Button",
+      "slot": "style",
+      "allow": ["width"],
+      "reason": "A button may stretch to fit its containing layout."
+    },
+    {
+      "target": "@sim/emcn#ChipInput",
+      "slot": "className",
+      "protect": ["borders", "box-shadow", "colours", "font-family"],
+      "reason": "The outer chip input wrapper owns its shared field chrome."
+    },
+    {
+      "target": "@sim/emcn#ChipInput",
+      "slot": "inputClassName",
+      "allow": ["typography"],
+      "reason": "The inner input supports caller-selected text treatment."
+    },
+    {
+      "target": "@sim/emcn#ChipInput",
+      "slot": "style",
+      "protect": [
+        "border-radius",
+        "borders",
+        "box-shadow",
+        "colours",
+        "font-family",
+        "gap",
+        "height",
+        "padding"
+      ],
+      "reason": "Inline styles on the outer wrapper must preserve chip field chrome."
+    },
+    {
+      "target": "@sim/emcn#ChipModalField",
+      "slot": "className",
+      "protect": [
+        "align-items",
+        "border-radius",
+        "borders",
+        "box-shadow",
+        "colours",
+        "flex-direction",
+        "height",
+        "justify-content",
+        "typography"
+      ],
+      "reason": "Labeled modal fields own their row structure and chrome."
+    },
+    {
+      "target": "@sim/emcn#ChipTextarea",
+      "slot": "className",
+      "protect": ["borders", "box-shadow", "colours", "font-family", "gap"],
+      "reason": "The textarea keeps the shared chip field treatment."
+    },
+    {
+      "target": "@sim/emcn#ChipTextarea",
+      "slot": "style",
+      "protect": ["borders", "box-shadow", "colours", "font-family", "gap"],
+      "reason": "Inline styles must preserve the shared chip field treatment."
+    },
+    {
+      "target": "@sim/emcn#DropdownMenuContent",
+      "slot": "className",
+      "allow": ["dimensions"],
+      "reason": "Menu dimensions adapt to content and viewport space."
+    },
+    {
+      "target": "@sim/emcn#DropdownMenuContent",
+      "slot": "style",
+      "allow": ["dimensions"],
+      "reason": "Menu dimensions adapt to content and viewport space."
+    },
+    {
+      "target": "@sim/emcn#Input",
+      "slot": "className",
+      "protect": ["height"],
+      "reason": "The input owns its standard control height."
+    },
+    {
+      "target": "@sim/emcn#Input",
+      "slot": "style",
+      "protect": ["height"],
+      "reason": "Inline styles must preserve the standard control height."
+    },
+    {
+      "target": "@sim/emcn#OverflowText",
+      "slot": "className",
+      "protect": [
+        "-webkit-mask-image",
+        "mask-image",
+        "overflow",
+        "overflow-x",
+        "overflow-y",
+        "text-overflow",
+        "white-space"
+      ],
+      "reason": "Clipping and truncation are the component's defining behavior."
+    },
+    {
+      "target": "@sim/emcn#PopoverContent",
+      "slot": "className",
+      "allow": ["dimensions"],
+      "reason": "Popover dimensions adapt to content and viewport space."
+    },
+    {
+      "target": "@sim/emcn#PopoverContent",
+      "slot": "style",
+      "allow": ["dimensions"],
+      "reason": "Popover dimensions adapt to content and viewport space."
+    },
+    {
+      "target": "@sim/emcn#Skeleton",
+      "slot": "className",
+      "allow": ["border-radius", "dimensions"],
+      "reason": "Skeleton placeholders match the size and shape of the content they replace."
+    },
+    {
+      "target": "@sim/emcn#Skeleton",
+      "slot": "style",
+      "allow": ["border-radius", "dimensions"],
+      "reason": "Skeleton placeholders match the size and shape of the content they replace."
+    }
+  ]
+}

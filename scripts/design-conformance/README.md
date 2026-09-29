@@ -1,0 +1,113 @@
+# Design conformance
+
+Diff report **4.2.0**, full scan **3**, policy **design-conformance/2.0.0**, source-derived facts **2.2.0**.
+
+The diff check, full scanner and local Studio share the maintained analysis and source-derived contracts. They produce one `findings` list: detected styling and design decisions to review. Findings are warnings in CI. Unresolved inputs stay in `unchecked`; parsing/extraction failures are errors, not a clean check.
+
+## Commands
+
+From the repository root with the pinned Bun installation:
+
+```sh
+bun run check:design --base origin/staging --working-tree
+bun run check:design --base origin/staging --head HEAD
+bun run design:scan --repo . --working-tree --output /tmp/sim-design-scan
+bun run studio:refresh
+bun run studio:dev
+```
+
+Use the actual PR target for `--base`. Working-tree mode includes staged, unstaged and nonignored new files. Immutable mode reads merge-base and head Git blobs independently. Neither mode executes product modules. Local diff/scan exit codes: **0** completed without findings, **1** completed with findings, **2** inspection/operational failure.
+
+The diff check derives EMCN and global-style facts independently from the base and proposed source. Central source changes remain findings, including changes to implementation, public API, recipes, ownership metadata and tokens. The full scan publishes current facts in its external `scan.json`; no generated contract file is committed.
+
+CI uses immutable event base/head revisions. It publishes file/line warnings, a summary and a JSON artifact. Findings do not fail the design step; inability to inspect the changed source does. CI does not capture browser previews.
+
+## Files and source facts
+
+- `system/contracts.json`: general design rules, scope, exclusions, static-analysis limits, adopted utility policy and explicitly central external recipes. It has no component registration or handwritten component inheritance.
+- `packages/emcn/src/design-ownership.json`: the small, explicit list of exceptional permissions and protections. It is read from each source revision, validated against discovered public exports and slots, and included in the scan's effective ownership inventory.
+- `system/generated-contracts.ts`: one TypeScript compatibility program per source snapshot discovers public APIs, aliases and compound exports. Babel traces implementation classes, CVA/imported recipes, slots and forwarding. Existing CSS/Tailwind analysis identifies owned properties and global token definitions, contexts and aliases. Bounded caches share the result. Snapshot hosts can read pinned dependency types but cannot read current workspace implementations while inspecting historical source.
+- `scan.json`: external versioned report containing findings, unchecked diagnostics, inspection failures, product uses, and compact EMCN export/variant/default/slot/relationship facts. Component and icon namespaces remain distinct. Token definitions and recipe bodies are analyzed from source but are not duplicated in the report's metadata.
+- `shared/`: source readers, revision identity, report types, CSS normalization and rendered-HTML helpers used across the analyzers.
+- `system/`: central EMCN and global-style facts, generated export/slot metadata, recipes and policy.
+- `styling/`: class, CSS, artwork and component-ownership extraction and conformance rules.
+- `controls/`: rendered UI inventory, value and colour tracing, local-control review and product scope.
+- `diff/`: base/head comparison, local command, reporting and warning-only CI publication.
+- `scripts/design-scan/`: whole-tree inventory and external reports using that same analysis.
+- `scripts/design-studio/refresh.mjs`, `tools/design-studio/`: explicit local refresh and separate local-only Next app. The deployed Sim app has no Studio route.
+
+Each component's supported finite design props come from its public type and its implementation/defaults, rather than every value in an underlying shared recipe. For example Chip does not inherit ChipDropdown-only variants. Styling inputs are separate slots; forwarded chrome is traced to its actual owner. The generator never imports or runs product modules.
+
+Finite nested object lookups retain the selected recipe's properties. Barrel imports resolve to their implementation, and destructured inputs are excluded from rest forwarding. Studio fixture coverage follows each export separately: a family's adapter supports a variant only when that export actually receives the variant props. Nonvisual constants remain in the inventory without preview cards.
+
+Source discovery updates automatically when supported public components or global definitions are added, removed or changed. It is static analysis, so unsupported implementation paths retain a per-slot diagnostic rather than becoming permission to override chrome. Exceptional ownership decisions live in the validated ownership file; fixture data/providers still require an adapter, and a newly discovered entry without one remains visible as needing a fixture.
+
+## Ownership metadata
+
+Ordinary layout remains local. Consumer changes to component-authored colours, typography, borders, radius, spacing, dimensions or effects are findings, including newly added components without registration. Use a supported component prop/variant first. When source cannot express an intentional exception, add a decision to `packages/emcn/src/design-ownership.json`:
+
+```json
+{"target":"@sim/emcn#Button","slot":"className","allow":["width"],"reason":"A button may stretch to fit its containing layout."}
+```
+
+`protect` adds explicit ownership; `allow` permits customization of the named slot. Properties are CSS property names or policy groups (`colours`, `typography`, `borders`, `dimensions`, `effects`, `spacing`, `radii`, `visibility`, `layout`); `*` means all properties. Duplicate, stale, invalid, contradictory and provably ineffective decisions fail inspection. A historical revision before the file existed has no explicit decisions; removing an established file fails inspection. Permissions do not prove global-token provenance or suppress independent rules. Source and ownership-file changes remain design-system findings.
+Legacy `@designAllow` and `@designProtect` component comments fail inspection so the ownership file remains the sole handwritten decision list.
+
+Permissions for longhands remain specific: allowing `padding-left` does not permit `padding-right` or a `padding` shorthand that also changes other sides. The check inspects declared style channels such as `gutterStyle`, as well as `className` and `style`; similarly named data-only props do not become styling inputs.
+
+## Rule contract
+
+| Rule family | Inputs and output | Boundaries |
+| --- | --- | --- |
+| Central colour/typography/radius/shadow | Visible CSS/class/style inputs traced to EMCN/global definitions; local departures create findings | Equal literal values and repetition do not grant provenance. Ordinary layout is local. |
+| Component chrome and composition | Per-slot authored properties, forwarding, class/style overrides and recognizable modal fields | Children/forwarding follows supported source syntax. Unsupported routes remain unchecked. |
+| Central definitions | Changes to tokens, recipes, component API/defaults/ownership and policy | Facts are derived independently from both source revisions. Central authoring can intentionally change styling. |
+| Local controls/visuals and repeated treatments | Styled native/editor controls, noninteractive primitives, repeated typography/chrome, alpha and status colours | These are review evidence, not proof of visual defects. Pure complete EMCN recipe use does not create a local-control finding. |
+| Artwork | Product glyphs and static SVG drawings; central reuse and exact duplicates | Provider branding and user media are exempt. Mixed files are inspected by export/consumer, not broadly exempted. |
+| Colour assignments | CSS/custom-property writers, immutable imported aliases, finite branches and supported DOM writes | Missing/literal/non-colour origins warn; dynamic writers, cycles, unknown spreads and runtime inheritance stay unchecked. |
+
+Scope is product browser UI, including browser `app/desktop` screens and workspace desktop settings. Landing, its shared `apps/sim/lib/content` engine, docs, API routes, native desktop and `apps/sim/scripts/` build code are not inspected. Product imports from excluded landing implementations remain explicit unchecked boundaries. Product `--landing-*` use is a finding even when defined in global CSS.
+
+Monaco theme/syntax presentation, provider branding and every block/trigger catalogue identity palette are deliberately excluded. This does not exempt unrelated product controls in those files. Customer-selected branding and user content are distinguished from authored product colours; unresolved flows remain visible.
+
+Static analysis handles bounded immutable constants/imports, finite alternatives, supported helper returns, JSX/CSS/HTML strings and known runtime overrides. Arbitrary JS, dynamic cascade, unsupported parsers/forwarding and ambiguous data flow cannot be approved. Limits include 2 MiB per source, resolution depth 12 and bounded branch/summary caches. Source-derived diagnostics preserve unresolved token aliases, cycles and delegated implementation gaps. A token definition proves source provenance; it does not prove that the token exists under every runtime selector or theme. Context-dependent token availability and dynamic cascade still need visual review. CSS comparison tracks `@apply` changes but does not expand its runtime cascade position relative to ordinary declarations.
+
+Exported object class inputs are classified from same-file and supplied central consumers. The diff check does not search unchanged arbitrary product consumers; without use evidence, object keys and values remain unchecked rather than being guessed as class maps or variant tables.
+
+CVA configuration follows read-only local aliases within the 12-node resolution limit. Compound conditions support scalars or flat arrays of at most 64 elements, with array order and duplicates normalized. Imported, executable, mutable and nested-array inputs remain unchecked.
+
+Inline React styles preserve strings and custom variables. Only proven numeric values receive React's dimensional `px` conversion; unitless properties follow the pinned React serializer. A numeric-looking central reference without scalar type evidence remains explicitly unchecked.
+
+## Diff matching
+
+Diff matching counts occurrences by source treatment and owner. Unchanged debt and line shifts stay quiet; another copy warns. Source-only styling changes are traced to consumers. An unrelated deletion cannot cancel a new occurrence.
+
+## Studio and evidence
+
+Refresh scans the working tree and inventories EMCN public visual exports, variants, and all detected Extras. The local Studio renders source-backed fixtures or clearly labeled indicative source-style samples live. Fixed props, data, and providers make previews reproducible; product modules are executed only by the isolated Studio app, never by the analyzer. Missing adapters stay visible. Opening Studio reads the latest publication and never starts a scan.
+
+The full scanner writes one external versioned `scan.json` with findings, unresolved inputs, inspection failures, compact EMCN metadata, control inventory, and evidence. Studio manifests live outside the checkout too (default: `~/.local/state/sim2/design-studio`). A run publishes atomically with source, scanner, and fixture identity and reports incomplete coverage. No image generation or review ledger is required.
+
+Fixture adapters declare the export, axes, and states they support. New values of a supported finite axis are discovered automatically; a new axis that needs different data or providers requires an adapter update and stays visible as needing a fixture. The Studio shows unresolved analysis separately from fixture coverage and distinguishes live checkout rendering from the last published inventory.
+
+## Verification
+
+```sh
+bun run test:scripts
+bun run type-check:design
+bun run type-check:studio
+bun run check:audits
+bun run lint:check
+```
+
+The real CLI tests use temporary Git repositories to verify public API lifecycle, immutable isolation, ownership metadata, source-only changes, working-tree inputs, occurrence matching and intentional exclusions. Full-scan reports remain external.
+
+The focused fixture browser verifier is local and requires a running Studio server. It writes a JSON result and screenshots to the caller's external directory:
+
+```sh
+SIM_STUDIO_E2E_URL=http://127.0.0.1:3001 \
+SIM_STUDIO_E2E_REPORT_PATH=/tmp/sim-studio-e2e/report.json \
+bun run test:studio:e2e
+```
+
+CI runs the diff check and parser/tooling tests; it does not start the local Studio.
