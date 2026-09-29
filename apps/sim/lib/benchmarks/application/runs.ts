@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { defineAuthorizedBenchmarkUseCase } from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import {
@@ -6,14 +7,13 @@ import {
   listBenchmarkRunRecords,
   reviewBenchmarkRunRecord,
 } from '@/lib/benchmarks/repository'
-import { defineAuthorizedOrganizationUseCase } from '@/lib/core/application/authorized-organization-use-case'
 
 interface BenchmarkRunInput {
   organizationId: string
   benchmarkId: string
 }
 
-export const listBenchmarkRuns = defineAuthorizedOrganizationUseCase({
+export const listBenchmarkRuns = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.listRuns,
   async execute({
     principal,
@@ -27,7 +27,7 @@ export const listBenchmarkRuns = defineAuthorizedOrganizationUseCase({
   },
 })
 
-export const getBenchmarkRun = defineAuthorizedOrganizationUseCase({
+export const getBenchmarkRun = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.readRun,
   async execute({
     principal,
@@ -41,7 +41,7 @@ export const getBenchmarkRun = defineAuthorizedOrganizationUseCase({
   },
 })
 
-export const reviewBenchmarkRun = defineAuthorizedOrganizationUseCase({
+export const reviewBenchmarkRun = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.reviewRun,
   async execute({
     principal,

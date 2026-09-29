@@ -2,23 +2,23 @@
 
 import { useState } from 'react'
 import { Chip, ChipCombobox, ChipInput, ChipTextarea } from '@sim/emcn'
-import { useCreateBenchmark } from '@/hooks/queries/benchmarks'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useBenchmarkWorkspaces, useCreateBenchmark } from '@/hooks/queries/benchmarks'
 
 interface CreateBenchmarkProps {
   organizationId: string
+  runAsUserId: string
   onCreated: (benchmarkId: string) => void
 }
 
-export function CreateBenchmark({ organizationId, onCreated }: CreateBenchmarkProps) {
+export function CreateBenchmark({ organizationId, runAsUserId, onCreated }: CreateBenchmarkProps) {
   const [sourceWorkspaceId, setSourceWorkspaceId] = useState('')
   const [name, setName] = useState('')
   const [taskBrief, setTaskBrief] = useState('')
-  const workspaces = useWorkspacesQuery()
+  const workspaces = useBenchmarkWorkspaces(organizationId, runAsUserId)
   const createBenchmark = useCreateBenchmark(organizationId)
-  const options = (workspaces.data ?? [])
-    .filter((workspace) => workspace.organizationId === organizationId)
-    .map((workspace) => ({ value: workspace.id, label: workspace.name }))
+  const options = (workspaces.data?.pages.flatMap((page) => page.workspaces) ?? []).map(
+    (workspace) => ({ value: workspace.id, label: workspace.name })
+  )
 
   return (
     <form
@@ -27,7 +27,7 @@ export function CreateBenchmark({ organizationId, onCreated }: CreateBenchmarkPr
         event.preventDefault()
         if (!sourceWorkspaceId || !name.trim() || createBenchmark.isPending) return
         createBenchmark.mutate(
-          { sourceWorkspaceId, name: name.trim(), taskBrief: taskBrief.trim() },
+          { sourceWorkspaceId, runAsUserId, name: name.trim(), taskBrief: taskBrief.trim() },
           { onSuccess: ({ benchmark }) => onCreated(benchmark.id) }
         )
       }}
@@ -48,9 +48,14 @@ export function CreateBenchmark({ organizationId, onCreated }: CreateBenchmarkPr
           error={workspaces.error?.message}
           disabled={createBenchmark.isPending}
         />
+        {workspaces.hasNextPage && (
+          <Chip disabled={workspaces.isFetchingNextPage} onClick={() => workspaces.fetchNextPage()}>
+            Load more workspaces
+          </Chip>
+        )}
         <p className='text-[var(--text-muted)] text-small'>
-          Its completed workflows provide the reference. The planner explores your enterprise
-          sources without access to those workflows.
+          Its completed workflows provide the reference. The planner explores the selected user’s
+          enterprise sources without access to those workflows.
         </p>
       </div>
       <div className='flex flex-col gap-1.5'>

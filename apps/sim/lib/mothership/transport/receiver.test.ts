@@ -113,40 +113,45 @@ describe('outbound receiver lifecycle', () => {
     expect(mocks.execute).toHaveBeenCalledOnce()
   })
 
-  it('services dev-worker benchmark controls when ordinary hosted traffic uses direct callbacks', async () => {
-    setEnvFlags({ isHosted: true, isMothershipBenchmarkEnabled: true })
-    setEnv({
-      COPILOT_API_KEY: 'worker-key',
-      COPILOT_DEV_URL: 'https://benchmark-worker.test/',
-      MOTHERSHIP_SIM_TRANSPORT: 'direct',
-    })
-    const shutdown: (() => void)[] = []
-    const listeners = vi.spyOn(process, 'once').mockImplementation((_event, listener) => {
-      shutdown.push(() => listener())
-      return process
-    })
-    const control = request()
-    const reply = Promise.withResolvers<{ id: string; result: { body: string } }>()
-    let polls = 0
-    mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
-      if (url.endsWith('/poll')) {
-        polls++
-        if (polls === 1) return Response.json({ requests: [control] })
-        return new Promise<Response>(() => {})
-      }
-      reply.resolve(JSON.parse(String(init.body)))
-      return Response.json({ accepted: true })
-    })
-    try {
-      await startSimReceivers()
-      expect(polls).toBe(1)
-      expect(await reply.promise).toMatchObject({
-        id: control.id,
-        result: { body: '{"stopped":false}' },
+  it.each(['dev', 'dedicated'])(
+    'services %s benchmark controls when ordinary hosted traffic uses direct callbacks',
+    async (endpoint) => {
+      setEnvFlags({ isHosted: true, isMothershipBenchmarkEnabled: true })
+      setEnv({
+        COPILOT_API_KEY: 'worker-key',
+        COPILOT_DEV_URL: endpoint === 'dev' ? 'https://benchmark-worker.test/' : undefined,
+        MOTHERSHIP_BENCHMARK_URL:
+          endpoint === 'dedicated' ? 'https://dedicated-benchmark.test/' : undefined,
+        MOTHERSHIP_SIM_TRANSPORT: 'direct',
       })
-    } finally {
-      for (const stop of shutdown) stop()
-      listeners.mockRestore()
+      const shutdown: (() => void)[] = []
+      const listeners = vi.spyOn(process, 'once').mockImplementation((_event, listener) => {
+        shutdown.push(() => listener())
+        return process
+      })
+      const control = request()
+      const reply = Promise.withResolvers<{ id: string; result: { body: string } }>()
+      let polls = 0
+      mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith('/poll')) {
+          polls++
+          if (polls === 1) return Response.json({ requests: [control] })
+          return new Promise<Response>(() => {})
+        }
+        reply.resolve(JSON.parse(String(init.body)))
+        return Response.json({ accepted: true })
+      })
+      try {
+        await startSimReceivers()
+        expect(polls).toBe(1)
+        expect(await reply.promise).toMatchObject({
+          id: control.id,
+          result: { body: '{"stopped":false}' },
+        })
+      } finally {
+        for (const stop of shutdown) stop()
+        listeners.mockRestore()
+      }
     }
-  })
+  )
 })

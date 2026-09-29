@@ -5,9 +5,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { createBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
-import { requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 
 export const GET = defineInternalJsonRoute({
   contract: listBenchmarksContract,
@@ -17,7 +17,9 @@ export const GET = defineInternalJsonRoute({
     reason: 'Private benchmark metadata uses bounded pagination under current membership',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, query }) => ({ organizationId: params.id, ...query }),
   useCase: listBenchmarks,
 })
@@ -28,7 +30,9 @@ export const POST = defineInternalJsonRoute({
   operation: benchmarkOperations.create,
   rateLimit: internalRateLimits.user({ bucketName: 'benchmark-create' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, body }) => ({ organizationId: params.id, ...body }),
   useCase: createBenchmark,
 })

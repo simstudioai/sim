@@ -2,6 +2,10 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
+import {
+  benchmarkSourcePrincipal,
+  defineAuthorizedBenchmarkUseCase,
+} from '@/lib/benchmarks/application/access'
 import { requireBenchmarkCaseAccess } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { readBenchmarkWorkspace } from '@/lib/benchmarks/application/source'
@@ -31,7 +35,6 @@ import {
   benchmarkSpecSchema,
 } from '@/lib/benchmarks/types'
 import { executeBenchmarkJson, executeBenchmarkPlan } from '@/lib/benchmarks/worker'
-import { defineAuthorizedOrganizationUseCase } from '@/lib/core/application/authorized-organization-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const logger = createLogger('BenchmarkStage')
@@ -89,7 +92,12 @@ async function performStage(
   const artifacts = benchmark.artifacts
   switch (stage) {
     case 'distill': {
-      const source = await readBenchmarkWorkspace(principal, benchmark.sourceWorkspaceId)
+      const sourcePrincipal = await benchmarkSourcePrincipal(principal, {
+        organizationId: benchmark.organizationId,
+        runAsUserId: benchmark.runAsUserId ?? benchmark.userId,
+        sourceWorkspaceId: benchmark.sourceWorkspaceId,
+      })
+      const source = await readBenchmarkWorkspace(sourcePrincipal, benchmark.sourceWorkspaceId)
       signal.throwIfAborted()
       const result = await executeBenchmarkJson({
         benchmark,
@@ -149,7 +157,7 @@ async function performStage(
 }
 
 /** Each step claims a bounded lease, retains independent artifacts, and reauthorizes before publication. */
-export const runBenchmarkStage = defineAuthorizedOrganizationUseCase({
+export const runBenchmarkStage = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.run,
   async execute({
     principal,
@@ -183,6 +191,11 @@ export const runBenchmarkStage = defineAuthorizedOrganizationUseCase({
       leaseExpiresAt: new Date(Date.now() + STAGE_LEASE_MS),
     })
     const attempt = { ...scope, version: claimed.version, stage: input.stage, attemptId }
+    logger.info('Benchmark step started', {
+      ...attempt,
+      operatorUserId: current.userId,
+      runAsUserId: current.runAsUserId ?? current.userId,
+    })
     const timeout = AbortSignal.timeout(STAGE_TIMEOUT_MS)
     const signal = request?.signal ? AbortSignal.any([request.signal, timeout]) : timeout
     try {

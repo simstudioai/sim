@@ -1,6 +1,10 @@
 import type { Principal } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import {
+  benchmarkSourcePrincipal,
+  defineAuthorizedBenchmarkUseCase,
+} from '@/lib/benchmarks/application/access'
+import {
   benchmarkOperations,
   benchmarkSourceOperation,
 } from '@/lib/benchmarks/application/operations'
@@ -19,9 +23,9 @@ import {
   benchmarkEditablePatchSchema,
   emptyBenchmarkArtifacts,
 } from '@/lib/benchmarks/types'
-import { defineAuthorizedOrganizationUseCase } from '@/lib/core/application/authorized-organization-use-case'
 import { authorizeWorkspaceOperation } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 interface BenchmarkInput {
@@ -33,24 +37,37 @@ interface BenchmarkInput {
 export async function requireBenchmarkSourceAccess(
   principal: Principal,
   organizationId: string,
-  sourceWorkspaceId: string
+  sourceWorkspaceId: string,
+  runAsUserId: string
 ) {
   requireBenchmarkEnabled()
+  const targetPrincipal = await benchmarkSourcePrincipal(principal, {
+    organizationId,
+    sourceWorkspaceId,
+    runAsUserId,
+  })
   const context = await resolveActiveWorkspaceApplicationContext(sourceWorkspaceId)
   if (context.workspaceOrganizationId !== organizationId)
     throw new OrchestrationError('not_found', 'Workspace not found')
-  await authorizeWorkspaceOperation(principal, benchmarkSourceOperation, context)
+  await authorizeWorkspaceOperation(targetPrincipal, benchmarkSourceOperation, context, {
+    delegation: workflowDelegationPolicy,
+  })
   return context
 }
 
 async function readOwnedBenchmark(principal: Principal, input: BenchmarkInput, userId: string) {
   requireBenchmarkEnabled()
   const benchmark = await getBenchmarkRecord({ ...input, userId })
-  await requireBenchmarkSourceAccess(principal, input.organizationId, benchmark.sourceWorkspaceId)
+  await requireBenchmarkSourceAccess(
+    principal,
+    input.organizationId,
+    benchmark.sourceWorkspaceId,
+    benchmark.runAsUserId ?? benchmark.userId
+  )
   return benchmark
 }
 
-export const listBenchmarks = defineAuthorizedOrganizationUseCase({
+export const listBenchmarks = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.list,
   async execute({
     principal,
@@ -59,7 +76,7 @@ export const listBenchmarks = defineAuthorizedOrganizationUseCase({
   }: {
     principal: Principal
     context: { userId: string }
-    input: { organizationId: string; limit: number; cursor?: string }
+    input: { organizationId: string; limit: number; cursor?: string; runAsUserId?: string }
   }) {
     requireBenchmarkEnabled()
     const page = await listBenchmarkRecords({ ...input, userId: context.userId })
@@ -69,7 +86,8 @@ export const listBenchmarks = defineAuthorizedOrganizationUseCase({
         await requireBenchmarkSourceAccess(
           principal,
           input.organizationId,
-          benchmark.sourceWorkspaceId
+          benchmark.sourceWorkspaceId,
+          benchmark.runAsUserId ?? benchmark.userId
         )
         benchmarks.push(benchmark)
       } catch (error) {
@@ -84,7 +102,7 @@ export const listBenchmarks = defineAuthorizedOrganizationUseCase({
   },
 })
 
-export const getBenchmark = defineAuthorizedOrganizationUseCase({
+export const getBenchmark = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.read,
   async execute({
     principal,
@@ -104,7 +122,7 @@ export async function requireBenchmarkCaseAccess(principal: Principal, input: Be
   return (await getBenchmark.execute({ principal, input })).benchmark
 }
 
-export const createBenchmark = defineAuthorizedOrganizationUseCase({
+export const createBenchmark = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.create,
   async execute({
     principal,
@@ -113,9 +131,20 @@ export const createBenchmark = defineAuthorizedOrganizationUseCase({
   }: {
     principal: Principal
     context: { userId: string }
-    input: { organizationId: string; sourceWorkspaceId: string; name: string; taskBrief?: string }
+    input: {
+      organizationId: string
+      sourceWorkspaceId: string
+      name: string
+      taskBrief?: string
+      runAsUserId: string
+    }
   }) {
-    await requireBenchmarkSourceAccess(principal, input.organizationId, input.sourceWorkspaceId)
+    await requireBenchmarkSourceAccess(
+      principal,
+      input.organizationId,
+      input.sourceWorkspaceId,
+      input.runAsUserId
+    )
     return {
       benchmark: await createBenchmarkRecord({
         ...input,
@@ -127,7 +156,7 @@ export const createBenchmark = defineAuthorizedOrganizationUseCase({
   },
 })
 
-export const updateBenchmark = defineAuthorizedOrganizationUseCase({
+export const updateBenchmark = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.update,
   async execute({
     principal,
@@ -155,7 +184,7 @@ export const updateBenchmark = defineAuthorizedOrganizationUseCase({
   },
 })
 
-export const deleteBenchmark = defineAuthorizedOrganizationUseCase({
+export const deleteBenchmark = defineAuthorizedBenchmarkUseCase({
   operation: benchmarkOperations.delete,
   async execute({
     principal,

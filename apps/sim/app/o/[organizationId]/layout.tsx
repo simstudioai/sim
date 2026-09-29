@@ -5,7 +5,7 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
-import { isBenchmarkEnabled } from '@/lib/benchmarks/config'
+import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
 import {
   isMemorySpacesEnabled,
   isMothershipModelSelectorEnabled,
@@ -60,19 +60,26 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, modelSelectorEnabled, planModeEnabled, dashboardsEnabled, memorySpacesEnabled] =
-    await Promise.all([
-      prefetchOrganizationSidebar(
-        queryClient,
-        organizationId,
-        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-        getActiveOrganizationId(session)
-      ),
-      isMothershipModelSelectorEnabled(),
-      isPlanModeEnabled(),
-      isDashboardsEnabled(organizationId),
-      isMemorySpacesEnabled(),
-    ])
+  const [
+    ,
+    modelSelectorEnabled,
+    planModeEnabled,
+    dashboardsEnabled,
+    memorySpacesEnabled,
+    benchmarkEnabled,
+  ] = await Promise.all([
+    prefetchOrganizationSidebar(
+      queryClient,
+      organizationId,
+      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      getActiveOrganizationId(session)
+    ),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
+    isDashboardsEnabled(organizationId),
+    isMemorySpacesEnabled(),
+    canUseBenchmarks(session.user.id),
+  ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -92,7 +99,7 @@ export default async function OrganizationLayout({
               <SessionExpired />
               <SettingsNavigationProvider>
                 <WorkspaceChrome
-                  sidebar={<OrganizationSidebar benchmarkEnabled={isBenchmarkEnabled()} />}
+                  sidebar={<OrganizationSidebar benchmarkEnabled={benchmarkEnabled} />}
                   initialSidebarCollapsed={initialSidebarCollapsed}
                 >
                   {children}

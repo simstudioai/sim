@@ -5,9 +5,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { runBenchmarkStage } from '@/lib/benchmarks/application/run-stage'
-import { requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 
 export const maxDuration = 660
 
@@ -20,7 +20,9 @@ export const POST = defineInternalJsonRoute({
     config: { maxTokens: 10, refillRate: 2, refillIntervalMs: 60_000 },
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,

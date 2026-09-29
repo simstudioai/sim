@@ -27,6 +27,7 @@ const summaryColumns = {
   id: mothershipBenchmarks.id,
   organizationId: mothershipBenchmarks.organizationId,
   userId: mothershipBenchmarks.userId,
+  runAsUserId: mothershipBenchmarks.runAsUserId,
   sourceWorkspaceId: mothershipBenchmarks.sourceWorkspaceId,
   name: mothershipBenchmarks.name,
   version: mothershipBenchmarks.version,
@@ -86,6 +87,7 @@ export async function listBenchmarkRecords(input: {
   userId: string
   limit: number
   cursor?: string
+  runAsUserId?: string
 }) {
   const cursor = readCursor(input.cursor)
   const rows = await db
@@ -95,6 +97,12 @@ export async function listBenchmarkRecords(input: {
       and(
         eq(mothershipBenchmarks.organizationId, input.organizationId),
         eq(mothershipBenchmarks.userId, input.userId),
+        input.runAsUserId
+          ? eq(
+              sql`coalesce(${mothershipBenchmarks.runAsUserId}, ${mothershipBenchmarks.userId})`,
+              input.runAsUserId
+            )
+          : undefined,
         cursor
           ? or(
               lt(mothershipBenchmarks.createdAt, new Date(cursor.createdAt)),
@@ -122,7 +130,12 @@ export async function getBenchmarkRecord(scope: BenchmarkScope): Promise<Benchma
 }
 
 export async function createBenchmarkRecord(
-  input: BenchmarkScope & { sourceWorkspaceId: string; name: string; artifacts: BenchmarkArtifacts }
+  input: BenchmarkScope & {
+    sourceWorkspaceId: string
+    name: string
+    artifacts: BenchmarkArtifacts
+    runAsUserId?: string
+  }
 ) {
   const [row] = await db
     .insert(mothershipBenchmarks)
@@ -130,6 +143,7 @@ export async function createBenchmarkRecord(
       id: input.benchmarkId,
       organizationId: input.organizationId,
       userId: input.userId,
+      runAsUserId: input.runAsUserId,
       sourceWorkspaceId: input.sourceWorkspaceId,
       name: input.name,
       artifacts: benchmarkArtifactsSchema.parse(input.artifacts),
@@ -269,13 +283,21 @@ export async function completeBenchmarkStage(
     if (input.stage === 'grade') {
       const artifacts = benchmark.artifacts
       const snapshot = benchmarkRunSchema.parse({
+        execution: {
+          organizationId: benchmark.organizationId,
+          sourceWorkspaceId: benchmark.sourceWorkspaceId,
+          operatorUserId: benchmark.userId,
+          runAsUserId: benchmark.runAsUserId ?? benchmark.userId,
+        },
         id: input.attemptId,
         benchmarkId: benchmark.id,
         label: input.runLabel ?? '',
         evaluationKey: createHash('sha256')
           .update(
             JSON.stringify([
-              1,
+              2,
+              benchmark.organizationId,
+              benchmark.runAsUserId ?? benchmark.userId,
               benchmark.sourceWorkspaceId,
               artifacts.taskBrief,
               artifacts.referenceSpec,
@@ -295,7 +317,7 @@ export async function completeBenchmarkStage(
         createdAt: row.updatedAt.toISOString(),
       })
       await tx.insert(mothershipBenchmarkRuns).values({
-        ...omit(snapshot, ['reviewedCount']),
+        ...omit(snapshot, ['reviewedCount', 'execution']),
         createdAt: row.updatedAt,
         reviewedAt: null,
       })
@@ -316,6 +338,13 @@ const runSummaryColumns = {
   reviewedCount: sql<number>`jsonb_array_length(${mothershipBenchmarkRuns.reviews})`,
   reviewedAt: mothershipBenchmarkRuns.reviewedAt,
   createdAt: mothershipBenchmarkRuns.createdAt,
+}
+
+const runExecutionColumns = {
+  organizationId: mothershipBenchmarks.organizationId,
+  sourceWorkspaceId: mothershipBenchmarks.sourceWorkspaceId,
+  operatorUserId: mothershipBenchmarks.userId,
+  runAsUserId: sql<string>`coalesce(${mothershipBenchmarks.runAsUserId}, ${mothershipBenchmarks.userId})`,
 }
 
 export async function listBenchmarkRunRecords(
@@ -362,6 +391,7 @@ export async function getBenchmarkRunRecord(input: BenchmarkScope & { runId: str
   const [row] = await db
     .select({
       ...runSummaryColumns,
+      execution: runExecutionColumns,
       artifacts: mothershipBenchmarkRuns.artifacts,
       reviews: mothershipBenchmarkRuns.reviews,
     })
@@ -393,6 +423,7 @@ export async function reviewBenchmarkRunRecord(
     const [row] = await tx
       .select({
         ...runSummaryColumns,
+        execution: runExecutionColumns,
         artifacts: mothershipBenchmarkRuns.artifacts,
         reviews: mothershipBenchmarkRuns.reviews,
       })

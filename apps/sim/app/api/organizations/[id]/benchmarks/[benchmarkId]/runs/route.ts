@@ -5,9 +5,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { listBenchmarkRuns } from '@/lib/benchmarks/application/runs'
-import { requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 
 export const GET = defineInternalJsonRoute({
   contract: listBenchmarkRunsContract,
@@ -15,7 +15,9 @@ export const GET = defineInternalJsonRoute({
   operation: benchmarkOperations.listRuns,
   rateLimit: internalRateLimits.none({ reason: 'Owner-only paginated benchmark run summaries' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,

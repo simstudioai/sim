@@ -84,8 +84,8 @@ export function BenchmarkReference({
             resizable
           />
           <p className='text-[var(--text-muted)] text-small'>
-            The planner receives this request and discovers the details through your enterprise
-            sources.
+            The planner receives this request and discovers the details through the selected user’s
+            enterprise sources.
           </p>
         </div>
         <div className='flex flex-col gap-1.5'>

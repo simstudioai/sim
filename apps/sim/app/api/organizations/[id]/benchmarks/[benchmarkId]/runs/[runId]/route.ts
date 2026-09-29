@@ -5,9 +5,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
 import { getBenchmarkRun, reviewBenchmarkRun } from '@/lib/benchmarks/application/runs'
-import { requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 
 export const GET = defineInternalJsonRoute({
   contract: getBenchmarkRunContract,
@@ -15,7 +15,9 @@ export const GET = defineInternalJsonRoute({
   operation: benchmarkOperations.readRun,
   rateLimit: internalRateLimits.none({ reason: 'Owner-only bounded benchmark run snapshot' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,
@@ -30,7 +32,9 @@ export const PATCH = defineInternalJsonRoute({
   operation: benchmarkOperations.reviewRun,
   rateLimit: internalRateLimits.user({ bucketName: 'benchmark-review' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,
