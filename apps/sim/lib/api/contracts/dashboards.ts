@@ -29,10 +29,4 @@ export const readWorkspaceDashboardContract = defineRouteContract({
     }),
   },
 })
-export const deleteWorkspaceDashboardContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/workspaces/[id]/dashboard',
-  params: workspaceParams,
-  response: { mode: 'json', schema: z.object({ deleted: z.literal(true), id: z.string() }) },
-})
 export type DashboardRecord = z.output<typeof dashboardRecordSchema>

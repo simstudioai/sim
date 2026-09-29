@@ -25,7 +25,7 @@ import {
 } from '@sim/emcn'
 import {
   Building,
-  ChartColumn,
+  Dashboard,
   Database,
   Files,
   Integration,
@@ -727,7 +727,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
         {
           id: 'dashboards',
           label: 'Dashboard',
-          icon: ChartColumn,
+          icon: Dashboard,
           href: `/workspace/${workspaceId}/dashboards`,
           hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
           restricted: permissionConfig.hideFilesTab,

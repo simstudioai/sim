@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import {
-  ChartColumn,
+  Dashboard,
   Database,
   Folder as FolderIcon,
   Globe,
@@ -82,7 +82,7 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   },
   dashboard: {
     label: 'Dashboard',
-    renderIcon: ({ className }) => <ChartColumn className={className} />,
+    renderIcon: ({ className }) => <Dashboard className={className} />,
   },
   file: {
     label: 'File',

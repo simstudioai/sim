@@ -1,10 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  deleteWorkspaceDashboardContract,
-  readWorkspaceDashboardContract,
-} from '@/lib/api/contracts/dashboards'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { readWorkspaceDashboardContract } from '@/lib/api/contracts/dashboards'
 
 export const DASHBOARD_STALE_TIME = 30_000
 export const dashboardKeys = {
@@ -20,17 +16,5 @@ export function useWorkspaceDashboard(workspaceId: string, options?: { enabled?:
       requestJson(readWorkspaceDashboardContract, { params: { id: workspaceId }, signal }),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: DASHBOARD_STALE_TIME,
-  })
-}
-
-export function useDeleteWorkspaceDashboard(workspaceId: string) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: () =>
-      requestJson(deleteWorkspaceDashboardContract, { params: { id: workspaceId } }),
-    onSettled: () => {
-      void client.invalidateQueries({ queryKey: dashboardKeys.workspace(workspaceId) })
-      void client.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
-    },
   })
 }

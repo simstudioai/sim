@@ -13,7 +13,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspa
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import {
-  deleteWorkspaceDashboard,
   readWorkspaceDashboard,
   saveWorkspaceDashboard,
 } from '@/lib/dashboards/application/dashboards'
@@ -70,7 +69,6 @@ describe('workspace dashboard', () => {
     for (const attempt of [
       () => readWorkspaceDashboard.execute({ principal, input }),
       () => saveWorkspaceDashboard.execute({ principal, input: { ...input, content } }),
-      () => deleteWorkspaceDashboard.execute({ principal, input }),
     ])
       await expect(attempt()).rejects.toThrow('Dashboards are not enabled')
   })
@@ -147,7 +145,7 @@ describe('workspace dashboard', () => {
     }
   )
 
-  it('lets a read-only member read but not save or delete', async () => {
+  it('lets a read-only member read but not save', async () => {
     mocks.permission.mockResolvedValue('read')
     await expect(readWorkspaceDashboard.execute({ principal, input })).resolves.toMatchObject({
       content,
@@ -155,13 +153,5 @@ describe('workspace dashboard', () => {
     await expect(
       saveWorkspaceDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
     ).rejects.toThrow()
-    await expect(deleteWorkspaceDashboard.execute({ principal, input })).rejects.toThrow()
-  })
-
-  it('reports deleting an absent dashboard as not found', async () => {
-    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
-    await expect(deleteWorkspaceDashboard.execute({ principal, input })).rejects.toMatchObject({
-      code: 'not_found',
-    })
   })
 })

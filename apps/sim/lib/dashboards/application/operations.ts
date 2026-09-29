@@ -20,11 +20,5 @@ export const dashboardOperations = {
     id: 'dashboards.save',
     minimumRole: 'write',
   }),
-  delete: defineWorkspaceOperation({
-    ...policy,
-    capability: 'files.use',
-    id: 'dashboards.delete',
-    minimumRole: 'write',
-  }),
 } as const
 export type DashboardOperation = (typeof dashboardOperations)[keyof typeof dashboardOperations]

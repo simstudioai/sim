@@ -8,7 +8,6 @@ import { MAX_DASHBOARD_SOURCE_BYTES, parseDashboardSpec } from '@/lib/dashboards
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   ContentVersionConflictError,
-  deleteWorkspaceFile,
   FileConflictError,
   fetchWorkspaceFileBuffer,
   loadActiveWorkspaceContext,
@@ -152,28 +151,6 @@ export const saveWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
     resourceId: result.dashboard.id,
     resourceName: result.dashboard.name,
     description: result.created ? 'Created dashboard' : 'Updated dashboard YAML',
-    metadata: { resourceKind: 'dashboard' },
-  }),
-  afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),
-})
-
-/** Deletes the workspace dashboard so the next save starts fresh. */
-export const deleteWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
-  operation: dashboardOperations.delete,
-  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
-    dashboardWorkspace(input.workspaceId),
-  authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
-  async execute({ context }) {
-    const file = await findWorkspaceDashboard(context.workspaceId)
-    if (!file) throw new OrchestrationError('not_found', 'This workspace has no dashboard')
-    await deleteWorkspaceFile(context.workspaceId, file.id)
-    return { deleted: true as const, id: file.id }
-  },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.FILE_DELETED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: result.id,
-    description: 'Deleted dashboard',
     metadata: { resourceKind: 'dashboard' },
   }),
   afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),

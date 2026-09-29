@@ -300,7 +300,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'dashboard':
-      return <DashboardResource key={resource.id} workspaceId={workspaceId} embedded />
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} />
     case 'file':
       return (
         <EmbeddedFile

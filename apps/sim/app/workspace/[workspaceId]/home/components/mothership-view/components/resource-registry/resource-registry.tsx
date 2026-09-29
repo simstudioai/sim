@@ -3,8 +3,8 @@
 import type { ElementType, ReactNode } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
-  ChartColumn,
   Connections,
+  Dashboard,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -187,11 +187,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   dashboard: {
     type: 'dashboard',
     label: 'Dashboards',
-    icon: ChartColumn,
+    icon: Dashboard,
     renderTabIcon: (_resource, className) => (
-      <ChartColumn className={cn(className, 'text-[var(--text-icon)]')} />
+      <Dashboard className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={ChartColumn} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
   },
   file: {
     type: 'file',
