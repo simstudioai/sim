@@ -40,6 +40,19 @@ export interface CdpCallbacks {
   onDialog: (dialog: PageDialog) => void
   /** The running action's requested answer; dialogs are dismissed when it has none. */
   dialogResponse: () => DialogResponse | null
+  /**
+   * Offers an alert or confirm to the user, who answers later through
+   * `respond`. Returns false when the shell must answer it now instead.
+   */
+  offerToUser: (
+    kind: 'alert' | 'confirm',
+    message: string,
+    respond: (accept: boolean) => void
+  ) => boolean
+  /** The page closed its dialog itself, by navigating away or crashing. */
+  onDialogClosed: () => void
+  /** True when the user, not the shell, decides this beforeunload. */
+  claimUserLeave: () => boolean
 }
 
 /** Per-tab callbacks, so a background tab's events reach ITS driver, not the
@@ -189,34 +202,61 @@ function handleDebuggerEvent(
     return
   }
   const callbacks = callbacksByContents.get(contents)
+  if (method === 'Page.javascriptDialogClosed') {
+    callbacks?.onDialogClosed()
+    return
+  }
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
     const message = String(params.message ?? '').slice(0, 500)
-    // Dialogs never stay open: beforeunload is accepted (navigation proceeds),
-    // and alert/confirm follow the running action's requested answer, defaulting
-    // to dismissal so an unexpected dialog can never block the page.
-    const accept = type === 'beforeunload' || callbacks?.dialogResponse()?.accept === true
-    const answer = { accept }
-    void (async () => {
-      let handled = false
-      try {
-        await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
-        handled = true
-      } catch {
-        // Some Chromium builds surface an OOPIF's tab-modal dialog on its
-        // flattened session but accept the answer only on the root target.
-        if (parentSessionId) {
-          try {
-            await send(contents, 'Page.handleJavaScriptDialog', answer)
-            handled = true
-          } catch {}
-        }
-      }
+    const requested = callbacks?.dialogResponse() ?? null
+    // The user answers a dialog on the page they are using, unless an agent
+    // action asked for a specific answer. Electron decides beforeunload itself
+    // (will-prevent-unload), so that kind is only acknowledged here.
+    if (!requested && (type === 'alert' || type === 'confirm')) {
+      const offered = callbacks?.offerToUser(type, message, (accept) => {
+        void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
+          if (!handled) logger.warn('Could not answer page dialog for the user', { type })
+        })
+      })
+      if (offered) return
+    }
+    if (type === 'beforeunload' && callbacks?.claimUserLeave()) {
+      // The user's Leave replays the navigation; this unload stays cancelled.
+      void answerDialog(contents, { accept: false }, parentSessionId)
+      return
+    }
+    // Otherwise dialogs never stay open: beforeunload is accepted, and alert/confirm
+    // follow the running action's requested answer, defaulting to dismissal so an
+    // unexpected dialog can never block the page.
+    const accept = type === 'beforeunload' || requested?.accept === true
+    void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
       if (handled) logger.info('Handled page dialog', { type, accept })
       else logger.warn('Could not handle page dialog', { type })
       callbacks?.onDialog({ type, message, handled, accepted: handled && accept })
-    })()
+    })
     return
+  }
+}
+
+async function answerDialog(
+  contents: WebContents,
+  answer: { accept: boolean },
+  parentSessionId: string | undefined
+): Promise<boolean> {
+  try {
+    await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
+    return true
+  } catch {
+    // Some Chromium builds surface an OOPIF's tab-modal dialog on its
+    // flattened session but accept the answer only on the root target.
+    if (!parentSessionId) return false
+    try {
+      await send(contents, 'Page.handleJavaScriptDialog', answer)
+      return true
+    } catch {
+      return false
+    }
   }
 }
 

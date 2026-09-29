@@ -9,6 +9,7 @@ import type {
   BrowserMediaDevice,
   BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
+  BrowserPageDialog,
   BrowserPageIssue,
   BrowserTabState,
   BrowserTabsState,
@@ -121,6 +122,12 @@ export interface AgentTab {
   openerTabId?: string
   /** A user action asked for this page to take focus once it is on screen. */
   pendingUserFocus?: boolean
+  /** A dialog this page opened that waits on the user, and how to answer it. */
+  pageDialog?: { request: BrowserPageDialog; respond: (accept: boolean) => void }
+  /** Replays the user's browser-chrome navigation if the page asks before unloading. */
+  pendingLeave?: () => unknown
+  /** The user chose Leave; the replayed navigation must not ask again. */
+  allowNextUnload?: boolean
 }
 
 interface PendingMediaPermission {
@@ -287,6 +294,8 @@ interface BrowserScopeState {
    * is the only evidence the Browser is the shortcut target while they show.
    */
   browserChromeFocused: boolean
+  /** The renderer shows page dialogs, so the user can be asked instead of the shell answering. */
+  pageDialogsEnabled: boolean
   automationActive: boolean
   automationNeedsAttention: boolean
   /**
@@ -320,6 +329,7 @@ function createBrowserScopeState(): BrowserScopeState {
     focusedBrowserTabId: null,
     focusedBrowserClearTimer: null,
     browserChromeFocused: false,
+    pageDialogsEnabled: false,
     automationActive: false,
     automationNeedsAttention: false,
     findingTabId: null,
@@ -1870,6 +1880,112 @@ function applyPendingUserFocus(view: WebContentsView): void {
   view.webContents.focus()
 }
 
+/** Lets this scope's renderer show page dialogs from now on. */
+export function enablePageDialogs(): void {
+  currentScope.pageDialogsEnabled = true
+}
+
+/**
+ * Whether a dialog on this tab is the user's to answer: the renderer can show
+ * it, the page is the one on screen, and no agent action is driving it.
+ */
+function userOwnsPageDialogs(tab: AgentTab): boolean {
+  const contents = tab.view.webContents
+  if (!currentScope.pageDialogsEnabled || contents.isDestroyed()) return false
+  if (tab.id !== currentScope.activeTabId || isDispatchingAgentInput(contents)) return false
+  return !(currentScope.automationActive && automationTab()?.id === tab.id)
+}
+
+function holdPageDialogForUser(
+  tab: AgentTab,
+  kind: BrowserPageDialog['kind'],
+  message: string,
+  respond: (accept: boolean) => void
+): void {
+  if (tab.pageDialog) answerPageDialog(tab, false)
+  let origin = ''
+  try {
+    origin = new URL(tab.view.webContents.getURL()).origin
+  } catch {}
+  tab.pageDialog = { request: { requestId: generateId(), kind, message, origin }, respond }
+  events?.onPageStateChanged(tab.view.webContents)
+}
+
+function answerPageDialog(tab: AgentTab, accept: boolean): void {
+  const dialog = tab.pageDialog
+  if (!dialog) return
+  tab.pageDialog = undefined
+  if (!tab.view.webContents.isDestroyed()) events?.onPageStateChanged(tab.view.webContents)
+  dialog.respond(accept)
+}
+
+/**
+ * Hands a page's alert or confirm to the user when it is theirs to answer.
+ * Returns false when the shell must answer it instead, as it does for agent
+ * work and for pages the user cannot see.
+ */
+export function offerPageDialogToUser(
+  contents: WebContents,
+  kind: 'alert' | 'confirm',
+  message: string,
+  respond: (accept: boolean) => void
+): boolean {
+  const tab = tabForContents(contents)
+  if (!tab || !userOwnsPageDialogs(tab)) return false
+  holdPageDialogForUser(tab, kind, message, respond)
+  return true
+}
+
+/** The page closed its own dialog, by navigating away or crashing. */
+export function notePageDialogClosed(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab?.pageDialog || tab.pageDialog.request.kind === 'beforeunload') return
+  tab.pageDialog = undefined
+  events?.onPageStateChanged(contents)
+}
+
+/** The user's answer to the exact dialog the renderer showed. */
+export function respondToPageDialog(requestId: string, accept: boolean): void {
+  const tab = tabs.find((entry) => entry.pageDialog?.request.requestId === requestId)
+  if (tab) answerPageDialog(tab, accept)
+}
+
+export function pageDialogForContents(contents: WebContents): BrowserPageDialog | undefined {
+  return tabForContents(contents)?.pageDialog?.request
+}
+
+/**
+ * Whether the user decides this unload: true once a prompt holds the user's
+ * browser-chrome navigation, which is then cancelled until they choose Leave.
+ */
+export function claimUserLeave(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  if (!tab || tab.allowNextUnload) return false
+  if (tab.pageDialog?.request.kind === 'beforeunload') return true
+  const leave = tab.pendingLeave
+  tab.pendingLeave = undefined
+  if (!leave || !userOwnsPageDialogs(tab)) return false
+  holdPageDialogForUser(tab, 'beforeunload', '', (accept) => {
+    if (!accept) return
+    tab.allowNextUnload = true
+    leave()
+  })
+  return true
+}
+
+/**
+ * Runs a navigation the user started from browser chrome. If the page asks
+ * before unloading, the navigation is held and replayed once the user agrees.
+ * `navigate` returns false when there was nothing to traverse.
+ */
+export function navigateForUser(contents: WebContents, navigate: () => unknown): void {
+  const tab = tabForContents(contents)
+  if (tab && currentScope.pageDialogsEnabled) tab.pendingLeave = navigate
+  // Nothing to traverse (Back with no history): no unload will ask, so a later
+  // page-initiated navigation must not replay this one.
+  if (navigate() === false && tab) tab.pendingLeave = undefined
+}
+
 function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
   const win = panelWindow()
@@ -2437,11 +2553,17 @@ function initializeTabView(
     event.preventDefault()
   })
 
-  // Pages may hold navigation hostage with beforeunload dialogs nobody can
-  // see; always let the unload proceed.
-  contents.on('will-prevent-unload', (event) => {
-    event.preventDefault()
-  })
+  // A beforeunload is decided twice, by whichever answer lands first: here
+  // (preventDefault lets the unload proceed) and by the CDP dialog. Both ask
+  // claimUserLeave, so agent work and page-initiated navigations proceed, and a
+  // navigation the user started from browser chrome is cancelled and replayed
+  // only once the user chooses to leave.
+  contents.on(
+    'will-prevent-unload',
+    bindToBrowserScope(scopeId, (event) => {
+      if (!claimUserLeave(contents)) event.preventDefault()
+    })
+  )
   contents.on(
     'render-process-gone',
     bindToBrowserScope(scopeId, (_event, details) => {
@@ -2521,11 +2643,11 @@ function initializeTabView(
         return
       }
       if (shortcut === 'reload') {
-        reloadPage(contents)
+        navigateForUser(contents, () => reloadPage(contents))
         return
       }
       if (shortcut === 'hard-reload') {
-        hardReloadPage(contents)
+        navigateForUser(contents, () => hardReloadPage(contents))
         return
       }
 
@@ -2575,6 +2697,16 @@ function initializeTabView(
       const tab = tabs.find((entry) => entry.view.webContents === contents)
       if (tab) tab.pendingRestoreUrl = undefined
       persistBrowserSession()
+    })
+  )
+  contents.on(
+    'did-start-navigation',
+    bindToBrowserScope(scopeId, (details) => {
+      if (!details.isMainFrame) return
+      const tab = tabForContents(contents)
+      if (!tab) return
+      tab.pendingLeave = undefined
+      tab.allowNextUnload = false
     })
   )
   contents.on(
@@ -2645,6 +2777,9 @@ export function hasSession(): boolean {
 export function setAutomationActive(active: boolean): void {
   if (currentScope.automationActive === active) return
   currentScope.automationActive = active
+  // A dialog left open blocks the page, and the agent must never wait on one.
+  const automation = automationTab()
+  if (active && automation?.pageDialog) answerPageDialog(automation, false)
   applyAutomationTabPolicy()
   events?.onTabsChanged()
 }
@@ -3551,18 +3686,26 @@ export function handleFocusedShortcut(
     case 'focus-omnibox':
       focusRendererOmnibox('select')
       return true
-    case 'reload-or-clear':
-      reloadPage(shortcutTab.view.webContents)
+    case 'reload-or-clear': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => reloadPage(contents))
       return true
-    case 'hard-reload':
-      hardReloadPage(shortcutTab.view.webContents)
+    }
+    case 'hard-reload': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => hardReloadPage(contents))
       return true
-    case 'back':
-      goBack(shortcutTab.view.webContents)
+    }
+    case 'back': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => goBack(contents))
       return true
-    case 'forward':
-      goForward(shortcutTab.view.webContents)
+    }
+    case 'forward': {
+      const contents = shortcutTab.view.webContents
+      navigateForUser(contents, () => goForward(contents))
       return true
+    }
   }
 
   const zoomAction = zoomActionForShortcut(shortcut)
