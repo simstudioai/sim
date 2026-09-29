@@ -1881,13 +1881,18 @@ export function enablePageDialogs(): void {
 
 /**
  * Whether a dialog on this tab is the user's to answer: the renderer can show
- * it, the page is the one on screen, and no agent action is driving it.
+ * it, the page is on screen, and it is the user's page rather than the agent's.
+ * Everything else keeps the shell answering, so the user is never asked about
+ * work they did not start and a hidden page is never left blocked.
  */
 function userOwnsPageDialogs(tab: AgentTab): boolean {
   const contents = tab.view.webContents
   if (!currentScope.pageDialogsEnabled || contents.isDestroyed()) return false
-  if (tab.id !== currentScope.activeTabId || isDispatchingAgentInput(contents)) return false
-  return !(currentScope.automationActive && automationTab()?.id === tab.id)
+  if (tab.id !== currentScope.activeTabId || !isPanelVisible()) return false
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return false
+  if (isDispatchingAgentInput(contents)) return false
+  if (automationTab()?.id !== tab.id) return true
+  return automationTabClaimedByUser() && !currentScope.automationActive
 }
 
 function holdPageDialogForUser(
@@ -3460,8 +3465,11 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
     revokeTabMediaPermissions(previousActiveTab, false)
     previousActiveTab.pendingUserFocus = false
   }
-  currentScope.activeTabId = tab.id
+  // The claim describes the page on screen, so a mirrored switch to another
+  // page leaves that page unclaimed rather than inheriting the last one's.
   if (claim) currentScope.visibleTabUserSelected = true
+  else if (currentScope.activeTabId !== tab.id) currentScope.visibleTabUserSelected = false
+  currentScope.activeTabId = tab.id
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
