@@ -11,7 +11,6 @@ import {
 import { and, eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import {
   FOLDER_RESOURCE_LABELS,
   FOLDER_RESOURCE_SUPPORTS_LOCKING,
@@ -22,7 +21,7 @@ import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
  * Counts of cascaded resources returned by a folder delete/restore, keyed per resource
  * type so a caller can render "3 workflows" vs "3 tables" without inspecting the folder.
  */
-export type FolderChildCountKey = 'workflows' | 'files' | 'knowledgeBases' | 'tables' | 'dashboards'
+export type FolderChildCountKey = 'workflows' | 'files' | 'knowledgeBases' | 'tables'
 
 /**
  * A table whose rows hang off a foldered resource and share its soft-delete lifecycle —
@@ -513,24 +512,6 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
      * only files surfaced on the Files page live in folders.
      */
     scope: and(eq(workspaceFiles.context, 'workspace'), fileDiscoveryCondition()),
-  },
-  dashboard: {
-    resourceType: 'dashboard',
-    label: FOLDER_RESOURCE_LABELS.dashboard,
-    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.dashboard,
-    countKey: 'dashboards',
-    table: workspaceFiles,
-    idColumn: workspaceFiles.id,
-    folderIdColumn: workspaceFiles.folderId,
-    workspaceColumn: workspaceFiles.workspaceId,
-    deletedColumn: workspaceFiles.deletedAt,
-    deletedKey: 'deletedAt',
-    buildSoftDeleteSet: (timestamp) =>
-      ({ deletedAt: timestamp }) satisfies Partial<typeof workspaceFiles.$inferInsert>,
-    scope: and(
-      eq(workspaceFiles.context, 'workspace'),
-      eq(workspaceFiles.contentType, DASHBOARD_CONTENT_TYPE)
-    ),
   },
   knowledge_base: {
     resourceType: 'knowledge_base',

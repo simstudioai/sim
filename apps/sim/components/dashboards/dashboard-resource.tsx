@@ -1,26 +1,29 @@
 'use client'
 
-import { Loader } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalFooter,
+  ChipModalHeader,
+} from '@sim/emcn'
+import { ChartColumn, Loader, Trash } from '@sim/emcn/icons'
 import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
 import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
-import {
-  breadcrumbFolderChain,
-  FOLDERED_RESOURCE_HEADERS,
-  folderBreadcrumbItems,
-  folderedResourceListHref,
-} from '@/app/workspace/[workspaceId]/components/folders'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
-import { useDashboard, useDashboardFolders } from '@/hooks/queries/dashboards'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useDeleteWorkspaceDashboard, useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 
 interface DashboardResourceProps {
   workspaceId: string
-  dashboardId: string
+  /** The Chat resource panel supplies its own chrome; the page renders the header and actions. */
   embedded?: boolean
 }
 
-/** Embedded dashboards use the chat's resource bar; full pages use the shared folder trail. */
+/** The workspace's single dashboard, or an empty state until Sim saves the first one. */
 export function DashboardResource(props: DashboardResourceProps) {
   return (
     <DashboardFeatureGate>
@@ -29,51 +32,97 @@ export function DashboardResource(props: DashboardResourceProps) {
   )
 }
 
-function EnabledDashboardResource({ workspaceId, dashboardId, embedded }: DashboardResourceProps) {
+function EnabledDashboardResource({ workspaceId, embedded }: DashboardResourceProps) {
   useWorkspaceFilesRoom(workspaceId)
-  const router = useRouter()
-  const query = useDashboard(workspaceId, dashboardId)
-  const folderQuery = useDashboardFolders(embedded ? '' : workspaceId)
-  const ancestors = breadcrumbFolderChain(
-    query.data?.dashboard.folderId,
-    new Map(folderQuery.data?.folders.map((folder) => [folder.id, folder]))
-  )
-  const header = FOLDERED_RESOURCE_HEADERS.dashboard
+  const { canEdit } = useUserPermissionsContext()
+  const query = useWorkspaceDashboard(workspaceId)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const dashboard = query.data?.dashboard ?? null
   return (
     <Resource>
       {!embedded && (
         <Resource.Header
-          icon={header.rootIcon}
-          breadcrumbs={folderBreadcrumbItems({
-            rootLabel: header.rootLabel,
-            rootIcon: header.rootIcon,
-            breadcrumbs: ancestors,
-            onNavigate: (folderId) =>
-              router.push(folderedResourceListHref('dashboard', workspaceId, folderId)),
-            trailing: [
-              query.data ? { label: query.data.dashboard.name } : { label: '…', terminal: true },
-            ],
-          })}
+          icon={ChartColumn}
+          title='Dashboard'
+          actions={
+            dashboard && canEdit
+              ? [
+                  {
+                    id: 'delete',
+                    icon: Trash,
+                    text: 'Delete',
+                    variant: 'destructive',
+                    onSelect: () => setConfirmingDelete(true),
+                  },
+                ]
+              : []
+          }
         />
       )}
-      <div className='min-h-0 flex-1 overflow-auto p-6'>
-        {query.isPending ? (
-          <div role='status' className='flex h-full items-center justify-center'>
-            <Loader animate className='size-[16px] text-[var(--text-icon)]' />
-            <span className='sr-only'>Loading dashboard</span>
-          </div>
-        ) : query.error ? (
-          <div className='text-[var(--text-error)]' role='alert'>
-            {query.error.message}
-          </div>
-        ) : (
+      {query.isPending ? (
+        <div role='status' className='flex flex-1 items-center justify-center'>
+          <Loader animate className='size-[16px] text-[var(--text-icon)]' />
+          <span className='sr-only'>Loading dashboard</span>
+        </div>
+      ) : query.error ? (
+        <div className='p-6 text-[var(--text-error)]' role='alert'>
+          {query.error.message}
+        </div>
+      ) : dashboard && query.data.content !== null ? (
+        <div className='min-h-0 flex-1 overflow-auto p-6'>
           <DashboardPreview
             workspaceId={workspaceId}
-            fileId={dashboardId}
+            fileId={dashboard.id}
             content={query.data.content}
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <EmptyState
+          title='Dashboard'
+          description='Sim will build your dashboard here once your workspace is set up.'
+        />
+      )}
+      {confirmingDelete && (
+        <DeleteDashboardModal
+          workspaceId={workspaceId}
+          onClose={() => setConfirmingDelete(false)}
+        />
+      )}
     </Resource>
+  )
+}
+
+interface DeleteDashboardModalProps {
+  workspaceId: string
+  onClose: () => void
+}
+
+function DeleteDashboardModal({ workspaceId, onClose }: DeleteDashboardModalProps) {
+  const remove = useDeleteWorkspaceDashboard(workspaceId)
+  return (
+    <ChipModal
+      size='sm'
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      srTitle='Delete dashboard'
+    >
+      <ChipModalHeader onClose={onClose}>Delete dashboard</ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-secondary)]'>Delete this workspace’s dashboard?</p>
+        {remove.error && <ChipModalError>{remove.error.message}</ChipModalError>}
+      </ChipModalBody>
+      <ChipModalFooter
+        defaultAction='dismiss'
+        onCancel={onClose}
+        primaryAction={{
+          label: 'Delete',
+          variant: 'destructive',
+          disabled: remove.isPending,
+          onClick: () => remove.mutate(undefined, { onSuccess: onClose }),
+        }}
+      />
+    </ChipModal>
   )
 }

@@ -50,7 +50,7 @@ export interface UseResourceFoldersResult {
  */
 export function useResourceFolders(
   workspaceId: string | undefined,
-  resourceType: Exclude<FolderResourceType, 'dashboard'>
+  resourceType: FolderResourceType
 ): UseResourceFoldersResult {
   const isFileResource = resourceType === 'file'
 

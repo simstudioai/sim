@@ -5,8 +5,8 @@ import {
   openResourceOutputSchema,
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { readDashboard } from '@/lib/dashboards/application/dashboards'
-import { dashboardDisplayName, fileBackedResourceType } from '@/lib/dashboards/resource'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
+import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
@@ -89,10 +89,11 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
           break
         }
         case 'dashboard': {
-          const { dashboard } = await executeDashboardUseCase(context, readDashboard, {
+          const { dashboard } = await executeDashboardUseCase(context, readWorkspaceDashboard, {
             workspaceId,
-            dashboardId: resource.id,
           })
+          if (dashboard?.id !== resource.id)
+            throw new OrchestrationError('not_found', 'Dashboard not found')
           resources.push({ ...base, title: dashboard.name })
           break
         }
@@ -103,7 +104,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
             { fileId: resource.id, assertedWorkspaceId: workspaceId },
             { fileId: resource.id }
           )
-          const type = fileBackedResourceType(file.type)
+          const type = file.type === DASHBOARD_CONTENT_TYPE ? 'dashboard' : 'file'
           resources.push({
             ...base,
             type,

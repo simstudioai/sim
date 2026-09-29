@@ -11,7 +11,7 @@ import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
-import { useDashboards } from '@/hooks/queries/dashboards'
+import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
@@ -118,13 +118,9 @@ export function useAvailableResources(
   const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
   })
-  const { data: dashboardData, isPending: dashboardsPending } = useDashboards(
-    workspaceId,
-    {},
-    {
-      enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
-    }
-  )
+  const { data: dashboardData, isPending: dashboardsPending } = useWorkspaceDashboard(workspaceId, {
+    enabled: enabled && dashboardsEnabled && !excludeTypes?.includes('dashboard'),
+  })
   const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
     enabled: enabled && Boolean(workspaceId),
   })
@@ -218,11 +214,9 @@ export function useAvailableResources(
       },
       {
         type: 'dashboard' as const,
-        items: (dashboardData?.dashboards ?? []).map((dashboard) => ({
-          id: dashboard.id,
-          name: dashboard.name,
-          folderId: null,
-        })),
+        items: dashboardData?.dashboard
+          ? [{ id: dashboardData.dashboard.id, name: dashboardData.dashboard.name, folderId: null }]
+          : [],
       },
       {
         type: 'file' as const,

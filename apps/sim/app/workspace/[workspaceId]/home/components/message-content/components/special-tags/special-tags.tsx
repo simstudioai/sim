@@ -106,7 +106,7 @@ import {
   useWorkspaceCredential,
   useWorkspaceCredentials,
 } from '@/hooks/queries/credentials'
-import { useDashboards } from '@/hooks/queries/dashboards'
+import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -1997,13 +1997,9 @@ function WorkspaceResourceDisplayContent({
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
   const dashboardsEnabled = useFeatureFlag('dashboards')
-  const { data: dashboardList } = useDashboards(
-    workspaceId,
-    {},
-    {
-      enabled: dashboardsEnabled && data.type === 'dashboard',
-    }
-  )
+  const { data: dashboardData } = useWorkspaceDashboard(workspaceId, {
+    enabled: dashboardsEnabled && data.type === 'dashboard',
+  })
 
   const resource = useMemo<WorkspaceResourceRef>(() => {
     const fileFromPath =
@@ -2016,7 +2012,9 @@ function WorkspaceResourceDisplayContent({
           ? (tables.find((table) => table.id === data.id)?.name ??
             fallbackWorkspaceResourceTitle(data.type))
           : data.type === 'dashboard'
-            ? (dashboardList?.dashboards.find((dashboard) => dashboard.id === data.id)?.name ??
+            ? ((dashboardData?.dashboard?.id === data.id
+                ? dashboardData?.dashboard?.name
+                : undefined) ??
               data.title ??
               fallbackWorkspaceResourceTitle(data.type))
             : data.type === 'file'
@@ -2040,7 +2038,7 @@ function WorkspaceResourceDisplayContent({
     data.path,
     data.title,
     data.type,
-    dashboardList,
+    dashboardData,
     files,
     knowledgeBases,
     tables,

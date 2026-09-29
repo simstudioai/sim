@@ -14,7 +14,6 @@ import type { FolderResourceType } from '@/lib/api/contracts/folders'
 export const FOLDER_RESOURCE_LABELS: Record<FolderResourceType, string> = {
   workflow: 'workflow',
   file: 'file',
-  dashboard: 'dashboard',
   knowledge_base: 'knowledge base',
   table: 'table',
 }
@@ -31,7 +30,6 @@ export const FOLDER_RESOURCE_LABELS: Record<FolderResourceType, string> = {
 export const FOLDER_RESOURCE_SUPPORTS_LOCKING: Record<FolderResourceType, boolean> = {
   workflow: true,
   file: false,
-  dashboard: false,
   knowledge_base: false,
   table: false,
 }

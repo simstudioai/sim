@@ -1,5 +1,4 @@
-import { DASHBOARD_CONTENT_TYPE, fileBackedResourceType } from '@/lib/dashboards/resource'
-import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import { type FileDiscovery, fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 /**
  * Workspace file storage system
@@ -119,6 +118,7 @@ import {
   getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
+  resolveWorkspaceFileFolderTarget,
   workspaceFileNameFolderCondition,
 } from './workspace-file-folder-manager'
 
@@ -445,6 +445,8 @@ export async function uploadWorkspaceFile(
     folderPath?: string
     exactName?: boolean
     discovery?: FileDiscovery
+    /** Only the workspace dashboard use case writes dashboard content; it lives at the root. */
+    dashboard?: true
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
   }
@@ -455,17 +457,11 @@ export async function uploadWorkspaceFile(
     throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
   }
 
-  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
-  const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
-  const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
-  const effectiveName = pageRestore?.name ?? normalizedFileName
-  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
-  const resourceType = fileBackedResourceType(effectiveContentType)
   let folderId: string | null
   let folderPath: string | null
   if (options?.folderPath !== undefined) {
     const folderPathSegments = parseFolderPath(options.folderPath)
-    const folderIndex = await loadActiveFolderPathIndex(workspaceId, resourceType)
+    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file')
     const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
     if (resolvedFolderId === undefined) {
       throw new OrchestrationError('not_found', 'Target folder not found')
@@ -473,14 +469,23 @@ export async function uploadWorkspaceFile(
     folderId = resolvedFolderId
     folderPath = resolvedFolderId ? folderPathSegments.join('/') : null
   } else {
-    folderId = await assertWorkspaceFileFolderTarget(
-      workspaceId,
-      options?.folderId,
-      db,
-      resourceType
+    const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+    folderId = folderTarget?.id ?? null
+    folderPath = folderTarget?.path ?? null
+  }
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+  const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
+  const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
+  const effectiveName = pageRestore?.name ?? normalizedFileName
+  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
+  if ((effectiveContentType === DASHBOARD_CONTENT_TYPE) !== (options?.dashboard === true)) {
+    throw new OrchestrationError(
+      'validation',
+      'Dashboards are saved through the workspace dashboard, not as files'
     )
-    const index = folderId ? await loadActiveFolderPathIndex(workspaceId, resourceType) : null
-    folderPath = folderId ? (index?.pathById.get(folderId) ?? null) : null
+  }
+  if (options?.dashboard && folderId !== null) {
+    throw new OrchestrationError('validation', 'The workspace dashboard lives at the root')
   }
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
@@ -528,22 +533,17 @@ export async function uploadWorkspaceFile(
       }
       try {
         finalized = await db.transaction(async (tx) => {
-          await acquireFolderMutationLock(tx, workspaceId, resourceType)
+          await acquireFolderMutationLock(tx, workspaceId, 'file')
           let activeFolderId: string | null
           if (options?.folderPath !== undefined) {
-            const folderIndex = await loadActiveFolderPathIndex(workspaceId, resourceType, tx)
+            const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
             const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
             if (resolvedFolderId === undefined) {
               throw new OrchestrationError('not_found', 'Target folder not found')
             }
             activeFolderId = resolvedFolderId
           } else {
-            activeFolderId = await assertWorkspaceFileFolderTarget(
-              workspaceId,
-              folderId,
-              tx,
-              resourceType
-            )
+            activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
           }
           const inserted = await insertWorkspaceFileMetadataInTx(tx, {
             id: fileId,
@@ -1243,7 +1243,6 @@ async function mapSingleWorkspaceFileRecord(
 
   const folderPath = await getWorkspaceFileFolderPath(workspaceId, file.folderId, {
     includeDeleted: true,
-    resourceType: fileBackedResourceType(file.contentType),
   })
   return mapWorkspaceFileRecord(
     file,
@@ -1382,18 +1381,7 @@ async function hydrateWorkspaceFilePaths(
   const folders = needsFolderPaths
     ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
     : []
-  const dashboardFolders =
-    needsFolderPaths && files.some((file) => file.contentType === DASHBOARD_CONTENT_TYPE)
-      ? (
-          await Promise.all([
-            listFoldersForWorkspace(workspaceId, 'active', 'dashboard'),
-            listFoldersForWorkspace(workspaceId, 'archived', 'dashboard'),
-          ])
-        ).flat()
-      : []
-  const folderPaths = needsFolderPaths
-    ? buildWorkspaceFileFolderPathMap([...folders, ...dashboardFolders])
-    : new Map()
+  const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
   return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
 }
 
@@ -2053,10 +2041,10 @@ export async function updateWorkspaceFileContent(
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
-  if (fileBackedResourceType(nextContentType) !== fileBackedResourceType(fileRecord.type)) {
+  if ((nextContentType === DASHBOARD_CONTENT_TYPE) !== (fileRecord.type === DASHBOARD_CONTENT_TYPE)) {
     throw new OrchestrationError(
       'validation',
-      'Cannot change a file into a dashboard or a dashboard into a file; create the resource instead'
+      'Cannot change a file into a dashboard or a dashboard into a file'
     )
   }
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
@@ -2435,53 +2423,54 @@ export async function moveRenameWorkspaceFile(params: {
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  const resourceType = fileBackedResourceType(fileRecord.type)
-  let result: { row: WorkspaceFileRow; renamed: boolean; moved: boolean }
+  const targetFolderId = await assertWorkspaceFileFolderTarget(
+    params.workspaceId,
+    params.targetFolderId
+  )
+  const currentFolderId = fileRecord.folderId ?? null
+  const renamed = fileRecord.name !== normalizedName
+  const moved = currentFolderId !== targetFolderId
+  if (!renamed && !moved) {
+    return { file: fileRecord, renamed, moved }
+  }
+
+  const exists = await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)
+  if (exists) {
+    throw new FileConflictError(normalizedName)
+  }
+
+  let updated: { id: string }[]
   try {
-    result = await db.transaction(async (tx) => {
-      await acquireFolderMutationLock(tx, params.workspaceId, resourceType)
-      const targetFolderId = await assertWorkspaceFileFolderTarget(
-        params.workspaceId,
-        params.targetFolderId,
-        tx,
-        resourceType
-      )
-      const [current] = await tx
-        .select()
-        .from(workspaceFiles)
-        .where(
-          and(
-            eq(workspaceFiles.id, params.fileId),
-            eq(workspaceFiles.workspaceId, params.workspaceId),
-            eq(workspaceFiles.context, 'workspace'),
-            isNull(workspaceFiles.deletedAt)
-          )
+    updated = await db
+      .update(workspaceFiles)
+      .set({ originalName: normalizedName, folderId: targetFolderId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(workspaceFiles.id, params.fileId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace')
         )
-        .for('update')
-      if (!current) throw new OrchestrationError('not_found', 'File not found')
-      const renamed = current.originalName !== normalizedName
-      const moved = current.folderId !== targetFolderId
-      if (!renamed && !moved) return { row: current, renamed, moved }
-      const [row] = await tx
-        .update(workspaceFiles)
-        .set({
-          originalName: normalizedName,
-          folderId: targetFolderId,
-          updatedAt: new Date(),
-        })
-        .where(eq(workspaceFiles.id, current.id))
-        .returning()
-      if (!row) throw new OrchestrationError('not_found', 'File not found')
-      return { row, renamed, moved }
-    })
-  } catch (error) {
-    if (getPostgresErrorCode(error) === '23505') throw new FileConflictError(normalizedName)
+      )
+      .returning({ id: workspaceFiles.id })
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(normalizedName)
+    }
     throw error
   }
+
+  if (updated.length === 0) {
+    throw new OrchestrationError('not_found', 'File not found or could not be moved')
+  }
+
   return {
-    file: await mapSingleWorkspaceFileRecord(result.row, params.workspaceId),
-    renamed: result.renamed,
-    moved: result.moved,
+    file: {
+      ...fileRecord,
+      name: normalizedName,
+      folderId: targetFolderId,
+    },
+    renamed,
+    moved,
   }
 }
 

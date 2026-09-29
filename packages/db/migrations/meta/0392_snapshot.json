@@ -1,5 +1,5 @@
 {
-  "id": "0298810e-9c92-437e-a731-1411b5b8580b",
+  "id": "0f8c9615-3419-493b-96e5-c9990c74c50c",
   "prevId": "4bf7c7c5-a022-4a87-9d13-b889c5ba86f0",
   "version": "7",
   "dialect": "postgresql",
@@ -27850,6 +27850,14 @@
           "primaryKey": false,
           "notNull": true
         },
+        "discovery": {
+          "name": "discovery",
+          "type": "file_discovery",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'listed'"
+        },
         "chat_id": {
           "name": "chat_id",
           "type": "uuid",
@@ -29234,10 +29242,15 @@
       "schema": "public",
       "values": ["execution_log", "paused_snapshot"]
     },
+    "public.file_discovery": {
+      "name": "file_discovery",
+      "schema": "public",
+      "values": ["listed", "unlisted"]
+    },
     "public.folder_resource_type": {
       "name": "folder_resource_type",
       "schema": "public",
-      "values": ["dashboard", "workflow", "file", "knowledge_base", "table"]
+      "values": ["workflow", "file", "knowledge_base", "table"]
     },
     "public.invitation_kind": {
       "name": "invitation_kind",

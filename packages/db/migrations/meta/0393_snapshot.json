@@ -1,6 +1,6 @@
 {
-  "id": "d22ecfc9-1fe0-46ea-9013-8c5df84a48a6",
-  "prevId": "0298810e-9c92-437e-a731-1411b5b8580b",
+  "id": "135aa69e-d403-4a7d-9439-3c7c23f015ba",
+  "prevId": "0f8c9615-3419-493b-96e5-c9990c74c50c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -27957,6 +27957,22 @@
           "method": "btree",
           "with": {}
         },
+        "workspace_files_workspace_dashboard_unique": {
+          "name": "workspace_files_workspace_dashboard_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_files\".\"content_type\" = 'text/x-sim-dashboard' AND \"workspace_files\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "workspace_files_workspace_folder_name_active_unique": {
           "name": "workspace_files_workspace_folder_name_active_unique",
           "columns": [
@@ -29250,7 +29266,7 @@
     "public.folder_resource_type": {
       "name": "folder_resource_type",
       "schema": "public",
-      "values": ["dashboard", "workflow", "file", "knowledge_base", "table"]
+      "values": ["workflow", "file", "knowledge_base", "table"]
     },
     "public.invitation_kind": {
       "name": "invitation_kind",

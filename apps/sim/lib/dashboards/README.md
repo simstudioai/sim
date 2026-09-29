@@ -1,6 +1,6 @@
 # Table-backed dashboards
 
-Dashboards are a separate workspace resource with their own sidebar page, folders, resource tabs, and Mothership `dashboards` / `dashboard_folders` tools. Storage reuses workspace files with MIME type `text/x-sim-dashboard`; the backing `.dashboard` suffix is hidden from display names. The built-in **create-dashboard** skill documents the syntax without example dashboards or prescribed layouts. Sharing is deferred.
+Each workspace has at most one dashboard, a separate resource with its own sidebar page, resource tab, and Mothership `dashboards get` / `dashboards set` commands. Sim builds it: the page shows an empty state until the first save, and there is no create, rename, move, or folder operation. A partial unique index (migration 0393) keeps one live dashboard per workspace; lifting the limit means dropping it. Storage reuses workspace files with MIME type `text/x-sim-dashboard`; the backing `.dashboard` suffix is hidden from display names. The built-in **create-dashboard** skill documents the syntax without example dashboards or prescribed layouts. Sharing is deferred.
 
 The implementation has three boundaries:
 
@@ -41,7 +41,7 @@ These measures take a condition rather than a numeric field, so tables do not ne
 axis formatting. Pie/donut distributions can continue grouping by outcome and
 counting rows; their slice percentages are computed by ECharts.
 
-Queries reuse the table predicate compiler and the existing read-only repeatable-read transaction guards, including statement/lock timeouts and tenant index planning. The built-in timestamp predicate leaves the indexed column uncast. Custom date extraction requires scanning matching table rows. There is no background polling. Migration 0392 adds `dashboard` to the existing folder resource enum; it does not create a dashboard table.
+Queries reuse the table predicate compiler and the existing read-only repeatable-read transaction guards, including statement/lock timeouts and tenant index planning. The built-in timestamp predicate leaves the indexed column uncast. Custom date extraction requires scanning matching table rows. There is no background polling.
 
 Bounds: 128 KB source, 48 blocks, 4 layout levels, 2 grouping fields, 8 measures, 12 projected columns, 500 result rows and 8 KB per returned row. Limits apply after aggregation. An explicit limit yields a labeled top-N result; unrequested group overflow is an error. API rate admission is per viewer. Errors are never turned into successful zeros. Only visible tabs mount their query observers; identical queries share React Query cache entries for one minute, and Refresh requests fresh data.
 
@@ -67,7 +67,7 @@ global switch. Local development uses `DASHBOARDS=true` in the app's ignored
 environment file.
 
 The server resolves the flag for the canonical workspace organization. It gates
-dashboard and folder operations, table analytics, UI entry points, and the
+dashboard operations, table analytics, UI entry points, and the
 built-in authoring skill. Mothership receives that availability per turn and
 persists it for continuation; disabled runs omit dashboard commands and skills.
 The Sim server checks current availability on every dashboard operation, including
@@ -85,11 +85,11 @@ from storage and ownership (`context`). Files listings, Mothership file discover
 pickers, and content search apply this rule in SQL before pagination. Explicit-reference
 reads retain their existing authorization; unlisted is not a permission boundary.
 
-New dashboard definitions are unlisted workspace files. Dashboard APIs select their own
-content type explicitly, and the resource picker requests dashboards separately from Files.
+The workspace dashboard is an unlisted workspace file at the root. Only the dashboard use case
+may write its content type, and the resource picker requests it separately from Files.
 Versions, billing, cleanup, and complete workspace copies still include unlisted resources.
 
-Migration 0393 adds the defaulted discovery column and a temporary bridge for old upload
+Migration 0392 adds the defaulted discovery column and a temporary bridge for old upload
 writers during rollout. Script migration 0027 backfills non-workspace uploads in id-keyed
 pages of 1,000, including archived uploads, without changing content revisions or ownership.
 It contains no dashboard backfill: dashboards have not shipped. Remove the bridge in a

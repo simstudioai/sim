@@ -198,7 +198,6 @@ export const verification = pgTable(
 )
 
 export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
-  'dashboard',
   'workflow',
   'file',
   'knowledge_base',
@@ -2424,6 +2423,10 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
+    /** A workspace has at most one live dashboard; lifting the limit means dropping this index. */
+    workspaceDashboardUnique: uniqueIndex('workspace_files_workspace_dashboard_unique')
+      .on(table.workspaceId)
+      .where(sql`${table.contentType} = 'text/x-sim-dashboard' AND ${table.deletedAt} IS NULL`),
     workspaceFolderOriginalNameActiveUnique: uniqueIndex(
       'workspace_files_workspace_folder_name_active_unique'
     )

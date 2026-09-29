@@ -9,8 +9,9 @@ import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { readDashboard } from '@/lib/dashboards/application/dashboards'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -1013,10 +1014,12 @@ async function resolveDashboardResource(
   chatId?: string
 ): Promise<AgentContext> {
   const principal = createCopilotChatFilePrincipal({ userId, workspaceId, chatId })
-  const { dashboard } = await readDashboard.execute({
+  const { dashboard } = await readWorkspaceDashboard.execute({
     principal,
-    input: { workspaceId, dashboardId },
+    input: { workspaceId },
   })
+  if (dashboard?.id !== dashboardId)
+    throw new OrchestrationError('not_found', 'Dashboard not found')
   return {
     type: 'active_resource',
     tag: '@active_resource',

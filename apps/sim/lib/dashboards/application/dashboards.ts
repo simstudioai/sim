@@ -5,20 +5,13 @@ import { dashboardOperations } from '@/lib/dashboards/application/operations'
 import { requireDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
 import { MAX_DASHBOARD_SOURCE_BYTES, parseDashboardSpec } from '@/lib/dashboards/spec'
-import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import {
-  loadActiveFolderPathIndex,
-  resolveFolderPathFilter,
-  resolveFolderPathFromIndex,
-} from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   ContentVersionConflictError,
   deleteWorkspaceFile,
+  FileConflictError,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
   loadActiveWorkspaceContext,
-  moveRenameWorkspaceFile,
   queryWorkspaceFiles,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -31,12 +24,9 @@ import {
   workspaceFileRevision,
 } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
-export interface DashboardTarget {
-  workspaceId: string
-  dashboardId: string
-}
+/** A workspace has one dashboard; its backing file keeps this fixed name at the root. */
+const DASHBOARD_FILE_NAME = 'Dashboard.dashboard'
 
 export async function dashboardWorkspace(workspaceId: string) {
   const context = await loadActiveWorkspaceContext(workspaceId)
@@ -44,41 +34,26 @@ export async function dashboardWorkspace(workspaceId: string) {
   return context
 }
 
-async function dashboardContext(input: DashboardTarget) {
-  const context = await resolveActiveWorkspaceFileContext({
-    fileId: input.dashboardId,
-    assertedWorkspaceId: input.workspaceId,
-  })
-  return context
-}
-
-async function requireDashboardFile(workspaceId: string, dashboardId: string) {
-  const file = await getWorkspaceFile(workspaceId, dashboardId, { throwOnError: true })
-  if (!file || file.type !== DASHBOARD_CONTENT_TYPE)
-    throw new OrchestrationError('not_found', 'Dashboard not found')
-  return file
-}
-
 export function dashboardRecord(file: WorkspaceFileRecord) {
   return {
     id: file.id,
     type: 'dashboard' as const,
     name: dashboardDisplayName(file.name),
-    folderId: file.folderId ?? null,
-    path: `dashboards/${file.folderPath ? `${file.folderPath}/` : ''}${dashboardDisplayName(file.name)}`,
     updatedAt: (file.updatedAt ?? file.uploadedAt).toISOString(),
     revision: workspaceFileRevision(file),
   }
 }
 
-/** A mutation into a path that names no dashboard folder fails; `/` is the root. */
-async function resolveDashboardFolder(workspaceId: string, path: string): Promise<string | null> {
-  const index = await loadActiveFolderPathIndex(workspaceId, 'dashboard', undefined, {
-    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+/** The unique index guarantees at most one live dashboard per workspace. */
+async function findWorkspaceDashboard(workspaceId: string): Promise<WorkspaceFileRecord | null> {
+  const { files } = await queryWorkspaceFiles(workspaceId, {
+    discovery: 'unlisted',
+    contentType: DASHBOARD_CONTENT_TYPE,
+    sortBy: 'name',
+    sortOrder: 'asc',
+    limit: 1,
   })
-  const folderId = resolveFolderPathFromIndex(index, path)
-  if (folderId === undefined) throw new OrchestrationError('not_found', 'Target folder not found')
-  return folderId
+  return files[0] ?? null
 }
 
 function validateContent(content: string) {
@@ -86,132 +61,85 @@ function validateContent(content: string) {
   if (parsed.error) throw new OrchestrationError('validation', parsed.error)
 }
 
-function storageName(name: string) {
-  const clean = name.trim().replace(/\.dashboard$/i, '')
-  if (!clean || clean.length > 220 || /[/\\]/.test(clean) || clean === '.' || clean === '..') {
-    throw new OrchestrationError(
-      'validation',
-      'Dashboard name must be 1–220 characters without slashes'
-    )
-  }
-  return `${clean}.dashboard`
-}
-
-export const listDashboards = defineAuthorizedWorkspaceFileUseCase({
-  operation: dashboardOperations.list,
-  resolveContext: ({
-    input,
-  }: {
-    input: { workspaceId: string; search?: string; folderId?: string | null; folderPath?: string }
-  }) => dashboardWorkspace(input.workspaceId),
-  authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
-  async execute({ input, context }) {
-    if (input.folderId !== undefined && input.folderPath !== undefined)
-      throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
-    let folderId = input.folderId
-    if (input.folderPath !== undefined) {
-      const filter = resolveFolderPathFilter(
-        await loadActiveFolderPathIndex(context.workspaceId, 'dashboard', undefined, {
-          maxRows: MAX_FOLDERS_PER_WORKSPACE,
-        }),
-        input.folderPath
-      )
-      if (filter.kind === 'noMatch') return { dashboards: [], truncated: false }
-      if (filter.kind === 'folder') folderId = filter.folderId
-    }
-    const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
-      discovery: 'unlisted',
-      contentType: DASHBOARD_CONTENT_TYPE,
-      search: input.search,
-      folderId,
-      sortBy: 'name',
-      sortOrder: 'asc',
-      limit: 500,
-    })
-    return { dashboards: files.map(dashboardRecord), truncated: nextKeys !== null }
-  },
-})
-
-export const readDashboard = defineAuthorizedWorkspaceFileUseCase({
+/** Reads the workspace dashboard; a workspace without one returns nulls, not an error. */
+export const readWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
   operation: dashboardOperations.read,
-  resolveContext: ({ input }: { input: DashboardTarget }) => dashboardContext(input),
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ context }) {
-    const file = await requireDashboardFile(context.workspaceId, context.fileId)
+    const file = await findWorkspaceDashboard(context.workspaceId)
+    if (!file) return { dashboard: null, content: null }
     const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_DASHBOARD_SOURCE_BYTES })
     return { dashboard: dashboardRecord(file), content: content.toString('utf-8') }
   },
 })
 
-export const createDashboard = defineAuthorizedWorkspaceFileUseCase({
-  operation: dashboardOperations.create,
+/**
+ * Saves the workspace dashboard. The first save creates it; replacing existing content
+ * requires the revision from the last read so a concurrent edit is never overwritten.
+ */
+export const saveWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
+  operation: dashboardOperations.save,
   resolveContext: ({
     input,
   }: {
-    input: {
-      workspaceId: string
-      name: string
-      content: string
-      folderId?: string | null
-      folderPath?: string
-    }
+    input: { workspaceId: string; content: string; expectedRevision?: string }
   }) => dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context, principal }) {
     validateContent(input.content)
-    const file = await uploadWorkspaceFile(
-      context.workspaceId,
-      requirePrincipalSubjectUserId(principal),
-      Buffer.from(input.content),
-      storageName(input.name),
-      DASHBOARD_CONTENT_TYPE,
-      {
-        folderId: input.folderId,
-        folderPath: input.folderPath,
-        exactName: true,
-        discovery: 'unlisted',
-        secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
-        notifyWorkspaceChange: false,
+    const existing = await findWorkspaceDashboard(context.workspaceId)
+    if (!existing) {
+      if (input.expectedRevision !== undefined)
+        throw new OrchestrationError(
+          'conflict',
+          'The dashboard was deleted after it was read; read it again'
+        )
+      try {
+        const file = await uploadWorkspaceFile(
+          context.workspaceId,
+          requirePrincipalSubjectUserId(principal),
+          Buffer.from(input.content),
+          DASHBOARD_FILE_NAME,
+          DASHBOARD_CONTENT_TYPE,
+          {
+            dashboard: true,
+            exactName: true,
+            discovery: 'unlisted',
+            secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+            notifyWorkspaceChange: false,
+          }
+        )
+        return { dashboard: dashboardRecord(file), created: true }
+      } catch (error) {
+        if (error instanceof FileConflictError)
+          throw new OrchestrationError(
+            'conflict',
+            'Another save created the dashboard first; read it and save again'
+          )
+        throw error
       }
-    )
-    return { dashboard: dashboardRecord(file) }
-  },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.FILE_UPLOADED,
-    resourceType: AuditResourceType.FILE,
-    resourceId: result.dashboard.id,
-    resourceName: result.dashboard.name,
-    description: 'Created dashboard',
-    metadata: { resourceKind: 'dashboard' },
-  }),
-  afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),
-})
-
-export const updateDashboard = defineAuthorizedWorkspaceFileUseCase({
-  operation: dashboardOperations.update,
-  resolveContext: ({
-    input,
-  }: {
-    input: DashboardTarget & { content: string; expectedRevision: string }
-  }) => dashboardContext(input),
-  authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
-  async execute({ input, context, principal }) {
-    await requireDashboardFile(context.workspaceId, context.fileId)
-    validateContent(input.content)
+    }
+    if (input.expectedRevision === undefined)
+      throw new OrchestrationError(
+        'conflict',
+        'This workspace already has a dashboard; read it and pass its revision to replace it'
+      )
     try {
       const file = await updateWorkspaceFileContent(
         context.workspaceId,
-        context.fileId,
+        existing.id,
         requirePrincipalSubjectUserId(principal),
         Buffer.from(input.content),
         DASHBOARD_CONTENT_TYPE,
         {
-          expectedUpdatedAt: parseWorkspaceFileRevision(input.expectedRevision, context.fileId),
+          expectedUpdatedAt: parseWorkspaceFileRevision(input.expectedRevision, existing.id),
           version: resolveWorkspaceFileVersionWrite(principal),
           secretProvenancePolicy: { mode: 'preserve' },
         }
       )
-      return { dashboard: dashboardRecord(file) }
+      return { dashboard: dashboardRecord(file), created: false }
     } catch (error) {
       if (error instanceof ContentVersionConflictError)
         throw new OrchestrationError('conflict', error.message)
@@ -219,72 +147,27 @@ export const updateDashboard = defineAuthorizedWorkspaceFileUseCase({
     }
   },
   projectAudit: ({ result }) => ({
-    action: AuditAction.FILE_UPDATED,
+    action: result.created ? AuditAction.FILE_UPLOADED : AuditAction.FILE_UPDATED,
     resourceType: AuditResourceType.FILE,
     resourceId: result.dashboard.id,
     resourceName: result.dashboard.name,
-    description: 'Updated dashboard YAML',
+    description: result.created ? 'Created dashboard' : 'Updated dashboard YAML',
     metadata: { resourceKind: 'dashboard' },
   }),
   afterSuccess: ({ context }) => notifyWorkspaceFilesChanged(context.workspaceId),
 })
 
-/** Rename and move form one storage mutation. Omitted values retain current metadata. */
-export const moveDashboard = defineAuthorizedWorkspaceFileUseCase({
-  operation: dashboardOperations.move,
-  resolveContext: ({
-    input,
-  }: {
-    input: DashboardTarget & { name?: string; folderId?: string | null; targetFolderPath?: string }
-  }) => dashboardContext(input),
-  authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
-  async execute({ input, context }) {
-    if (input.folderId !== undefined && input.targetFolderPath !== undefined)
-      throw new OrchestrationError(
-        'validation',
-        'Specify either folderId or targetFolderPath, not both'
-      )
-    const file = await requireDashboardFile(context.workspaceId, context.fileId)
-    const targetFolderId =
-      input.targetFolderPath !== undefined
-        ? await resolveDashboardFolder(context.workspaceId, input.targetFolderPath)
-        : input.folderId === undefined
-          ? (file.folderId ?? null)
-          : input.folderId
-    const result = await moveRenameWorkspaceFile({
-      workspaceId: context.workspaceId,
-      fileId: context.fileId,
-      newName: input.name === undefined ? file.name : storageName(input.name),
-      targetFolderId,
-    })
-    return { dashboard: dashboardRecord(result.file), changed: result.renamed || result.moved }
-  },
-  projectAudit: ({ result }) =>
-    result.changed
-      ? [
-          {
-            action: AuditAction.FILE_UPDATED,
-            resourceType: AuditResourceType.FILE,
-            resourceId: result.dashboard.id,
-            resourceName: result.dashboard.name,
-            description: 'Moved or renamed dashboard',
-            metadata: { resourceKind: 'dashboard' },
-          },
-        ]
-      : [],
-  afterSuccess: async ({ context, result }) => {
-    if (result.changed) await notifyWorkspaceFilesChanged(context.workspaceId)
-  },
-})
-
-export const deleteDashboard = defineAuthorizedWorkspaceFileUseCase({
+/** Deletes the workspace dashboard so the next save starts fresh. */
+export const deleteWorkspaceDashboard = defineAuthorizedWorkspaceFileUseCase({
   operation: dashboardOperations.delete,
-  resolveContext: ({ input }: { input: DashboardTarget }) => dashboardContext(input),
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ context }) {
-    await requireDashboardFile(context.workspaceId, context.fileId)
-    await deleteWorkspaceFile(context.workspaceId, context.fileId)
-    return { deleted: true as const, id: context.fileId }
+    const file = await findWorkspaceDashboard(context.workspaceId)
+    if (!file) throw new OrchestrationError('not_found', 'This workspace has no dashboard')
+    await deleteWorkspaceFile(context.workspaceId, file.id)
+    return { deleted: true as const, id: file.id }
   },
   projectAudit: ({ result }) => ({
     action: AuditAction.FILE_DELETED,

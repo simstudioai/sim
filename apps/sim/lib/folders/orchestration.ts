@@ -275,8 +275,6 @@ export async function createFolderAtPath(
 export async function createFolderAtPathTransition(
   params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & {
     path: string
-    effects?: boolean
-    throwInfrastructure?: boolean
     maxFolderRows?: number
   }
 ): Promise<FolderPathMutationResult> {

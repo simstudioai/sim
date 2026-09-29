@@ -1,134 +1,38 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import { folderSchema } from '@/lib/api/contracts/folders'
-import { folderIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 
-export const dashboardParamsSchema = z.object({
-  id: workspaceIdSchema,
-  dashboardId: z.string().min(1).max(100),
-})
-const workspaceParams = dashboardParamsSchema.pick({ id: true })
-export const dashboardNameSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(220)
-  .regex(/^[^/\\]+$/, 'Name cannot contain slashes')
+const workspaceParams = z.object({ id: workspaceIdSchema })
 export const dashboardContentSchema = z
   .string()
   .min(1)
   .max(128 * 1024)
+export const dashboardRevisionSchema = z.string().min(1).max(256)
 export const dashboardRecordSchema = z.object({
   id: z.string(),
   type: z.literal('dashboard'),
   name: z.string(),
-  folderId: z.string().nullable(),
-  path: z.string(),
   updatedAt: z.string(),
   revision: z.string().nullable(),
 })
-const recordResponse = z.object({ dashboard: dashboardRecordSchema })
-export const createDashboardBodySchema = z
-  .object({
-    name: dashboardNameSchema,
-    content: dashboardContentSchema,
-    folderId: folderIdSchema.nullable().optional(),
-  })
-  .strict()
-export const updateDashboardBodySchema = z
-  .object({ content: dashboardContentSchema, expectedRevision: z.string().min(1).max(256) })
-  .strict()
-export const moveDashboardBodySchema = z
-  .object({
-    name: dashboardNameSchema.optional(),
-    folderId: folderIdSchema.nullable().optional(),
-  })
-  .strict()
-export const listDashboardsQuerySchema = z.object({
-  search: z.string().max(255).optional(),
-  /** A folder id, or `root` for dashboards outside any folder. Omit to list every folder. */
-  folder: z.union([z.literal('root'), folderIdSchema]).optional(),
-})
-export const listDashboardsContract = defineRouteContract({
+
+/** A workspace has at most one dashboard, which Sim builds; both fields are null until then. */
+export const readWorkspaceDashboardContract = defineRouteContract({
   method: 'GET',
-  path: '/api/workspaces/[id]/dashboards',
+  path: '/api/workspaces/[id]/dashboard',
   params: workspaceParams,
-  query: listDashboardsQuerySchema,
   response: {
     mode: 'json',
-    schema: z.object({ dashboards: z.array(dashboardRecordSchema), truncated: z.boolean() }),
+    schema: z.object({
+      dashboard: dashboardRecordSchema.nullable(),
+      content: z.string().nullable(),
+    }),
   },
 })
-export const createDashboardContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/dashboards',
-  params: workspaceParams,
-  body: createDashboardBodySchema,
-  response: { mode: 'json', schema: recordResponse },
-})
-export const readDashboardContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/dashboards/[dashboardId]',
-  params: dashboardParamsSchema,
-  response: { mode: 'json', schema: recordResponse.extend({ content: z.string() }) },
-})
-export const updateDashboardContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/workspaces/[id]/dashboards/[dashboardId]',
-  params: dashboardParamsSchema,
-  body: updateDashboardBodySchema,
-  response: { mode: 'json', schema: recordResponse },
-})
-export const moveDashboardContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/workspaces/[id]/dashboards/[dashboardId]',
-  params: dashboardParamsSchema,
-  body: moveDashboardBodySchema,
-  response: { mode: 'json', schema: recordResponse },
-})
-const deletedResponse = z.object({ deleted: z.literal(true), id: z.string() })
-export const deleteDashboardContract = defineRouteContract({
+export const deleteWorkspaceDashboardContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/workspaces/[id]/dashboards/[dashboardId]',
-  params: dashboardParamsSchema,
-  response: { mode: 'json', schema: deletedResponse },
-})
-export const dashboardFolderPathSchema = z.string().min(1).max(2048)
-export const createDashboardFolderBodySchema = z
-  .object({ path: dashboardFolderPathSchema })
-  .strict()
-export const moveDashboardFolderBodySchema = createDashboardFolderBodySchema.extend({
-  destinationPath: dashboardFolderPathSchema,
-})
-export const listDashboardFoldersContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/dashboards/folders',
+  path: '/api/workspaces/[id]/dashboard',
   params: workspaceParams,
-  response: { mode: 'json', schema: z.object({ folders: z.array(folderSchema) }) },
-})
-export const createDashboardFolderContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/dashboards/folders',
-  params: workspaceParams,
-  body: createDashboardFolderBodySchema,
-  response: { mode: 'json', schema: z.object({ folder: folderSchema }) },
-})
-export const moveDashboardFolderContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/workspaces/[id]/dashboards/folders',
-  params: workspaceParams,
-  body: moveDashboardFolderBodySchema,
-  response: { mode: 'json', schema: z.object({ folder: folderSchema }) },
-})
-export const deleteDashboardFolderContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/workspaces/[id]/dashboards/folders',
-  params: workspaceParams,
-  body: createDashboardFolderBodySchema,
-  response: { mode: 'json', schema: deletedResponse },
+  response: { mode: 'json', schema: z.object({ deleted: z.literal(true), id: z.string() }) },
 })
 export type DashboardRecord = z.output<typeof dashboardRecordSchema>
-export type ListDashboardsQuery = z.input<typeof listDashboardsQuerySchema>
-export type CreateDashboardBody = z.input<typeof createDashboardBodySchema>
-export type UpdateDashboardBody = z.input<typeof updateDashboardBodySchema>
-export type MoveDashboardBody = z.input<typeof moveDashboardBodySchema>

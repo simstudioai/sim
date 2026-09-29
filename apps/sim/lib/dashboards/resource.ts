@@ -5,7 +5,3 @@ export const DASHBOARD_CONTENT_TYPE = 'text/x-sim-dashboard'
 export function dashboardDisplayName(name: string): string {
   return name.replace(/\.dashboard$/i, '')
 }
-
-export function fileBackedResourceType(contentType: string): 'dashboard' | 'file' {
-  return contentType === DASHBOARD_CONTENT_TYPE ? 'dashboard' : 'file'
-}

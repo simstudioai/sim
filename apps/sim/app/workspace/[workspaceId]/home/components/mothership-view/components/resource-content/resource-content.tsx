@@ -300,14 +300,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'dashboard':
-      return (
-        <DashboardResource
-          key={resource.id}
-          workspaceId={workspaceId}
-          dashboardId={resource.id}
-          embedded
-        />
-      )
+      return <DashboardResource key={resource.id} workspaceId={workspaceId} embedded />
     case 'file':
       return (
         <EmbeddedFile
@@ -413,7 +406,7 @@ export function ResourceActions({
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
     case 'dashboard':
-      return <EmbeddedDashboardActions workspaceId={workspaceId} dashboardId={resource.id} />
+      return <EmbeddedDashboardActions workspaceId={workspaceId} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -533,10 +526,9 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
 
 interface EmbeddedDashboardActionsProps {
   workspaceId: string
-  dashboardId: string
 }
 
-function EmbeddedDashboardActions({ workspaceId, dashboardId }: EmbeddedDashboardActionsProps) {
+function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps) {
   const router = useRouter()
   const dashboardsEnabled = useFeatureFlag('dashboards')
   if (!dashboardsEnabled) return null
@@ -545,7 +537,7 @@ function EmbeddedDashboardActions({ workspaceId, dashboardId }: EmbeddedDashboar
       <Tooltip.Trigger asChild>
         <TabStripAction
           variant='subtle'
-          onClick={() => router.push(`/workspace/${workspaceId}/dashboards/${dashboardId}`)}
+          onClick={() => router.push(`/workspace/${workspaceId}/dashboards`)}
           aria-label='Open dashboard'
         >
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />

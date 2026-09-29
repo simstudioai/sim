@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  mothershipDashboardFoldersInputSchema,
-  mothershipDashboardsInputSchema,
-} from '@/lib/api/contracts/mothership-dashboards'
+import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
@@ -18,16 +15,8 @@ export const managementToolContracts = [
     route: 'sim',
     scope: 'all',
     description:
-      'Create, list, read, edit, move, rename and delete dashboards in the selected workspace, with the same folder paths as files: `/` is the root. Dashboards are separate resources with validated YAML source. Load the create-dashboard skill for the actual schema. get returns content and revision; set-content requires expectedRevision to avoid overwriting concurrent edits. Use open_resource with type dashboard to show the result. Sharing is not supported by this tool.',
+      'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.',
     inputSchema: mothershipDashboardsInputSchema,
-  },
-  {
-    id: 'dashboard_folders',
-    route: 'sim',
-    scope: 'all',
-    description:
-      'Manage the selected workspace’s dashboard folders with the same paths as file folders. Create requires existing ancestors; move also renames via the destination path. Delete of a non-empty folder requires recursive, which archives the folder and its dashboards. Folders are separate from Files.',
-    inputSchema: mothershipDashboardFoldersInputSchema,
   },
   {
     id: 'workspaces',

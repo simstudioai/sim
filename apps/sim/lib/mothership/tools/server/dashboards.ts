@@ -1,23 +1,9 @@
-import type { DashboardRecord } from '@/lib/api/contracts/dashboards'
-import {
-  mothershipDashboardFoldersInputSchema,
-  mothershipDashboardsInputSchema,
-} from '@/lib/api/contracts/mothership-dashboards'
+import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  createDashboard,
-  deleteDashboard,
-  listDashboards,
-  moveDashboard,
-  readDashboard,
-  updateDashboard,
+  readWorkspaceDashboard,
+  saveWorkspaceDashboard,
 } from '@/lib/dashboards/application/dashboards'
-import {
-  createDashboardFolder,
-  deleteDashboardFolder,
-  listDashboardFolders,
-  moveDashboardFolder,
-} from '@/lib/dashboards/application/folders'
 import { executeDashboardUseCase } from '@/lib/mothership/application/execute-dashboard-use-case'
 import { requireTrustedCopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
@@ -35,15 +21,6 @@ function workspaceFor(input: { workspaceId?: string }, context?: ServerToolConte
   return trusted.workspaceId
 }
 
-function dashboardEffect(workspaceId: string, dashboard: DashboardRecord): ResourceChange[] {
-  return [
-    {
-      op: 'upsert',
-      resource: { type: 'dashboard', workspaceId, id: dashboard.id, title: dashboard.name },
-    },
-  ]
-}
-
 export const dashboardsServerTool: BaseServerTool = {
   name: 'dashboards',
   inputSchema: mothershipDashboardsInputSchema,
@@ -51,84 +28,27 @@ export const dashboardsServerTool: BaseServerTool = {
     const input = mothershipDashboardsInputSchema.parse(raw)
     const workspaceId = workspaceFor(input, context)
     switch (input.action) {
-      case 'list':
-        return executeDashboardUseCase(context, listDashboards, {
-          workspaceId,
-          search: input.search,
-          folderPath: input.folder,
-        })
       case 'get':
-        return executeDashboardUseCase(context, readDashboard, {
+        return executeDashboardUseCase(context, readWorkspaceDashboard, { workspaceId })
+      case 'set': {
+        const result = await executeDashboardUseCase(context, saveWorkspaceDashboard, {
           workspaceId,
-          dashboardId: input.dashboardId,
-        })
-      case 'create': {
-        const result = await executeDashboardUseCase(context, createDashboard, {
-          workspaceId,
-          name: input.name,
-          content: input.content,
-          folderPath: input.folder,
-        })
-        return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
-      }
-      case 'set-content': {
-        const result = await executeDashboardUseCase(context, updateDashboard, {
-          workspaceId,
-          dashboardId: input.dashboardId,
           content: input.content,
           expectedRevision: input.expectedRevision,
         })
-        return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
-      }
-      case 'rename':
-      case 'move': {
-        const result = await executeDashboardUseCase(context, moveDashboard, {
-          workspaceId,
-          dashboardId: input.dashboardId,
-          ...(input.action === 'rename' ? { name: input.name } : { targetFolderPath: input.to }),
-        })
-        return { ...result, resources: dashboardEffect(workspaceId, result.dashboard) }
-      }
-      case 'delete': {
-        const result = await executeDashboardUseCase(context, deleteDashboard, {
-          workspaceId,
-          dashboardId: input.dashboardId,
-        })
         const resources: ResourceChange[] = [
-          { op: 'remove', resource: { type: 'dashboard', workspaceId, id: result.id } },
+          {
+            op: 'upsert',
+            resource: {
+              type: 'dashboard',
+              workspaceId,
+              id: result.dashboard.id,
+              title: result.dashboard.name,
+            },
+          },
         ]
         return { ...result, resources }
       }
-    }
-  },
-}
-
-export const dashboardFoldersServerTool: BaseServerTool = {
-  name: 'dashboard_folders',
-  inputSchema: mothershipDashboardFoldersInputSchema,
-  async execute(raw, context) {
-    const input = mothershipDashboardFoldersInputSchema.parse(raw)
-    const workspaceId = workspaceFor(input, context)
-    switch (input.action) {
-      case 'list':
-        return executeDashboardUseCase(context, listDashboardFolders, { workspaceId })
-      case 'create':
-        return executeDashboardUseCase(context, createDashboardFolder, {
-          workspaceId,
-          path: input.path,
-        })
-      case 'move':
-        return executeDashboardUseCase(context, moveDashboardFolder, {
-          workspaceId,
-          path: input.path,
-          destinationPath: input.destination,
-        })
-      case 'delete':
-        return executeDashboardUseCase(context, deleteDashboardFolder, {
-          workspaceId,
-          path: input.path,
-          recursive: input.recursive ?? false,
-        })
     }
   },
 }

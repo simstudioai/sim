@@ -13,22 +13,20 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspa
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import {
-  createDashboard,
-  deleteDashboard,
-  listDashboards,
-  moveDashboard,
-  readDashboard,
-  updateDashboard,
+  deleteWorkspaceDashboard,
+  readWorkspaceDashboard,
+  saveWorkspaceDashboard,
 } from '@/lib/dashboards/application/dashboards'
-import { ContentVersionConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  ContentVersionConflictError,
+  FileConflictError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 
 const mocks = {
   flag: hoisted.flag,
   permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
-  context: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
   workspace: workspaceFileManagerMockFns.mockLoadActiveWorkspaceContext,
-  file: workspaceFileManagerMockFns.mockGetWorkspaceFile,
   list: workspaceFileManagerMockFns.mockQueryWorkspaceFiles,
   buffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
   upload: workspaceFileManagerMockFns.mockUploadWorkspaceFile,
@@ -42,11 +40,11 @@ const workspace = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner',
 }
-const input = { workspaceId: 'ws-1', dashboardId: 'dash-1' }
+const input = { workspaceId: 'ws-1' }
 const file = {
   id: 'dash-1',
   workspaceId: 'ws-1',
-  name: 'Support.dashboard',
+  name: 'Dashboard.dashboard',
   type: 'text/x-sim-dashboard',
   uploadedAt: new Date('2026-09-24T00:00:00Z'),
   updatedAt: new Date('2026-09-24T00:00:00Z'),
@@ -60,102 +58,109 @@ beforeEach(() => {
   mocks.flag.mockResolvedValue(undefined)
   mocks.permission.mockResolvedValue('admin')
   mocks.workspace.mockResolvedValue(workspace)
-  mocks.context.mockResolvedValue({ ...workspace, fileId: 'dash-1' })
-  mocks.file.mockResolvedValue(file)
   mocks.upload.mockResolvedValue(file)
   mocks.update.mockResolvedValue(file)
   mocks.list.mockResolvedValue({ files: [file], nextKeys: null })
   mocks.buffer.mockResolvedValue(Buffer.from(content))
 })
 
-describe('dashboard application boundary', () => {
+describe('workspace dashboard', () => {
   it('refuses every operation when dashboards are disabled', async () => {
     mocks.flag.mockRejectedValue(new Error('Dashboards are not enabled'))
-    const attempts = [
-      () => listDashboards.execute({ principal, input: { workspaceId: 'ws-1' } }),
-      () => readDashboard.execute({ principal, input }),
-      () =>
-        createDashboard.execute({
-          principal,
-          input: { workspaceId: 'ws-1', name: 'Support', content },
-        }),
-      () => updateDashboard.execute({ principal, input: { ...input, content, expectedRevision } }),
-      () => moveDashboard.execute({ principal, input: { ...input, name: 'Renamed' } }),
-      () => deleteDashboard.execute({ principal, input }),
-    ]
-    for (const attempt of attempts)
+    for (const attempt of [
+      () => readWorkspaceDashboard.execute({ principal, input }),
+      () => saveWorkspaceDashboard.execute({ principal, input: { ...input, content } }),
+      () => deleteWorkspaceDashboard.execute({ principal, input }),
+    ])
       await expect(attempt()).rejects.toThrow('Dashboards are not enabled')
   })
 
-  it('exposes dashboards with a distinct resource identity', async () => {
-    const result = await listDashboards.execute({ principal, input: { workspaceId: 'ws-1' } })
-    expect(result).toEqual({
-      dashboards: [
-        expect.objectContaining({
-          id: 'dash-1',
-          type: 'dashboard',
-          name: 'Support',
-          path: 'dashboards/Support',
-          revision: expectedRevision,
-        }),
-      ],
-      truncated: false,
+  it('reads an absent dashboard as empty rather than an error', async () => {
+    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
+    await expect(readWorkspaceDashboard.execute({ principal, input })).resolves.toEqual({
+      dashboard: null,
+      content: null,
     })
   })
-  it('reads dashboard content', async () => {
-    await expect(readDashboard.execute({ principal, input })).resolves.toMatchObject({ content })
-  })
-  it('refuses a dashboard asserted from another workspace', async () => {
-    await expect(
-      readDashboard.execute({ principal, input: { ...input, workspaceId: 'other' } })
-    ).rejects.toMatchObject({ code: 'not_found' })
-  })
-  it('refuses revoked workspace access', async () => {
-    mocks.permission.mockResolvedValue(null)
-    await expect(readDashboard.execute({ principal, input })).rejects.toThrow()
-  })
-  it('does not expose ordinary files through dashboard IDs', async () => {
-    mocks.file.mockResolvedValue({ ...file, type: 'text/plain' })
-    await expect(readDashboard.execute({ principal, input })).rejects.toMatchObject({
-      code: 'not_found',
+
+  it('reads the dashboard with its revision', async () => {
+    await expect(readWorkspaceDashboard.execute({ principal, input })).resolves.toMatchObject({
+      dashboard: { id: 'dash-1', type: 'dashboard', name: 'Dashboard', revision: expectedRevision },
+      content,
     })
   })
-  it('allows reads but rejects writes for a read-only member', async () => {
-    mocks.permission.mockResolvedValue('read')
-    await expect(readDashboard.execute({ principal, input })).resolves.toMatchObject({ content })
+
+  it('creates the dashboard on the first save', async () => {
+    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
     await expect(
-      updateDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
-    ).rejects.toThrow()
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content } })
+    ).resolves.toMatchObject({ created: true, dashboard: { id: 'dash-1' } })
   })
-  it.each(['title: Broken\nblocks: invalid', 'title: Missing blocks'])(
-    'refuses invalid YAML',
-    async (content) => {
-      await expect(
-        createDashboard.execute({
-          principal,
-          input: { workspaceId: 'ws-1', name: 'Support', content },
-        })
-      ).rejects.toMatchObject({ code: 'validation' })
-    }
-  )
-  it('rejects a revision issued for a different dashboard', async () => {
+
+  it('refuses to replace an existing dashboard without its revision', async () => {
+    await expect(
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content } })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('refuses a revision for a dashboard deleted after it was read', async () => {
+    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
+    await expect(
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('surfaces a concurrent first save as a conflict', async () => {
+    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
+    mocks.upload.mockRejectedValueOnce(new FileConflictError('Dashboard.dashboard'))
+    await expect(
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content } })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('replaces the dashboard with its revision and surfaces concurrent edits', async () => {
+    await expect(
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
+    ).resolves.toMatchObject({ created: false })
+    mocks.update.mockRejectedValueOnce(new ContentVersionConflictError('changed'))
+    await expect(
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('rejects a revision issued for a different file', async () => {
     const wrongRevision = workspaceFileRevision({ ...file, id: 'other' })!
     await expect(
-      updateDashboard.execute({
+      saveWorkspaceDashboard.execute({
         principal,
         input: { ...input, content, expectedRevision: wrongRevision },
       })
     ).rejects.toMatchObject({ code: 'validation' })
   })
-  it('surfaces concurrent edits as a conflict', async () => {
-    mocks.update.mockRejectedValueOnce(new ContentVersionConflictError('changed'))
+
+  it.each(['title: Broken\nblocks: invalid', 'title: Missing blocks'])(
+    'refuses invalid YAML',
+    async (invalid) => {
+      await expect(
+        saveWorkspaceDashboard.execute({ principal, input: { ...input, content: invalid } })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
+
+  it('lets a read-only member read but not save or delete', async () => {
+    mocks.permission.mockResolvedValue('read')
+    await expect(readWorkspaceDashboard.execute({ principal, input })).resolves.toMatchObject({
+      content,
+    })
     await expect(
-      updateDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
-    ).rejects.toMatchObject({ code: 'conflict' })
+      saveWorkspaceDashboard.execute({ principal, input: { ...input, content, expectedRevision } })
+    ).rejects.toThrow()
+    await expect(deleteWorkspaceDashboard.execute({ principal, input })).rejects.toThrow()
   })
-  it('does not delete an ordinary file using the dashboard operation', async () => {
-    mocks.file.mockResolvedValue({ ...file, type: 'text/plain' })
-    await expect(deleteDashboard.execute({ principal, input })).rejects.toMatchObject({
+
+  it('reports deleting an absent dashboard as not found', async () => {
+    mocks.list.mockResolvedValue({ files: [], nextKeys: null })
+    await expect(deleteWorkspaceDashboard.execute({ principal, input })).rejects.toMatchObject({
       code: 'not_found',
     })
   })
