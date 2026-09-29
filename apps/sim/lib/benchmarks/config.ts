@@ -14,7 +14,8 @@ export function requireBenchmarkEnabled(): void {
 /** Benchmark requests never fall back to the production agent or a user's routing preference. */
 export function getBenchmarkMothershipUrl(): string {
   requireBenchmarkEnabled()
-  const url = env.COPILOT_DEV_URL
-  if (!url) throw new OrchestrationError('validation', 'Set COPILOT_DEV_URL to run benchmarks')
+  const url = env.MOTHERSHIP_BENCHMARK_URL ?? env.COPILOT_DEV_URL
+  if (!url)
+    throw new OrchestrationError('validation', 'Set MOTHERSHIP_BENCHMARK_URL to run benchmarks')
   return url.replace(/\/$/, '')
 }

@@ -2,6 +2,10 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import {
   type BenchmarkResponse,
+  benchmarkAvailabilityContract,
+  benchmarkOrganizationsContract,
+  benchmarkUsersContract,
+  benchmarkWorkspacesContract,
   type CreateBenchmarkBody,
   createBenchmarkContract,
   type DeleteBenchmarkBody,
@@ -21,7 +25,17 @@ import {
 export const benchmarkKeys = {
   all: ['benchmarks'] as const,
   lists: () => [...benchmarkKeys.all, 'list'] as const,
-  list: (organizationId: string) => [...benchmarkKeys.lists(), organizationId] as const,
+  list: (organizationId: string, runAsUserId?: string) =>
+    [...benchmarkKeys.lists(), organizationId, ...(runAsUserId ? [runAsUserId] : [])] as const,
+  selections: () => [...benchmarkKeys.all, 'selection'] as const,
+  selection: (
+    kind: string,
+    organizationId: string,
+    userId: string,
+    search: string,
+    selectedId = ''
+  ) => [...benchmarkKeys.selections(), kind, organizationId, userId, search, selectedId] as const,
+  availability: () => [...benchmarkKeys.all, 'availability'] as const,
   details: () => [...benchmarkKeys.all, 'detail'] as const,
   detail: (organizationId: string, benchmarkId: string) =>
     [...benchmarkKeys.details(), organizationId, benchmarkId] as const,
@@ -39,17 +53,72 @@ export const BENCHMARK_STALE_TIME = 10_000
 const BENCHMARK_POLL_INTERVAL = 2_000
 const BENCHMARK_PAGE_SIZE = 20
 
-export function useBenchmarks(organizationId: string) {
+export function useBenchmarks(organizationId: string, runAsUserId?: string) {
   return useInfiniteQuery({
-    queryKey: benchmarkKeys.list(organizationId),
+    queryKey: benchmarkKeys.list(organizationId, runAsUserId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listBenchmarksContract, {
         params: { id: organizationId },
-        query: { cursor: pageParam, limit: BENCHMARK_PAGE_SIZE },
+        query: { cursor: pageParam, limit: BENCHMARK_PAGE_SIZE, runAsUserId },
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useBenchmarkAvailability(enabled = true) {
+  return useQuery({
+    queryKey: benchmarkKeys.availability(),
+    queryFn: ({ signal }) => requestJson(benchmarkAvailabilityContract, { signal }),
+    enabled,
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useBenchmarkOrganizations(search: string, selectedId = '') {
+  return useInfiniteQuery({
+    queryKey: benchmarkKeys.selection('organizations', '', '', search, selectedId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) =>
+      requestJson(benchmarkOrganizationsContract, {
+        query: { search, cursor: pageParam, selectedId: selectedId || undefined },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useBenchmarkUsers(organizationId: string, search: string, selectedId = '') {
+  return useInfiniteQuery({
+    queryKey: benchmarkKeys.selection('users', organizationId, '', search, selectedId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) =>
+      requestJson(benchmarkUsersContract, {
+        params: { id: organizationId },
+        query: { search, cursor: pageParam, selectedId: selectedId || undefined },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: Boolean(organizationId),
+    staleTime: BENCHMARK_STALE_TIME,
+  })
+}
+
+export function useBenchmarkWorkspaces(organizationId: string, runAsUserId: string, search = '') {
+  return useInfiniteQuery({
+    queryKey: benchmarkKeys.selection('workspaces', organizationId, runAsUserId, search),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) =>
+      requestJson(benchmarkWorkspacesContract, {
+        params: { id: organizationId },
+        query: { runAsUserId, search, cursor: pageParam },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: Boolean(organizationId && runAsUserId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }

@@ -20,16 +20,17 @@ import {
 } from '@/app/o/[organizationId]/benchmark/search-params'
 import {
   useBenchmark,
+  useBenchmarkWorkspaces,
   useDeleteBenchmark,
   useRunBenchmarkStage,
   useUpdateBenchmark,
 } from '@/hooks/queries/benchmarks'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 interface BenchmarkDetailProps {
   organizationId: string
   benchmarkId: string
   canPlan: boolean
+  runAsUserId: string
   onDeleted: () => void
 }
 
@@ -107,7 +108,7 @@ function BenchmarkEditor({
       <BenchmarkStep
         number={2}
         title='Build the new plan'
-        description='Run the dev Mothership in Plan mode with the task brief and your accessible enterprise context.'
+        description='Run the benchmark Mothership in Plan mode with the task brief and the selected user’s enterprise context.'
         pending={stage === 'plan'}
         action={
           <Chip
@@ -122,7 +123,7 @@ function BenchmarkEditor({
         {!canPlan && (
           <p className='text-[var(--text-muted)] text-small'>
             Plan mode requires permission to create organization workspaces. An organization
-            administrator can update your access.
+            administrator can update the selected user’s access.
           </p>
         )}
         {artifacts.generatedSpec ? (
@@ -204,6 +205,7 @@ export function BenchmarkDetail({
   organizationId,
   benchmarkId,
   canPlan,
+  runAsUserId,
   onDeleted,
 }: BenchmarkDetailProps) {
   const [{ benchmarkView }, setParams] = useQueryStates(benchmarkParams, benchmarkUrlOptions)
@@ -211,7 +213,7 @@ export function BenchmarkDetail({
   const updateBenchmark = useUpdateBenchmark(organizationId, benchmarkId)
   const runStage = useRunBenchmarkStage(organizationId, benchmarkId)
   const deleteBenchmark = useDeleteBenchmark(organizationId, benchmarkId)
-  const workspaces = useWorkspacesQuery()
+  const workspaces = useBenchmarkWorkspaces(organizationId, runAsUserId)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const benchmark = benchmarkQuery.data?.benchmark
 
@@ -225,6 +227,14 @@ export function BenchmarkDetail({
       </p>
     )
   }
+
+  if ((benchmark.runAsUserId ?? benchmark.userId) !== runAsUserId)
+    return (
+      <p role='alert' className='text-[var(--text-error)] text-small'>
+        This benchmark belongs to a different execution user. Select a saved benchmark for the
+        current user.
+      </p>
+    )
 
   const activeLease =
     benchmark.runningStage !== null &&
@@ -246,8 +256,10 @@ export function BenchmarkDetail({
           <h2 className='break-words text-[var(--text-primary)] text-base'>{benchmark.name}</h2>
           <p className='mt-1 break-words text-[var(--text-muted)] text-small'>
             Source:{' '}
-            {workspaces.data?.find((workspace) => workspace.id === benchmark.sourceWorkspaceId)
-              ?.name ?? benchmark.sourceWorkspaceId}
+            {workspaces.data?.pages
+              .flatMap((page) => page.workspaces)
+              .find((workspace) => workspace.id === benchmark.sourceWorkspaceId)?.name ??
+              benchmark.sourceWorkspaceId}
           </p>
         </div>
         <div className='flex items-center gap-1'>

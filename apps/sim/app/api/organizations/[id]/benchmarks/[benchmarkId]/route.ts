@@ -9,9 +9,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { requireBenchmarkOperator } from '@/lib/benchmarks/application/access'
 import { deleteBenchmark, getBenchmark, updateBenchmark } from '@/lib/benchmarks/application/cases'
 import { benchmarkOperations } from '@/lib/benchmarks/application/operations'
-import { requireBenchmarkEnabled } from '@/lib/benchmarks/config'
 
 export const GET = defineInternalJsonRoute({
   contract: getBenchmarkContract,
@@ -21,7 +21,9 @@ export const GET = defineInternalJsonRoute({
     reason: 'The owner polls bounded benchmark artifacts under current source access',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params }) => ({ organizationId: params.id, benchmarkId: params.benchmarkId }),
   useCase: getBenchmark,
 })
@@ -32,7 +34,9 @@ export const PATCH = defineInternalJsonRoute({
   operation: benchmarkOperations.update,
   rateLimit: internalRateLimits.user({ bucketName: 'benchmark-update' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, body: { version, ...patch } }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,
@@ -48,7 +52,9 @@ export const DELETE = defineInternalJsonRoute({
   operation: benchmarkOperations.delete,
   rateLimit: internalRateLimits.user({ bucketName: 'benchmark-delete' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  beforeParse: () => requireBenchmarkEnabled(),
+  beforeParse: async ({ principal }) => {
+    await requireBenchmarkOperator(principal)
+  },
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
     benchmarkId: params.benchmarkId,

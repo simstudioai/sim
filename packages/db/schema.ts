@@ -3907,6 +3907,8 @@ export const mothershipBenchmarks = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /** Null preserves the original owner's execution identity for existing cases. */
+    runAsUserId: text('run_as_user_id'),
     sourceWorkspaceId: text('source_workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),

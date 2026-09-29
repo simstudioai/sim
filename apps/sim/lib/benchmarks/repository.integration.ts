@@ -21,11 +21,18 @@ vi.mock('@sim/db', () => ({
 }))
 
 import { createBenchmark, getBenchmark, listBenchmarks } from '@/lib/benchmarks/application/cases'
+import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import {
   getBenchmarkRun,
   listBenchmarkRuns,
   reviewBenchmarkRun,
 } from '@/lib/benchmarks/application/runs'
+import {
+  benchmarkAvailability,
+  listBenchmarkOrganizations,
+  listBenchmarkUsers,
+  listBenchmarkWorkspaces,
+} from '@/lib/benchmarks/application/selection'
 import {
   claimBenchmarkStage,
   completeBenchmarkStage,
@@ -37,6 +44,7 @@ import {
   updateBenchmarkRecord,
 } from '@/lib/benchmarks/repository'
 import { type BenchmarkArtifacts, emptyBenchmarkArtifacts } from '@/lib/benchmarks/types'
+import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
 
 describe('private benchmark persistence and attempt fencing', () => {
   const schemaName = `benchmark_test_${generateId().replaceAll('-', '')}`
@@ -101,6 +109,10 @@ describe('private benchmark persistence and attempt fencing', () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     for (const table of [
       'user',
+      'settings',
+      'copilot_chats',
+      'mothership_memory_selections',
+      'mothership_memory_spaces',
       'organization',
       'member',
       'workspace',
@@ -116,14 +128,19 @@ describe('private benchmark persistence and attempt fencing', () => {
     }
     database.current = drizzle(connection)
     await connection`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at) VALUES ('owner', 'Owner', 'owner@benchmark.test', true, now(), now()), ('peer', 'Peer', 'peer@benchmark.test', true, now(), now())`
+    await connection`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at) VALUES ('target', 'Target', 'target@benchmark.test', true, now(), now())`
+    await connection`INSERT INTO settings (id, user_id, super_user_mode_enabled) VALUES ('owner', 'owner', true), ('peer', 'peer', true)`
     await connection`INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org'), ('foreign-org', 'Foreign', 'foreign')`
-    await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('peer-member', 'org', 'peer', 'member')`
+    await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('peer-member', 'org', 'peer', 'member'), ('target-member', 'org', 'target', 'member')`
     await connection`INSERT INTO workspace (id, name, owner_id, billed_account_user_id, organization_id, workspace_mode) VALUES ('workspace', 'Source', 'owner', 'owner', 'org', 'organization'), ('foreign-workspace', 'Foreign', 'owner', 'owner', 'foreign-org', 'organization')`
   })
 
   beforeEach(async () => {
-    await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions`
-    await connection`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES ('owner-read', 'owner', 'workspace', 'workspace', 'read'), ('peer-read', 'peer', 'workspace', 'workspace', 'read')`
+    await connection`TRUNCATE mothership_benchmark_runs, mothership_benchmarks, permissions, copilot_chats`
+    await connection`UPDATE "user" SET role = CASE WHEN id IN ('owner', 'peer') THEN 'admin' ELSE 'user' END, banned = false`
+    await connection`UPDATE settings SET super_user_mode_enabled = true`
+    await connection`INSERT INTO member (id, organization_id, user_id, role) VALUES ('owner-member', 'org', 'owner', 'member'), ('target-member', 'org', 'target', 'member') ON CONFLICT (id) DO UPDATE SET organization_id = 'org'`
+    await connection`INSERT INTO permissions (id, user_id, entity_type, entity_id, permission_type) VALUES ('owner-read', 'owner', 'workspace', 'workspace', 'read'), ('peer-read', 'peer', 'workspace', 'workspace', 'read'), ('target-read', 'target', 'workspace', 'workspace', 'read')`
     await createBenchmarkRecord({
       ...scope,
       sourceWorkspaceId: 'workspace',
@@ -139,6 +156,146 @@ describe('private benchmark persistence and attempt fencing', () => {
       database.current = undefined
       await connection.end()
     }
+  })
+
+  it('requires a current superuser role and enabled toggle even when the deployment flag is on', async () => {
+    for (const change of [
+      async () => {
+        await connection`UPDATE "user" SET role = 'user' WHERE id = 'owner'`
+      },
+      async () => {
+        await connection`UPDATE "user" SET role = 'admin' WHERE id = 'owner'`
+        await connection`UPDATE settings SET super_user_mode_enabled = false WHERE user_id = 'owner'`
+      },
+    ]) {
+      await change()
+      expect(await benchmarkAvailability.execute({ principal, input: {} })).toEqual({
+        available: false,
+      })
+      await expect(
+        listBenchmarkOrganizations.execute({ principal, input: { search: '' } })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      await expect(
+        getBenchmark.execute({
+          principal,
+          input: { organizationId: 'org', benchmarkId: 'benchmark' },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      await expect(
+        createBenchmark.execute({
+          principal,
+          input: {
+            organizationId: 'org',
+            sourceWorkspaceId: 'workspace',
+            runAsUserId: 'target',
+            name: 'Denied',
+          },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+    expect(
+      (await connection`SELECT count(*)::int AS count FROM mothership_benchmarks`)[0]?.count
+    ).toBe(1)
+  })
+
+  it('lets a superuser outside the organization select a member and prepares a private Plan owned by that target', async () => {
+    await connection`DELETE FROM member WHERE user_id = 'owner'`
+    expect(
+      (
+        await listBenchmarkOrganizations.execute({ principal, input: { search: 'Org' } })
+      ).organizations.map((org) => org.id)
+    ).toContain('org')
+    expect(
+      (
+        await listBenchmarkUsers.execute({
+          principal,
+          input: { organizationId: 'org', search: 'target' },
+        })
+      ).users.map((user) => user.id)
+    ).toEqual(['target'])
+    expect(
+      (
+        await listBenchmarkWorkspaces.execute({
+          principal,
+          input: { organizationId: 'org', runAsUserId: 'target', search: '' },
+        })
+      ).workspaces
+    ).toEqual([{ id: 'workspace', name: 'Source' }])
+    const { benchmark } = await createBenchmark.execute({
+      principal,
+      input: {
+        organizationId: 'org',
+        sourceWorkspaceId: 'workspace',
+        runAsUserId: 'target',
+        name: 'Target case',
+      },
+    })
+    expect(benchmark).toMatchObject({ userId: 'owner', runAsUserId: 'target' })
+    const target = await prepareBenchmarkPlan.execute({
+      principal,
+      input: { organizationId: 'org', benchmarkId: benchmark.id },
+    })
+    expect(target.userId).toBe('target')
+    const [chat] =
+      await connection`SELECT user_id, organization_id, config FROM copilot_chats WHERE id = ${target.chatId}`
+    expect(chat).toMatchObject({
+      user_id: 'target',
+      organization_id: 'org',
+      config: {
+        conversationMode: 'plan',
+        benchmark: { id: benchmark.id, operatorUserId: 'owner' },
+      },
+    })
+    await connection`INSERT INTO copilot_chats (id, user_id, organization_id, type, config) VALUES ('00000000-0000-4000-8000-000000000001', 'target', 'org', 'mothership', '{"conversationMode":"assistant"}')`
+    const chats = await listOrganizationChats.execute({
+      principal: { ...principal, userId: 'target' },
+      input: { organizationId: 'org', scope: 'active' },
+    })
+    expect(chats.map((chat) => chat.id)).toEqual(['00000000-0000-4000-8000-000000000001'])
+    expect(principal).toEqual({ kind: 'session', userId: 'owner', sessionId: 'fixture-session' })
+    expect(await connection`SELECT id FROM member WHERE user_id = 'owner'`).toHaveLength(0)
+    expect(
+      (
+        await listBenchmarks.execute({
+          principal,
+          input: { organizationId: 'org', runAsUserId: 'target', limit: 20 },
+        })
+      ).benchmarks.map((row) => row.id)
+    ).toEqual([benchmark.id])
+    await connection`DELETE FROM permissions WHERE id = 'target-read'`
+    await expect(
+      prepareBenchmarkPlan.execute({
+        principal,
+        input: { organizationId: 'org', benchmarkId: benchmark.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(await connection`SELECT id FROM copilot_chats`).toHaveLength(2)
+  })
+
+  it('refuses a target outside the organization or with revoked membership, disabled account, or workspace access', async () => {
+    const input = {
+      organizationId: 'org',
+      sourceWorkspaceId: 'workspace',
+      runAsUserId: 'target',
+      name: 'Target case',
+    }
+    await connection`UPDATE member SET organization_id = 'foreign-org' WHERE user_id = 'target'`
+    await expect(createBenchmark.execute({ principal, input })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await connection`UPDATE member SET organization_id = 'org' WHERE user_id = 'target'`
+    await connection`UPDATE "user" SET banned = true WHERE id = 'target'`
+    await expect(createBenchmark.execute({ principal, input })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await connection`UPDATE "user" SET banned = false WHERE id = 'target'`
+    await connection`DELETE FROM permissions WHERE id = 'target-read'`
+    await expect(createBenchmark.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(
+      (await connection`SELECT count(*)::int AS count FROM mothership_benchmarks`)[0]?.count
+    ).toBe(1)
   })
 
   it('admits one competing stage and refuses edits while that attempt holds its lease', async () => {
@@ -253,6 +410,7 @@ describe('private benchmark persistence and attempt fencing', () => {
         input: {
           organizationId: 'org',
           sourceWorkspaceId: 'foreign-workspace',
+          runAsUserId: 'owner',
           name: 'Wrong source',
         },
       })
@@ -275,6 +433,12 @@ describe('private benchmark persistence and attempt fencing', () => {
       'Improved discovery'
     )
     const firstRun = await getBenchmarkRunRecord({ ...scope, runId: first.runId })
+    expect(firstRun.execution).toEqual({
+      organizationId: 'org',
+      sourceWorkspaceId: 'workspace',
+      operatorUserId: 'owner',
+      runAsUserId: 'owner',
+    })
     expect(firstRun).toMatchObject({ label: 'Baseline', correct: 1, total: 2, artifacts: graded })
     const secondRun = await getBenchmarkRunRecord({ ...scope, runId: second.runId })
     expect(secondRun.evaluationKey).toBe(firstRun.evaluationKey)

@@ -7,6 +7,7 @@ import {
   Chip,
   ChipConfirmModal,
   ChipInput,
+  ChipLink,
   ChipModalError,
   ChipModalField,
   ChipSelect,
@@ -41,6 +42,7 @@ import {
   useSetUserRole,
   useUnbanUser,
 } from '@/hooks/queries/admin-users'
+import { useBenchmarkAvailability } from '@/hooks/queries/benchmarks'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
 import { clearUserData } from '@/stores'
@@ -78,6 +80,7 @@ export function Admin() {
 
   const { data: settings } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
+  const benchmarkAvailability = useBenchmarkAvailability(Boolean(settings?.superUserModeEnabled))
   const importWorkflow = useImportWorkflow()
 
   const setUserRole = useSetUserRole()
@@ -310,6 +313,12 @@ export function Admin() {
             onCheckedChange={handleSuperUserModeToggle}
           />
         </div>
+
+        {settings?.superUserModeEnabled && benchmarkAvailability.data?.available && (
+          <div>
+            <ChipLink href='/benchmark'>Open benchmarks</ChipLink>
+          </div>
+        )}
 
         {settings?.superUserModeEnabled && (
           <>

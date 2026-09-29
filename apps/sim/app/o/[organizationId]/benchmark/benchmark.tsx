@@ -1,9 +1,9 @@
 'use client'
 
-import { Chip, ChipCombobox } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
-import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { emptyBenchmarkSelection } from '@/app/benchmark/search-params'
 import { BenchmarkDetail, CreateBenchmark } from '@/app/o/[organizationId]/benchmark/components'
 import {
   benchmarkParams,
@@ -14,96 +14,107 @@ import { useBenchmarks } from '@/hooks/queries/benchmarks'
 interface BenchmarkProps {
   organizationId: string
   canPlan: boolean
+  runAsUserId: string
 }
 
-export function Benchmark({ organizationId, canPlan }: BenchmarkProps) {
-  const [{ benchmarkId }, setParams] = useQueryStates(benchmarkParams, benchmarkUrlOptions)
-  const benchmarks = useBenchmarks(organizationId)
+export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkProps) {
+  const [{ benchmarkId, creating }, setParams] = useQueryStates(
+    benchmarkParams,
+    benchmarkUrlOptions
+  )
+  const benchmarks = useBenchmarks(organizationId, runAsUserId)
   const records = benchmarks.data?.pages.flatMap((page) => page.benchmarks) ?? []
 
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER} />
-      </div>
-      <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex w-full max-w-chat flex-col gap-7 px-6 pt-8 pb-12'>
-          <div>
-            <h1 className='text-[var(--text-primary)] text-lg'>Benchmark</h1>
-            <p className='mt-1 text-[var(--text-muted)] text-small'>
-              Measure how well a plan captures the details needed to build a workspace.
-            </p>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <ChipCombobox
-              aria-label='Saved benchmarks'
-              className='min-w-[200px] flex-1'
-              value={benchmarkId}
-              options={records.map((record) => ({ value: record.id, label: record.name }))}
-              onChange={(value) =>
-                setParams({
-                  benchmarkId: value,
-                  benchmarkView: null,
-                  runId: null,
-                  compareRunId: null,
-                  runsCursor: null,
-                })
-              }
-              placeholder='Saved benchmarks'
-              searchable
-              isLoading={benchmarks.isLoading}
-              error={benchmarks.error?.message}
-            />
+    <div className='mx-auto flex w-full max-w-chat flex-col gap-5 px-6 pt-7 pb-12'>
+      <div className='flex items-center justify-between gap-3'>
+        <h2 className='text-[var(--text-primary)] text-base'>
+          {creating ? 'New benchmark' : benchmarkId ? 'Benchmark' : 'Saved benchmarks'}
+        </h2>
+        {creating ? (
+          <Chip onClick={() => setParams(emptyBenchmarkSelection)}>Cancel</Chip>
+        ) : (
+          <div className='flex items-center gap-2'>
+            {benchmarkId && (
+              <Chip onClick={() => setParams(emptyBenchmarkSelection)}>All benchmarks</Chip>
+            )}
             <Chip
+              variant='primary'
               leftIcon={Plus}
-              onClick={() =>
-                setParams({
-                  benchmarkId: null,
-                  benchmarkView: null,
-                  runId: null,
-                  compareRunId: null,
-                  runsCursor: null,
-                })
-              }
+              onClick={() => setParams({ ...emptyBenchmarkSelection, creating: true })}
             >
               New benchmark
             </Chip>
-            {benchmarks.hasNextPage && (
+          </div>
+        )}
+      </div>
+      {creating ? (
+        <CreateBenchmark
+          organizationId={organizationId}
+          runAsUserId={runAsUserId}
+          onCreated={(value) => setParams({ ...emptyBenchmarkSelection, benchmarkId: value })}
+        />
+      ) : benchmarkId ? (
+        <BenchmarkDetail
+          key={benchmarkId}
+          organizationId={organizationId}
+          benchmarkId={benchmarkId}
+          runAsUserId={runAsUserId}
+          canPlan={canPlan}
+          onDeleted={() => setParams(emptyBenchmarkSelection, { history: 'replace' })}
+        />
+      ) : (
+        <>
+          {benchmarks.error ? (
+            <p role='alert' className='text-[var(--text-error)] text-small'>
+              {benchmarks.error.message}
+            </p>
+          ) : benchmarks.isLoading ? (
+            <p role='status' className='text-[var(--text-muted)] text-small'>
+              Loading benchmarks…
+            </p>
+          ) : records.length === 0 ? (
+            <div className='rounded-lg border border-[var(--border)] p-5'>
+              <p className='text-[var(--text-primary)] text-small'>No benchmarks yet</p>
+              <p className='mt-1 text-[var(--text-muted)] text-small'>
+                Create a benchmark from a workspace to generate a reference, run the planner, and
+                compare results.
+              </p>
+            </div>
+          ) : (
+            <div className='divide-y divide-[var(--border)]'>
+              {records.map((record) => (
+                <div key={record.id} className='flex items-center justify-between gap-4 py-3'>
+                  <div className='min-w-0'>
+                    <p className='break-words text-small'>{record.name}</p>
+                    <p className='mt-1 text-[var(--text-muted)] text-small'>
+                      Updated {new Date(record.updatedAt).toLocaleString()}
+                      {record.runningStage ? ` · ${record.runningStage} in progress` : ''}
+                    </p>
+                  </div>
+                  <Chip
+                    onClick={() =>
+                      setParams({ ...emptyBenchmarkSelection, benchmarkId: record.id })
+                    }
+                  >
+                    Open
+                  </Chip>
+                </div>
+              ))}
+            </div>
+          )}
+          {benchmarks.hasNextPage && (
+            <div>
               <Chip
                 disabled={benchmarks.isFetchingNextPage}
                 onClick={() => benchmarks.fetchNextPage()}
               >
-                {benchmarks.isFetchingNextPage ? 'Loading…' : 'Load older'}
+                {benchmarks.isFetchingNextPage ? 'Loading…' : 'Load older benchmarks'}
               </Chip>
-            )}
-          </div>
-          {benchmarkId ? (
-            <BenchmarkDetail
-              key={benchmarkId}
-              organizationId={organizationId}
-              benchmarkId={benchmarkId}
-              canPlan={canPlan}
-              onDeleted={() =>
-                setParams(
-                  {
-                    benchmarkId: null,
-                    benchmarkView: null,
-                    runId: null,
-                    compareRunId: null,
-                    runsCursor: null,
-                  },
-                  { history: 'replace' }
-                )
-              }
-            />
-          ) : (
-            <CreateBenchmark
-              organizationId={organizationId}
-              onCreated={(value) => setParams({ benchmarkId: value })}
-            />
+            </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

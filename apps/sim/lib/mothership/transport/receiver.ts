@@ -83,8 +83,9 @@ export async function startSimReceivers(): Promise<void> {
     ]
     for (const endpoint of endpoints) if (endpoint) ensureSimReceiver(endpoint)
   }
-  if (isMothershipBenchmarkEnabled && env.COPILOT_DEV_URL) {
-    ensureSimReceiver(env.COPILOT_DEV_URL, 'checkpoint')
+  const benchmarkUrl = env.MOTHERSHIP_BENCHMARK_URL ?? env.COPILOT_DEV_URL
+  if (isMothershipBenchmarkEnabled && benchmarkUrl) {
+    ensureSimReceiver(benchmarkUrl, 'checkpoint')
   }
   if (!receivers.size) return
   const stop = () => {

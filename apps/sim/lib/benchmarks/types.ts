@@ -57,6 +57,7 @@ export const benchmarkSummarySchema = z.object({
   id: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
   userId: z.string().min(1).max(128),
+  runAsUserId: z.string().min(1).max(128).nullable(),
   sourceWorkspaceId: z.string().min(1).max(128),
   name: benchmarkNameSchema,
   version: z.number().int().min(1),
@@ -92,6 +93,12 @@ export const benchmarkRunSummarySchema = z.object({
   createdAt: z.string().datetime(),
 })
 export const benchmarkRunSchema = benchmarkRunSummarySchema.extend({
+  execution: z.object({
+    organizationId: z.string().min(1).max(128),
+    sourceWorkspaceId: z.string().min(1).max(128),
+    operatorUserId: z.string().min(1).max(128),
+    runAsUserId: z.string().min(1).max(128),
+  }),
   reviews: z.array(benchmarkHumanReviewSchema).max(BENCHMARK_MAX_BLANKS),
   artifacts: benchmarkArtifactsSchema.extend({
     generatedSpec: benchmarkSpecSchema.min(1),

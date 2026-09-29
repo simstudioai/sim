@@ -49,7 +49,10 @@ interface OrganizationChatInput {
   organizationId: string
 }
 
-async function requireBuildPermission(context: { organizationId: string; role: OrganizationRole }) {
+export async function requireOrganizationBuildPermission(context: {
+  organizationId: string
+  role: OrganizationRole
+}) {
   const config = await getUserPermissionConfigForOrganization(context.organizationId)
   if (!canCreateOrganizationWorkspace(context.role, config))
     throw new OrchestrationError(
@@ -67,7 +70,8 @@ export const authorizeOrganizationChat = {
       organizationChatOperations.read,
       input
     )
-    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
+    if (input.mode === 'agent' || input.mode === 'plan')
+      await requireOrganizationBuildPermission(context)
     return context
   },
 }
@@ -116,23 +120,33 @@ export const createOrganizationChat = {
       organizationChatOperations.create,
       input
     )
-    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({
-        userId: context.userId,
-        organizationId: context.organizationId,
-        memorySpaceId: await selectedMemorySpaceForNewChat(context.userId, context.organizationId),
-        type: 'mothership',
-        config: { conversationMode: input.mode ?? 'assistant' },
-        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
-        lastSeenAt: new Date(),
-      })
-      .returning({ id: copilotChats.id })
-    if (!chat) throw new Error('Failed to create organization conversation')
-    publishChatStatusChanged(context, { chatId: chat.id, type: 'created' })
-    return chat
+    if (input.mode === 'agent' || input.mode === 'plan')
+      await requireOrganizationBuildPermission(context)
+    return createOrganizationChatRecord(context, input.mode ?? 'assistant')
   },
+}
+
+/** Called after canonical membership and mode authorization by ordinary chat or benchmark orchestration. */
+export async function createOrganizationChatRecord(
+  context: { userId: string; organizationId: string },
+  mode: 'agent' | 'assistant' | 'plan',
+  benchmark?: { id: string; operatorUserId: string }
+) {
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({
+      userId: context.userId,
+      organizationId: context.organizationId,
+      memorySpaceId: await selectedMemorySpaceForNewChat(context.userId, context.organizationId),
+      type: 'mothership',
+      config: { conversationMode: mode, ...(benchmark ? { benchmark } : {}) },
+      model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+      lastSeenAt: new Date(),
+    })
+    .returning({ id: copilotChats.id })
+  if (!chat) throw new Error('Failed to create organization conversation')
+  if (!benchmark) publishChatStatusChanged(context, { chatId: chat.id, type: 'created' })
+  return chat
 }
 
 export const organizationChatDelegationOperations = {
@@ -233,7 +247,7 @@ export const authorizeOrganizationChatDelegation = {
       )
       .limit(1)
     if (!chat) throw new OrchestrationError('not_found', 'Conversation not found')
-    if (mode === 'agent' || mode === 'plan') await requireBuildPermission(context)
+    if (mode === 'agent' || mode === 'plan') await requireOrganizationBuildPermission(context)
     return context
   },
 }

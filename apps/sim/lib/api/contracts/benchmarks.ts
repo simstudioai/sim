@@ -23,11 +23,13 @@ export const benchmarkRunParamsSchema = benchmarkParamsSchema.extend({
   runId: z.string().min(1).max(128),
 })
 export const listBenchmarksQuerySchema = z.object({
+  runAsUserId: z.string().min(1).max(128).optional(),
   cursor: z.string().min(1).max(512).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 })
 export const createBenchmarkBodySchema = z
   .object({
+    runAsUserId: z.string().min(1).max(128),
     sourceWorkspaceId: workspaceIdSchema,
     name: benchmarkNameSchema,
     taskBrief: benchmarkBriefSchema.optional(),
@@ -135,3 +137,64 @@ export type BenchmarkRunSummary = z.infer<typeof benchmarkRunSummarySchema>
 export type BenchmarkRunResponse = z.infer<typeof benchmarkRunResponseSchema>
 export type ListBenchmarkRunsResponse = z.infer<typeof listBenchmarkRunsResponseSchema>
 export type ReviewBenchmarkRunBody = z.input<typeof reviewBenchmarkRunBodySchema>
+
+export const benchmarkSelectionQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  cursor: z.string().min(1).max(128).optional(),
+  selectedId: z.string().min(1).max(128).optional(),
+})
+const selectionOptionSchema = z.object({
+  id: z.string().min(1).max(128),
+  name: z.string().max(1_000),
+})
+const userOptionSchema = selectionOptionSchema.extend({ email: z.string().max(320) })
+export const benchmarkOrganizationsResponseSchema = z.object({
+  organizations: z.array(selectionOptionSchema).max(50),
+  selected: selectionOptionSchema.nullable(),
+  nextCursor: z.string().max(128).nullable(),
+})
+export const benchmarkUsersResponseSchema = z.object({
+  users: z.array(userOptionSchema).max(50),
+  selected: userOptionSchema.nullable(),
+  nextCursor: z.string().max(128).nullable(),
+})
+export const benchmarkWorkspacesQuerySchema = benchmarkSelectionQuerySchema
+  .omit({ selectedId: true })
+  .extend({ runAsUserId: z.string().min(1).max(128) })
+export const benchmarkWorkspacesResponseSchema = z.object({
+  workspaces: z.array(selectionOptionSchema).max(50),
+  nextCursor: z.string().max(128).nullable(),
+  canPlan: z.boolean(),
+})
+export const benchmarkAvailabilityResponseSchema = z.object({ available: z.boolean() })
+export const benchmarkOrganizationsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/benchmarks/organizations',
+  query: benchmarkSelectionQuerySchema,
+  response: { mode: 'json', schema: benchmarkOrganizationsResponseSchema },
+})
+export const benchmarkUsersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/benchmarks/organizations/[id]/users',
+  params: benchmarkOrganizationParamsSchema,
+  query: benchmarkSelectionQuerySchema,
+  response: { mode: 'json', schema: benchmarkUsersResponseSchema },
+})
+export const benchmarkWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/benchmarks/organizations/[id]/workspaces',
+  params: benchmarkOrganizationParamsSchema,
+  query: benchmarkWorkspacesQuerySchema,
+  response: { mode: 'json', schema: benchmarkWorkspacesResponseSchema },
+})
+export const benchmarkAvailabilityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/benchmarks/availability',
+  response: { mode: 'json', schema: benchmarkAvailabilityResponseSchema },
+})
+export type BenchmarkSelectionQuery = z.input<typeof benchmarkSelectionQuerySchema>
+export type BenchmarkWorkspacesQuery = z.input<typeof benchmarkWorkspacesQuerySchema>
+export type BenchmarkOrganizationsResponse = z.output<typeof benchmarkOrganizationsResponseSchema>
+export type BenchmarkUsersResponse = z.output<typeof benchmarkUsersResponseSchema>
+export type BenchmarkWorkspacesResponse = z.output<typeof benchmarkWorkspacesResponseSchema>
+export type BenchmarkAvailabilityResponse = z.output<typeof benchmarkAvailabilityResponseSchema>

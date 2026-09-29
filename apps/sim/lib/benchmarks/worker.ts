@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { z } from 'zod'
+import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import { BENCHMARK_SPEC_MAX_LENGTH, type BenchmarkCase } from '@/lib/benchmarks/types'
 import {
@@ -9,7 +10,6 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { createOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import type {
   ChatRequest,
@@ -66,24 +66,25 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
   signal: AbortSignal
 }): Promise<z.output<S>> {
   getBenchmarkMothershipUrl()
+  const executionUserId = input.benchmark.runAsUserId ?? input.benchmark.userId
   const messageId = generateId()
   const payload: ExecuteRequest = {
     protocolVersion: PROTOCOL_VERSION,
     maxOutputTokens: 16_384,
     messageId,
     chatId: generateId(),
-    userId: input.benchmark.userId,
+    userId: executionUserId,
     workspaceId: input.benchmark.sourceWorkspaceId,
     messages: input.messages,
     useConversationHistory: false,
     responseFormat: z.toJSONSchema(input.schema),
   }
   const billingAttribution = await resolveBillingAttribution({
-    actorUserId: input.benchmark.userId,
+    actorUserId: executionUserId,
     workspaceId: input.benchmark.sourceWorkspaceId,
   })
   const environmentContext = await prepareCopilotEnvironmentContext(
-    input.benchmark.userId,
+    executionUserId,
     input.benchmark.sourceWorkspaceId,
     { includeSecrets: false }
   )
@@ -94,7 +95,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
       {
         benchmark: 'tool-free',
         goRoute: '/api/mothership/execute',
-        userId: input.benchmark.userId,
+        userId: executionUserId,
         workspaceId: input.benchmark.sourceWorkspaceId,
         billingAttribution,
         environmentContext,
@@ -121,7 +122,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
       )
     }
   } finally {
-    await stopIncompleteRun(result, messageId, input.benchmark.userId)
+    await stopIncompleteRun(result, messageId, executionUserId)
   }
 }
 
@@ -132,24 +133,25 @@ export async function executeBenchmarkPlan(input: {
   signal: AbortSignal
 }): Promise<{ generatedSpec: string; plannerChatId: string }> {
   getBenchmarkMothershipUrl()
-  const chat = await createOrganizationChat.execute({
+  const target = await prepareBenchmarkPlan.execute({
     principal: input.principal,
-    input: { organizationId: input.benchmark.organizationId, mode: 'plan' },
+    input: { organizationId: input.benchmark.organizationId, benchmarkId: input.benchmark.id },
   })
+  const executionUserId = target.userId
   const messageId = generateId()
   const payload: ChatRequest = {
     protocolVersion: PROTOCOL_VERSION,
     benchmark: true,
     messageId,
-    chatId: chat.id,
-    userId: input.benchmark.userId,
+    chatId: target.chatId,
+    userId: executionUserId,
     organizationId: input.benchmark.organizationId,
     mode: 'plan',
     context: [],
     message: input.benchmark.artifacts.taskBrief,
   }
   const billingAttribution = await resolveOrganizationBillingAttribution({
-    actorUserId: input.benchmark.userId,
+    actorUserId: executionUserId,
     organizationId: input.benchmark.organizationId,
   })
   let result: OrchestratorResult | undefined
@@ -157,9 +159,9 @@ export async function executeBenchmarkPlan(input: {
     result = await runHeadlessCopilotLifecycle(payload, {
       benchmark: 'plan',
       goRoute: '/api/mothership',
-      userId: input.benchmark.userId,
+      userId: executionUserId,
       organizationId: input.benchmark.organizationId,
-      chatId: chat.id,
+      chatId: target.chatId,
       billingAttribution,
       abortSignal: input.signal,
       timeout: 10 * 60 * 1000,
@@ -167,9 +169,9 @@ export async function executeBenchmarkPlan(input: {
     })
     return {
       generatedSpec: requireCompletedText(result, BENCHMARK_SPEC_MAX_LENGTH),
-      plannerChatId: chat.id,
+      plannerChatId: target.chatId,
     }
   } finally {
-    await stopIncompleteRun(result, messageId, input.benchmark.userId)
+    await stopIncompleteRun(result, messageId, executionUserId)
   }
 }

@@ -1,59 +1,98 @@
-import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { defineOperation } from '@/lib/core/application/operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
-const policy = {
-  minimumRole: 'member',
-  principalKinds: ['session'],
-} as const
-
 export const benchmarkOperations = {
-  list: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  preparePlan: defineOperation({
+    id: 'benchmarks.plan.prepare',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  list: defineOperation({
     id: 'benchmarks.list',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  read: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  read: defineOperation({
     id: 'benchmarks.read',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  listRuns: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  listRuns: defineOperation({
     id: 'benchmarks.runs.list',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  readRun: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  readRun: defineOperation({
     id: 'benchmarks.runs.read',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  reviewRun: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  reviewRun: defineOperation({
     id: 'benchmarks.runs.review',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  create: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  create: defineOperation({
     id: 'benchmarks.create',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  update: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  update: defineOperation({
     id: 'benchmarks.update',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  delete: defineOrganizationOperation({
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  delete: defineOperation({
     id: 'benchmarks.delete',
-    capability: 'copilot.use',
-    ...policy,
+    principalKinds: ['session'],
+    capability: 'none',
   }),
-  run: defineOrganizationOperation({ id: 'benchmarks.run', capability: 'copilot.use', ...policy }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  organizations: defineOperation({
+    id: 'benchmarks.organizations.list',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  users: defineOperation({
+    id: 'benchmarks.users.list',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  workspaces: defineOperation({
+    id: 'benchmarks.workspaces.list',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  availability: defineOperation({
+    id: 'benchmarks.availability',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  /** permission-group-exempt: platform superusers administer benchmarks; selected-user capabilities are checked separately. */
+  run: defineOperation({
+    id: 'benchmarks.run',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
 } as const
 
 export const benchmarkSourceOperation = defineWorkspaceOperation({
   id: 'benchmarks.source.read',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
-  principalKinds: ['session'],
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
   capability: 'copilot.use',
 })
