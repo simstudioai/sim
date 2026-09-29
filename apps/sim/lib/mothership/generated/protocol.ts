@@ -130,6 +130,17 @@ export const DesktopContextSchema = z.object({
 });
 export type DesktopContext = z.infer<typeof DesktopContextSchema>;
 
+/**
+ * Capabilities Sim computes for a turn's owner from organization flags, plan and ownership.
+ * The worker hides a gated command, skill or prompt section when its entitlement is absent.
+ * This only controls what the agent is told about: Sim re-checks every operation, because
+ * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
+ * before the worker learns it.
+ */
+export const ENTITLEMENTS = { dashboards: "dashboards" } as const;
+export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
+export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
+
 export const ChatPayloadSchema = z
   .strictObject({
     desktop: DesktopContextSchema.optional(),
@@ -152,7 +163,7 @@ export const ChatPayloadSchema = z
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
     integrationCatalog: IntegrationCatalogContext.optional(),
-    dashboardsEnabled: z.boolean().optional(),
+    entitlements: Entitlements.default([]),
     /** Accepted for wire compatibility with current sim builds; unused — the CLI now
      * executes on the sim side under sim's own authentication, so no credential crosses. */
     delegationToken: z.string().optional(),
@@ -263,7 +274,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   workflowId?: string | undefined;
   /** Authorized discovery selectors; schemas stay in Sim's catalog. */
   integrationCatalog?: IntegrationCatalogContext | undefined;
-  dashboardsEnabled?: boolean | undefined;
+  /** Capabilities Sim computed for this turn's owner; see {@link ENTITLEMENTS}. */
+  entitlements?: string[] | undefined;
   /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
    * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;

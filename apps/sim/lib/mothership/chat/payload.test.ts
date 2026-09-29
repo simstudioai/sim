@@ -351,23 +351,26 @@ describe('buildIntegrationToolSchemas', () => {
 })
 
 describe('buildCopilotRequestPayload', () => {
-  it.each([true, false])('passes server-authorized dashboard availability: %s', async (enabled) => {
-    const principal = { kind: 'session' as const, userId: 'actor' }
-    mockDashboardAvailability.mockResolvedValueOnce(enabled)
-    const payload = await buildCopilotRequestPayload(
-      {
-        message: 'Show my dashboard',
-        userId: 'actor',
-        userMessageId: 'message-1',
-        workspaceId: 'workspace-1',
-        principal,
-        mode: 'agent',
-        model: '',
-      },
-      { selectedModel: '' }
-    )
-    expect(payload.dashboardsEnabled).toBe(enabled)
-  })
+  it.each([true, false])(
+    'grants the dashboards entitlement from server availability: %s',
+    async (enabled) => {
+      const principal = { kind: 'session' as const, userId: 'actor' }
+      mockDashboardAvailability.mockResolvedValueOnce(enabled)
+      const payload = await buildCopilotRequestPayload(
+        {
+          message: 'Show my dashboard',
+          userId: 'actor',
+          userMessageId: 'message-1',
+          workspaceId: 'workspace-1',
+          principal,
+          mode: 'agent',
+          model: '',
+        },
+        { selectedModel: '' }
+      )
+      expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
+    }
+  )
 
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
@@ -606,7 +609,6 @@ describe('buildCopilotRequestPayload', () => {
     for (const legacy of [
       'workspaceContext',
       'vfs',
-      'entitlements',
       'userMetadata',
       'userPermission',
       'model',
