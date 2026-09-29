@@ -396,6 +396,18 @@ describe('compacting span trees', () => {
     expectSpanTree(compacted?.childTraceSpans)
   })
 
+  it('keeps the output a record when its other fields together exceed the threshold', async () => {
+    const compacted = await compactBlockOutput(
+      { first: 'a'.repeat(600), second: 'b'.repeat(600), childTraceSpans: childWorkflowSpans() },
+      options
+    )
+
+    expect(isLargeValueRef(compacted)).toBe(false)
+    expect(compacted.first).toBe('a'.repeat(600))
+    expect(compacted.second).toBe('b'.repeat(600))
+    expectSpanTree(compacted.childTraceSpans)
+  })
+
   it('keeps a nested child workflow span tree shaped as a tree', async () => {
     const nestedWorkflowSpan: TraceSpan = {
       id: 'nested-workflow',

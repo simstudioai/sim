@@ -295,7 +295,8 @@ async function compactTraceSpan(
 /**
  * Compacts a block output, keeping any `childTraceSpans` shaped as a span tree
  * (see {@link compactTraceSpanTree}). Everything else compacts as a normal
- * execution payload.
+ * execution payload, except that an output carrying spans keeps its root so
+ * the spans stay attached to it; its fields still spill individually.
  */
 export async function compactBlockOutput<T>(
   output: T,
@@ -306,12 +307,9 @@ export async function compactBlockOutput<T>(
   }
   const { childTraceSpans, ...rest } = output
   const [compactedRest, compactedSpans] = await Promise.all([
-    compactExecutionPayload(rest, options),
+    compactExecutionPayload(rest, { ...options, preserveRoot: true }),
     compactTraceSpanTree(childTraceSpans, options),
   ])
-  if (!isRecordLike(compactedRest)) {
-    return compactedRest as T
-  }
   return { ...compactedRest, childTraceSpans: compactedSpans } as T
 }
 
