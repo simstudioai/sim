@@ -364,19 +364,26 @@ async function buildResumeCellWriters(
 /**
  * A resume that throws never reaches the terminal write in
  * {@link runResumeAndCellTerminal}, which would leave the cell showing its last
- * partial `running` state. Mirror what the failed attempt did to the execution:
- * a pause that stayed resumable goes back to paused, and a failed execution
- * fails the cell.
+ * partial `running` state. Mirror what the failed attempt left the execution
+ * as: a pause that stayed resumable goes back to paused, a failed execution
+ * fails the cell, and a run that completed before a later step threw
+ * completes it.
  */
 async function writeFailedResumeCellTerminal(
   writers: CellWriters,
   outcome: FailedResumeOutcome,
   error: unknown
 ): Promise<void> {
-  if (outcome === 'pause_retained') {
-    await writers.writeCellTerminal('paused', null)
-  } else {
-    await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
+  switch (outcome) {
+    case 'pause_retained':
+      await writers.writeCellTerminal('paused', null)
+      return
+    case 'execution_completed':
+      await writers.writeCellTerminal('completed', null)
+      return
+    case 'execution_failed':
+      await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
+      return
   }
 }
 

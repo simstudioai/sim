@@ -149,11 +149,12 @@ class ResumeAdmissionError extends Error {
 }
 
 /**
- * What a failed resume attempt did to its paused execution, as reported by the
- * transaction that settled the attempt: the pause stayed resumable, or the
- * resumed run failed the execution.
+ * What a failed resume attempt left its paused execution as, read from the
+ * transaction that settled the attempt: the pause stayed resumable, the
+ * resumed run failed the execution, or the run completed before a later step
+ * of the attempt threw.
  */
-export type FailedResumeOutcome = 'pause_retained' | 'execution_failed'
+export type FailedResumeOutcome = 'pause_retained' | 'execution_failed' | 'execution_completed'
 
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
 export function requireResumeDeploymentVersion(
@@ -1032,14 +1033,13 @@ export class PauseResumeManager {
         })
         if (pauseResumable) outcome = 'pause_retained'
       } else {
-        const executionFailed = await PauseResumeManager.markResumeFailed({
+        outcome = await PauseResumeManager.markResumeFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
           parentExecutionId: pausedExecution.executionId,
           contextId,
           failureReason: message,
         })
-        if (executionFailed) outcome = 'execution_failed'
       }
       if (outcome && onAttemptFailed) {
         await onAttemptFailed(outcome, error).catch((hookError: unknown) => {
@@ -2228,7 +2228,7 @@ export class PauseResumeManager {
     parentExecutionId: string
     contextId: string
     failureReason: string
-  }): Promise<boolean> {
+  }): Promise<'execution_failed' | 'execution_completed' | undefined> {
     const now = new Date()
 
     return execDb.transaction(async (tx) => {
@@ -2260,11 +2260,8 @@ export class PauseResumeManager {
             .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
             .where(eq(pausedExecutions.id, args.pausedExecutionId))
         }
-        return false
+        return undefined
       }
-
-      /** The run completed before a later step threw; its outcome stands. */
-      if (executionLog?.status === 'completed') return false
 
       await tx
         .update(pausedExecutions)
@@ -2274,7 +2271,10 @@ export class PauseResumeManager {
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
-      if (pausedExecution?.status === 'cancelling') return false
+      if (pausedExecution?.status === 'cancelling') return undefined
+
+      /** The run completed before a later step of the attempt threw; its outcome stands. */
+      if (executionLog?.status === 'completed') return 'execution_completed'
 
       if (executionLog?.status !== 'failed') {
         await tx
@@ -2288,7 +2288,7 @@ export class PauseResumeManager {
           )
       }
 
-      return true
+      return 'execution_failed'
     })
   }
 

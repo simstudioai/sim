@@ -253,6 +253,19 @@ describe('resuming a paused table cell', () => {
       })
     }, 20_000)
 
+    it('marks the cell completed when the run completed before a later step failed', async () => {
+      const bookkeepingFailure = new Error('Database unavailable')
+      failResume('execution_completed', bookkeepingFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(bookkeepingFailure)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'completed',
+        executionId: 'parent-execution-1',
+        error: null,
+      })
+    }, 20_000)
+
     it('puts the cell back to paused when the pause stayed resumable', async () => {
       const admissionRefusal = new Error('Execution can no longer be resumed')
       failResume('pause_retained', admissionRefusal)
