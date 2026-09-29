@@ -148,13 +148,6 @@ export const forkResourceSelectionSchema = z.object({
 export const forkWorkspaceBodySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name is too long').optional(),
   copy: forkResourceSelectionSchema.optional(),
-  /**
-   * Also copy deployed workflows the source has NOT opted into fork sync. Off by default,
-   * so a fork carries exactly what the Forks page shows as synced. A workflow copied this
-   * way lands in the child excluded from sync, matching its source - the override is a
-   * one-time copy, not a change of policy.
-   */
-  copyUnsyncedWorkflows: z.boolean().default(false),
 })
 export const forkWorkspaceContract = defineRouteContract({
   method: 'POST',
@@ -205,11 +198,6 @@ export const getForkResourcesContract = defineRouteContract({
       mcpServers: z.array(forkCopyableResourceSchema),
       workflowMcpServers: z.array(forkCopyableResourceSchema),
       deployedWorkflowCount: z.number().int(),
-      /**
-       * Deployed workflows not opted into fork sync, which "Copy unsynced workflows" adds.
-       * Defaulted so a new client tolerates an old server's response during rollout.
-       */
-      unsyncedDeployedWorkflowCount: z.number().int().default(0),
     }),
   },
 })

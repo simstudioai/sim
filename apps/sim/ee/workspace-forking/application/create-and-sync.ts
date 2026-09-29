@@ -25,8 +25,6 @@ export interface ForkInput {
   workspaceId: string
   name?: string
   copy?: Partial<ForkResourceSelection>
-  /** Also copy deployed workflows the source has not opted into fork sync. */
-  copyUnsyncedWorkflows?: boolean
   requestId?: string
   previewFingerprint?: string
 }
@@ -62,7 +60,6 @@ function forkChoices(input: ForkInput) {
           workflowMcpServers: input.copy.workflowMcpServers ?? [],
         }
       : undefined,
-    copyUnsyncedWorkflows: input.copyUnsyncedWorkflows ?? false,
   }
 }
 
@@ -106,15 +103,12 @@ export const previewWorkspaceFork = defineForkUseCase({
   operation: forkOperations.preview,
   async execute({ input, context }: { input: ForkInput; context: ForkApplicationContext }) {
     await creationPolicy(context.workspace, context.userId)
-    const choices = forkChoices(input)
     const revision = await loadForkPreviewRevision(
       db,
       { sourceWorkspaceId: context.workspaceId },
-      choices
+      forkChoices(input)
     )
-    const { deployedWorkflows } = await loadSourceDeployedStates(context.workspaceId, {
-      includeSyncExcluded: choices.copyUnsyncedWorkflows,
-    })
+    const { deployedWorkflows } = await loadSourceDeployedStates(context.workspaceId)
     return {
       previewFingerprint: revision.fingerprint,
       sourceWorkspaceId: context.workspaceId,
@@ -165,7 +159,6 @@ export const forkWorkspace = defineForkUseCase<
         actorName: await loadActorName(context.userId),
         name: input.name,
         selection: choices.copy,
-        copyUnsyncedWorkflows: choices.copyUnsyncedWorkflows,
         requestId: input.requestId ?? request?.headers.get('x-request-id') ?? generateShortId(),
         admission,
       })

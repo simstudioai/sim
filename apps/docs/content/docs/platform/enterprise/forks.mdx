@@ -54,12 +54,10 @@ Everything under **Copy resources** starts **selected**. That is usually what yo
 
 <Image src="/static/enterprise/forks-create-warning.png" alt="Fork workspace modal showing a warning that deselected resources will clear references in the fork" width={900} height={953} className="mx-auto h-auto w-full max-w-md" />
 
-If the source has deployed workflows that are **not** in fork sync (see [Synced workflows](#synced-workflows)), a **Workflows** section appears with a **Copy unsynced workflows** toggle. It is **off**, so a fork carries exactly what the Forks page shows as synced. Turn it on to copy every deployed workflow instead — the unsynced ones arrive in the child still unsynced, so they never sync back. Either way the line under the toggle names the counts.
-
 Click **Fork**. The child workspace is created immediately. Deployed workflows land as **drafts** in the child. Large content (table rows, knowledge base files, file blobs) may finish copying in the background — watch **Activity** on the source workspace.
 
 <Callout type="info">
-  Only **deployed** workflows are forked, and by default only the ones that are [synced](#synced-workflows). Drafts and undeployed work stay in the parent. If there is nothing to copy, the child starts with a blank starter workflow.
+  Only **deployed** workflows are forked, and only the ones that are [synced](#synced-workflows). Drafts and undeployed work stay in the parent. If there is nothing to copy, the child starts with a blank starter workflow.
 </Callout>
 
 ### 3. Open the parent edge (from the child)
@@ -123,7 +121,7 @@ On success you will see a toast such as **Pushed to "…"** or **Pulled from "�
 
 The **Synced workflows** section on the Forks page lists this workspace's deployed workflows in their sidebar folder structure, each with a checkbox. **Checked means the workflow syncs.** Uncheck one — or a whole folder at once — to keep it out of forking entirely. Think of an unchecked workflow as `.gitignore`d:
 
-- **Never sent** — pushes from this workspace do not carry it, the other side pulling from this workspace does not receive it, and creating a new fork does not copy it (unless you turn on **Copy unsynced workflows** in the fork modal)
+- **Never sent** — pushes from this workspace do not carry it, the other side pulling from this workspace does not receive it, and creating a new fork does not copy it
 - **Never touched** — a sync into this workspace will not overwrite or archive it, even if its counterpart was deleted on the other side. It stays deployed and keeps serving, and a previously-synced counterpart on the other side keeps running on its last deployed version.
 
 The checkbox list belongs to **this workspace's copy** only. Unchecking a workflow here does not unsync its counterpart in the parent or a fork — each workspace manages its own list. If the pair has synced before, the link between them is kept, so re-checking later resumes updating the same counterpart instead of creating a duplicate.
@@ -194,7 +192,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 |----------|------|------|
 | Deployed workflows | Copied as drafts when [synced](#synced-workflows) | Updated / created / archived (force overwrite) |
 | Undeployed workflows | Not copied | Not synced |
-| [Unsynced workflows](#synced-workflows) | Only via **Copy unsynced workflows**, and the copy lands unsynced | Never — not sent, not overwritten, not archived |
+| [Unsynced workflows](#synced-workflows) | Never | Never — not sent, not overwritten, not archived |
 | Files | Optional copy (default on) | Map or copy |
 | File folders referenced by workflows | Mirrored with their ancestor folders, even when empty | Map by canonical path |
 | Tables | Optional copy (default on) | Map or copy |
@@ -214,7 +212,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 
 ### Workflows
 
-Only **deployed** workflows move, and only the ones checked under [Synced workflows](#synced-workflows). An unsynced workflow never moves in either direction — the one exception is the fork modal's **Copy unsynced workflows** override, which copies it once and leaves it unsynced in the child.
+Only **deployed** workflows move, and only the ones checked under [Synced workflows](#synced-workflows). An unsynced workflow never moves in either direction.
 
 | Feature | Behavior |
 |---|----------|

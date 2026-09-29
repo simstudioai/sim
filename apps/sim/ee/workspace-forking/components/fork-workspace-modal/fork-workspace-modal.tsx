@@ -9,8 +9,6 @@ import {
   ChipModalError,
   ChipModalFooter,
   ChipModalHeader,
-  Label,
-  Switch,
   toast,
 } from '@sim/emcn'
 import { TriangleAlert } from '@sim/emcn/icons'
@@ -22,7 +20,6 @@ import {
   ResourceKindRow,
 } from '@/ee/workspace-forking/components/fork-resource-picker/fork-resource-picker'
 import { useForkResources, useForkWorkspace } from '@/ee/workspace-forking/hooks/workspace-fork'
-import { MAX_FORK_DEPLOYED_WORKFLOWS } from '@/ee/workspace-forking/lib/limits'
 
 interface ForkWorkspaceModalProps {
   open: boolean
@@ -35,11 +32,7 @@ interface ForkWorkspaceModalProps {
   onUpgrade: () => void
 }
 
-/** Every key of the resources response that is a selectable list, i.e. not a preflight count. */
-type ResourceKey = Exclude<
-  keyof GetForkResourcesResponse,
-  'deployedWorkflowCount' | 'unsyncedDeployedWorkflowCount'
->
+type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
 type ResourceSelection = Record<ResourceKey, Set<string>>
 
 const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
@@ -91,7 +84,6 @@ export function ForkWorkspaceModal({
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<ResourceSelection>(emptySelection)
   const [defaulted, setDefaulted] = useState(false)
-  const [copyUnsyncedRequested, setCopyUnsyncedRequested] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -99,7 +91,6 @@ export function ForkWorkspaceModal({
       setName(`${sourceWorkspaceName} (fork)`)
       setSelected(emptySelection())
       setDefaulted(false)
-      setCopyUnsyncedRequested(false)
       setError(null)
     }
   }, [open, sourceWorkspaceName])
@@ -126,31 +117,12 @@ export function ForkWorkspaceModal({
     [defaulted, availableKinds, selected, resources.data]
   )
 
-  const syncedCount = resources.data?.deployedWorkflowCount ?? 0
-  const unsyncedCount = resources.data?.unsyncedDeployedWorkflowCount ?? 0
-
-  /**
-   * Turning the override on would push the copy set past the hard ceiling `createFork`
-   * enforces, so the fork would be rejected after the user submitted it. Offer the toggle
-   * disabled with the reason rather than letting them arm a request that must fail.
-   */
-  const overrideExceedsForkLimit = syncedCount + unsyncedCount > MAX_FORK_DEPLOYED_WORKFLOWS
-  /**
-   * The ONE effective value - render, counts and submit all read this, never the raw
-   * request. Two readings is what let the switch show off-and-disabled (because the counts
-   * refreshed above the limit after the user armed it) while `handleSubmit` still sent
-   * `copyUnsyncedWorkflows: true`, so the server rejected a fork the modal appeared to
-   * allow. Derived rather than reset in an effect: a derived value cannot drift.
-   */
-  const copyUnsyncedWorkflows = copyUnsyncedRequested && !overrideExceedsForkLimit
-
   // A fork always produces a usable workspace: deployed workflows are copied, and
   // when the source has none, create-fork seeds a blank starter workflow (plus any
   // selected resources). So forking is never blocked - we just set expectations when
-  // there is nothing to carry over. With unsynced workflows present, "nothing" depends
-  // on the override, so the note must not claim there are no deployed workflows at all.
-  const workflowsToCopy = syncedCount + (copyUnsyncedWorkflows ? unsyncedCount : 0)
-  const noWorkflowsToCopy = Boolean(resources.data) && workflowsToCopy === 0
+  // there are no deployed workflows to carry over.
+  const noDeployedWorkflows =
+    Boolean(resources.data) && (resources.data?.deployedWorkflowCount ?? 0) === 0
 
   const handleSubmit = () => {
     // At a workspace cap, creating a fork is the only gated action - send the user to
@@ -169,7 +141,7 @@ export function ForkWorkspaceModal({
       RESOURCE_KINDS.map((kind) => [kind.key, Array.from(selected[kind.key])])
     )
     forkWorkspace.mutate(
-      { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy, copyUnsyncedWorkflows } },
+      { workspaceId: sourceWorkspaceId, body: { name: trimmed, copy } },
       {
         onSuccess: (result) => {
           // The copy job's progress lands in the page's Activity log; the toast action
@@ -294,34 +266,9 @@ export function ForkWorkspaceModal({
             </SettingsSection>
           ) : null}
 
-          {unsyncedCount > 0 ? (
-            <SettingsSection label='Workflows'>
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center justify-between'>
-                  <Label htmlFor='fork-copy-unsynced'>Copy unsynced workflows</Label>
-                  <Switch
-                    id='fork-copy-unsynced'
-                    checked={copyUnsyncedWorkflows}
-                    onCheckedChange={setCopyUnsyncedRequested}
-                    disabled={isForking || overrideExceedsForkLimit}
-                  />
-                </div>
-                <p className='text-[var(--text-muted)] text-caption'>
-                  {overrideExceedsForkLimit
-                    ? `Copying all ${syncedCount + unsyncedCount} deployed workflows would exceed the ${MAX_FORK_DEPLOYED_WORKFLOWS}-workflow fork limit. Copying ${syncedCount} synced workflow${syncedCount === 1 ? '' : 's'}.`
-                    : copyUnsyncedWorkflows
-                      ? `Copying all ${workflowsToCopy} deployed workflows. The ${unsyncedCount} unsynced one${unsyncedCount === 1 ? '' : 's'} will not sync afterwards.`
-                      : `Copying ${syncedCount} synced workflow${syncedCount === 1 ? '' : 's'}; leaving out ${unsyncedCount} unsynced one${unsyncedCount === 1 ? '' : 's'}.`}
-                </p>
-              </div>
-            </SettingsSection>
-          ) : null}
-
-          {noWorkflowsToCopy ? (
+          {noDeployedWorkflows ? (
             <p className='text-[var(--text-muted)] text-caption'>
-              {unsyncedCount > 0
-                ? `No synced workflows to copy — turn on "Copy unsynced workflows" to carry over the ${unsyncedCount} unsynced one${unsyncedCount === 1 ? '' : 's'}, or your fork will start with a blank workflow.`
-                : 'No deployed workflows to copy — your fork will start with a blank workflow.'}
+              No deployed workflows to copy — your fork will start with a blank workflow.
             </p>
           ) : null}
         </div>

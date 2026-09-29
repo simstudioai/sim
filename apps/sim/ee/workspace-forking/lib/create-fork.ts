@@ -114,12 +114,6 @@ export interface CreateForkParams {
   actorName?: string
   name?: string
   selection?: ForkResourceSelection
-  /**
-   * Also copy deployed workflows the source has not opted into fork sync (the fork
-   * modal's "Copy unsynced workflows"). Each copy still inherits its source's
-   * `forkSyncExcluded`, so an overridden copy lands excluded and never syncs back.
-   */
-  copyUnsyncedWorkflows?: boolean
   requestId?: string
 }
 
@@ -152,7 +146,7 @@ const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType
  * all credential references) are cleared; env-var references are preserved.
  */
 export async function createFork(params: CreateForkParams): Promise<CreateForkResult> {
-  const { source, policy, userId, requestId = 'unknown', copyUnsyncedWorkflows = false } = params
+  const { source, policy, userId, requestId = 'unknown' } = params
   const admission = params.admission
   if (admission) {
     const receipt = await findWorkspaceOperationReceipt(
@@ -189,8 +183,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // global-pool reads don't check out a second pooled connection from inside the
   // fork tx (which can deadlock the pool at saturation).
   const { deployedWorkflows, sourceStates, sourceVersionIds } = await loadSourceDeployedStates(
-    source.id,
-    { includeSyncExcluded: copyUnsyncedWorkflows }
+    source.id
   )
 
   // Documents the copied workflows reference (document-selector values + nested documentId
