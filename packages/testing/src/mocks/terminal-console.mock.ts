@@ -60,6 +60,7 @@ const mockWaitForConsoleHydration = vi.fn(async () => undefined)
 export function resetTerminalConsoleMock(): void {
   for (const key of Object.keys(entriesByWorkflow)) delete entriesByWorkflow[key]
   mockGetWorkflowEntries.mockClear()
+  mockUseWorkflowConsoleEntries.mockClear()
   mockAddConsole.mockClear()
   mockUpdateConsole.mockClear()
   mockCancelRunningEntries.mockClear()
