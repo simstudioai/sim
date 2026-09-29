@@ -27,7 +27,7 @@ import {
 } from '@/lib/table/constants'
 import { withSeqscanOff } from '@/lib/table/planner'
 import { resolveSelectOptionId, splitMultiSelectInput } from '@/lib/table/select-options'
-import { fieldPredicate } from '@/lib/table/sql'
+import { uniqueValuePredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
@@ -408,6 +408,14 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
 }
 
 /**
+ * The unique columns `patch` writes. A patch applied to more than one row cannot write any of them
+ * without storing a duplicate.
+ */
+export function uniqueColumnsInPatch(schema: TableSchema, patch: RowData): ColumnDefinition[] {
+  return getUniqueColumns(schema).filter((column) => getColumnId(column) in patch)
+}
+
+/**
  * The key two unique-column values share when the unique check treats them as equal. Object keys
  * are sorted, since the check compares JSONB, where key order carries no meaning. In-batch
  * duplicate detection and the unique-value locks both key on it.
@@ -484,10 +492,11 @@ export async function checkUniqueConstraintsDb(
     const value = data[key]
     if (value === null || value === undefined) continue
 
-    // Same leaf as the upsert conflict probe → case-sensitive JSONB containment
-    // (GIN-indexed). `eq` always yields a clause for a non-null value.
-    const clause = fieldPredicate(USER_TABLE_ROWS_SQL_NAME, key, 'eq', value, column)
-    if (clause) conditions.push({ column, value, sql: clause })
+    conditions.push({
+      column,
+      value,
+      sql: uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, key, value, column),
+    })
   }
 
   if (conditions.length === 0) {
@@ -495,7 +504,7 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Query for each unique column separately to provide specific error messages.
-  // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
+  // The predicate leads with case-sensitive JSONB containment (`data @> {...}`),
   // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
   // bounded) defensively for the small-table / cold-stats case. With an external
   // transaction the flag is set on it for the check only (see withSeqscanOffOn)
@@ -645,18 +654,7 @@ export async function checkBatchUniqueConstraintsDb(
         // string — a unique `date` column normalized to a bare `2024-01-01`
         // and then threw `SyntaxError` trying to parse it back.
         const originalValue: JsonValue = JSON.parse(normalizedValue)
-        // Same case-sensitive containment leaf as every other matcher.
-        const clause = fieldPredicate(
-          USER_TABLE_ROWS_SQL_NAME,
-          columnId,
-          'eq',
-          originalValue,
-          column
-        )
-        if (!clause) {
-          throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
-        }
-        return clause
+        return uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, columnId, originalValue, column)
       })
 
       const conflictingRows = await ex
@@ -672,22 +670,17 @@ export async function checkBatchUniqueConstraintsDb(
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
         const conflictData = conflict.data as RowData
-        const conflictValue = columnValueForEquality(conflictData[columnId], column)
-        const normalizedConflictValue =
-          typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
+        const conflictValue = conflictData[columnId]
+        if (conflictValue === null || conflictValue === undefined) continue
+        // Keyed like the batch, since stored jsonb comes back with its keys reordered.
+        const normalizedConflictValue = uniqueValueKey(conflictValue, column)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
           const rowValue = rows[i][columnId]
           if (rowValue === null || rowValue === undefined) continue
 
-          const comparableRowValue = columnValueForEquality(rowValue, column)
-          const normalizedRowValue =
-            typeof comparableRowValue === 'string'
-              ? comparableRowValue
-              : JSON.stringify(comparableRowValue)
-
-          if (normalizedRowValue === normalizedConflictValue) {
+          if (uniqueValueKey(rowValue, column) === normalizedConflictValue) {
             // Check if this row already has errors for this column
             let rowError = rowErrors.find((e) => e.row === i)
             if (!rowError) {

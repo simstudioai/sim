@@ -808,6 +808,10 @@ export {
   tableRouteUtilsMockFns,
 } from './table-route-utils.mock'
 export {
+  tableRowsLiveSchemaMock,
+  tableRowsLiveSchemaMockFns,
+} from './table-rows-live-schema.mock'
+export {
   MockTableRowProvenanceReader,
   tableRowsSecretProvenanceMock,
   tableRowsSecretProvenanceMockFns,

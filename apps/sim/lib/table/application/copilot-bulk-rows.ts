@@ -33,6 +33,7 @@ import {
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
+import { uniqueColumnsInPatch } from '@/lib/table/validation'
 
 const logger = createLogger('CopilotBulkRowsApplication')
 
@@ -199,9 +200,7 @@ export const copilotUpdateRowsByFilter = defineAuthorizedTableUseCase({
     validateLimit(input.limit)
     const idData = rowDataNameToId(input.data, buildIdByName(context.table.schema))
     const filter = tablePredicateNamesToFilter(input.filter, context.table)
-    const patchTouchesUnique = context.table.schema.columns.some(
-      (column) => column.unique === true && (column.id ?? column.name) in idData
-    )
+    const patchTouchesUnique = uniqueColumnsInPatch(context.table.schema, idData).length > 0
     const inlineEligible =
       input.limit !== undefined && input.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
 

@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import type { Filter, RowData, TableDefinition } from '@/lib/table'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { Filter, RowData, TableDefinition, TableSchema } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -21,9 +23,10 @@ import {
 import type { DbTransaction } from '@/lib/table/planner'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { deriveBulkUpdatePatch } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
-import { coerceRowToSchema, coerceRowValues, validateRowSize } from '@/lib/table/validation'
+import { coerceRowToSchema, uniqueColumnsInPatch, validateRowSize } from '@/lib/table/validation'
 
 const logger = createLogger('TableUpdateRunner')
 
@@ -35,6 +38,54 @@ const PROGRESS_INTERVAL_ROWS = 5000
  * stale-job janitor marked it failed and a newer job took over). The worker stops updating.
  */
 class JobSupersededError extends Error {}
+
+/**
+ * The patch cannot be applied to the table as it now stands. Retrying cannot help: the schema that
+ * refused it is the one a retry would read.
+ */
+export class UpdatePatchRejectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UpdatePatchRejectedError'
+  }
+}
+
+/**
+ * The patch one batch writes against `live`, derived from the job's raw `patch` exactly as the
+ * inline bulk update derives its own ({@link deriveBulkUpdatePatch}): cells of columns deleted since
+ * `previous` dropped, the rest coerced and validated. It is refused, with an
+ * {@link UpdatePatchRejectedError}, when it cannot be written to every matched row: a value the
+ * columns refuse, a null in a required column, or any unique column, since one value in many rows
+ * cannot stay unique. Batches derive it under the schema lock, so a column made required or unique
+ * while the job waited is refused before the batch writes.
+ */
+function deriveJobPatch(patch: RowData, previous: TableSchema, live: TableDefinition): RowData {
+  let derived: RowData
+  try {
+    derived = deriveBulkUpdatePatch(patch, previous, live, undefined)
+  } catch (err) {
+    if (err instanceof OrchestrationError && err.code === 'validation') {
+      throw new UpdatePatchRejectedError(err.message)
+    }
+    throw err
+  }
+  const cleared = live.schema.columns.filter((column) => {
+    const columnId = getColumnId(column)
+    return column.required && columnId in derived && (derived[columnId] ?? null) === null
+  })
+  if (cleared.length > 0) {
+    throw new UpdatePatchRejectedError(
+      `Missing required field: ${cleared.map((column) => column.name).join(', ')}`
+    )
+  }
+  const unique = uniqueColumnsInPatch(live.schema, derived)
+  if (unique.length > 0) {
+    throw new UpdatePatchRejectedError(
+      `Cannot set unique column values when updating multiple rows: ${unique.map((column) => column.name).join(', ')}`
+    )
+  }
+  return derived
+}
 
 export interface TableUpdatePayload {
   jobId: string
@@ -65,7 +116,8 @@ export interface TableUpdatePayload {
  * the affected columns explicitly afterward if downstream recompute is needed.
  *
  * Unexpected errors are rethrown for the caller's retry machinery; the caller marks the job
- * failed via `markTableUpdateFailed`. A superseded run returns quietly.
+ * failed via `markTableUpdateFailed`. An {@link UpdatePatchRejectedError} is rethrown too, and is
+ * not worth a retry. A superseded run returns quietly.
  */
 export async function runTableUpdate(payload: TableUpdatePayload): Promise<void> {
   const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = payload
@@ -109,7 +161,8 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     if ((await stopIfLocked(table, 0)) === null) return
 
     // Runs inside each batch's transaction, under the same advisory lock the
-    // lock toggle holds, so no page can be written after a lock commits.
+    // lock toggle and schema changes hold, so no page can be written after a
+    // lock commits, nor under a schema that would not store the patch.
     const revalidate = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
       if (fresh) assertRowUpdate(fresh, patchColumnIds(data))
@@ -119,10 +172,10 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     const filterClause = buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
     if (!filterClause) throw new Error('Filter is required for bulk update')
 
-    // Coerce the patch once to the schema's types — the merged validation below and the persisted
-    // JSONB merge both use this normalized copy.
-    coerceRowValues(data, table.schema)
-    const patchJson = JSON.stringify(data)
+    // `data` stays the raw payload. Each page, and each batch under the schema lock, derives the
+    // patch it writes from it against the schema of that moment, as the inline update would. Derive
+    // it once up front too, so a patch the table refuses fails before any page is read.
+    deriveJobPatch(data, table.schema, table)
 
     // Resume the persisted count: a retried attempt's earlier pages are already committed, so
     // starting at zero would overwrite cumulative progress. Doubles as the initial ownership gate.
@@ -145,6 +198,10 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
       if (!current) throw new JobSupersededError()
       const pageProof = await stopIfLocked(current, processed)
       if (pageProof === null) return
+      const pagePatch = deriveJobPatch(data, table.schema, current)
+      // Every column the update wrote has since been deleted: nothing is left to write.
+      if (Object.keys(pagePatch).length === 0) break
+      const patchJson = JSON.stringify(pagePatch)
 
       const page = await selectRowDataPage({
         tableId,
@@ -164,14 +221,14 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
       // Validate each merged result before writing the page — a row that would overflow the size
       // cap or violate the schema fails the job (earlier pages stay applied; best-effort).
       for (const row of page) {
-        const merged = { ...row.data, ...data }
+        const merged = { ...row.data, ...pagePatch }
         const sizeValidation = validateRowSize(merged)
         if (!sizeValidation.valid) {
-          throw new Error(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
+          throw new UpdatePatchRejectedError(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
         }
-        const schemaValidation = coerceRowToSchema(merged, table.schema)
+        const schemaValidation = coerceRowToSchema(merged, current.schema)
         if (!schemaValidation.valid) {
-          throw new Error(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
+          throw new UpdatePatchRejectedError(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
         }
       }
 
@@ -180,8 +237,14 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
           tableId,
           workspaceId,
           page.map((r) => r.id),
-          patchJson,
-          createExactEmptyTableRowSecretProvenance(data),
+          (fresh) => {
+            const batchPatch = deriveJobPatch(data, table.schema, fresh ?? current)
+            if (Object.keys(batchPatch).length === 0) return null
+            return {
+              patchJson: JSON.stringify(batchPatch),
+              secretProvenance: createExactEmptyTableRowSecretProvenance(batchPatch),
+            }
+          },
           pageProof,
           revalidate
         )

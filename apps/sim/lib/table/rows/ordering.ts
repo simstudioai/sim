@@ -333,10 +333,12 @@ export async function insertOrderedRow(params: {
   /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
   proof: MutationProof<'insert'>
   /**
-   * Runs first in the transaction, before the row-order lock: the caller's unique-value locks and
-   * unique check (see `unique-locks.ts`), so the check sees any concurrent insert of the same value.
+   * Opens the transaction in place of the default timeouts, before the row-order lock: the
+   * caller's schema guard (see `live-schema.ts`), which applies the timeouts, then its unique-value
+   * locks and unique check (see `unique-locks.ts`), so the check sees any concurrent insert of the
+   * same value.
    */
-  assertUnique?: (trx: DbTransaction) => Promise<void>
+  validate?: (trx: DbTransaction) => Promise<void>
 }): Promise<{
   id: string
   data: RowData
@@ -358,8 +360,8 @@ export async function insertOrderedRow(params: {
     secretProvenance,
   } = params
   const [row] = await db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx)
-    await params.assertUnique?.(trx)
+    if (params.validate) await params.validate(trx)
+    else await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
 
     // Resolve the authoritative order key from neighbor ids when given, else from the requested
@@ -670,17 +672,24 @@ export async function deletePageByIds(
   return deleted
 }
 
+/** The patch one update batch writes, or `null` when it writes nothing. */
+export interface PagePatch {
+  patchJson: string
+  secretProvenance: TableRowSecretProvenanceWrite
+}
+
 /**
  * Applies a JSONB-merge patch (`data || patchJson`) to a page of row ids, committed in
  * UPDATE_BATCH_SIZE chunks (each its own transaction, 60s timeout) so a large background update
- * makes incremental, resumable progress. Returns the number of rows updated.
+ * makes incremental, resumable progress. Each batch takes its patch from `patchFor`, called inside
+ * the batch's transaction with the definition `revalidate` read there, so a caller can derive it
+ * from the live schema. Returns the number of rows updated.
  */
 export async function updatePageByIds(
   tableId: string,
   workspaceId: string,
   rowIds: string[],
-  patchJson: string,
-  secretProvenance: TableRowSecretProvenanceWrite,
+  patchFor: (table: TableDefinition | undefined) => PagePatch | null,
   /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
   _proof: MutationProof<'update'>,
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
@@ -692,15 +701,19 @@ export async function updatePageByIds(
     const batch = rowIds.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      await guardBatch(trx, tableId, revalidate)
+      const patch = patchFor(await guardBatch(trx, tableId, revalidate))
+      if (!patch) return []
       return mutateTableRowsWithSecretProvenance(trx, {
-        rows: batch.map((rowId) => ({ rowId, provenance: secretProvenance })),
+        rows: batch.map((rowId) => ({ rowId, provenance: patch.secretProvenance })),
         rowState: 'existing',
         mode: 'merge',
         mutate: async () => {
           const rows = await trx
             .update(userTableRows)
-            .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })
+            .set({
+              data: sql`${userTableRows.data} || ${patch.patchJson}::jsonb`,
+              updatedAt: now,
+            })
             .where(
               and(
                 eq(userTableRows.tableId, tableId),

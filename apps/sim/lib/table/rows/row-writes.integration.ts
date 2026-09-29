@@ -22,14 +22,31 @@ vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+import {
+  deleteColumn,
+  updateColumnConstraints,
+  updateColumnOptions,
+} from '@/lib/table/columns/service'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importReplaceRows } from '@/lib/table/import-data'
+import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
+import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
-import { batchInsertRows, batchUpdateRows, insertRow, updateRow } from '@/lib/table/rows/service'
+import {
+  batchInsertRows,
+  batchUpdateRows,
+  insertRow,
+  replaceTableRows,
+  updateRow,
+  updateRowsByFilter,
+  upsertRow,
+} from '@/lib/table/rows/service'
 import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
-import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
+import { runTableUpdate, UpdatePatchRejectedError } from '@/lib/table/update-runner'
 
 const url = readTestDatabaseUrl()
 if (process.env.DATABASE_URL !== url) {
@@ -121,26 +138,39 @@ describe('table row writes against real PostgreSQL', () => {
 
     /**
      * Polls until exactly `expected.onOrderLock` sessions wait on the table's row-order lock and
-     * `expected.onValueLock` wait on a unique-value lock, and returns the last count seen.
+     * `expected.onValueLock` wait on one of its unique locks, and returns the last count seen. Both
+     * counts are scoped to the table, so concurrent suites cannot skew them: a unique-lock waiter
+     * waits on the table's unique lock itself, or on a value lock while holding the table's unique
+     * lock shared.
      */
     async function waitForLockWaiters(tableId: string, expected: LockWaiters) {
       const orderLockKey = `user_table_rows_pos:${tableId}`
+      const uniqueLockKey = `user_table_unique:${tableId}`
       let waiting: LockWaiters = { onOrderLock: 0, onValueLock: 0 }
       for (let attempt = 0; attempt < 400; attempt++) {
         await sleep(5)
         ;[waiting] = await control<LockWaiters[]>`
-          WITH lock AS (SELECT hashtextextended(${orderLockKey}, 0) AS key)
+          WITH lock AS (
+            SELECT hashtextextended(${orderLockKey}, 0) AS order_key,
+              hashtextextended(${uniqueLockKey}, 0) AS unique_key
+          ), advisory AS (
+            SELECT l.pid, l.granted,
+              l.classid = ((lock.order_key >> 32) & 4294967295)::oid
+                AND l.objid = (lock.order_key & 4294967295)::oid AS is_order,
+              l.classid = ((lock.unique_key >> 32) & 4294967295)::oid
+                AND l.objid = (lock.unique_key & 4294967295)::oid AS is_unique
+            FROM pg_locks l CROSS JOIN lock
+            WHERE l.locktype = 'advisory'
+              AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+          )
           SELECT
+            count(*) FILTER (WHERE NOT granted AND is_order)::int AS "onOrderLock",
             count(*) FILTER (
-              WHERE l.classid = ((lock.key >> 32) & 4294967295)::oid
-                AND l.objid = (lock.key & 4294967295)::oid
-            )::int AS "onOrderLock",
-            count(*) FILTER (WHERE a.query LIKE '%user_table_unique_value%')::int AS "onValueLock"
-          FROM pg_locks l
-          JOIN pg_stat_activity a ON a.pid = l.pid
-          CROSS JOIN lock
-          WHERE l.locktype = 'advisory' AND NOT l.granted
-            AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`
+              WHERE NOT granted AND NOT is_order AND (
+                is_unique OR pid IN (SELECT pid FROM advisory WHERE granted AND is_unique)
+              )
+            )::int AS "onValueLock"
+          FROM advisory`
         if (
           waiting.onOrderLock === expected.onOrderLock &&
           waiting.onValueLock === expected.onValueLock
@@ -177,10 +207,7 @@ describe('table row writes against real PostgreSQL', () => {
       }
     }
 
-    async function storedCount(
-      tableId: string,
-      match: Record<string, string | number | Record<string, number>>
-    ) {
+    async function storedCount(tableId: string, match: Record<string, JsonValue>) {
       const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
         FROM user_table_rows WHERE table_id = ${tableId} AND data @> ${control.json(match)}`
       return count
@@ -482,6 +509,855 @@ describe('table row writes against real PostgreSQL', () => {
         )
       ).rejects.toThrow(/must be unique/)
       expect(await storedCount(table.id, { meta: { x: 1, y: 2 } })).toBe(0)
+    })
+
+    describe('json columns compare whole values', () => {
+      const jsonColumns: ColumnDefinition[] = [
+        { id: 'meta', name: 'meta', type: 'json', unique: true },
+      ]
+
+      const insertMeta = (table: TableDefinition, meta: JsonValue) =>
+        insertRow(
+          {
+            tableId: table.id,
+            workspaceId,
+            data: { meta },
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'json-unique'
+        )
+
+      async function metaValues(tableId: string): Promise<JsonValue[]> {
+        const rows = await control<{ meta: JsonValue }[]>`SELECT data->'meta' AS meta
+          FROM user_table_rows WHERE table_id = ${tableId} ORDER BY created_at, id`
+        return rows.map((row) => row.meta)
+      }
+
+      it('accepts an object or array that a stored value merely contains', async () => {
+        const table = await createTable(jsonColumns)
+        await seedRows(table.id, [
+          { id: `${table.id}-a`, data: { meta: { a: 1, b: 2 } }, orderKey: 'a0' },
+          { id: `${table.id}-b`, data: { meta: [1, 2, 3] }, orderKey: 'a1' },
+        ])
+
+        await expect(insertMeta(table, { a: 1 })).resolves.toBeDefined()
+        await expect(insertMeta(table, [1])).resolves.toBeDefined()
+        expect(await storedCount(table.id, { meta: { a: 1 } })).toBe(2)
+      })
+
+      it('rejects the same object in a different key order', async () => {
+        const table = await createTable(jsonColumns)
+        await seedRows(table.id, [
+          { id: `${table.id}-a`, data: { meta: { a: 1, b: 2 } }, orderKey: 'a0' },
+        ])
+        const batch = (rows: RowData[]) => ({
+          tableId: table.id,
+          workspaceId,
+          rows,
+          secretProvenance: undefined,
+          capabilityGovernedUserId: null,
+        })
+
+        await expect(insertMeta(table, { b: 2, a: 1 })).rejects.toThrow(/must be unique/)
+        await expect(
+          batchInsertRows(batch([{ meta: { b: 2, a: 1 } }]), table, 'json-unique')
+        ).rejects.toThrow(/must be unique/)
+        await expect(
+          replaceTableRows(
+            batch([{ meta: { b: 2, a: 1 } }, { meta: { a: 1, b: 2 } }]),
+            table,
+            'json-unique'
+          )
+        ).rejects.toThrow(/must be unique/)
+        expect(await metaValues(table.id)).toEqual([{ a: 1, b: 2 }])
+      })
+
+      it('upserts on a JSON conflict target without overwriting a row that contains it', async () => {
+        const table = await createTable(jsonColumns)
+        await seedRows(table.id, [
+          { id: `${table.id}-a`, data: { meta: { a: 1, b: 2 } }, orderKey: 'a0' },
+        ])
+
+        const result = await upsertRow(
+          {
+            tableId: table.id,
+            workspaceId,
+            data: { meta: { a: 1 } },
+            conflictTarget: 'meta',
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'json-unique'
+        )
+
+        expect(result.operation).toBe('insert')
+        expect(await metaValues(table.id)).toEqual([{ a: 1, b: 2 }, { a: 1 }])
+      })
+
+      it('accepts a batch update of values contained in other rows', async () => {
+        const table = await createTable(jsonColumns)
+        await seedRows(table.id, [
+          { id: `${table.id}-a`, data: { meta: { n: 1 } }, orderKey: 'a0' },
+          { id: `${table.id}-b`, data: { meta: { n: 2 } }, orderKey: 'a1' },
+          { id: `${table.id}-c`, data: { meta: { a: 1, b: 2, c: 3 } }, orderKey: 'a2' },
+        ])
+
+        await batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { meta: { a: 1 } } },
+              { rowId: `${table.id}-b`, data: { meta: { a: 1, b: 2 } } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'json-unique'
+        )
+
+        expect(await metaValues(table.id)).toEqual([{ a: 1 }, { a: 1, b: 2 }, { a: 1, b: 2, c: 3 }])
+      })
+
+      it('locks JSON values one by one, equating objects whose keys differ only in order', async () => {
+        const table = await createTable(jsonColumns)
+
+        const different = await raceUnderHeldOrderLock(
+          table.id,
+          [() => insertMeta(table, { a: 1 }), () => insertMeta(table, { a: 1, b: 2 })],
+          { onOrderLock: 2, onValueLock: 0 }
+        )
+        expect(fulfilled(different)).toBe(2)
+
+        const reordered = await raceUnderHeldOrderLock(
+          table.id,
+          [
+            () => insertMeta(table, { x: 1, y: [1, 2] }),
+            () => insertMeta(table, { y: [1, 2], x: 1 }),
+          ],
+          { onOrderLock: 1, onValueLock: 1 }
+        )
+        expect(fulfilled(reordered)).toBe(1)
+        expect(await storedCount(table.id, { meta: { x: 1 } })).toBe(1)
+      })
+    })
+  })
+
+  describe('writers validate against the live schema, not their snapshot', () => {
+    const columns: ColumnDefinition[] = [
+      { id: 'key', name: 'key', type: 'string', unique: true },
+      { id: 'email', name: 'email', type: 'string' },
+      { id: 'note', name: 'note', type: 'string' },
+    ]
+
+    /** A table whose `k1`/`k2` rows hold distinct emails and filled notes, and its snapshot. */
+    async function seededTable() {
+      const table = await createTable(columns)
+      await seedRows(table.id, [
+        {
+          id: `${table.id}-1`,
+          data: { key: 'k1', email: 'dup@example.test', note: 'n' },
+          orderKey: 'a0',
+        },
+        {
+          id: `${table.id}-2`,
+          data: { key: 'k2', email: 'b@example.test', note: 'n' },
+          orderKey: 'a1',
+        },
+      ])
+      return table
+    }
+
+    type StaleWrite = (table: TableDefinition, row: RowData) => Promise<unknown>
+
+    const rows = (table: TableDefinition, data: RowData[]) => ({
+      tableId: table.id,
+      workspaceId,
+      rows: data,
+      secretProvenance: undefined,
+      capabilityGovernedUserId: null,
+    })
+
+    /**
+     * One entry per row writer. Each writes `row`, a new row (`key: 'k3'`) or a patch to row `k2`,
+     * holding the snapshot it was handed.
+     */
+    const writers: Array<[string, StaleWrite]> = [
+      [
+        'insertRow',
+        (table, row) =>
+          insertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', ...row },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'batchInsertRows',
+        (table, row) =>
+          batchInsertRows(rows(table, [{ key: 'k3', ...row }]), table, 'stale-schema'),
+      ],
+      [
+        'bulkInsertImportBatch',
+        (table, row) =>
+          bulkInsertImportBatch(
+            { tableId: table.id, workspaceId, rows: [{ key: 'k3', ...row }], startPosition: 2 },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'replaceTableRows',
+        (table, row) =>
+          replaceTableRows(
+            rows(table, [
+              { key: 'k1', email: 'dup@example.test', note: 'n' },
+              { key: 'k3', ...row },
+            ]),
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'upsertRow',
+        (table, row) =>
+          upsertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', ...row },
+              conflictTarget: 'key',
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'updateRow',
+        (table, row) =>
+          updateRow(
+            {
+              tableId: table.id,
+              rowId: `${table.id}-2`,
+              workspaceId,
+              data: row,
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'batchUpdateRows',
+        (table, row) =>
+          batchUpdateRows(
+            {
+              tableId: table.id,
+              workspaceId,
+              updates: [{ rowId: `${table.id}-2`, data: row }],
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'updateRowsByFilter',
+        (table, row) =>
+          updateRowsByFilter(
+            table,
+            {
+              filter: { key: 'k2' },
+              data: row,
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            'stale-schema'
+          ),
+      ],
+      [
+        'updateRowsByFilter with a limit',
+        (table, row) =>
+          updateRowsByFilter(
+            table,
+            {
+              filter: { key: 'k2' },
+              data: row,
+              limit: 1,
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            'stale-schema'
+          ),
+      ],
+    ]
+
+    async function countRows(
+      tableId: string,
+      where: 'email-dup' | 'email-c' | 'note-empty' | 'note-restored'
+    ) {
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${tableId} AND ${
+          where === 'email-dup'
+            ? control`data->>'email' = 'dup@example.test'`
+            : where === 'email-c'
+              ? control`data->>'email' = 'c@example.test'`
+              : where === 'note-empty'
+                ? control`data->>'note' IS NULL`
+                : control`data->>'note' = 'restored'`
+        }`
+      return count
+    }
+
+    it.each(writers)(
+      '%s rejects a duplicate in a column made unique since its snapshot',
+      async (_, write) => {
+        const table = await seededTable()
+        await updateColumnConstraints(
+          { tableId: table.id, columnName: 'email', unique: true },
+          'stale-schema'
+        )
+
+        await expect(write(table, { email: 'dup@example.test', note: 'n' })).rejects.toThrow(
+          /must be unique|would violate uniqueness/
+        )
+        expect(await countRows(table.id, 'email-dup')).toBe(1)
+      }
+    )
+
+    it.each(writers)(
+      '%s rejects an empty cell in a column made required since its snapshot',
+      async (_, write) => {
+        const table = await seededTable()
+        await updateColumnConstraints(
+          { tableId: table.id, columnName: 'note', required: true },
+          'stale-schema'
+        )
+
+        await expect(write(table, { email: 'c@example.test', note: null })).rejects.toThrow(
+          /Missing required field/
+        )
+        expect(await countRows(table.id, 'note-empty')).toBe(0)
+      }
+    )
+
+    it.each(writers)('%s drops a cell of a column deleted since its snapshot', async (_, write) => {
+      const table = await seededTable()
+      await deleteColumn({ tableId: table.id, columnName: 'note' }, 'stale-schema')
+
+      await write(table, { email: 'c@example.test', note: 'restored' })
+      expect(await countRows(table.id, 'note-restored')).toBe(0)
+    })
+
+    it.each([
+      [
+        'updateRow',
+        (table: TableDefinition, rowId: string) =>
+          updateRow(
+            {
+              tableId: table.id,
+              rowId,
+              workspaceId,
+              data: { out: null },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+      [
+        'batchUpdateRows',
+        (table: TableDefinition, rowId: string) =>
+          batchUpdateRows(
+            {
+              tableId: table.id,
+              workspaceId,
+              updates: [{ rowId, data: { out: null } }],
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          ),
+      ],
+    ])('%s clears the run of a workflow output added since its snapshot', async (_, write) => {
+      const table = await createTable([
+        { id: 'name', name: 'name', type: 'string' },
+        { id: 'out', name: 'out', type: 'string', workflowGroupId: 'group-1' },
+      ])
+      await control`UPDATE user_table_definitions SET schema = jsonb_set(schema, '{workflowGroups}',
+        ${control.json([
+          {
+            id: 'group-1',
+            workflowId: 'workflow-1',
+            outputs: [{ blockId: 'b', path: 'p', columnName: 'out' }],
+          },
+        ])}) WHERE id = ${table.id}`
+      const stale: TableDefinition = {
+        ...table,
+        schema: { columns: textColumns('name', 'out') },
+      }
+      const rowId = `${table.id}-a`
+      await seedRows(table.id, [{ id: rowId, data: { name: 'a', out: 'done' }, orderKey: 'a0' }])
+      await control`INSERT INTO table_row_executions (table_id, row_id, group_id, status, workflow_id)
+        VALUES (${table.id}, ${rowId}, 'group-1', 'completed', 'workflow-1')`
+
+      await write(stale, rowId)
+
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM table_row_executions WHERE row_id = ${rowId}`
+      expect(count).toBe(0)
+    })
+
+    it('refuses a bulk update writing one value to rows of a column made unique since its snapshot', async () => {
+      const table = await seededTable()
+      await updateColumnConstraints(
+        { tableId: table.id, columnName: 'email', unique: true },
+        'stale-schema'
+      )
+
+      await expect(
+        updateRowsByFilter(
+          table,
+          {
+            filter: { note: 'n' },
+            data: { email: 'same@example.test' },
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          'stale-schema'
+        )
+      ).rejects.toThrow(/would violate uniqueness/)
+      expect(await countRows(table.id, 'email-dup')).toBe(1)
+    })
+
+    it('refuses an upsert on a column no longer unique since its snapshot', async () => {
+      const table = await seededTable()
+      await updateColumnConstraints(
+        { tableId: table.id, columnName: 'key', unique: false },
+        'stale-schema'
+      )
+
+      await expect(
+        upsertRow(
+          {
+            tableId: table.id,
+            workspaceId,
+            data: { key: 'k2', email: 'c@example.test', note: 'n' },
+            conflictTarget: 'key',
+            secretProvenance: undefined,
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'stale-schema'
+        )
+      ).rejects.toThrow(/requires at least one unique column/)
+      const [row] = await control<{ email: string }[]>`SELECT data->>'email' AS email
+        FROM user_table_rows WHERE id = ${`${table.id}-2`}`
+      expect(row.email).toBe('b@example.test')
+    })
+
+    /**
+     * Holds the table's schema lock exclusively in a transaction that marks `email` unique, starts
+     * `write`, and commits only once `write` is seen waiting on the lock, then settles as `write` does.
+     */
+    async function writeDuringUniqueChange(
+      table: TableDefinition,
+      write: () => Promise<unknown>
+    ): Promise<unknown> {
+      const schemaLockKey = `user_table_schema:${table.id}`
+      const holder = await control.reserve()
+      try {
+        await holder`BEGIN`
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${schemaLockKey}, 0))`
+        await holder`UPDATE user_table_definitions
+          SET schema = jsonb_set(schema, '{columns,1,unique}', 'true')
+          WHERE id = ${table.id}`
+        const pending = write()
+        const settled = pending.then(
+          () => 'fulfilled',
+          () => 'rejected'
+        )
+
+        let waiting = 0
+        for (let attempt = 0; attempt < 400 && waiting === 0; attempt++) {
+          await sleep(5)
+          ;[{ waiting }] = await control<{ waiting: number }[]>`
+            WITH lock AS (SELECT hashtextextended(${schemaLockKey}, 0) AS key)
+            SELECT count(*)::int AS waiting FROM pg_locks l CROSS JOIN lock
+            WHERE l.locktype = 'advisory' AND NOT l.granted
+              AND l.classid = ((lock.key >> 32) & 4294967295)::oid
+              AND l.objid = (lock.key & 4294967295)::oid`
+        }
+        expect(waiting).toBe(1)
+        expect(await Promise.race([settled, sleep(50).then(() => 'pending')])).toBe('pending')
+
+        await holder`COMMIT`
+        return await pending
+      } finally {
+        await holder`ROLLBACK`.catch(() => {})
+        holder.release()
+      }
+    }
+
+    /**
+     * Holds the table's schema lock exclusively, starts `write`, and commits once `write` is seen
+     * waiting and `holdMs` has passed. Settles as `write` does.
+     */
+    async function writeBehindSchemaLock(
+      table: TableDefinition,
+      holdMs: number,
+      write: () => Promise<unknown>
+    ): Promise<unknown> {
+      const holder = await control.reserve()
+      try {
+        await holder`BEGIN`
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${table.id}`}, 0))`
+        const pending = write()
+        pending.catch(() => {})
+        await sleep(holdMs)
+        await holder`COMMIT`
+        return await pending
+      } finally {
+        await holder`ROLLBACK`.catch(() => {})
+        holder.release()
+      }
+    }
+
+    it.each([
+      [
+        'insertRow, which sets a 3 s lock timeout',
+        (table: TableDefinition) =>
+          insertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', email: 'c@example.test' },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'long-schema-change'
+          ),
+      ],
+      [
+        'updateRow, which sets none',
+        (table: TableDefinition) =>
+          updateRow(
+            {
+              tableId: table.id,
+              rowId: `${table.id}-2`,
+              workspaceId,
+              data: { email: 'c@example.test' },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'long-schema-change'
+          ),
+      ],
+    ])(
+      '%s waits out a schema change held past the lock timeout',
+      async (_, write) => {
+        const table = await seededTable()
+
+        await expect(writeBehindSchemaLock(table, 3_500, () => write(table))).resolves.toBeDefined()
+        expect(await countRows(table.id, 'email-c')).toBe(1)
+      },
+      15_000
+    )
+
+    it('bounds the schema-lock wait by the statement timeout', async () => {
+      const table = await seededTable()
+
+      await expect(
+        writeBehindSchemaLock(table, 1_500, () =>
+          db.transaction((trx) => lockLiveTableSchema(trx, table, { statementMs: 300 }))
+        )
+      ).rejects.toMatchObject({ cause: { code: '55P03' } })
+    })
+
+    it('leaves the lock timeout the transaction set for the locks after the guard', async () => {
+      const table = await seededTable()
+
+      const lockTimeout = await db.transaction(async (trx) => {
+        await lockLiveTableSchema(trx, table, {})
+        const [{ setting }] = await trx.execute<{ setting: string }>(
+          sql`SELECT current_setting('lock_timeout') AS setting`
+        )
+        return setting
+      })
+      expect(lockTimeout).toBe('3s')
+    })
+
+    it('waits for a schema change in flight and then writes against it', async () => {
+      const table = await seededTable()
+
+      await expect(
+        writeDuringUniqueChange(table, () =>
+          insertRow(
+            {
+              tableId: table.id,
+              workspaceId,
+              data: { key: 'k3', email: 'dup@example.test' },
+              secretProvenance: undefined,
+              capabilityGovernedUserId: null,
+            },
+            table,
+            'stale-schema'
+          )
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await countRows(table.id, 'email-dup')).toBe(1)
+    })
+  })
+
+  describe('background updates validate their patch against the live schema', () => {
+    const columns: ColumnDefinition[] = [
+      { id: 'email', name: 'email', type: 'string' },
+      { id: 'kind', name: 'kind', type: 'string' },
+      {
+        id: 'status',
+        name: 'status',
+        type: 'select',
+        options: [{ id: 'opt_open', name: 'Open' }],
+      },
+      { id: 'note', name: 'note', type: 'string' },
+      { id: 'due', name: 'due', type: 'date' },
+    ]
+    /** Two update batches' worth of rows. */
+    const ROWS = TABLE_LIMITS.UPDATE_BATCH_SIZE + 50
+
+    async function seededJob(data: RowData) {
+      const table = await createTable(columns)
+      await control`INSERT INTO user_table_rows (id, table_id, workspace_id, data, position, order_key)
+        SELECT ${table.id} || '-' || lpad(g::text, 4, '0'), ${table.id}, ${workspaceId},
+          jsonb_build_object('email', 'e' || g || '@example.test', 'kind', 'seed'), g, 'a' || lpad(g::text, 4, '0')
+        FROM generate_series(1, ${ROWS}) g`
+      const jobId = generateId()
+      const filter = { kind: 'seed' }
+      expect(
+        await markTableJobRunningInWorkspace(table.id, workspaceId, jobId, 'update', {
+          filter,
+          data,
+        })
+      ).toBe(true)
+      const run = () =>
+        runTableUpdate({
+          jobId,
+          tableId: table.id,
+          workspaceId,
+          filter,
+          data: { ...data },
+          cutoff: new Date(),
+        })
+      /** Re-runs the job as a retry after a crash would: the job is still running. */
+      const retry = async () => {
+        await control`UPDATE table_jobs SET status = 'running', completed_at = NULL
+          WHERE id = ${jobId}`
+        return run()
+      }
+      return { table, run, retry }
+    }
+
+    async function schemaLockWaiters(tableId: string): Promise<number> {
+      const [{ waiting }] = await control<{ waiting: number }[]>`
+        WITH lock AS (SELECT hashtextextended(${`user_table_schema:${tableId}`}, 0) AS key)
+        SELECT count(*)::int AS waiting FROM pg_locks l CROSS JOIN lock
+        WHERE l.locktype = 'advisory' AND NOT l.granted
+          AND l.classid = ((lock.key >> 32) & 4294967295)::oid
+          AND l.objid = (lock.key & 4294967295)::oid`
+      return waiting
+    }
+
+    async function untilSchemaLockWaiters(tableId: string, expected: number) {
+      let waiting = 0
+      for (let attempt = 0; attempt < 400 && waiting !== expected; attempt++) {
+        await sleep(5)
+        waiting = await schemaLockWaiters(tableId)
+      }
+      expect(waiting).toBe(expected)
+    }
+
+    /**
+     * Commits `change` between the job's first and second batch. A held schema lock stops the
+     * first batch; `change` then queues behind it, and a waiting lock is granted in queue order, so
+     * the first batch commits, then `change`, then the second batch.
+     */
+    async function changeBetweenBatches(
+      tableId: string,
+      run: () => Promise<void>,
+      change: () => Promise<unknown>
+    ): Promise<PromiseSettledResult<unknown>[]> {
+      const holder = await control.reserve()
+      try {
+        await holder`BEGIN`
+        await holder`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
+        const job = run()
+        await untilSchemaLockWaiters(tableId, 1)
+        const changed = change()
+        await untilSchemaLockWaiters(tableId, 2)
+        await holder`COMMIT`
+        return await Promise.allSettled([job, changed])
+      } finally {
+        await holder`ROLLBACK`.catch(() => {})
+        holder.release()
+      }
+    }
+
+    /** Commits `schema = <change>` for the table under its exclusive schema lock. */
+    async function changeSchemaUnderLock(tableId: string, change: string): Promise<void> {
+      const changer = await control.reserve()
+      try {
+        await changer`BEGIN`
+        await changer`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
+        await changer.unsafe(`UPDATE user_table_definitions SET schema = ${change} WHERE id = $1`, [
+          tableId,
+        ])
+        await changer`COMMIT`
+      } finally {
+        changer.release()
+      }
+    }
+
+    async function countEmail(tableId: string, email: string): Promise<number> {
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${tableId} AND data->>'email' = ${email}`
+      return count
+    }
+
+    it('refuses a patch to a column made unique before the job started, retry included', async () => {
+      const { table, run } = await seededJob({ email: 'same@example.test' })
+      await updateColumnConstraints(
+        { tableId: table.id, columnName: 'email', unique: true },
+        'bulk-update'
+      )
+
+      await expect(run()).rejects.toBeInstanceOf(UpdatePatchRejectedError)
+      await expect(run()).rejects.toBeInstanceOf(UpdatePatchRejectedError)
+      expect(await countEmail(table.id, 'same@example.test')).toBe(0)
+    })
+
+    it('refuses the next batch once a column it clears is made required mid-job', async () => {
+      const { table, run } = await seededJob({ note: null })
+      await control`UPDATE user_table_rows SET data = data || '{"note":"filled"}' WHERE table_id = ${table.id}`
+
+      const [job, change] = await changeBetweenBatches(table.id, run, async () => {
+        const changer = await control.reserve()
+        try {
+          await changer`BEGIN`
+          await changer`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${table.id}`}, 0))`
+          await changer`UPDATE user_table_definitions
+            SET schema = jsonb_set(schema, '{columns,3,required}', 'true') WHERE id = ${table.id}`
+          await changer`COMMIT`
+        } finally {
+          changer.release()
+        }
+      })
+
+      expect(change.status).toBe('fulfilled')
+      expect(job.status === 'rejected' && job.reason).toBeInstanceOf(UpdatePatchRejectedError)
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id} AND data->'note' = 'null'::jsonb`
+      expect(count).toBe(TABLE_LIMITS.UPDATE_BATCH_SIZE)
+    })
+
+    it('refuses the next batch once a patched column is made unique mid-job, retry included', async () => {
+      const { table, run } = await seededJob({ email: 'same@example.test' })
+
+      const [job, change] = await changeBetweenBatches(table.id, run, () =>
+        changeSchemaUnderLock(table.id, `jsonb_set(schema, '{columns,0,unique}', 'true')`)
+      )
+
+      expect(change.status).toBe('fulfilled')
+      expect(job.status === 'rejected' && job.reason).toBeInstanceOf(UpdatePatchRejectedError)
+      await expect(run()).rejects.toBeInstanceOf(UpdatePatchRejectedError)
+      expect(await countEmail(table.id, 'same@example.test')).toBe(TABLE_LIMITS.UPDATE_BATCH_SIZE)
+    })
+
+    it('finishes when a column it writes gains a select option mid-job', async () => {
+      const { table, run } = await seededJob({ status: 'Open' })
+
+      const [job, change] = await changeBetweenBatches(table.id, run, () =>
+        updateColumnOptions(
+          {
+            tableId: table.id,
+            columnName: 'status',
+            options: [
+              { id: 'opt_open', name: 'Open' },
+              { id: 'opt_closed', name: 'Closed' },
+            ],
+          },
+          'bulk-update'
+        )
+      )
+
+      expect(change.status).toBe('fulfilled')
+      expect(job.status).toBe('fulfilled')
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id} AND data->>'status' = 'opt_open'`
+      expect(count).toBe(ROWS)
+    })
+
+    it('re-derives the patch for later batches once a patched column is retyped mid-job', async () => {
+      const { table, run, retry } = await seededJob({ note: '7' })
+      const notes = async () =>
+        control<{ kind: string; count: number }[]>`SELECT jsonb_typeof(data->'note') AS kind,
+          count(*)::int AS count FROM user_table_rows WHERE table_id = ${table.id}
+          GROUP BY 1 ORDER BY 1`
+
+      const [job, change] = await changeBetweenBatches(table.id, run, () =>
+        changeSchemaUnderLock(table.id, `jsonb_set(schema, '{columns,3,type}', '"number"')`)
+      )
+
+      expect([job.status, change.status]).toEqual(['fulfilled', 'fulfilled'])
+      expect(await notes()).toEqual([
+        { kind: 'number', count: ROWS - TABLE_LIMITS.UPDATE_BATCH_SIZE },
+        { kind: 'string', count: TABLE_LIMITS.UPDATE_BATCH_SIZE },
+      ])
+      const [{ seven }] = await control<{ seven: number }[]>`SELECT count(*)::int AS seven
+        FROM user_table_rows WHERE table_id = ${table.id} AND data->'note' IN ('"7"', '7')`
+      expect(seven).toBe(ROWS)
+
+      await expect(retry()).resolves.toBeUndefined()
+      expect(await notes()).toEqual([{ kind: 'number', count: ROWS }])
+    })
+
+    it('drops a column deleted mid-job from later batches', async () => {
+      const { table, run } = await seededJob({ note: 'x', email: 'y@example.test' })
+
+      const [job, change] = await changeBetweenBatches(table.id, run, () =>
+        changeSchemaUnderLock(table.id, `schema #- '{columns,3}'`)
+      )
+
+      expect([job.status, change.status]).toEqual(['fulfilled', 'fulfilled'])
+      expect(await countEmail(table.id, 'y@example.test')).toBe(ROWS)
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id} AND data->>'note' = 'x'`
+      expect(count).toBe(TABLE_LIMITS.UPDATE_BATCH_SIZE)
+    })
+
+    it('writes a date patch given as an epoch number', async () => {
+      const { table, run } = await seededJob({ due: 1704067200000 })
+
+      await run()
+
+      const [{ count }] = await control<{ count: number }[]>`SELECT count(*)::int AS count
+        FROM user_table_rows WHERE table_id = ${table.id}
+          AND (data->>'due')::timestamptz = '2024-01-01T00:00:00Z'`
+      expect(count).toBe(ROWS)
     })
   })
 

@@ -2731,6 +2731,13 @@
       "when": 1790562554468,
       "tag": "0390_table_rows_version_at_commit",
       "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1790636195725,
+      "tag": "0391_user_table_schema_for_write",
+      "breakpoints": true
     }
   ]
 }
