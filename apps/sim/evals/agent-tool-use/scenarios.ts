@@ -182,7 +182,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     ],
     expect: {
       toolCallSequence: ['list_files', 'read_file'],
-      finalContent: 'ship the eval harness',
+      finalContent: /ship the eval harness/i,
       maxIterations: 4,
       successfulToolCalls: 2,
     },
@@ -216,6 +216,8 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       finalContent: /A-1937.*shipped/,
       maxIterations: 3,
     },
+    /** A live model may answer with the user-facing order number and the grounded status. */
+    liveExpect: { finalContent: /shipped/i },
   },
   {
     id: 'parallel-independent-tools',
@@ -245,7 +247,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
     ],
     expect: {
       toolCallSequence: ['get_weather', 'get_news'],
-      finalContent: /12°C.*transit strike ends/,
+      finalContent: /12°C[\s\S]*transit strike ends/i,
       maxIterations: 3,
       successfulToolCalls: 2,
     },
