@@ -34,8 +34,8 @@ export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
 
 /**
  * Providers whose kind selects a distinct search collection. A query without a kind fans out
- * across every collection, so it cannot share an account with kinded queries; the per-account
- * request limit bounds the rest.
+ * across its provider's default collections, so it cannot share an account with kinded queries;
+ * the per-account request limit bounds the rest.
  */
 const PROVIDER_KIND_SCHEMAS = {
   github: z.enum(['issues', 'code', 'repositories', 'commits']),
