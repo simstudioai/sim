@@ -19,6 +19,7 @@ import {
 import {
   configPath,
   credentialsPath,
+  DEFAULT_OUTPUT_FORMAT,
   DEFAULT_PROFILE,
   deleteProfile,
   FORBIDDEN_IN_VALUE,
@@ -533,7 +534,7 @@ async function loginWithOAuth(
 
 export function loginCommand(): Command {
   return new Command('login')
-    .description('Sign in through the browser and store the login for the profile')
+    .description('Log in through the browser and store the login for the profile')
     .addOption(
       new Option(
         '--method <method>',
@@ -1108,14 +1109,14 @@ function profileListingContext(command: Command): { activeName: string; output: 
     if (named && named !== DEFAULT_PROFILE && !listProfiles().includes(named)) throw error
 
     // A bad format is the caller's own request, not a broken profile: falling
-    // back to a table would hand a script human output with exit 0. Only the
+    // back to the default would hand a script output it did not ask for with exit 0. Only the
     // profile's *resolution* is tolerated here, never its arguments.
     const requested = globals.output ?? process.env.SIM_OUTPUT
     if (requested && !(OUTPUT_FORMATS as readonly string[]).includes(requested)) throw error
 
     return {
       activeName: named || DEFAULT_PROFILE,
-      output: requested ? (requested as OutputFormat) : 'table',
+      output: requested ? (requested as OutputFormat) : DEFAULT_OUTPUT_FORMAT,
     }
   }
 }
