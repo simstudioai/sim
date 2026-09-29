@@ -3,6 +3,7 @@ import {
   DatabricksIcon,
   FirefliesIcon,
   GranolaIcon,
+  HubspotIcon,
   NotionIcon,
 } from '@/components/icons'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -10,6 +11,7 @@ import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-
 export const MANAGED_MCP_CONNECTOR_ICONS = {
   fireflies: FirefliesIcon,
   granola: GranolaIcon,
+  hubspot: HubspotIcon,
   coda: CodaIcon,
   notion: NotionIcon,
   databricks: DatabricksIcon,

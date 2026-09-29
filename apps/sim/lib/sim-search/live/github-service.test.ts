@@ -39,8 +39,8 @@ const source = {
   },
 }
 const repository = { id: 123, full_name: 'acme/project', owner: { id: 99 }, default_branch: 'main' }
-const member: NativeClient = { json: vi.fn(), text: vi.fn() }
-const app: NativeClient = { json: vi.fn(), text: vi.fn() }
+const member: NativeClient = { json: vi.fn(), text: vi.fn(), bytes: vi.fn() }
+const app: NativeClient = { json: vi.fn(), text: vi.fn(), bytes: vi.fn() }
 const signal = new AbortController().signal
 
 beforeEach(() => {

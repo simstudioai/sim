@@ -51,6 +51,11 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     credentialProviderIds: ['linear'],
     modes: ['member'],
   },
+  hubspot: {
+    origin: 'https://mcp.hubspot.com',
+    credentialProviderIds: ['mcp:hubspot'],
+    modes: ['member'],
+  },
   fireflies: {
     origin: 'https://api.fireflies.ai',
     credentialProviderIds: ['mcp:fireflies'],

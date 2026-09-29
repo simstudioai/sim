@@ -12,6 +12,8 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getSharedHubSpotMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import {
   clearClient,
   clearState,
@@ -36,6 +38,7 @@ export class McpOauthRedirectRequired extends Error {
 export interface PreregisteredClient {
   clientId: string
   clientSecret?: string
+  configurationFingerprint?: string
 }
 
 interface SimMcpOauthProviderInit {
@@ -157,11 +160,38 @@ export async function loadPreregisteredClient(
     .select({
       clientId: mcpServers.oauthClientId,
       clientSecret: mcpServers.oauthClientSecret,
+      connectorId: mcpServers.managedConnectorId,
+      url: mcpServers.url,
+      authType: mcpServers.authType,
+      groupId: mcpServers.credentialGroupId,
+      enabled: mcpServers.enabled,
+      deletedAt: mcpServers.deletedAt,
     })
     .from(mcpServers)
     .where(eq(mcpServers.id, serverId))
     .limit(1)
-  if (!row?.clientId) return undefined
+  if (!row) return undefined
+  if (row.connectorId === 'hubspot') {
+    if (
+      row.url !== MANAGED_MCP_CONNECTORS.hubspot.url ||
+      row.authType !== 'oauth' ||
+      !row.groupId ||
+      !row.enabled ||
+      row.deletedAt
+    )
+      return undefined
+    if (!row.clientId && !row.clientSecret) {
+      const shared = getSharedHubSpotMcpClient()
+      if (!shared)
+        throw new Error(
+          'HubSpot sign-in is not configured. Ask your Sim administrator to configure the HubSpot MCP OAuth client.'
+        )
+      return shared
+    }
+    if (!row.clientId || !row.clientSecret)
+      throw new Error('HubSpot OAuth registration is incomplete')
+  }
+  if (!row.clientId) return undefined
   let clientSecret: string | undefined
   if (row.clientSecret) {
     try {

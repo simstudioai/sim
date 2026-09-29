@@ -1,3 +1,5 @@
+import { toArray } from '@sim/utils/object'
+import { compareStrings, truncate } from '@sim/utils/string'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import {
@@ -7,6 +9,7 @@ import {
   nativeText,
 } from '@/lib/sim-search/live/dates'
 import { readDiscussionSection } from '@/lib/sim-search/live/discussion'
+import { readDriveFileContent } from '@/lib/sim-search/live/drive-content'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
@@ -15,6 +18,7 @@ import type {
   NativeClient,
   NativeDocument,
   NativePage,
+  NativeReadOptions,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
 
@@ -81,10 +85,17 @@ export async function searchDrive(
   }
 }
 
-export async function readDrive(client: NativeClient, id: string): Promise<NativeDocument> {
+export async function readDrive(
+  client: NativeClient,
+  id: string,
+  signal?: AbortSignal
+): Promise<NativeDocument> {
   const row = object(
     await client.json(`/drive/v3/files/${segment(id)}`, {
-      query: { fields: DRIVE_FIELDS, supportsAllDrives: 'true' },
+      query: {
+        fields: `${DRIVE_FIELDS},size,capabilities(canDownload)`,
+        supportsAllDrives: 'true',
+      },
     })
   )
   const document = driveDocument(row)
@@ -117,6 +128,11 @@ export async function readDrive(client: NativeClient, id: string): Promise<Nativ
       array(values.valueRanges)
         .map((range) => `${string(range.range)}\n${JSON.stringify(range.values ?? [])}`)
         .join('\n\n')
+  } else if (
+    document.kind === 'application/pdf' ||
+    document.kind === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    document.content = await readDriveFileContent(client, id, row, signal)
   } else if (document.kind?.startsWith('text/') || document.kind === 'application/json') {
     document.content = await client.text(`/drive/v3/files/${segment(id)}`, {
       alt: 'media',
@@ -265,25 +281,211 @@ export async function searchGmail(
   }
 }
 
-function mailText(value: unknown): string {
-  const part = object(value)
-  const children = array(part.parts).map(mailText).filter(Boolean)
-  const encoded = string(object(part.body).data)
-  if (string(part.mimeType) === 'text/plain' && encoded)
-    return providerText(Buffer.from(encoded, 'base64url').toString('utf8'))
-  if (children.length) return children.join('\n')
-  // HTML-only messages remain text, never rendered as markup.
-  if (string(part.mimeType) === 'text/html' && encoded)
-    return providerText(Buffer.from(encoded, 'base64url').toString('utf8'), 'html')
-  return ''
+/** The response byte cap does not bound recursive MIME depth or per-part processing work. */
+const GMAIL_MIME_DEPTH_LIMIT = 32
+const GMAIL_MIME_PART_LIMIT = 256
+
+interface GmailBodyText {
+  text: string
+  incomplete: boolean
+  plain: boolean
 }
 
-export async function readGmail(client: NativeClient, id: string): Promise<NativeDocument> {
-  const data = object(
+/** Selects one available alternative, preserves mixed body sections, and omits file attachments. */
+function mailText(value: unknown): GmailBodyText {
+  let remainingParts = GMAIL_MIME_PART_LIMIT
+  const bounded = (text: string, incomplete: boolean, plain: boolean): GmailBodyText => ({
+    text: truncate(text, GMAIL_MESSAGE_CHARACTER_LIMIT),
+    incomplete: incomplete || text.length > GMAIL_MESSAGE_CHARACTER_LIMIT,
+    plain,
+  })
+  const visit = (value: unknown, depth: number): GmailBodyText => {
+    if (remainingParts === 0) return { text: '', incomplete: true, plain: false }
+    remainingParts--
+    if (depth >= GMAIL_MIME_DEPTH_LIMIT) return { text: '', incomplete: true, plain: false }
+    const part = object(value)
+    if (string(part.filename)) return { text: '', incomplete: false, plain: false }
+    const mimeType = string(part.mimeType).toLowerCase()
+    if (mimeType === 'text/plain' || mimeType === 'text/html') {
+      const body = object(part.body)
+      const encoded = string(body.data)
+      return bounded(
+        encoded
+          ? providerText(
+              Buffer.from(encoded, 'base64url').toString('utf8'),
+              mimeType === 'text/plain' ? 'plain' : 'html'
+            )
+          : '',
+        !encoded && (Boolean(body.attachmentId) || Number(body.size) > 0),
+        mimeType === 'text/plain'
+      )
+    }
+    const children: GmailBodyText[] = []
+    let incomplete = false
+    for (const child of toArray(part.parts)) {
+      if (remainingParts === 0) {
+        incomplete = true
+        break
+      }
+      children.push(visit(child, depth + 1))
+    }
+    if (mimeType === 'multipart/alternative') {
+      const selected =
+        children.find((child) => child.text && child.plain) ?? children.find((child) => child.text)
+      if (selected) return { ...selected, incomplete: selected.incomplete || incomplete }
+    }
+    return bounded(
+      children
+        .map((child) => child.text)
+        .filter(Boolean)
+        .join('\n'),
+      incomplete || children.some((child) => child.incomplete),
+      children.some((child) => child.text && child.plain)
+    )
+  }
+  return visit(value, 0)
+}
+
+/** Eight messages leave room for fresh per-message scope checks in the member request budget. */
+const GMAIL_CONVERSATION_MESSAGE_LIMIT = 8
+/** Per-message bounds retain the anchor even when earlier messages contain large bodies. */
+const GMAIL_MESSAGE_CHARACTER_LIMIT = 24_000
+
+/**
+ * The application has authorized the anchor. Thread discovery returns metadata only; each
+ * sibling is authorized before its body is fetched and retained for the final fresh check.
+ */
+export async function readGmail(
+  client: NativeClient,
+  id: string,
+  options: NativeReadOptions
+): Promise<NativeDocument> {
+  options.signal.throwIfAborted()
+  const anchor = object(
     await client.json(`/gmail/v1/users/me/messages/${segment(id)}`, { query: { format: 'full' } })
   )
-  const document = gmailDocument(data)
-  return { ...document, content: mailText(data.payload) || document.content }
+  const threadId = string(anchor.threadId)
+  if (
+    anchor.id !== id ||
+    typeof anchor.threadId !== 'string' ||
+    !threadId ||
+    threadId.length > 1000
+  )
+    throw new NativeSearchError('unavailable', 'Gmail returned inconsistent message identity.')
+  const thread = object(
+    await client.json(`/gmail/v1/users/me/threads/${segment(threadId)}`, {
+      query: {
+        format: 'metadata',
+        fields: 'id,messages(id,threadId,labelIds,internalDate)',
+      },
+    })
+  )
+  if (thread.id !== threadId || !Array.isArray(thread.messages))
+    throw new NativeSearchError('unavailable', 'Gmail returned inconsistent conversation identity.')
+  const members = new Map<string, Record<string, unknown>>()
+  for (const value of thread.messages) {
+    const row = object(value)
+    if (typeof row.id !== 'string' || !row.id || row.id.length > 1000 || row.threadId !== threadId)
+      throw new NativeSearchError(
+        'unavailable',
+        'Gmail returned inconsistent conversation membership.'
+      )
+    if (!members.has(row.id)) members.set(row.id, row)
+  }
+  if (!members.has(id))
+    throw new NativeSearchError(
+      'unavailable',
+      'The requested message is missing from its conversation.'
+    )
+  const latest = [...members.values()]
+    .filter((row) => row.id !== id)
+    .sort(
+      (left, right) =>
+        (Number(right.internalDate) || 0) - (Number(left.internalDate) || 0) ||
+        compareStrings(string(left.id), string(right.id))
+    )
+    .slice(0, GMAIL_CONVERSATION_MESSAGE_LIMIT - 1)
+  const warnings = new Set<string>()
+  if (members.size > GMAIL_CONVERSATION_MESSAGE_LIMIT)
+    warnings.add('only the requested message and up to seven recent messages are included')
+  const documents: NativeDocument[] = []
+  const append = (row: Record<string, unknown>) => {
+    const document = gmailDocument(row)
+    const body = mailText(row.payload)
+    if (body.incomplete) warnings.add('some message body content could not be read')
+    if (!body.text && document.content) warnings.add('some messages contain previews only')
+    const content = [
+      `## Message ${document.id}`,
+      `From: ${truncate(document.author || 'Unknown sender', 1000)}`,
+      `Date: ${document.modifiedAt || 'Unknown date'}`,
+      `Subject: ${truncate(document.title, 1000)}`,
+      `Source: ${document.url}`,
+      '',
+      body.text ||
+        (document.content
+          ? `Preview only: ${document.content}`
+          : 'No inline message body available.'),
+    ].join('\n')
+    if (content.length > GMAIL_MESSAGE_CHARACTER_LIMIT) warnings.add('message text was truncated')
+    document.content = truncate(content, GMAIL_MESSAGE_CHARACTER_LIMIT)
+    documents.push(document)
+    return document
+  }
+  const document = append(anchor)
+  for (const candidate of latest) {
+    options.signal.throwIfAborted()
+    const candidateId = string(candidate.id)
+    let row: Record<string, unknown>
+    try {
+      if (
+        !(await options.verify({
+          id: candidateId,
+          accessMetadata: { id: candidateId, labelIds: candidate.labelIds },
+        }))
+      ) {
+        warnings.add('messages outside the source search scope were omitted')
+        continue
+      }
+      row = object(
+        await client.json(`/gmail/v1/users/me/messages/${segment(candidateId)}`, {
+          query: { format: 'full' },
+        })
+      )
+    } catch (error) {
+      options.signal.throwIfAborted()
+      if (error instanceof NativeSearchError && error.httpStatus === 404) {
+        warnings.add('some messages are no longer available')
+        continue
+      }
+      throw error
+    }
+    if (row.id !== candidateId || row.threadId !== threadId)
+      throw new NativeSearchError(
+        'unavailable',
+        'Gmail returned inconsistent conversation membership.'
+      )
+    append(row)
+  }
+  options.signal.throwIfAborted()
+  documents.sort(
+    (left, right) =>
+      (Date.parse(left.modifiedAt ?? '') || 0) - (Date.parse(right.modifiedAt ?? '') || 0) ||
+      compareStrings(left.id, right.id)
+  )
+  return {
+    ...document,
+    accessDependencies: documents
+      .filter((entry) => entry.id !== id)
+      .map((entry) => ({ id: entry.id })),
+    content: [
+      ...(warnings.size
+        ? [
+            `Coverage incomplete: ${[...warnings].join('; ')}. Open Gmail for the remaining context.`,
+          ]
+        : []),
+      ...documents.map((entry) => entry.content),
+    ].join('\n\n'),
+  }
 }
 
 function eventDocument(

@@ -8,30 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StreamUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 
-const { streamOnComplete } = vi.hoisted(() => ({
-  streamOnComplete: {
-    current: undefined as undefined | ((content: string, usage: StreamUsage) => void),
-  },
-}))
-
 vi.mock('openai', () => openaiMock)
 
 vi.mock('@/providers', () => providersMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
-vi.mock('@/providers/ollama/utils', () => ({
-  createReadableStreamFromOllamaStream: (
-    _stream: unknown,
-    onComplete: (content: string, usage: StreamUsage) => void
-  ) => {
-    streamOnComplete.current = onComplete
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.close()
-      },
-    })
-  },
-}))
+
 vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/stores/providers', () => ({
@@ -114,7 +96,6 @@ const baseRequest: ProviderRequest = {
 
 describe('ollamaProvider.executeRequest', () => {
   beforeEach(() => {
-    streamOnComplete.current = undefined
     mockCreate.mockResolvedValue(completion({ content: 'hello' }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
@@ -361,6 +342,19 @@ describe('ollamaProvider.executeRequest', () => {
   })
 
   it('streams content and usage when no tools are used', async () => {
+    mockCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          choices: [{ delta: { content: 'streamed text' } }],
+          usage: {
+            prompt_tokens: 4,
+            completion_tokens: 6,
+            total_tokens: 10,
+          },
+        }
+      })()
+    )
+
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
       stream: true,
@@ -369,27 +363,32 @@ describe('ollamaProvider.executeRequest', () => {
     expect(result.stream).toBeInstanceOf(ReadableStream)
     expect(mockCreate.mock.calls[0][0].stream_options).toEqual({ include_usage: true })
 
-    streamOnComplete.current?.('streamed text', {
-      prompt_tokens: 4,
-      completion_tokens: 6,
-      total_tokens: 10,
-    })
+    await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
     expect(result.execution.output.content).toBe('streamed text')
     expect(result.execution.output.tokens).toMatchObject({ input: 4, output: 6, total: 10 })
   })
 
   it('strips ```json fences from streamed content when responseFormat is set', async () => {
+    mockCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          choices: [{ delta: { content: '```json\n{"a":1}\n```' } }],
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 2,
+            total_tokens: 3,
+          },
+        }
+      })()
+    )
+
     const result = (await ollamaProvider.executeRequest({
       ...baseRequest,
       stream: true,
       responseFormat: { name: 'r', schema: { type: 'object' }, strict: true },
     })) as unknown as StreamingResult
 
-    streamOnComplete.current?.('```json\n{"a":1}\n```', {
-      prompt_tokens: 1,
-      completion_tokens: 2,
-      total_tokens: 3,
-    })
+    await readAgentEvents(result.stream as ReadableStream<AgentStreamEvent>)
     expect(result.execution.output.content).toBe('{"a":1}')
   })
 

@@ -20,7 +20,7 @@ import {
   type ManagedMcpConnectorId,
   requireManagedMcpConnectorUrl,
 } from '@/lib/credential-groups/managed-mcp-connectors'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -28,6 +28,7 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import { getSharedHubSpotMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 
 export class ManagedMcpConnectorError extends Error {
@@ -130,6 +131,32 @@ async function validateServerUrl(url: string): Promise<void> {
   }
 }
 
+/** A connector input whose URL passed the MCP domain and SSRF checks. */
+export interface ValidatedManagedMcpConnectorInput {
+  input: CreateManagedMcpConnectorInput
+  url: string
+}
+
+/**
+ * Resolves and checks a connector's URL. The SSRF check resolves DNS, so a caller that joins its
+ * own transaction runs this before opening it rather than while holding that transaction's locks.
+ */
+export async function validateManagedMcpConnectorInput(
+  input: CreateManagedMcpConnectorInput
+): Promise<ValidatedManagedMcpConnectorInput> {
+  if (input.connectorId === 'hubspot' && !getSharedHubSpotMcpClient())
+    throw new ManagedMcpConnectorError(
+      'HubSpot sign-in is not configured. Ask your Sim administrator to configure the HubSpot MCP OAuth client.',
+      'validation'
+    )
+  const url = resolveManagedMcpConnectorUrl(
+    input.connectorId,
+    input.connectorId === 'databricks' ? input.url : undefined
+  )
+  await validateServerUrl(url)
+  return { input, url }
+}
+
 function resolveManagedMcpConnectorUrl(
   connectorId: ManagedMcpConnectorId,
   rawUrl?: string
@@ -176,37 +203,43 @@ async function retireManagedMcpCredentials(
   return retired.map((row) => row.id)
 }
 
+interface ManagedMcpConnectorTarget {
+  workspaceId?: string
+  organizationId?: string
+  credentialGroupId: string
+  userId: string
+}
+
+export function createManagedMcpConnector(
+  params: ManagedMcpConnectorTarget & { input: CreateManagedMcpConnectorInput }
+): Promise<ManagedMcpConnectorMutationResult>
+/** Joins the caller's transaction with an input validated before that transaction opened. */
+export function createManagedMcpConnector(
+  params: ManagedMcpConnectorTarget & { validated: ValidatedManagedMcpConnectorInput },
+  executor: DbTransaction
+): Promise<ManagedMcpConnectorMutationResult>
 export async function createManagedMcpConnector(
-  params: {
-    workspaceId?: string
-    organizationId?: string
-    credentialGroupId: string
-    userId: string
-    input: CreateManagedMcpConnectorInput
-  },
-  executor?: DbOrTx
+  params: ManagedMcpConnectorTarget &
+    ({ input: CreateManagedMcpConnectorInput } | { validated: ValidatedManagedMcpConnectorInput }),
+  executor?: DbTransaction
 ): Promise<ManagedMcpConnectorMutationResult> {
+  const { input, url } =
+    'validated' in params ? params.validated : await validateManagedMcpConnectorInput(params.input)
   const scope = resourceScopeFromOwner(params)
-  const connector = getManagedMcpConnector(params.input.connectorId)
-  const url = resolveManagedMcpConnectorUrl(
-    connector.id,
-    params.input.connectorId === 'databricks' ? params.input.url : undefined
-  )
-  await validateServerUrl(url)
+  const connector = getManagedMcpConnector(input.connectorId)
   const serverId = generateMcpServerId(
     scope.kind === 'workspace' ? scope.workspaceId : resourceScopeKey(scope),
     url
   )
-  const oauthClientId =
-    params.input.connectorId === 'databricks' ? params.input.oauthClientId.trim() : null
+  const oauthClientId = input.connectorId === 'databricks' ? input.oauthClientId.trim() : null
   const oauthClientSecret =
-    params.input.connectorId === 'databricks' && params.input.oauthClientSecret
-      ? (await encryptSecret(params.input.oauthClientSecret)).encrypted
+    input.connectorId === 'databricks' && input.oauthClientSecret
+      ? (await encryptSecret(input.oauthClientSecret)).encrypted
       : null
-  const name = params.input.connectorId === 'databricks' ? params.input.name.trim() : connector.name
+  const name = input.connectorId === 'databricks' ? input.name.trim() : connector.name
   if (!name)
     throw new ManagedMcpConnectorError('Managed MCP connector name is required', 'validation')
-  if (params.input.connectorId === 'databricks' && !oauthClientId) {
+  if (input.connectorId === 'databricks' && !oauthClientId) {
     throw new ManagedMcpConnectorError('Databricks OAuth Client ID is required', 'validation')
   }
 

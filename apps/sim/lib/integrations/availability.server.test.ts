@@ -1,5 +1,6 @@
 import integrationsJson from '@sim/deployment-config/integrations.json'
-import { describe, expect, it } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,
@@ -22,6 +23,14 @@ import {
 } from '@/lib/integrations/service-account-metadata'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
+
+setEnv({
+  X_CLIENT_ID: undefined,
+  X_CLIENT_SECRET: undefined,
+  GITHUB_APP_CLIENT_ID: undefined,
+  GITHUB_APP_CLIENT_SECRET: undefined,
+})
+afterAll(resetEnvMock)
 
 const integrations = integrationsJson.integrations as readonly Integration[]
 

@@ -20,12 +20,16 @@ const DRIVE_FILE = {
   webViewLink: 'https://docs.google.com/document/d/doc/edit',
 }
 const text: NativeClient['text'] = async () => 'Original document text'
+const bytes: NativeClient['bytes'] = async () => {
+  throw new Error('Unexpected binary request')
+}
 
 /** Independent provider wire fixtures exercise pagination, partial failures, and rendering. */
 describe('GitHub conversation reads', () => {
   it('keeps review decisions, diff context and discussion replies separate from the PR body', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path) {
         if (path.endsWith('/issues/42')) return ISSUE
         if (path.endsWith('/issues/42/comments'))
@@ -103,6 +107,7 @@ describe('GitHub conversation reads', () => {
   it('exposes the matching comment passage in search even when the issue body is nonempty', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json() {
         return {
           total_count: 1,
@@ -137,6 +142,7 @@ describe('GitHub conversation reads', () => {
   it('reads subsequent comment pages and keeps the body when a different review endpoint is denied', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path, options) {
         if (path.endsWith('/issues/42')) return ISSUE
         if (path.endsWith('/issues/42/comments'))
@@ -158,6 +164,7 @@ describe('GitHub conversation reads', () => {
     let requests = 0
     const api: NativeClient = {
       text,
+      bytes,
       async json(path, options) {
         if (++requests > 11) throw new Error('Unbounded discussion pagination')
         if (path.endsWith('/issues/42')) return ISSUE
@@ -178,6 +185,7 @@ describe('GitHub conversation reads', () => {
   it('marks oversized discussion text incomplete instead of returning an unbounded transcript', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path) {
         if (path.endsWith('/issues/42')) return { ...ISSUE, pull_request: undefined }
         return [{ id: 1, body: 'x'.repeat(200_000) }]
@@ -194,6 +202,7 @@ describe('Drive discussion reads', () => {
   it('reads all comment pages with full nested replies, author/time context and resolution state', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path, options) {
         if (!path.endsWith('/comments')) return DRIVE_FILE
         if (options?.query?.pageToken === 'next')
@@ -246,6 +255,7 @@ describe('Drive discussion reads', () => {
   it('reports comments unavailable while preserving readable document content', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path) {
         if (path.endsWith('/comments'))
           throw new NativeSearchError('rate_limited', 'Provider rate limit reached')
@@ -258,10 +268,25 @@ describe('Drive discussion reads', () => {
     expect(content).toMatch(/rate limit/i)
   })
 
+  it('degrades a failed comment request to partial coverage', async () => {
+    const api: NativeClient = {
+      text,
+      async json(path) {
+        if (path.endsWith('/comments'))
+          throw Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })
+        return DRIVE_FILE
+      },
+    }
+    const { content } = await readDrive(api, 'doc')
+    expect(content).toContain('Original document text')
+    expect(content).toMatch(/incomplete[\s\S]*could not be fully retrieved/i)
+  })
+
   it('detects repeated comment cursors without silently claiming all comments were read', async () => {
     let pages = 0
     const api: NativeClient = {
       text,
+      bytes,
       async json(path) {
         if (!path.endsWith('/comments')) return DRIVE_FILE
         if (++pages > 3) throw new Error('Unbounded Drive pagination')
@@ -281,6 +306,7 @@ describe('Drive discussion reads', () => {
   it('bounds nested reply content and explicitly marks what was omitted', async () => {
     const api: NativeClient = {
       text,
+      bytes,
       async json(path) {
         if (!path.endsWith('/comments')) return DRIVE_FILE
         return {

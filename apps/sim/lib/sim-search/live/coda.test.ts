@@ -5,7 +5,7 @@ describe('Coda REST discovery', () => {
   it('sends only the provider page token on continuation because it encodes the original query', async () => {
     const json = vi.fn().mockResolvedValue({ items: [] })
     await searchCoda(
-      { json, text: vi.fn() },
+      { json, text: vi.fn(), bytes: vi.fn() },
       {
         query: 'launch',
         limit: 10,

@@ -86,8 +86,15 @@ export function LiveSearchSettings() {
     ).map(([type, meta]) => ({
       type,
       meta,
+      availabilityStatus:
+        type !== 'hubspot' || accounts.isSuccess
+          ? undefined
+          : accounts.isError
+            ? ('error' as const)
+            : ('loading' as const),
       access: getLiveSearchAccessAvailability(type, availability.integrationAvailability, {
         memberAccessAvailable: searchAccess.memberScoped,
+        availableMcpConnectors: accounts.data?.availableMcpConnectors,
         mirroredAccessAvailable: searchAccess.sourceMirrored,
         oauthServiceAvailability: availability.oauthServiceAvailability,
         isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
@@ -301,7 +308,17 @@ export function LiveSearchSettings() {
           )}
           pending={update.isPending}
           ready={availability.isIntegrationAvailabilityReady}
-          feedback={null}
+          feedback={
+            accounts.error ? (
+              <SettingsQueryErrorState
+                error={accounts.error}
+                fallback='Could not check account availability'
+                isRetrying={accounts.isFetching}
+                onRetry={() => void accounts.refetch()}
+                variant='inline'
+              />
+            ) : null
+          }
           onClose={() => setAdding(false)}
           onSelect={(type, mode) => {
             if (type === GENERIC_SECRETS_SOURCE_TYPE) {

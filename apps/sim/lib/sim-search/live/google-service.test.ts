@@ -15,8 +15,8 @@ vi.mock('@/lib/sim-search/live/http', async (importOriginal) => ({
   createNativeClient: mocks.createClient,
 }))
 
-const member = { json: vi.fn<NativeClient['json']>(), text: vi.fn() }
-const delegated = { json: vi.fn<NativeClient['json']>(), text: vi.fn() }
+const member = { json: vi.fn<NativeClient['json']>(), text: vi.fn(), bytes: vi.fn() }
+const delegated = { json: vi.fn<NativeClient['json']>(), text: vi.fn(), bytes: vi.fn() }
 const mint = vi.fn<NonNullable<ConnectorAccessToken['getDelegatedAccessToken']>>()
 const token = { accessToken: 'directory-token', getDelegatedAccessToken: mint }
 const person = (email: string) => ({ id: email, email, customerId: 'customer', active: true })
@@ -178,8 +178,13 @@ describe('Google service source filtering', () => {
     const unavailable = {
       json: vi.fn().mockRejectedValue(new NativeSearchError('unavailable', 'Source timed out')),
       text: vi.fn(),
+      bytes: vi.fn(),
     }
-    const denied = { json: vi.fn().mockResolvedValue({ id: 'file', trashed: true }), text: vi.fn() }
+    const denied = {
+      json: vi.fn().mockResolvedValue({ id: 'file', trashed: true }),
+      text: vi.fn(),
+      bytes: vi.fn(),
+    }
     mocks.createClient.mockReturnValueOnce(unavailable).mockReturnValueOnce(denied)
     const session = await create('google_drive', {
       userEmails: ['first@example.com', 'second@example.com'],

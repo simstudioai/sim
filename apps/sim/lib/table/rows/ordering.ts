@@ -332,6 +332,11 @@ export async function insertOrderedRow(params: {
   secretProvenance?: TableRowSecretProvenanceWrite
   /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
   proof: MutationProof<'insert'>
+  /**
+   * Runs first in the transaction, before the row-order lock: the caller's unique-value locks and
+   * unique check (see `unique-locks.ts`), so the check sees any concurrent insert of the same value.
+   */
+  assertUnique?: (trx: DbTransaction) => Promise<void>
 }): Promise<{
   id: string
   data: RowData
@@ -354,6 +359,7 @@ export async function insertOrderedRow(params: {
   } = params
   const [row] = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
+    await params.assertUnique?.(trx)
     await acquireRowOrderLock(trx, tableId)
 
     // Resolve the authoritative order key from neighbor ids when given, else from the requested

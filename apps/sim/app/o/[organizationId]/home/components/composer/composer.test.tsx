@@ -5,6 +5,7 @@ import {
   deploymentShapeMock,
   deploymentShapeMockFns,
 } from '@sim/testing/mocks/deployment-shape.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -57,9 +58,7 @@ vi.mock('@/hooks/queries/skills', () => ({
   }),
 }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
   async () => {

@@ -60,8 +60,7 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
   }
 
   clientInformation(): OAuthClientInformationMixed | undefined {
-    if (this.clientRow.clientInformation) return this.clientRow.clientInformation
-    if (!this.preregistered) return undefined
+    if (!this.preregistered) return this.clientRow.clientInformation ?? undefined
     return {
       client_id: this.preregistered.clientId,
       client_secret: this.preregistered.clientSecret,

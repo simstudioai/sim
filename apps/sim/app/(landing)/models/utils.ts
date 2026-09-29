@@ -14,6 +14,7 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   baseten: ['baseten/'],
   'ollama-cloud': ['ollama-cloud/'],
   groq: ['groq/'],
+  kie: ['kie/'],
   openrouter: ['openrouter/'],
   vllm: ['vllm/'],
 }

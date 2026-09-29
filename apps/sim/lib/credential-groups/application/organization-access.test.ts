@@ -45,6 +45,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
+  listConfiguredManagedMcpConnectors: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)

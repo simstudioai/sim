@@ -7,7 +7,7 @@ import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import {
@@ -234,7 +234,7 @@ export function workspaceFileNameFolderCondition(folderId?: string | null) {
   return sql`coalesce(${workspaceFiles.folderId}, '') = ${folderId ?? ''}`
 }
 
-async function acquireWorkspaceFileFolderMutationLock(tx: DbOrTx, workspaceId: string) {
+async function acquireWorkspaceFileFolderMutationLock(tx: DbTransaction, workspaceId: string) {
   await acquireFolderMutationLock(tx, workspaceId, FILE_FOLDER_RESOURCE_TYPE)
 }
 

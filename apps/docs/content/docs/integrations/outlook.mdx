@@ -679,8 +679,6 @@ Accept, tentatively accept, or decline an Outlook calendar event invitation
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -722,4 +720,27 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 |   ↳ `messageId` | string | Message ID for threading |
 |   ↳ `threadId` | string | Thread ID for conversation threading |
 | `timestamp` | string | Event timestamp |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an Outlook account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/outlook` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Mail.ReadWrite` | Read, create, update, and delete your email |
+| `Mail.ReadBasic` | Read email properties, excluding body and attachments |
+| `Mail.Read` | Read your email |
+| `Mail.Send` | Send emails |
+| `Calendars.ReadWrite` | Read and manage Outlook calendar events |
+| `offline_access` | Access account when not using the application |
+
 

@@ -16,7 +16,8 @@ interface UseChatSelectionProps {
  * Selecting chats clears workflow/folder selections and vice versa.
  */
 export function useChatSelection({ chatIds }: UseChatSelectionProps) {
-  const selectedChats = useFolderStore((s) => s.selectedChats)
+  const allSelectedChats = useFolderStore((s) => s.selectedChats)
+  const selectedChats = new Set(chatIds.filter((id) => allSelectedChats.has(id)))
 
   const handleChatClick = useCallback(
     (chatId: string, shiftKey: boolean) => {
@@ -26,7 +27,9 @@ export function useChatSelection({ chatIds }: UseChatSelectionProps) {
         toggleChatSelection,
         lastSelectedChatId: anchor,
       } = useFolderStore.getState()
-      if (shiftKey && anchor && anchor !== chatId) {
+      if (!anchor || !chatIds.includes(anchor)) {
+        selectChatOnly(chatId)
+      } else if (shiftKey && anchor !== chatId) {
         selectChatRange(chatIds, anchor, chatId)
       } else if (shiftKey) {
         toggleChatSelection(chatId)

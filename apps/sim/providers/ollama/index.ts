@@ -6,7 +6,6 @@ import type { StreamingExecution } from '@/executor/types'
 import { inheritConversationGenerationContext } from '@/providers/conversation-generation'
 import { executeOllamaProviderRequest } from '@/providers/ollama/core'
 import type { ModelsObject } from '@/providers/ollama/types'
-import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers'
@@ -63,7 +62,6 @@ export const ollamaProvider: ProviderConfig = {
             apiKey: 'empty',
             baseURL: `${OLLAMA_HOST}/v1`,
           }),
-        createStream: createReadableStreamFromOllamaStream,
         logger,
       }
     )

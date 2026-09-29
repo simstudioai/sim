@@ -1,3 +1,4 @@
+import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import type {
   DatabricksGenieAgentItem,
   DatabricksGenieMessage,
@@ -66,13 +67,17 @@ export const GENIE_MESSAGE_PARAMS = {
   },
 } as const satisfies ToolConfig['params']
 
-/** Builds an absolute Databricks REST URL from a workspace host that may carry a scheme or slash. */
+/**
+ * Builds an absolute Databricks REST URL, refusing any host outside the Databricks workspace
+ * domains so the access token is only ever sent to Databricks. The host may carry a scheme or
+ * trailing slash; an `http://` scheme is upgraded to HTTPS as before, not rejected.
+ */
 export function databricksUrl(host: string, path: string): string {
-  const normalizedHost = host
-    .trim()
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '')
-  return `https://${normalizedHost}${path}`
+  const result = validateDatabricksWorkspaceHost(host.trim().replace(/^http:\/\//i, ''), 'host')
+  if (!result.isValid || !result.sanitized) {
+    throw new Error(result.error || 'Invalid Databricks workspace host')
+  }
+  return `${result.sanitized}${path}`
 }
 
 /** Path of a Genie space: `/api/2.0/genie/spaces/{space_id}`. */

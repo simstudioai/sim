@@ -540,6 +540,8 @@ export const env = createEnv({
     DOCUSIGN_AUTH_HOST:                    z.string().optional(),                  // DocuSign auth host: account-d.docusign.com (demo, default) or account.docusign.com (production)
     MICROSOFT_CLIENT_ID:                   z.string().optional(),                  // Microsoft OAuth client ID for Office 365/Teams
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
+    HUBSPOT_MCP_CLIENT_ID:                 z.string().optional(),                  // HubSpot member MCP OAuth client ID
+    HUBSPOT_MCP_CLIENT_SECRET:             z.string().optional(),                  // HubSpot member MCP OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
     SALESFORCE_CLIENT_ID:                  z.string().optional(),                  // Salesforce OAuth client ID

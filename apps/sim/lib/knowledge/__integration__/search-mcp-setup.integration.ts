@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, runOutsideTransactionContext } from '@sim/db'
 import {
   credentialGroup,
   mcpServers,
@@ -16,6 +16,7 @@ import { toRecord } from '@sim/utils/object'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOrganizationAccountsGroup } from '@/lib/credential-groups/workspace-accounts'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { approveSearchIntegration } from '@/lib/knowledge/application/search-integrations'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 
@@ -150,6 +151,51 @@ describe('atomic organization live Search MCP setup', () => {
       expect(result.memberAccounts?.groupId).toBe(group.id)
     }
   )
+
+  it('resolves the sign-in server before the approval takes the accounts lock', async () => {
+    const lockHeldDuringLookup: boolean[] = []
+    vi.mocked(dns.resolveHostAddresses).mockImplementationOnce(async () => {
+      /** A separate connection: the lookup must not run inside the approval's transaction. */
+      const acquired = await runOutsideTransactionContext(() =>
+        db.transaction((tx) =>
+          tryAcquireAdvisoryXactLock(
+            tx,
+            'search_accounts',
+            `search-accounts:organization:${ids.organization}`
+          )
+        )
+      )
+      lockHeldDuringLookup.push(!acquired)
+      return { addresses: ['93.184.216.34'], preferred: '93.184.216.34' }
+    })
+    await approve('fireflies')
+    expect(lockHeldDuringLookup).toEqual([false])
+    expect((await snapshot()).servers).toHaveLength(1)
+  })
+
+  it('approves an already-configured provider while DNS is unavailable', async () => {
+    const first = await approve('fireflies')
+    const before = (await snapshot()).servers
+    const lookup = vi.mocked(dns.resolveHostAddresses)
+    const fixture = lookup.getMockImplementation()
+    lookup.mockRejectedValue(new Error('DNS unavailable'))
+    try {
+      const again = await approve('fireflies')
+      expect(again.memberAccounts?.groupId).toBe(first.memberAccounts?.groupId)
+    } finally {
+      if (fixture) lookup.mockImplementation(fixture)
+    }
+    expect((await snapshot()).servers).toEqual(before)
+  })
+
+  it('approves a provider a concurrent approval configured while this lookup failed', async () => {
+    vi.mocked(dns.resolveHostAddresses).mockImplementationOnce(async () => {
+      await approve('fireflies')
+      throw new Error('DNS unavailable')
+    })
+    await approve('fireflies')
+    expect((await snapshot()).servers).toHaveLength(1)
+  })
 
   it('serializes concurrent approvals into one group and one server per provider', async () => {
     const providers = ['fireflies', 'granola', 'notion']
