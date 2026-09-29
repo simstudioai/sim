@@ -75,6 +75,14 @@ export function DashboardDialog({
     if (!row) return false
     return row.id === ancestorId || (row.parentId !== null && isWithin(row.parentId, ancestorId))
   }
+  const folderNameTaken =
+    (state.kind === 'createFolder' || state.kind === 'editFolder') &&
+    folders.some(
+      (folder) =>
+        ('folder' in state ? folder.id !== state.folder.id : true) &&
+        (folder.parentId ?? '') === target &&
+        folder.name === name.trim()
+    )
   function save() {
     const callbacks = {
       onSuccess: (result: Awaited<ReturnType<typeof mutation.mutateAsync>>) => {
@@ -136,7 +144,13 @@ export function DashboardDialog({
           </p>
         ) : (
           <>
-            <ChipModalField type='input' title='Name' value={name} onChange={setName} />
+            <ChipModalField
+              type='input'
+              title='Name'
+              value={name}
+              onChange={setName}
+              error={folderNameTaken ? 'A folder with this name already exists here' : undefined}
+            />
             {(state.kind === 'edit' || state.kind === 'editFolder') && (
               <ChipModalField
                 type='dropdown'
@@ -166,7 +180,7 @@ export function DashboardDialog({
         primaryAction={{
           label: deleting ? 'Delete' : 'Save',
           variant: deleting ? 'destructive' : 'primary',
-          disabled: mutation.isPending || (!deleting && !name.trim()),
+          disabled: mutation.isPending || (!deleting && (!name.trim() || folderNameTaken)),
           onClick: save,
         }}
       />

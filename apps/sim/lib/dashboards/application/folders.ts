@@ -4,12 +4,13 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { dashboardWorkspace } from '@/lib/dashboards/application/dashboards'
 import { dashboardOperations } from '@/lib/dashboards/application/operations'
 import { requireDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import {
   createFolderAtPathTransition,
   deleteFolderByPathTransition,
   relocateFolderByPathTransition,
 } from '@/lib/folders/orchestration'
-import { listFoldersForWorkspace, toFolderApi } from '@/lib/folders/queries'
+import { listActiveFolderRows, toFolderApi } from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 
@@ -24,8 +25,10 @@ export const listDashboardFolders = defineAuthorizedWorkspaceFileUseCase({
     dashboardWorkspace(input.workspaceId),
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ context }) {
-    const folders = await listFoldersForWorkspace(context.workspaceId, 'active', 'dashboard')
-    return { folders }
+    const rows = await listActiveFolderRows(context.workspaceId, 'dashboard', {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    return { folders: rows.map(toFolderApi) }
   },
 })
 
@@ -39,6 +42,7 @@ export const createDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
       resourceType: 'dashboard',
       userId: requirePrincipalSubjectUserId(principal),
       path: input.path,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       effects: false,
       throwInfrastructure: true,
     })
@@ -71,6 +75,7 @@ export const moveDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
       userId: requirePrincipalSubjectUserId(principal),
       path: input.path,
       destinationPath: input.destinationPath,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       effects: false,
       throwInfrastructure: true,
     })
@@ -102,6 +107,7 @@ export const deleteDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
       userId: requirePrincipalSubjectUserId(principal),
       path: input.path,
       recursive: true,
+      maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       effects: false,
       throwInfrastructure: true,
     })

@@ -4,7 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { dashboardOperations } from '@/lib/dashboards/application/operations'
 import { requireDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
-import { parseDashboardSpec } from '@/lib/dashboards/spec'
+import { MAX_DASHBOARD_SOURCE_BYTES, parseDashboardSpec } from '@/lib/dashboards/spec'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   ContentVersionConflictError,
@@ -109,7 +109,7 @@ export const readDashboard = defineAuthorizedWorkspaceFileUseCase({
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ context }) {
     const file = await requireDashboardFile(context.workspaceId, context.fileId)
-    const content = await fetchWorkspaceFileBuffer(file, { maxBytes: 128 * 1024 })
+    const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_DASHBOARD_SOURCE_BYTES })
     return { dashboard: dashboardRecord(file), content: content.toString('utf-8') }
   },
 })
