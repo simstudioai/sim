@@ -38,7 +38,12 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
       if (!workspace) notFound()
       return (
         <ProjectShell workspace={workspace}>
-          <WorkspaceView workspace={workspace} section={route.section} />
+          <WorkspaceView
+            workspace={workspace}
+            section={route.section}
+            full={route.full}
+            settingsSection={route.settingsSection}
+          />
         </ProjectShell>
       )
     }

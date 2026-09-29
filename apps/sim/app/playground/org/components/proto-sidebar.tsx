@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import {
   Avatar,
   Chip,
+  ChipLink,
   ChipTag,
   chipVariants,
   cn,
@@ -12,7 +13,16 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { ChevronDown, Home, Integration, PanelLeft, Plus, Search, Settings } from '@sim/emcn/icons'
+import {
+  ChevronDown,
+  ChevronLeft,
+  Home,
+  Integration,
+  PanelLeft,
+  Plus,
+  Search,
+  Settings,
+} from '@sim/emcn/icons'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -27,8 +37,21 @@ import {
   WORKSPACES,
   type Workspace,
 } from '@/app/playground/org/lib/mock-data'
-import { PROTO_BASE, protoRoutes } from '@/app/playground/org/lib/routes'
+import {
+  fullViewProject,
+  MAIN_SECTION_IDS,
+  PROTO_BASE,
+  protoRoutes,
+  settingsProject,
+  WORKSPACE_SECTIONS,
+  type WorkspaceSection,
+} from '@/app/playground/org/lib/routes'
 import { protoParsers } from '@/app/playground/org/lib/search-params'
+import {
+  SETTINGS_GROUP_TITLES,
+  SETTINGS_GROUPS,
+  SETTINGS_NAV,
+} from '@/app/playground/org/lib/settings-nav'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
   isNavItemActive,
@@ -62,6 +85,8 @@ export function ProtoSidebar() {
   const isCollapsed = railCollapsed && !isPeeking
   const pathname = usePathname()
   const [{ chat: openChat }] = useQueryStates(protoParsers)
+  const fullProject = WORKSPACES.find((w) => w.id === fullViewProject(pathname))
+  const inSettings = Boolean(fullProject && settingsProject(pathname))
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -79,15 +104,37 @@ export function ProtoSidebar() {
       <div className='flex h-full flex-col'>
         <div className='relative flex shrink-0 items-center gap-[1px] px-2 pt-2'>
           <div className='min-w-0 flex-1'>
-            <Chip
-              fullWidth
-              className={SIDEBAR_RAIL_CHIP_CLASS}
-              onClick={isCollapsed ? toggleCollapsed : undefined}
-              leftAdornment={<IdentityTile initial={ORGANIZATION.name[0]} />}
-              rightIcon={isCollapsed ? undefined : ChevronDown}
-            >
-              {ORGANIZATION.name}
-            </Chip>
+            {fullProject ? (
+              <SidebarTooltip label={`Back to ${fullProject.name}`} enabled side='bottom'>
+                <ChipLink
+                  href={
+                    inSettings
+                      ? protoRoutes.full(fullProject.id)
+                      : protoRoutes.workspace(fullProject.id)
+                  }
+                  fullWidth
+                  className={SIDEBAR_RAIL_CHIP_CLASS}
+                  leftAdornment={
+                    <span className='flex shrink-0 items-center gap-1'>
+                      <ChevronLeft className='size-[14px] text-[var(--text-icon)]' />
+                      <IdentityTile initial={fullProject.name[0]} />
+                    </span>
+                  }
+                >
+                  {inSettings ? `${fullProject.name} settings` : fullProject.name}
+                </ChipLink>
+              </SidebarTooltip>
+            ) : (
+              <Chip
+                fullWidth
+                className={SIDEBAR_RAIL_CHIP_CLASS}
+                onClick={isCollapsed ? toggleCollapsed : undefined}
+                leftAdornment={<IdentityTile initial={ORGANIZATION.name[0]} />}
+                rightIcon={isCollapsed ? undefined : ChevronDown}
+              >
+                {ORGANIZATION.name}
+              </Chip>
+            )}
           </div>
           {!isCollapsed && (
             <SidebarTooltip label='Collapse sidebar' enabled side='bottom' shortcut='⌘B'>
@@ -105,7 +152,12 @@ export function ProtoSidebar() {
             !scrollEdges.top && 'border-transparent'
           )}
         >
-          {NAV_ITEMS.map((item) => (
+          {(inSettings
+            ? []
+            : fullProject
+              ? fullNavItems(fullProject.id, PRIMARY_SECTIONS)
+              : NAV_ITEMS
+          ).map((item) => (
             <SidebarTooltip key={item.id} label={item.label} enabled={isCollapsed}>
               <SidebarNavChip
                 item={item}
@@ -128,45 +180,62 @@ export function ProtoSidebar() {
           {...scrollFadeAttributes(scrollEdges)}
         >
           <div ref={scrollContentRef} className='flex flex-col'>
-            <SidebarSection
-              title='Projects'
-              railCollapsed={isCollapsed}
-              action={
-                isCollapsed ? undefined : (
-                  <Chip leftIcon={Plus} aria-label='New project' className='mr-2 h-[18px]' />
-                )
-              }
-            >
-              <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                {WORKSPACES.map((workspace) => (
-                  <ProjectTree
-                    key={workspace.id}
-                    workspace={workspace}
-                    pathname={pathname}
-                    openChat={openChat}
-                    railCollapsed={isCollapsed}
-                  />
-                ))}
-              </div>
-            </SidebarSection>
-
-            {GENERAL_CHATS.length > 0 && (
-              <SidebarSection
-                title='Recent chats'
+            {fullProject && inSettings ? (
+              <SettingsSections
+                workspace={fullProject}
+                pathname={pathname}
                 railCollapsed={isCollapsed}
-                className={SIDEBAR_SECTION_GAP_CLASS}
-              >
-                <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                  {GENERAL_CHATS.map((chat) => (
-                    <ChatRow
-                      key={chat.id}
-                      chat={chat}
-                      href={protoRoutes.chat(chat.id)}
-                      active={pathname === protoRoutes.chat(chat.id)}
-                    />
-                  ))}
-                </div>
-              </SidebarSection>
+              />
+            ) : fullProject ? (
+              <FullViewSections
+                workspace={fullProject}
+                pathname={pathname}
+                openChat={openChat}
+                railCollapsed={isCollapsed}
+              />
+            ) : (
+              <>
+                <SidebarSection
+                  title='Projects'
+                  railCollapsed={isCollapsed}
+                  action={
+                    isCollapsed ? undefined : (
+                      <Chip leftIcon={Plus} aria-label='New project' className='mr-2 h-[18px]' />
+                    )
+                  }
+                >
+                  <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                    {WORKSPACES.map((workspace) => (
+                      <ProjectTree
+                        key={workspace.id}
+                        workspace={workspace}
+                        pathname={pathname}
+                        openChat={openChat}
+                        railCollapsed={isCollapsed}
+                      />
+                    ))}
+                  </div>
+                </SidebarSection>
+
+                {GENERAL_CHATS.length > 0 && (
+                  <SidebarSection
+                    title='Recent chats'
+                    railCollapsed={isCollapsed}
+                    className={SIDEBAR_SECTION_GAP_CLASS}
+                  >
+                    <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                      {GENERAL_CHATS.map((chat) => (
+                        <ChatRow
+                          key={chat.id}
+                          chat={chat}
+                          href={protoRoutes.chat(chat.id)}
+                          active={pathname === protoRoutes.chat(chat.id)}
+                        />
+                      ))}
+                    </div>
+                  </SidebarSection>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -308,5 +377,105 @@ function ChatRow({ chat, href, active }: ChatRowProps) {
         <span className='shrink-0 text-[var(--text-muted)] text-caption'>{chat.age}</span>
       )}
     </Link>
+  )
+}
+
+const PRIMARY_SECTIONS: readonly WorkspaceSection[] = MAIN_SECTION_IDS
+const BUILD_SECTIONS: readonly WorkspaceSection[] = WORKSPACE_SECTIONS.map((s) => s.id).filter(
+  (id) => !MAIN_SECTION_IDS.includes(id)
+)
+
+function fullNavItems(
+  workspaceId: string,
+  sections: readonly WorkspaceSection[]
+): SidebarNavItemData[] {
+  return WORKSPACE_SECTIONS.filter((item) => sections.includes(item.id)).map((item) => ({
+    id: item.id,
+    label: item.label,
+    icon: item.icon,
+    href: protoRoutes.full(workspaceId, item.id),
+  }))
+}
+
+interface FullViewSectionsProps {
+  workspace: Workspace
+  pathname: string | null
+  openChat: string
+  railCollapsed: boolean
+}
+
+/** Full view: the project's build sections, then its chats, in place of Projects and Recent chats. */
+function FullViewSections({ workspace, pathname, openChat, railCollapsed }: FullViewSectionsProps) {
+  const chats = CHATS.filter((chat) => chat.workspaceId === workspace.id)
+  return (
+    <>
+      <SidebarSection title='Build' railCollapsed={railCollapsed}>
+        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+          {fullNavItems(workspace.id, BUILD_SECTIONS).map((item) => (
+            <SidebarTooltip key={item.id} label={item.label} enabled={railCollapsed}>
+              <SidebarNavChip item={item} active={isNavItemActive(item, pathname)} />
+            </SidebarTooltip>
+          ))}
+        </div>
+      </SidebarSection>
+      {chats.length > 0 && (
+        <SidebarSection
+          title='Chats'
+          railCollapsed={railCollapsed}
+          className={SIDEBAR_SECTION_GAP_CLASS}
+        >
+          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+            {chats.map((chat) => (
+              <ChatRow
+                key={chat.id}
+                chat={chat}
+                href={`${pathname ?? protoRoutes.full(workspace.id)}?chat=${chat.id}`}
+                active={openChat === chat.id}
+              />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+    </>
+  )
+}
+
+interface SettingsSectionsProps {
+  workspace: Workspace
+  pathname: string | null
+  railCollapsed: boolean
+}
+
+/** Settings: the project sidebar gives way to the settings list, grouped like prod. */
+function SettingsSections({ workspace, pathname, railCollapsed }: SettingsSectionsProps) {
+  const base = protoRoutes.settings(workspace.id)
+  return (
+    <>
+      {SETTINGS_GROUPS.map((group, index) => (
+        <SidebarSection
+          key={group}
+          title={SETTINGS_GROUP_TITLES[group] ?? group}
+          railCollapsed={railCollapsed}
+          className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS)}
+        >
+          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+            {SETTINGS_NAV.filter((item) => item.group === group).map((item) => {
+              const href = protoRoutes.settings(workspace.id, item.id)
+              const active =
+                pathname === href ||
+                (item.id === SETTINGS_NAV[0].id && pathname === base.replace(/\/[^/]+$/, ''))
+              return (
+                <SidebarTooltip key={item.id} label={item.label} enabled={railCollapsed}>
+                  <SidebarNavChip
+                    item={{ id: item.id, label: item.label, icon: item.icon, href }}
+                    active={active}
+                  />
+                </SidebarTooltip>
+              )
+            })}
+          </div>
+        </SidebarSection>
+      ))}
+    </>
   )
 }

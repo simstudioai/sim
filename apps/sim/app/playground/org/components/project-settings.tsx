@@ -1,100 +1,39 @@
 'use client'
 
-import type { ComponentType, ReactNode } from 'react'
-import { Avatar, Chip, ChipTag, chipVariants, cn } from '@sim/emcn'
-import { Key, Plus, SlidersHorizontal } from '@sim/emcn/icons'
-import { useQueryStates } from 'nuqs'
+import type { ReactNode } from 'react'
+import { Avatar, Chip, ChipTag } from '@sim/emcn'
+import { Key, Plus } from '@sim/emcn/icons'
 import { JiraIcon, LinearIcon, SlackMonoIcon } from '@/components/icons'
-import { WORKSPACE_SETTINGS_ITEMS } from '@/components/settings/navigation'
 import { PEOPLE, type Workspace } from '@/app/playground/org/lib/mock-data'
-import { protoParsers } from '@/app/playground/org/lib/search-params'
+import { SETTINGS_NAV } from '@/app/playground/org/lib/settings-nav'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 
-type Icon = ComponentType<{ className?: string }>
-
-interface NavItem {
-  id: string
-  label: string
-  description: string
-  icon: Icon
-  group: string
+interface ProjectSettingsProps {
+  workspace: Workspace
+  sectionId: string
 }
 
-const GROUP_TITLES: Record<string, string> = {
-  project: 'Project',
-  workspace: 'Workspace',
-  tools: 'Tools',
-  system: 'System',
-  enterprise: 'Enterprise',
-}
-
-/** Prod's workspace settings catalog, plus a Project group for the tracker and feedback loop. */
-const NAV: NavItem[] = [
-  {
-    id: 'project',
-    label: 'General',
-    description: 'Tracker, feedback sources, and how Sim triages and replies.',
-    icon: SlidersHorizontal,
-    group: 'project',
-  },
-  ...WORKSPACE_SETTINGS_ITEMS.filter((item) => item.id !== 'self-host').map((item) => ({
-    id: item.id,
-    label: item.label,
-    description: item.description,
-    icon: item.icon,
-    group: item.group,
-  })),
-]
-const GROUPS = [...new Set(NAV.map((item) => item.group))]
-
-/** Settings for one project: the prod workspace sections, filled with mock data. */
-export function ProjectSettings({ workspace }: { workspace: Workspace }) {
-  const [{ settings }, setParams] = useQueryStates(protoParsers)
-  const active = NAV.find((item) => item.id === settings) ?? NAV[0]
+/** One settings section; the settings list itself lives in the sidebar. */
+export function ProjectSettings({ workspace, sectionId }: ProjectSettingsProps) {
+  const active = SETTINGS_NAV.find((item) => item.id === sectionId)
+  if (!active) throw new Error(`Unknown settings section ${sectionId}`)
   const ActiveIcon = active.icon
   return (
-    <div className='flex h-full min-h-0'>
-      <nav className='flex w-[220px] shrink-0 flex-col gap-4 overflow-y-auto border-[var(--border)] border-r px-2 py-4'>
-        {GROUPS.map((group) => (
-          <div key={group} className='flex flex-col gap-[1px]'>
-            <span className='px-2 pb-1 text-[var(--text-muted)] text-caption'>
-              {GROUP_TITLES[group] ?? group}
-            </span>
-            {NAV.filter((item) => item.group === group).map((item) => {
-              const ItemIcon = item.icon
-              return (
-                <button
-                  key={item.id}
-                  type='button'
-                  onClick={() => void setParams({ settings: item.id })}
-                  className={cn(chipVariants({ active: item.id === active.id, fullWidth: true }))}
-                >
-                  <ItemIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-                  <span className='truncate text-[var(--text-body)]'>{item.label}</span>
-                </button>
-              )
-            })}
+    <div className='h-full overflow-y-auto'>
+      <div className='mx-auto flex max-w-[760px] flex-col gap-6 px-8 py-8'>
+        <header className='flex items-start gap-3'>
+          <ActiveIcon className='mt-1 size-[18px] shrink-0 text-[var(--text-icon)]' />
+          <div className='flex min-w-0 flex-1 flex-col gap-1'>
+            <h2 className='text-[20px] text-[var(--text-primary)] leading-tight'>{active.label}</h2>
+            <p className='text-[var(--text-muted)] text-small'>{active.description}</p>
           </div>
-        ))}
-      </nav>
-      <div className='min-w-0 flex-1 overflow-y-auto'>
-        <div className='mx-auto flex max-w-[760px] flex-col gap-6 px-8 py-8'>
-          <header className='flex items-start gap-3'>
-            <ActiveIcon className='mt-1 size-[18px] shrink-0 text-[var(--text-icon)]' />
-            <div className='flex min-w-0 flex-1 flex-col gap-1'>
-              <h2 className='text-[20px] text-[var(--text-primary)] leading-tight'>
-                {active.label}
-              </h2>
-              <p className='text-[var(--text-muted)] text-small'>{active.description}</p>
-            </div>
-            {PRIMARY_ACTION[active.id] && (
-              <Chip variant='primary' leftIcon={Plus}>
-                {PRIMARY_ACTION[active.id]}
-              </Chip>
-            )}
-          </header>
-          <SectionContent id={active.id} workspace={workspace} />
-        </div>
+          {PRIMARY_ACTION[active.id] && (
+            <Chip variant='primary' leftIcon={Plus}>
+              {PRIMARY_ACTION[active.id]}
+            </Chip>
+          )}
+        </header>
+        <SectionContent id={active.id} workspace={workspace} />
       </div>
     </div>
   )
