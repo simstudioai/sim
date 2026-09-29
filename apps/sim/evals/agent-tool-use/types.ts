@@ -78,6 +78,17 @@ export interface AgentToolUseScenario {
   tools: EvalToolDefinition[]
   script: ScriptedModelTurn[]
   expect: AgentToolUseExpectations
+  /**
+   * Overrides applied only to live runs, merged over {@link expect}. Use when a
+   * scripted assertion (an exact retry count, a parallel call order) is not
+   * meaningful once a real model chooses the calls.
+   */
+  liveExpect?: Partial<AgentToolUseExpectations>
+  /**
+   * True when the case only makes sense with a scripted model (e.g. it requires
+   * the model to emit malformed JSON on demand). Excluded from live runs.
+   */
+  scriptedOnly?: boolean
 }
 
 /** One scored expectation. */
@@ -109,6 +120,17 @@ export interface AgentToolUseMetrics {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+}
+
+/** One live scenario across its trials. */
+export interface LiveScenarioSummary {
+  id: string
+  name: string
+  category: EvalCategory
+  trials: number
+  passed: number
+  passRate: number
+  results: AgentToolUseResult[]
 }
 
 /** The scored outcome of one scenario. */

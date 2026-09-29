@@ -46,6 +46,35 @@ EVAL_REPORT_PATH=/tmp/agent-tool-use.json bunx vitest run evals/agent-tool-use
 The suite is also picked up by the normal `bun run test` run, so a regression
 fails CI even without the dedicated command.
 
+## Run against a real model (live)
+
+The same scenarios can be replayed against a live model. This is opt-in and
+never runs in CI. DeepSeek is wired first; any OpenAI-compatible provider works
+through `createOpenAICompatLiveCompletion` in `live.ts`.
+
+```sh
+cd apps/sim
+DEEPSEEK_API_KEY=... bun run test:evals:live
+```
+
+Useful knobs:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `EVAL_TRIALS` | `3` | Runs per scenario. Models are nondeterministic, so results are pass rates. |
+| `EVAL_MIN_PASS_RATE` | `0` | When > 0, fail a scenario below this pass rate (0–1). |
+| `EVAL_MODEL` | `deepseek-chat` | Model id sent to the provider. |
+| `EVAL_TIMEOUT_MS` | `180000` | Per-request timeout. |
+| `EVAL_REPORT_PATH` | `test-results/evals/agent-tool-use-live.json` | Report location. |
+
+Live runs relax exact assertions: `toolCallSequence` becomes an ordered
+subsequence, `successfulToolCalls` becomes a minimum, and scripted-only cases
+(malformed JSON, unknown tool) are skipped. A scenario-level `liveExpect`
+overrides the scripted expectation where a real model cannot reproduce it (for
+example, an exact retry count). The report is at
+`test-results/evals/agent-tool-use-live.{json,md}` with pass rates, average
+iterations, latency, and the failed check names.
+
 ## Add a case
 
 1. Open [`agent-tool-use/scenarios.ts`](./agent-tool-use/scenarios.ts) and add

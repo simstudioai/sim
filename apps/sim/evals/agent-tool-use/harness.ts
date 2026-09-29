@@ -12,9 +12,11 @@ import {
 } from '@/providers/openai-compat/streaming-tool-loop'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { StreamingToolLoopComplete } from '@/providers/streaming-tool-loop-shared'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
 import type { ToolResponse } from '@/tools/types'
 import type {
+  AgentToolUseExpectations,
   AgentToolUseResult,
   AgentToolUseScenario,
   EvalCheck,
@@ -47,6 +49,20 @@ interface CapturedToolCall {
 interface ToolCallList {
   list: CapturedToolCall[]
   count: number
+}
+
+/** Scripted runs assert exact behavior; live runs assert outcomes across trials. */
+export type EvalRunMode = 'scripted' | 'live'
+
+/** Options for {@link runScenario}. */
+export interface RunScenarioOptions {
+  /** Model turns. Defaults to the scenario's scripted turns. */
+  completion?: OpenAICompatCreateCompletion
+  mode?: EvalRunMode
+  /** Model id sent to a live provider and recorded in the run. */
+  model?: string
+  /** Provider label used in loop diagnostics. */
+  providerName?: string
 }
 
 /** Raw call counts as a value the loop never reads; scenarios only assert on it. */
@@ -184,22 +200,34 @@ function matchesContent(content: string, expected: string | RegExp): boolean {
   return typeof expected === 'string' ? content.includes(expected) : expected.test(content)
 }
 
+function isOrderedSubsequence(actual: string[], expected: string[]): boolean {
+  let index = 0
+  for (const name of actual) {
+    if (name === expected[index]) index += 1
+  }
+  return index === expected.length
+}
+
 function score(
-  scenario: AgentToolUseScenario,
+  expected: AgentToolUseExpectations,
   toolCalls: CapturedToolCall[],
   finalContent: string,
   iterations: number,
-  error: unknown
+  error: unknown,
+  mode: EvalRunMode
 ): EvalCheck[] {
-  const expected = scenario.expect
   const actualSequence = toolCalls.map((call) => call.name)
   const checks: EvalCheck[] = []
 
   if (expected.toolCallSequence) {
+    const sequenceMatches =
+      mode === 'live'
+        ? isOrderedSubsequence(actualSequence, expected.toolCallSequence)
+        : sameSequence(actualSequence, expected.toolCallSequence)
     checks.push(
       check(
         'tool-call-sequence',
-        sameSequence(actualSequence, expected.toolCallSequence),
+        sequenceMatches,
         `expected [${expected.toolCallSequence.join(', ')}], got [${actualSequence.join(', ')}]`
       )
     )
@@ -249,17 +277,22 @@ function score(
 
   const successful = toolCalls.filter((call) => call.success).length
   if (expected.successfulToolCalls !== undefined) {
+    const successMatches =
+      mode === 'live'
+        ? successful >= expected.successfulToolCalls
+        : successful === expected.successfulToolCalls
     checks.push(
       check(
         'successful-tool-calls',
-        successful === expected.successfulToolCalls,
-        `expected ${expected.successfulToolCalls}, got ${successful}`
+        successMatches,
+        `expected ${mode === 'live' ? 'at least ' : ''}${expected.successfulToolCalls}, got ${successful}`
       )
     )
   }
 
   const errored = toolCalls.length - successful
-  if (expected.erroredToolCalls !== undefined) {
+  /** A live model chooses its own retry count, so an exact error count is scripted-only. */
+  if (expected.erroredToolCalls !== undefined && mode !== 'live') {
     checks.push(
       check(
         'errored-tool-calls',
@@ -283,9 +316,18 @@ function score(
 }
 
 /** Runs and scores one scenario. */
-export async function runScenario(scenario: AgentToolUseScenario): Promise<AgentToolUseResult> {
+export async function runScenario(
+  scenario: AgentToolUseScenario,
+  options: RunScenarioOptions = {}
+): Promise<AgentToolUseResult> {
+  const mode = options.mode ?? 'scripted'
+  const model = options.model ?? EVAL_MODEL
+  const providerName = options.providerName ?? EVAL_PROVIDER
+  const expected =
+    mode === 'live' ? { ...scenario.expect, ...scenario.liveExpect } : scenario.expect
   const toolNames = new Set(scenario.tools.map((tool) => tool.name))
   const resultQueues = buildResultQueues(scenario, toolNames)
+  const providerTools = toProviderTools(scenario.tools)
   const invocations: EvalToolInvocation[] = []
 
   providersMock.MAX_TOOL_ITERATIONS = MAX_TOOL_ITERATIONS
@@ -312,18 +354,22 @@ export async function runScenario(scenario: AgentToolUseScenario): Promise<Agent
   const startedAt = Date.now()
   try {
     const stream = createOpenAICompatStreamingToolLoopStream({
-      providerName: EVAL_PROVIDER,
+      providerName,
       request: {
-        model: EVAL_MODEL,
+        model,
         apiKey: 'eval-key',
         messages: [],
-        tools: toProviderTools(scenario.tools),
+        tools: providerTools,
       },
-      basePayload: { model: EVAL_MODEL },
+      basePayload: {
+        model,
+        tools: providerTools.map((tool) => adaptOpenAIChatToolSchema(tool)),
+      },
       messages: [{ role: 'user', content: scenario.userMessage }],
-      createStream: createScriptedCompletion(scenario),
+      createStream: options.completion ?? createScriptedCompletion(scenario),
       logger,
       timeSegments,
+      preserveAssistantReasoning: true,
       onComplete: (result) => {
         completed = result
       },
@@ -337,7 +383,7 @@ export async function runScenario(scenario: AgentToolUseScenario): Promise<Agent
   const toolCalls = ((completed?.toolCalls as ToolCallList | undefined)?.list ?? []).slice()
   const finalContent = completed?.content ?? ''
   const iterations = completed?.iterations ?? 0
-  const checks = score(scenario, toolCalls, finalContent, iterations, streamError)
+  const checks = score(expected, toolCalls, finalContent, iterations, streamError, mode)
   const successful = toolCalls.filter((call) => call.success).length
 
   return {

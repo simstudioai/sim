@@ -249,6 +249,8 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       maxIterations: 3,
       successfulToolCalls: 2,
     },
+    /** The two tools are independent; a real model may emit them in either order. */
+    liveExpect: { toolCallSequence: undefined, requiredTools: ['get_weather', 'get_news'] },
   },
   {
     id: 'recovers-from-tool-error',
@@ -288,6 +290,8 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       successfulToolCalls: 1,
       erroredToolCalls: 1,
     },
+    /** A live model decides its own retry count; only the grounded answer is asserted. */
+    liveExpect: { toolCallSequence: undefined, requiredTools: ['flaky_api'] },
   },
   {
     id: 'recovers-from-unknown-tool',
@@ -297,6 +301,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       'The model hallucinates a tool name first. The loop must return a tool-not-found error to the model instead of failing the run.',
     userMessage: 'Search the docs for the rate limit.',
     tools: [searchDocs],
+    scriptedOnly: true,
     script: [
       { kind: 'tools', calls: [{ name: 'nonexistent_tool', args: { query: 'rate limit' } }] },
       {
@@ -327,6 +332,7 @@ export const AGENT_TOOL_USE_SCENARIOS: AgentToolUseScenario[] = [
       'The first call emits truncated JSON. The loop must skip execution, return the parse error, and let the corrected second call succeed.',
     userMessage: 'Search the docs for the rate limit.',
     tools: [searchDocs],
+    scriptedOnly: true,
     script: [
       { kind: 'tools', calls: [{ name: 'search_docs', argumentsJson: '{"query":' }] },
       {
