@@ -932,6 +932,12 @@ export class PauseResumeManager {
          */
         const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
         const failPause = async (reason: string, cause?: unknown): Promise<never> => {
+          logger.error(
+            reason,
+            cause === undefined
+              ? { resumeExecutionId }
+              : projectResolvedSecretDiagnosticError(cause, undefined, { resumeExecutionId })
+          )
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
             cause === undefined ? reason : `${reason}: ${toError(cause).message}`,
