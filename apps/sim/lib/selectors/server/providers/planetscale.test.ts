@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  buildSelectorContextFromValues,
+  getSelectorContextSubBlocks,
+} from '@/lib/selectors/context'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { planetScaleSelectorAttachments } from '@/lib/selectors/server/providers/planetscale'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { buildCanonicalIndexForSurface } from '@/lib/workflows/subblocks/visibility'
+import { PlanetScaleBlock } from '@/blocks/blocks/planetscale'
 
 function args(overrides: Partial<ExecuteServerSelectorArgs> = {}): ExecuteServerSelectorArgs {
   return {
@@ -110,13 +117,69 @@ describe('PlanetScale server selectors', () => {
     ).resolves.toEqual({ kind: 'list', items: [option] })
   })
 
+  it.each([
+    ['get_backup', 'branchSelector'],
+    ['create_branch', 'parentBranchSelector'],
+  ])(
+    'loads backups from the selected branch on the %s block surface',
+    async (operation, branchField) => {
+      fetchMock.mockResolvedValueOnce(page([{ id: 'backup-id', name: 'Before migration' }]))
+      const values = {
+        serviceTokenId: 'test-id',
+        serviceToken: 'test-secret',
+        organization: 'example',
+        databaseSelector: 'test-db',
+        operation,
+        [branchField]: 'development',
+        [branchField === 'branchSelector' ? 'parentBranchSelector' : 'branchSelector']:
+          'stale-hidden',
+      }
+      const backupPicker = PlanetScaleBlock.subBlocks.find(
+        (field) => field.id === 'backupIdSelector'
+      )!
+      const context = buildSelectorContextFromValues({
+        selectorKey: 'planetscale.backups',
+        contextConfigs: getSelectorContextSubBlocks(PlanetScaleBlock.subBlocks, values),
+        values,
+        dependsOn: getDependsOnFields(backupPicker.dependsOn),
+        canonicalIndex: buildCanonicalIndexForSurface(PlanetScaleBlock.subBlocks, false),
+      })
+      await expect(
+        planetScaleSelectorAttachments['planetscale.backups'].execute(
+          args({ selectorKey: 'planetscale.backups', context })
+        )
+      ).resolves.toEqual({ kind: 'list', items: [{ id: 'backup-id', label: 'Before migration' }] })
+      expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+        '/v1/organizations/example/databases/test-db/branches/development/backups',
+      ])
+    }
+  )
+
   it.each([undefined, ''])(
     'discovers backups from the default branch when parent is %s',
     async (branch) => {
       fetchMock.mockResolvedValueOnce(Response.json({ default_branch: 'production' }))
       fetchMock.mockResolvedValueOnce(page([{ id: 'backup-id', name: 'Before migration' }]))
-      const input = args({ selectorKey: 'planetscale.backups' })
-      input.context.branch = branch
+      const values = {
+        serviceTokenId: 'test-id',
+        serviceToken: 'test-secret',
+        organization: 'example',
+        databaseSelector: 'test-db',
+        operation: 'create_branch',
+        branchSelector: 'stale-hidden',
+        parentBranchSelector: branch,
+      }
+      const backupPicker = PlanetScaleBlock.subBlocks.find(
+        (field) => field.id === 'backupIdSelector'
+      )!
+      const context = buildSelectorContextFromValues({
+        selectorKey: 'planetscale.backups',
+        contextConfigs: getSelectorContextSubBlocks(PlanetScaleBlock.subBlocks, values),
+        values,
+        dependsOn: getDependsOnFields(backupPicker.dependsOn),
+        canonicalIndex: buildCanonicalIndexForSurface(PlanetScaleBlock.subBlocks, false),
+      })
+      const input = args({ selectorKey: 'planetscale.backups', context })
       await expect(
         planetScaleSelectorAttachments['planetscale.backups'].execute(input)
       ).resolves.toEqual({
