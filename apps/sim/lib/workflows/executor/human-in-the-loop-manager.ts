@@ -927,17 +927,18 @@ export class PauseResumeManager {
       if (result.status === 'paused') {
         /**
          * A pause that cannot be saved fails the execution. Fail the log with the
-         * reason, then throw so the attempt settles as failed below.
+         * reason, then throw so the attempt settles as failed below. The thrown
+         * message stays stable; the underlying error rides on `cause`.
          */
         const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
-        const failPause = async (message: string, cause?: unknown): Promise<never> => {
+        const failPause = async (reason: string, cause?: unknown): Promise<never> => {
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
-            message,
+            cause === undefined ? reason : `${reason}: ${toError(cause).message}`,
             undefined,
             pausedExecution.workflowId
           )
-          throw new Error(message, { cause })
+          throw new Error(reason, { cause })
         }
         if (!result.snapshotSeed) {
           await failPause('Missing snapshot seed for paused execution')
@@ -952,10 +953,7 @@ export class PauseResumeManager {
               executorUserId: result.metadata?.userId,
             })
           } catch (pauseError) {
-            await failPause(
-              `Failed to persist pause state: ${toError(pauseError).message}`,
-              pauseError
-            )
+            await failPause('Failed to persist pause state', pauseError)
           }
         }
       } else {

@@ -369,9 +369,10 @@ describe('what a failed resume did to its paused execution', () => {
       pauseRun({ snapshotSeed: createSnapshotSeed(), persistError: new Error('lock timeout') })
       const { outcomes, args } = argsReportingOutcomes()
 
-      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
-        'Failed to persist pause state: lock timeout'
-      )
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toMatchObject({
+        message: 'Failed to persist pause state',
+        cause: new Error('lock timeout'),
+      })
       expect(outcomes).toEqual(['execution_failed'])
     })
 

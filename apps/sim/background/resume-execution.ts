@@ -178,13 +178,36 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       cellContext.rowId,
       parentExecutionId,
       async () => {
+        let completedBeforeFailure = false
         const result = await runResumeAndCellTerminal(
           payload,
           pausedExecution,
           writers,
           attemptSignal,
-          attemptTimeoutController
-        )
+          attemptTimeoutController,
+          () => {
+            completedBeforeFailure = true
+          }
+        ).catch(async (error: unknown) => {
+          /**
+           * The run completed and only a later step of the attempt threw, so its
+           * cell is completed: continue the cascade as a completed run would, and
+           * still surface the failure.
+           */
+          if (completedBeforeFailure) {
+            await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal).catch(
+              (cascadeError: unknown) => {
+                logger.error(
+                  'Failed to continue the cascade after a completed resume',
+                  projectResolvedSecretDiagnosticError(cascadeError, undefined, {
+                    resumeExecutionId,
+                  })
+                )
+              }
+            )
+          }
+          throw error
+        })
         if (result.status === 'paused' || result.status === 'cancelled') return result
         await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal)
         return result
@@ -392,7 +415,8 @@ async function runResumeAndCellTerminal(
   pausedExecution: Awaited<ReturnType<typeof PauseResumeManager.getPausedExecutionById>>,
   writers: CellWriters,
   signal: AbortSignal | undefined,
-  timeoutController: ReturnType<typeof createTimeoutAbortController>
+  timeoutController: ReturnType<typeof createTimeoutAbortController>,
+  onCompletedBeforeFailure?: () => void
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
   const result = await PauseResumeManager.startResumeExecution({
@@ -403,7 +427,10 @@ async function runResumeAndCellTerminal(
     resumeInput: payload.resumeInput,
     userId: payload.userId,
     onBlockComplete: writers.cellOnBlockComplete,
-    onAttemptFailed: (outcome, error) => writeFailedResumeCellTerminal(writers, outcome, error),
+    onAttemptFailed: async (outcome, error) => {
+      if (outcome === 'execution_completed') onCompletedBeforeFailure?.()
+      await writeFailedResumeCellTerminal(writers, outcome, error)
+    },
     abortSignal: signal,
   })
 

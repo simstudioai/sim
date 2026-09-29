@@ -264,6 +264,16 @@ describe('resuming a paused table cell', () => {
         executionId: 'parent-execution-1',
         error: null,
       })
+      expect(mocks.runRowCascadeLoop).toHaveBeenCalledTimes(1)
+    }, 20_000)
+
+    it('does not continue the cascade when the resume failed the execution', async () => {
+      const runFailure = new Error('Block failed')
+      failResume('execution_failed', runFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+
+      expect(mocks.runRowCascadeLoop).not.toHaveBeenCalled()
     }, 20_000)
 
     it('puts the cell back to paused when the pause stayed resumable', async () => {
