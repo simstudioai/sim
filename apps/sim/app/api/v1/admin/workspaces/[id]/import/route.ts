@@ -45,6 +45,7 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -62,7 +63,6 @@ import type {
   WorkspaceImportRequest,
   WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
-import { resolveForkSyncExclusionForNewWorkflow } from '@/ee/workspace-forking/lib/sync-default'
 
 const logger = createLogger('AdminWorkspaceImportAPI')
 
@@ -348,27 +348,18 @@ async function importSingleWorkflow(
     }
 
     const workflowId = generateId()
-    const now = new Date()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId: ownerId,
-      workspaceId,
-      folderId: targetFolderId,
-      name: dedupedName,
-      description: workflowData.metadata?.description || 'Imported via Admin API',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-      // An imported workflow is a NEW workflow in this workspace, so it takes the
-      // workspace's fork-sync policy. Without this it lands on the column default and
-      // silently joins fork sync in a workspace that opted out.
-      forkSyncExcluded: await resolveForkSyncExclusionForNewWorkflow(db, workspaceId),
-    })
+    await db.insert(workflow).values(
+      await buildNewWorkflowRow(db, {
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        folderId: targetFolderId,
+        name: dedupedName,
+        description: workflowData.metadata?.description || 'Imported via Admin API',
+      })
+    )
 
     /**
      * Same normalization the editor, the v1 import API and the single-workflow

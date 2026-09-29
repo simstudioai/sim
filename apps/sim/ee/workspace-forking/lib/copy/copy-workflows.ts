@@ -211,8 +211,7 @@ export async function resolveForkFolderMapping({
      * makes it atomic differs by caller: `promoteFork` holds `fork-target` and `fork-edge`,
      * which serializes it against every other promote into the same target. `createFork`
      * holds neither - it does not need to, because the target workspace is being created in
-     * this same transaction and nothing else can reach it yet. (An earlier revision of this
-     * comment asserted the `fork-target` lock for both, which was true of only one.)
+     * this same transaction and nothing else can reach it yet.
      *
      * It does NOT take the folder mutation lock in either case: that helper resets the
      * transaction's `lock_timeout`, which the fork sets deliberately, so an ordinary
@@ -419,18 +418,6 @@ export interface CopyWorkflowStateParams {
      * the child starts undeployed and private (going public is an explicit act there).
      */
     isPublicApi?: boolean
-    /**
-     * The source's own fork-sync participation, inherited verbatim by the copy. A copied
-     * workflow is the same logical workflow in another workspace, so it must NOT take the
-     * target workspace's new-workflow default: in an opt-in workspace that would land an
-     * explicitly-selected source's copy already excluded, and sync would never update it
-     * again.
-     *
-     * Required, not optional: a caller that forgot it would silently ATTACH the copy to
-     * sync via the column default, with no UI or audit signal. The type system carries
-     * that, not a comment.
-     */
-    forkSyncExcluded: boolean
   }
   /** source workflow id -> target workflow id, for `workflow-selector` references */
   workflowIdMap: Map<string, string>
@@ -739,7 +726,9 @@ export async function copyWorkflowStateIntoTarget(
       // Deployment visibility follows the source on sync (a public source stays public in
       // the target); fork-create omits the field, so the child starts private.
       ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
-      forkSyncExcluded: sourceMeta.forkSyncExcluded,
+      // A copy never takes the target's new-workflow default: `listDeployedWorkflows` admits
+      // only synced sources, so the copy is synced too.
+      forkSyncExcluded: false,
     })
   } else {
     await tx

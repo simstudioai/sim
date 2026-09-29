@@ -52,10 +52,8 @@ export const updateWorkspaceForkMappings = defineForkUseCase<
       input.direction === 'push' ? input.otherWorkspaceId : input.workspaceId
     return db.transaction(async (tx) => {
       await setForkLockTimeout(tx)
-      // Rank 4 - see the rank table on `acquireForkLineageLock`. Unlike promote and
-      // rollback this takes no rank-3 target lock: it rewrites only this edge's mapping
-      // rows, never the target's workflows, so nothing contends with a sync into the
-      // target. Skipping a higher rank is not an ordering violation.
+      // Rank 4 - see the rank table on `acquireForkLineageLock`. No target lock: this
+      // rewrites only the edge's mapping rows.
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
       const [currentEdge] = await tx
         .select({ parentId: workspace.forkedFromWorkspaceId })

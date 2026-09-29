@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   getWorkspaceInvitePolicy,
@@ -153,20 +154,17 @@ export async function createWorkspaceInTransaction(
   await tx.insert(permissions).values(permissionRows)
 
   if (defaultWorkflowArtifacts) {
-    await tx.insert(workflow).values({
-      id: workflowId,
-      userId,
-      workspaceId,
-      folderId: null,
-      name: 'default-agent',
-      description: 'Your first workflow - start building here!',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+    await tx.insert(workflow).values(
+      await buildNewWorkflowRow(tx, {
+        id: workflowId,
+        userId,
+        workspaceId,
+        folderId: null,
+        name: 'default-agent',
+        description: 'Your first workflow - start building here!',
+        now,
+      })
+    )
     await saveWorkflowToNormalizedTables(
       workflowId,
       defaultWorkflowArtifacts.workflowState,

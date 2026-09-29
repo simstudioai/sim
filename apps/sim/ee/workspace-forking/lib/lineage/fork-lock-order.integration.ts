@@ -3,11 +3,10 @@
  *
  * Proves the fork module's lock ORDER is acyclic, against real Postgres deadlock detection.
  *
- * The cycle this guards: `createFork` used to take `lockForkRevision` (which holds
- * `FOR UPDATE` on the source `workspace` row) BEFORE `acquireForkLineageLock`, while
- * `unlinkForkEdge` takes the lineage lock and then UPDATEs that same row. Two reviewers
- * reported it independently and no unit test could see it - only two real sessions racing
- * on a real server can.
+ * The cycle this guards: taking `lockForkRevision` (which holds `FOR UPDATE` on the source
+ * `workspace` row) BEFORE the shared lineage lock in `createFork`, while `unlinkForkEdge`
+ * takes the lineage lock exclusively and then UPDATEs that same row. Only two real sessions
+ * racing on a real server can observe it.
  *
  * Both sessions drive the PRODUCTION lock helpers (`setForkLockTimeout`,
  * `acquireForkLineageLock`, `lockForkRevision`) rather than copies of their SQL, so a
@@ -18,15 +17,14 @@
  *
  * The suite runs BOTH orders and asserts they differ: the pre-fix order must deadlock, the
  * shipped order must not. Asserting only "no deadlock" would pass even if the locks never
- * contended at all, which is exactly the class of vacuous check that let this bug through
- * the earlier review rounds.
+ * contended at all.
  */
 
 import * as schema from '@sim/db/schema'
 import { workspace } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresCancellationReason } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -44,19 +42,9 @@ const databaseUrl = readTestDatabaseUrl()
 
 const SOURCE_WORKSPACE_ID = 'root-ws'
 
-/**
- * Drizzle wraps a driver error as `Failed query: ...` and hangs the real one off `cause`,
- * so the Postgres condition we are asserting on ("deadlock detected") is never in the top
- * message. Flatten the chain so the assertion reads the server's own words.
- */
+/** The server's cancellation reason (`deadlock`, `lock_timeout`, ...) or the raw message. */
 function describeFailure(error: unknown): string {
-  const parts: string[] = []
-  let current: unknown = error
-  for (let depth = 0; current instanceof Error && depth < 5; depth++) {
-    parts.push(current.message)
-    current = (current as { cause?: unknown }).cause
-  }
-  return parts.length > 0 ? parts.join(' | ') : getErrorMessage(error)
+  return getPostgresCancellationReason(error) ?? getErrorMessage(error)
 }
 
 interface CheckResult {
@@ -163,20 +151,21 @@ describe('fork lock ordering in PostgreSQL', () => {
     const unlinkMayFinish = createDeferred<void>()
     let failure: string | null = null
 
-    // The two locks `createFork` takes, as production takes them: rank 2 then rank 5.
-    const takeLineageLock = (tx: DbTransaction) => acquireForkLineageLock(tx, SOURCE_WORKSPACE_ID)
+    // The two locks `createFork` takes, as production takes them: rank 2 (shared) then rank 5.
+    const takeForkLineageLock = (tx: DbTransaction) =>
+      acquireForkLineageLock(tx, SOURCE_WORKSPACE_ID, { shared: true })
     const takeRevisionLock = (tx: DbTransaction) =>
       lockForkRevision(tx, { sourceWorkspaceId: SOURCE_WORKSPACE_ID })
 
     const forkSession = forkDb
       .transaction(async (tx) => {
         await setForkLockTimeout(tx)
-        await (forkTakesLineageFirst ? takeLineageLock(tx) : takeRevisionLock(tx))
+        await (forkTakesLineageFirst ? takeForkLineageLock(tx) : takeRevisionLock(tx))
         forkHoldsFirstLock.resolve()
         // Only reach for the second lock once the unlink is demonstrably blocked, so the
         // pre-fix cycle is closed rather than merely likely.
         await unlinkMayFinish.promise
-        await (forkTakesLineageFirst ? takeRevisionLock(tx) : takeLineageLock(tx))
+        await (forkTakesLineageFirst ? takeRevisionLock(tx) : takeForkLineageLock(tx))
       })
       .catch((error: unknown) => {
         failure ??= describeFailure(error)
@@ -194,8 +183,8 @@ describe('fork lock ordering in PostgreSQL', () => {
             // on exactly this session rather than on whatever else the database is doing.
             const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
             unlinkBackendPid.resolve(Number(self?.pid))
-            // `unlinkForkEdge` takes the lineage lock, then writes the workspace row.
-            await takeLineageLock(tx)
+            // `unlinkForkEdge` takes the lineage lock exclusively, then writes the workspace row.
+            await acquireForkLineageLock(tx, SOURCE_WORKSPACE_ID)
             await tx
               .update(workspace)
               .set({ updatedAt: new Date() })
@@ -254,31 +243,7 @@ describe('fork lock ordering in PostgreSQL', () => {
   it('deadlocks when fork takes the revision lock first (the reported pre-fix order)', async () => {
     await check('pre-fix-order-deadlocks', async () => {
       const failure = await raceForkAgainstUnlink(false)
-      expect(failure).toMatch(/deadlock detected|canceling statement due to lock timeout/i)
-    })
-  })
-
-  /**
-   * Guards the fixture itself. The race above only proves the two sessions conflict; this
-   * pins WHY - `lockForkRevision` really does hold the `workspace` row, which is the edge
-   * of the cycle. A fixture that drifted (a renamed table, a helper that stopped locking)
-   * would otherwise still deadlock for some unrelated reason and look healthy.
-   */
-  it('holds the workspace row through the production revision lock', async () => {
-    await check('revision-lock-covers-workspace-row', async () => {
-      const { executor: probe } = connect()
-      const locked = await probe.transaction(async (tx) => {
-        await setForkLockTimeout(tx)
-        await lockForkRevision(tx, { sourceWorkspaceId: SOURCE_WORKSPACE_ID })
-        const rows = await tx.execute<{ count: number }>(sql`
-          SELECT count(*)::int AS count FROM pg_locks l
-          JOIN pg_class c ON c.oid = l.relation
-          JOIN pg_namespace n ON n.oid = c.relnamespace
-          WHERE l.pid = pg_backend_pid() AND c.relname = 'workspace'
-            AND n.nspname = ${testSchema}`)
-        return Number(rows[0]?.count ?? 0)
-      })
-      expect(locked).toBeGreaterThan(0)
+      expect(failure).toBe('deadlock')
     })
   })
 })

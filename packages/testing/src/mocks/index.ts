@@ -1049,6 +1049,10 @@ export {
   workspaceForkingLineageMockFns,
 } from './workspace-forking-lineage.mock'
 export {
+  workspaceForkingLineageRootMock,
+  workspaceForkingLineageRootMockFns,
+} from './workspace-forking-lineage-root.mock'
+export {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
 } from './workspace-forking-mapping-store.mock'

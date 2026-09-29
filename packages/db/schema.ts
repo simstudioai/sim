@@ -2004,20 +2004,12 @@ export const workspace = pgTable(
       { onDelete: 'set null' }
     ),
     /**
-     * Whether a newly created workflow in this workspace starts OUTSIDE fork sync.
+     * Whether a newly created workflow in this workspace starts outside fork sync.
+     * `false` (default): new workflows join sync once deployed. `true`: they land with
+     * `workflow.forkSyncExcluded` set and are opted in on the Forks page.
      *
-     * `false` (the default) preserves the historical opt-out behaviour: a workflow
-     * joins fork sync as soon as it is deployed. `true` makes participation opt-in -
-     * a new workflow lands with `workflow.forkSyncExcluded` set, and an admin selects
-     * it deliberately on the Forks settings page.
-     *
-     * Uniform across a fork lineage: settable from any member, and the write fans out
-     * to every ancestor and descendant so a parent and its forks can never disagree
-     * about what "new" means. Every member holds the same value so reads stay local.
-     * A fork inherits it at creation, like `allowPersonalApiKeys` above.
-     *
-     * Forward-only. Flipping it never rewrites an existing workflow's
-     * `forkSyncExcluded`; the Forks page's checkbox list stays the record of what syncs.
+     * Uniform across a fork lineage (written to every member, inherited by new forks) and
+     * forward-only: flipping it never rewrites an existing workflow's `forkSyncExcluded`.
      */
     forkSyncNewWorkflowsExcluded: boolean('fork_sync_new_workflows_excluded')
       .notNull()

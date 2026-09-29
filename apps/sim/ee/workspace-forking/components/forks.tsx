@@ -549,11 +549,14 @@ export function Forks() {
               </SettingsSection>
               <SettingsSection label='Synced workflows'>
                 <div className='flex flex-col gap-4'>
-                  <ForkSyncDefaultToggle
-                    workspaceId={workspaceId}
-                    excludeNewWorkflows={lineage.data?.forkSyncNewWorkflowsExcluded ?? false}
-                    loading={lineage.isLoading || lineage.isPlaceholderData}
-                  />
+                  {/* Only this workspace's own value: a placeholder from the previous workspace
+                      would show, and on click write, another lineage's policy. */}
+                  {lineage.data && !lineage.isPlaceholderData ? (
+                    <ForkSyncDefaultToggle
+                      workspaceId={workspaceId}
+                      excludeNewWorkflows={lineage.data.forkSyncNewWorkflowsExcluded}
+                    />
+                  ) : null}
                   <ForkSyncedWorkflows workspaceId={workspaceId} />
                 </div>
               </SettingsSection>

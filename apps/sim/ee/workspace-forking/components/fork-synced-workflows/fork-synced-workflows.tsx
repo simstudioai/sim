@@ -1,7 +1,8 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, ChevronDown, cn, OverflowText, toast } from '@sim/emcn'
+import { Checkbox, cn, OverflowText, toast } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useUpdateForkSyncedWorkflows } from '@/ee/workspace-forking/hooks/workspace-fork'
@@ -36,7 +37,7 @@ interface SyncTreeFolder {
  * a workflow whose folder was deleted falls into the root bucket so it stays selectable.
  * Folders sort like the sidebar (sortOrder, then name); workflows keep the list order.
  */
-export function buildForkSyncWorkflowTree(
+function buildForkSyncWorkflowTree(
   workflows: WorkflowMetadata[],
   folders: WorkflowFolder[]
 ): { folders: SyncTreeFolder[]; rootWorkflows: SyncWorkflowItem[] } {
@@ -136,18 +137,22 @@ export function ForkSyncedWorkflows({ workspaceId }: ForkSyncedWorkflowsProps) {
     )
   }
 
-  // `useWorkflows` and `useFolders` both set `placeholderData: keepPreviousData`, so during
-  // a workspace switch they serve the PREVIOUS workspace's rows with `isLoading: false`.
-  // Gating on loading alone rendered workspace A's workflows under workspace B's id, and a
-  // click then posted A's workflow ids against B. `sim-react-performance.md`: "Never carry
-  // placeholder data between protected resource keys ... an explicit loading state is
-  // truthful." Matches `custom-tools.tsx` and `integration-skills-section.tsx`.
+  // Both queries keep the previous workspace's rows as placeholder data on a switch;
+  // rendering them would post workspace A's workflow ids against workspace B.
   const isLoading =
     workflowsQuery.isPending ||
     workflowsQuery.isPlaceholderData ||
     foldersQuery.isPending ||
     foldersQuery.isPlaceholderData
   if (isLoading) return null
+
+  if (workflowsQuery.isError || foldersQuery.isError) {
+    return (
+      <SettingsEmptyState variant='inline'>
+        {getErrorMessage(workflowsQuery.error ?? foldersQuery.error, 'Failed to load workflows')}
+      </SettingsEmptyState>
+    )
+  }
 
   if (tree.folders.length === 0 && tree.rootWorkflows.length === 0) {
     return (
@@ -196,11 +201,15 @@ function SyncFolderRow({ folder, level, syncedIds, onToggle, disabled }: SyncFol
   const total = folder.descendantWorkflowIds.length
   const selectedCount = folder.descendantWorkflowIds.filter((id) => syncedIds.has(id)).length
   const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
+  const countLabel = selectedCount > 0 ? `${selectedCount}/${total}` : String(total)
 
   return (
     <div className='flex flex-col gap-0.5'>
       <div
-        className='flex min-w-0 items-center gap-2 py-0.5 text-[var(--text-body)] text-sm'
+        className={cn(
+          'flex min-w-0 items-center gap-2 py-0.5 text-[var(--text-body)] text-sm',
+          disabled && 'opacity-60'
+        )}
         style={{ paddingLeft: `${level * INDENT_PER_LEVEL}px` }}
       >
         <Checkbox
@@ -212,16 +221,12 @@ function SyncFolderRow({ folder, level, syncedIds, onToggle, disabled }: SyncFol
         />
         <button
           type='button'
+          aria-expanded={expanded}
           className='flex min-w-0 items-center gap-1.5 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <OverflowText
-            label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
-          >
-            {folder.name}{' '}
-            <span className='text-[var(--text-muted)]'>
-              ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-            </span>
+          <OverflowText label={`${folder.name} (${countLabel})`}>
+            {folder.name} <span className='text-[var(--text-muted)]'>({countLabel})</span>
           </OverflowText>
           <ChevronDown
             className={cn(

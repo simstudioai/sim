@@ -21,6 +21,8 @@ import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-i
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
+import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceOperation } from '@/lib/workspaces/operations/application'
 import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
@@ -32,6 +34,7 @@ import {
   syncWorkspace,
 } from '@/ee/workspace-forking/application/create-and-sync'
 import { assertForkSourceVersions } from '@/ee/workspace-forking/application/revision'
+import { setForkSyncDefault } from '@/ee/workspace-forking/application/sync-default'
 import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -94,8 +97,8 @@ async function finishDeployments(report: WorkspaceOperationReport) {
   })
 }
 
-async function createChild() {
-  const input = { workspaceId: sourceWorkspaceId, name: `Edge ${generateId()}` }
+async function createChild(parentWorkspaceId = sourceWorkspaceId) {
+  const input = { workspaceId: parentWorkspaceId, name: `Edge ${generateId()}` }
   const preview = await previewWorkspaceFork.execute({ principal, input })
   const result = await forkWorkspace.execute({
     principal,
@@ -758,5 +761,90 @@ describe('authorized fork and sync against PostgreSQL', () => {
         .from(workspaceOperationReceipt)
         .where(eq(workspaceOperationReceipt.requestId, refusedId))
     ).toHaveLength(0)
+  })
+
+  /**
+   * The opt-in policy end to end: set from a fork, it reaches the parent and changes only
+   * what differs; a genuinely new workflow (created, duplicated, or a fork's starter) and a
+   * new fork take it; a forked copy stays synced; no existing workflow moves; and an archived
+   * member is walked through for the lineage root but never written.
+   */
+  it('gives new workflows the lineage fork-sync default while copies stay synced', async () => {
+    const childId = await createChild()
+    const excludedFor = async (workflowId: string) =>
+      (
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.id, workflowId))
+      )[0]?.excluded
+    const policyOf = async (workspaceId: string) =>
+      (
+        await db
+          .select({ excluded: workspace.forkSyncNewWorkflowsExcluded })
+          .from(workspace)
+          .where(eq(workspace.id, workspaceId))
+      )[0]?.excluded
+    const setDefault = (workspaceId: string, excludeNewWorkflows: boolean) =>
+      setForkSyncDefault.execute({ principal, input: { workspaceId, excludeNewWorkflows } })
+    try {
+      const first = await setDefault(childId, true)
+      expect(first.changedWorkspaces.map((member) => member.id)).toEqual(
+        expect.arrayContaining([sourceWorkspaceId, childId])
+      )
+      expect((await setDefault(childId, true)).changedWorkspaces).toEqual([])
+      expect(await policyOf(sourceWorkspaceId)).toBe(true)
+      expect(await excludedFor(sourceWorkflowId)).toBe(false)
+
+      const [copy] = await db
+        .select({ id: workflow.id, excluded: workflow.forkSyncExcluded })
+        .from(workflow)
+        .where(eq(workflow.workspaceId, childId))
+      expect(copy.excluded).toBe(false)
+
+      const created = await performCreateWorkflowTransition({
+        userId,
+        workspaceId: childId,
+        name: `New ${generateId()}`,
+      })
+      expect(await excludedFor(created.workflow!.id)).toBe(true)
+
+      // Duplicating a SYNCED workflow still yields a new, excluded one.
+      const duplicated = await duplicateWorkflow({
+        sourceWorkflowId: copy.id,
+        userId,
+        name: `Duplicate ${generateId()}`,
+        workspaceId: childId,
+      })
+      expect(await excludedFor(duplicated.id)).toBe(true)
+
+      const newForkId = await createChild()
+      expect(await policyOf(newForkId)).toBe(true)
+      expect(
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.workspaceId, newForkId))
+      ).toEqual([{ excluded: false }])
+
+      // The child has nothing deployed, so its fork gets a starter workflow, written in the
+      // same transaction that created the grandchild and its inherited policy.
+      const grandchildId = await createChild(childId)
+      expect(
+        await db
+          .select({ excluded: workflow.forkSyncExcluded })
+          .from(workflow)
+          .where(eq(workflow.workspaceId, grandchildId))
+      ).toEqual([{ excluded: true }])
+
+      await db.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, childId))
+      await setDefault(grandchildId, false)
+      expect(await policyOf(sourceWorkspaceId)).toBe(false)
+      expect(await policyOf(grandchildId)).toBe(false)
+      expect(await policyOf(childId)).toBe(true)
+    } finally {
+      await db.update(workspace).set({ archivedAt: null }).where(eq(workspace.id, childId))
+      await setDefault(sourceWorkspaceId, false)
+    }
   })
 })
