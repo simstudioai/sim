@@ -15,6 +15,7 @@ import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { lockLiveTableSchema, refitRowToSchema, withLiveSchema } from '@/lib/table/rows/live-schema'
 import {
   acquireRowOrderLock,
   guardBatch,
@@ -64,9 +65,10 @@ export interface BulkImportBatch {
  * `runWorkflowColumn`** (a 1M-row import must not dispatch a workflow run per row).
  * Append and replace imports run this against the live table, so other writers can
  * race it: the batch holds the table's unique columns exclusively while it checks and
- * inserts. `row_count` is maintained set-based by the statement-level
- * trigger. There is no surrounding transaction and no rollback: each batch commits on
- * its own, so committed batches persist even if a later batch fails.
+ * inserts, and checks the rows against the schema it reads under the schema lock, which
+ * may have changed since the job resolved the table. `row_count` is maintained set-based
+ * by the statement-level trigger. There is no surrounding transaction and no rollback:
+ * each batch commits on its own, so committed batches persist even if a later batch fails.
  *
  * Throws on row-size/schema/unique violations or if the statement-level trigger rejects
  * the batch for crossing `max_rows`; the caller marks the import failed.
@@ -82,6 +84,7 @@ export async function bulkInsertImportBatch(
   // the caller's snapshot too would reject a since-cleared lock.
   if (!revalidate) assertRowInsert(table)
 
+  const rawRows = data.rows.map((row) => ({ ...row }))
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
@@ -119,14 +122,23 @@ export async function bulkInsertImportBatch(
   }))
 
   const inserted = await db.transaction(async (trx) => {
-    await guardBatch(trx, data.tableId, revalidate)
-    if (getUniqueColumns(table.schema).length > 0) {
+    const fresh = await guardBatch(trx, data.tableId, revalidate)
+    const live = fresh ? withLiveSchema(table, fresh.schema) : await lockLiveTableSchema(trx, table)
+    if (live !== table) {
+      for (let i = 0; i < data.rows.length; i++) {
+        const refit = refitRowToSchema(data.rows[i], rawRows[i], table.schema, live.schema, 'null')
+        if (!refit.valid) {
+          throw new OrchestrationError('validation', `Row ${i + 1}: ${refit.errors.join(', ')}`)
+        }
+      }
+    }
+    if (getUniqueColumns(live.schema).length > 0) {
       // The whole-table unique lock, not per-value: a batch is far more values than the value-lock cap.
-      await lockUniqueColumns(trx, table)
+      await lockUniqueColumns(trx, live)
       const uniqueResult = await checkBatchUniqueConstraintsDb(
         data.tableId,
         data.rows,
-        table.schema,
+        live.schema,
         trx
       )
       if (!uniqueResult.valid) {
@@ -314,7 +326,7 @@ export async function importAppendRows(
         generateId().slice(0, 8),
         { uniqueColumnsLocked: true }
       )
-      inserted.push(...batchInserted)
+      inserted.push(...batchInserted.rows)
     }
     return { inserted, table: working }
   })
