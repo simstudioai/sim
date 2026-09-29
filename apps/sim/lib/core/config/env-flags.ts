@@ -108,6 +108,9 @@ export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_
  */
 export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
 
+/** Deployment-only opt-in; authenticated resource permissions still apply. */
+export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
+
 /**
  * Is billing enforcement enabled.
  *

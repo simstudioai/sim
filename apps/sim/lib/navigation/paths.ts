@@ -36,6 +36,7 @@ export function organizationRoutes(organizationId: string) {
     home: `${root}/home`,
     search: `${root}/search`,
     integrations: `${root}/integrations`,
+    benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
     skills: `${root}/skills`,

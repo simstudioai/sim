@@ -5,6 +5,7 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isBenchmarkEnabled } from '@/lib/benchmarks/config'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
@@ -84,7 +85,7 @@ export default async function OrganizationLayout({
               <SessionExpired />
               <SettingsNavigationProvider>
                 <WorkspaceChrome
-                  sidebar={<OrganizationSidebar />}
+                  sidebar={<OrganizationSidebar benchmarkEnabled={isBenchmarkEnabled()} />}
                   initialSidebarCollapsed={initialSidebarCollapsed}
                 >
                   {children}

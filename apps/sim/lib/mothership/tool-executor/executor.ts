@@ -41,6 +41,17 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (
+    context.benchmark &&
+    (context.benchmark === 'tool-free' ||
+      !['search_workspace', 'read_document'].includes(toolId) ||
+      !context.organizationId ||
+      context.workspaceId ||
+      context.workflowId ||
+      context.targetWorkspaceId)
+  ) {
+    return { success: false, error: 'This tool is unavailable in this benchmark stage.' }
+  }
   if (context.organizationId) {
     if (
       context.workspaceId ||

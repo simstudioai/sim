@@ -7,6 +7,8 @@ import {
   mothershipGoFetchMockFns,
 } from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,13 +18,10 @@ vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-key' }),
 }))
 vi.mock('@/lib/mothership/transport/control', () => ({ executeSimControl: execute }))
-vi.mock('@/lib/mothership/transport/connection', () => ({
-  getSimConnection: () => ({ mode: 'checkpoint', channelId: 'a'.repeat(64) }),
-}))
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
-import { receiveSimControls } from '@/lib/mothership/transport/receiver'
+import { receiveSimControls, startSimReceivers } from '@/lib/mothership/transport/receiver'
 
 const mocks = {
   fetch: mothershipGoFetchMockFns.mockFetchGo,
@@ -112,5 +111,42 @@ describe('outbound receiver lifecycle', () => {
       })
     await receiveSimControls('https://worker.test', 'a'.repeat(64), controller.signal)
     expect(mocks.execute).toHaveBeenCalledOnce()
+  })
+
+  it('services dev-worker benchmark controls when ordinary hosted traffic uses direct callbacks', async () => {
+    setEnvFlags({ isHosted: true, isMothershipBenchmarkEnabled: true })
+    setEnv({
+      COPILOT_API_KEY: 'worker-key',
+      COPILOT_DEV_URL: 'https://benchmark-worker.test/',
+      MOTHERSHIP_SIM_TRANSPORT: 'direct',
+    })
+    const shutdown: (() => void)[] = []
+    const listeners = vi.spyOn(process, 'once').mockImplementation((_event, listener) => {
+      shutdown.push(() => listener())
+      return process
+    })
+    const control = request()
+    const reply = Promise.withResolvers<{ id: string; result: { body: string } }>()
+    let polls = 0
+    mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url.endsWith('/poll')) {
+        polls++
+        if (polls === 1) return Response.json({ requests: [control] })
+        return new Promise<Response>(() => {})
+      }
+      reply.resolve(JSON.parse(String(init.body)))
+      return Response.json({ accepted: true })
+    })
+    try {
+      await startSimReceivers()
+      expect(polls).toBe(1)
+      expect(await reply.promise).toMatchObject({
+        id: control.id,
+        result: { body: '{"stopped":false}' },
+      })
+    } finally {
+      for (const stop of shutdown) stop()
+      listeners.mockRestore()
+    }
   })
 })

@@ -4061,6 +4061,47 @@ export const docsEmbeddings = pgTable(
 
 export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
 
+/** Private benchmark artifacts retain their source scope and fence each asynchronous attempt. */
+export const mothershipBenchmarks = pgTable(
+  'mothership_benchmarks',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    version: integer('version').notNull().default(1),
+    runningStage: text('running_stage'),
+    attemptId: text('attempt_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    plannerChatId: text('planner_chat_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCreatedIdx: index('mothership_benchmarks_owner_created_idx').on(
+      table.organizationId,
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    workspaceIdx: index('mothership_benchmarks_workspace_idx').on(table.sourceWorkspaceId),
+    versionCheck: check('mothership_benchmarks_version_check', sql`${table.version} > 0`),
+    attemptCheck: check(
+      'mothership_benchmarks_attempt_check',
+      sql`(${table.runningStage} IS NULL AND ${table.attemptId} IS NULL AND ${table.leaseExpiresAt} IS NULL) OR (${table.runningStage} IS NOT NULL AND ${table.runningStage} IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND ${table.attemptId} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`
+    ),
+  })
+)
+
 export const copilotChats = pgTable(
   'copilot_chats',
   {

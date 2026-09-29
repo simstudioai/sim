@@ -6,6 +6,8 @@ import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
+  /** Trusted server-selected benchmark policy; never populated from model tool arguments. */
+  benchmark?: 'plan' | 'tool-free'
   /** Worker endpoint chosen at turn admission; retained for cost delivery. */
   mothershipBaseURL?: string
   /** Trusted entry point for Search metering; never read from model arguments. */

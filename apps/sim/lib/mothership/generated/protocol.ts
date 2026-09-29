@@ -157,6 +157,7 @@ export const ChatPayloadSchema = z
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),
     mode: z.enum(["agent", "assistant", "plan"]).optional(),
+    benchmark: z.literal(true).optional(),
     assistantSearch: AssistantSearch.optional(),
     assistantFast: z.boolean().optional(),
     assistantSearchLevel: AssistantSearchLevel.optional(),
@@ -196,6 +197,28 @@ export const ChatPayloadSchema = z
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.benchmark &&
+      (value.mode !== "plan" ||
+        !value.organizationId ||
+        !value.chatId ||
+        !value.messageId ||
+        value.context.length > 0 ||
+        value.inventory ||
+        value.desktop ||
+        value.integrationCatalog ||
+        value.assistantSearch ||
+        value.assistantSearchLevel ||
+        value.assistantFast !== undefined ||
+        value.assistantImages ||
+        value.workflowId ||
+        value.origin ||
+        value.message.length > 20_000)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Benchmark requires a fresh organization Plan request with only a bounded task brief",
+      });
     if (value.effort === "none" && value.modelSelection?.model !== "gpt-6-sol")
       ctx.addIssue({
         code: "custom",
@@ -267,6 +290,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   workspaceId?: string | undefined;
   organizationId?: string | undefined;
   mode?: "agent" | "assistant" | "plan" | undefined;
+  /** Restricted discovery run with isolated memory; only the benchmark runner sets this. */
+  benchmark?: true | undefined;
   assistantSearch?: AssistantSearch | undefined;
   assistantFast?: boolean | undefined;
   assistantSearchLevel?: AssistantSearchLevel | undefined;
@@ -460,6 +485,8 @@ export interface ProtocolMismatch {
  * discovery and execution resolve selected operations through Sim.
  */
 export interface ExecuteRequest extends StreamResponseReceipt {
+  /** Optional per-call output bound for stateless structured stages (1–32768 tokens). */
+  maxOutputTokens?: number | undefined;
   simConnection?: SimConnection | undefined;
   effort?: ChatRequest["effort"];
   modelSelection?: ModelSelection | undefined;

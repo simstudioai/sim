@@ -56,6 +56,10 @@ interface OrganizationChatsProps
   organizationId: string
 }
 
+interface OrganizationSidebarProps {
+  benchmarkEnabled?: boolean
+}
+
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
   const { chats, isLoading } = useOrganizationChats(organizationId)
   return (
@@ -70,7 +74,9 @@ function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps)
  * the desktop hover-peek all behave identically. Collapse and peek state come from
  * the chrome through {@link useSidebarChrome}.
  */
-export const OrganizationSidebar = memo(function OrganizationSidebar() {
+export const OrganizationSidebar = memo(function OrganizationSidebar({
+  benchmarkEnabled = false,
+}: OrganizationSidebarProps) {
   const { isCollapsed: railCollapsed, isPeeking } = useSidebarChrome()
   /** The peek card always renders the expanded layout, whatever the rail's state. */
   const isCollapsed = railCollapsed && !isPeeking
@@ -92,7 +98,12 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const isMac = isMacPlatform()
   const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
-  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped, canUseHome)
+  const navItems = buildOrganizationNavItems(
+    organization.id,
+    searchAccess.memberScoped,
+    canUseHome,
+    benchmarkEnabled && mothershipAvailable
+  )
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 

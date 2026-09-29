@@ -55,6 +55,44 @@ targets.environment.mockResolvedValue(undefined)
 
 const toolExecutorLogger = getMockLogger('ToolExecutor')
 
+describe('benchmark tool isolation', () => {
+  it.each([
+    ['plan', 'sim_cli'],
+    ['plan', 'list_workspaces'],
+    ['tool-free', 'search_workspace'],
+    ['tool-free', 'read_document'],
+  ] as const)('refuses %s access to %s before dispatch', async (benchmark, toolId) => {
+    clearHandlers()
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    getToolEntry.mockReturnValue({ requiredPermission: 'read' })
+    let dispatched = false
+    registerHandler(toolId, async () => {
+      dispatched = true
+      return { success: true, output: 'private workspace content' }
+    })
+    const result = await executeTool(
+      toolId,
+      {},
+      {
+        userId: 'person',
+        organizationId: 'org',
+        chatId: 'chat',
+        workflowId: '',
+        requestMode: 'plan',
+        userPermission: 'admin',
+        benchmark,
+      }
+    )
+    expect(result).toEqual({
+      success: false,
+      error: 'This tool is unavailable in this benchmark stage.',
+    })
+    expect(dispatched).toBe(false)
+  })
+})
+
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
     clearHandlers()
