@@ -418,6 +418,26 @@ describe('compacting span trees', () => {
     expect(compacted.childTraceSpans).toHaveLength(1)
   })
 
+  it('keeps the skeleton when span metadata itself was spilled', async () => {
+    const spans = spansTooLargeAsAWhole()
+    const blockSpan = spans[0].children?.[0].children?.[0]
+    Object.assign(blockSpan ?? {}, {
+      modelToolCalls: Array.from({ length: 8 }, (_, index) => ({
+        name: `tool-${index}`,
+        arguments: { query: 'q'.repeat(1024) },
+      })),
+      toolCalls: Array.from({ length: 8 }, (_, index) => ({
+        name: `tool-${index}`,
+        input: 'i'.repeat(1024),
+      })),
+      providerTiming: { segments: [{ assistantContent: 'a'.repeat(8192) }] },
+    })
+
+    const compacted = await compactBlockOutput({ childTraceSpans: spans }, options)
+
+    expectSpanTree(compacted.childTraceSpans)
+  })
+
   it('keeps nested child workflow trees in the skeleton', async () => {
     const nestedWorkflowSpan: TraceSpan = {
       id: 'nested-workflow',

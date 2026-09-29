@@ -27,7 +27,7 @@ export function stripProviderTimingContent(
         ...segment
       }) => ({
         ...segment,
-        ...(toolCalls ? { toolCalls: stripModelToolCallArguments(toolCalls) } : {}),
+        ...(Array.isArray(toolCalls) ? { toolCalls: stripModelToolCallArguments(toolCalls) } : {}),
       })
     ),
   }
@@ -37,7 +37,9 @@ export function stripProviderTimingContent(
  * A trace span tree with every span's content removed: inputs, outputs,
  * thinking, error text, tool-call arguments, and provider content. Keeps the
  * tree's shape, names, timing, status, and cost, including a nested child
- * workflow's spans carried on `output.childTraceSpans`.
+ * workflow's spans carried on `output.childTraceSpans`. A field that is not in
+ * its expected shape (for example one spilled to a large-value reference) is
+ * dropped rather than read.
  */
 export function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
   if (!traceSpans) {
@@ -62,10 +64,16 @@ export function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpa
       ...(Array.isArray(nestedSpans) && nestedSpans.length
         ? { output: { childTraceSpans: summarizeTraceSpansWithoutIo(nestedSpans) } }
         : {}),
-      ...(modelToolCalls ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) } : {}),
-      ...(toolCalls ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
-      ...(providerTiming ? { providerTiming: stripProviderTimingContent(providerTiming) } : {}),
-      ...(children?.length ? { children: summarizeTraceSpansWithoutIo(children) } : {}),
+      ...(Array.isArray(modelToolCalls)
+        ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) }
+        : {}),
+      ...(Array.isArray(toolCalls) ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
+      ...(Array.isArray(providerTiming?.segments)
+        ? { providerTiming: stripProviderTimingContent(providerTiming) }
+        : {}),
+      ...(Array.isArray(children) && children.length
+        ? { children: summarizeTraceSpansWithoutIo(children) }
+        : {}),
     }
   })
 }
