@@ -79,7 +79,7 @@ export type ChatContext =
       columnIds?: string[]
     } & WorkspaceOwned)
   | ({ kind: 'file'; fileId: string; label: string } & WorkspaceOwned)
-  | ({ kind: 'dashboard'; fileId: string; label: string } & WorkspaceOwned)
+  | ({ kind: 'dashboard'; dashboardId: string; label: string } & WorkspaceOwned)
   | ({
       kind: 'file_selection'
       fileId: string

@@ -26,7 +26,7 @@ const CHIP_LINK_SCHEME = 'sim'
 const PORTABLE_KIND_TO_ID_FIELD = {
   table: 'tableId',
   file: 'fileId',
-  dashboard: 'fileId',
+  dashboard: 'dashboardId',
   folder: 'folderId',
   filefolder: 'fileFolderId',
   workspace: 'workspaceId',
@@ -285,7 +285,7 @@ function chipLinkBaseContext(link: ParsedChipLink): ChatContext {
     case 'table':
       return { kind: 'table', tableId: link.id, label: link.label }
     case 'dashboard':
-      return { kind: 'dashboard', fileId: link.id, label: link.label }
+      return { kind: 'dashboard', dashboardId: link.id, label: link.label }
     case 'file':
       return { kind: 'file', fileId: link.id, label: link.label }
     case 'folder':

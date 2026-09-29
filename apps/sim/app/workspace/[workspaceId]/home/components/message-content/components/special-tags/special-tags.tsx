@@ -38,7 +38,6 @@ import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-a
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { readLatestOAuthChatAttempt } from '@/lib/credentials/oauth-chat-attempt'
-import { dashboardDisplayName } from '@/lib/dashboards/resource'
 import { getDesktopBridge } from '@/lib/desktop'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
@@ -1951,7 +1950,7 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
     case 'table':
       return { kind: 'table', label, tableId: data.id ?? '' }
     case 'dashboard':
-      return { kind: 'dashboard', label, fileId: data.id ?? '' }
+      return { kind: 'dashboard', label, dashboardId: data.id ?? '' }
     case 'file':
       return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
   }
@@ -2030,7 +2029,7 @@ function WorkspaceResourceDisplayContent({
       type: toMothershipResourceType(data.type),
       ...(addressed ? { workspaceId } : {}),
       ...(id ? { id } : {}),
-      title: data.type === 'dashboard' ? dashboardDisplayName(title) : title,
+      title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
   }, [

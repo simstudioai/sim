@@ -260,8 +260,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         case 'table':
           return `table:${ctx.tableId}`
         case 'dashboard':
+          return `dashboard:${ctx.dashboardId}`
         case 'file':
-          return `${ctx.kind}:${ctx.fileId}`
+          return `file:${ctx.fileId}`
         case 'folder':
           return `folder:${ctx.folderId}`
         case 'past_chat':

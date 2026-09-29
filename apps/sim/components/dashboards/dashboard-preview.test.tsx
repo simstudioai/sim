@@ -48,7 +48,7 @@ describe('dashboard refresh', () => {
             hasMemory
             searchParams='?dash-example-range=custom&dash-example-from=2026-09-17T00:00:00&dash-example-to=2026-09-24T00:00:00&dash-example-zone=utc'
           >
-            <DashboardPreview content={content} workspaceId='workspace-1' fileId='example' />
+            <DashboardPreview content={content} workspaceId='workspace-1' dashboardId='example' />
           </NuqsTestingAdapter>
         </QueryClientProvider>
       )

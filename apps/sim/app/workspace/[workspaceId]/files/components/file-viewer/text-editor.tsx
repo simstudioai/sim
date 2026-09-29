@@ -332,7 +332,6 @@ const MONACO_LANGUAGE_BY_EXTENSION: Partial<Record<string, string>> = {
    */
   jsonl: 'plaintext',
   yaml: 'yaml',
-  dashboard: 'yaml',
   yml: 'yaml',
   toml: 'toml',
   html: 'html',
@@ -370,7 +369,6 @@ const MONACO_LANGUAGE_BY_MIME: Partial<Record<string, string>> = {
   'image/svg+xml': 'xml',
   'text/x-sql': 'sql',
   'application/x-yaml': 'yaml',
-  'text/x-sim-dashboard': 'yaml',
   'text/markdown': 'markdown',
   'text/x-mermaid': 'markdown',
   'text/plain': 'plaintext',

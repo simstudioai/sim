@@ -1,5 +1,5 @@
 {
-  "id": "bcf3420e-f0bf-461a-9a54-0816a7e234b1",
+  "id": "b50de40a-fb8e-4b11-bd00-a0080b6ee7ef",
   "prevId": "4bf7c7c5-a022-4a87-9d13-b889c5ba86f0",
   "version": "7",
   "dialect": "postgresql",
@@ -5139,6 +5139,114 @@
           "tableFrom": "custom_tools",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dashboard": {
+      "name": "dashboard",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "dashboard_workspace_id_unique": {
+          "name": "dashboard_workspace_id_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dashboard_workspace_id_workspace_id_fk": {
+          "name": "dashboard_workspace_id_workspace_id_fk",
+          "tableFrom": "dashboard",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "dashboard_created_by_user_id_fk": {
+          "name": "dashboard_created_by_user_id_fk",
+          "tableFrom": "dashboard",
+          "tableTo": "user",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "dashboard_updated_by_user_id_fk": {
+          "name": "dashboard_updated_by_user_id_fk",
+          "tableFrom": "dashboard",
+          "tableTo": "user",
+          "columnsFrom": ["updated_by"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -27945,22 +28053,6 @@
           ],
           "isUnique": true,
           "where": "\"workspace_files\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_files_workspace_dashboard_unique": {
-          "name": "workspace_files_workspace_dashboard_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_files\".\"content_type\" = 'text/x-sim-dashboard' AND \"workspace_files\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

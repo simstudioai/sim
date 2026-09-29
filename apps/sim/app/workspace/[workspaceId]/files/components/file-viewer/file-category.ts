@@ -24,7 +24,6 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'text/x-mermaid',
   // Chart documents: declarative ECharts specs rendered live (chart-preview.tsx).
   'text/x-sim-chart',
-  'text/x-sim-dashboard',
 ])
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([

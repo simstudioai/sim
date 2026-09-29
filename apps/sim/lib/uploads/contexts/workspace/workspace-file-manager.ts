@@ -1,4 +1,3 @@
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 /**
  * Workspace file storage system
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
@@ -102,7 +101,6 @@ import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/sha
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
-import { workspaceFileContentTypeCondition } from '@/lib/workspace-files/query-scope'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,
@@ -207,8 +205,6 @@ export interface ActiveWorkspaceContext {
 }
 
 interface ListWorkspaceFilesOptions {
-  contentType?: string
-
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
@@ -442,8 +438,6 @@ export async function uploadWorkspaceFile(
     folderId?: string | null
     folderPath?: string
     exactName?: boolean
-    /** Only the workspace dashboard use case writes dashboard content; it lives at the root. */
-    dashboard?: true
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
   }
@@ -475,15 +469,6 @@ export async function uploadWorkspaceFile(
   const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
   const effectiveName = pageRestore?.name ?? normalizedFileName
   const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
-  if ((effectiveContentType === DASHBOARD_CONTENT_TYPE) !== (options?.dashboard === true)) {
-    throw new OrchestrationError(
-      'validation',
-      'Dashboards are saved through the workspace dashboard, not as files'
-    )
-  }
-  if (options?.dashboard && folderId !== null) {
-    throw new OrchestrationError('validation', 'The workspace dashboard lives at the root')
-  }
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
@@ -1307,8 +1292,8 @@ export async function getWorkspaceFileByName(
 }
 
 /**
- * Chat uploads are created unlisted; their `mothership` ownership context also closes
- * them to writes. A read may opt in by explicit reference only — its `uploads/<name>`
+ * Chat uploads (`context = 'mothership'`) are hidden from every listing and closed to
+ * writes. A read may opt in to one by explicit reference only — its `uploads/<name>`
  * VFS path or its own id — which is what this option grants.
  */
 export interface WorkspaceFileLookupOptions {
@@ -1391,12 +1376,7 @@ export async function listWorkspaceFiles(
     const query = db
       .select(workspaceFileListColumns)
       .from(workspaceFiles)
-      .where(
-        and(
-          workspaceFileScopeCondition(workspaceId, scope),
-          workspaceFileContentTypeCondition(options?.contentType)
-        )
-      )
+      .where(workspaceFileScopeCondition(workspaceId, scope))
       .orderBy(workspaceFiles.uploadedAt)
     const files = await (limit === undefined ? query : query.limit(limit))
 
@@ -1430,8 +1410,6 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
-  contentType?: string
-
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
   /** `undefined` lists every folder, `null` lists only root files. */
@@ -1521,7 +1499,6 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    workspaceFileContentTypeCondition(options.contentType),
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
     searchFilter(workspaceFiles.originalName, search),
@@ -2032,12 +2009,6 @@ export async function updateWorkspaceFileContent(
 
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
-  if ((nextContentType === DASHBOARD_CONTENT_TYPE) !== (fileRecord.type === DASHBOARD_CONTENT_TYPE)) {
-    throw new OrchestrationError(
-      'validation',
-      'Cannot change a file into a dashboard or a dashboard into a file'
-    )
-  }
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
   const contentHash = sha256Hex(content)
 

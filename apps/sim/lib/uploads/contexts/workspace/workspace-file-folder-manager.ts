@@ -6,7 +6,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
@@ -1016,7 +1015,6 @@ export async function moveWorkspaceFileItems(params: {
                 inArray(workspaceFiles.id, fileIds),
                 eq(workspaceFiles.workspaceId, params.workspaceId),
                 eq(workspaceFiles.context, 'workspace'),
-                sql`${workspaceFiles.contentType} <> ${DASHBOARD_CONTENT_TYPE}`,
                 isNull(workspaceFiles.deletedAt)
               )
             )

@@ -2334,6 +2334,29 @@ export const workspaceFile = pgTable(
   })
 )
 
+/**
+ * A dashboard: YAML over live tables, built by Sim. `revision` guards against lost updates.
+ * The unique workspace index keeps one dashboard per workspace; dropping it allows several.
+ */
+export const dashboard = pgTable(
+  'dashboard',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    revision: integer('revision').notNull().default(1),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceUnique: uniqueIndex('dashboard_workspace_id_unique').on(table.workspaceId),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -2418,10 +2441,6 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
-    /** A workspace has at most one live dashboard; lifting the limit means dropping this index. */
-    workspaceDashboardUnique: uniqueIndex('workspace_files_workspace_dashboard_unique')
-      .on(table.workspaceId)
-      .where(sql`${table.contentType} = 'text/x-sim-dashboard' AND ${table.deletedAt} IS NULL`),
     workspaceFolderOriginalNameActiveUnique: uniqueIndex(
       'workspace_files_workspace_folder_name_active_unique'
     )

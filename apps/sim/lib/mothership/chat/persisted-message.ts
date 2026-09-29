@@ -42,6 +42,7 @@ interface PersistedMessageContext {
   tableId?: string
   viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string
@@ -443,6 +444,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.viewId ? { viewId: c.viewId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
       ...(c.blockType ? { blockType: c.blockType } : {}),
@@ -794,6 +796,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.viewId ? { viewId: c.viewId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.dashboardId ? { dashboardId: c.dashboardId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
       ...(c.blockType ? { blockType: c.blockType } : {}),

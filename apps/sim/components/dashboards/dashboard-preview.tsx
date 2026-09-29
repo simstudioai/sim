@@ -32,14 +32,14 @@ import { createDashboardCursorStore, type DashboardCursorStore } from '@/stores/
 interface DashboardPreviewProps {
   content: string
   workspaceId: string
-  fileId: string
+  dashboardId: string
   isStreaming?: boolean
   readOnly?: boolean
 }
 interface DashboardViewProps {
   spec: DashboardSpec
   workspaceId: string
-  fileId: string
+  dashboardId: string
 }
 
 function dashboardTableIds(spec: DashboardSpec): Set<string> {
@@ -56,12 +56,12 @@ function dashboardTableIds(spec: DashboardSpec): Set<string> {
   return ids
 }
 
-function DashboardView({ spec, workspaceId, fileId }: DashboardViewProps) {
+function DashboardView({ spec, workspaceId, dashboardId }: DashboardViewProps) {
   const cursorStoreRef = useRef<DashboardCursorStore | null>(null)
   cursorStoreRef.current ??= createDashboardCursorStore()
   const [state, setState] = useQueryStates(dashboardParsers, {
     ...dashboardUrlOptions,
-    urlKeys: dashboardUrlKeys(fileId),
+    urlKeys: dashboardUrlKeys(dashboardId),
   })
   const [now, setNow] = useState(() => Date.now())
   const [inputError, setInputError] = useState<string | null>(null)
@@ -159,7 +159,7 @@ function DashboardView({ spec, workspaceId, fileId }: DashboardViewProps) {
             startIndex={startIndex}
             defaults={spec.source}
             workspaceId={workspaceId}
-            fileId={fileId}
+            dashboardId={dashboardId}
             range={range}
             now={now}
           />
@@ -172,7 +172,7 @@ function DashboardView({ spec, workspaceId, fileId }: DashboardViewProps) {
 export function DashboardPreview({
   content,
   workspaceId,
-  fileId,
+  dashboardId,
   isStreaming,
   readOnly,
 }: DashboardPreviewProps) {
@@ -204,10 +204,10 @@ export function DashboardPreview({
       <div className='@min-[640px]/dashboard:p-8 px-4 py-6'>
         <Suspense fallback={loading}>
           <DashboardView
-            key={`${workspaceId}/${fileId}`}
+            key={`${workspaceId}/${dashboardId}`}
             spec={parsed.spec}
             workspaceId={workspaceId}
-            fileId={fileId}
+            dashboardId={dashboardId}
           />
         </Suspense>
       </div>

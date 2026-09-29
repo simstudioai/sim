@@ -31,6 +31,10 @@ export const AuditAction = {
   CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
   CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
 
+  // Dashboards
+  DASHBOARD_CREATED: 'dashboard.created',
+  DASHBOARD_UPDATED: 'dashboard.updated',
+
   // Custom Tools
   CUSTOM_TOOL_CREATED: 'custom_tool.created',
   CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
@@ -288,6 +292,7 @@ export const AuditResourceType = {
   CREDENTIAL_GROUP: 'credential_group',
   CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
+  DASHBOARD: 'dashboard',
   DATA_DRAIN: 'data_drain',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',

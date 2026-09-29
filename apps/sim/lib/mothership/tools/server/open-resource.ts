@@ -6,7 +6,6 @@ import {
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
-import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
@@ -104,12 +103,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
             { fileId: resource.id, assertedWorkspaceId: workspaceId },
             { fileId: resource.id }
           )
-          const type = file.type === DASHBOARD_CONTENT_TYPE ? 'dashboard' : 'file'
-          resources.push({
-            ...base,
-            type,
-            title: type === 'dashboard' ? dashboardDisplayName(file.name) : file.name,
-          })
+          resources.push({ ...base, title: file.name })
           break
         }
         case 'knowledgebase': {

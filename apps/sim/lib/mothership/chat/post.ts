@@ -236,6 +236,7 @@ const ChatContextSchema = z
     viewId: mothershipResourceSchema.shape.viewId,
     currentView: mothershipTableViewContextSchema.optional(),
     fileId: z.string().optional(),
+    dashboardId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),

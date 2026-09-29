@@ -37,7 +37,7 @@ function EnabledDashboardResource({ workspaceId }: DashboardResourceProps) {
         <div className='min-h-0 flex-1 overflow-auto p-6'>
           <DashboardPreview
             workspaceId={workspaceId}
-            fileId={dashboard.id}
+            dashboardId={dashboard.id}
             content={query.data.content}
           />
         </div>

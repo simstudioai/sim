@@ -305,8 +305,8 @@ export async function processContextsServer(
         path: result.path,
       }
     }
-    if (ctx.kind === 'dashboard' && ctx.fileId && workspaceId) {
-      const result = await resolveDashboardResource(ctx.fileId, workspaceId, userId, chatId)
+    if (ctx.kind === 'dashboard' && ctx.dashboardId && workspaceId) {
+      const result = await resolveDashboardResource(ctx.dashboardId, workspaceId, userId, chatId)
       return { ...result, type: 'dashboard', tag: ctx.label ? `@${ctx.label}` : '@' }
     }
     if (ctx.kind === 'file' && ctx.fileId && workspaceId) {
@@ -1013,7 +1013,7 @@ async function resolveDashboardResource(
   userId: string,
   chatId?: string
 ): Promise<AgentContext> {
-  const principal = createCopilotChatFilePrincipal({ userId, workspaceId, chatId })
+  const principal = createCopilotChatPrincipal({ userId, workspaceId, chatId }, 'sim:workspaces')
   const { dashboard } = await readWorkspaceDashboard.execute({
     principal,
     input: { workspaceId },

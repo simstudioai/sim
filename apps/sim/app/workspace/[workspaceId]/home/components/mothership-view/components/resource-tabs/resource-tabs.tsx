@@ -30,7 +30,6 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
-import { dashboardDisplayName } from '@/lib/dashboards/resource'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
@@ -327,9 +326,7 @@ export function ResourceTabs({
               ? terminalTabTitle(terminal, settledCommands)
               : nameLookup.get(`${resource.type}:${resource.id}`)
           )?.trim() ||
-          (resource.type === 'dashboard'
-            ? dashboardDisplayName(resource.title).trim()
-            : resource.title.trim()) ||
+          resource.title.trim() ||
           getResourceConfig(resource.type).label,
         // A shell's label is a basename, and it may be running something it is
         // not naming yet, so hovering identifies the directory and program.

@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
   blocks: DashboardBlock[]
   defaults?: DashboardSource
   workspaceId: string
-  fileId: string
+  dashboardId: string
   range: DashboardTimeRange
   now: number
   path?: string
@@ -39,7 +39,7 @@ const ROW_GROW: Record<number, string> = {
 
 function DashboardTabGroup({ block, path, ...props }: DashboardTabsProps) {
   const [selected, setSelected] = useQueryState(
-    `dash-${props.fileId}-tab-${path}`,
+    `dash-${props.dashboardId}-tab-${path}`,
     dashboardTabParser.withOptions(dashboardUrlOptions)
   )
   const names = Object.keys(block.tabs)

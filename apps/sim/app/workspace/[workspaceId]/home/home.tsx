@@ -315,7 +315,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'dashboard':
-        return { type: 'dashboard', id: context.fileId }
+        return { type: 'dashboard', id: context.dashboardId }
       default:
         return null
     }

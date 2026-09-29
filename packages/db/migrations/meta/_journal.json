@@ -2742,8 +2742,8 @@
     {
       "idx": 392,
       "version": "7",
-      "when": 1790723103871,
-      "tag": "0392_one_dashboard_per_workspace",
+      "when": 1790723607543,
+      "tag": "0392_dashboard",
       "breakpoints": true
     }
   ]

@@ -13,7 +13,7 @@ export const dashboardRecordSchema = z.object({
   type: z.literal('dashboard'),
   name: z.string(),
   updatedAt: z.string(),
-  revision: z.string().nullable(),
+  revision: z.string(),
 })
 
 /** A workspace has at most one dashboard, which Sim builds; both fields are null until then. */
