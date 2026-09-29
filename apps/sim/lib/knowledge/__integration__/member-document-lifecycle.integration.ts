@@ -42,6 +42,15 @@ import {
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
 
+/**
+ * A three-page budget keeps the budget-boundary tests near two thousand documents; the production
+ * budget made them seed over ten thousand and run past the timeout on slower CI Postgres.
+ */
+vi.mock('@/lib/knowledge/connectors/sync-limits', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN: 3,
+}))
+
 describe('member document lifecycle in PostgreSQL', () => {
   let ids: ReturnType<typeof createKnowledgeAclFixtureIds>
   let members: Awaited<ReturnType<typeof seedKnowledgeMemberFixture>>
