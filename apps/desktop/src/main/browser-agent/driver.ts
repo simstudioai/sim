@@ -616,9 +616,9 @@ function instrumentTab(contents: WebContents): void {
         const requested = driverScopeState().dialogResponse
         return requested?.contents === contents ? requested.response : null
       }),
-    offerToUser: (kind, message, respond) =>
+    offerToUser: (kind, message, frameUrl, respond) =>
       session.withBrowserScope(scopeId, () =>
-        session.offerPageDialogToUser(contents, kind, message, respond)
+        session.offerPageDialogToUser(contents, { kind, message, frameUrl }, respond)
       ),
     onDialogClosed: inScope(() => session.notePageDialogClosed(contents)),
     claimUserLeave: () => session.withBrowserScope(scopeId, () => session.claimUserLeave(contents)),

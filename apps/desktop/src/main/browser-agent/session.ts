@@ -1895,16 +1895,23 @@ function userOwnsPageDialogs(tab: AgentTab): boolean {
   return automationTabClaimedByUser() && !currentScope.automationActive
 }
 
+/**
+ * Holds a dialog for the user. `frameUrl` is the frame that opened it, so an
+ * embedded site's dialog is labelled with its own origin, not the page's.
+ */
 function holdPageDialogForUser(
   tab: AgentTab,
-  kind: BrowserPageDialog['kind'],
-  message: string,
+  {
+    kind,
+    message,
+    frameUrl,
+  }: { kind: BrowserPageDialog['kind']; message: string; frameUrl: string },
   respond: (accept: boolean) => void
 ): void {
   if (tab.pageDialog) answerPageDialog(tab, false)
   let origin = ''
   try {
-    origin = new URL(tab.view.webContents.getURL()).origin
+    origin = new URL(frameUrl || tab.view.webContents.getURL()).origin
   } catch {}
   tab.pageDialog = { request: { requestId: generateId(), kind, message, origin }, respond }
   events?.onPageStateChanged(tab.view.webContents)
@@ -1925,13 +1932,12 @@ function answerPageDialog(tab: AgentTab, accept: boolean): void {
  */
 export function offerPageDialogToUser(
   contents: WebContents,
-  kind: 'alert' | 'confirm',
-  message: string,
+  dialog: { kind: 'alert' | 'confirm'; message: string; frameUrl: string },
   respond: (accept: boolean) => void
 ): boolean {
   const tab = tabForContents(contents)
   if (!tab || !userOwnsPageDialogs(tab)) return false
-  holdPageDialogForUser(tab, kind, message, respond)
+  holdPageDialogForUser(tab, dialog, respond)
   return true
 }
 
@@ -1949,6 +1955,7 @@ export function respondToPageDialog(requestId: string, accept: boolean): void {
   if (tab) answerPageDialog(tab, accept)
 }
 
+/** The dialog on this page awaiting the user's answer, if any. */
 export function pageDialogForContents(contents: WebContents): BrowserPageDialog | undefined {
   return tabForContents(contents)?.pageDialog?.request
 }
@@ -1964,7 +1971,7 @@ export function claimUserLeave(contents: WebContents): boolean {
   const leave = tab.pendingLeave
   tab.pendingLeave = undefined
   if (!leave || !userOwnsPageDialogs(tab)) return false
-  holdPageDialogForUser(tab, 'beforeunload', '', (accept) => {
+  holdPageDialogForUser(tab, { kind: 'beforeunload', message: '', frameUrl: '' }, (accept) => {
     if (!accept) return
     tab.allowNextUnload = true
     leave()
