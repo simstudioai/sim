@@ -71,6 +71,16 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       required: true,
     },
     {
+      id: 'region',
+      title: 'Region',
+      type: 'dropdown',
+      options: [
+        { label: 'US', id: 'us' },
+        { label: 'EU', id: 'eu' },
+      ],
+      value: () => 'us',
+    },
+    {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
@@ -405,6 +415,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Mailgun API key' },
+    region: { type: 'string', description: 'Mailgun account region: "us" or "eu"' },
     domain: { type: 'string', description: 'Mailgun domain' },
     // Message inputs
     from: { type: 'string', description: 'Sender email address' },
