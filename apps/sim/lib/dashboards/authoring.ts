@@ -39,7 +39,7 @@ Top-level keys: title, time, source, blocks. Blocks stack; row places up to 12 s
 - columns (instead of aggregate) for detail rows, with optional sort (≤3). limit 1–500; on aggregates it's top-N after grouping.
 
 ## Charts
-option is a plain ECharts option; results arrive as dataset 0, referenced via series.encode by groupBy field or aggregate alias. No functions, HTML tooltips, toolbox, or links. Bars: type bar with a category axis (swap axes for horizontal). Pie: encode {itemName, value}, radius pair for donut. Stack/area via standard ECharts. Time-axis charts get hover readout, synced crosshair, and drag-zoom for free — name series, set yAxis.axisLabel.formatter "{value}%" for percentages, and leave xAxis label formatters unset.
+option is a plain ECharts option; results arrive as dataset 0, referenced via series.encode by groupBy field or aggregate alias. No functions, HTML tooltips, toolbox, or links. Bars: type bar with a category axis (swap axes for horizontal). Pie: encode {itemName, value}, radius pair for donut. Stack/area via standard ECharts. Time-axis charts get hover readout, synced crosshair, and drag-zoom (except panels that pin their own range) for free — name series, set yAxis.axisLabel.formatter "{value}%" for percentages, and leave xAxis label formatters unset.
 
 ## Formatting
 The renderer applies default formatting — colors, typography, spacing, bar thickness, axis labels, grids and tooltips — so leave those options out. Add colors, styles, label or grid layout, or other formatting only when the person asks for it. The percentage formatter above sets units, not styling; keep it.

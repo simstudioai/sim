@@ -215,6 +215,7 @@ const ChatContextSchema = z
       'table_selection',
       'file',
       'file_selection',
+      'dashboard',
       'folder',
       'filefolder',
       'integration',

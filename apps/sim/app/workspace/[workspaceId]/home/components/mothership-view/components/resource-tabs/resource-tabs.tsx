@@ -166,7 +166,7 @@ function useResourceNameLookup(
   const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = resources.length > 0
   const { data: dashboardData } = useWorkspaceDashboard(workspaceId ?? '', {
-    enabled: enabled && dashboardsEnabled,
+    enabled: dashboardsEnabled && resources.some((resource) => resource.type === 'dashboard'),
   })
   const owners = [
     ...new Set(

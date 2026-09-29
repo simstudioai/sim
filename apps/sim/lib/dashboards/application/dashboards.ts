@@ -33,10 +33,14 @@ function validateContent(content: string) {
   if (parsed.error) throw new OrchestrationError('validation', parsed.error)
 }
 
+/** Revisions are PostgreSQL integers; anything else cannot be a revision from a read. */
+const MAX_REVISION = 2_147_483_647
+
 function parseRevision(revision: string): number {
-  if (!/^\d+$/.test(revision))
+  const parsed = /^\d+$/.test(revision) ? Number(revision) : Number.NaN
+  if (!(parsed >= 1 && parsed <= MAX_REVISION))
     throw new OrchestrationError('validation', 'expectedRevision must be the revision from a read')
-  return Number(revision)
+  return parsed
 }
 
 /** Reads the workspace dashboard; a workspace without one returns nulls, not an error. */
