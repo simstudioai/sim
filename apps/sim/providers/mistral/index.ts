@@ -14,9 +14,9 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromMistralStream } from '@/providers/mistral/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -177,9 +177,10 @@ export const mistralProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromMistralStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'Mistral',
+              request,
+              onComplete: ({ content, usage }) => {
                 output.content = content
                 output.tokens = {
                   input: usage.prompt_tokens,
@@ -200,8 +201,7 @@ export const mistralProvider: ProviderConfig = {
 
                 finalizeTiming()
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult

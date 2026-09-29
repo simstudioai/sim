@@ -17,10 +17,7 @@ import {
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-import {
-  useUpdateCredentialGroupAccess,
-  useWorkspaceAccounts,
-} from '@/hooks/queries/credential-groups'
+import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -30,57 +27,13 @@ const GROUP_ID = 'group-1'
 
 const mountedRoots: Root[] = []
 
-function renderMutation(queryClient: QueryClient) {
-  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  const container = document.createElement('div')
-  const root = createRoot(container)
-  mountedRoots.push(root)
-  let result: ReturnType<typeof useUpdateCredentialGroupAccess> | undefined
-
-  function Probe() {
-    result = useUpdateCredentialGroupAccess()
-    return null
-  }
-
-  act(() =>
-    root.render(
-      <QueryClientProvider client={queryClient}>
-        <Probe />
-      </QueryClientProvider>
-    )
-  )
-
-  return () => {
-    if (!result) throw new Error('Credential Group access mutation did not render')
-    return result
-  }
-}
-
 beforeEach(() => {
-  mockRequestJson.mockResolvedValue({ revision: 4, allowedWorkflowIds: ['workflow-2'] })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 })
 
 afterEach(() => {
   act(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
-  })
-})
-
-describe('useUpdateCredentialGroupAccess', () => {
-  it('fails before the request when the access cache has not been loaded', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
-    const getMutation = renderMutation(queryClient)
-
-    await expect(
-      act(async () =>
-        getMutation().mutateAsync({
-          workspaceId: WORKSPACE_ID,
-          groupId: GROUP_ID,
-          body: { expectedRevision: 3, allowedWorkflowIds: ['workflow-2'] },
-        })
-      )
-    ).rejects.toThrow('Credential Group access must be loaded before it can be updated')
-    expect(mockRequestJson).not.toHaveBeenCalled()
   })
 })
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Asserts every `scripts/*.test.ts` file is collected by the scripts Vitest config.
+ * Asserts every script test is collected by the scripts Vitest config.
  *
  * The root `test` script once chained a hand-maintained list of `test:*` entries, and a
  * hand-maintained list silently drifts from the files on disk: a test added without a matching
@@ -16,6 +16,7 @@
  */
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
+import { localBin } from './local-bin'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const SUB_SCRIPT_PATTERN = /bun run ([\w:-]+)/g
@@ -42,7 +43,7 @@ if (!reachableScripts('test').has('test:scripts')) {
 }
 
 const listed = Bun.spawnSync(
-  ['bunx', 'vitest', 'list', '--json', '--filesOnly', '--config', 'scripts/vitest.config.ts'],
+  [localBin('vitest'), 'list', '--json', '--filesOnly', '--config', 'scripts/vitest.config.ts'],
   {
     cwd: ROOT,
   }
@@ -57,16 +58,24 @@ const collected = new Set(
   )
 )
 
-const onDisk = readdirSync(path.join(ROOT, 'scripts'))
-  .filter((file) => file.endsWith('.test.ts'))
-  .map((file) => `scripts/${file}`)
-  .sort()
+/** Inventory independently of the include globs so a narrowed config cannot hide its omissions. */
+function testFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (['node_modules', '.git', 'dist'].includes(entry.name)) return []
+    const file = path.join(dir, entry.name)
+    if (entry.isDirectory()) return testFiles(file)
+    return /\.(test|spec)\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name)
+      ? [path.relative(ROOT, file).split(path.sep).join('/')]
+      : []
+  })
+}
+const onDisk = testFiles(path.join(ROOT, 'scripts')).sort()
 
 const orphaned = onDisk.filter((file) => !collected.has(file))
 if (orphaned.length > 0) {
   console.error(
     `Script tests never run by \`bun run test\`:\n${orphaned.map((file) => `  - ${file}`).join('\n')}\n` +
-      'Make sure the `scripts/vitest.config.ts` include glob matches them.'
+      'Make sure the scripts Vitest config collects them.'
   )
   process.exit(1)
 }

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Gate reachability and dependency ownership. Export/type pruning needs review
+  // of public package contracts and test-only consumers, not a blanket threshold.
+  "include": ["files", "dependencies", "unlisted", "unresolved"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.{ts,tsx}", "vitest.shared.ts"],
+      "paths": { "@/*": ["./apps/sim/*"] },
+      // This alias selects the native tsc binary; see check-native-typecheck.ts.
+      "ignoreDependencies": ["@typescript/native"]
+    },
+    "apps/sim": {
+      "entry": [
+        // Container bootstrap and Trigger's directory-discovered task graph.
+        "bootstrap.ts",
+        "trigger.config.ts",
+        "background/**/*.ts",
+        "scripts/**/*.{ts,tsx}",
+        "**/*.integration.ts",
+        "vitest.integration.setup.ts",
+        // Spawned worker and assets bundled/loaded by filename.
+        "lib/execution/isolated-vm-worker.cjs",
+        "lib/execution/sandbox/bundles/*.{ts,cjs}",
+        // Compile-time fixture compatibility assertion, included by tsconfig.
+        "lib/table/fixture-contract.ts",
+        // scripts/generate-docs.ts imports this through pathToFileURL.
+        "app/(landing)/integrations/data/landing-content.ts",
+        // Mirrored from the sibling worker's contracts:sync, not app-owned.
+        "lib/mothership/generated/account.ts",
+        "lib/mothership/generated/local-files.ts"
+      ],
+      // Required/discoverable barrels whose children have direct live imports.
+      // Ignore only the barrel file finding, so it cannot keep dead children alive.
+      "ignoreIssues": {
+        "sandbox-tasks/index.ts": ["files"],
+        "components/mcp/index.ts": ["files"],
+        "triggers/quickbooks/index.ts": ["files"],
+        "lib/api/contracts/selectors/index.ts": ["files"],
+        "lib/api/contracts/tools/index.ts": ["files"],
+        "lib/api/contracts/tools/communication/index.ts": ["files"],
+        "lib/api/contracts/tools/databases/index.ts": ["files"],
+        "lib/api/contracts/tools/media/index.ts": ["files"],
+        "lib/api/contracts/v1/index.ts": ["files"],
+        "app/(landing)/components/shared/two-block-workflow-preview/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-card/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-media/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-page/index.ts": ["files"]
+      },
+      "ignoreDependencies": [
+        // docker/app.Dockerfile invokes this binary to rebuild isolated-vm.
+        "node-gyp",
+        // Imported inside the generated source string in sandbox/bundles/build.ts.
+        "pptxgenjs",
+        // Next aliases this marker to its bundled server-only module.
+        "server-only",
+        // Knip's email CLI plugin infers this transitive preview implementation.
+        "@react-email/ui"
+      ],
+      // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
+      "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
+    },
+    "apps/realtime": { "entry": ["src/bootstrap.ts"] },
+    "apps/desktop": {
+      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path.
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/*.ts",
+        "src/preload/browser/index.ts",
+        "src/renderer/*/index.tsx",
+        "scripts/*.ts",
+        "e2e/fixtures/updater.ts"
+      ],
+      // ensure-pty-prebuilds.ts assembles these package names for universal builds.
+      "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
+    },
+    "packages/db": {
+      "entry": [
+        "scripts/*.ts",
+        "script-migrations/*.ts",
+        "**/*.integration.ts",
+        "vitest.integration.setup.ts"
+      ]
+    },
+    "packages/sim-cli": {
+      "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
+    },
+    "packages/ts-sdk": { "entry": ["examples/*.ts"] },
+    // The contract audit reads this snapshot by filename.
+    "packages/desktop-bridge": { "entry": ["contract-snapshot.ts"] },
+    // This shared config is consumed by apps that own the Next dependency.
+    "packages/tsconfig": { "ignoreUnresolved": ["next"] }
+  }
+}
