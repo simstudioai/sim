@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * Asserts every `scripts/*.test.ts` file is collected by the scripts Vitest config.
+ * Asserts script tests are collected by the scripts Vitest config.
  *
  * The root `test` script once chained a hand-maintained list of `test:*` entries, and a
  * hand-maintained list silently drifts from the files on disk: a test added without a matching
  * entry never runs, in CI or locally, and nothing reports it. `scripts/check-migrations-safety.test.ts`
  * sat unreferenced and green for exactly that reason. `scripts/vitest.config.ts` now collects
- * the directory by glob, so drift can only come from a file the glob does not match (a test in a
- * subdirectory, a different suffix) or from the `test` script no longer chaining `test:scripts`.
+ * the root and tooling directories by glob. This guard walks script subdirectories so a new
+ * test outside those globs cannot be silently skipped. `scripts/openapi` has its own suite.
  * This guard checks both by asking Vitest which files it would run.
  *
  * `run-audits.ts` derives its own list from the `check:*` namespace precisely so a new audit is
@@ -57,10 +57,15 @@ const collected = new Set(
   )
 )
 
-const onDisk = readdirSync(path.join(ROOT, 'scripts'))
-  .filter((file) => file.endsWith('.test.ts'))
-  .map((file) => `scripts/${file}`)
-  .sort()
+function scriptTests(directory: string): string[] {
+  return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+    const file = `${directory}/${entry.name}`
+    if (entry.isDirectory()) return file === 'scripts/openapi' ? [] : scriptTests(file)
+    return entry.isFile() && /\.test\.(?:ts|mjs)$/.test(entry.name) ? [file] : []
+  })
+}
+
+const onDisk = scriptTests('scripts').sort()
 
 const orphaned = onDisk.filter((file) => !collected.has(file))
 if (orphaned.length > 0) {

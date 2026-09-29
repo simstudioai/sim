@@ -22,8 +22,8 @@ import { GitSource } from '#design-conformance/worktree-source'
 
 const temp = mkdtempSync(path.join(os.tmpdir(), 'design-command-'))
 afterAll(() => rmSync(temp, { recursive: true, force: true }))
-const cli = fileURLToPath(new URL('./check-design-conformance.ts', import.meta.url))
-const ci = fileURLToPath(new URL('./design-conformance/ci.ts', import.meta.url))
+const cli = fileURLToPath(new URL('../check-design-conformance.ts', import.meta.url))
+const ci = fileURLToPath(new URL('./ci.ts', import.meta.url))
 const ui = 'apps/sim/components/example.tsx'
 
 function fixture() {
@@ -1167,10 +1167,7 @@ test('the relocated registry remains a central-system change and formatting stay
   const file = 'scripts/design-conformance/contracts.json'
   expect(isRegistry(file)).toBe(true)
   expect(isRegistry('scripts/other/contracts.json')).toBe(false)
-  const registry = readFileSync(
-    new URL('./design-conformance/contracts.json', import.meta.url),
-    'utf8'
-  )
+  const registry = readFileSync(new URL('./contracts.json', import.meta.url), 'utf8')
   expect(hash(registry)).toBe(contractsHash)
   const entry = { path: TOKEN_FILE, blob: 'a'.repeat(40), mode: '100644' }
   const compare = (before: string, after: string) =>
