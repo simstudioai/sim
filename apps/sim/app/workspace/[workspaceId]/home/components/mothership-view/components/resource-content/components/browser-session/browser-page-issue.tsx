@@ -127,7 +127,8 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
 
 function isEditingOutside(heading: HTMLElement | null): boolean {
   const active = document.activeElement
-  if (!(active instanceof HTMLElement) || !document.hasFocus()) return false
+  // activeElement survives a window blur, so a caret left in chat still counts.
+  if (!(active instanceof HTMLElement)) return false
   const section = heading?.closest('section')
   if (section?.contains(active)) return false
   return (

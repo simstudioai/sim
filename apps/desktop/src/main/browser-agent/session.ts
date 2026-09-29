@@ -1857,7 +1857,9 @@ export function focusPageForUser(contents: WebContents): void {
 function applyPendingUserFocus(view: WebContentsView): void {
   const tab = activeTab()
   if (!tab?.pendingUserFocus || tab.view !== view || view.webContents.isDestroyed()) return
-  if (!isPanelVisible() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
+  // A renderer modal can hide the view while the panel keeps its bounds.
+  if (!view.getVisible() || !isPanelVisible()) return
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
   tab.pendingUserFocus = false
   view.webContents.focus()
 }
@@ -1880,8 +1882,9 @@ function publishPageIssue(tab: AgentTab, focusRecovery = false): void {
   // Recovery moves focus to the renderer's issue page only when the failed page
   // held it; the user typing in chat keeps their caret.
   const pageHadFocus =
-    currentScope.focusedBrowserTabId === tab.id ||
-    (!tab.view.webContents.isDestroyed() && tab.view.webContents.isFocused())
+    !currentScope.browserChromeFocused &&
+    (currentScope.focusedBrowserTabId === tab.id ||
+      (!tab.view.webContents.isDestroyed() && tab.view.webContents.isFocused()))
   if (
     focusRecovery &&
     pageHadFocus &&
@@ -2307,15 +2310,31 @@ function initializeTabView(
       const tab = tabs.find((entry) => entry.view.webContents === contents)
       // A tab the user cannot see never keeps keyboard focus. Chromium focuses
       // a page opened without an opener (a target=_blank link) while creating
-      // it, before the tab is even listed. Hand focus back once that focus
-      // call has returned, or Chromium finishes it over the top.
+      // it, before the tab is even listed. Hand focus back to the visible page
+      // the user was in, or else to Sim, once that focus call has returned, or
+      // Chromium finishes it over the top.
       if (!tab || tab.id !== currentScope.activeTabId) {
+        const active = activeTab()
+        const returnTo =
+          active &&
+          !currentScope.browserChromeFocused &&
+          currentScope.focusedBrowserTabId === active.id
+            ? active
+            : null
         setImmediate(
           bindToBrowserScope(scopeId, () => {
             const current = tabs.find((entry) => entry.view.webContents === contents)
             const win = panelWindow()
             if (current?.id === currentScope.activeTabId || !win || win.isDestroyed()) return
-            if (!contents.isDestroyed() && contents.isFocused()) win.webContents.focus()
+            if (contents.isDestroyed() || !contents.isFocused()) return
+            if (
+              returnTo?.id === currentScope.activeTabId &&
+              !returnTo.view.webContents.isDestroyed()
+            ) {
+              returnTo.view.webContents.focus()
+            } else {
+              win.webContents.focus()
+            }
           })
         )
         return

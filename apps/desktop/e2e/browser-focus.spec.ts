@@ -251,6 +251,18 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
       await expect.poll(focusedPageUrls).toEqual([`${site}/four`])
     })
 
+    await check('a popup the agent opens hands focus back to the page the user is in', async () => {
+      const before = await tabCount()
+      const snapshot = await execute('browser_snapshot', {})
+      const ref = /"Open popup" \[ref=(\d+)\]/.exec(
+        String((snapshot as { outline?: string }).outline)
+      )?.[1]
+      expect(ref, 'snapshot lists the popup link').toBeTruthy()
+      await execute('browser_click', { elementId: Number(ref) })
+      await expect.poll(tabCount).toBe(before + 1)
+      await expect.poll(focusedPageUrls).toEqual([`${site}/four`])
+    })
+
     await check('reload keys typed in the page reload only that page', async () => {
       for (const [keyCode, modifiers] of [
         ['R', [PRIMARY]],
