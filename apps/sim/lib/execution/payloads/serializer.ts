@@ -274,28 +274,28 @@ async function mapEntriesAsync(
 
 /**
  * Compacts a trace span tree without collapsing its structure: `children` and
- * `output.childTraceSpans` stay arrays and only each span's payload fields
- * spill when oversized. See {@link compactChildTraceSpans} for the size bound.
+ * `output.childTraceSpans` stay arrays of spans and only each span's payload
+ * fields spill when oversized. A malformed list or entry is dropped, so every
+ * reader can walk the tree. See {@link compactChildTraceSpans} for the size bound.
  */
 async function compactTraceSpanTree(
   spans: unknown,
   options: CompactExecutionPayloadOptions,
   seen: WeakSet<object>
-): Promise<unknown> {
+): Promise<unknown[] | undefined> {
   if (!Array.isArray(spans)) {
-    return compactExecutionPayload(spans, options)
+    return undefined
   }
-  return Promise.all(spans.map((span) => compactTraceSpan(span, options, seen)))
+  return Promise.all(
+    spans.filter(isRecordLike).map((span) => compactTraceSpan(span, options, seen))
+  )
 }
 
 async function compactTraceSpan(
-  span: unknown,
+  span: Record<string, unknown>,
   options: CompactExecutionPayloadOptions,
   seen: WeakSet<object>
-): Promise<unknown> {
-  if (!isRecordLike(span)) {
-    return compactExecutionPayload(span, options)
-  }
+): Promise<Record<string, unknown>> {
   if (seen.has(span)) {
     return span
   }

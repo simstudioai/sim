@@ -404,6 +404,38 @@ describe('compacting span trees', () => {
     expect(loop.children?.[0].children?.[0].output).toBeUndefined()
   })
 
+  it('drops malformed span entries so an oversized tree still keeps its skeleton', async () => {
+    const spans = spansTooLargeAsAWhole()
+    const iteration = spans[0].children?.[0]
+    iteration?.children?.push(null as unknown as TraceSpan)
+
+    const compacted = await compactBlockOutput(
+      { childTraceSpans: [...spans, undefined as unknown as TraceSpan] },
+      options
+    )
+
+    expectSpanTree(compacted.childTraceSpans)
+    expect(compacted.childTraceSpans).toHaveLength(1)
+  })
+
+  it('keeps nested child workflow trees in the skeleton', async () => {
+    const nestedWorkflowSpan: TraceSpan = {
+      id: 'nested-workflow',
+      name: 'Nested Workflow',
+      type: 'workflow',
+      duration: 2,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.002Z',
+      output: { result: 'done', childTraceSpans: spansTooLargeAsAWhole() },
+    }
+
+    const compacted = await compactBlockOutput({ childTraceSpans: [nestedWorkflowSpan] }, options)
+
+    const [nested] = compacted.childTraceSpans as TraceSpan[]
+    expect(nested.output?.result).toBeUndefined()
+    expectSpanTree(nested.output?.childTraceSpans)
+  })
+
   it('drops a child span tree whose skeleton alone exceeds the threshold', async () => {
     const spans = Array.from({ length: 64 }, (_, index) => ({
       ...spansTooLargeAsAWhole()[0],

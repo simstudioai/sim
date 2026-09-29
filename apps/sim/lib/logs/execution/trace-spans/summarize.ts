@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { TraceSpan } from '@/lib/logs/types'
 
 export function stripModelToolCallArguments(
@@ -35,7 +36,8 @@ export function stripProviderTimingContent(
 /**
  * A trace span tree with every span's content removed: inputs, outputs,
  * thinking, error text, tool-call arguments, and provider content. Keeps the
- * tree's shape, names, timing, status, and cost.
+ * tree's shape, names, timing, status, and cost, including a nested child
+ * workflow's spans carried on `output.childTraceSpans`.
  */
 export function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
   if (!traceSpans) {
@@ -45,7 +47,7 @@ export function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpa
   return traceSpans.map((span) => {
     const {
       input: _input,
-      output: _output,
+      output,
       children,
       thinking: _thinking,
       errorMessage: _errorMessage,
@@ -54,8 +56,12 @@ export function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpa
       providerTiming,
       ...rest
     } = span
+    const nestedSpans = isRecordLike(output) ? output.childTraceSpans : undefined
     return {
       ...rest,
+      ...(Array.isArray(nestedSpans) && nestedSpans.length
+        ? { output: { childTraceSpans: summarizeTraceSpansWithoutIo(nestedSpans) } }
+        : {}),
       ...(modelToolCalls ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) } : {}),
       ...(toolCalls ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
       ...(providerTiming ? { providerTiming: stripProviderTimingContent(providerTiming) } : {}),
