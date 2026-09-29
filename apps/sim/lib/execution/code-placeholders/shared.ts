@@ -28,6 +28,18 @@ export class CodePlaceholderCompileError extends Error {
 }
 
 /**
+ * A broken compiler invariant: Sim's own compilation failed, not the user's code.
+ * Deliberately not a {@link CodePlaceholderCompileError}, so callers that answer a
+ * user compile error with a client status treat this as a server failure.
+ */
+export class CodePlaceholderInvariantError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CodePlaceholderInvariantError'
+  }
+}
+
+/**
  * Scans `{{name}}` placeholders, accepting exactly what `/\{\{([^}]+)\}\}/g` accepts —
  * a name may contain `{`, because parameter keys are arbitrary strings rather than
  * identifiers.
@@ -270,7 +282,7 @@ export function applySourceEdits(code: string, edits: SourceEdit[]): string {
   let output = ''
   for (const edit of sorted) {
     if (edit.start < cursor || edit.end < edit.start || edit.end > code.length) {
-      throw new CodePlaceholderCompileError('Overlapping code placeholder transformations')
+      throw new CodePlaceholderInvariantError('Overlapping code placeholder transformations')
     }
     output += code.slice(cursor, edit.start)
     output += edit.text
