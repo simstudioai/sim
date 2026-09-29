@@ -32,10 +32,6 @@ vi.mock('@/providers/models', () => providersModelsMock)
 
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
-vi.mock('@/providers/groq/utils', () => ({
-  createReadableStreamFromGroqStream: vi.fn(),
-}))
-
 vi.mock('@/providers/openai-compat/streaming-tool-loop', () => ({
   createOpenAICompatStreamingToolLoopStream: vi.fn(),
 }))

@@ -31,11 +31,16 @@ vi.mock('@/lib/table/rows/ordering', () => ({
 }))
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
-vi.mock('@/lib/table/validation', () => ({
-  validateRowSize: mockValidateRowSize,
-  coerceRowToSchema: mockCoerceRowToSchema,
-  coerceRowValues: mockCoerceRowValues,
-}))
+vi.mock('@/lib/table/validation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/table/validation')>()
+  return {
+    cellOf: actual.cellOf,
+    uniqueColumnsInPatch: actual.uniqueColumnsInPatch,
+    validateRowSize: mockValidateRowSize,
+    coerceRowToSchema: mockCoerceRowToSchema,
+    coerceRowValues: mockCoerceRowValues,
+  }
+})
 vi.mock('@/lib/table/constants', () => ({
   ...tableConstantsMock,
   TABLE_LIMITS: { ...tableConstantsMock.TABLE_LIMITS, DELETE_PAGE_SIZE: 2, UPDATE_BATCH_SIZE: 100 },
@@ -57,7 +62,12 @@ const UNLOCKED = {
   updateLocked: false,
   deleteLocked: false,
 }
-const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] }, locks: UNLOCKED }
+const table = {
+  id: 'tbl_1',
+  workspaceId: 'ws_1',
+  schema: { columns: [{ id: 'flag', name: 'flag', type: 'boolean' }] },
+  locks: UNLOCKED,
+}
 const cutoff = new Date('2026-06-05T00:00:00Z')
 
 function basePayload(overrides = {}) {

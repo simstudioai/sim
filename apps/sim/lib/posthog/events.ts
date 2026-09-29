@@ -768,6 +768,17 @@ export interface PostHogEventMap {
     fork_sync_excluded: boolean
   }
 
+  /**
+   * The lineage-wide "do new workflows sync to forks?" default was changed from the Forks
+   * settings. `workspace_id` is where the admin changed it; the write fans out to the
+   * whole lineage.
+   */
+  fork_sync_default_updated: {
+    workspace_id: string
+    fork_sync_new_workflows_excluded: boolean
+    workspaces_updated: number
+  }
+
   workflow_schedule_created: {
     workflow_id: string
     workspace_id: string

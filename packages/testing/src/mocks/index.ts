@@ -808,6 +808,10 @@ export {
   tableRouteUtilsMockFns,
 } from './table-route-utils.mock'
 export {
+  tableRowsLiveSchemaMock,
+  tableRowsLiveSchemaMockFns,
+} from './table-rows-live-schema.mock'
+export {
   MockTableRowProvenanceReader,
   tableRowsSecretProvenanceMock,
   tableRowsSecretProvenanceMockFns,
@@ -1044,6 +1048,10 @@ export {
   workspaceForkingLineageMock,
   workspaceForkingLineageMockFns,
 } from './workspace-forking-lineage.mock'
+export {
+  workspaceForkingLineageRootMock,
+  workspaceForkingLineageRootMockFns,
+} from './workspace-forking-lineage-root.mock'
 export {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,

@@ -396,6 +396,7 @@ describe('search projection upgrade in PostgreSQL', () => {
       { name: '0023_projection_acl_skip_unfilled' },
       { name: '0024_knowledge_projection_async' },
       { name: '0025_scope_keyword_projections' },
+      { name: '0026_user_table_schema_for_write' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id

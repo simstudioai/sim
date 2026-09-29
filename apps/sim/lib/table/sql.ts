@@ -532,10 +532,11 @@ function buildFieldCondition(
 /**
  * The single leaf primitive: compiles one `field op value` into SQL. Every
  * matcher routes through here — both filter compilers (`buildFilterClause` for
- * the legacy `$`-grammar, `buildPredicateClause` for the v2 grammar), the upsert
- * conflict probe, and the unique-constraint checks. Centralizing the leaf means
- * equality/case/null/cast semantics are defined exactly once, so "find the row"
- * and "is this value unique" can never disagree.
+ * the legacy `$`-grammar, `buildPredicateClause` for the v2 grammar), and, through
+ * {@link uniqueValuePredicate}, the upsert conflict probe and the unique-constraint
+ * checks. Centralizing the leaf means equality/case/null/cast semantics are
+ * defined exactly once, so "find the row" and "is this value unique" can never
+ * disagree.
  *
  * Returns `undefined` when the predicate is a no-op (empty `in`/`nin` array),
  * matching the legacy behavior of emitting no clause.
@@ -867,6 +868,29 @@ function buildSystemColumnClause(
         `Operator "${op}" is not supported on the built-in column "${field}" — use eq, ne, gt, gte, lt, lte, in, nin, isNull, isNotNull.`
       )
   }
+}
+
+/**
+ * Whether a row holds `value` in a unique column: the upsert conflict probe and every unique check
+ * match with it. It is the `eq` leaf of {@link fieldPredicate}, made exact for an object or array.
+ * Containment is not equality there (`{"a":1,"b":2} @> {"a":1}`), so the leaf ANDs jsonb equality
+ * on the cell, keeping the containment half for the GIN index. jsonb equality ignores object key
+ * order and keeps array order, as `uniqueValueKey` does. A scalar leaf's containment is already
+ * equality.
+ */
+export function uniqueValuePredicate(
+  tableName: string,
+  field: string,
+  value: JsonValue,
+  column: ColumnDefinition
+): SQL {
+  const clause = fieldPredicate(tableName, field, 'eq', value, column)
+  if (!clause) {
+    throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
+  }
+  if (value === null || typeof value !== 'object') return clause
+  const cell = sql`${sql.raw(`${tableName}.data`)}->${field}::text`
+  return sql`(${clause} AND ${cell} = ${JSON.stringify(value)}::jsonb)`
 }
 
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */

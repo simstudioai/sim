@@ -16,8 +16,9 @@ export const NOTION_SEARCH_TERMS_REQUIRED =
 export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
 
 /**
- * Providers whose kind selects a distinct search collection. One query per kind bounds fanout
- * while retaining independently searchable collections within the per-account request limit.
+ * Providers whose kind selects a distinct search collection. A query without a kind fans out
+ * across its provider's default collections, so it cannot share an account with kinded queries;
+ * the per-account request limit bounds the rest.
  */
 const PROVIDER_KIND_SCHEMAS = {
   github: z.enum(['issues', 'code', 'repositories', 'commits']),
@@ -102,10 +103,10 @@ export const nativeSearchQueriesSchema = z
         addIssue('Duplicate native query.')
       else if (
         hasSearchKinds(query.provider) &&
-        earlier.some((previous) => !previous.kind || !query.kind || previous.kind === query.kind)
+        earlier.some((previous) => !previous.kind || !query.kind)
       )
         addIssue(
-          'Send one query per account and kind for GitHub, GitLab, or HubSpot. Use provider-supported operators for alternatives, or send another call.'
+          'A GitHub, GitLab, or HubSpot query without a kind already searches every kind; give each query on this account a kind.'
         )
       else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
@@ -187,7 +188,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub, GitLab, and HubSpot take one per kind. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()
@@ -246,11 +247,12 @@ export const readDocumentInputSchema = z.object({
     .min(1)
     .max(4000)
     .describe('Canonical document ID returned by search or selected document context.'),
+  /** A larger request is capped rather than refused: the server returns at most 8 chunks anyway. */
   limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(8)
+    .preprocess(
+      (limit) => (typeof limit === 'number' && limit > 8 ? 8 : limit),
+      z.number().int().min(1).max(8)
+    )
     .default(3)
     .describe(
       'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.'

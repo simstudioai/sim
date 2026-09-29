@@ -267,6 +267,17 @@ export function Chat() {
     }))
   )
 
+  const promptHistory = useChatStore(
+    useShallow((state) =>
+      !activeWorkflowId
+        ? []
+        : state.messages
+            .filter((message) => message.workflowId === activeWorkflowId && message.type === 'user')
+            .map((message) => message.content)
+            .filter((content): content is string => typeof content === 'string')
+    )
+  )
+
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const entries = useWorkflowConsoleEntries(
     hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
@@ -277,7 +288,6 @@ export function Chat() {
   const { addToQueue } = useOperationQueue()
 
   const [chatMessage, setChatMessage] = useState('')
-  const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
@@ -428,23 +438,9 @@ export function Chat() {
     }
   )
 
-  const userMessages = useMemo(() => {
-    return workflowMessages
-      .filter((msg) => msg.type === 'user')
-      .map((msg) => msg.content)
-      .filter((content): content is string => typeof content === 'string')
-  }, [workflowMessages])
-
   useEffect(() => {
-    if (!activeWorkflowId) {
-      setPromptHistory([])
-      setHistoryIndex(-1)
-      return
-    }
-
-    setPromptHistory(userMessages)
     setHistoryIndex(-1)
-  }, [activeWorkflowId, userMessages])
+  }, [activeWorkflowId, promptHistory])
 
   /**
    * Auto-scroll to bottom when messages load and chat is open
@@ -724,9 +720,6 @@ export function Chat() {
       }
       const messageAttachments = toChatMessageAttachments(result.uploadedAttachments)
 
-      if (sentMessage && promptHistory[promptHistory.length - 1] !== sentMessage) {
-        setPromptHistory((prev) => [...prev, sentMessage])
-      }
       setHistoryIndex(-1)
 
       const messageContent =
@@ -759,7 +752,6 @@ export function Chat() {
     chatFiles,
     activeWorkflowId,
     isExecuting,
-    promptHistory,
     getConversationId,
     addMessage,
     handleRunWorkflow,

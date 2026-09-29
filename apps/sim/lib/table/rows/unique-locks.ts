@@ -7,9 +7,9 @@
  * values it writes, so the second writer's check runs after the first commits and sees its row.
  * Writers of different values never wait on each other.
  *
- * Lock order, everywhere: the table's schema lock (when taken), then the table's unique lock and its
- * value locks in sorted order, in one statement, then the table's row-order lock, then the
- * definition row.
+ * Lock order, everywhere: the table's schema lock (shared by row writes, exclusive by schema
+ * changes; see `live-schema.ts`), then the table's unique lock and its value locks in sorted order,
+ * in one statement, then the table's row-order lock, then the definition row.
  */
 
 import { compareStrings } from '@sim/utils/string'
@@ -17,7 +17,7 @@ import { type AdvisoryXactLockRequest, acquireAdvisoryXactLocks } from '@/lib/db
 import { getColumnId } from '@/lib/table/column-keys'
 import type { DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableDefinition } from '@/lib/table/types'
-import { getUniqueColumns, uniqueValueKey } from '@/lib/table/validation'
+import { cellOf, getUniqueColumns, uniqueValueKey } from '@/lib/table/validation'
 
 const UNIQUE_LOCK_TAG = 'user_table_unique_value'
 
@@ -45,11 +45,11 @@ function tableLockKey(tableId: string): string {
  * lock only the unique columns a patch changes; values it leaves alone are already stored.
  *
  * The table lock is taken shared, then an exclusive lock per value. The value key includes
- * `uniqueValueKey`, so two values the check treats as equal always share a key; null cells never
- * conflict and take none. The table lock is taken exclusively instead, with no value locks, when a
- * value is an object or array (a `json` column's check matches by containment, which no single key
- * can express) or when the transaction would exceed {@link MAX_VALUE_LOCKS}. An exclusive holder
- * waits for, and blocks, every shared holder, so it still serializes against per-value writers.
+ * `uniqueValueKey`, so two values the check treats as equal always share a key, objects and arrays
+ * included, since the check compares those by jsonb equality; null cells never conflict and take
+ * none. The table lock is taken exclusively instead, with no value locks, when the transaction would
+ * exceed {@link MAX_VALUE_LOCKS}. An exclusive holder waits for, and blocks, every shared holder, so
+ * it still serializes against per-value writers.
  */
 export async function lockUniqueValues(
   trx: DbTransaction,
@@ -63,9 +63,8 @@ export async function lockUniqueValues(
     const columnId = getColumnId(column)
     if (columnIds && !columnIds.has(columnId)) continue
     for (const row of rows) {
-      const value = row[columnId]
+      const value = cellOf(row, columnId)
       if (value === null || value === undefined) continue
-      if (typeof value === 'object') return lockUniqueColumns(trx, table)
       const key = `${tableKey}:${columnId}:${uniqueValueKey(value, column)}`
       if (!valueKeys.has(key) && valueKeys.size === MAX_VALUE_LOCKS) {
         return lockUniqueColumns(trx, table)

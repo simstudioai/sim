@@ -432,14 +432,6 @@ export const workflowOperations = {
     capability: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
-  // permission-group-exempt: comparing references across two versions reads workflow content the caller may already open
-  compareReferences: defineWorkspaceOperation({
-    id: 'workflows.versions.compare_references',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
   // permission-group-exempt: an export returns the graph its reader can already open; logs.export withholds execution logs, not definitions
   export: defineWorkspaceOperation({
     id: 'workflows.export',
