@@ -11,6 +11,7 @@ import {
   LARGE_VALUE_THRESHOLD_BYTES,
 } from '@/lib/execution/payloads/large-value-ref'
 import { type LargeValueStoreContext, storeLargeValue } from '@/lib/execution/payloads/store'
+import { summarizeTraceSpansWithoutIo } from '@/lib/logs/execution/trace-spans/summarize'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockLog } from '@/executor/types'
 
@@ -328,9 +329,10 @@ async function compactSpanOutput(
 
 /**
  * Compacts a block's child span tree for its log. Readers walk span trees as
- * arrays, so a tree is kept whole or not at all: payload fields spill
- * individually (see {@link compactTraceSpanTree}), and a tree still over the
- * threshold as a whole is dropped, bounding it as generic compaction did.
+ * arrays, so a tree is never collapsed: payload fields spill individually (see
+ * {@link compactTraceSpanTree}). A tree still over the threshold as a whole
+ * keeps only its skeleton (shape, names, timing, status, cost), and one whose
+ * skeleton is still over it is dropped, bounding it as generic compaction did.
  */
 async function compactChildTraceSpans(
   spans: unknown,
@@ -342,17 +344,34 @@ async function compactChildTraceSpans(
     }
     return undefined
   }
-  const compacted = await compactTraceSpanTree(spans, options, new WeakSet<object>())
-  const measured = getJsonAndSize(compacted)
+  const compacted = (await compactTraceSpanTree(
+    spans,
+    options,
+    new WeakSet<object>()
+  )) as TraceSpan[]
   const maxBytes = options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES
-  if (measured && measured.size <= maxBytes) {
-    return compacted as TraceSpan[]
+  const measured = getJsonAndSize(compacted)
+  if (!measured) {
+    logger.warn('Dropping child trace spans that cannot be serialized')
+    return undefined
   }
-  if (measured && options.rejectLargeValues) {
+  if (measured.size <= maxBytes) {
+    return compacted
+  }
+  if (options.rejectLargeValues) {
     throw largeValueLimitError(options, measured.size)
   }
+  const skeleton = summarizeTraceSpansWithoutIo(compacted)
+  const skeletonSize = getJsonAndSize(skeleton)?.size
+  if (skeletonSize !== undefined && skeletonSize <= maxBytes) {
+    logger.warn('Kept only the skeleton of child trace spans too large to keep whole', {
+      observedBytes: measured.size,
+      maxBytes,
+    })
+    return skeleton
+  }
   logger.warn('Dropping child trace spans too large to keep', {
-    observedBytes: measured?.size,
+    observedBytes: skeletonSize ?? measured.size,
     maxBytes,
   })
   return undefined

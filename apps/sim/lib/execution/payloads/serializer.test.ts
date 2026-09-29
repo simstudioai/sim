@@ -392,13 +392,26 @@ describe('compacting span trees', () => {
     expect(isLargeValueRef(spilled?.output?.result)).toBe(true)
   })
 
-  it('drops a block output child span tree too large as a whole', async () => {
+  it('keeps the skeleton of a block output child span tree too large as a whole', async () => {
     const compacted = await compactBlockOutput(
       { result: 'done', childTraceSpans: spansTooLargeAsAWhole() },
       options
     )
 
     expect(compacted.output).toEqual({ result: 'done' })
+    expectSpanTree(compacted.childTraceSpans)
+    const [loop] = compacted.childTraceSpans as TraceSpan[]
+    expect(loop.children?.[0].children?.[0].output).toBeUndefined()
+  })
+
+  it('drops a child span tree whose skeleton alone exceeds the threshold', async () => {
+    const spans = Array.from({ length: 64 }, (_, index) => ({
+      ...spansTooLargeAsAWhole()[0],
+      id: `loop-${index}`,
+    }))
+
+    const compacted = await compactBlockOutput({ childTraceSpans: spans }, options)
+
     expect(compacted.childTraceSpans).toBeUndefined()
   })
 
@@ -425,7 +438,7 @@ describe('compacting span trees', () => {
     expectSpanTree(compacted.childTraceSpans)
   })
 
-  it('keeps block log child span trees whole or drops them', async () => {
+  it('keeps block log child span trees whole or as a skeleton', async () => {
     const compacted =
       (await compactBlockLogs(
         [
@@ -436,7 +449,9 @@ describe('compacting span trees', () => {
       )) ?? []
 
     expectSpanTree(compacted[0]?.childTraceSpans)
-    expect(compacted[1]?.childTraceSpans).toBeUndefined()
+    expectSpanTree(compacted[1]?.childTraceSpans)
+    const [loop] = compacted[1]?.childTraceSpans ?? []
+    expect(loop.children?.[0].children?.[0].output).toBeUndefined()
   })
 
   it('keeps a nested child workflow span tree shaped as a tree', async () => {
