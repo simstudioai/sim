@@ -32,7 +32,7 @@ export const createDashboardBodySchema = z
   .object({
     name: dashboardNameSchema,
     content: dashboardContentSchema,
-    folderId: z.string().min(1).nullable().optional(),
+    folderId: folderIdSchema.nullable().optional(),
   })
   .strict()
 export const updateDashboardBodySchema = z
@@ -41,7 +41,7 @@ export const updateDashboardBodySchema = z
 export const moveDashboardBodySchema = z
   .object({
     name: dashboardNameSchema.optional(),
-    folderId: z.string().min(1).nullable().optional(),
+    folderId: folderIdSchema.nullable().optional(),
   })
   .strict()
 export const listDashboardsQuerySchema = z.object({

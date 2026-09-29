@@ -65,6 +65,16 @@ export function DashboardDialog({
     if (!row) return ''
     return `${row.parentId ? pathFor(row.parentId) : ''}/${encodeFolderPathSegment(row.name)}`
   }
+  function labelFor(id: string): string {
+    const row = folders.find((folder) => folder.id === id)
+    if (!row) return ''
+    return row.parentId ? `${labelFor(row.parentId)} / ${row.name}` : row.name
+  }
+  function isWithin(id: string, ancestorId: string): boolean {
+    const row = folders.find((folder) => folder.id === id)
+    if (!row) return false
+    return row.id === ancestorId || (row.parentId !== null && isWithin(row.parentId, ancestorId))
+  }
   function save() {
     const callbacks = {
       onSuccess: (result: Awaited<ReturnType<typeof mutation.mutateAsync>>) => {
@@ -95,16 +105,15 @@ export function DashboardDialog({
           callbacks
         )
         break
-      case 'editFolder':
-        mutation.mutate(
-          {
-            operation: 'moveFolder',
-            path: state.path,
-            destinationPath: `${pathFor(target)}/${encodeFolderPathSegment(name)}`,
-          },
-          callbacks
-        )
+      case 'editFolder': {
+        const destinationPath = `${pathFor(target)}/${encodeFolderPathSegment(name)}`
+        if (destinationPath === state.path) {
+          onClose()
+          break
+        }
+        mutation.mutate({ operation: 'moveFolder', path: state.path, destinationPath }, callbacks)
         break
+      }
       case 'deleteFolder':
         mutation.mutate({ operation: 'deleteFolder', path: state.path }, callbacks)
         break
@@ -137,8 +146,10 @@ export function DashboardDialog({
                 options={[
                   { value: '', label: 'Dashboards' },
                   ...folders
-                    .filter((folder) => !('folder' in state) || folder.id !== state.folder.id)
-                    .map((folder) => ({ value: folder.id, label: pathFor(folder.id) })),
+                    .filter(
+                      (folder) => !('folder' in state) || !isWithin(folder.id, state.folder.id)
+                    )
+                    .map((folder) => ({ value: folder.id, label: labelFor(folder.id) })),
                 ]}
               />
             )}

@@ -28,9 +28,9 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, id ? tableKeys.views(id) : tableKeys.viewsRoot())
   },
   dashboard: (qc, wId, id) => {
-    invalidate(qc, dashboardKeys.lists())
+    invalidate(qc, dashboardKeys.lists(wId))
     invalidate(qc, dashboardKeys.folders(wId))
-    invalidate(qc, id ? dashboardKeys.detail(wId, id) : dashboardKeys.details())
+    invalidate(qc, id ? dashboardKeys.detail(wId, id) : dashboardKeys.details(wId))
   },
   file: (qc, wId, id) => {
     invalidate(qc, workspaceFilesKeys.lists())

@@ -82,7 +82,7 @@ export const moveDashboardFolder = defineAuthorizedWorkspaceFileUseCase({
     return { folder: toFolderApi(result.folder) }
   },
   projectAudit: ({ result }) => ({
-    action: AuditAction.FOLDER_UPDATED,
+    action: AuditAction.FOLDER_MOVED,
     resourceType: AuditResourceType.FOLDER,
     resourceId: result.folder.id,
     resourceName: result.folder.name,

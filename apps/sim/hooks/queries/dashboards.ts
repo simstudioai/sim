@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type CreateDashboardBody,
@@ -21,13 +21,13 @@ import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 export const DASHBOARD_STALE_TIME = 30_000
 export const dashboardKeys = {
   all: ['dashboards'] as const,
-  lists: () => [...dashboardKeys.all, 'list'] as const,
+  workspace: (workspaceId: string) => [...dashboardKeys.all, workspaceId] as const,
+  lists: (workspaceId: string) => [...dashboardKeys.workspace(workspaceId), 'list'] as const,
   list: (workspaceId: string, query: ListDashboardsQuery = {}) =>
-    [...dashboardKeys.lists(), workspaceId, query.search ?? '', query.folder ?? ''] as const,
-  details: () => [...dashboardKeys.all, 'detail'] as const,
-  detail: (workspaceId: string, id: string) =>
-    [...dashboardKeys.details(), workspaceId, id] as const,
-  folders: (workspaceId: string) => [...dashboardKeys.all, 'folders', workspaceId] as const,
+    [...dashboardKeys.lists(workspaceId), query.search ?? '', query.folder ?? ''] as const,
+  details: (workspaceId: string) => [...dashboardKeys.workspace(workspaceId), 'detail'] as const,
+  detail: (workspaceId: string, id: string) => [...dashboardKeys.details(workspaceId), id] as const,
+  folders: (workspaceId: string) => [...dashboardKeys.workspace(workspaceId), 'folders'] as const,
 }
 export function useDashboards(
   workspaceId: string,
@@ -44,7 +44,12 @@ export function useDashboards(
       }),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: DASHBOARD_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      dashboardKeys
+        .lists(workspaceId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 export function useDashboard(workspaceId: string, dashboardId: string) {
@@ -115,7 +120,7 @@ export function useDashboardMutation(workspaceId: string) {
       }
     },
     onSuccess: (_data, input) => {
-      void client.invalidateQueries({ queryKey: dashboardKeys.lists() })
+      void client.invalidateQueries({ queryKey: dashboardKeys.lists(workspaceId) })
       void client.invalidateQueries({ queryKey: dashboardKeys.folders(workspaceId) })
       void client.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       if ('dashboardId' in input)

@@ -32,6 +32,20 @@ const examples = {
     { action: 'setup', connectorType: 'google_drive', accessMode: 'admin' },
     { action: 'approve', connectorType: 'google_drive', approved: true },
   ],
+  dashboards: [
+    { action: 'list', search: 'support' },
+    { action: 'get', dashboardId: 'dash-1' },
+    { action: 'create', name: 'Support', content: 'title: Support\nblocks: []', folderId: null },
+    { action: 'update', dashboardId: 'dash-1', content: 'title: Support', expectedRevision: 'r1' },
+    { action: 'move', dashboardId: 'dash-1', folderId: null },
+    { action: 'delete', dashboardId: 'dash-1' },
+  ],
+  dashboard_folders: [
+    { action: 'list' },
+    { action: 'create', path: '/Operations' },
+    { action: 'move', path: '/Operations', destinationPath: '/Ops' },
+    { action: 'delete', path: '/Operations' },
+  ],
 }
 
 describe('management tool provider contract', () => {

@@ -377,7 +377,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       data-tab-strip-button={tab.id}
       tabIndex={focusable ? 0 : -1}
       className={cn(
-        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-[length:var(--tab-strip-font-size,12px)]',
+        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
         tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
         closeable && 'pr-8',
         closeable &&
@@ -896,8 +896,9 @@ export function TabStrip({
       // rather than by passing a utility class that has to out-merge this one.
       className={cn(
         'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        size === 'large' && '[--tab-strip-band:42px] [&_[data-tab-strip-button]]:text-base',
         size === 'large' &&
-          '[--tab-strip-band:42px] [--tab-strip-font-size:16px] [--tab-strip-height:42px]',
+          (variant === 'attached' ? '[--tab-strip-height:46px]' : '[--tab-strip-height:42px]'),
         dividers && 'border-[var(--border)] border-b',
         // Attached tabs hang from the top so the active one can reach the strip's
         // bottom border and cover it; floating tabs are centred in the bar.

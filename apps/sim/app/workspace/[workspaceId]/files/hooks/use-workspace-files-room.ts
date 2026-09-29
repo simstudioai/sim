@@ -21,7 +21,7 @@ export function useWorkspaceFilesRoom(workspaceId: string): void {
     ROOM_TYPES.WORKSPACE_FILES,
     () => {
       invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
-      void queryClient.invalidateQueries({ queryKey: dashboardKeys.all })
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.workspace(workspaceId) })
     },
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )

@@ -28,6 +28,7 @@ describe('search projection upgrade in PostgreSQL', () => {
       'embedding',
       'embedding_search',
       'knowledge_projection_dirty',
+      'workspace_files',
     ]) {
       await admin.unsafe(
         `CREATE TABLE "${schemaName}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING GENERATED)`

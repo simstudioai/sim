@@ -71,7 +71,7 @@ function validateContent(content: string) {
 }
 
 function storageName(name: string) {
-  const clean = name.trim().replace(/\.dashboard$/, '')
+  const clean = name.trim().replace(/\.dashboard$/i, '')
   if (!clean || clean.length > 220 || /[/\\]/.test(clean) || clean === '.' || clean === '..') {
     throw new OrchestrationError(
       'validation',

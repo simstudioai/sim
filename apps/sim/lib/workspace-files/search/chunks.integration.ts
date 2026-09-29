@@ -173,7 +173,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
       '0382_workspace_file_search_dispatch_handoff.sql',
-      '0385_file_discovery.sql',
+      '0392_file_discovery.sql',
     ]) {
       await applyMigration(migration)
     }

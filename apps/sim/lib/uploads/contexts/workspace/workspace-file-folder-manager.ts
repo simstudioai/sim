@@ -6,7 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
+import { DASHBOARD_CONTENT_TYPE, type fileBackedResourceType } from '@/lib/dashboards/resource'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
@@ -36,6 +36,12 @@ const logger = createLogger('WorkspaceFileFolders')
  */
 const FILE_FOLDER_RESOURCE_TYPE = 'file' as const
 const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
+
+interface FolderPathLookupOptions {
+  includeDeleted?: boolean
+  /** Dashboards keep their own folder tree; plain files are the default. */
+  resourceType?: ReturnType<typeof fileBackedResourceType>
+}
 
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
@@ -288,21 +294,19 @@ function mapFolder(
 async function getRawWorkspaceFileFolder(
   workspaceId: string,
   folderId: string,
-  options?: { includeDeleted?: boolean }
+  options?: FolderPathLookupOptions
 ): Promise<RawWorkspaceFileFolder | null> {
-  const { includeDeleted = false } = options ?? {}
+  const { includeDeleted = false, resourceType = FILE_FOLDER_RESOURCE_TYPE } = options ?? {}
   const [folder] = await db
     .select()
     .from(folderTable)
     .where(
-      includeDeleted
-        ? and(eq(folderTable.id, folderId), eq(folderTable.workspaceId, workspaceId), isFileFolder)
-        : and(
-            eq(folderTable.id, folderId),
-            eq(folderTable.workspaceId, workspaceId),
-            isFileFolder,
-            isNull(folderTable.deletedAt)
-          )
+      and(
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, resourceType),
+        includeDeleted ? undefined : isNull(folderTable.deletedAt)
+      )
     )
     .limit(1)
 
@@ -334,7 +338,7 @@ async function findRawWorkspaceFileFolderByName(
 async function buildWorkspaceFileFolderPath(
   workspaceId: string,
   folder: Pick<RawWorkspaceFileFolder, 'id' | 'name' | 'parentId'>,
-  options?: { includeDeleted?: boolean }
+  options?: FolderPathLookupOptions
 ): Promise<string> {
   const segments: string[] = []
   const seen = new Set<string>()
@@ -363,7 +367,7 @@ async function mapFolderWithPath(
 export async function getWorkspaceFileFolderPath(
   workspaceId: string,
   folderId: string,
-  options?: { includeDeleted?: boolean }
+  options?: FolderPathLookupOptions
 ): Promise<string | null> {
   const folder = await getRawWorkspaceFileFolder(workspaceId, folderId, options)
   return folder ? buildWorkspaceFileFolderPath(workspaceId, folder, options) : null

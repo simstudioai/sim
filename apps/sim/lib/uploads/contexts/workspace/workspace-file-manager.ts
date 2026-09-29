@@ -455,7 +455,12 @@ export async function uploadWorkspaceFile(
     throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
   }
 
-  const resourceType = fileBackedResourceType(contentType)
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+  const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
+  const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
+  const effectiveName = pageRestore?.name ?? normalizedFileName
+  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
+  const resourceType = fileBackedResourceType(effectiveContentType)
   let folderId: string | null
   let folderPath: string | null
   if (options?.folderPath !== undefined) {
@@ -477,11 +482,6 @@ export async function uploadWorkspaceFile(
     const index = folderId ? await loadActiveFolderPathIndex(workspaceId, resourceType) : null
     folderPath = folderId ? (index?.pathById.get(folderId) ?? null) : null
   }
-  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
-  const pageRestore = restoreSimPageSourceBuffer(normalizedFileName, fileBuffer)
-  const effectiveBuffer = pageRestore?.buffer ?? fileBuffer
-  const effectiveName = pageRestore?.name ?? normalizedFileName
-  const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
   const exactName = options?.exactName ?? false
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
@@ -1241,12 +1241,10 @@ async function mapSingleWorkspaceFileRecord(
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
 
-  const folderPath =
-    file.contentType === DASHBOARD_CONTENT_TYPE
-      ? buildWorkspaceFileFolderPathMap(
-          await listFoldersForWorkspace(workspaceId, 'active', 'dashboard')
-        ).get(file.folderId)
-      : await getWorkspaceFileFolderPath(workspaceId, file.folderId, { includeDeleted: true })
+  const folderPath = await getWorkspaceFileFolderPath(workspaceId, file.folderId, {
+    includeDeleted: true,
+    resourceType: fileBackedResourceType(file.contentType),
+  })
   return mapWorkspaceFileRecord(
     file,
     workspaceId,
@@ -1386,7 +1384,12 @@ async function hydrateWorkspaceFilePaths(
     : []
   const dashboardFolders =
     needsFolderPaths && files.some((file) => file.contentType === DASHBOARD_CONTENT_TYPE)
-      ? await listFoldersForWorkspace(workspaceId, 'active', 'dashboard')
+      ? (
+          await Promise.all([
+            listFoldersForWorkspace(workspaceId, 'active', 'dashboard'),
+            listFoldersForWorkspace(workspaceId, 'archived', 'dashboard'),
+          ])
+        ).flat()
       : []
   const folderPaths = needsFolderPaths
     ? buildWorkspaceFileFolderPathMap([...folders, ...dashboardFolders])
