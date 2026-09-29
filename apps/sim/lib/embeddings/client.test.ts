@@ -607,9 +607,20 @@ describe('knowledge embedding transport fallback', () => {
   })
 
   it('attributes quota exhaustion to the workspace key, including while its pause is open', async () => {
-    fetchMock.mockImplementation(async () =>
-      jsonResponse({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, 429)
-    )
+    /**
+     * Only a credential's first request is refused; the provider would answer every later
+     * one. A second search can therefore fail only if the open pause refused it.
+     */
+    const refusedCredentials = new Set<string>()
+    fetchMock.mockImplementation(async (_url, init) => {
+      const credential = String((init as RequestInit).headers?.Authorization)
+      if (refusedCredentials.has(credential)) return jsonResponse(openAIBody([[1, 2]]))
+      refusedCredentials.add(credential)
+      return jsonResponse(
+        { error: { type: 'insufficient_quota', code: 'insufficient_quota' } },
+        429
+      )
+    })
     const search = () =>
       embedKnowledgeForDeployment(
         ['hello'],
@@ -620,7 +631,6 @@ describe('knowledge embedding transport fallback', () => {
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
     const refused = await search()
     const paused = await search()
-    expect(fetchMock).toHaveBeenCalledOnce()
     expect(refused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
     expect(paused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
     expect(refused.isBYOK).toBe(true)
@@ -630,7 +640,8 @@ describe('knowledge embedding transport fallback', () => {
     setEnv({ OPENAI_API_KEY: 'platform-openai-test' })
     const platformRefused = await search()
     const platformPaused = await search()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(platformRefused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(platformPaused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
     expect(platformRefused.isBYOK).toBe(false)
     expect(platformPaused.isBYOK).toBe(false)
   })
