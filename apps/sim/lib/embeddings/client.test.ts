@@ -606,6 +606,35 @@ describe('knowledge embedding transport fallback', () => {
     expect(isBYOKEmbeddingCredentialRejection(workspaceError)).toBe(true)
   })
 
+  it('attributes quota exhaustion to the workspace key, including while its pause is open', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ error: { type: 'insufficient_quota', code: 'insufficient_quota' } }, 429)
+    )
+    const search = () =>
+      embedKnowledgeForDeployment(
+        ['hello'],
+        { ...options, taskType: 'query' as const, workspaceId: 'workspace-1' },
+        true
+      ).catch((error) => error)
+
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
+    const refused = await search()
+    const paused = await search()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(refused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(paused).toBeInstanceOf(EmbeddingQuotaExhaustedError)
+    expect(refused.isBYOK).toBe(true)
+    expect(paused.isBYOK).toBe(true)
+
+    mockGetBYOKKey.mockResolvedValue(null)
+    setEnv({ OPENAI_API_KEY: 'platform-openai-test' })
+    const platformRefused = await search()
+    const platformPaused = await search()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(platformRefused.isBYOK).toBe(false)
+    expect(platformPaused.isBYOK).toBe(false)
+  })
+
   it('ignores OpenRouter on hosted deployments', async () => {
     setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
     fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
