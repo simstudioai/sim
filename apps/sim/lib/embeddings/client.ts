@@ -212,12 +212,22 @@ export const BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE =
 export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
   public readonly providerId: EmbeddingProviderKind
 
-  constructor(providerId: EmbeddingProviderKind, cause?: unknown) {
+  /**
+   * `isBYOK` must be passed when there is no provider response to read it from — an
+   * already-open quota pause or an admission refusal — so a workspace key's exhaustion
+   * is never reported as the platform's. Ollama takes no credential: its provider-level
+   * `isBYOK` only marks its tokens non-billable, so it never attributes to a customer key.
+   */
+  constructor(
+    providerId: EmbeddingProviderKind,
+    cause?: unknown,
+    isBYOK = cause instanceof EmbeddingAPIError && cause.isBYOK
+  ) {
     const status = cause instanceof EmbeddingAPIError ? cause.status : 429
     super(
       `The ${providerId} embedding credential has exhausted its available quota. Add credit or replace the credential before retrying.`,
       status,
-      cause instanceof EmbeddingAPIError && cause.isBYOK
+      isBYOK && providerId !== 'ollama'
     )
     this.name = 'EmbeddingQuotaExhaustedError'
     this.providerId = providerId
@@ -238,6 +248,18 @@ export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
     return error.errors.length > 0 && error.errors.every(isEmbeddingQuotaExhaustion)
   }
   return false
+}
+
+/**
+ * True when the operation failed on quota and a customer-managed credential is among
+ * the exhausted ones: adding credit to that key is what lets it run again, even when a
+ * platform fallback behind it is exhausted too.
+ */
+export function isBYOKEmbeddingQuotaExhaustion(error: unknown): boolean {
+  if (error instanceof AggregateError) {
+    return isEmbeddingQuotaExhaustion(error) && error.errors.some(isBYOKEmbeddingQuotaExhaustion)
+  }
+  return error instanceof EmbeddingAPIError && error.isBYOK && error.quotaExhausted === true
 }
 
 /**
@@ -524,7 +546,7 @@ async function callEmbeddingAPI(
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
       if (await isEmbeddingQuotaCircuitOpen(admissionIdentity)) {
-        throw new EmbeddingQuotaExhaustedError(providerId)
+        throw new EmbeddingQuotaExhaustedError(providerId, undefined, isBYOK)
       }
 
       try {
@@ -541,7 +563,7 @@ async function callEmbeddingAPI(
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
-          throw new EmbeddingQuotaExhaustedError(providerId, error)
+          throw new EmbeddingQuotaExhaustedError(providerId, error, isBYOK)
         throw error
       }
 
@@ -1243,7 +1265,7 @@ export async function assertKnowledgeEmbeddingCapacityForDeployment(
     const exhausted = await isEmbeddingQuotaCircuitOpen(embeddingAdmissionIdentity(provider))
     options.signal?.throwIfAborted()
     if (!exhausted) return
-    errors.push(new EmbeddingQuotaExhaustedError(provider.providerId))
+    errors.push(new EmbeddingQuotaExhaustedError(provider.providerId, undefined, provider.isBYOK))
   }
   if (errors.length === 1) throw errors[0]
   throw new AggregateError(
