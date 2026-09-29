@@ -1,6 +1,6 @@
 {
-  "id": "58e836aa-e454-4c03-823a-6a4c71d2271a",
-  "prevId": "af767a6b-19be-49b9-932c-cf103fbdbe07",
+  "id": "178fed08-84f1-48c5-b01d-59fa231e19c6",
+  "prevId": "58e836aa-e454-4c03-823a-6a4c71d2271a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12732,6 +12732,192 @@
         "memory_secret_provenance_status_check": {
           "name": "memory_secret_provenance_status_check",
           "value": "\"memory_secret_provenance\".\"status\" IN ('exact', 'unknown')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mothership_benchmarks": {
+      "name": "mothership_benchmarks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_workspace_id": {
+          "name": "source_workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artifacts": {
+          "name": "artifacts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "running_stage": {
+          "name": "running_stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "planner_chat_id": {
+          "name": "planner_chat_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mothership_benchmarks_owner_created_idx": {
+          "name": "mothership_benchmarks_owner_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mothership_benchmarks_workspace_idx": {
+          "name": "mothership_benchmarks_workspace_idx",
+          "columns": [
+            {
+              "expression": "source_workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mothership_benchmarks_organization_id_organization_id_fk": {
+          "name": "mothership_benchmarks_organization_id_organization_id_fk",
+          "tableFrom": "mothership_benchmarks",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_benchmarks_user_id_user_id_fk": {
+          "name": "mothership_benchmarks_user_id_user_id_fk",
+          "tableFrom": "mothership_benchmarks",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mothership_benchmarks_source_workspace_id_workspace_id_fk": {
+          "name": "mothership_benchmarks_source_workspace_id_workspace_id_fk",
+          "tableFrom": "mothership_benchmarks",
+          "tableTo": "workspace",
+          "columnsFrom": ["source_workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "mothership_benchmarks_version_check": {
+          "name": "mothership_benchmarks_version_check",
+          "value": "\"mothership_benchmarks\".\"version\" > 0"
+        },
+        "mothership_benchmarks_attempt_check": {
+          "name": "mothership_benchmarks_attempt_check",
+          "value": "(\"mothership_benchmarks\".\"running_stage\" IS NULL AND \"mothership_benchmarks\".\"attempt_id\" IS NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NULL) OR (\"mothership_benchmarks\".\"running_stage\" IS NOT NULL AND \"mothership_benchmarks\".\"running_stage\" IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND \"mothership_benchmarks\".\"attempt_id\" IS NOT NULL AND \"mothership_benchmarks\".\"lease_expires_at\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false

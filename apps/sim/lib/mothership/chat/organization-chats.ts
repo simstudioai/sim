@@ -10,6 +10,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
@@ -121,6 +122,7 @@ export const createOrganizationChat = {
       .values({
         userId: context.userId,
         organizationId: context.organizationId,
+        memorySpaceId: await selectedMemorySpaceForNewChat(context.userId, context.organizationId),
         type: 'mothership',
         config: { conversationMode: input.mode ?? 'assistant' },
         model: MOTHERSHIP_CHAT_DEFAULT_MODEL,

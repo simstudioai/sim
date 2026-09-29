@@ -4,7 +4,11 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isBenchmarkEnabled } from '@/lib/benchmarks/config'
-import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import {
+  isMemorySpacesEnabled,
+  isMothershipModelSelectorEnabled,
+  isPlanModeEnabled,
+} from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -55,17 +59,19 @@ export default async function OrganizationLayout({
   if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
     redirect(WORKSPACE_SETTINGS_PATH)
 
-  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled] = await Promise.all([
-    prefetchOrganizationSidebar(
-      queryClient,
-      organizationId,
-      { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-      getActiveOrganizationId(session)
-    ),
-    isTableRowTtlEnabled(),
-    isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
-  ])
+  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled, memorySpacesEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isTableRowTtlEnabled(),
+      isMothershipModelSelectorEnabled(),
+      isPlanModeEnabled(),
+      isMemorySpacesEnabled(),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
@@ -75,6 +81,7 @@ export default async function OrganizationLayout({
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
+          'mothership-memory-spaces': memorySpacesEnabled,
         }}
       >
         <OrganizationProvider context={context}>

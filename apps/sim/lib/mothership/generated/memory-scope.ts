@@ -9,4 +9,5 @@ export const MemoryScopeResponse = z.object({
   userId: z.string().min(1),
   organizationId: z.string().min(1).nullable(),
   workspaceId: z.uuid().nullable(),
+  spaceId: z.uuid().nullable().optional(),
 });

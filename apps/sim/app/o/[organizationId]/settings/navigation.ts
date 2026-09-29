@@ -67,10 +67,11 @@ export function resolveOrganizationSurfaceSection(
 export function organizationSettingsNavigation(
   isAdmin: boolean,
   features: OrganizationSettingsFeatures,
-  availability: { connectedAccounts: boolean; search: boolean }
+  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean }
 ) {
   return ORGANIZATION_SETTINGS_ITEMS.filter(
     (item) =>
+      (item.id !== 'knowledge-graphs' || availability.knowledgeGraphs === true) &&
       (item.id !== 'connected-accounts' || availability.connectedAccounts) &&
       ((item.id !== 'search-mcp' && item.id !== 'search-slack' && item.id !== 'integrations') ||
         availability.search) &&
@@ -92,7 +93,7 @@ export function organizationSettingsNavigation(
 export function organizationSurfaceSettingsNavigation(
   isAdmin: boolean,
   features: OrganizationSettingsFeatures,
-  availability: { connectedAccounts: boolean; search: boolean }
+  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean }
 ): SettingsNavigationItem<AccountSettingsSection | OrganizationSettingsSection>[] {
   return [
     ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
