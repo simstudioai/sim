@@ -22,8 +22,8 @@ import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-re
 import type { CellResumeContext } from '@/lib/table/workflow-columns'
 import {
   createResumeAttemptTimeoutController,
+  getFailedResumeOutcome,
   PauseResumeManager,
-  wasPausedExecutionRetained,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -364,12 +364,15 @@ async function buildResumeCellWriters(
 /**
  * A resume that throws never reaches the terminal write in
  * {@link runResumeAndCellTerminal}, which would leave the cell showing its last
- * partial `running` state. Mirror the execution instead: a pause the resume kept
- * resumable goes back to paused, and any other failure ended the run.
+ * partial `running` state. Mirror what the failed attempt did to the execution:
+ * a pause that stayed resumable goes back to paused, a failed execution fails
+ * the cell, and an attempt that changed nothing leaves the cell alone.
  */
 async function writeFailedResumeCellTerminal(writers: CellWriters, error: unknown): Promise<void> {
+  const outcome = getFailedResumeOutcome(error)
+  if (!outcome) return
   try {
-    if (wasPausedExecutionRetained(error)) {
+    if (outcome === 'pause_retained') {
       await writers.writeCellTerminal('paused', null)
     } else {
       await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))

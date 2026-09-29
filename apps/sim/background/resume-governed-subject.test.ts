@@ -57,7 +57,7 @@ const mocks = {
   ...hoisted,
   getPausedExecutionById: humanInTheLoopManagerMockFns.mockGetPausedExecutionById,
   startResumeExecution: humanInTheLoopManagerMockFns.mockStartResumeExecution,
-  wasPausedExecutionRetained: humanInTheLoopManagerMockFns.mockWasPausedExecutionRetained,
+  getFailedResumeOutcome: humanInTheLoopManagerMockFns.mockGetFailedResumeOutcome,
   createResumeAttemptTimeoutController:
     humanInTheLoopManagerMockFns.mockCreateResumeAttemptTimeoutController,
   findCellContextByExecutionId: tableWorkflowColumnsMockFns.mockFindCellContextByExecutionId,
@@ -226,9 +226,10 @@ describe('resuming a paused table cell', () => {
       return payload?.executionState
     }
 
-    it('marks the cell failed when the resumed run itself failed', async () => {
+    it('marks the cell failed when the resume failed the execution', async () => {
       const runFailure = new Error('writeLedger: Unique constraint violation')
       mocks.startResumeExecution.mockRejectedValueOnce(runFailure)
+      mocks.getFailedResumeOutcome.mockReturnValueOnce('execution_failed')
 
       await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
 
@@ -242,7 +243,7 @@ describe('resuming a paused table cell', () => {
     it('puts the cell back to paused when the pause stayed resumable', async () => {
       const admissionRefusal = new Error('Execution can no longer be resumed')
       mocks.startResumeExecution.mockRejectedValueOnce(admissionRefusal)
-      mocks.wasPausedExecutionRetained.mockReturnValueOnce(true)
+      mocks.getFailedResumeOutcome.mockReturnValueOnce('pause_retained')
 
       await expect(executeResumeJob(PAYLOAD)).rejects.toBe(admissionRefusal)
 
@@ -253,9 +254,20 @@ describe('resuming a paused table cell', () => {
       })
     }, 20_000)
 
+    it('leaves the cell alone when the failed attempt changed nothing', async () => {
+      const staleRefusal = new Error('Execution can no longer be resumed')
+      mocks.startResumeExecution.mockRejectedValueOnce(staleRefusal)
+      mocks.getFailedResumeOutcome.mockReturnValueOnce(undefined)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(staleRefusal)
+
+      expect(lastCellExecutionState()).toBeUndefined()
+    }, 20_000)
+
     it('still reports the resume failure when the cell write also fails', async () => {
       const runFailure = new Error('Block failed')
       mocks.startResumeExecution.mockRejectedValueOnce(runFailure)
+      mocks.getFailedResumeOutcome.mockReturnValueOnce('execution_failed')
       mocks.writeWorkflowGroupState.mockRejectedValueOnce(new Error('Database unavailable'))
 
       await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
