@@ -51,6 +51,7 @@ vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: { fromJSON: hoisted.snapshotFromJson },
 }))
 
+import type { FailedResumeOutcome } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 
 const mocks = {
@@ -217,4 +218,52 @@ describe('resuming a paused table cell', () => {
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
   }, 20_000)
+
+  describe('when the resume throws', () => {
+    /** The execution state the last cell write persisted. */
+    function lastCellExecutionState() {
+      const [, payload] = mocks.writeWorkflowGroupState.mock.calls.at(-1) ?? []
+      return payload?.executionState
+    }
+
+    /** Fails the resume the way the manager does: settle, report the outcome, rethrow. */
+    function failResume(outcome: FailedResumeOutcome, error: Error) {
+      mocks.startResumeExecution.mockImplementationOnce(
+        async ({
+          onAttemptFailed,
+        }: {
+          onAttemptFailed?: (outcome: FailedResumeOutcome, error: unknown) => Promise<void>
+        }) => {
+          await onAttemptFailed?.(outcome, error)
+          throw error
+        }
+      )
+    }
+
+    it('marks the cell failed when the resume failed the execution', async () => {
+      const runFailure = new Error('writeLedger: Unique constraint violation')
+      failResume('execution_failed', runFailure)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(runFailure)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'error',
+        executionId: 'parent-execution-1',
+        error: 'writeLedger: Unique constraint violation',
+      })
+    }, 20_000)
+
+    it('puts the cell back to paused when the pause stayed resumable', async () => {
+      const admissionRefusal = new Error('Execution can no longer be resumed')
+      failResume('pause_retained', admissionRefusal)
+
+      await expect(executeResumeJob(PAYLOAD)).rejects.toBe(admissionRefusal)
+
+      expect(lastCellExecutionState()).toMatchObject({
+        status: 'pending',
+        executionId: 'parent-execution-1',
+        jobId: 'paused-parent-execution-1',
+      })
+    }, 20_000)
+  })
 })

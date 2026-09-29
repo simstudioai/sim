@@ -18,7 +18,7 @@ import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
 } from '@sim/testing/mocks/large-value-metadata.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
@@ -61,6 +61,7 @@ vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadat
 
 import {
   createResumeAttemptTimeoutController,
+  type FailedResumeOutcome,
   PauseResumeManager,
   requireResumeDeploymentVersion,
   updateResumeOutputInAggregationBuffers,
@@ -84,7 +85,7 @@ if (!humanInTheLoopLogger) {
 }
 
 interface PauseResumeManagerInternals {
-  markResumeFailed: (...args: unknown[]) => Promise<void>
+  markResumeFailed: (...args: unknown[]) => Promise<boolean>
   runResumeExecution: (...args: unknown[]) => Promise<unknown>
 }
 
@@ -207,6 +208,166 @@ describe('queued resume attempt deadlines', () => {
     controller.cleanup()
     upstream.cleanup()
     vi.useRealTimers()
+  })
+})
+
+describe('what a failed resume did to its paused execution', () => {
+  type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+  const pausedExecution = {
+    id: 'paused-execution-1',
+    workflowId: 'workflow-1',
+    executionId: 'parent-execution-1',
+    pausePoints: {
+      'context-1': { contextId: 'context-1', blockId: 'hitl-1' },
+    },
+    executionSnapshot: createSnapshotSeed(),
+    metadata: {},
+  } as StartResumeArgs['pausedExecution']
+  const resumeArgs: StartResumeArgs = {
+    resumeEntryId: 'resume-entry-1',
+    resumeExecutionId: 'resume-execution-1',
+    pausedExecution,
+    contextId: 'context-1',
+    resumeInput: { approved: true },
+    userId: 'user-1',
+  }
+  const attemptArgs = {
+    resumeEntryId: 'resume-entry-1',
+    pausedExecutionId: 'paused-execution-1',
+    parentExecutionId: 'parent-execution-1',
+    contextId: 'context-1',
+    failureReason: 'Execution can no longer be resumed',
+    preserveForRetry: true,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('reports the pause still resumable when a refused attempt leaves it paused', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'paused' }])
+    queueTableRows(pausedExecutions, [{ automaticResumeRetryCount: 0, status: 'paused' }])
+
+    await expect(PauseResumeManager.markResumeAttemptFailed(attemptArgs)).resolves.toBe(true)
+  })
+
+  it.each(['completed', 'failed', 'cancelled'])(
+    'reports the pause not resumable when the execution is already %s',
+    async (logStatus) => {
+      queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
+      queueTableRows(pausedExecutions, [{ automaticResumeRetryCount: 0, status: 'paused' }])
+
+      await expect(PauseResumeManager.markResumeAttemptFailed(attemptArgs)).resolves.toBe(false)
+    }
+  )
+
+  it.each([
+    { logStatus: 'running', pauseStatus: 'paused', executionFailed: true },
+    { logStatus: 'cancelled', pauseStatus: 'paused', executionFailed: false },
+    { logStatus: 'running', pauseStatus: 'cancelling', executionFailed: false },
+  ])(
+    'reports the execution failed: $executionFailed for a $logStatus log and $pauseStatus pause',
+    async ({ logStatus, pauseStatus, executionFailed }) => {
+      queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
+      queueTableRows(pausedExecutions, [{ status: pauseStatus }])
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+
+      await expect(managerInternals.markResumeFailed(attemptArgs)).resolves.toBe(executionFailed)
+    }
+  )
+
+  /** Resume args that collect every outcome the manager reports. */
+  function argsReportingOutcomes(onAttemptFailed?: () => Promise<void>) {
+    const outcomes: FailedResumeOutcome[] = []
+    return {
+      outcomes,
+      args: {
+        ...resumeArgs,
+        onAttemptFailed: async (outcome: FailedResumeOutcome) => {
+          outcomes.push(outcome)
+          await onAttemptFailed?.()
+        },
+      },
+    }
+  }
+
+  it.each([
+    { stillResumable: true, reported: ['pause_retained'] },
+    { stillResumable: false, reported: [] },
+  ])(
+    'reports a refused attempt as $reported when the pause is resumable: $stillResumable',
+    async ({ stillResumable, reported }) => {
+      const markResumeAttemptFailedSpy = vi
+        .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+        .mockResolvedValueOnce(stillResumable)
+      const { outcomes, args } = argsReportingOutcomes()
+
+      try {
+        await expect(PauseResumeManager.startResumeExecution(args)).rejects.toMatchObject({
+          name: 'ResumeAdmissionError',
+        })
+        expect(outcomes).toEqual(reported)
+      } finally {
+        markResumeAttemptFailedSpy.mockRestore()
+      }
+    }
+  )
+
+  describe('when the resumed run fails', () => {
+    const rawError = new Error('Block failed')
+    const spies: { mockRestore: () => void }[] = []
+
+    function failRun(options: { executionFailed: boolean; queuedResumesError?: Error }) {
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+      spies.push(
+        vi.spyOn(managerInternals, 'runResumeExecution').mockRejectedValueOnce(rawError),
+        vi
+          .spyOn(managerInternals, 'markResumeFailed')
+          .mockResolvedValueOnce(options.executionFailed),
+        options.queuedResumesError
+          ? vi
+              .spyOn(PauseResumeManager, 'processQueuedResumes')
+              .mockRejectedValueOnce(options.queuedResumesError)
+          : vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+      )
+    }
+
+    afterEach(() => {
+      for (const spy of spies.splice(0)) spy.mockRestore()
+    })
+
+    it.each([
+      { executionFailed: true, reported: ['execution_failed'] },
+      { executionFailed: false, reported: [] },
+    ])(
+      'reports $reported when it failed the execution: $executionFailed',
+      async ({ executionFailed, reported }) => {
+        failRun({ executionFailed })
+        const { outcomes, args } = argsReportingOutcomes()
+
+        await expect(PauseResumeManager.startResumeExecution(args)).rejects.toBe(rawError)
+        expect(outcomes).toEqual(reported)
+      }
+    )
+
+    it('reports the outcome before draining queued resumes, which may throw', async () => {
+      failRun({ executionFailed: true, queuedResumesError: new Error('queue drain failed') })
+      const { outcomes, args } = argsReportingOutcomes()
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
+        'queue drain failed'
+      )
+      expect(outcomes).toEqual(['execution_failed'])
+    })
+
+    it('rethrows the run failure when the outcome handler fails', async () => {
+      failRun({ executionFailed: true })
+      const { args } = argsReportingOutcomes(async () => {
+        throw new Error('Database unavailable')
+      })
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toBe(rawError)
+    })
   })
 })
 
