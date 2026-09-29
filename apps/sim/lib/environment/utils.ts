@@ -546,7 +546,11 @@ export async function getExecutionEnvironment(
   ])
   // A suspended identity's access is never consulted, so its read cannot fail the run.
   if (suspended) {
-    return withholdPersonalSlice(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+    return withholdPersonalSlice(
+      await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId, {
+        workspaceAccess: actorAccess,
+      })
+    )
   }
   const personalAccess = await personalAccessRead
 
