@@ -376,7 +376,7 @@ describe('Assistant retrieval tools', () => {
     expect(mocks.search).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
   })
-  it('reads a selected document through the shared use case and rejects unbounded pages', async () => {
+  it('reads a selected document through the shared use case and caps oversized pages', async () => {
     expect(
       await readDocumentServerTool.execute({ documentId: 'doc', startChunkIndex: 20 }, context)
     ).toMatchObject({ success: true })
@@ -390,9 +390,20 @@ describe('Assistant retrieval tools', () => {
         }),
       })
     )
-    expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
-    ).toMatchObject({ success: false })
-    expect(mocks.read).toHaveBeenCalledOnce()
+    mocks.read.mockImplementationOnce(async ({ input }: { input: { limit: number } }) => ({
+      knowledgeBaseId: 'index',
+      documentId: 'doc',
+      documentName: 'Title',
+      sourceUrl: 'https://source.test/doc',
+      chunks: Array.from({ length: input.limit }, (_, chunkIndex) => ({
+        content: 'body',
+        chunkIndex,
+      })),
+      hasMore: true,
+      next: null,
+    }))
+    const capped = await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
+    expect(capped).toMatchObject({ success: true })
+    expect((capped as { data: { chunks: unknown[] } }).data.chunks).toHaveLength(8)
   })
 })
