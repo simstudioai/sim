@@ -393,8 +393,5 @@ describe('Assistant retrieval tools', () => {
     expect(
       await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
     ).toMatchObject({ success: true })
-    expect(mocks.read).toHaveBeenLastCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ limit: 8 }) })
-    )
   })
 })

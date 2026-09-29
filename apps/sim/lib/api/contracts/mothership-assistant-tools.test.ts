@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   assistantToolContracts,
+  readDocumentInputSchema,
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { TOOL_CATALOG } from '@/lib/mothership/generated/tool-catalog-v1'
@@ -55,6 +56,12 @@ describe('Assistant execution contracts', () => {
     expect(accepts([trip, { provider: 'slack', query: 'trip' }])).toBe(false)
     expect(accepts([trip, { ...trip, kind: 'issues' }])).toBe(false)
     expect(accepts([trip, { ...trip, accountId: 'other' }])).toBe(true)
+  })
+
+  it('caps an oversized read_document limit at the eight chunks the server returns', () => {
+    expect(readDocumentInputSchema.parse({ documentId: 'doc', limit: 20 }).limit).toBe(8)
+    expect(readDocumentInputSchema.parse({ documentId: 'doc' }).limit).toBe(3)
+    expect(readDocumentInputSchema.safeParse({ documentId: 'doc', limit: 0 }).success).toBe(false)
   })
 
   it('runs several same-kind GitHub queries on one account but refuses kind fan-out overlap', () => {
