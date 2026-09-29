@@ -582,6 +582,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'organizationId',
     'folderId',
     'context',
+    'discovery',
     'chatId',
     'messageId',
     'originalName',
@@ -2001,7 +2002,7 @@ export const GENERATED_SCHEMA_TABLES = {
 
 /** Every `pgEnum` export mapped to its values. */
 export const GENERATED_SCHEMA_ENUMS = {
-  folderResourceTypeEnum: ['workflow', 'file', 'knowledge_base', 'table'],
+  folderResourceTypeEnum: ['dashboard', 'workflow', 'file', 'knowledge_base', 'table'],
   executionLargeValueReferenceSourceEnum: ['execution_log', 'paused_snapshot'],
   secretUsageScopeEnum: ['workspace', 'personal'],
   secretUsageSourceEnum: ['workflow', 'copilot', 'mcp'],
@@ -2042,6 +2043,7 @@ export const GENERATED_SCHEMA_ENUMS = {
     'completed_with_warnings',
     'failed',
   ],
+  fileDiscoveryEnum: ['listed', 'unlisted'],
   workspaceFileSearchIndexStatusEnum: ['pending', 'ready', 'skipped', 'failed'],
   uploadSessionStatusEnum: [
     'uploading',
