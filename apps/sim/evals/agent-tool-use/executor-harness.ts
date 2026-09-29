@@ -4,7 +4,7 @@ import {
 } from '@sim/testing/factories/serialized-block.factory'
 import { providersMockFns } from '@sim/testing/mocks/providers.mock'
 import { DAGExecutor } from '@/executor/execution/executor'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { type EvalRunMode, type ScoredToolCall, scoreExpectations } from './harness'
 import type {
   AgentToolUseExpectations,
@@ -30,8 +30,10 @@ export interface ExecutorProviderToolCall {
   result?: unknown
 }
 
-/** The provider response `executeProviderRequest` returns for one model call. */
+/** One model call: either a response, or a rejection the block must recover from. */
 export interface ExecutorProviderResponse {
+  /** When set, the call rejects with this message instead of resolving. */
+  reject?: string
   content: string
   model?: string
   tokens?: { input?: number; output?: number; total?: number }
@@ -52,26 +54,30 @@ export interface ExecutorScenario {
     systemPrompt?: string
     userPrompt?: string
     temperature?: number
+    /** Enables the executor's per-block retry policy for the Agent block. */
+    retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
   }
-  /** One entry per model call; the last entry serves any extra fallback calls. */
+  /** One entry per model call; the last entry serves any extra/retry calls. */
   providerResponse: ExecutorProviderResponse | ExecutorProviderResponse[]
   expect: AgentToolUseExpectations & {
     /** Substring that must appear in the messages sent to the provider. */
     resolvedInput?: string
     /** Expected `ExecutionResult.success`. */
     succeeds?: boolean
+    /** Exact number of provider calls the executor made. */
+    providerCalls?: number
   }
 }
 
 function buildWorkflow(scenario: ExecutorScenario): SerializedWorkflow {
-  const start = createSerializedBlock({
+  const start: SerializedBlock = createSerializedBlock({
     id: 'start',
     type: 'start_trigger',
     name: 'Start',
   })
   /** The trigger handler claims a block whose metadata says it is a trigger. */
   if (start.metadata) start.metadata.category = 'triggers'
-  const agent = createSerializedBlock({
+  const agent: SerializedBlock = createSerializedBlock({
     id: 'agent',
     type: 'agent',
     name: 'Eval Agent',
@@ -85,6 +91,7 @@ function buildWorkflow(scenario: ExecutorScenario): SerializedWorkflow {
       ? { temperature: scenario.agent.temperature }
       : {}),
   }
+  if (scenario.agent.retry) agent.retry = scenario.agent.retry
 
   return createSerializedWorkflow([start, agent], [{ source: 'start', target: 'agent' }])
 }
@@ -109,6 +116,7 @@ export async function runExecutorScenario(
       requests.push(request)
       const response = responses[Math.min(callIndex, responses.length - 1)]
       callIndex += 1
+      if (response.reject) throw new Error(response.reject)
       return {
         content: response.content,
         model: response.model ?? scenario.agent.model,
@@ -156,7 +164,14 @@ export async function runExecutorScenario(
     durationMs: typeof call.duration === 'number' ? call.duration : 0,
   }))
 
-  const checks = scoreExpectations(scenario.expect, toolCalls, finalContent, 1, runError, mode)
+  const checks = scoreExpectations(
+    scenario.expect,
+    toolCalls,
+    finalContent,
+    requests.length,
+    runError,
+    mode
+  )
 
   if (scenario.expect.resolvedInput !== undefined) {
     const sent = JSON.stringify(requests)
@@ -172,6 +187,14 @@ export async function runExecutorScenario(
       name: 'workflow-success',
       passed: result?.success === scenario.expect.succeeds,
       detail: `success=${String(result?.success)}`,
+    })
+  }
+
+  if (scenario.expect.providerCalls !== undefined) {
+    checks.push({
+      name: 'provider-calls',
+      passed: requests.length === scenario.expect.providerCalls,
+      detail: `expected ${scenario.expect.providerCalls}, got ${requests.length}`,
     })
   }
 
@@ -257,6 +280,31 @@ export const EXECUTOR_SCENARIOS: ExecutorScenario[] = [
       succeeds: true,
       resolvedInput: 'Summarize order A-1937',
       finalContent: /A-1937/,
+    },
+  },
+  {
+    id: 'executor-retries-failed-block',
+    name: 'retries a failed Agent block and completes the run',
+    category: 'recovery',
+    description:
+      'The first provider call rejects with a 503. The block has retry enabled, so the executor replays it and the second call succeeds — proving the executor retry policy, not the agent handler, recovered the turn.',
+    workflowInput: { message: 'What is the API rate limit?' },
+    agent: {
+      model: 'gpt-4o',
+      userPrompt: 'What is the API rate limit?',
+      retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 0 },
+    },
+    providerResponse: [
+      { reject: '503 Service Unavailable', content: '' },
+      {
+        content: 'The API rate limit is 100 requests per minute.',
+        tokens: { input: 10, output: 20, total: 30 },
+      },
+    ],
+    expect: {
+      succeeds: true,
+      finalContent: '100 requests per minute',
+      providerCalls: 2,
     },
   },
 ]
