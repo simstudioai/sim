@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
-  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -24,9 +23,8 @@ import { v2RunFileSchema } from '@/lib/api/contracts/v2/workflows'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
- * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
- * shape is unchanged); only the response envelope is upgraded to the canonical
- * v2 shapes with concrete item schemas.
+ * v2 logs contracts. List queries retain the v1 filters; responses use the
+ * canonical v2 envelope and concrete item schemas.
  */
 
 const v2LogCostSchema = z
@@ -164,7 +162,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved.'
+    'Workflow graph captured for the run, or null if unavailable or includeWorkflowState=false. Sensitive values are redacted to null; environment-variable references may be preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -717,7 +715,21 @@ export const v2ListLogsContract = defineRouteContract({
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
-  query: noInputSchema,
+  query: z
+    .object({
+      includeWorkflowState: booleanQueryFlagSchema
+        .default(true)
+        .describe(
+          'Include the saved workflow snapshot. Set false to omit block configuration from a log read. Other run fields are unchanged.'
+        ),
+    })
+    .strict()
+    .meta({
+      id: 'GetLogQuery',
+      title: 'Execution log detail options',
+      description: 'Controls whether a log detail read includes its saved workflow snapshot.',
+      examples: [{ includeWorkflowState: false }],
+    }),
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

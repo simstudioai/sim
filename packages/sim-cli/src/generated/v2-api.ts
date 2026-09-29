@@ -5553,7 +5553,9 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
   id: string
@@ -16559,6 +16561,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot. Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
   },
   getLogStats: {
     method: 'GET',
