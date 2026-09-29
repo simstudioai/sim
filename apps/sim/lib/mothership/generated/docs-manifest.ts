@@ -28,6 +28,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'cli/billing.mdx',
   'cli/blocks.mdx',
   'cli/chat-deployments.mdx',
+  'cli/cli.mdx',
   'cli/commands.mdx',
   'cli/configuration.mdx',
   'cli/connector-types.mdx',
