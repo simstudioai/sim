@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { env } from '@/lib/core/config/env'
-import { SimChannelBatch } from '@/lib/mothership/generated/sim-transport'
+import { isMothershipBenchmarkEnabled } from '@/lib/core/config/env-flags'
+import { SimChannelBatch, type SimConnection } from '@/lib/mothership/generated/sim-transport'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
@@ -62,23 +63,30 @@ export async function receiveSimControls(
 }
 
 /** One outbound receiver per configured worker; independent of browser/chat lifetimes. */
-function ensureSimReceiver(baseURL: string): void {
-  const connection = getSimConnection()
-  if (connection.mode !== 'checkpoint' || receivers.has(baseURL)) return
+function ensureSimReceiver(baseURL: string, mode?: SimConnection['mode']): void {
+  const connection = getSimConnection(mode)
+  const endpoint = baseURL.replace(/\/$/, '')
+  if (connection.mode !== 'checkpoint' || receivers.has(endpoint)) return
   const controller = new AbortController()
-  receivers.set(baseURL, controller)
-  void receiveSimControls(baseURL, connection.channelId, controller.signal)
+  receivers.set(endpoint, controller)
+  void receiveSimControls(endpoint, connection.channelId, controller.signal)
 }
 
 export async function startSimReceivers(): Promise<void> {
-  if (!env.COPILOT_API_KEY || getSimConnection().mode !== 'checkpoint') return
-  const endpoints = [
-    await getMothershipBaseURL(),
-    env.COPILOT_DEV_URL,
-    env.COPILOT_STAGING_URL,
-    env.COPILOT_PROD_URL,
-  ]
-  for (const endpoint of endpoints) if (endpoint) ensureSimReceiver(endpoint)
+  if (!env.COPILOT_API_KEY) return
+  if (getSimConnection().mode === 'checkpoint') {
+    const endpoints = [
+      await getMothershipBaseURL(),
+      env.COPILOT_DEV_URL,
+      env.COPILOT_STAGING_URL,
+      env.COPILOT_PROD_URL,
+    ]
+    for (const endpoint of endpoints) if (endpoint) ensureSimReceiver(endpoint)
+  }
+  if (isMothershipBenchmarkEnabled && env.COPILOT_DEV_URL) {
+    ensureSimReceiver(env.COPILOT_DEV_URL, 'checkpoint')
+  }
+  if (!receivers.size) return
   const stop = () => {
     for (const controller of receivers.values()) controller.abort()
   }

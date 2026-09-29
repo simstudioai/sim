@@ -6,6 +6,7 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
+import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -202,6 +203,8 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 }
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
+  /** Internal benchmark runner policy, independent of browser and model payloads. */
+  benchmark?: 'plan' | 'tool-free'
   /** Trusted entry point for Search metering; never read from model arguments. */
   searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string
@@ -417,6 +420,7 @@ export async function runCopilotLifecycle(
       throw new Error('Organization execution context does not match its authenticated scope')
     }
     execContext.messageId = payloadMsgId
+    execContext.benchmark = options.benchmark
     if (options.recovery?.userTimezone) execContext.userTimezone = options.recovery.userTimezone
     execContext.requestMode = requestMode
     execContext.searchSurface = lifecycleOptions.searchSurface ?? 'copilot'
@@ -1049,10 +1053,12 @@ async function runCheckpointLoop(
   let payload: Record<string, unknown> = initialPayload
   let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
-  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  const mothershipBaseURL = options.benchmark
+    ? getBenchmarkMothershipUrl()
+    : await getMothershipBaseURL({ userId: options.userId })
   execContext.mothershipBaseURL = mothershipBaseURL
   if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
-    const simConnection = getSimConnection()
+    const simConnection = getSimConnection(options.benchmark ? 'checkpoint' : undefined)
     payload = { ...payload, simConnection }
   }
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
@@ -1064,6 +1070,7 @@ async function runCheckpointLoop(
   const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
 
   if (
+    !options.benchmark &&
     initialRoute !== '/api/tools/resume' &&
     typeof systemPromptOverride === 'string' &&
     systemPromptOverride.trim() !== ''

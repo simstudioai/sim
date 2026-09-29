@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isBenchmarkEnabled } from '@/lib/benchmarks/config'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
@@ -82,7 +83,7 @@ export default async function OrganizationLayout({
               <ImpersonationBanner />
               <SessionExpired />
               <WorkspaceChrome
-                sidebar={<OrganizationSidebar />}
+                sidebar={<OrganizationSidebar benchmarkEnabled={isBenchmarkEnabled()} />}
                 initialSidebarCollapsed={initialSidebarCollapsed}
               >
                 {children}
