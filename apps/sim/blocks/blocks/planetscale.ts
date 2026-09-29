@@ -1,6 +1,5 @@
 import { PlanetScaleIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { PLANETSCALE_BLOCK_OUTPUTS } from '@/tools/planetscale/types'
 
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined
@@ -387,6 +386,13 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_branch'] },
       required: false,
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Convert the described date and time to an ISO 8601 UTC timestamp such as 2023-01-01T00:00:00Z. Preserve existing workflow or environment references unchanged. Return ONLY the timestamp or reference.',
+        placeholder: 'Describe the date and time',
+      },
     },
     {
       id: 'replicas',
@@ -414,7 +420,7 @@ export const PlanetScaleBlock: BlockConfig = {
       type: 'short-input',
       condition: { field: 'operation', value: ['create_branch'] },
       required: false,
-      mode: 'advanced',
+      placeholder: 'Required for backup restores, e.g. PS_10',
     },
     {
       id: 'majorVersion',
@@ -545,6 +551,13 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['list_backups'] },
       required: false,
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Convert the described date and time to an ISO 8601 UTC timestamp such as 2023-01-01T00:00:00Z. Preserve existing workflow or environment references unchanged. Return ONLY the timestamp or reference.',
+        placeholder: 'Describe the date and time',
+      },
     },
     {
       id: 'to',
@@ -553,6 +566,13 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['list_backups'] },
       required: false,
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Convert the described date and time to an ISO 8601 UTC timestamp such as 2023-01-01T00:00:00Z. Preserve existing workflow or environment references unchanged. Return ONLY the timestamp or reference.',
+        placeholder: 'Describe the date and time',
+      },
     },
     {
       id: 'runningAt',
@@ -561,6 +581,13 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['list_backups', 'list_deploy_requests'] },
       required: false,
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Convert the described time interval to two ISO 8601 UTC timestamps separated by .., such as 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z. Preserve existing workflow or environment references unchanged. Return ONLY the start..end interval or reference.',
+        placeholder: 'Describe the time interval',
+      },
     },
     {
       id: 'retentionUnit',
@@ -635,6 +662,13 @@ export const PlanetScaleBlock: BlockConfig = {
       condition: { field: 'operation', value: ['list_deploy_requests'] },
       required: false,
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt:
+          'Convert the described time interval to two ISO 8601 UTC timestamps separated by .., such as 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z. Preserve existing workflow or environment references unchanged. Return ONLY the start..end interval or reference.',
+        placeholder: 'Describe the time interval',
+      },
     },
     {
       id: 'notes',
@@ -760,7 +794,7 @@ export const PlanetScaleBlock: BlockConfig = {
     serviceTokenId: { type: 'string', description: 'Service token ID' },
     serviceToken: { type: 'string', description: 'Service token secret' },
     organization: { type: 'string', description: 'PlanetScale organization slug' },
-    q: { type: 'string', description: 'Search branches by name' },
+    q: { type: 'string', description: 'Search databases or branches by name' },
     page: {
       type: 'number',
       description: 'If provided, specifies the page offset of returned results',
@@ -779,7 +813,7 @@ export const PlanetScaleBlock: BlockConfig = {
       description: 'Filter branches by safe migrations (DDL protection)',
     },
     order: { type: 'string', description: 'Order branches by created_at time' },
-    name: { type: 'string', description: 'Name for the backup' },
+    name: { type: 'string', description: 'Name for the new branch or backup' },
     deletionProtected: {
       type: 'boolean',
       description: 'Whether deletion protection is enabled for the branch',
@@ -813,7 +847,7 @@ export const PlanetScaleBlock: BlockConfig = {
     clusterSize: {
       type: 'string',
       description:
-        'The database cluster size. Required if a backup_id is provided (unless keyspace_cluster_sizes covers every keyspace), optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800',
+        'The database cluster size. Required when backupId is provided, optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800',
     },
     majorVersion: {
       type: 'string',
@@ -842,7 +876,7 @@ export const PlanetScaleBlock: BlockConfig = {
     runningAt: {
       type: 'string',
       description:
-        'Filter deploy requests by the date they were running. (e.g. 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z)',
+        'Filter backups or deploy requests by when they were running. (e.g. 2023-01-01T00:00:00Z..2023-01-31T23:59:59Z)',
     },
     retentionUnit: { type: 'string', description: 'Unit for the retention period of the backup' },
     retentionValue: {
@@ -936,7 +970,82 @@ export const PlanetScaleBlock: BlockConfig = {
       }),
     },
   },
-  outputs: PLANETSCALE_BLOCK_OUTPUTS,
+  outputs: {
+    databases: {
+      type: 'array',
+      description:
+        'Databases (id, name, kind, state, ready, defaultBranch, branchesCount, deletionProtected, requireApprovalForDeploy, createdAt, updatedAt, htmlUrl)',
+      condition: { field: 'operation', value: ['list_databases'] },
+    },
+    database: {
+      type: 'json',
+      description:
+        'Database (id, name, kind, state, ready, defaultBranch, branchesCount, deletionProtected, requireApprovalForDeploy, createdAt, updatedAt, htmlUrl)',
+      condition: { field: 'operation', value: ['get_database'] },
+    },
+    branches: {
+      type: 'array',
+      description:
+        'Branches (id, name, kind, state, ready, production, safeMigrations, deletionProtected, parentBranch, createdAt, updatedAt, htmlUrl)',
+      condition: { field: 'operation', value: ['list_branches'] },
+    },
+    branch: {
+      type: 'json',
+      description:
+        'Branch (id, name, kind, state, ready, production, safeMigrations, deletionProtected, parentBranch, createdAt, updatedAt, htmlUrl)',
+      condition: { field: 'operation', value: ['get_branch', 'create_branch'] },
+    },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the selected branch was deleted',
+      condition: { field: 'operation', value: ['delete_branch'] },
+    },
+    backups: {
+      type: 'array',
+      description:
+        'Backups (id, name, state, size, estimatedStorageCost, protected, createdAt, updatedAt, startedAt, completedAt, expiresAt)',
+      condition: { field: 'operation', value: ['list_backups'] },
+    },
+    backup: {
+      type: 'json',
+      description:
+        'Backup (id, name, state, size, estimatedStorageCost, protected, createdAt, updatedAt, startedAt, completedAt, expiresAt)',
+      condition: { field: 'operation', value: ['get_backup', 'create_backup'] },
+    },
+    deployRequests: {
+      type: 'array',
+      description:
+        'Vitess deploy requests (id, number, branch, intoBranch, state, deploymentState, approved, numComments, notes, createdAt, updatedAt, closedAt, deployedAt, htmlUrl)',
+      condition: { field: 'operation', value: ['list_deploy_requests'] },
+    },
+    deployRequest: {
+      type: 'json',
+      description:
+        'Vitess deploy request (id, number, branch, intoBranch, state, deploymentState, approved, numComments, notes, createdAt, updatedAt, closedAt, deployedAt, htmlUrl)',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_deploy_request',
+          'create_deploy_request',
+          'queue_deploy_request',
+          'close_deploy_request',
+        ],
+      },
+    },
+    review: {
+      type: 'json',
+      description: 'Deploy-request review (id, state, body, createdAt, updatedAt)',
+      condition: { field: 'operation', value: ['review_deploy_request'] },
+    },
+    pagination: {
+      type: 'json',
+      description: 'Pagination (currentPage, perPage, nextPage, totalCount, totalPages)',
+      condition: {
+        field: 'operation',
+        value: ['list_databases', 'list_branches', 'list_backups', 'list_deploy_requests'],
+      },
+    },
+  },
 }
 export const PlanetScaleBlockMeta = {
   tags: ['cloud', 'ci-cd', 'automation'],
@@ -959,6 +1068,7 @@ export const PlanetScaleBlockMeta = {
       modules: ['workflows'],
       category: 'engineering',
       tags: ['automation'],
+      alsoIntegrations: ['github'],
     },
     {
       icon: PlanetScaleIcon,
@@ -986,6 +1096,7 @@ export const PlanetScaleBlockMeta = {
       modules: ['workflows', 'scheduled'],
       category: 'engineering',
       tags: ['automation'],
+      alsoIntegrations: ['mysql', 'postgresql'],
     },
     {
       icon: PlanetScaleIcon,
@@ -1004,6 +1115,7 @@ export const PlanetScaleBlockMeta = {
       modules: ['workflows', 'scheduled'],
       category: 'engineering',
       tags: ['automation'],
+      alsoIntegrations: ['slack'],
     },
     {
       icon: PlanetScaleIcon,

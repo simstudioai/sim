@@ -109,7 +109,7 @@ export const planetScaleCreateBranchTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The database cluster size. Required if a backup_id is provided (unless keyspace_cluster_sizes covers every keyspace), optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800',
+        'The database cluster size. Required when backupId is provided, optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800',
     },
     majorVersion: {
       type: 'string',
@@ -127,22 +127,28 @@ export const planetScaleCreateBranchTool: ToolConfig<
       ),
     method: 'POST',
     headers: planetScaleHeaders,
-    body: (params) =>
-      planetScaleBody({
+    body: (params) => {
+      const backupId = optionalPlanetScaleString(params.backupId, 'backupId')?.trim() || undefined
+      const clusterSize =
+        optionalPlanetScaleString(params.clusterSize, 'clusterSize')?.trim() || undefined
+      if (backupId && !clusterSize)
+        throw new Error('clusterSize is required when restoring a backup')
+      return planetScaleBody({
         name: params.name,
         deletion_protected: optionalPlanetScaleBoolean(
           params.deletionProtected,
           'deletionProtected'
         ),
         parent_branch: optionalPlanetScaleString(params.parentBranch, 'parentBranch'),
-        backup_id: optionalPlanetScaleString(params.backupId, 'backupId'),
+        backup_id: backupId,
         region: optionalPlanetScaleString(params.region, 'region'),
         restore_point: optionalPlanetScaleString(params.restorePoint, 'restorePoint'),
         replicas: optionalPlanetScaleInteger(params.replicas, 'replicas', 0, 8),
         seed_data: optionalPlanetScaleEnum(params.seedData, 'seedData', ['last_successful_backup']),
-        cluster_size: optionalPlanetScaleString(params.clusterSize, 'clusterSize'),
+        cluster_size: clusterSize,
         major_version: optionalPlanetScaleString(params.majorVersion, 'majorVersion'),
-      }),
+      })
+    },
   },
   transformResponse: async (response) => ({
     success: true,

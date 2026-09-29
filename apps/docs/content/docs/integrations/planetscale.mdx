@@ -183,7 +183,7 @@ Create a branch
 | `restorePoint` | string | No | Restore from a point-in-time recovery timestamp \(e.g. 2023-01-01T00:00:00Z\). Available only for PostgreSQL databases. |
 | `replicas` | number | No | For PostgreSQL backup restores and point-in-time recovery, the number of additional replicas from 0 to 8, subject to the target cluster size. 0 creates a single-node branch. If omitted, the target cluster size's minimum is used. |
 | `seedData` | string | No | If provided, restores the last successful backup's schema and data to the new branch. Must have `restore_production_branch_backup\(s\)` or `restore_backup\(s\)` access to do this, in addition to Data Branching™ being enabled for the branch. |
-| `clusterSize` | string | No | The database cluster size. Required if a backup_id is provided \(unless keyspace_cluster_sizes covers every keyspace\), optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800 |
+| `clusterSize` | string | No | The database cluster size. Required when backupId is provided, optional otherwise. Options: PS_10, PS_20, PS_40, ..., PS_2800 |
 | `majorVersion` | string | No | For PostgreSQL and Neki databases, the PostgreSQL major version to use for the branch. Defaults to the major version of the parent branch if it exists or the database's default branch major version. Ignored for branches restored from backups. |
 
 #### Output
