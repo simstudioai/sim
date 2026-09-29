@@ -472,7 +472,11 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           description: wf.description,
           folderId: wf.folderId,
           sortOrder: wf.sortOrder,
-          forkSyncExcluded: wf.forkSyncExcluded,
+          // A copy, not a new workflow, so it must not take the child's new-workflow
+          // default. `listDeployedWorkflows` admits only synced sources, so a copy is
+          // synced too - stated here rather than read back from a projection the source
+          // query has already pinned to false.
+          forkSyncExcluded: false,
         },
         workflowIdMap,
         folderIdMap,

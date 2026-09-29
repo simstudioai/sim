@@ -696,21 +696,14 @@ describe('copyWorkflowStateIntoTarget fork-sync inheritance', () => {
   })
 
   /**
-   * The regression the whole opt-in feature hinges on. A copy is the same logical workflow
-   * in another workspace, so it must inherit the SOURCE's participation - never the target
-   * workspace's new-workflow default. In an opt-in workspace the default is "excluded", so
-   * taking it here would land an explicitly-selected source's copy already excluded and
-   * sync would never update it again.
+   * The regression the whole opt-in feature hinges on. A copy is not a new workflow, so it
+   * must never take the TARGET workspace's new-workflow default. In an opt-out lineage that
+   * default is "excluded", so taking it here would land a deliberately synced workflow's
+   * copy already excluded, and sync would never update it again.
    */
-  it('inherits a synced source so the copy keeps syncing', async () => {
+  it('writes a synced copy rather than taking the target workspace default', async () => {
     const rows: Record<string, unknown>[] = []
     await copyWorkflowStateIntoTarget({ ...createParams(false), tx: stubCreateTx(rows) } as never)
     expect(rows[0].forkSyncExcluded).toBe(false)
-  })
-
-  it('inherits an unsynced source so an overridden copy does not start syncing back', async () => {
-    const rows: Record<string, unknown>[] = []
-    await copyWorkflowStateIntoTarget({ ...createParams(true), tx: stubCreateTx(rows) } as never)
-    expect(rows[0].forkSyncExcluded).toBe(true)
   })
 })

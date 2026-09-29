@@ -36,12 +36,6 @@ export interface DeployedWorkflowSummary {
   sortOrder: number
   /** Whether the deployed API accepts unauthenticated calls; carried onto sync targets. */
   isPublicApi: boolean
-  /**
-   * The source's own fork-sync participation. A copy inherits it verbatim
-   * (`copy-workflows.ts`), because a copied workflow is the same logical workflow in
-   * another workspace - never the workspace's new-workflow default.
-   */
-  forkSyncExcluded: boolean
 }
 
 /**
@@ -68,7 +62,6 @@ export async function listDeployedWorkflows(
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
       isPublicApi: workflow.isPublicApi,
-      forkSyncExcluded: workflow.forkSyncExcluded,
     })
     .from(workflow)
     .where(
