@@ -1299,7 +1299,7 @@ Resume a subscription that was scheduled for cancellation
 
 ### Stripe List Subscriptions
 
-List all subscriptions
+List one page of subscriptions. Follow starting_after while metadata.has_more is true.
 
 #### Input
 
@@ -1309,6 +1309,8 @@ List all subscriptions
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by status \(active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all\) |
+| `starting_after` | string | No | Next-page cursor: last subscription ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first subscription ID from the current page. Do not combine with starting_after. |
 | `price` | string | No | Filter by price ID |
 
 #### Output
@@ -1378,7 +1380,7 @@ List all subscriptions
 
 ### Stripe Search Subscriptions
 
-Search for subscriptions using query syntax
+Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.
 
 #### Input
 
@@ -1386,6 +1388,7 @@ Search for subscriptions using query syntax
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `query` | string | Yes | Search query \(e.g., "status:'active' AND customer:'cus_xxx'"\) |
+| `page` | string | No | Pagination token from metadata.next_page. Omit for the first page and keep the same query. |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
 #### Output
@@ -1452,6 +1455,7 @@ Search for subscriptions using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 ### Stripe Create Invoice
 
