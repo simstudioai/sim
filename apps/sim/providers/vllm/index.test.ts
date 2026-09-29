@@ -16,9 +16,7 @@ import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/pr
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckForced, mockCreateStream, pinnedFetchFn } = vi.hoisted(() => ({
-  mockCheckForced: vi.fn(),
-  mockCreateStream: vi.fn(),
+const { pinnedFetchFn } = vi.hoisted(() => ({
   pinnedFetchFn: vi.fn(),
 }))
 
@@ -31,10 +29,7 @@ vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)
-vi.mock('@/providers/vllm/utils', () => ({
-  checkForForcedToolUsage: mockCheckForced,
-  createReadableStreamFromVLLMStream: mockCreateStream,
-}))
+
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
@@ -45,6 +40,7 @@ import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm/index'
 
+const mockCheckForced = providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI
 const mockCreate = openaiMockFns.mockChatCompletionsCreate
 const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
 const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
@@ -119,7 +115,6 @@ describe('vllmProvider', () => {
       hasFilteredTools: false,
     })
     mockCheckForced.mockReturnValue({ hasUsedForcedTool: false, usedForcedTools: [] })
-    mockCreateStream.mockReturnValue(new ReadableStream({ start: (c) => c.close() }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mockCreatePinnedFetch.mockReturnValue(pinnedFetchFn)
@@ -445,7 +440,7 @@ describe('vllmProvider', () => {
   })
 
   it('streams directly when there are no tools, requesting usage in the stream', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const result = await vllmProvider.executeRequest({
       model: 'vllm/llama-3',

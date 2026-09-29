@@ -19,9 +19,9 @@ import {
   recordProviderConversationToolError,
   recordProviderConversationUsage,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -240,37 +240,40 @@ export const groqProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromGroqStream(
+          createOpenAICompatibleAgentEventStream(
             // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
             streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-            (content, usage, thinking) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
-
-              if (thinking) {
-                const segment = output.providerTiming?.timeSegments?.[0]
-                if (segment) {
-                  segment.thinkingContent = thinking
+            {
+              providerName: 'Groq',
+              request,
+              onComplete: ({ content, usage, thinking }) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
                 }
-              }
-              finalizeTiming()
-            },
-            request
+
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
+
+                if (thinking) {
+                  const segment = output.providerTiming?.timeSegments?.[0]
+                  if (segment) {
+                    segment.thinkingContent = thinking
+                  }
+                }
+                finalizeTiming()
+              },
+            }
           ),
       })
 
