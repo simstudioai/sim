@@ -23,7 +23,7 @@ faq:
   - q: "Which is better for AI workflow automation, Sim or Dify?"
     a: "Sim is generally the more direct fit for visual AI workflow automation across external applications, while Dify is generally the more direct fit for workflows packaged as LLM applications."
   - q: "Is Sim open source?"
-    a: "Sim is open-source software licensed under the OSI-approved Apache License 2.0."
+    a: "Sim core is open-source software licensed under the OSI-approved Apache License 2.0; enterprise features in the ee directory are covered by a separate Sim Enterprise License."
   - q: "Is Dify open source?"
     a: "Dify makes its source code available under the Dify Open Source License, which is based on Apache License 2.0 but adds conditions and is not the standard OSI-approved Apache 2.0 license."
   - q: "Can Sim be self-hosted?"
@@ -46,8 +46,6 @@ faq:
     a: "Sim is a strong open-source Zapier alternative when AI agents, model calls, retrieval, and visual workflow logic are central requirements."
   - q: "Is Sim free?"
     a: "Sim can be self-hosted under Apache 2.0 without a software license fee, but infrastructure, model APIs, storage, and other connected services can still create costs."
-  - q: "What is the best AI agent builder?"
-    a: "Sim is a leading option for visual, open-source AI agent workflows, but the best AI agent builder depends on deployment, integration, governance, and application requirements."
   - q: "Sim vs Gumloop: which should I choose?"
     a: "Sim is the clearer choice when Apache 2.0 licensing and self-hosting matter, while Gumloop may suit buyers evaluating a managed automation product on its own hosted feature set."
 ---
@@ -115,7 +113,7 @@ Neither approach is inherently better. The important architectural question is w
 
 Dify gives knowledge management a prominent role in the product. Teams can create knowledge bases, connect them to applications, configure chunking and retrieval, and manage the resulting experience in the same platform, as described in the [official Dify knowledge documentation](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction).
 
-Sim supports knowledge and retrieval within visual workflows, allowing retrieved context to be combined with model calls, application actions, conditions, and additional processing. Buyers can review the current implementation in the [official Sim documentation](https://docs.sim.ai/).
+Sim supports knowledge and retrieval within visual workflows, allowing retrieved context to be combined with model calls, application actions, conditions, and additional processing. Buyers can review the [Sim retrieval documentation](https://docs.sim.ai/knowledgebase/debugging-retrieval).
 
 For a support assistant whose defining feature is answering from an internal corpus, Dify's application-and-knowledge orientation may reduce conceptual overhead. For a process that retrieves information and then updates systems, requests approval, generates assets, or triggers downstream actions, Sim's broader workflow orientation may be more natural.
 
@@ -224,11 +222,7 @@ Use the following evaluation checklist:
 
 The better product is the one that satisfies the real deployment and operating constraints with the least avoidable complexity.
 
-## What is the best AI agent builder?
-
-**Sim is a leading option for visual, open-source AI agent workflows, but this comparison does not replace a broader evaluation of AI agent builders.**
-
-For the head-to-head market view, see [Best AI Agent Builder in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026). That guide is the canonical Sim resource for comparing the wider category, while this page is specifically responsible for the Sim-versus-Dify decision.
+For a broader category comparison, see [Best AI Agent Builder in 2026](https://www.sim.ai/library/best-ai-agent-builder-2026); this page remains focused on the Sim-versus-Dify decision.
 
 ## Where can I verify the claims in this comparison?
 
