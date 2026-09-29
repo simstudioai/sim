@@ -13,10 +13,8 @@ export const PUT = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: forkOperations.syncDefault,
   /**
-   * Rated, unlike its sibling fork routes. This is the one that writes workspaces the
-   * caller may not administer, under the feature's coarsest advisory lock, so an admin of
-   * any single lineage member could otherwise loop it and starve fork creation across the
-   * whole lineage.
+   * Rate-limited, unlike sibling fork routes: it writes the whole lineage under the coarsest
+   * fork lock, so looping it could starve fork creation lineage-wide.
    */
   rateLimit: internalRateLimits.user({ bucketName: 'workspace-fork-sync-default' }),
   errorPolicy: internalForkErrorPolicy,

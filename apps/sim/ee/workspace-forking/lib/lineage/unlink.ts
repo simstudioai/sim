@@ -8,13 +8,14 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import {
   acquireForkEdgeLock,
   acquireForkLineageLock,
   type ForkEdge,
   setForkLockTimeout,
 } from '@/ee/workspace-forking/lib/lineage/lineage'
-import { resolveForkLineageRootId } from '@/ee/workspace-forking/lib/sync-default'
+import { resolveForkLineageRootId } from '@/ee/workspace-forking/lib/lineage/lineage-root'
 
 const logger = createLogger('ForkUnlink')
 
@@ -43,18 +44,22 @@ export async function unlinkForkEdge(
 ): Promise<UnlinkForkResult> {
   const { childWorkspaceId, parentWorkspaceId } = edge
 
-  // Resolved before the transaction: the walk is several round trips, and issuing them
-  // from inside the tx would hold this connection while checking out more.
+  // The root is the lock key, so it is resolved before the transaction and re-checked under the lock.
   const lineageRootId = await resolveForkLineageRootId(db, childWorkspaceId)
 
   const unlinked = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
-    // Severing this edge changes which lineage the child belongs to, and therefore which
-    // key `setForkSyncDefault` and `createFork` lock on. Taking the lineage lock first
-    // (the documented ordering) keeps an unlink from splitting a lineage underneath a
-    // policy write that already enumerated its members.
-    // Ranks 2 then 4 - see the rank table on `acquireForkLineageLock`.
+    // Severing the edge changes the child's lineage root; ranks 2 then 4 - see the rank
+    // table on `acquireForkLineageLock`.
     await acquireForkLineageLock(tx, lineageRootId)
+    // Refuse if a concurrent unlink higher up moved the root before we locked it: holding a
+    // stale key would not serialize against writers of the child's current lineage. A root
+    // equal to the child means this very edge is already gone, which the update below
+    // treats as an idempotent success.
+    const currentRootId = await resolveForkLineageRootId(tx, childWorkspaceId)
+    if (currentRootId !== lineageRootId && currentRootId !== childWorkspaceId) {
+      throw new ForkError('The fork lineage changed while disconnecting. Try again.', 409)
+    }
     await acquireForkEdgeLock(tx, childWorkspaceId)
 
     const updated = await tx

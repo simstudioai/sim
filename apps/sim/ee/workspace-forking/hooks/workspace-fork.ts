@@ -290,12 +290,11 @@ export function useUpdateForkSyncDefault() {
         queryClient.setQueryData(forkKeys.lineage(vars.workspaceId), context.snapshot)
       }
     },
-    onSettled: (_data, _error, vars) => {
-      // Every lineage member's value moved, so refresh all cached lineages rather than
-      // just this workspace's. The fork modal's preflight counts are unaffected (the
-      // policy governs future workflows only), but its copy set is read per-open anyway.
+    onSettled: () => {
+      // Every lineage member's value moved, so refresh all cached lineages, not just this one,
+      // and every sync preview: each one fingerprints the workspace rows this just rewrote.
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
-      queryClient.invalidateQueries({ queryKey: forkKeys.resources(vars.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
     },
   })
 }

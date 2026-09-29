@@ -42,14 +42,6 @@ export interface ForkPromotePlanItem {
     sortOrder: number
     /** Source's public-API flag, carried onto the written target (see copyWorkflowStateIntoTarget). */
     isPublicApi: boolean
-    /**
-     * The sync participation a promote-created target is written with. Always false:
-     * `listDeployedWorkflows` admits only synced sources, so a promoted workflow is one.
-     * Stated explicitly so a created target can never take the TARGET workspace's
-     * new-workflow default, which in an opt-out lineage would land a deliberately synced
-     * workflow unsynced on the other side.
-     */
-    forkSyncExcluded: boolean
   }
 }
 
@@ -221,7 +213,6 @@ export function buildForkPromotePlanItems(params: {
         folderId: source.folderId,
         sortOrder: source.sortOrder,
         isPublicApi: source.isPublicApi,
-        forkSyncExcluded: false,
       },
     })
   }

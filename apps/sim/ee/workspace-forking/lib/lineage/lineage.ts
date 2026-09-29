@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
-import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { acquireAdvisoryXactLock, acquireAdvisoryXactLocks } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 export interface ForkLineageNode {
@@ -121,10 +121,12 @@ export async function acquireForkEdgeLock(
  * Serialize writes that must see one consistent view of a whole fork lineage, keyed by
  * the lineage ROOT so every member contends on the same key.
  *
- * Two writers need it: setting the new-workflow fork-sync default (which fans out to
- * every member) and fork creation (which inherits the source's value). Without it a fork
- * created while the default was being changed could inherit a stale value, and the
- * "every member agrees" invariant would be merely likely rather than guaranteed.
+ * Exclusive for the writers that change what the lineage agrees on: setting the new-workflow
+ * fork-sync default (which fans out to every member) and unlink (which moves a subtree to a
+ * new root). Shared for fork creation, which only inherits the source's value: forks of one
+ * lineage do not conflict with each other, so they run concurrently, while a default change
+ * or unlink still waits for them and they for it. Without it a fork created while the
+ * default was being changed could inherit a stale value.
  *
  * ## Lock order for the whole fork module
  *
@@ -133,30 +135,29 @@ export async function acquireForkEdgeLock(
  *
  * | Rank | Lock | Where |
  * | --- | --- | --- |
- * | 1 | `lockWorkspaceOperationRequest` (per-request idempotency key) | `lib/workspaces/operation-receipts` |
+ * | 1 | `lockWorkspaceOperationRequest` (per-request idempotency key) | `lib/workspaces/operations/receipts` |
  * | 2 | {@link acquireForkLineageLock} (coarsest fork lock) | here |
  * | 3 | {@link acquireForkTargetLock} | here |
  * | 4 | {@link acquireForkEdgeLock} | here |
  * | 5 | `lockForkRevision` (a `resource_folders:*` advisory lock per workspace, then `FOR UPDATE` on `workspace`, `workflow`, `workflow_blocks`, `workflow_edges`, `workflow_subflows` and `FOR SHARE` on the active `workflow_deployment_version` rows) | `application/revision.ts` |
  * | 6 | remaining row locks, taken in sorted id order | various |
  *
- * Rank 5 is the trap this table exists for. Ranking only the three advisory locks here
- * said nothing about `lockForkRevision`, and `createFork` took it BEFORE this lock - so
- * it held `FOR UPDATE` on the source `workspace` row while waiting on `fork-lineage`,
- * while `unlinkForkEdge` held `fork-lineage` and waited to UPDATE that same row. A
- * genuine cycle, reported independently by two reviewers.
+ * Rank 5 is the easy one to get wrong: it takes `FOR UPDATE` on `workspace`, which
+ * `unlinkForkEdge` and `setForkSyncDefault` write while holding rank 2, so taking rank 5
+ * before rank 2 deadlocks.
  *
- * Do NOT assume a uniform 10s bound from {@link setForkLockTimeout} across a whole
- * transaction: `lockForkRevision` reaches `acquireFolderMutationLock`
- * (`lib/folders/locks.ts`), which re-sets `lock_timeout` to 5s mid-transaction, and the
- * MCP server lock re-sets it to 3s. Pre-existing and wider than forks; recorded here so
- * the contract does not assert something false.
+ * {@link setForkLockTimeout}'s 10s is not a whole-transaction bound: `lockForkRevision`
+ * reaches `acquireFolderMutationLock`, which re-sets `lock_timeout` to 5s, and the MCP
+ * server lock re-sets it to 3s.
  */
 export async function acquireForkLineageLock(
   tx: DbTransaction,
-  rootWorkspaceId: string
+  rootWorkspaceId: string,
+  { shared = false }: { shared?: boolean } = {}
 ): Promise<void> {
-  await acquireAdvisoryXactLock(tx, 'fork_lineage', `fork-lineage:${rootWorkspaceId}`)
+  await acquireAdvisoryXactLocks(tx, 'fork_lineage', [
+    { key: `fork-lineage:${rootWorkspaceId}`, shared },
+  ])
 }
 
 /**

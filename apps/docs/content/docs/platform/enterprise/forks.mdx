@@ -29,7 +29,7 @@ On Sim Cloud, your organization may also need the feature turned on for your acc
 
 ### 1. Open Forks
 
-Go to **Settings → Organization → Workspace forks** in the workspace you want to fork from (or manage).
+Go to **Settings → Workspace → Workspace forks** in the workspace you want to fork from (or manage).
 
 <Image src="/static/enterprise/forks-list.png" alt="Workspace Forks settings page showing Parent and Forks sections with Docs, See activity, and Create fork actions" width={900} height={369} />
 
@@ -62,7 +62,7 @@ Click **Fork**. The child workspace is created immediately. Deployed workflows l
 
 ### 3. Open the parent edge (from the child)
 
-Open the **child** workspace → **Settings → Organization → Workspace forks**. On the **Parent** row, open the menu and choose **Edit mappings**.
+Open the **child** workspace → **Settings → Workspace → Workspace forks**. On the **Parent** row, open the menu and choose **Edit mappings**.
 
 Child rows (when you are on the parent) only offer **Open workspace** and **Disconnect** — mapping and sync are owned by the child configuring how it relates to its parent.
 
@@ -136,14 +136,14 @@ Above the list, **Sync new workflows by default** decides where a **newly create
 
 | Setting | A new workflow… |
 |---------|-----------------|
-| **On** (default) | joins fork sync — it arrives checked and syncs as soon as you deploy it |
-| **Off** | starts outside fork sync — it arrives unchecked and only syncs after you check it |
+| **Sync** (default) | joins fork sync — it arrives checked and syncs as soon as you deploy it |
+| **Don't sync** | starts outside fork sync — it arrives unchecked and only syncs after you check it |
 
 Three things to know:
 
-- **It applies to the whole fork lineage.** The toggle writes every workspace in the lineage — the root, every ancestor, every descendant — so a parent and its forks can never disagree about what "new" means. Any workspace admin in the lineage can change it, and each member gets its own audit entry naming the workspace the change came from. A new fork inherits the value at creation.
+- **It applies to the whole fork lineage.** The toggle writes every workspace in the lineage — the root, every ancestor, every descendant — so a parent and its forks can never disagree about what "new" means. Any workspace admin in the lineage can change it, and each workspace whose value changes gets its own audit entry naming the workspace the change came from. A new fork inherits the value at creation.
 - **It is forward-only.** Flipping it never moves an existing workflow in or out of sync. The checkbox list above stays the record of what syncs.
-- **"New" means genuinely new.** Creating, duplicating, or importing a workflow takes this setting, as does the blank starter workflow a fork gets when there is nothing to copy. A workflow that arrives as a **copy** — from a fork, or from a push or pull — inherits its source's own checkbox instead, so a workflow you deliberately synced never lands unsynced in the child.
+- **"New" means genuinely new.** Creating, duplicating, or importing a workflow takes this setting, as does the blank starter workflow a fork gets when there is nothing to copy. A workflow that arrives as a **copy** — from a fork, or from a push or pull — ignores this setting. Only synced workflows are copied, and they always arrive synced, so a workflow you deliberately synced never lands unsynced on the other side.
 
 **Example:** a template workspace turns this off so every scratch workflow the team creates stays local, then checks only the handful meant to reach the forks.
 
@@ -399,7 +399,7 @@ Schedules, webhooks, and triggers are not live in the child until you **deploy**
   { question: "Why is Sync greyed out?", answer: "Usually a blocking reference, an unmapped credential or secret, or a required dependent field (label, channel, document, …) still empty. Open Blocking sync and the mapping sections — each row explains what to fix. Sync also stays disabled while details are loading or if loading failed (reload the page)." },
   { question: "Is sync a merge?", answer: "No. Deploy is like a commit; sync is a force push or force pull of deployed workflows onto the target. Use Rollback only for the last sync into a workspace, and remember copied resources may remain." },
   { question: "Who can disconnect a fork I cannot open?", answer: "Any admin on your side of the edge. Disconnect does not require access to the other workspace — so you are not stuck if the other side lost membership." },
-  { question: "I deployed a new workflow and sync ignored it. Why?", answer: "Sync new workflows by default is off for this fork lineage, so the workflow was created outside fork sync. Open Settings → Organization → Workspace forks and check it under Synced workflows. Turning the toggle back on only affects workflows created after that — it never moves an existing one." },
+  { question: "I deployed a new workflow and sync ignored it. Why?", answer: "Sync new workflows by default is off for this fork lineage, so the workflow was created outside fork sync. Open Settings → Workspace → Workspace forks and check it under Synced workflows. Turning the toggle back on only affects workflows created after that — it never moves an existing one." },
   { question: "Does turning Sync new workflows by default off stop my current syncs?", answer: "No. It is forward-only and never rewrites an existing workflow's checkbox, so everything already synced keeps syncing. It also applies to every workspace in the fork lineage, not just the one you changed it from." }
 ]} />
 
@@ -413,4 +413,4 @@ Self-hosted deployments turn Forks on with an environment variable instead of th
 |----------|-------------|
 | `FORKING_ENABLED`, `NEXT_PUBLIC_FORKING_ENABLED` | Enables workspace forking when billing is not used as the entitlement gate |
 
-Once enabled, use the same **Settings → Organization → Workspace forks** UI as Sim Cloud. Only workspace admins can manage forks.
+Once enabled, use the same **Settings → Workspace → Workspace forks** UI as Sim Cloud. Only workspace admins can manage forks.

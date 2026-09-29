@@ -5,6 +5,7 @@ import {
   workspaceForkingLineageMock,
   workspaceForkingLineageMockFns,
 } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingLineageRootMock } from '@sim/testing/mocks/workspace-forking-lineage-root.mock'
 import {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
@@ -22,7 +23,6 @@ const {
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
   mockCollectReferencedFileFolderPaths,
-  mockResolveForkSyncExclusionForNewWorkflow,
   mockLockForkRevision,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
@@ -34,8 +34,6 @@ const {
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
-  // Historical opt-out default unless a test opts the lineage in.
-  mockResolveForkSyncExclusionForNewWorkflow: vi.fn(async () => false),
   mockLockForkRevision: vi.fn(async () => {}),
 }))
 
@@ -90,11 +88,7 @@ vi.mock('@/lib/workspaces/operations/receipts', () => ({
   insertWorkspaceOperationReceipt: vi.fn(async () => {}),
   lockWorkspaceOperationRequest: vi.fn(async () => {}),
 }))
-vi.mock('@/ee/workspace-forking/lib/sync-default', () => ({
-  // The lineage root is resolved before the fork tx; a standalone source is its own root.
-  resolveForkLineageRootId: vi.fn(async (_executor: unknown, workspaceId: string) => workspaceId),
-  resolveForkSyncExclusionForNewWorkflow: mockResolveForkSyncExclusionForNewWorkflow,
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage-root', () => workspaceForkingLineageRootMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   reconcileForkBlockPairs: vi.fn(),
   toForkBlockPairs: vi.fn(() => []),
@@ -239,7 +233,8 @@ describe('createFork storage headroom gate', () => {
    * would disagree with its parent from the moment it exists.
    */
   it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
-    mockResolveForkSyncExclusionForNewWorkflow.mockResolvedValue(true)
+    resetDbChainMock()
+    queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])
 
     const result = await createFork(forkParams())
 
