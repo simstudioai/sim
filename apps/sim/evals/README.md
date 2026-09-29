@@ -100,6 +100,27 @@ A scenario is data, not code — there is no harness change needed for a new cas
   string. The loop must not execute the call and must return the parse error to
   the model.
 
+## Executor-level scenarios
+
+[`agent-tool-use/executor-harness.ts`](./agent-tool-use/executor-harness.ts)
+runs a case through a real `DAGExecutor`: a Start block → Agent block workflow,
+with only the provider boundary (`executeProviderRequest`) mocked. This covers
+what the loop harness cannot — agent-block input wiring, variable resolution
+from Start outputs, and the executor's run/error handling. Tool dispatch stays
+covered by the loop suite.
+
+Add a case to `EXECUTOR_SCENARIOS` in `executor-harness.ts`:
+
+- `workflowInput` is exposed on the Start block; reference an output with
+  `<start.field>` from the Agent prompt.
+- `agent` is the Agent block config (`model`, `systemPrompt`, `userPrompt`).
+- `providerResponse` is what the mocked provider returns (`content`,
+  `toolCalls`, `tokens`).
+- `expect` uses the loop's checks plus `resolvedInput` (a substring that must
+  reach the provider messages) and `succeeds` (expected `ExecutionResult.success`).
+
+Both suites write one report, so executor rows appear alongside loop rows.
+
 ## Report shape
 
 `report.json` is machine-readable for dashboards and trend tracking; `report.md`
@@ -110,8 +131,9 @@ model/tool time, first-response time, and token usage.
 
 ## Scope and next steps
 
-This suite evaluates the tool loop directly. The next layer is a scenario that
-runs the same scripted model through the full `DAGExecutor` so agent block
-wiring, variable resolution, and the executor's retry/fallback policy are
-measured alongside the loop. The `AgentToolUseResult` shape is deliberately
-independent of the harness entry point so both can share scoring and reporting.
+Two harnesses share one result shape and report: the tool loop and the
+`DAGExecutor`. The executor harness mocks the provider boundary, so the
+executor's retry/fallback policy is not yet asserted; add a scenario with a
+first-call rejection and a block retry config to cover it. Further expansion
+(context/memory, model routing, subagent orchestration) is tracked as
+follow-up work.

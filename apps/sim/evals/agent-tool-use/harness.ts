@@ -208,9 +208,15 @@ function isOrderedSubsequence(actual: string[], expected: string[]): boolean {
   return index === expected.length
 }
 
-function score(
+/** Minimal tool-call shape the scorer needs; both harnesses produce it. */
+export interface ScoredToolCall {
+  name: string
+  success: boolean
+}
+
+export function scoreExpectations(
   expected: AgentToolUseExpectations,
-  toolCalls: CapturedToolCall[],
+  toolCalls: ScoredToolCall[],
   finalContent: string,
   iterations: number,
   error: unknown,
@@ -307,7 +313,7 @@ function score(
       check(
         'completes-without-error',
         error === undefined,
-        error === undefined ? 'loop settled' : String(error)
+        error === undefined ? 'completed without error' : String(error)
       )
     )
   }
@@ -383,7 +389,7 @@ export async function runScenario(
   const toolCalls = ((completed?.toolCalls as ToolCallList | undefined)?.list ?? []).slice()
   const finalContent = completed?.content ?? ''
   const iterations = completed?.iterations ?? 0
-  const checks = score(expected, toolCalls, finalContent, iterations, streamError, mode)
+  const checks = scoreExpectations(expected, toolCalls, finalContent, iterations, streamError, mode)
   const successful = toolCalls.filter((call) => call.success).length
 
   return {
