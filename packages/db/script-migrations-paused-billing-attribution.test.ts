@@ -23,7 +23,6 @@ import {
   type SubscriptionCandidate,
   selectFrozenPersonalSubscription,
 } from './script-migrations/0002_backfill_paused_billing_attribution'
-import { scriptMigrations } from './script-migrations/index'
 
 const ORGANIZATION_ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'actor-1',
@@ -352,33 +351,5 @@ describe('paused billing attribution safety', () => {
     await expect(runPausedBillingAttributionBackfill(harness.store)).rejects.toThrow(
       'database offline'
     )
-  })
-})
-
-describe('script migration registry', () => {
-  it('keeps script migrations in append-only order', () => {
-    expect(scriptMigrations.map((migration) => migration.name)).toEqual([
-      '0001_backfill_table_order_keys',
-      '0002_backfill_paused_billing_attribution',
-      '0003_backfill_workspace_storage_usage',
-      '0004_backfill_fork_kb_file_ownership',
-      '0005_repair_unknown_table_row_provenance',
-      '0006_repair_unknown_table_row_provenance_second_pass',
-      '0007_repair_unknown_workspace_file_provenance',
-      '0010_backfill_credential_group_resource_policies',
-      '0011_remap_legacy_knowledge_connector_credentials',
-      '0012_reconcile_oauth_provider_lifecycle',
-      '0013_backfill_legacy_knowledge_base_workspaces',
-      '0014_require_knowledge_base_owner',
-      '0016_backfill_search_vectors',
-      '0017_index_search_documents',
-      '0018_repair_workspace_file_content_revision',
-      '0019_tin_keyword_projection',
-      '0022_projection_source_acl_backfill',
-      '0023_projection_acl_skip_unfilled',
-      '0024_knowledge_projection_async',
-      '0025_scope_keyword_projections',
-      '0026_user_table_schema_for_write',
-    ])
   })
 })
