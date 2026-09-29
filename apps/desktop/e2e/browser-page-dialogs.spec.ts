@@ -186,10 +186,8 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
             .getAllWebContents()
             .find((candidate) => candidate.getURL().startsWith(url))
           if (!contents) throw new Error('No page')
-          const rect = JSON.parse(
-            await contents.executeJavaScript(
-              `JSON.stringify(document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect())`
-            )
+          const rect: { x: number; y: number } = await contents.executeJavaScript(
+            `(() => { const { x, y } = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x, y } })()`
           )
           const point = { x: Math.round(rect.x + 5), y: Math.round(rect.y + 5) }
           contents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 })
@@ -250,6 +248,15 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
       await panelAction({ action: 'respond-dialog', requestId: dialog?.requestId, allowed: false })
       await expect.poll(pageDialog).toBeNull()
       expect(await pageUrl()).toBe(`${site}/form`)
+      expect(await inPage<string>("document.getElementById('draft').value")).toBe('draft')
+    })
+
+    await check('Reload of a draft asks too, and Stay keeps it', async () => {
+      await panelAction({ action: 'reload' })
+      await expect.poll(pageDialog).toMatchObject({ kind: 'beforeunload' })
+      const dialog = await pageDialog()
+      await panelAction({ action: 'respond-dialog', requestId: dialog?.requestId, allowed: false })
+      await expect.poll(pageDialog).toBeNull()
       expect(await inPage<string>("document.getElementById('draft').value")).toBe('draft')
     })
 

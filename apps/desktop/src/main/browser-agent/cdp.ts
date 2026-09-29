@@ -47,6 +47,7 @@ export interface CdpCallbacks {
   offerToUser: (
     kind: 'alert' | 'confirm',
     message: string,
+    frameUrl: string,
     respond: (accept: boolean) => void
   ) => boolean
   /** The page closed its dialog itself, by navigating away or crashing. */
@@ -214,7 +215,8 @@ function handleDebuggerEvent(
     // action asked for a specific answer. Electron decides beforeunload itself
     // (will-prevent-unload), so that kind is only acknowledged here.
     if (!requested && (type === 'alert' || type === 'confirm')) {
-      const offered = callbacks?.offerToUser(type, message, (accept) => {
+      const frameUrl = typeof params.url === 'string' ? params.url : ''
+      const offered = callbacks?.offerToUser(type, message, frameUrl, (accept) => {
         void answerDialog(contents, { accept }, parentSessionId).then((handled) => {
           if (!handled) logger.warn('Could not answer page dialog for the user', { type })
         })
