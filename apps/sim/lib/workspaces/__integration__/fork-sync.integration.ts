@@ -4,6 +4,7 @@ import {
   outboxEvent,
   permissions,
   user,
+  userTableDefinitions,
   workflow,
   workflowBlocks,
   workflowDeploymentOperation,
@@ -16,7 +17,9 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceOperation } from '@/lib/workspaces/operations/application'
@@ -509,6 +512,99 @@ describe('authorized fork and sync against PostgreSQL', () => {
           (block) => block.type === 'function'
         )?.subBlocks
       ).toMatchObject({ sandboxId: { value: childSandboxId } })
+    } finally {
+      await db
+        .update(workflowDeploymentVersion)
+        .set({ state: sourceVersion.state })
+        .where(eq(workflowDeploymentVersion.id, sourceVersion.id))
+    }
+  })
+
+  it('validates a mapped table dependent through a Copilot CLI push preview', async () => {
+    const childId = await createChild()
+    const [sourceVersion] = await db
+      .select()
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, sourceWorkflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+    const sourceTableId = generateId()
+    const childTableId = generateId()
+    const schema = { columns: [{ id: 'col_key', name: 'key', type: 'string', unique: true }] }
+    await db.insert(userTableDefinitions).values([
+      {
+        id: sourceTableId,
+        workspaceId: sourceWorkspaceId,
+        name: `Source table ${sourceTableId}`,
+        schema,
+        createdBy: userId,
+      },
+      { id: childTableId, workspaceId: childId, name: 'Child table', schema, createdBy: userId },
+    ])
+    const sourceState = structuredClone(sourceVersion.state) as WorkflowState
+    sourceState.blocks.upsert = {
+      id: 'upsert',
+      type: 'table',
+      name: 'Upsert',
+      enabled: true,
+      position: { x: 400, y: 0 },
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'upsert_row' },
+        tableSelector: { id: 'tableSelector', type: 'table-selector', value: sourceTableId },
+        conflictColumnSelector: {
+          id: 'conflictColumnSelector',
+          type: 'column-selector',
+          value: 'col_key',
+        },
+      },
+      outputs: {},
+    }
+    const transport = createScopedCliTransport('http://localhost:3000', {
+      userId,
+      workspaceId: sourceWorkspaceId,
+      chatId: generateId(),
+    })
+    try {
+      await db
+        .update(workflowDeploymentVersion)
+        .set({ state: sourceState })
+        .where(eq(workflowDeploymentVersion.id, sourceVersion.id))
+      const response = await withWorkspaceInvocationScope({ workspaceId: sourceWorkspaceId }, () =>
+        transport(
+          `http://localhost:3000/api/v2/workspaces/${sourceWorkspaceId}/fork/push/preview`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              otherWorkspaceId: childId,
+              mappings: [
+                { resourceType: 'table', sourceId: sourceTableId, targetId: childTableId },
+              ],
+              dependentValues: [
+                {
+                  sourceWorkflowId,
+                  sourceBlockId: 'upsert',
+                  subBlockKey: 'conflictColumnSelector',
+                  value: 'col_key',
+                },
+              ],
+            }),
+          }
+        )
+      )
+      const body = await response.json()
+      expect(response.status, JSON.stringify(body)).toBe(200)
+      expect(body.data.configuration).toContainEqual(
+        expect.objectContaining({
+          sourceBlockId: 'upsert',
+          subBlockKey: 'conflictColumnSelector',
+          currentValue: 'col_key',
+          discoveryWorkspaceId: childId,
+        })
+      )
     } finally {
       await db
         .update(workflowDeploymentVersion)
