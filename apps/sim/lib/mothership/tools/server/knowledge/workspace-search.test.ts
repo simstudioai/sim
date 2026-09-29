@@ -376,7 +376,7 @@ describe('Assistant retrieval tools', () => {
     expect(mocks.search).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
   })
-  it('reads a selected document through the shared use case and rejects unbounded pages', async () => {
+  it('reads a selected document through the shared use case and caps oversized pages', async () => {
     expect(
       await readDocumentServerTool.execute({ documentId: 'doc', startChunkIndex: 20 }, context)
     ).toMatchObject({ success: true })
@@ -392,7 +392,9 @@ describe('Assistant retrieval tools', () => {
     )
     expect(
       await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
-    ).toMatchObject({ success: false })
-    expect(mocks.read).toHaveBeenCalledOnce()
+    ).toMatchObject({ success: true })
+    expect(mocks.read).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 8 }) })
+    )
   })
 })

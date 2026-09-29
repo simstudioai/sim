@@ -5184,7 +5184,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Canonical document ID returned by search or selected document context.',
         },
         limit: {
-          default: 3,
           description:
             'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.',
           type: 'integer',

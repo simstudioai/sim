@@ -102,10 +102,10 @@ export const nativeSearchQueriesSchema = z
         addIssue('Duplicate native query.')
       else if (
         hasSearchKinds(query.provider) &&
-        earlier.some((previous) => !previous.kind || !query.kind || previous.kind === query.kind)
+        earlier.some((previous) => !previous.kind || !query.kind)
       )
         addIssue(
-          'Send one query per account and kind for GitHub, GitLab, or HubSpot. Use provider-supported operators for alternatives, or send another call.'
+          'A GitHub, GitLab, or HubSpot query without a kind already searches every kind; give each query on this account a kind.'
         )
       else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
@@ -246,11 +246,12 @@ export const readDocumentInputSchema = z.object({
     .min(1)
     .max(4000)
     .describe('Canonical document ID returned by search or selected document context.'),
+  /** A larger request is capped rather than refused: the server returns at most 8 chunks anyway. */
   limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(8)
+    .preprocess(
+      (limit) => (typeof limit === 'number' && limit > 8 ? 8 : limit),
+      z.number().int().min(1).max(8)
+    )
     .default(3)
     .describe(
       'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.'
