@@ -805,9 +805,9 @@ export const PlanetScaleBlock: BlockConfig = {
     },
     database: {
       type: 'string',
-      description: 'The name of the database the deploy request belongs to',
+      description: 'PlanetScale database name',
     },
-    production: { type: 'boolean', description: 'Filter backups by production branch' },
+    production: { type: 'boolean', description: 'Filter branches or backups by production status' },
     safeMigrations: {
       type: 'boolean',
       description: 'Filter branches by safe migrations (DDL protection)',
@@ -856,7 +856,7 @@ export const PlanetScaleBlock: BlockConfig = {
     },
     branch: {
       type: 'string',
-      description: 'The name of the branch the deploy request is created from',
+      description: 'Branch name for the selected operation',
     },
     deleteDescendants: {
       type: 'boolean',
@@ -1150,7 +1150,7 @@ export const PlanetScaleBlockMeta = {
       name: 'rehearse-backup-restore',
       description: 'Restore a successful backup into a separate branch for a recovery drill.',
       content:
-        '# Rehearse Backup Restore\n\n## Steps\nList backups and choose a successful backup after confirming scope. Create a new branch with that backup ID and the parent branch. Get branch readiness. Do not delete the restored branch without authorization.\n\n## Output\nReturn resource identifiers and current states.\n\n## Reference\nhttps://planetscale.com/learn/courses/vitess/vitess-at-planetscale',
+        '# Rehearse Backup Restore\n\n## Steps\nList backups and choose a successful backup after confirming scope. Confirm a supported target cluster size, then create a new branch with the backup ID, parent branch, and cluster size. Get branch readiness. Do not delete the restored branch without authorization.\n\n## Output\nReturn resource identifiers and current states.\n\n## Reference\nhttps://planetscale.com/learn/courses/vitess/vitess-at-planetscale',
     },
     {
       name: 'track-schema-deployment',
