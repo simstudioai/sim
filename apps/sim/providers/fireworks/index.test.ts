@@ -8,8 +8,7 @@ import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
-const { mockSupportsNativeStructuredOutputs, mockResolveFireworksWireModel } = vi.hoisted(() => ({
-  mockSupportsNativeStructuredOutputs: vi.fn(),
+const { mockResolveFireworksWireModel } = vi.hoisted(() => ({
   mockResolveFireworksWireModel: vi.fn(),
 }))
 
@@ -22,11 +21,6 @@ vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/fireworks/utils', () => ({
-  supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
-  createReadableStreamFromOpenAIStream: vi.fn(
-    () => new ReadableStream({ start: (controller) => controller.close() })
-  ),
-  checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
   resolveFireworksWireModel: mockResolveFireworksWireModel,
 }))
 
@@ -85,7 +79,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('fireworksProvider', () => {
   beforeEach(() => {
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
       toolChoice: 'auto',
@@ -143,7 +136,7 @@ describe('fireworksProvider', () => {
   })
 
   it('streams directly when there are no tools', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const result = await fireworksProvider.executeRequest({ ...baseRequest, stream: true })
 
@@ -165,22 +158,6 @@ describe('fireworksProvider', () => {
       json_schema: { name: 'my_schema', schema: { type: 'object' } },
     })
     expect(lastCallBody().response_format.json_schema).not.toHaveProperty('strict')
-  })
-
-  it('falls back to json_object with prompt instructions when native is unsupported', async () => {
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(false)
-    mockCreate.mockResolvedValueOnce(textResponse('{}'))
-
-    await fireworksProvider.executeRequest({
-      ...baseRequest,
-      responseFormat: { name: 'my_schema', schema: { type: 'object' } },
-    })
-
-    expect(lastCallBody().response_format).toEqual({ type: 'json_object' })
-    expect(lastCallBody().messages.at(-1)).toEqual({
-      role: 'user',
-      content: 'SCHEMA_INSTRUCTIONS',
-    })
   })
 
   it('defers response_format to a final call when tools are active', async () => {

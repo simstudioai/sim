@@ -361,7 +361,7 @@ jobs:
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
-      # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
+      # Runs the root scripts and each workspace's Vitest suite,
       # without `--coverage`.
       - name: Run tests
         env:

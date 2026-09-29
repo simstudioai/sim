@@ -70,63 +70,14 @@ vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/providers/baseten/utils', () => ({
-  checkForForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-  createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
-  supportsNativeStructuredOutputs: vi.fn(() => true),
-}))
 vi.mock('@/providers/fireworks/utils', () => ({
-  checkForForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-  createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
-  supportsNativeStructuredOutputs: vi.fn(() => true),
   resolveFireworksWireModel: vi.fn((stripped: string) => stripped),
 }))
 vi.mock('@/providers/openrouter/utils', () => ({
-  checkForForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-  createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
   supportsNativeStructuredOutputs: vi.fn(() => true),
 }))
-vi.mock('@/providers/together/utils', () => ({
-  checkForForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-  createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
-  supportsNativeStructuredOutputs: vi.fn(() => true),
-}))
-vi.mock('@/providers/cerebras/utils', () => ({
-  createReadableStreamFromCerebrasStream: vi.fn(() => createEmptyStream()),
-}))
-vi.mock('@/providers/kimi/utils', () => ({
-  createReadableStreamFromKimiStream: vi.fn(() => createEmptyStream()),
-}))
-vi.mock('@/providers/meta/utils', () => ({
-  createReadableStreamFromMetaStream: vi.fn(() => createEmptyStream()),
-}))
-vi.mock('@/providers/nvidia/utils', () => ({
-  createReadableStreamFromNvidiaStream: vi.fn(() => createEmptyStream()),
-}))
-vi.mock('@/providers/sakana/utils', () => ({
-  createReadableStreamFromSakanaStream: vi.fn(() => createEmptyStream()),
-}))
-vi.mock('@/providers/zai/utils', () => ({
-  createReadableStreamFromZaiStream: vi.fn(() => createEmptyStream()),
-}))
+
 vi.mock('@/providers/xai/utils', () => ({
-  checkForForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-  createReadableStreamFromXAIStream: vi.fn(() => createEmptyStream()),
   createResponseFormatPayload: vi.fn(() => ({})),
 }))
 
@@ -252,7 +203,7 @@ const STRUCTURED_OUTPUT_PROVIDERS = [
     name: 'Together',
     provider: togetherProvider,
     model: 'together/test-model',
-    responseFormatType: 'json_schema',
+    responseFormatType: 'json_object',
     disablesTools: 'omit',
   },
   {
@@ -284,14 +235,6 @@ const STRUCTURED_OUTPUT_PROVIDERS = [
     disablesTools: 'omit',
   },
 ] as const
-
-function createEmptyStream(): ReadableStream<Uint8Array> {
-  return new ReadableStream({
-    start(controller) {
-      controller.close()
-    },
-  })
-}
 
 function toolCall(id: string, argumentsJson = '{}'): ToolCall {
   return {

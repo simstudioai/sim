@@ -1,8 +1,14 @@
 import type { Logger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import OpenAI from 'openai'
-import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import type OpenAI from 'openai'
+import type {
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessage,
+  ChatCompletionMessageParam,
+  ChatCompletionToolChoiceOption,
+} from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -13,8 +19,12 @@ import {
 import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
+  recordProviderConversationUsage,
 } from '@/providers/conversation-history'
-import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import {
+  createOpenAICompatAssistantHistory,
+  type OpenAICompatReasoningField,
+} from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -23,166 +33,129 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
-import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
+import type {
+  FunctionCallResponse,
+  Message,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
-  generateSchemaInstructions,
+  checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
+  prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
 
-/**
- * Ollama enforces JSON mode (`json_object`) but ignores `json_schema`, so
- * structured outputs use JSON mode with the schema described in-prompt. Mutates
- * `payload.response_format` and returns the messages with instructions appended.
- */
-function applyJsonResponseFormat(
-  payload: { response_format?: unknown },
-  messages: Message[],
-  responseFormat: NonNullable<ProviderRequest['responseFormat']>
-): Message[] {
-  payload.response_format = { type: 'json_object' }
-  const schema = responseFormat.schema || responseFormat
-  return [
-    ...messages,
-    { role: 'user', content: generateSchemaInstructions(schema, responseFormat.name) },
-  ]
+export type ChatCompletionPayload = ChatCompletionCreateParamsNonStreaming & {
+  provider?: { require_parameters?: boolean }
 }
 
-/**
- * Per-provider hooks for the shared Ollama execution logic. The self-hosted
- * `ollama` and hosted `ollama-cloud` providers differ only in client
- * construction and labels; both pass those in here.
- */
-export interface OllamaCoreConfig {
-  /** Provider id used for trace enrichment (`ollama`, `ollama-cloud`). */
-  providerId: string
-  /** Human-readable label used in log messages. */
-  providerLabel: string
-  /** Builds the OpenAI-compatible client (base URL + credentials per provider). */
-  createClient: () => OpenAI
+interface ChatCompletionExecutionConfig {
+  providerId: 'baseten' | 'together' | 'fireworks' | 'openrouter'
+  providerName: string
+  client: OpenAI
+  requestedModel: string
+  /** Fireworks sends a wire model but retains its catalog identity for billing and output. */
+  reportedModel: string
   logger: Logger
+  applyResponseFormat: (
+    payload: ChatCompletionPayload,
+    messages: ChatCompletionMessageParam[],
+    responseFormat: NonNullable<ProviderRequest['responseFormat']>,
+    model: string
+  ) => Promise<ChatCompletionMessageParam[]>
+  reasoningFields: readonly OpenAICompatReasoningField[]
+  preserveReasoningDetails?: boolean
+  /** Together and OpenRouter account for the pending turn when their tool loop reaches its cap. */
+  recordPendingUsage?: boolean
 }
 
-/**
- * Shared execution logic for the Ollama-family providers, which speak the same
- * OpenAI-compatible Ollama API. Ollama ignores `tool_choice`, so tools are sent
- * as `tool_choice: 'auto'` (forced tools degrade to auto). Tool-disabled calls
- * drop tools entirely rather than relying on `tool_choice: 'none'`.
- */
-export async function executeOllamaProviderRequest(
+/** Runs the shared Chat Completions request, tool loop and settled-stream lifecycle. */
+export async function executeChatCompletionRequest(
   request: ProviderRequest,
-  config: OllamaCoreConfig
+  config: ChatCompletionExecutionConfig
 ): Promise<ProviderResponse | StreamingExecution> {
-  const { providerId, providerLabel, logger } = config
-
-  logger.info(`Preparing ${providerLabel} request`, {
-    model: request.model,
-    hasSystemPrompt: !!request.systemPrompt,
-    hasMessages: !!request.messages?.length,
-    hasTools: !!request.tools?.length,
-    toolCount: request.tools?.length || 0,
-    hasResponseFormat: !!request.responseFormat,
-    stream: !!request.stream,
-  })
-
-  const ollama = config.createClient()
-
+  const {
+    client,
+    requestedModel,
+    reportedModel,
+    logger,
+    applyResponseFormat,
+    providerId,
+    providerName,
+  } = config
   const allMessages: Message[] = []
 
   if (request.systemPrompt) {
-    allMessages.push({
-      role: 'system',
-      content: request.systemPrompt,
-    })
+    allMessages.push({ role: 'system', content: request.systemPrompt })
   }
 
   if (request.context) {
-    allMessages.push({
-      role: 'user',
-      content: request.context,
-    })
+    allMessages.push({ role: 'user', content: request.context })
   }
 
   if (request.messages) {
     allMessages.push(...request.messages)
   }
-  const formattedMessages = formatMessagesForProvider(allMessages, providerId) as Message[]
+  const formattedMessages = formatMessagesForProvider(
+    allMessages,
+    providerId
+  ) as ChatCompletionMessageParam[]
 
   const tools = request.tools?.length
     ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
     : undefined
 
-  const payload: any = {
-    model: request.model,
+  const payload: ChatCompletionPayload = {
+    model: requestedModel,
     messages: formattedMessages,
   }
 
   if (request.temperature !== undefined) payload.temperature = request.temperature
   if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
+  let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
   let hasActiveTools = false
   if (tools?.length) {
-    const filteredTools = tools.filter((tool) => {
-      const toolId = tool.function?.name
-      const toolConfig = request.tools?.find((t) => t.id === toolId)
-      return toolConfig?.usageControl !== 'none'
-    })
-
-    const hasForcedTools = tools.some((tool) => {
-      const toolId = tool.function?.name
-      const toolConfig = request.tools?.find((t) => t.id === toolId)
-      return toolConfig?.usageControl === 'force'
-    })
-
-    if (hasForcedTools) {
-      logger.warn(
-        `${providerLabel} does not support forced tool selection (tool_choice parameter is ignored). ` +
-          'Tools marked with usageControl="force" will behave as "auto" instead.'
-      )
-    }
-
-    if (filteredTools?.length) {
+    preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, providerId)
+    const { tools: filteredTools, toolChoice } = preparedTools
+    if (filteredTools?.length && toolChoice) {
       payload.tools = filteredTools
-      payload.tool_choice = 'auto'
+      payload.tool_choice = toolChoice as ChatCompletionToolChoiceOption
       hasActiveTools = true
-
-      logger.info(`${providerLabel} request configuration:`, {
-        toolCount: filteredTools.length,
-        toolChoice: 'auto',
-        forcedToolsIgnored: hasForcedTools,
-        model: request.model,
-      })
     }
-  }
-
-  // With tools, defer structured output to the final call so JSON mode doesn't preempt tool use.
-  if (request.responseFormat && !hasActiveTools) {
-    payload.messages = applyJsonResponseFormat(payload, payload.messages, request.responseFormat)
-    logger.info(`Added JSON response format to ${providerLabel} request`)
   }
 
   const providerStartTime = Date.now()
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   try {
-    if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
-      logger.info(`Using streaming response for ${providerLabel} request`)
+    if (request.responseFormat && !hasActiveTools) {
+      payload.messages = await applyResponseFormat(
+        payload,
+        payload.messages,
+        request.responseFormat,
+        requestedModel
+      )
+    }
 
+    if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
       const streamingParams: ChatCompletionCreateParamsStreaming = {
         ...payload,
         stream: true,
         stream_options: { include_usage: true },
       }
-      const streamResponse = await ollama.chat.completions.create(
+      const streamResponse = await client.chat.completions.create(
         await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
       const streamingResult = createStreamingExecution({
-        model: request.model,
+        model: reportedModel,
         providerStartTime,
         providerStartTimeISO,
         timing: { kind: 'simple', segmentName: request.model },
@@ -191,15 +164,10 @@ export async function executeOllamaProviderRequest(
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createOpenAICompatibleAgentEventStream(streamResponse, {
-            providerName: providerLabel,
             request,
+            providerName,
             onComplete: ({ content, usage }) => {
               output.content = content
-
-              if (content && request.responseFormat) {
-                output.content = content.replace(/```json\n?|\n?```/g, '').trim()
-              }
-
               output.tokens = {
                 input: usage.prompt_tokens,
                 output: usage.completion_tokens,
@@ -207,7 +175,7 @@ export async function executeOllamaProviderRequest(
               }
 
               const costResult = calculateCost(
-                request.model,
+                reportedModel,
                 usage.prompt_tokens,
                 usage.completion_tokens
               )
@@ -226,8 +194,11 @@ export async function executeOllamaProviderRequest(
     }
 
     const initialCallTime = Date.now()
+    const originalToolChoice = payload.tool_choice
+    const forcedTools = preparedTools?.forcedTools || []
+    let usedForcedTools: string[] = []
 
-    let currentResponse = await ollama.chat.completions.create(
+    let currentResponse = await client.chat.completions.create(
       await prepareConversationGeneration(request, 'chat-completions', payload),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )
@@ -242,25 +213,18 @@ export async function executeOllamaProviderRequest(
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
-
-    if (content && request.responseFormat) {
-      content = content.replace(/```json\n?|\n?```/g, '')
-      content = content.trim()
-    }
-
     const tokens = {
       input: currentResponse.usage?.prompt_tokens || 0,
       output: currentResponse.usage?.completion_tokens || 0,
       total: currentResponse.usage?.total_tokens || 0,
     }
-    const toolCalls = []
+    const toolCalls: FunctionCallResponse[] = []
     const toolResults: Record<string, unknown>[] = []
     const currentMessages = [...formattedMessages]
     let iterationCount = 0
-
     let modelTime = firstResponseTime
     let toolsTime = 0
-
+    let hasUsedForcedTool = false
     const timeSegments: TimeSegment[] = [
       {
         type: 'model',
@@ -271,12 +235,19 @@ export async function executeOllamaProviderRequest(
       },
     ]
 
+    const forcedToolResult = checkForForcedToolUsageOpenAI(
+      currentResponse,
+      originalToolChoice ?? 'auto',
+      providerName,
+      forcedTools,
+      usedForcedTools
+    )
+    hasUsedForcedTool = forcedToolResult.hasUsedForcedTool
+    usedForcedTools = forcedToolResult.usedForcedTools
+
     while (iterationCount < MAX_TOOL_ITERATIONS) {
       if (currentResponse.choices[0]?.message?.content) {
         content = currentResponse.choices[0].message.content
-        if (request.responseFormat) {
-          content = content.replace(/```json\n?|\n?```/g, '').trim()
-        }
       }
 
       const toolCallsInResponse =
@@ -286,19 +257,12 @@ export async function executeOllamaProviderRequest(
         timeSegments,
         currentResponse,
         toolCallsInResponse,
-        {
-          model: request.model,
-          provider: providerId,
-        }
+        { model: request.model, provider: providerId }
       )
 
       if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
         break
       }
-
-      logger.info(
-        `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
-      )
 
       const toolsStartTime = Date.now()
 
@@ -375,7 +339,10 @@ export async function executeOllamaProviderRequest(
             getErrorMessage(error, 'Tool execution failed')
           )
           const toolCallEndTime = Date.now()
-          logger.error('Error processing tool call:', { error, toolName })
+          logger.error(`Error processing tool call (${providerName}):`, {
+            error: toError(error).message,
+            toolName,
+          })
 
           return {
             toolCall,
@@ -396,13 +363,18 @@ export async function executeOllamaProviderRequest(
       const executionResults = await Promise.all(toolExecutionPromises)
       const assistantMessage = currentResponse.choices[0]?.message
       if (assistantMessage) {
-        currentMessages.push(
-          createOpenAICompatAssistantHistory({
-            message: assistantMessage,
-            toolCalls: toolCallsInResponse,
-            reasoningFields: ['reasoning'],
-          })
-        )
+        const assistantHistory = createOpenAICompatAssistantHistory({
+          message: assistantMessage,
+          toolCalls: toolCallsInResponse,
+          reasoningFields: config.reasoningFields,
+        })
+        const extendedMessage = assistantMessage as ChatCompletionMessage & {
+          reasoning_details?: unknown[]
+        }
+        if (config.preserveReasoningDetails && Array.isArray(extendedMessage.reasoning_details)) {
+          assistantHistory.reasoning_details = extendedMessage.reasoning_details
+        }
+        currentMessages.push(assistantHistory)
       }
 
       for (const executionResult of executionResults) {
@@ -466,9 +438,17 @@ export async function executeOllamaProviderRequest(
         messages: currentMessages,
       }
 
-      const nextModelStartTime = Date.now()
+      if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+        if (remainingTools.length > 0) {
+          nextPayload.tool_choice = { type: 'function', function: { name: remainingTools[0] } }
+        } else {
+          nextPayload.tool_choice = 'auto'
+        }
+      }
 
-      currentResponse = await ollama.chat.completions.create(
+      const nextModelStartTime = Date.now()
+      currentResponse = await client.chat.completions.create(
         await prepareConversationGeneration(request, 'chat-completions', nextPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
@@ -480,10 +460,17 @@ export async function executeOllamaProviderRequest(
           getChatCompletionConversationUsage(currentResponse.usage)
         )
       }
-
+      const nextForcedToolResult = checkForForcedToolUsageOpenAI(
+        currentResponse,
+        nextPayload.tool_choice ?? 'auto',
+        providerName,
+        forcedTools,
+        usedForcedTools
+      )
+      hasUsedForcedTool = nextForcedToolResult.hasUsedForcedTool
+      usedForcedTools = nextForcedToolResult.usedForcedTools
       const nextModelEndTime = Date.now()
       const thisModelTime = nextModelEndTime - nextModelStartTime
-
       timeSegments.push({
         type: 'model',
         name: request.model,
@@ -491,50 +478,112 @@ export async function executeOllamaProviderRequest(
         endTime: nextModelEndTime,
         duration: thisModelTime,
       })
-
       modelTime += thisModelTime
-
       if (currentResponse.choices[0]?.message?.content) {
         content = currentResponse.choices[0].message.content
-        if (request.responseFormat) {
-          content = content.replace(/```json\n?|\n?```/g, '').trim()
-        }
       }
-
       if (currentResponse.usage) {
         tokens.input += currentResponse.usage.prompt_tokens || 0
         tokens.output += currentResponse.usage.completion_tokens || 0
         tokens.total += currentResponse.usage.total_tokens || 0
       }
-
       iterationCount++
     }
 
     if (iterationCount === MAX_TOOL_ITERATIONS) {
-      enrichLastModelSegmentFromChatCompletions(
-        timeSegments,
-        currentResponse,
-        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
-        { model: request.model, provider: providerId }
-      )
+      if (config.recordPendingUsage && currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await recordProviderConversationUsage(
+          request,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
+      const pendingToolCalls =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+      enrichLastModelSegmentFromChatCompletions(timeSegments, currentResponse, pendingToolCalls, {
+        model: request.model,
+        provider: providerId,
+      })
+
+      if (pendingToolCalls?.length && !(request.responseFormat && hasActiveTools)) {
+        const finalPayload: ChatCompletionPayload = {
+          ...payload,
+          messages: [...currentMessages],
+          tool_choice: 'none',
+        }
+
+        if (request.responseFormat) {
+          finalPayload.messages = await applyResponseFormat(
+            finalPayload,
+            finalPayload.messages,
+            request.responseFormat,
+            requestedModel
+          )
+        }
+
+        const finalStartTime = Date.now()
+        const finalResponse = await client.chat.completions.create(
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
+        if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            finalResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(finalResponse.usage)
+          )
+        }
+        const finalEndTime = Date.now()
+        const finalDuration = finalEndTime - finalStartTime
+
+        timeSegments.push({
+          type: 'model',
+          name: 'Final answer after tool iteration limit',
+          startTime: finalStartTime,
+          endTime: finalEndTime,
+          duration: finalDuration,
+        })
+        modelTime += finalDuration
+
+        if (finalResponse.choices[0]?.message?.content) {
+          content = finalResponse.choices[0].message.content
+        }
+        if (finalResponse.usage) {
+          tokens.input += finalResponse.usage.prompt_tokens || 0
+          tokens.output += finalResponse.usage.completion_tokens || 0
+          tokens.total += finalResponse.usage.total_tokens || 0
+        }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          finalResponse,
+          finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
+          { model: request.model, provider: providerId }
+        )
+      }
     }
 
-    /**
-     * Deferred structured output is a distinct extraction step, not streaming
-     * regeneration. Ollama cannot combine its JSON mode reliably with tool use.
-     */
     if (request.responseFormat && hasActiveTools) {
-      const finalPayload: any = { model: payload.model }
-      if (payload.temperature !== undefined) finalPayload.temperature = payload.temperature
-      if (payload.max_tokens !== undefined) finalPayload.max_tokens = payload.max_tokens
-      finalPayload.messages = applyJsonResponseFormat(
+      const finalPayload: ChatCompletionPayload = {
+        model: payload.model,
+        messages: [...currentMessages],
+      }
+      if (payload.temperature !== undefined) {
+        finalPayload.temperature = payload.temperature
+      }
+      if (payload.max_tokens !== undefined) {
+        finalPayload.max_tokens = payload.max_tokens
+      }
+
+      finalPayload.messages = await applyResponseFormat(
         finalPayload,
-        currentMessages,
-        request.responseFormat
+        finalPayload.messages,
+        request.responseFormat,
+        requestedModel
       )
 
       const finalStartTime = Date.now()
-      const finalResponse = await ollama.chat.completions.create(
+      const finalResponse = await client.chat.completions.create(
         await prepareConversationGeneration(request, 'chat-completions', finalPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
@@ -547,18 +596,19 @@ export async function executeOllamaProviderRequest(
         )
       }
       const finalEndTime = Date.now()
+      const finalDuration = finalEndTime - finalStartTime
 
       timeSegments.push({
         type: 'model',
         name: 'Final structured response',
         startTime: finalStartTime,
         endTime: finalEndTime,
-        duration: finalEndTime - finalStartTime,
+        duration: finalDuration,
       })
-      modelTime += finalEndTime - finalStartTime
+      modelTime += finalDuration
 
       if (finalResponse.choices[0]?.message?.content) {
-        content = finalResponse.choices[0].message.content.replace(/```json\n?|\n?```/g, '').trim()
+        content = finalResponse.choices[0].message.content
       }
       if (finalResponse.usage) {
         tokens.input += finalResponse.usage.prompt_tokens || 0
@@ -572,65 +622,20 @@ export async function executeOllamaProviderRequest(
         finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
-    } else if (
-      iterationCount === MAX_TOOL_ITERATIONS &&
-      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
-    ) {
-      /**
-       * The capped turn still requests tools, so make one tool-disabled call to
-       * synthesize an answer from the tool results already gathered.
-       */
-      const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
-      const synthesisStartTime = Date.now()
-      const synthesisResponse = await ollama.chat.completions.create(
-        await prepareConversationGeneration(request, 'chat-completions', {
-          ...synthesisPayload,
-          messages: currentMessages,
-        }),
-        request.abortSignal ? { signal: request.abortSignal } : undefined
-      )
-      if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
-        await captureProviderConversationStep(
-          request,
-          'chat-completions',
-          synthesisResponse.choices[0]?.message,
-          getChatCompletionConversationUsage(synthesisResponse.usage)
-        )
-      }
-      const synthesisEndTime = Date.now()
-
-      timeSegments.push({
-        type: 'model',
-        name: 'Final answer after tool limit',
-        startTime: synthesisStartTime,
-        endTime: synthesisEndTime,
-        duration: synthesisEndTime - synthesisStartTime,
-      })
-      modelTime += synthesisEndTime - synthesisStartTime
-
-      content = synthesisResponse.choices[0]?.message?.content || content
-      if (synthesisResponse.usage) {
-        tokens.input += synthesisResponse.usage.prompt_tokens || 0
-        tokens.output += synthesisResponse.usage.completion_tokens || 0
-        tokens.total += synthesisResponse.usage.total_tokens || 0
-      }
-
-      enrichLastModelSegmentFromChatCompletions(
-        timeSegments,
-        synthesisResponse,
-        synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
-        { model: request.model, provider: providerId }
-      )
     }
 
     if (request.stream) {
-      logger.info(`Projecting settled ${providerLabel} response after tool processing`)
-
-      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
+      const accumulatedCost = calculateCost(reportedModel, tokens.input, tokens.output)
       const toolCost = sumToolCosts(toolResults)
+      const finalCost = {
+        input: accumulatedCost.input,
+        output: accumulatedCost.output,
+        toolCost: toolCost || undefined,
+        total: accumulatedCost.total + toolCost,
+      }
 
-      return createStreamingExecution({
-        model: request.model,
+      const streamingResult = createStreamingExecution({
+        model: reportedModel,
         providerStartTime,
         providerStartTimeISO,
         timing: {
@@ -641,31 +646,20 @@ export async function executeOllamaProviderRequest(
           iterations: timeSegments.filter((segment) => segment.type === 'model').length,
           timeSegments,
         },
-        initialTokens: {
-          input: tokens.input,
-          output: tokens.output,
-          total: tokens.total,
-        },
-        initialCost: {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          toolCost: toolCost || undefined,
-          total: accumulatedCost.total + toolCost,
-        },
-        toolCalls:
-          toolCalls.length > 0
-            ? {
-                list: toolCalls,
-                count: toolCalls.length,
-              }
-            : undefined,
+        initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
+        initialCost: finalCost,
+        toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) => {
           output.content = content
+          output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+          output.cost = finalCost
           finalizeTiming()
           return createSettledAgentEventStream(content)
         },
       })
+
+      return streamingResult
     }
 
     const providerEndTime = Date.now()
@@ -674,7 +668,7 @@ export async function executeOllamaProviderRequest(
 
     return {
       content,
-      model: request.model,
+      model: reportedModel,
       tokens,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolResults: toolResults.length > 0 ? toolResults : undefined,
@@ -694,31 +688,27 @@ export async function executeOllamaProviderRequest(
     const providerEndTimeISO = new Date(providerEndTime).toISOString()
     const totalDuration = providerEndTime - providerStartTime
 
-    let errorMessage = getErrorMessage(error, 'Unknown error')
-    let errorType: string | undefined
-    let errorCode: string | undefined
-    let status: number | undefined
-
-    if (error instanceof OpenAI.APIError) {
-      errorMessage = error.message
-      errorType = error.type
-      errorCode = error.code ?? undefined
-      status = error.status
+    const errorDetails: Record<string, unknown> = {
+      error: toError(error).message,
+      duration: totalDuration,
+    }
+    if (isRecordLike(error)) {
+      const err = error
+      if (err.status) errorDetails.status = err.status
+      if (err.code) errorDetails.code = err.code
+      if (err.type) errorDetails.type = err.type
+      if (isRecordLike(err.error)) {
+        if (err.error.message) errorDetails.providerMessage = err.error.message
+        if (err.error.metadata) errorDetails.metadata = err.error.metadata
+      }
     }
 
-    logger.error(`Error in ${providerLabel} request:`, {
-      error: errorMessage,
-      errorType,
-      errorCode,
-      status,
-      duration: totalDuration,
-    })
-
+    logger.error(`Error in ${providerName} request:`, errorDetails)
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 
-    throw new ProviderError(errorMessage, {
+    throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
