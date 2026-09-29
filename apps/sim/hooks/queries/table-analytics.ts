@@ -1,10 +1,12 @@
 'use client'
 
+import { createContext, useContext } from 'react'
 import { omit } from '@sim/utils/object'
 import { hashKey, keepPreviousData, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type QueryTableAnalyticsBody,
+  type QueryTableAnalyticsResponse,
   queryTableAnalyticsContract,
 } from '@/lib/api/contracts/table-analytics'
 
@@ -16,19 +18,30 @@ export const tableAnalyticsKeys = {
     [...tableAnalyticsKeys.queries(), tableId, body] as const,
 }
 
+export type TableAnalyticsSource = (
+  tableId: string,
+  body: QueryTableAnalyticsBody
+) => Promise<QueryTableAnalyticsResponse>
+
+/** Replaces the analytics endpoint for a subtree; used by UI prototypes with mock rows. */
+export const TableAnalyticsSourceContext = createContext<TableAnalyticsSource | null>(null)
+
 interface UseTableAnalyticsProps {
   tableId: string
   body: QueryTableAnalyticsBody
 }
 export function useTableAnalytics({ tableId, body }: UseTableAnalyticsProps) {
+  const source = useContext(TableAnalyticsSourceContext)
   return useQuery({
     queryKey: tableAnalyticsKeys.query(tableId, body),
     queryFn: async ({ signal }) => {
-      const result = await requestJson(queryTableAnalyticsContract, {
-        params: { tableId },
-        body,
-        signal,
-      })
+      const result = source
+        ? await source(tableId, body)
+        : await requestJson(queryTableAnalyticsContract, {
+            params: { tableId },
+            body,
+            signal,
+          })
       return { ...result, queryRange: { from: body.query.from, to: body.query.to } }
     },
     staleTime: TABLE_ANALYTICS_STALE_TIME,

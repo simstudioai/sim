@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
@@ -35,11 +35,14 @@ interface DashboardPreviewProps {
   fileId: string
   isStreaming?: boolean
   readOnly?: boolean
+  /** Replaces the plain title heading, e.g. with a dashboard switcher. */
+  title?: ReactNode
 }
 interface DashboardViewProps {
   spec: DashboardSpec
   workspaceId: string
   fileId: string
+  title?: ReactNode
 }
 
 function dashboardTableIds(spec: DashboardSpec): Set<string> {
@@ -56,7 +59,7 @@ function dashboardTableIds(spec: DashboardSpec): Set<string> {
   return ids
 }
 
-function DashboardView({ spec, workspaceId, fileId }: DashboardViewProps) {
+function DashboardView({ spec, workspaceId, fileId, title }: DashboardViewProps) {
   const cursorStoreRef = useRef<DashboardCursorStore | null>(null)
   cursorStoreRef.current ??= createDashboardCursorStore()
   const [state, setState] = useQueryStates(dashboardParsers, {
@@ -100,9 +103,11 @@ function DashboardView({ spec, workspaceId, fileId }: DashboardViewProps) {
     <div className='mx-auto flex w-full max-w-[1120px] flex-col gap-6'>
       <header className='grid @min-[1000px]/dashboard:grid-cols-[minmax(0,1fr)_auto] grid-cols-1 items-start gap-4'>
         <div className='flex min-w-0 flex-col gap-1'>
-          <h1 className='@min-[1000px]/dashboard:text-[32px] text-[28px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
-            {spec.title}
-          </h1>
+          {title ?? (
+            <h1 className='@min-[1000px]/dashboard:text-[32px] text-[28px] text-[var(--text-primary)] leading-tight tracking-[-0.02em]'>
+              {spec.title}
+            </h1>
+          )}
           {description && (
             <p className='max-w-[72ch] whitespace-pre-wrap break-words text-[var(--text-muted)] text-md'>
               {description}
@@ -175,6 +180,7 @@ export function DashboardPreview({
   fileId,
   isStreaming,
   readOnly,
+  title,
 }: DashboardPreviewProps) {
   const parsed = useMemo(() => parseDashboardSpec(content), [content])
   const loading = (
@@ -208,6 +214,7 @@ export function DashboardPreview({
             spec={parsed.spec}
             workspaceId={workspaceId}
             fileId={fileId}
+            title={title}
           />
         </Suspense>
       </div>
