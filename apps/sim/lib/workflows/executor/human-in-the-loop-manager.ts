@@ -151,26 +151,9 @@ class ResumeAdmissionError extends Error {
 /**
  * What a failed resume attempt did to its paused execution, as reported by the
  * transaction that settled the attempt: the pause stayed resumable, or the
- * resumed run failed the execution. An attempt that changed neither (the
- * execution had already finished or was cancelled) records nothing.
+ * resumed run failed the execution.
  */
 export type FailedResumeOutcome = 'pause_retained' | 'execution_failed'
-
-const failedResumeOutcomes = new WeakMap<object, FailedResumeOutcome>()
-
-/**
- * The {@link FailedResumeOutcome} recorded on an error rethrown by
- * `startResumeExecution`, so a caller mirroring the run's state (a table cell)
- * follows the execution rather than guessing from the error.
- */
-export function getFailedResumeOutcome(error: unknown): FailedResumeOutcome | undefined {
-  return typeof error === 'object' && error !== null ? failedResumeOutcomes.get(error) : undefined
-}
-
-function recordFailedResumeOutcome(error: unknown, outcome: FailedResumeOutcome | undefined): void {
-  if (outcome && typeof error === 'object' && error !== null)
-    failedResumeOutcomes.set(error, outcome)
-}
 
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
 export function requireResumeDeploymentVersion(
@@ -457,6 +440,13 @@ interface StartResumeExecutionArgs {
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
+  /**
+   * Called once a failed attempt is settled, so a caller mirroring the run's
+   * state (a table cell) follows the execution. Not called when the attempt
+   * changed neither (the execution had already finished or was cancelled). A
+   * throw is logged and never replaces the attempt's error.
+   */
+  onAttemptFailed?: (outcome: FailedResumeOutcome, error: unknown) => Promise<void>
   abortSignal?: AbortSignal
 }
 
@@ -902,6 +892,7 @@ export class PauseResumeManager {
       sendEvent,
       onStream,
       onBlockComplete,
+      onAttemptFailed,
       abortSignal,
     } = args
 
@@ -1024,6 +1015,7 @@ export class PauseResumeManager {
     } catch (error) {
       const message = toError(error).message
       await releaseExecutionSlot(resumeEntryId)
+      let outcome: FailedResumeOutcome | undefined
       if (error instanceof ResumeAdmissionError) {
         const pauseResumable = await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
@@ -1034,7 +1026,7 @@ export class PauseResumeManager {
           preserveForRetry: true,
           retryable: error.retryable,
         })
-        recordFailedResumeOutcome(error, pauseResumable ? 'pause_retained' : undefined)
+        if (pauseResumable) outcome = 'pause_retained'
       } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR) {
         const pauseResumable = await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
@@ -1043,7 +1035,7 @@ export class PauseResumeManager {
           contextId,
           failureReason: message,
         })
-        recordFailedResumeOutcome(error, pauseResumable ? 'pause_retained' : undefined)
+        if (pauseResumable) outcome = 'pause_retained'
       } else {
         const executionFailed = await PauseResumeManager.markResumeFailed({
           resumeEntryId,
@@ -1052,7 +1044,15 @@ export class PauseResumeManager {
           contextId,
           failureReason: message,
         })
-        recordFailedResumeOutcome(error, executionFailed ? 'execution_failed' : undefined)
+        if (executionFailed) outcome = 'execution_failed'
+      }
+      if (outcome && onAttemptFailed) {
+        await onAttemptFailed(outcome, error).catch((hookError: unknown) => {
+          logger.error(
+            'Failed to report a failed resume attempt',
+            projectResolvedSecretDiagnosticError(hookError, undefined, { resumeExecutionId })
+          )
+        })
       }
       logger.error(
         'Resume execution failed',

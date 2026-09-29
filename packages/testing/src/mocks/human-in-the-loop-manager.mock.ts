@@ -162,9 +162,6 @@ export const humanInTheLoopManagerMockFns = {
     }
   ),
   mockCreateResumeAttemptTimeoutController: vi.fn(),
-  mockGetFailedResumeOutcome: vi.fn(
-    (_error: unknown): 'pause_retained' | 'execution_failed' | undefined => undefined
-  ),
   mockExtractResumeBillingAttributionFromSnapshot: vi.fn(),
   mockComputeEarliestResumeAt: vi.fn(
     (points: Iterable<MockPausePoint>, options: { after?: Date } = {}): Date | null => {
@@ -198,7 +195,6 @@ export const humanInTheLoopManagerMock = {
     humanInTheLoopManagerMockFns.mockUpdateResumeOutputInAggregationBuffers,
   createResumeAttemptTimeoutController:
     humanInTheLoopManagerMockFns.mockCreateResumeAttemptTimeoutController,
-  getFailedResumeOutcome: humanInTheLoopManagerMockFns.mockGetFailedResumeOutcome,
   extractResumeBillingAttributionFromSnapshot:
     humanInTheLoopManagerMockFns.mockExtractResumeBillingAttributionFromSnapshot,
   computeEarliestResumeAt: humanInTheLoopManagerMockFns.mockComputeEarliestResumeAt,

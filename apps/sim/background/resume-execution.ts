@@ -22,7 +22,7 @@ import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-re
 import type { CellResumeContext } from '@/lib/table/workflow-columns'
 import {
   createResumeAttemptTimeoutController,
-  getFailedResumeOutcome,
+  type FailedResumeOutcome,
   PauseResumeManager,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
@@ -365,23 +365,18 @@ async function buildResumeCellWriters(
  * A resume that throws never reaches the terminal write in
  * {@link runResumeAndCellTerminal}, which would leave the cell showing its last
  * partial `running` state. Mirror what the failed attempt did to the execution:
- * a pause that stayed resumable goes back to paused, a failed execution fails
- * the cell, and an attempt that changed nothing leaves the cell alone.
+ * a pause that stayed resumable goes back to paused, and a failed execution
+ * fails the cell.
  */
-async function writeFailedResumeCellTerminal(writers: CellWriters, error: unknown): Promise<void> {
-  const outcome = getFailedResumeOutcome(error)
-  if (!outcome) return
-  try {
-    if (outcome === 'pause_retained') {
-      await writers.writeCellTerminal('paused', null)
-    } else {
-      await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
-    }
-  } catch (writeError) {
-    logger.error(
-      'Failed to write the cell state after a failed resume',
-      projectResolvedSecretDiagnosticError(writeError, undefined)
-    )
+async function writeFailedResumeCellTerminal(
+  writers: CellWriters,
+  outcome: FailedResumeOutcome,
+  error: unknown
+): Promise<void> {
+  if (outcome === 'pause_retained') {
+    await writers.writeCellTerminal('paused', null)
+  } else {
+    await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
   }
 }
 
@@ -393,22 +388,17 @@ async function runResumeAndCellTerminal(
   timeoutController: ReturnType<typeof createTimeoutAbortController>
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
-  let result: Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>
-  try {
-    result = await PauseResumeManager.startResumeExecution({
-      resumeEntryId: payload.resumeEntryId,
-      resumeExecutionId: payload.resumeExecutionId,
-      pausedExecution,
-      contextId: payload.contextId,
-      resumeInput: payload.resumeInput,
-      userId: payload.userId,
-      onBlockComplete: writers.cellOnBlockComplete,
-      abortSignal: signal,
-    })
-  } catch (error) {
-    await writeFailedResumeCellTerminal(writers, error)
-    throw error
-  }
+  const result = await PauseResumeManager.startResumeExecution({
+    resumeEntryId: payload.resumeEntryId,
+    resumeExecutionId: payload.resumeExecutionId,
+    pausedExecution,
+    contextId: payload.contextId,
+    resumeInput: payload.resumeInput,
+    userId: payload.userId,
+    onBlockComplete: writers.cellOnBlockComplete,
+    onAttemptFailed: (outcome, error) => writeFailedResumeCellTerminal(writers, outcome, error),
+    abortSignal: signal,
+  })
 
   if (result.status === 'paused') {
     await writers.writeCellTerminal('paused', null)
