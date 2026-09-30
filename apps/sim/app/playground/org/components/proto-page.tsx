@@ -1,7 +1,7 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import { ChatThread } from '@/app/playground/org/components/chat-thread'
+import { ChatSurface } from '@/app/playground/org/components/chat-surface'
 import { IssuePage } from '@/app/playground/org/components/issue-page'
 import { NewChatHome } from '@/app/playground/org/components/new-chat-home'
 import { ProjectShell } from '@/app/playground/org/components/project-shell'
@@ -24,14 +24,7 @@ export function ProtoPage({ slug }: { slug?: string[] }) {
     case 'chat': {
       const chat = CHATS.find((c) => c.id === route.chatId)
       if (!chat) notFound()
-      return (
-        <div className='flex h-full flex-col'>
-          <header className='flex h-12 shrink-0 items-center border-[var(--border)] border-b px-6 text-[var(--text-body)] text-small'>
-            {chat.title}
-          </header>
-          <ChatThread placeholder='Reply to Sim…' className='mx-auto w-full max-w-[760px]' />
-        </div>
-      )
+      return <ChatSurface chat={chat} />
     }
     case 'workspace': {
       const workspace = WORKSPACES.find((w) => w.id === route.workspaceId)

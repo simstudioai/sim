@@ -42,13 +42,10 @@ export const protoRoutes = {
   home: PROTO_BASE,
   search: `${PROTO_BASE}/search`,
   connectors: `${PROTO_BASE}/connectors`,
-  /** Project chats slide in beside their project; org-level chats open on their own page. */
+  /** Every chat opens on its own page with the resource panel beside it. */
   chat: (chatId: string) => {
-    const chat = CHATS.find((c) => c.id === chatId)
-    if (!chat) throw new Error(`Unknown chat ${chatId}`)
-    return chat.workspaceId
-      ? `${PROTO_BASE}/p/${chat.workspaceId}/dashboard?chat=${chatId}`
-      : `${PROTO_BASE}/chat/${chatId}`
+    if (!CHATS.some((c) => c.id === chatId)) throw new Error(`Unknown chat ${chatId}`)
+    return `${PROTO_BASE}/chat/${chatId}`
   },
   /** Main project view for dashboard/changelog/issues; any other section opens the full view. */
   workspace: (workspaceId: string, section: WorkspaceSection = 'dashboard') =>

@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { MockComposer } from '@/app/playground/org/components/mock-composer'
 
-interface Message {
+export interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
 }
 
-const SEED: Message[] = [
+const SEED: ChatMessage[] = [
   { role: 'user', text: 'Why is churn-agent slow on batch 3?' },
   {
     role: 'assistant',
@@ -19,12 +19,13 @@ const SEED: Message[] = [
 
 interface ChatThreadProps {
   placeholder: string
+  seed?: ChatMessage[]
   className?: string
 }
 
 /** Static chat thread; replies are canned so the layout can be judged without Mothership. */
-export function ChatThread({ placeholder, className }: ChatThreadProps) {
-  const [messages, setMessages] = useState<Message[]>(SEED)
+export function ChatThread({ placeholder, seed = SEED, className }: ChatThreadProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>(seed)
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
       <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4'>
