@@ -1,8 +1,11 @@
 'use client'
 
 import { Skeleton } from '@sim/emcn'
-import { useQueryState } from 'nuqs'
-import { LineageStrip } from '@/app/o/[organizationId]/p/components/environments/lineage-strip'
+import { useQueryState, useQueryStates } from 'nuqs'
+import {
+  LineageStrip,
+  type PipelineFocus,
+} from '@/app/o/[organizationId]/p/components/environments/lineage-strip'
 import {
   EnvironmentTable,
   MappingGrid,
@@ -17,7 +20,9 @@ import {
   WORKFLOW_TAB,
 } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import { ResourceTabs } from '@/app/o/[organizationId]/p/components/environments/resource-tabs'
+import { SyncReview } from '@/app/o/[organizationId]/p/components/environments/sync-review'
 import { useEnvironmentMappings } from '@/app/o/[organizationId]/p/components/environments/use-environment-mappings'
+import { usePipelineChanges } from '@/app/o/[organizationId]/p/components/environments/use-pipeline-changes'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { projectParsers } from '@/app/o/[organizationId]/p/search-params'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -38,6 +43,10 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
     'resource',
     projectParsers.resource.withOptions({ history: 'replace', clearOnDefault: true })
   )
+  const [{ edge: edgeParam, sync: syncParam }, setSync] = useQueryStates(
+    { edge: projectParsers.edge, sync: projectParsers.sync },
+    { history: 'replace', clearOnDefault: true }
+  )
   const { data: workspaces } = useWorkspacesQuery()
   const availability = useForkingAvailability(project.id)
   const permissions = useOptionalWorkspacePermissionsContext()?.userPermissions
@@ -54,6 +63,22 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
   }
   const columns = orderEnvironments(project.rootId, project.environments, parentOf, nameOf)
   const edges = lineageEdges(columns)
+  const changeCounts = usePipelineChanges(edges, canManage)
+  /**
+   * The sync under review: the one the URL names, else the current environment's own edge to
+   * its parent, else the edge into the root, so the tab opens on the sync that matters most.
+   */
+  const focusEdge =
+    edges.find((edge) => edge.childId === edgeParam) ??
+    edges.find((edge) => edge.childId === project.id) ??
+    edges.find((edge) => edge.parentId === project.rootId) ??
+    edges[0]
+  const focus: PipelineFocus | null = focusEdge
+    ? { childId: focusEdge.childId, direction: syncParam }
+    : null
+  const columnById = new Map(columns.map((column) => [column.id, column]))
+  const focusChild = focusEdge ? columnById.get(focusEdge.childId) : undefined
+  const focusParent = focusEdge ? columnById.get(focusEdge.parentId) : undefined
   const data = useEnvironmentMappings({
     columns,
     edges,
@@ -84,7 +109,13 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
         columns={columns}
         lineageByEnv={data.lineageByEnv}
         canManage={canManage}
+        focus={canManage ? focus : null}
+        changeCounts={changeCounts}
+        onFocus={(next) => void setSync({ edge: next.childId, sync: next.direction })}
       />
+      {canManage && focus && focusChild && focusParent ? (
+        <SyncReview child={focusChild} parent={focusParent} direction={focus.direction} />
+      ) : null}
       {gateLoading ? <Skeleton className='h-[30px] w-[320px]' /> : null}
       {notice ? <p className='text-[var(--text-muted)] text-small'>{notice}</p> : null}
       {showGrid ? (

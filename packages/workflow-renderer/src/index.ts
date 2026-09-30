@@ -22,6 +22,7 @@ export {
   getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
+export { ExecutionPulse, type PulseGlowBounds } from './edge/execution-pulse'
 export {
   type WorkflowEdge,
   type WorkflowEdgeData,

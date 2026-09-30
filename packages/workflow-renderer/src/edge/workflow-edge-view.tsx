@@ -9,39 +9,9 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
+import { ExecutionPulse, PULSE_GLOW_BLEED_PX } from './execution-pulse'
 
-const EXECUTION_PULSE_LENGTH = 0.32
-const EXECUTION_PULSE_CYCLE_LENGTH = 2.2
-const EXECUTION_PULSE_DURATION = '1100ms'
 const DEFAULT_EDGE_LABEL_Z_INDEX = 1011
-
-/**
- * How far the glow reaches past the path, in user space.
- *
- * The pulse strokes are `non-scaling-stroke`, so the widest one (6px) covers
- * `3 / zoom` user units — 30 at the canvas minimum of 0.1 — while the blur adds
- * roughly 3σ more. Under-sizing the filter region does not shrink the glow, it
- * clips it to a hard rectangle, so this is rounded up rather than tuned: the
- * region only bounds the output, it costs nothing to be larger than needed.
- */
-const PULSE_GLOW_BLEED_PX = 40
-
-const EXECUTION_PULSE_LAYERS = [
-  { id: 'tail', length: EXECUTION_PULSE_LENGTH, opacity: 0.22, strokeWidth: 6 },
-  { id: 'shoulder', length: 0.23, opacity: 0.32, strokeWidth: 3.5 },
-  { id: 'body', length: 0.15, opacity: 0.6, strokeWidth: 2.5 },
-  { id: 'core', length: 0.07, opacity: 1, strokeWidth: 2.5 },
-] as const
-
-function getExecutionPulseMotion(length: number) {
-  const centerOffset = (EXECUTION_PULSE_LENGTH - length) / 2
-
-  return {
-    dashArray: `${length} ${(EXECUTION_PULSE_CYCLE_LENGTH - length).toFixed(2)}`,
-    from: centerOffset === 0 ? '0' : `-${centerOffset.toFixed(3)}`,
-    to: `-${(EXECUTION_PULSE_CYCLE_LENGTH + centerOffset).toFixed(3)}`,
-  }
-}
 
 /**
  * Props for the pure workflow edge renderer.
@@ -221,59 +191,7 @@ export function WorkflowEdgeView({
       <g data-workflow-edge-state={executionState}>
         <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
         {showsPulse && (
-          <>
-            <defs>
-              {/*
-                `userSpaceOnUse` rather than the default `objectBoundingBox`: a
-                straight horizontal edge — what an auto-laid-out chain produces,
-                since handles sit at fixed Y offsets — has a zero-height
-                bounding box, which resolves the region to zero height and stops
-                the referencing element from rendering at all.
-              */}
-              <filter
-                id={pulseGlowId}
-                filterUnits='userSpaceOnUse'
-                x={pulseGlowBounds.x}
-                y={pulseGlowBounds.y}
-                width={pulseGlowBounds.width}
-                height={pulseGlowBounds.height}
-              >
-                <feGaussianBlur stdDeviation='2.4' />
-              </filter>
-            </defs>
-            {EXECUTION_PULSE_LAYERS.map((layer) => {
-              const motion = getExecutionPulseMotion(layer.length)
-
-              return (
-                <path
-                  key={layer.id}
-                  data-workflow-edge-pulse-layer={layer.id}
-                  data-workflow-edge-pulse-glow={layer.id === 'tail' ? '' : undefined}
-                  data-workflow-edge-traversing={layer.id === 'core' ? '' : undefined}
-                  d={edgePath}
-                  fill='none'
-                  stroke='var(--white)'
-                  strokeWidth={layer.strokeWidth}
-                  strokeLinecap='round'
-                  pathLength={1}
-                  strokeDasharray={motion.dashArray}
-                  vectorEffect='non-scaling-stroke'
-                  filter={layer.id === 'tail' ? `url(#${pulseGlowId})` : undefined}
-                  opacity={layer.opacity}
-                  className='pointer-events-none'
-                >
-                  <animate
-                    attributeName='stroke-dashoffset'
-                    from={motion.from}
-                    to={motion.to}
-                    dur={EXECUTION_PULSE_DURATION}
-                    calcMode='linear'
-                    repeatCount='indefinite'
-                  />
-                </path>
-              )
-            })}
-          </>
+          <ExecutionPulse path={edgePath} glowId={pulseGlowId} glowBounds={pulseGlowBounds} />
         )}
       </g>
 
