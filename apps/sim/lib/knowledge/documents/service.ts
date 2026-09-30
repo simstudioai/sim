@@ -1690,8 +1690,13 @@ export async function processDocumentAsync(
             and(
               eq(document.id, documentId),
               eq(document.processingStatus, 'pending'),
-              /** A duplicate of an already-withdrawn generation must not refund again. */
-              isNotNull(document.processingQueuedAt),
+              /**
+               * Only the exact stamp this payload was queued with: a duplicate of an already
+               * withdrawn generation, or a newer stamp under a reused token, is left alone.
+               */
+              attemptContext.processingQueuedAt
+                ? eq(document.processingQueuedAt, attemptContext.processingQueuedAt)
+                : isNotNull(document.processingQueuedAt),
               ...queueGenerationConditions(attemptContext)
             )
           )

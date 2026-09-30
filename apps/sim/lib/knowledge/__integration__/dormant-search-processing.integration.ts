@@ -133,7 +133,7 @@ describe('dormant Search document processing', () => {
     expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 1 })
   })
 
-  it('leaves a newer queued generation untouched', async () => {
+  it('leaves a newer queued generation untouched, even under a reused token', async () => {
     const queuedAt = new Date('2026-09-29T01:00:00.000Z')
     const newer = generateId()
     await db
@@ -143,6 +143,11 @@ describe('dormant Search document processing', () => {
     await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
       chargedAtDispatch: true,
       processingQueueToken: generateId(),
+    })
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: newer,
+      processingQueuedAt: new Date('2026-09-29T00:30:00.000Z'),
     })
     const [stored] = await db
       .select({
