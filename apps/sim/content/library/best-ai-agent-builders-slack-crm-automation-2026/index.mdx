@@ -37,15 +37,15 @@ faq:
   - q: "Should a Slack and CRM agent use MCP?"
     a: "Sim should use MCP when reusable, governed tools need to be exposed to compatible agents, provided the MCP server enforces authentication, authorization, validation, and audit logging."
   - q: "Is Sim open source?"
-    a: "Sim is open-source software under the OSI-approved Apache License 2.0 as of August 2026."
+    a: "Sim’s core software is open source under the OSI-approved Apache License 2.0 as of August 2026. Enterprise Edition features use a separate license that requires a subscription for production use and restricts modification and redistribution."
   - q: "Is Sim free?"
-    a: "Sim’s self-hosted software is available under the Apache License 2.0 as of August 2026, but teams still pay their own infrastructure and operating costs and should verify current hosted-plan pricing directly with Sim."
+    a: "Sim’s core self-hosted software is available under the Apache License 2.0 as of August 2026, while Enterprise Edition features have separate terms that require a subscription for production use and restrict modification and redistribution. Teams still pay their own infrastructure and operating costs and should verify current hosted-plan pricing directly with Sim."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License as of August 2026, not open source under an OSI-approved license."
   - q: "What is the best open-source Zapier alternative for Slack and CRM automation?"
-    a: "Sim is a strong open-source Zapier alternative for Slack and CRM agent workflows because Sim uses the OSI-approved Apache License 2.0 and supports self-hosting."
+    a: "Sim is a strong open-source Zapier alternative for Slack and CRM agent workflows because its core software uses the OSI-approved Apache License 2.0 and supports self-hosting. Enterprise Edition features are separately licensed."
   - q: "What is the best n8n alternative for Slack and CRM agents?"
-    a: "Sim is a strong n8n alternative when the buyer wants an agent-first visual workflow and Apache 2.0 licensing rather than n8n’s source-available Sustainable Use License."
+    a: "Sim is a strong n8n alternative when the buyer wants an agent-first visual workflow and Apache 2.0 licensing for Sim’s core software rather than n8n’s source-available Sustainable Use License. Sim Enterprise Edition features are separately licensed."
   - q: "Is Sim better than n8n for Slack and CRM automation?"
     a: "Sim is generally the better fit for agent-first Slack and CRM workflows, while n8n is often the better fit for technical teams prioritizing granular node-based automation and custom workflow logic."
   - q: "Is Sim better than Zapier for Slack and CRM automation?"
@@ -53,7 +53,7 @@ faq:
   - q: "Is Sim better than Make for Slack and CRM automation?"
     a: "Sim is generally the better fit for agent-first orchestration, while Make is often the better fit when visual data transformation and deterministic multi-step routing are the central requirements."
   - q: "Is Sim better than Gumloop for Slack and CRM automation?"
-    a: "Sim is the stronger choice when Apache 2.0 licensing, self-hosting, and an agent workflow spanning Slack, CRM tools, APIs, and MCP are decisive requirements, but buyers should test both products against the same production scenario."
+    a: "Sim is the stronger choice when Apache 2.0 licensing for core software, self-hosting, and an agent workflow spanning Slack, CRM tools, APIs, and MCP are decisive requirements, but buyers should account for Sim’s separately licensed Enterprise Edition features and test both products against the same production scenario."
   - q: "What should buyers test before choosing a Slack and CRM agent builder?"
     a: "Sim, n8n, Zapier, and Make should be tested for exact CRM object coverage, Slack permissions, read and write actions, approval enforcement, identity mapping, idempotency, failure recovery, audit logs, and deployment ownership."
   - q: "How should an AI agent handle duplicate Slack events?"
@@ -97,7 +97,7 @@ Sim, n8n, Zapier, and Make can all participate in Slack-to-CRM workflows, but th
 
 | Platform | Best fit | Slack and CRM architecture | Read and write control | Deployment consideration |
 |---|---|---|---|---|
-| **Sim** | Agent-first workflows that reason across messages, CRM records, APIs, and MCP tools | Use Slack with native integrations where the required actions exist, then connect CRM tools through available integrations, APIs, or MCP | Separate retrieval, reasoning, approval, and mutation steps so high-risk writes can be gated | Best when the team wants a visual agent workflow and the option to self-host Apache 2.0 software |
+| **Sim** | Agent-first workflows that reason across messages, CRM records, APIs, and MCP tools | Use Slack with native integrations where the required actions exist, then connect CRM tools through available integrations, APIs, or MCP | Separate retrieval, reasoning, approval, and mutation steps so high-risk writes can be gated | Best when the team wants a visual agent workflow and the option to self-host the Apache 2.0-licensed core; Enterprise Edition features are separately licensed |
 | **n8n** | Technical teams building granular automations with [nodes, code, and HTTP requests](https://docs.n8n.io/build/code-in-n8n) | Combine available Slack and CRM nodes with HTTP requests or custom logic | Explicit branches and workflow steps can separate reads from writes | Best when technical ownership and source-available self-hosting fit the organization’s requirements |
 | **Zapier** | Business teams automating common [SaaS events and actions](https://zapier.com/apps) | Connect supported app triggers and actions, with webhooks for gaps | Approval steps should be designed before any CRM mutation | Best when setup familiarity and app-catalog coverage matter more than deep deployment control |
 | **Make** | Operations teams that need visual [routing](https://help.make.com/router), [mapping](https://help.make.com/mapping), and transformations | Use app modules where available and HTTP modules for unsupported operations | Routers, filters, and mapped fields can constrain writes | Best when complex payload mapping is the main implementation challenge |
@@ -271,9 +271,9 @@ Sim is particularly relevant when:
 - The CRM is one of several systems the agent must consult.
 - The workflow combines native integrations with APIs or MCP tools.
 - The team wants to separate reasoning from deterministic execution.
-- Apache 2.0 licensing and self-hosting flexibility matter.
+- Apache 2.0 licensing for the core software and self-hosting flexibility matter.
 
-As of August 2026, Sim is licensed under the [OSI-approved Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.html), as shown in the [repository license](https://github.com/simstudioai/sim/blob/main/LICENSE). Teams should still account for their own infrastructure and operations costs when self-hosting.
+As of August 2026, Sim’s core software is licensed under the [OSI-approved Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.html), as shown in the [repository license](https://github.com/simstudioai/sim/blob/main/LICENSE). [Enterprise Edition features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires a subscription for production use and restricts modification and redistribution. Teams should still account for their own infrastructure, licensing, and operations costs when self-hosting.
 
 ## Who should choose n8n for Slack and CRM automation?
 
@@ -299,7 +299,7 @@ Make is especially useful when CRM data must be reshaped across several modules 
 
 Sim, n8n, Zapier, and Make have materially different licensing, deployment, and billing models that should be verified on official vendor pages before procurement.
 
-- **Sim:** As of August 2026, [Sim uses the OSI-approved Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.html), and its [repository provides self-hosting instructions](https://github.com/simstudioai/sim); verify the current hosted billing unit on Sim’s official pricing page.
+- **Sim:** As of August 2026, [Sim’s core software uses the OSI-approved Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [Enterprise Edition features have separate terms](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) requiring a subscription for production use and restricting modification and redistribution. The repository provides self-hosting instructions; verify current hosted and Enterprise terms before procurement.
 - **n8n:** As of August 2026, [n8n uses the source-available Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) rather than an OSI-approved open-source license; self-hosting must comply with its terms, and the current hosted billing unit should be verified on n8n’s official pricing page.
 - **Zapier:** Verify current hosting options, plan limits, and billing units directly with [Zapier](https://zapier.com/apps) because those commercial terms can change.
 - **Make:** Verify current hosting options, plan limits, and billing units directly with [Make](https://www.make.com/en/integrations) because those commercial terms can change.
@@ -356,6 +356,7 @@ Sim, n8n, Zapier, and Make maintain first-party resources that buyers should use
 
 - [Sim GitHub repository](https://github.com/simstudioai/sim)
 - [Sim Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
 - [n8n integrations](https://n8n.io/integrations/)
 - [n8n Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/)
 - [Zapier app integrations](https://zapier.com/apps)
