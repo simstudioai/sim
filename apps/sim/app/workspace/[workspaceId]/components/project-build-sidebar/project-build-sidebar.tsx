@@ -170,15 +170,16 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
     return pathname?.startsWith(base) ? pathname.slice(base.length) : ''
   }, [pathname, workspaceId])
 
+  const organizationId = hostContext.hostOrganizationId ?? null
+  const projectHome = projectHomeHref(organizationId, workspaceId)
+  const environmentsHref = projectHomeHref(organizationId, workspaceId, 'environments')
   const projectNavItems = useMemo(
     (): SidebarNavItemData[] =>
-      PROJECT_NAV_SECTIONS.map((section) => ({
-        id: section.id,
-        label: section.label,
-        icon: section.icon,
-        href: projectHomeHref(workspaceId, section.id),
-      })),
-    [workspaceId]
+      PROJECT_NAV_SECTIONS.flatMap((section) => {
+        const href = projectHomeHref(organizationId, workspaceId, section.id)
+        return href ? [{ id: section.id, label: section.label, icon: section.icon, href }] : []
+      }),
+    [organizationId, workspaceId]
   )
 
   const buildNavItems = useMemo(() => {
@@ -320,7 +321,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
               <div className='min-w-0 flex-1'>
                 <SidebarTooltip label={`Back to ${project.name}`} enabled side='bottom'>
                   <ChipLink
-                    href={projectHomeHref(workspaceId)}
+                    href={projectHome ?? `/workspace/${workspaceId}/home`}
                     fullWidth
                     className={cn(SIDEBAR_RAIL_CHIP_CLASS, DRAG_EXEMPT_CLASS)}
                     leftAdornment={
@@ -420,13 +421,15 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                             </DropdownMenuItem>
                           )
                         })}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onSelect={() => router.push(projectHomeHref(workspaceId, 'environments'))}
-                        >
-                          <Plus />
-                          Manage environments
-                        </DropdownMenuItem>
+                        {environmentsHref && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => router.push(environmentsHref)}>
+                              <Plus />
+                              Manage environments
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </SidebarTooltip>

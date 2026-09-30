@@ -12,18 +12,20 @@ import {
   Table,
   Workflow,
 } from '@sim/emcn/icons'
-
-/**
- * Where a project's main view lives. The playground hosts it until graduation, when the org
- * projects route takes over; that move changes this constant and nothing else.
- */
-export const PROJECT_HOME_BASE = '/playground/org'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type ProjectSection = 'dashboard' | 'changelog' | 'issues' | 'environments'
 
-/** Href of one section of the project main view, for the workspace the viewer is in. */
-export function projectHomeHref(workspaceId: string, section: ProjectSection = 'dashboard') {
-  return `${PROJECT_HOME_BASE}/p/${workspaceId}/${section}`
+/**
+ * Href of one section of the project main view, which lives on the organization surface; a
+ * workspace outside any organization has no project view, so there is none.
+ */
+export function projectHomeHref(
+  organizationId: string | null,
+  workspaceId: string,
+  section: ProjectSection = 'dashboard'
+): string | null {
+  return organizationId ? organizationRoutes(organizationId).project(workspaceId, section) : null
 }
 
 interface ProjectNavSection {

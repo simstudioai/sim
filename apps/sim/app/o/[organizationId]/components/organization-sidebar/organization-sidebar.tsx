@@ -14,6 +14,7 @@ import {
   ChatsSection,
   OrganizationFooter,
   OrganizationHeader,
+  ProjectsSection,
   WorkspacesSection,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components'
 import { useOrganizationChats } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
@@ -21,6 +22,7 @@ import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/o
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -90,7 +92,13 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const isMac = isMacPlatform()
   const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
-  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped, canUseHome)
+  const projectViewEnabled = useFeatureFlag('org-project-view')
+  const navItems = buildOrganizationNavItems(
+    organization.id,
+    searchAccess.memberScoped,
+    canUseHome,
+    projectViewEnabled
+  )
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
@@ -258,11 +266,19 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                 {...scrollFadeAttributes(scrollEdges)}
               >
                 <div ref={scrollContentRef} className='flex flex-col'>
-                  <WorkspacesSection
-                    organizationId={organization.id}
-                    isCollapsed={isCollapsed}
-                    pathname={pathname}
-                  />
+                  {projectViewEnabled ? (
+                    <ProjectsSection
+                      organizationId={organization.id}
+                      isCollapsed={isCollapsed}
+                      pathname={pathname}
+                    />
+                  ) : (
+                    <WorkspacesSection
+                      organizationId={organization.id}
+                      isCollapsed={isCollapsed}
+                      pathname={pathname}
+                    />
+                  )}
                   {canUseHome && (
                     <OrganizationChats
                       key={organization.id}
