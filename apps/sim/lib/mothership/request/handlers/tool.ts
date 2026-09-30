@@ -214,7 +214,11 @@ export async function prePersistClientExecutableToolCall(
   if (!isToolCallStreamEvent(event)) return
 
   const data = event.payload
-  if (data.replay) return
+  // A replay is history and never gates anything, so it cannot carry a prompt.
+  if (data.replay) {
+    if (data.status === TOOL_AWAITING_APPROVAL_STATUS) data.status = undefined
+    return
+  }
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
   if (isPartial) return

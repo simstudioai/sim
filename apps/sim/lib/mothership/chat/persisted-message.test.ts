@@ -761,3 +761,26 @@ describe('stripToolResultOutput', () => {
     expect(JSON.stringify(blocks)).not.toContain('file contents')
   })
 })
+
+describe('buildPersistedAssistantMessage on an errored turn', () => {
+  it.each(['pending', 'executing'] as const)(
+    'settles a %s tool row as errored so it does not reload as a spinner',
+    (status) => {
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        error: 'The agent service is temporarily unavailable. Please try again.',
+        content: '',
+        toolCalls: [],
+        contentBlocks: [
+          {
+            type: 'tool_call',
+            timestamp: 1,
+            toolCall: { id: 'call-1', name: 'gmail_read_v2', status },
+          },
+        ],
+      })
+
+      expect(persisted.contentBlocks?.[0].toolCall?.state).toBe('error')
+    }
+  )
+})

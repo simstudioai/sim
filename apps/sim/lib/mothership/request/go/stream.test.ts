@@ -78,8 +78,10 @@ vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
   }
 })
 
+import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   buildPreviewContentUpdate,
+  CopilotBackendError,
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
@@ -249,6 +251,56 @@ describe('copilot go stream helpers', () => {
     })
     expect(context.streamComplete).toBe(true)
   })
+
+  it.each([
+    [
+      'an HTML gateway page',
+      502,
+      'text/html',
+      '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    [
+      'an internal JSON error',
+      400,
+      'application/json',
+      '{"error":"Bad Request","message":"userId required for internal API key"}',
+      'The agent service could not process this request.',
+    ],
+    [
+      'a worker display message',
+      409,
+      'application/json',
+      '{"error":"conflict","displayMessage":"This chat is already answering another message."}',
+      'This chat is already answering another message.',
+    ],
+  ])(
+    'never shows the user the raw body of %s',
+    async (_label, status, contentType, body, userMessage) => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(body, { status, headers: { 'Content-Type': contentType } })
+      )
+
+      const error = await runStreamLoop(
+        'https://example.com/api/mothership',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 1000 }
+      ).catch((thrown: unknown) => thrown)
+
+      expect(error).toBeInstanceOf(CopilotBackendError)
+      expect(error).toMatchObject({ message: userMessage, status, body })
+      const persisted = buildPersistedAssistantMessage({
+        success: false,
+        error: (error as Error).message,
+        content: '',
+        contentBlocks: [],
+        toolCalls: [],
+      })
+      expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|userId required/)
+    }
+  )
 
   it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {
     const identity = createProviderToolCallIdentity('exhausted-identity-run')

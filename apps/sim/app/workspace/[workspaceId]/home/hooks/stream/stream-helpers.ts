@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { isUnsettledToolState } from '@/lib/mothership/chat/persisted-message'
 import {
   CallIntegrationTool,
   CreateEmptyFile,
@@ -96,7 +97,7 @@ export function finalizeResidualToolCalls(
       continue
     }
     const tc = block.toolCall
-    if (!tc || tc.status !== ToolCallStatus.executing) continue
+    if (!tc || !isUnsettledToolState(tc.status)) continue
     tc.status = propagated
     if (propagated === ToolCallStatus.cancelled) {
       tc.displayTitle = 'Stopped by user'

@@ -45,9 +45,10 @@ import {
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
-import type {
-  PersistedFileAttachment,
-  PersistedMessage,
+import {
+  isUnsettledToolState,
+  type PersistedFileAttachment,
+  type PersistedMessage,
 } from '@/lib/mothership/chat/persisted-message'
 import {
   type RevealedSimKeysByMessage,
@@ -4370,8 +4371,8 @@ export function useChat(
         } else {
           setPendingMessages((prev) =>
             prev.map((msg) => {
-              const hasExecutingTool = msg.contentBlocks?.some(
-                (block) => block.toolCall?.status === 'executing'
+              const hasExecutingTool = msg.contentBlocks?.some((block) =>
+                isUnsettledToolState(block.toolCall?.status)
               )
               const hasOpenBlock = msg.contentBlocks?.some((block) => block.endedAt === undefined)
               if (!hasExecutingTool && !hasOpenBlock) {

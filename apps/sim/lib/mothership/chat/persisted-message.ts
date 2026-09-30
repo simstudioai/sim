@@ -336,8 +336,9 @@ export function buildPersistedAssistantMessage(
         'An unexpected error occurred while processing the response.'
     )
     normalized.contentBlocks = [
-      ...(normalized.contentBlocks ??
-        (message.content
+      ...(normalized.contentBlocks
+        ? settleUnfinishedToolCalls(normalized.contentBlocks, 'error')
+        : message.content
           ? [
               {
                 type: MothershipStreamV1EventType.text,
@@ -345,7 +346,7 @@ export function buildPersistedAssistantMessage(
                 content: message.content,
               },
             ]
-          : [])),
+          : []),
       {
         type: MothershipStreamV1EventType.error,
         content: buildMothershipErrorTag({ message: error }),
@@ -357,23 +358,34 @@ export function buildPersistedAssistantMessage(
   return message
 }
 
-export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
-  const contentBlocks = (message.contentBlocks ?? []).map(
-    (block): PersistedContentBlock =>
-      block.toolCall &&
-      (block.toolCall.state === 'executing' ||
-        block.toolCall.state === 'pending' ||
-        block.toolCall.state === 'awaiting_approval')
-        ? {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              state: 'cancelled',
-              display: { title: 'Stopped by user' },
-            },
-          }
-        : block
+const UNSETTLED_TOOL_STATES: ReadonlySet<string> = new Set([
+  'pending',
+  'executing',
+  'awaiting_approval',
+])
+
+/** A tool row that has not finished: waiting to run, running, or awaiting a decision. */
+export function isUnsettledToolState(state: string | undefined): boolean {
+  return state !== undefined && UNSETTLED_TOOL_STATES.has(state)
+}
+
+/** Settles every unfinished tool row at a turn terminal so none reloads as a spinner. */
+function settleUnfinishedToolCalls(
+  blocks: PersistedContentBlock[],
+  state: 'cancelled' | 'error',
+  display?: { title: string }
+): PersistedContentBlock[] {
+  return blocks.map((block) =>
+    block.toolCall && isUnsettledToolState(block.toolCall.state)
+      ? { ...block, toolCall: { ...block.toolCall, state, ...(display ? { display } : {}) } }
+      : block
   )
+}
+
+export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
+  const contentBlocks = settleUnfinishedToolCalls(message.contentBlocks ?? [], 'cancelled', {
+    title: 'Stopped by user',
+  })
   const hasAssistantText = contentBlocks.some(
     (block) =>
       block.type === MothershipStreamV1EventType.text &&
