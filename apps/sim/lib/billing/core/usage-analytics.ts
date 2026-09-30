@@ -8,7 +8,7 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
-import { STREAM_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { CHAT_RUN_DEADLINE_MS } from '@/lib/mothership/constants'
 
 /**
  * Pure half of organization usage analytics: window resolution, the ledger scope
@@ -510,15 +510,15 @@ export function usageBucketTimestamps(
  * How long after a stretch of time ends before its ledger rows are final.
  *
  * Rows are stamped when inserted, but a cumulative model charge tops up its row's
- * cost in place for as long as its stream runs — which {@link STREAM_TIMEOUT_MS}
- * caps — plus the retry flushes that follow it. Past the cap and this margin a day or
- * hour can no longer change and is treated as settled.
+ * cost in place for as long as its run lasts — which the worker's run deadline
+ * ({@link CHAT_RUN_DEADLINE_MS}) caps — plus the retry flushes that follow it. Past
+ * the cap and this margin a day or hour can no longer change and is treated as settled.
  *
  * Without a run deadline a Chat turn can top up its row for longer than that, so a
  * settled hour's cached aggregate can under-report that turn's later spend. This is
  * display only: invoices, threshold billing, and the usage gate read live ledger sums.
  */
-export const USAGE_SETTLE_MS = STREAM_TIMEOUT_MS + 2 * 60 * 60 * 1000
+export const USAGE_SETTLE_MS = CHAT_RUN_DEADLINE_MS + 2 * 60 * 60 * 1000
 
 const HOUR_MS = 60 * 60 * 1000
 
